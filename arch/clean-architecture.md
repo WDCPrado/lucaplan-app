@@ -59,13 +59,18 @@ No duplicamos una carpeta `presentation/`: **el App Router ES la presentation**.
 
 ## Imports
 
-`tsconfig` mapea `@/*` → raíz del proyecto. Por lo tanto:
+**Dentro de `arch/` los imports cross-capa van relativos y con extensión `.ts`:**
 
-- `@/arch/v1/domain/budget.domain`
-- `@/arch/v1/application/budget-use-cases/create-budget-use-case`
-- `@/arch/shared/utils/...`
+- `import { ... } from "../../domain/budget/budget.domain.ts"`
+- `import { authorize } from "../auth-use-cases/authorize-use-case.ts"`
 
-(shadcn/ui sigue usando `@/components`, `@/lib`, `@/hooks` en la raíz — capa UI, ajena al backend.)
+Razón: los use-cases se prueban con `node --test` (stdlib, sin framework) y Node no
+resuelve el alias `@/` (solo lo entienden Next y tsc). Con imports relativos todo el
+grafo del backend corre bajo Node puro. La extensión `.ts` la exige Node en runtime y
+la habilita `allowImportingTsExtensions` en `tsconfig`.
+
+El alias `@/` queda para la **UI** (`@/components`, `@/lib`, `@/hooks`) y para cuando
+`app/` (presentation) importa el backend — ahí lo resuelve Next, ej. `@/arch/v1/...`.
 
 ## Convención de nombres
 

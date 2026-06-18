@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: lucaplan-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lucaplan
+      POSTGRES_PASSWORD: lucaplan
+      POSTGRES_DB: lucaplan
+    ports:
+      - "5433:5432"
+    volumes:
+      - lucaplan-pgdata:/var/lib/postgresql/data
+
+volumes:
+  lucaplan-pgdata:

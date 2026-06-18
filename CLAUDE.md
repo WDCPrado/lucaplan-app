@@ -27,14 +27,22 @@ infrastructure → domain   (implementa sus ports)
   son los entrypoints HTTP. Parsean request → invocan use-case → mapean a HTTP. Sin negocio.
 - **`arch/shared`** — puro, sin negocio, cross-version.
 
-Todo el backend (doc + código) vive en `arch/`; no hay carpeta `src/`. Imports vía
-`@/arch/...`. La UI (shadcn) usa `@/components`, `@/lib`, `@/hooks`.
+Todo el backend (doc + código) vive en `arch/`; no hay carpeta `src/`. Dentro de
+`arch/` los imports cross-capa van **relativos con `.ts`** (así los use-cases corren con
+`node --test` sin framework; Node no resuelve `@/`). El alias `@/` es para la UI
+(`@/components`, `@/lib`, `@/hooks`) y para cuando `app/` importa el backend.
 
 ## UI / frontend
 
-- shadcn/ui (`components.json`, estilo `radix-maia`), Tailwind v4, `lucide-react`, `next-themes`.
-- Agregar componentes: `pnpm dlx shadcn@latest add <componente>` → caen en `components/ui/`.
-- Evita `useEffect` para lógica de otra capa (auth/redirects → middleware; errores de red →
+- **La UI se construye con shadcn/ui + Base UI** (`components.json`, estilo `radix-maia`),
+  Tailwind v4, `lucide-react`, `next-themes`. Respeta siempre esos primitivos; no
+  introduzcas otra librería de componentes.
+- **Componente que no existe → instálalo con el comando**, no lo escribas a mano:
+  `pnpm dlx shadcn@latest add <componente>` → cae en `components/ui/`.
+- **El estilo principal (tokens, colores, tipografía, radius, dark mode) se define en
+  `app/globals.css`** (variables CSS de Tailwind v4). Es la fuente de verdad del diseño;
+  no hardcodees valores en componentes, tira de esas variables.
+- Evita `useEffect` para lógica de otra capa (auth/redirects → proxy; errores de red →
   capa fetch; estado derivado → calcular en render; datos iniciales → server component).
 
 ## Comandos

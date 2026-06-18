@@ -7,7 +7,7 @@ en **Next.js 16** (App Router, React 19) con **clean architecture** en el backen
 
 - Next.js 16 + React 19
 - TypeScript
-- Tailwind CSS v4 + shadcn/ui (estilo `radix-maia`)
+- Tailwind CSS v4 + shadcn/ui + Base UI (estilo `radix-maia`)
 - pnpm
 
 ## Arranque
@@ -35,11 +35,20 @@ arch/                # backend (doc + código), no hay src/
 Regla de dependencias: `presentation → application → domain` e `infrastructure → domain`.
 Detalle completo en [arch/clean-architecture.md](arch/clean-architecture.md).
 
-## Componentes UI
+## UI / componentes
 
-```bash
-pnpm dlx shadcn@latest add button   # cae en components/ui/
-```
+La UI se construye con **shadcn/ui + Base UI**. Reglas:
+
+- Respeta esos primitivos para todo el UI/UX; no metas otra librería de componentes.
+- ¿Falta un componente? Instálalo con el comando (no lo escribas a mano):
+
+  ```bash
+  pnpm dlx shadcn@latest add button   # cae en components/ui/
+  ```
+
+- El **estilo principal** (tokens, colores, tipografía, radius, dark mode) se define en
+  [app/globals.css](app/globals.css) con variables CSS de Tailwind v4 — fuente de verdad
+  del diseño. No hardcodees valores en componentes; usa esas variables.
 
 ## Scripts
 

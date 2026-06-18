@@ -34,3 +34,9 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# skills instaladas (reinstalables: npx skills add better-auth/skills)
+/.agents
+
+# prisma client generado
+/arch/v1/infrastructure/database/prisma/generated

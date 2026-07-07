@@ -41,7 +41,12 @@ Todo el backend (doc + código) vive en `arch/`; no hay carpeta `src/`. Dentro d
   `pnpm dlx shadcn@latest add <componente>` → cae en `components/ui/`.
 - **El estilo principal (tokens, colores, tipografía, radius, dark mode) se define en
   `app/globals.css`** (variables CSS de Tailwind v4). Es la fuente de verdad del diseño;
-  no hardcodees valores en componentes, tira de esas variables.
+  no hardcodees valores en componentes, tira de esas variables. Detalle del design system
+  (glassmorphism fintech, tokens, glass, dark/light) en [docs/design/design-system.md](docs/design/design-system.md).
+- **Responsividad obligatoria (mobile-first).** Diseña para móvil y escala con breakpoints
+  (`sm`/`md`/`lg`). Reglas mínimas: sin scroll horizontal; `min-h-dvh` (no `100vh`); inputs
+  y targets táctiles ≥44px (`h-11`) y texto ≥16px (`text-base`) en móvil para evitar zoom de
+  iOS; contenedores con `max-w-*`; prueba en 375px y desktop, y en dark + light.
 - Evita `useEffect` para lógica de otra capa (auth/redirects → proxy; errores de red →
   capa fetch; estado derivado → calcular en render; datos iniciales → server component).
 

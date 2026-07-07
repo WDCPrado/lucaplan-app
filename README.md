@@ -48,7 +48,10 @@ La UI se construye con **shadcn/ui + Base UI**. Reglas:
 
 - El **estilo principal** (tokens, colores, tipografía, radius, dark mode) se define en
   [app/globals.css](app/globals.css) con variables CSS de Tailwind v4 — fuente de verdad
-  del diseño. No hardcodees valores en componentes; usa esas variables.
+  del diseño. No hardcodees valores en componentes; usa esas variables. Design system
+  completo (glassmorphism fintech) en [docs/design/design-system.md](docs/design/design-system.md).
+- **Mobile-first y responsive**: sin scroll horizontal, `min-h-dvh`, targets/inputs ≥44px y
+  texto ≥16px en móvil, contenedores con `max-w-*`. Prueba en 375px, desktop y dark/light.
 
 ## Scripts
 

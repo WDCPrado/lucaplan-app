@@ -1,9 +1,4 @@
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { Wallet } from "lucide-react";
-
-import { auth } from "@/arch/v1/infrastructure/auth/auth";
-import { SignOutButton } from "@/components/sign-out-button";
+import { Button } from "@/components/ui/button"
 
 export default async function Home() {
   // Validación real de sesión (el proxy ya hizo el chequeo optimista de cookie).
@@ -13,31 +8,18 @@ export default async function Home() {
   const { user } = session;
 
   return (
-    <main className="grid min-h-dvh place-items-center px-4 py-10">
-      <div className="glass w-full max-w-md rounded-3xl p-6 sm:p-8">
-        <div className="mb-6 flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-2xl bg-primary text-primary-foreground">
-            <Wallet className="size-5" />
-          </span>
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">Hola, {user.name}</h1>
-            <p className="text-sm text-muted-foreground">{user.email}</p>
-          </div>
+    <div className="flex min-h-svh p-6">
+      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
+        <div>
+          <h1 className="font-medium">Project ready!</h1>
+          <p>You may now add components and start building.</p>
+          <p>We&apos;ve already added the button component for you.</p>
+          <Button className="mt-2">Button</Button>
         </div>
-
-        <dl className="mb-6 space-y-2 text-sm">
-          <div className="flex items-center justify-between">
-            <dt className="text-muted-foreground">Rol</dt>
-            <dd>
-              <span className="rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground">
-                {user.role ?? "USER"}
-              </span>
-            </dd>
-          </div>
-        </dl>
-
-        <SignOutButton />
+        <div className="font-mono text-xs text-muted-foreground">
+          (Press <kbd>d</kbd> to toggle dark mode)
+        </div>
       </div>
-    </main>
-  );
+    </div>
+  )
 }

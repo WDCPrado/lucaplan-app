@@ -1,0 +1,73 @@
+{
+  "_note": "Vínculo código↔Figma de este proyecto. Convención en ~/.claude/CLAUDE.md › Figma. Tokens 1:1 con app/globals.css.",
+  "fileKey": "GCIux1IbAkK74aybvjzfPl",
+  "fileName": "Sistema-de-Diseno",
+  "pages": {
+    "foundations": "0:1",
+    "components": "8:2",
+    "screens": "8:3"
+  },
+  "tokens": {
+    "colorCollectionId": "VariableCollectionId:8:4",
+    "modes": { "dark": "8:0", "light": "8:1" },
+    "radiusCollectionId": "VariableCollectionId:8:41",
+    "radiusMode": "8:2",
+    "colorIds": {
+      "background": "VariableID:8:5",
+      "foreground": "VariableID:8:6",
+      "card": "VariableID:8:7",
+      "card-foreground": "VariableID:8:8",
+      "popover": "VariableID:8:9",
+      "popover-foreground": "VariableID:8:10",
+      "primary": "VariableID:8:11",
+      "primary-foreground": "VariableID:8:12",
+      "secondary": "VariableID:8:13",
+      "secondary-foreground": "VariableID:8:14",
+      "muted": "VariableID:8:15",
+      "muted-foreground": "VariableID:8:16",
+      "accent": "VariableID:8:17",
+      "accent-foreground": "VariableID:8:18",
+      "destructive": "VariableID:8:19",
+      "destructive-foreground": "VariableID:8:20",
+      "success": "VariableID:8:21",
+      "success-foreground": "VariableID:8:22",
+      "warning": "VariableID:8:23",
+      "warning-foreground": "VariableID:8:24",
+      "ring": "VariableID:8:25",
+      "chart-1": "VariableID:8:26",
+      "chart-2": "VariableID:8:27",
+      "chart-3": "VariableID:8:28",
+      "chart-4": "VariableID:8:29",
+      "chart-5": "VariableID:8:30",
+      "sidebar": "VariableID:8:31",
+      "sidebar-foreground": "VariableID:8:32",
+      "sidebar-primary": "VariableID:8:33",
+      "sidebar-primary-foreground": "VariableID:8:34",
+      "sidebar-accent": "VariableID:8:35",
+      "sidebar-accent-foreground": "VariableID:8:36",
+      "border": "VariableID:8:37",
+      "input": "VariableID:8:38",
+      "sidebar-border": "VariableID:8:39",
+      "sidebar-ring": "VariableID:8:40"
+    },
+    "radiusIds": {
+      "radius/sm": "VariableID:8:42",
+      "radius/md": "VariableID:8:43",
+      "radius/lg": "VariableID:8:44",
+      "radius/xl": "VariableID:8:45",
+      "radius/2xl": "VariableID:8:46",
+      "radius/full": "VariableID:8:47"
+    },
+    "textStyleIds": {
+      "Heading/Display": "S:8c877c15bdf41fbec713e28df172c74e88a9ceb9,",
+      "Heading/H1": "S:beeaa966c0c56c5c5479ba914736f897c5481637,",
+      "Heading/H2": "S:4c0b35c7eee1b0a3c869094e5b24df67f21260d7,",
+      "Heading/H3": "S:e8274afa1b7333ade4f46c2fa42a5c9812c440c8,",
+      "Body/Large": "S:5930425343d90fc9720355c5534c7d59d028e488,",
+      "Body/Base": "S:f1058e572f4ff2146135b1e47254c8c8559a3e95,",
+      "Body/Small": "S:cbe4e9313830d8031a10cf516da72a3d41534053,",
+      "Label": "S:98dbc7edcf4d572d649c4b0bb4fcfb18d5db33d7,",
+      "Caption": "S:b33d1a8651de53791e907ac9e46f1cc26cdadc48,"
+    }
+  }
+}

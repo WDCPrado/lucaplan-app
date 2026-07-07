@@ -1,3 +1,7 @@
+import { headers } from "next/headers"
+import { redirect } from "next/navigation"
+
+import { auth } from "@/arch/v1/infrastructure/auth/auth"
 import { Button } from "@/components/ui/button"
 
 export default async function Home() {

@@ -1,13 +1,17 @@
 # Design System — LucaPlan
 
-Estilo: **glassmorphism moderno, fintech, confiable**. Light + dark emparejados.
+Estilo: **fintech ordenado y sobrio, con liquid glass**. Esquinas casi rectas, neutros
+slate fríos, primario azul confianza. Light + dark emparejados.
 Fuente de verdad: [app/globals.css](../../app/globals.css). No hardcodees valores en
 componentes — siempre tira de estos tokens (variables CSS / utilidades Tailwind v4).
 
 ## Principios
 
-- **Confianza sobre decoración.** Verde-esmeralda como primario (dinero, crecimiento),
-  neutros fríos calmos, sin colores chillones.
+- **Orden y confianza sobre decoración.** Primario **azul** (banca/fintech serio), neutros
+  **slate** fríos, sin colores chillones. El **verde** se reserva para montos positivos
+  (`success`), no es color de marca.
+- **Datos primero.** Los números son el contenido: tipografía tabular y esquinas nítidas
+  priorizan la lectura y el análisis por encima de la suavidad visual.
 - **Glass con propósito.** El blur indica superficie elevada/flotante, no adorno
   (regla `blur-purpose`). Usa `.glass` en cards/paneles que flotan sobre el fondo.
 - **Color nunca solo.** Montos positivos/negativos llevan icono o signo además del color
@@ -23,7 +27,7 @@ Mapeados a utilidades Tailwind (`bg-*`, `text-*`, `border-*`):
 | --- | --- |
 | `background` / `foreground` | fondo de app / texto base |
 | `card` / `card-foreground` | superficies sólidas |
-| `primary` / `primary-foreground` | CTA principal, marca (esmeralda) |
+| `primary` / `primary-foreground` | CTA principal, marca (azul confianza) |
 | `secondary`, `muted`, `accent` | superficies y texto secundario |
 | `success` / `warning` / `destructive` | montos +, alertas, montos − / errores |
 | `border` / `input` / `ring` | bordes, inputs, focus ring |
@@ -55,9 +59,12 @@ a `--card` sólido (sigue legible). Ojo: **no** uses `prefers-reduced-motion` pa
 
 ## Forma y tipografía
 
-- `--radius: 0.85rem` (esquinas suaves modernas); escala `radius-sm…4xl` derivada.
-- Tipografía: `--font-sans` para todo (heading = sans). Cuerpo ≥16px, line-height 1.5–1.75.
-- Cifras: usa `tabular-nums` en columnas de montos/precios para evitar saltos de layout.
+- `--radius: 0.25rem` (esquinas casi rectas, estilo financiero); escala `radius-sm…4xl` derivada.
+- Tipografía: **IBM Plex Sans** (`--font-sans`, texto y headings) + **IBM Plex Mono**
+  (`--font-mono`, cifras). Cargadas vía `next/font/google` en `app/layout.tsx`. Cuerpo ≥16px,
+  line-height 1.5–1.75.
+- Cifras: montos/precios usan **`font-mono` + `tabular-nums`** (utilidad `.tabular` = mono +
+  `tabular-nums slashed-zero`) para alineación estable y lectura de análisis.
 
 ## Dark mode
 

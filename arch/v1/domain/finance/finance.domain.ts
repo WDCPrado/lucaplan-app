@@ -45,22 +45,22 @@ export type Account = {
   color: string | null; // presentación
 };
 
-// Presupuesto = grupo de categorías, por mes. Controla sus categorías.
-export type Budget = {
+// Categoría GLOBAL del usuario, compartida entre todos los meses. El límite NO vive aquí.
+export type Category = {
   id: string;
   userId: string;
   name: string;
-  year: number;
-  month: number;
+  icon: string | null; // presentación (icono lucide o emoji)
+  color: string | null; // presentación
 };
 
-export type Category = {
+// Límite de una categoría para un mes concreto. El mes sin registro hereda el último previo (carry).
+export type CategoryLimit = {
   id: string;
-  budgetId: string;
-  name: string;
+  categoryId: string;
+  year: number;
+  month: number;
   limit: Money;
-  icon: string | null; // presentación (emoji)
-  color: string | null; // presentación
 };
 
 export type Transaction = {
@@ -99,16 +99,15 @@ export type NewAccount = {
   color: string | null;
 };
 
-export type BudgetInput = { id?: string; userId: string; name: string; year: number; month: number };
-
 export type CategoryInput = {
   id?: string;
-  budgetId: string;
+  userId: string;
   name: string;
-  limit: Money;
   icon: string | null;
   color: string | null;
 };
+
+export type LimitInput = { categoryId: string; year: number; month: number; limit: Money };
 
 // --- Ports (los implementa la infraestructura; aquí solo el contrato) ---
 
@@ -123,16 +122,13 @@ export interface AccountRepository {
   create(input: NewAccount): Promise<Account>;
 }
 
-export interface BudgetRepository {
-  findById(id: string): Promise<Budget | null>;
-  findByUserMonth(userId: string, year: number, month: number): Promise<Budget | null>;
-  listCategories(budgetId: string): Promise<Category[]>;
-  upsertBudget(input: BudgetInput): Promise<Budget>;
-  upsertCategory(input: CategoryInput): Promise<Category>;
-}
-
 export interface CategoryRepository {
+  listByUser(userId: string): Promise<Category[]>;
   findById(id: string): Promise<Category | null>;
+  upsert(input: CategoryInput): Promise<Category>;
+  // Todos los límites de las categorías del usuario (para calcular el efectivo con carry).
+  listLimitsByUser(userId: string): Promise<CategoryLimit[]>;
+  setLimit(input: LimitInput): Promise<CategoryLimit>;
 }
 
 export interface TransactionRepository {
@@ -143,13 +139,6 @@ export interface TransactionRepository {
 }
 
 // --- Errores de negocio ---
-
-export class BudgetNotFoundError extends Error {
-  constructor(id: string) {
-    super(`Presupuesto no encontrado: ${id}`);
-    this.name = "BudgetNotFoundError";
-  }
-}
 
 export class AccountNotFoundError extends Error {
   constructor(id: string) {

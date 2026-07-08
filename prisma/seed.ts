@@ -10,11 +10,10 @@ async function main() {
       data: { id: "demo-user", name: "Demo", email: "demo@lucaplan.cl", emailVerified: true },
     }));
 
-  // Seed refrescante: borra los datos financieros del usuario y los recrea (cascade limpia
-  // cuentas/transacciones y categorías). Así `pnpm seed` es re-ejecutable en dev.
+  // Seed refrescante: borra los datos financieros del usuario y los recrea. Re-ejecutable en dev.
   await prisma.transaction.deleteMany({ where: { userId: user.id } });
+  await prisma.category.deleteMany({ where: { userId: user.id } }); // cascade borra sus límites
   await prisma.bank.deleteMany({ where: { userId: user.id } });
-  await prisma.budget.deleteMany({ where: { userId: user.id } });
 
   const bank = await prisma.bank.create({ data: { userId: user.id, name: "Banco de Chile" } });
 
@@ -40,9 +39,6 @@ async function main() {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
-  const budget = await prisma.budget.create({
-    data: { userId: user.id, name: `Presupuesto ${month}/${year}`, year, month },
-  });
   const categoriesSeed: [string, number, string, string][] = [
     ["Cuentas", 920000, "Receipt", "#f59e0b"],
     ["Invertir", 60000, "TrendingUp", "#22c55e"],
@@ -53,12 +49,15 @@ async function main() {
     ["Margen libre", 50000, "Wallet", "#22c55e"],
     ["Compras", 470000, "ShoppingBag", "#ec4899"],
   ];
-  await prisma.category.createMany({
-    data: categoriesSeed.map(([name, limitAmount, icon, color]) => ({ budgetId: budget.id, name, limitAmount, icon, color })),
-  });
-  const supermercado = await prisma.category.findFirstOrThrow({ where: { budgetId: budget.id, name: "Supermercado" } });
-
-  const compras = await prisma.category.findFirstOrThrow({ where: { budgetId: budget.id, name: "Compras" } });
+  // Categorías globales + su límite para el mes actual.
+  const byName = new Map<string, string>();
+  for (const [name, limitAmount, icon, color] of categoriesSeed) {
+    const cat = await prisma.category.create({ data: { userId: user.id, name, icon, color } });
+    await prisma.categoryLimit.create({ data: { categoryId: cat.id, year, month, limitAmount } });
+    byName.set(name, cat.id);
+  }
+  const supermercado = { id: byName.get("Supermercado")! };
+  const compras = { id: byName.get("Compras")! };
   await prisma.transaction.createMany({
     data: [
       { userId: user.id, accountId: checking.id, categoryId: supermercado.id, transactionDate: new Date(year, month - 1, 3), description: "Pago:unimarc Vitacura", amount: 6040, currency: "CLP", direction: "debit" },
@@ -68,7 +67,7 @@ async function main() {
     ],
   });
 
-  console.log(`Seed OK para ${user.email}: banco + 3 cuentas + presupuesto "${budget.name}" (8 categorías) + 4 movimientos.`);
+  console.log(`Seed OK para ${user.email}: banco + 3 cuentas + 8 categorías (límites ${month}/${year}) + 4 movimientos.`);
 }
 
 main()

@@ -5,14 +5,12 @@ import { sessionGateway } from "../../infrastructure/auth/session.gateway.ts";
 import {
   NotOwnerError,
   AccountNotFoundError,
-  BudgetNotFoundError,
   CategoryNotFoundError,
   TransactionCurrencyMismatchError,
 } from "../../domain/finance/finance.domain.ts";
 import {
   accountRepository,
   bankRepository,
-  budgetRepository,
   categoryRepository,
   transactionRepository,
 } from "../../infrastructure/database/prisma/finance.infrastructure.ts";
@@ -21,20 +19,13 @@ import {
 export const financeDeps = {
   accounts: accountRepository,
   banks: bankRepository,
-  budgets: budgetRepository,
   categories: categoryRepository,
   transactions: transactionRepository,
 };
 
 function errorStatus(e: unknown): number {
   if (e instanceof TransactionCurrencyMismatchError) return 422;
-  if (
-    e instanceof NotOwnerError ||
-    e instanceof AccountNotFoundError ||
-    e instanceof BudgetNotFoundError ||
-    e instanceof CategoryNotFoundError
-  )
-    return 404;
+  if (e instanceof NotOwnerError || e instanceof AccountNotFoundError || e instanceof CategoryNotFoundError) return 404;
   return 500;
 }
 

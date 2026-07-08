@@ -1,6 +1,7 @@
 import { withUser, financeDeps } from "@/arch/v1/presentation/finance/finance-http";
-import { upsertCategory } from "@/arch/v1/application/finance-use-cases/upsert-budget-use-case";
+import { upsertCategory } from "@/arch/v1/application/finance-use-cases/upsert-category-use-case";
 
+// Crear/editar una categoría GLOBAL del usuario (nombre, icono, color). El límite va aparte.
 export async function POST(req: Request) {
   const body = await req.json();
   return withUser(
@@ -8,9 +9,7 @@ export async function POST(req: Request) {
     async (userId) => {
       const c = await upsertCategory(financeDeps, userId, {
         id: body.id,
-        budgetId: body.budgetId,
         name: body.name,
-        limit: Number(body.limit),
         icon: body.icon ?? null,
         color: body.color ?? null,
       });

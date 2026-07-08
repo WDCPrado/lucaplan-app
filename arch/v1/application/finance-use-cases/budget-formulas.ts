@@ -3,7 +3,7 @@
 // es dinero); un saldo negativo es deuda de sobregiro, no caja; la posición neta combina
 // ambas. El uso por categoría se calcula desde los movimientos, no se persiste.
 
-import type { Account, Category, Budget, Transaction, CategoryStatus } from "../../domain/finance/finance.domain.ts";
+import type { Account, CategoryLimit, Transaction, CategoryStatus } from "../../domain/finance/finance.domain.ts";
 import { Money, type CurrencyCode } from "../../domain/finance/money.ts";
 
 /** Caja activa: Σ saldo POSITIVO de cuentas `checking` de la moneda dada. Cupos y negativos no cuentan. */
@@ -41,9 +41,10 @@ export function creditCardDebts(accounts: Account[]): { account: Account; debt: 
     .map((a) => ({ account: a, debt: a.balance.negate() }));
 }
 
-/** Uso de una categoría en el mes de su presupuesto: Σ gastos (`debit`) asociados; disponible = límite − usado. */
+/** Uso de una categoría en un mes: Σ gastos (`debit`) asociados; disponible = límite − usado. */
 export function computeCategoryUsage(
-  category: Category,
+  categoryId: string,
+  limit: Money,
   transactions: Transaction[],
   year: number,
   month: number,
@@ -51,14 +52,14 @@ export function computeCategoryUsage(
   const used = transactions
     .filter(
       (t) =>
-        t.categoryId === category.id &&
+        t.categoryId === categoryId &&
         t.direction === "debit" &&
-        t.amount.currency === category.limit.currency &&
+        t.amount.currency === limit.currency &&
         t.date.getFullYear() === year &&
         t.date.getMonth() + 1 === month,
     )
-    .reduce((sum, t) => sum.add(t.amount), Money.zero(category.limit.currency));
-  return { used, available: category.limit.subtract(used) };
+    .reduce((sum, t) => sum.add(t.amount), Money.zero(limit.currency));
+  return { used, available: limit.subtract(used) };
 }
 
 /** Estado por % usado: bueno ≤50%, moderado >50% y <100%, completado =100%, excedido >100%. */
@@ -71,31 +72,17 @@ export function categoryStatus(used: Money, limit: Money): CategoryStatus {
   return ratio <= 0.5 ? "bueno" : "moderado";
 }
 
-export type CategorySummary = {
-  category: Category;
-  used: Money;
-  available: Money;
-  status: CategoryStatus;
-};
+// Índice de mes comparable (año*12+mes) para ordenar límites.
+const monthIndex = (year: number, month: number) => year * 12 + (month - 1);
 
-export type BudgetSummary = {
-  budget: Budget;
-  categories: CategorySummary[];
-  totalLimit: Money;
-  totalUsed: Money;
-};
-
-/** Resumen de un presupuesto: uso/disponible/estado por categoría + totales. No persiste. */
-export function summarizeBudget(budget: Budget, categories: Category[], transactions: Transaction[]): BudgetSummary {
-  const currency = categories[0]?.limit.currency ?? "CLP";
-  const rows = categories.map((category): CategorySummary => {
-    const { used, available } = computeCategoryUsage(category, transactions, budget.year, budget.month);
-    return { category, used, available, status: categoryStatus(used, category.limit) };
-  });
-  return {
-    budget,
-    categories: rows,
-    totalLimit: categories.reduce((s, c) => s.add(c.limit), Money.zero(currency)),
-    totalUsed: rows.reduce((s, r) => s.add(r.used), Money.zero(currency)),
-  };
+/**
+ * Límite EFECTIVO de una categoría para (year, month): el registro de ese mes si existe; si no,
+ * hereda el del mes anterior más reciente (carry-forward). Sin ninguno, 0 CLP.
+ */
+export function effectiveLimit(limits: CategoryLimit[], categoryId: string, year: number, month: number): Money {
+  const target = monthIndex(year, month);
+  const candidates = limits
+    .filter((l) => l.categoryId === categoryId && monthIndex(l.year, l.month) <= target)
+    .sort((a, b) => monthIndex(b.year, b.month) - monthIndex(a.year, a.month));
+  return candidates[0]?.limit ?? Money.zero("CLP");
 }

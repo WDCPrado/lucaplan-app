@@ -118,36 +118,39 @@ model FinancialAccount {
   @@map("financial_account")
 }
 
-model Budget {
-  id         String     @id @default(uuid())
-  userId     String
-  name       String
-  year       Int
-  month      Int
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  categories Category[]
-
-  @@unique([userId, name, year, month])
-  @@index([userId, year, month])
-  @@map("budget")
-}
-
+// Categoría GLOBAL del usuario, compartida entre todos los meses. El límite NO vive aquí:
+// es por mes (ver CategoryLimit). Lo único que cambia mes a mes es el límite; la categoría no.
 model Category {
-  id           String        @id @default(uuid())
-  budgetId     String
-  budget       Budget        @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  id           String          @id @default(uuid())
+  userId       String
   name         String
-  limitAmount  Decimal       @default(0) @db.Decimal(18, 2)
-  icon         String? // presentación: emoji (opcional)
+  icon         String? // presentación: icono lucide o emoji (opcional)
   color        String? // presentación: color del anillo (opcional)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  limits       CategoryLimit[]
   transactions Transaction[]
 
-  @@unique([budgetId, name])
-  @@index([budgetId])
+  @@unique([userId, name])
+  @@index([userId])
   @@map("category")
+}
+
+// Límite de una categoría para un mes concreto. El mes sin registro hereda el último previo (carry).
+model CategoryLimit {
+  id          String   @id @default(uuid())
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  year        Int
+  month       Int
+  limitAmount Decimal  @default(0) @db.Decimal(18, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([categoryId, year, month])
+  @@index([categoryId, year, month])
+  @@map("category_limit")
 }
 
 model Transaction {

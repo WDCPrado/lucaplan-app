@@ -140,7 +140,6 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
       <CategoryModal
         open={editCat !== undefined}
         onOpenChange={(o) => !o && setEditCat(undefined)}
-        budgetId={budget.budgetId}
         period={period}
         category={editCat}
       />

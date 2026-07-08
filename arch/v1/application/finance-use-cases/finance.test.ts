@@ -1,16 +1,9 @@
-// Fórmulas financieras + use-case probados con datos del caso Banco de Chile.
+// Fórmulas financieras con datos del caso Banco de Chile.
 // Corre con: node --test arch/v1/application/finance-use-cases/finance.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Money } from "../../domain/finance/money.ts";
-import type {
-  Account,
-  Budget,
-  Category,
-  Transaction,
-  BudgetRepository,
-  TransactionRepository,
-} from "../../domain/finance/finance.domain.ts";
+import type { Account, CategoryLimit, Transaction } from "../../domain/finance/finance.domain.ts";
 import {
   computeActiveCash,
   computeOverdraft,
@@ -18,8 +11,8 @@ import {
   creditCardDebts,
   computeCategoryUsage,
   categoryStatus,
+  effectiveLimit,
 } from "./budget-formulas.ts";
-import { getBudgetSummary } from "./summarize-budget-use-case.ts";
 
 const clp = (n: number) => Money.of(n, "CLP");
 
@@ -77,7 +70,7 @@ test("deuda TC: por tarjeta, separada del sobregiro; checking negativo no cuenta
     account({ id: "tc3", accountType: "credit_card", balance: clp(0) }),
   ];
   const debts = creditCardDebts(accounts);
-  assert.equal(debts.length, 2); // solo las TC con saldo negativo
+  assert.equal(debts.length, 2);
   assert.deepEqual(
     debts.map((d) => [d.account.id, d.debt.toMajor()]),
     [
@@ -90,16 +83,26 @@ test("deuda TC: por tarjeta, separada del sobregiro; checking negativo no cuenta
 // --- Uso por categoría ---
 
 const enero = (day: number) => new Date(2026, 0, day);
+const tx = (over: Partial<Transaction>): Transaction => ({
+  id: "t",
+  userId: "u1",
+  accountId: "cc",
+  categoryId: "cat1",
+  date: enero(3),
+  description: "x",
+  amount: clp(0),
+  direction: "debit",
+  ...over,
+});
 
 test("uso por categoría: límite 70.000, gastos 45.000 → disponible 25.000", () => {
-  const cat: Category = { id: "cat1", budgetId: "bud1", name: "Supermercado", limit: clp(70000), icon: null, color: null };
-  const txs: Transaction[] = [
-    { id: "t1", userId: "u1", accountId: "cc", categoryId: "cat1", date: enero(3), description: "x", amount: clp(30000), direction: "debit" },
-    { id: "t2", userId: "u1", accountId: "cc", categoryId: "cat1", date: enero(9), description: "y", amount: clp(15000), direction: "debit" },
-    { id: "t3", userId: "u1", accountId: "cc", categoryId: "cat1", date: enero(9), description: "reembolso", amount: clp(5000), direction: "credit" },
-    { id: "t4", userId: "u1", accountId: "cc", categoryId: "cat1", date: new Date(2025, 11, 20), description: "mes previo", amount: clp(99999), direction: "debit" },
+  const txs = [
+    tx({ id: "t1", amount: clp(30000), date: enero(3) }),
+    tx({ id: "t2", amount: clp(15000), date: enero(9) }),
+    tx({ id: "t3", amount: clp(5000), date: enero(9), direction: "credit" }), // abono no cuenta
+    tx({ id: "t4", amount: clp(99999), date: new Date(2025, 11, 20) }), // mes previo no cuenta
   ];
-  const { used, available } = computeCategoryUsage(cat, txs, 2026, 1);
+  const { used, available } = computeCategoryUsage("cat1", clp(70000), txs, 2026, 1);
   assert.equal(used.toMajor(), 45000);
   assert.equal(available.toMajor(), 25000);
 });
@@ -108,78 +111,24 @@ test("uso por categoría: límite 70.000, gastos 45.000 → disponible 25.000", 
 
 test("categoryStatus: 4 umbrales", () => {
   const limit = clp(100000);
-  assert.equal(categoryStatus(clp(40000), limit), "bueno"); // 40%
-  assert.equal(categoryStatus(clp(50000), limit), "bueno"); // 50% límite del bueno
-  assert.equal(categoryStatus(clp(80000), limit), "moderado"); // 80%
-  assert.equal(categoryStatus(clp(100000), limit), "completado"); // 100%
-  assert.equal(categoryStatus(clp(120000), limit), "excedido"); // 120%
+  assert.equal(categoryStatus(clp(40000), limit), "bueno");
+  assert.equal(categoryStatus(clp(50000), limit), "bueno");
+  assert.equal(categoryStatus(clp(80000), limit), "moderado");
+  assert.equal(categoryStatus(clp(100000), limit), "completado");
+  assert.equal(categoryStatus(clp(120000), limit), "excedido");
 });
 
-// --- Use-case con repos in-memory (fakes de los ports) ---
+// --- Límite efectivo por mes (carry-forward) ---
 
-class InMemoryBudgets implements BudgetRepository {
-  private budget: Budget | null;
-  private cats: Category[];
-  constructor(budget: Budget | null, cats: Category[]) {
-    this.budget = budget;
-    this.cats = cats;
-  }
-  async findById(id: string) {
-    return this.budget && this.budget.id === id ? this.budget : null;
-  }
-  async findByUserMonth() {
-    return this.budget;
-  }
-  async listCategories() {
-    return this.cats;
-  }
-  async upsertBudget(): Promise<never> {
-    throw new Error("no usado en este test");
-  }
-  async upsertCategory(): Promise<never> {
-    throw new Error("no usado en este test");
-  }
-}
-
-class InMemoryTransactions implements TransactionRepository {
-  private txs: Transaction[];
-  constructor(txs: Transaction[]) {
-    this.txs = txs;
-  }
-  async listByUserPeriod() {
-    return this.txs;
-  }
-  async listByCategoryPeriod() {
-    return this.txs;
-  }
-  async create(): Promise<never> {
-    throw new Error("no usado en este test");
-  }
-}
-
-test("getBudgetSummary: totales y estado por categoría", async () => {
-  const budget: Budget = { id: "bud1", userId: "u1", name: "Enero 2026", year: 2026, month: 1 };
-  const cats: Category[] = [
-    { id: "cat1", budgetId: "bud1", name: "Supermercado", limit: clp(70000), icon: null, color: null },
-    { id: "cat2", budgetId: "bud1", name: "Transporte", limit: clp(50000), icon: null, color: null },
+test("effectiveLimit: exacto o hereda el mes anterior más reciente", () => {
+  const limits: CategoryLimit[] = [
+    { id: "l1", categoryId: "c1", year: 2026, month: 6, limit: clp(400000) },
+    { id: "l2", categoryId: "c1", year: 2026, month: 8, limit: clp(300000) },
   ];
-  const txs: Transaction[] = [
-    { id: "t1", userId: "u1", accountId: "cc", categoryId: "cat1", date: enero(5), description: "super", amount: clp(70000), direction: "debit" },
-    { id: "t2", userId: "u1", accountId: "cc", categoryId: "cat2", date: enero(6), description: "bus", amount: clp(20000), direction: "debit" },
-  ];
-  const summary = await getBudgetSummary(
-    { budgets: new InMemoryBudgets(budget, cats), transactions: new InMemoryTransactions(txs) },
-    "bud1",
-  );
-  assert.equal(summary.totalLimit.toMajor(), 120000);
-  assert.equal(summary.totalUsed.toMajor(), 90000);
-  assert.equal(summary.categories.find((c) => c.category.id === "cat1")!.status, "completado");
-  assert.equal(summary.categories.find((c) => c.category.id === "cat2")!.status, "bueno");
-});
-
-test("getBudgetSummary: presupuesto inexistente lanza error", async () => {
-  await assert.rejects(
-    () => getBudgetSummary({ budgets: new InMemoryBudgets(null, []), transactions: new InMemoryTransactions([]) }, "ghost"),
-    /no encontrado/,
-  );
+  assert.equal(effectiveLimit(limits, "c1", 2026, 6).toMajor(), 400000); // exacto junio
+  assert.equal(effectiveLimit(limits, "c1", 2026, 7).toMajor(), 400000); // hereda junio
+  assert.equal(effectiveLimit(limits, "c1", 2026, 8).toMajor(), 300000); // exacto agosto
+  assert.equal(effectiveLimit(limits, "c1", 2026, 9).toMajor(), 300000); // hereda agosto
+  assert.equal(effectiveLimit(limits, "c1", 2026, 5).toMajor(), 0); // antes de todo → 0
+  assert.equal(effectiveLimit(limits, "c1", 2027, 1).toMajor(), 300000); // año siguiente hereda
 });

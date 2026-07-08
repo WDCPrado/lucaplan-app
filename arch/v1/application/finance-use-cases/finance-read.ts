@@ -1,10 +1,9 @@
-// Use-cases de lectura financiera. Devuelven DTOs con montos en unidad mayor (number) listos para
-// la UI. Filtran por userId (ownership). Los presupuestos/categorías se asumen en CLP (base).
+// Use-cases de lectura financiera. DTOs con montos en unidad mayor (number). Ownership por userId.
+// Categorías GLOBALES del usuario; el límite es por mes con carry-forward (ver effectiveLimit).
 import type {
   Account,
   AccountRepository,
   BankRepository,
-  BudgetRepository,
   Category,
   CategoryRepository,
   Transaction,
@@ -19,9 +18,17 @@ import {
   creditCardDebts,
   computeCategoryUsage,
   categoryStatus,
+  effectiveLimit,
 } from "./budget-formulas.ts";
 
 const CLP = "CLP" as const;
+
+type ReadDeps = {
+  accounts: AccountRepository;
+  banks: BankRepository;
+  categories: CategoryRepository;
+  transactions: TransactionRepository;
+};
 
 export type MonthlySummaryDTO = {
   activeCash: number;
@@ -68,7 +75,7 @@ export type CategoryDTO = {
   status: string;
 };
 
-export type BudgetViewDTO = { budgetId: string | null; categories: CategoryDTO[] };
+export type BudgetViewDTO = { categories: CategoryDTO[] };
 
 function txToDTO(t: Transaction, cat: Category | undefined, remaining: number | null = null): TransactionDTO {
   return {
@@ -103,47 +110,37 @@ function historicalRemaining(txs: Transaction[], limitOf: (categoryId: string) =
   return out;
 }
 
-async function categoriesOfMonth(
-  deps: { budgets: BudgetRepository },
+// Categorías del usuario con su límite EFECTIVO para (year, month) — carry-forward incluido.
+async function categoriesWithLimit(
+  deps: { categories: CategoryRepository },
   userId: string,
   year: number,
   month: number,
-): Promise<{ budgetId: string | null; categories: Category[] }> {
-  const budget = await deps.budgets.findByUserMonth(userId, year, month);
-  if (!budget) return { budgetId: null, categories: [] };
-  return { budgetId: budget.id, categories: await deps.budgets.listCategories(budget.id) };
+): Promise<{ category: Category; limit: Money }[]> {
+  const [cats, limits] = await Promise.all([deps.categories.listByUser(userId), deps.categories.listLimitsByUser(userId)]);
+  return cats.map((category) => ({ category, limit: effectiveLimit(limits, category.id, year, month) }));
 }
 
-export async function getMonthlySummary(
-  deps: { accounts: AccountRepository; budgets: BudgetRepository; transactions: TransactionRepository },
-  userId: string,
-  year: number,
-  month: number,
-): Promise<MonthlySummaryDTO> {
+export async function getMonthlySummary(deps: ReadDeps, userId: string, year: number, month: number): Promise<MonthlySummaryDTO> {
   const accounts = await deps.accounts.listByUser(userId);
   const txs = await deps.transactions.listByUserPeriod(userId, year, month);
-  const { categories } = await categoriesOfMonth(deps, userId, year, month);
+  const withLimit = await categoriesWithLimit(deps, userId, year, month);
 
-  const clp = (list: Transaction[], dir: string) =>
-    list
-      .filter((t) => t.direction === dir && t.amount.currency === CLP)
-      .reduce((s, t) => s.add(t.amount), Money.zero(CLP));
+  const sumClp = (dir: string) =>
+    txs.filter((t) => t.direction === dir && t.amount.currency === CLP).reduce((s, t) => s.add(t.amount), Money.zero(CLP));
 
   return {
     activeCash: computeActiveCash(accounts, CLP).toMajor(),
     netPosition: computeNetPosition(accounts, CLP).toMajor(),
     overdraftDebt: computeOverdraftDebt(accounts, CLP).toMajor(),
     creditCardDebts: creditCardDebts(accounts).map((d) => ({ accountId: d.account.id, name: d.account.name, debt: d.debt.toMajor() })),
-    income: clp(txs, "credit").toMajor(),
-    expense: clp(txs, "debit").toMajor(),
-    totalBudget: categories.reduce((s, c) => s.add(c.limit), Money.zero(CLP)).toMajor(),
+    income: sumClp("credit").toMajor(),
+    expense: sumClp("debit").toMajor(),
+    totalBudget: withLimit.reduce((s, x) => s.add(x.limit), Money.zero(CLP)).toMajor(),
   };
 }
 
-export async function listAccounts(
-  deps: { accounts: AccountRepository; banks: BankRepository },
-  userId: string,
-): Promise<AccountDTO[]> {
+export async function listAccounts(deps: { accounts: AccountRepository; banks: BankRepository }, userId: string): Promise<AccountDTO[]> {
   const [accounts, banks] = await Promise.all([deps.accounts.listByUser(userId), deps.banks.listByUser(userId)]);
   const bankName = new Map(banks.map((b) => [b.id, b.name]));
   return accounts.map(
@@ -160,49 +157,36 @@ export async function listAccounts(
   );
 }
 
-export async function listTransactions(
-  deps: { budgets: BudgetRepository; transactions: TransactionRepository },
-  userId: string,
-  year: number,
-  month: number,
-): Promise<TransactionDTO[]> {
+export async function listTransactions(deps: ReadDeps, userId: string, year: number, month: number): Promise<TransactionDTO[]> {
   const txs = await deps.transactions.listByUserPeriod(userId, year, month);
-  const { categories } = await categoriesOfMonth(deps, userId, year, month);
-  const byId = new Map(categories.map((c) => [c.id, c]));
-  const remaining = historicalRemaining(txs, (id) => byId.get(id)?.limit ?? null);
-  return txs.map((t) => txToDTO(t, t.categoryId ? byId.get(t.categoryId) : undefined, remaining.get(t.id) ?? null));
+  const withLimit = await categoriesWithLimit(deps, userId, year, month);
+  const catById = new Map(withLimit.map((x) => [x.category.id, x.category]));
+  const limitById = new Map(withLimit.map((x) => [x.category.id, x.limit]));
+  const remaining = historicalRemaining(txs, (id) => limitById.get(id) ?? null);
+  return txs.map((t) => txToDTO(t, t.categoryId ? catById.get(t.categoryId) : undefined, remaining.get(t.id) ?? null));
 }
 
-export async function getBudgetView(
-  deps: { budgets: BudgetRepository; transactions: TransactionRepository },
-  userId: string,
-  year: number,
-  month: number,
-): Promise<BudgetViewDTO> {
-  const { budgetId, categories } = await categoriesOfMonth(deps, userId, year, month);
+export async function getBudgetView(deps: ReadDeps, userId: string, year: number, month: number): Promise<BudgetViewDTO> {
+  const withLimit = await categoriesWithLimit(deps, userId, year, month);
   const txs = await deps.transactions.listByUserPeriod(userId, year, month);
-  const rows = categories.map((c): CategoryDTO => {
-    const { used, available } = computeCategoryUsage(c, txs, year, month);
+  const categories = withLimit.map(({ category, limit }): CategoryDTO => {
+    const { used, available } = computeCategoryUsage(category.id, limit, txs, year, month);
     return {
-      id: c.id,
-      name: c.name,
-      icon: c.icon,
-      color: c.color,
-      limit: c.limit.toMajor(),
+      id: category.id,
+      name: category.name,
+      icon: category.icon,
+      color: category.color,
+      limit: limit.toMajor(),
       used: used.toMajor(),
       available: available.toMajor(),
-      status: categoryStatus(used, c.limit),
+      status: categoryStatus(used, limit),
     };
   });
-  return { budgetId, categories: rows };
+  return { categories };
 }
 
 export async function getCategoryDetail(
-  deps: {
-    categories: CategoryRepository;
-    budgets: BudgetRepository;
-    transactions: TransactionRepository;
-  },
+  deps: ReadDeps,
   userId: string,
   categoryId: string,
   year: number,
@@ -210,21 +194,22 @@ export async function getCategoryDetail(
 ): Promise<CategoryDTO & { transactions: TransactionDTO[] }> {
   const category = await deps.categories.findById(categoryId);
   if (!category) throw new CategoryNotFoundError(categoryId);
-  const budget = await deps.budgets.findById(category.budgetId);
-  if (!budget || budget.userId !== userId) throw new NotOwnerError();
+  if (category.userId !== userId) throw new NotOwnerError();
 
+  const limits = await deps.categories.listLimitsByUser(userId);
+  const limit = effectiveLimit(limits, categoryId, year, month);
   const txs = await deps.transactions.listByCategoryPeriod(categoryId, year, month);
-  const { used, available } = computeCategoryUsage(category, txs, year, month);
-  const remaining = historicalRemaining(txs, () => category.limit);
+  const { used, available } = computeCategoryUsage(categoryId, limit, txs, year, month);
+  const remaining = historicalRemaining(txs, () => limit);
   return {
     id: category.id,
     name: category.name,
     icon: category.icon,
     color: category.color,
-    limit: category.limit.toMajor(),
+    limit: limit.toMajor(),
     used: used.toMajor(),
     available: available.toMajor(),
-    status: categoryStatus(used, category.limit),
+    status: categoryStatus(used, limit),
     transactions: txs.map((t) => txToDTO(t, category, remaining.get(t.id) ?? null)),
   };
 }

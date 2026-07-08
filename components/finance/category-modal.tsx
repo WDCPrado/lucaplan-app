@@ -8,20 +8,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useMoneyInput } from "@/hooks/use-money-input";
 import { cn } from "@/lib/utils";
+import { monthName } from "@/lib/finance-format";
 import { CATEGORY_ICONS } from "./category-icons";
 import type { CategoryDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
 
-// Crear o editar categoría, siempre en modal. `category` presente ⇒ edición (precargado).
+// Crear o editar categoría (global) + su límite del mes, siempre en modal. `category` ⇒ edición.
 export function CategoryModal({
   open,
   onOpenChange,
-  budgetId,
   period,
   category,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  budgetId: string | null;
   period: { year: number; month: number };
   category?: CategoryDTO | null;
 }) {
@@ -34,36 +33,29 @@ export function CategoryModal({
 
   const canSave = name.trim() && limit.value >= 0 && !saving;
 
-  // Si el mes aún no tiene presupuesto, lo crea antes de la categoría (onboarding sin fricción).
-  async function ensureBudgetId(): Promise<string | null> {
-    if (budgetId) return budgetId;
-    const res = await fetch("/api/budgets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: `Presupuesto ${period.month}/${period.year}`, year: period.year, month: period.month }),
-    });
-    if (!res.ok) return null;
-    return (await res.json()).id as string;
-  }
-
   async function save() {
     if (!canSave) return;
     setSaving(true);
-    const bId = await ensureBudgetId();
-    if (!bId) {
+    // 1) Categoría global (nombre/icono/color)
+    const catRes = await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: category?.id, name: name.trim(), icon, color }),
+    });
+    if (!catRes.ok) {
       setSaving(false);
       return;
     }
-    const res = await fetch("/api/categories", {
+    const categoryId = category?.id ?? ((await catRes.json()).id as string);
+    // 2) Límite para el mes actual
+    await fetch("/api/category-limits", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: category?.id, budgetId: bId, name: name.trim(), limit: limit.value, icon, color }),
+      body: JSON.stringify({ categoryId, year: period.year, month: period.month, limit: limit.value }),
     });
     setSaving(false);
-    if (res.ok) {
-      onOpenChange(false);
-      router.refresh();
-    }
+    onOpenChange(false);
+    router.refresh();
   }
 
   return (
@@ -103,7 +95,7 @@ export function CategoryModal({
             />
           </div>
           <div>
-            <Label className="mb-1 block text-xs">Límite mensual (CLP)</Label>
+            <Label className="mb-1 block text-xs">Límite de {monthName(period.month)} (CLP)</Label>
             <Input
               inputMode="numeric"
               value={limit.display}

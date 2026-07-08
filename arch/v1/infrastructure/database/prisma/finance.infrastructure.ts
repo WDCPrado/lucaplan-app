@@ -8,11 +8,8 @@ import type {
   AccountType,
   Bank,
   BankRepository,
-  Budget,
-  BudgetInput,
-  BudgetRepository,
   Category,
-  CategoryInput,
+  CategoryLimit,
   CategoryRepository,
   Direction,
   NewTransaction,
@@ -42,11 +39,21 @@ function toAccount(row: any): Account {
 function toCategory(row: any): Category {
   return {
     id: row.id,
-    budgetId: row.budgetId,
+    userId: row.userId,
     name: row.name,
-    limit: Money.of(row.limitAmount.toString(), BUDGET_CURRENCY),
     icon: row.icon ?? null,
     color: row.color ?? null,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toLimit(row: any): CategoryLimit {
+  return {
+    id: row.id,
+    categoryId: row.categoryId,
+    year: row.year,
+    month: row.month,
+    limit: Money.of(row.limitAmount.toString(), BUDGET_CURRENCY),
   };
 }
 
@@ -106,44 +113,31 @@ export const accountRepository: AccountRepository = {
   },
 };
 
-export const budgetRepository: BudgetRepository = {
+export const categoryRepository: CategoryRepository = {
+  async listByUser(userId) {
+    return (await prisma.category.findMany({ where: { userId, isActive: true }, orderBy: { createdAt: "asc" } })).map(toCategory);
+  },
   async findById(id) {
-    const row = await prisma.budget.findUnique({ where: { id } });
-    return row ? { id: row.id, userId: row.userId, name: row.name, year: row.year, month: row.month } : null;
+    const row = await prisma.category.findUnique({ where: { id } });
+    return row ? toCategory(row) : null;
   },
-  async findByUserMonth(userId, year, month) {
-    const row = await prisma.budget.findFirst({ where: { userId, year, month } });
-    return row ? { id: row.id, userId: row.userId, name: row.name, year: row.year, month: row.month } : null;
-  },
-  async listCategories(budgetId) {
-    return (await prisma.category.findMany({ where: { budgetId } })).map(toCategory);
-  },
-  async upsertBudget(input: BudgetInput) {
-    const data = { userId: input.userId, name: input.name, year: input.year, month: input.month };
-    const row = input.id
-      ? await prisma.budget.update({ where: { id: input.id }, data })
-      : await prisma.budget.create({ data });
-    return { id: row.id, userId: row.userId, name: row.name, year: row.year, month: row.month };
-  },
-  async upsertCategory(input: CategoryInput) {
-    const data = {
-      budgetId: input.budgetId,
-      name: input.name,
-      limitAmount: input.limit.toDecimalString(),
-      icon: input.icon,
-      color: input.color,
-    };
+  async upsert(input) {
+    const data = { userId: input.userId, name: input.name, icon: input.icon, color: input.color };
     const row = input.id
       ? await prisma.category.update({ where: { id: input.id }, data })
       : await prisma.category.create({ data });
     return toCategory(row);
   },
-};
-
-export const categoryRepository: CategoryRepository = {
-  async findById(id) {
-    const row = await prisma.category.findUnique({ where: { id } });
-    return row ? toCategory(row) : null;
+  async listLimitsByUser(userId) {
+    return (await prisma.categoryLimit.findMany({ where: { category: { userId } } })).map(toLimit);
+  },
+  async setLimit(input) {
+    const row = await prisma.categoryLimit.upsert({
+      where: { categoryId_year_month: { categoryId: input.categoryId, year: input.year, month: input.month } },
+      create: { categoryId: input.categoryId, year: input.year, month: input.month, limitAmount: input.limit.toDecimalString() },
+      update: { limitAmount: input.limit.toDecimalString() },
+    });
+    return toLimit(row);
   },
 };
 

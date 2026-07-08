@@ -11,8 +11,8 @@ export async function POST(req: Request) {
   const body = await req.json();
   return withUser(
     req,
-    (userId) =>
-      createTransaction(financeDeps, userId, {
+    async (userId) => {
+      const t = await createTransaction(financeDeps, userId, {
         accountId: body.accountId,
         categoryId: body.categoryId ?? null,
         amount: Number(body.amount),
@@ -20,7 +20,9 @@ export async function POST(req: Request) {
         direction: body.direction,
         description: body.description ?? "",
         date: body.date ? new Date(body.date) : new Date(),
-      }),
+      });
+      return { id: t.id };
+    },
     201,
   );
 }

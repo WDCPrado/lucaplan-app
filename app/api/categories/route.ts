@@ -5,15 +5,17 @@ export async function POST(req: Request) {
   const body = await req.json();
   return withUser(
     req,
-    (userId) =>
-      upsertCategory(financeDeps, userId, {
+    async (userId) => {
+      const c = await upsertCategory(financeDeps, userId, {
         id: body.id,
         budgetId: body.budgetId,
         name: body.name,
         limit: Number(body.limit),
         icon: body.icon ?? null,
         color: body.color ?? null,
-      }),
+      });
+      return { id: c.id };
+    },
     body.id ? 200 : 201,
   );
 }

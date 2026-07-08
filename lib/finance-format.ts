@@ -51,6 +51,13 @@ export function monthName(month: number): string {
   return MONTHS[month - 1] ?? "";
 }
 
+const shortDate = new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short" });
+
+/** Fecha corta de un movimiento: "3 jul". */
+export function formatShortDate(iso: string): string {
+  return shortDate.format(new Date(iso));
+}
+
 /** Color de token CSS según el estado de la categoría. */
 export function statusVar(status: string): string {
   if (status === "bueno") return "var(--success)";

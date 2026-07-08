@@ -54,6 +54,7 @@ export type TransactionDTO = {
   categoryName: string | null;
   categoryIcon: string | null;
   categoryColor: string | null;
+  remaining: number | null; // histórico: lo que quedaba de la categoría justo tras este movimiento
 };
 
 export type CategoryDTO = {
@@ -69,7 +70,7 @@ export type CategoryDTO = {
 
 export type BudgetViewDTO = { budgetId: string | null; categories: CategoryDTO[] };
 
-function txToDTO(t: Transaction, cat: Category | undefined): TransactionDTO {
+function txToDTO(t: Transaction, cat: Category | undefined, remaining: number | null = null): TransactionDTO {
   return {
     id: t.id,
     description: t.description,
@@ -80,7 +81,26 @@ function txToDTO(t: Transaction, cat: Category | undefined): TransactionDTO {
     categoryName: cat?.name ?? null,
     categoryIcon: cat?.icon ?? null,
     categoryColor: cat?.color ?? null,
+    remaining,
   };
+}
+
+// "Quedan" histórico: recorre los gastos (débito) de más antiguo a más nuevo acumulando por
+// categoría; a cada movimiento le asigna limit − acumulado hasta ese punto. `txs` viene más-nuevo
+// primero (orden del repo), así que se recorre en reversa.
+function historicalRemaining(txs: Transaction[], limitOf: (categoryId: string) => Money | null): Map<string, number> {
+  const acc = new Map<string, Money>();
+  const out = new Map<string, number>();
+  for (let i = txs.length - 1; i >= 0; i--) {
+    const t = txs[i];
+    if (t.direction !== "debit" || !t.categoryId) continue;
+    const limit = limitOf(t.categoryId);
+    if (!limit || t.amount.currency !== limit.currency) continue;
+    const spent = (acc.get(t.categoryId) ?? Money.zero(limit.currency)).add(t.amount);
+    acc.set(t.categoryId, spent);
+    out.set(t.id, limit.subtract(spent).toMajor());
+  }
+  return out;
 }
 
 async function categoriesOfMonth(
@@ -149,7 +169,8 @@ export async function listTransactions(
   const txs = await deps.transactions.listByUserPeriod(userId, year, month);
   const { categories } = await categoriesOfMonth(deps, userId, year, month);
   const byId = new Map(categories.map((c) => [c.id, c]));
-  return txs.map((t) => txToDTO(t, t.categoryId ? byId.get(t.categoryId) : undefined));
+  const remaining = historicalRemaining(txs, (id) => byId.get(id)?.limit ?? null);
+  return txs.map((t) => txToDTO(t, t.categoryId ? byId.get(t.categoryId) : undefined, remaining.get(t.id) ?? null));
 }
 
 export async function getBudgetView(
@@ -194,6 +215,7 @@ export async function getCategoryDetail(
 
   const txs = await deps.transactions.listByCategoryPeriod(categoryId, year, month);
   const { used, available } = computeCategoryUsage(category, txs, year, month);
+  const remaining = historicalRemaining(txs, () => category.limit);
   return {
     id: category.id,
     name: category.name,
@@ -203,6 +225,6 @@ export async function getCategoryDetail(
     used: used.toMajor(),
     available: available.toMajor(),
     status: categoryStatus(used, category.limit),
-    transactions: txs.map((t) => txToDTO(t, category)),
+    transactions: txs.map((t) => txToDTO(t, category, remaining.get(t.id) ?? null)),
   };
 }

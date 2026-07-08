@@ -10,8 +10,8 @@ export async function POST(req: Request) {
   const body = await req.json();
   return withUser(
     req,
-    (userId) =>
-      createAccount(financeDeps, userId, {
+    async (userId) => {
+      const a = await createAccount(financeDeps, userId, {
         bankName: body.bankName || "Mi banco",
         name: body.name,
         accountType: body.accountType || "checking",
@@ -19,7 +19,9 @@ export async function POST(req: Request) {
         balance: Number(body.balance) || 0,
         overdraftLimit: Number(body.overdraftLimit) || 0,
         color: body.color ?? null,
-      }),
+      });
+      return { id: a.id, name: a.name };
+    },
     201,
   );
 }

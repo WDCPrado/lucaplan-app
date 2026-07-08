@@ -149,14 +149,18 @@ export const categoryRepository: CategoryRepository = {
 
 export const transactionRepository: TransactionRepository = {
   async listByUserPeriod(userId, year, month) {
-    return (await prisma.transaction.findMany({ where: { userId, ...periodWhere(year, month) }, orderBy: { transactionDate: "desc" } })).map(
-      toTransaction,
-    );
+    const rows = await prisma.transaction.findMany({
+      where: { userId, ...periodWhere(year, month) },
+      orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
+    });
+    return rows.map(toTransaction);
   },
   async listByCategoryPeriod(categoryId, year, month) {
-    return (await prisma.transaction.findMany({ where: { categoryId, ...periodWhere(year, month) }, orderBy: { transactionDate: "desc" } })).map(
-      toTransaction,
-    );
+    const rows = await prisma.transaction.findMany({
+      where: { categoryId, ...periodWhere(year, month) },
+      orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
+    });
+    return rows.map(toTransaction);
   },
   async create(tx: NewTransaction) {
     // Inserta el movimiento y ajusta el saldo de la cuenta atómicamente.

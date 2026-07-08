@@ -12,6 +12,7 @@ import { AddTransactionSheet } from "./add-transaction-sheet";
 import { CategoryModal } from "./category-modal";
 import { CategoryDetailSheet } from "./category-detail-sheet";
 import { AccountModal } from "./account-modal";
+import { CategoryIcon } from "./category-icons";
 import { formatCLP, formatCompact, monthName } from "@/lib/finance-format";
 import type {
   AccountDTO,
@@ -38,8 +39,6 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
   const [accountOpen, setAccountOpen] = useState(false);
   const [detail, setDetail] = useState<CategoryDTO | null>(null);
   const [editCat, setEditCat] = useState<CategoryDTO | null | undefined>(undefined); // undefined=cerrado, null=crear
-
-  const availableById = new Map(budget.categories.map((c) => [c.id, c.available]));
 
   function goMonth(delta: number) {
     const d = new Date(Date.UTC(period.year, period.month - 1 + delta, 1));
@@ -103,7 +102,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
         ) : (
           <div className="divide-y">
             {transactions.map((t) => (
-              <MovementRow key={t.id} tx={t} remaining={t.categoryId ? availableById.get(t.categoryId) : undefined} />
+              <MovementRow key={t.id} tx={t} />
             ))}
           </div>
         )}
@@ -164,47 +163,40 @@ function ResumenTab({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="glass rounded-2xl p-5">
-        <button onClick={onToggle} className="flex items-center gap-2 text-sm text-muted-foreground">
-          Saldo bancario {showBalance ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-        </button>
-        <div className="tabular mt-1 text-4xl font-bold">{showBalance ? formatCLP(summary.activeCash) : "••••••"}</div>
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <Stat label="Ingresos" value={formatCompact(summary.income, true)} className="text-success" />
-          <Stat label="Gastos" value={formatCompact(-summary.expense)} />
-          <Stat label="Presup." value={formatCompact(summary.totalBudget)} />
+      {/* Un solo carrusel: saldo + tarjetas, mismo porte, scroll lateral con peek (full-bleed) */}
+      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="glass flex h-44 w-72 shrink-0 snap-start flex-col justify-between rounded-2xl p-5">
+          <button onClick={onToggle} className="flex items-center gap-2 text-sm text-muted-foreground">
+            Saldo bancario {showBalance ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+          </button>
+          <div className="tabular text-3xl font-bold">{showBalance ? formatCLP(summary.activeCash) : "••••••"}</div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <Stat label="Ingresos" value={formatCompact(summary.income, true)} className="text-success" />
+            <Stat label="Gastos" value={formatCompact(-summary.expense)} />
+            <Stat label="Presup." value={formatCompact(summary.totalBudget)} />
+          </div>
         </div>
+
+        {accounts.map((a) => (
+          <AccountCard key={a.id} account={a} hidden={!showBalance} />
+        ))}
+
+        <button
+          onClick={onCreateAccount}
+          className="flex h-44 w-72 shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed text-muted-foreground"
+          aria-label="Agregar cuenta"
+        >
+          <span className="text-2xl">＋</span>
+          <span className="text-sm font-medium">Nueva cuenta</span>
+        </button>
       </div>
 
       {(summary.overdraftDebt > 0 || summary.creditCardDebts.length > 0) && (
-        <div className="flex gap-2 overflow-x-auto">
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {summary.overdraftDebt > 0 && <DebtPill label="Sobregiro" value={summary.overdraftDebt} />}
           {summary.creditCardDebts.map((d) => (
             <DebtPill key={d.accountId} label={d.name} value={d.debt} />
           ))}
-        </div>
-      )}
-
-      {accounts.length === 0 ? (
-        <button
-          onClick={onCreateAccount}
-          className="flex h-32 w-full flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed text-muted-foreground"
-        >
-          <span className="text-3xl">＋</span>
-          <span className="text-sm font-medium">Crea tu primera cuenta</span>
-        </button>
-      ) : (
-        <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1">
-          {accounts.map((a) => (
-            <AccountCard key={a.id} account={a} hidden={!showBalance} />
-          ))}
-          <button
-            onClick={onCreateAccount}
-            className="grid h-44 w-16 shrink-0 place-items-center rounded-2xl border-2 border-dashed text-2xl text-muted-foreground"
-            aria-label="Agregar cuenta"
-          >
-            ＋
-          </button>
         </div>
       )}
     </div>
@@ -227,7 +219,7 @@ function PresupuestosTab({
         return (
           <button key={c.id} onClick={() => onSelect(c)} className="flex w-24 shrink-0 flex-col items-center gap-2">
             <ProgressRing percent={pct} status={c.status}>
-              <span className="text-2xl">{c.icon}</span>
+              <CategoryIcon icon={c.icon} size={28} color={c.color ?? undefined} />
             </ProgressRing>
             <div className="text-center">
               <div className="tabular text-sm font-bold">{formatCLP(c.available)}</div>

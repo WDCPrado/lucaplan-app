@@ -38,14 +38,21 @@ function errorStatus(e: unknown): number {
   return 500;
 }
 
+// Serializa a JSON tolerando BigInt (Money interno) → number. Red de seguridad: aunque un handler
+// devuelva por error una entidad de dominio con Money, no crashea la respuesta (evita 500 fantasma).
+function jsonResponse(data: unknown, status: number): Response {
+  const body = JSON.stringify(data, (_k, v) => (typeof v === "bigint" ? Number(v) : v));
+  return new Response(body, { status, headers: { "content-type": "application/json" } });
+}
+
 // Envuelve un handler: 401 sin sesión, serializa el resultado, mapea errores a status.
 export async function withUser(req: Request, fn: (userId: string) => Promise<unknown>, okStatus = 200): Promise<Response> {
   const actor = await sessionGateway.getActor(req.headers);
-  if (!actor) return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (!actor) return jsonResponse({ error: "unauthorized" }, 401);
   try {
-    return Response.json(await fn(actor.userId), { status: okStatus });
+    return jsonResponse(await fn(actor.userId), okStatus);
   } catch (e) {
-    return Response.json({ error: (e as Error).message }, { status: errorStatus(e) });
+    return jsonResponse({ error: (e as Error).message }, errorStatus(e));
   }
 }
 

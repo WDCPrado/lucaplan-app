@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { useMoneyInput } from "@/hooks/use-money-input";
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money";
 
+const BANKS = ["Banco de Chile", "Santander", "BICE", "Mercado Pago", "Tenpo", "Racional", "Hapi"];
+
 const TYPES: { value: string; label: string }[] = [
   { value: "checking", label: "Cuenta corriente" },
   { value: "credit_card", label: "Tarjeta de crédito" },
@@ -55,18 +57,27 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
         <div className="flex flex-col gap-4 px-4 pb-6">
           <div>
             <Label className="mb-1 block text-xs">Banco</Label>
-            <Input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="Banco de Chile" className="h-11" />
+            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+              {BANKS.map((b) => (
+                <Chip key={b} active={bankName === b} onClick={() => setBankName(b)}>
+                  {b}
+                </Chip>
+              ))}
+            </div>
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs">Tipo de cuenta</Label>
+            <div className="flex flex-wrap gap-2">
+              {TYPES.map((t) => (
+                <Chip key={t.value} active={accountType === t.value} onClick={() => setAccountType(t.value)}>
+                  {t.label}
+                </Chip>
+              ))}
+            </div>
           </div>
           <div>
             <Label className="mb-1 block text-xs">Nombre de la cuenta</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Cuenta corriente CLP" className="h-11" />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {TYPES.map((t) => (
-              <Chip key={t.value} active={accountType === t.value} onClick={() => setAccountType(t.value)}>
-                {t.label}
-              </Chip>
-            ))}
           </div>
           <div className="flex gap-2">
             {(["CLP", "USD"] as const).map((c) => (

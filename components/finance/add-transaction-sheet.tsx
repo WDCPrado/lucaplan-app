@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useMoneyInput } from "@/hooks/use-money-input";
+import { CategoryIcon } from "./category-icons";
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money";
 import type { AccountDTO, CategoryDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
 
@@ -124,7 +125,7 @@ export function AddTransactionSheet({
           <div className="flex flex-wrap gap-2">
             {categories.map((c) => (
               <Chip key={c.id} active={c.id === categoryId} onClick={() => setCategoryId(c.id === categoryId ? null : c.id)}>
-                <span>{c.icon}</span> {c.name}
+                <CategoryIcon icon={c.icon} size={16} /> {c.name}
               </Chip>
             ))}
           </div>

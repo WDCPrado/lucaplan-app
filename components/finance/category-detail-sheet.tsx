@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { ProgressRing } from "./progress-ring";
 import { MovementRow } from "./movement-row";
+import { CategoryIcon } from "./category-icons";
 import { formatCLP } from "@/lib/finance-format";
 import type { CategoryDTO, TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
 
@@ -33,7 +34,7 @@ export function CategoryDetailSheet({
             </SheetHeader>
             <div className="flex flex-col items-center gap-1 px-4">
               <ProgressRing percent={pct} status={category.status} size={150} stroke={11}>
-                <span className="text-4xl">{category.icon}</span>
+                <CategoryIcon icon={category.icon} size={48} color={category.color ?? undefined} />
               </ProgressRing>
               <div className="tabular mt-2 text-3xl font-bold">
                 {formatCLP(category.used)} <span className="text-lg font-normal text-muted-foreground">de {formatCLP(category.limit)}</span>

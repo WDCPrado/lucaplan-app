@@ -44,14 +44,14 @@ async function main() {
     data: { userId: user.id, name: `Presupuesto ${month}/${year}`, year, month },
   });
   const categoriesSeed: [string, number, string, string][] = [
-    ["Cuentas", 920000, "🧾", "#f59e0b"],
-    ["Invertir", 60000, "📈", "#22c55e"],
-    ["Subscripciones", 100000, "🔁", "#8b5cf6"],
-    ["Supermercado", 70000, "🛒", "#f59e0b"],
-    ["Transporte", 50000, "🚌", "#38bdf8"],
-    ["Viajes", 100000, "✈️", "#06b6d4"],
-    ["Margen libre", 50000, "🟢", "#22c55e"],
-    ["Compras", 470000, "🛍️", "#ec4899"],
+    ["Cuentas", 920000, "Receipt", "#f59e0b"],
+    ["Invertir", 60000, "TrendingUp", "#22c55e"],
+    ["Subscripciones", 100000, "CreditCard", "#8b5cf6"],
+    ["Supermercado", 70000, "ShoppingCart", "#f59e0b"],
+    ["Transporte", 50000, "Bus", "#38bdf8"],
+    ["Viajes", 100000, "Plane", "#06b6d4"],
+    ["Margen libre", 50000, "Wallet", "#22c55e"],
+    ["Compras", 470000, "ShoppingBag", "#ec4899"],
   ];
   await prisma.category.createMany({
     data: categoriesSeed.map(([name, limitAmount, icon, color]) => ({ budgetId: budget.id, name, limitAmount, icon, color })),

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useMoneyInput } from "@/hooks/use-money-input";
+import { cn } from "@/lib/utils";
+import { CATEGORY_ICONS } from "./category-icons";
 import type { CategoryDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
 
 // Crear o editar categoría, siempre en modal. `category` presente ⇒ edición (precargado).
@@ -70,16 +72,35 @@ export function CategoryModal({
         <SheetHeader>
           <SheetTitle>{category ? "Editar categoría" : "Nueva categoría"}</SheetTitle>
         </SheetHeader>
-        <div className="flex flex-col gap-4 px-4 pb-6">
-          <div className="flex gap-3">
-            <div className="w-20">
-              <Label className="mb-1 block text-xs">Emoji</Label>
-              <Input value={icon} onChange={(e) => setIcon(e.target.value.slice(0, 2))} placeholder="🛍️" className="h-11 text-center text-xl" />
+        <div className="flex max-h-[80dvh] flex-col gap-4 overflow-y-auto px-4 pb-6">
+          <div>
+            <Label className="mb-1 block text-xs">Nombre</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Compras" className="h-11" />
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs">Icono</Label>
+            <div className="grid grid-cols-8 gap-2">
+              {CATEGORY_ICONS.map(({ name: n, Icon }) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setIcon(n)}
+                  className={cn(
+                    "grid size-9 place-items-center rounded-lg border",
+                    icon === n ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground",
+                  )}
+                  aria-label={n}
+                >
+                  <Icon size={18} />
+                </button>
+              ))}
             </div>
-            <div className="flex-1">
-              <Label className="mb-1 block text-xs">Nombre</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Compras" className="h-11" />
-            </div>
+            <Input
+              value={icon.length <= 2 ? icon : ""}
+              onChange={(e) => setIcon(e.target.value.slice(0, 2))}
+              placeholder="…o pega un emoji"
+              className="mt-2 h-10 text-center text-lg"
+            />
           </div>
           <div>
             <Label className="mb-1 block text-xs">Límite mensual (CLP)</Label>

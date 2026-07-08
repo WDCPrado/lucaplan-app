@@ -77,3 +77,92 @@ model Verification {
   @@index([identifier])
   @@map("verification")
 }
+
+// ── Dominio financiero (LucaPlan) ──────────────────────────────────────────────
+// Desacoplado del modelo de auth: la relación con el usuario es por columna `userId`
+// (String, = User.id) SIN @relation, para no tocar los modelos que genera Better Auth.
+// Las relaciones entre modelos propios sí llevan FK real. Montos en Decimal(18,2);
+// moneda ISO 4217 en `currency`. La "caja activa" y el uso por categoría son fórmulas
+// (ver arch/v1/application/finance-use-cases), no columnas.
+
+model Bank {
+  id        String             @id @default(uuid())
+  userId    String
+  name      String
+  isActive  Boolean            @default(true)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  accounts  FinancialAccount[]
+
+  @@index([userId])
+  @@map("bank")
+}
+
+model FinancialAccount {
+  id             String        @id @default(uuid())
+  userId         String
+  bankId         String
+  bank           Bank          @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  name           String
+  accountType    String // checking | savings | credit_card | credit_line | wallet | investment
+  currency       String // ISO 4217: CLP, USD
+  balance        Decimal       @default(0) @db.Decimal(18, 2) // permite negativo (sobregiro) en checking
+  overdraftLimit Decimal       @default(0) @db.Decimal(18, 2)
+  status         String        @default("active")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  transactions   Transaction[]
+
+  @@index([userId, bankId])
+  @@map("financial_account")
+}
+
+model Budget {
+  id         String     @id @default(uuid())
+  userId     String
+  name       String
+  year       Int
+  month      Int
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  categories Category[]
+
+  @@unique([userId, name, year, month])
+  @@index([userId, year, month])
+  @@map("budget")
+}
+
+model Category {
+  id           String        @id @default(uuid())
+  budgetId     String
+  budget       Budget        @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  name         String
+  limitAmount  Decimal       @default(0) @db.Decimal(18, 2)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+
+  @@unique([budgetId, name])
+  @@index([budgetId])
+  @@map("category")
+}
+
+model Transaction {
+  id              String           @id @default(uuid())
+  userId          String
+  accountId       String
+  account         FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  categoryId      String?
+  category        Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  transactionDate DateTime         @db.Date
+  description     String
+  amount          Decimal          @db.Decimal(18, 2)
+  currency        String
+  direction       String // debit | credit
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([accountId, transactionDate])
+  @@index([categoryId])
+  @@map("transaction")
+}

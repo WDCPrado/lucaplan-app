@@ -4,6 +4,23 @@ App **fullstack Next.js 16** (App Router, React 19) con **clean architecture** p
 Dominio: **planificación financiera** (presupuestos, gastos, metas de ahorro).
 Gestor de paquetes: **pnpm**.
 
+## Flujo OpenSpec — obligatorio para cada feature nueva
+
+Toda feature nueva pasa por OpenSpec **en este orden**. No saltes pasos ni escribas código de
+producción antes de tener el cambio propuesto y revisado con el usuario.
+
+1. **`opsx:propose`** — crea el cambio y sus artefactos (proposal, design, specs, tasks).
+   **Revísalo con el usuario** y ajusta hasta que apruebe **antes** de pasar a implementar.
+2. **`opsx:apply`** — implementa las tareas del cambio (código + tests). Marca los checkboxes.
+3. **`opsx:verify`** — contrasta la implementación contra specs/design/tasks (completeness,
+   correctness, coherence). Corrige lo que salga antes de seguir.
+4. **`opsx:sync`** — promueve las specs delta del cambio a las specs canónicas en
+   `openspec/specs/<capacidad>/spec.md`. **Opcional**: `opsx:archive` también sincroniza; el
+   valor de hacerlo aparte es revisar las specs canónicas fusionadas antes de archivar.
+5. **`opsx:archive`** — mueve el cambio a `openspec/changes/archive/`. Cierra el ciclo.
+
+Para explorar/pensar antes de proponer: **`opsx:explore`** (no implementa, solo captura ideas).
+
 ## Next.js 16 — léelo antes de codear
 
 Esta versión tiene breaking changes respecto a lo que conoces (APIs, convenciones,

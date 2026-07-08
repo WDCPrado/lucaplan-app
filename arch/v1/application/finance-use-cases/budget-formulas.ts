@@ -31,6 +31,16 @@ export function computeNetPosition(accounts: Account[], currency: CurrencyCode):
   return computeActiveCash(accounts, currency).subtract(computeOverdraftDebt(accounts, currency));
 }
 
+/**
+ * Deuda de tarjeta de crédito POR TARJETA (saldo negativo de cada cuenta `credit_card`), separada
+ * de la deuda de sobregiro: no pesan igual. El gasto con TC igual cuenta en el presupuesto del mes.
+ */
+export function creditCardDebts(accounts: Account[]): { account: Account; debt: Money }[] {
+  return accounts
+    .filter((a) => a.accountType === "credit_card" && a.balance.isNegative)
+    .map((a) => ({ account: a, debt: a.balance.negate() }));
+}
+
 /** Uso de una categoría en el mes de su presupuesto: Σ gastos (`debit`) asociados; disponible = límite − usado. */
 export function computeCategoryUsage(
   category: Category,
@@ -43,6 +53,7 @@ export function computeCategoryUsage(
       (t) =>
         t.categoryId === category.id &&
         t.direction === "debit" &&
+        t.amount.currency === category.limit.currency &&
         t.date.getFullYear() === year &&
         t.date.getMonth() + 1 === month,
     )

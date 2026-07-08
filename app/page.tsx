@@ -1,29 +1,45 @@
-import { headers } from "next/headers"
-import { redirect } from "next/navigation"
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
-import { auth } from "@/arch/v1/infrastructure/auth/auth"
-import { Button } from "@/components/ui/button"
+import { auth } from "@/arch/v1/infrastructure/auth/auth";
+import { financeDeps } from "@/arch/v1/presentation/finance/finance-http";
+import {
+  getMonthlySummary,
+  listAccounts,
+  getBudgetView,
+  listTransactions,
+} from "@/arch/v1/application/finance-use-cases/finance-read";
+import { Dashboard } from "@/components/finance/dashboard";
 
-export default async function Home() {
-  // Validación real de sesión (el proxy ya hizo el chequeo optimista de cookie).
+// Home = dashboard financiero (primera UI). Server component: valida sesión y hace el fetch inicial
+// vía los use-cases; las mutaciones (agregar/editar) van por la API + router.refresh().
+export default async function Home({ searchParams }: { searchParams: Promise<{ year?: string; month?: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
 
-  const { user } = session;
+  const sp = await searchParams;
+  const now = new Date();
+  const year = Number(sp.year) || now.getUTCFullYear();
+  const month = Number(sp.month) || now.getUTCMonth() + 1;
+  const userId = session.user.id;
+
+  const [summary, accounts, budget, transactions] = await Promise.all([
+    getMonthlySummary(financeDeps, userId, year, month),
+    listAccounts(financeDeps, userId),
+    getBudgetView(financeDeps, userId, year, month),
+    listTransactions(financeDeps, userId, year, month),
+  ]);
+
+  const userInitial = (session.user.name || session.user.email || "?").charAt(0).toUpperCase();
 
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
-        </div>
-        <div className="font-mono text-xs text-muted-foreground">
-          (Press <kbd>d</kbd> to toggle dark mode)
-        </div>
-      </div>
-    </div>
-  )
+    <Dashboard
+      period={{ year, month }}
+      summary={summary}
+      accounts={accounts}
+      budget={budget}
+      transactions={transactions}
+      userInitial={userInitial}
+    />
+  );
 }

@@ -108,6 +108,7 @@ model FinancialAccount {
   currency       String // ISO 4217: CLP, USD
   balance        Decimal       @default(0) @db.Decimal(18, 2) // permite negativo (sobregiro) en checking
   overdraftLimit Decimal       @default(0) @db.Decimal(18, 2)
+  color          String? // presentación: color de la tarjeta (opcional)
   status         String        @default("active")
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -138,6 +139,8 @@ model Category {
   budget       Budget        @relation(fields: [budgetId], references: [id], onDelete: Cascade)
   name         String
   limitAmount  Decimal       @default(0) @db.Decimal(18, 2)
+  icon         String? // presentación: emoji (opcional)
+  color        String? // presentación: color del anillo (opcional)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   transactions Transaction[]

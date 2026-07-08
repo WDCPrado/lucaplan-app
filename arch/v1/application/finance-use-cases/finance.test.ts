@@ -15,6 +15,7 @@ import {
   computeActiveCash,
   computeOverdraft,
   computeNetPosition,
+  creditCardDebts,
   computeCategoryUsage,
   categoryStatus,
 } from "./budget-formulas.ts";
@@ -31,6 +32,7 @@ const account = (over: Partial<Account>): Account => ({
   currency: "CLP",
   balance: clp(0),
   overdraftLimit: clp(0),
+  color: null,
   ...over,
 });
 
@@ -67,12 +69,30 @@ test("posición neta: caja 50.000 y deuda sobregiro 100.000 → -50.000", () => 
   assert.equal(computeNetPosition(accounts, "CLP").toMajor(), -50000);
 });
 
+test("deuda TC: por tarjeta, separada del sobregiro; checking negativo no cuenta como TC", () => {
+  const accounts = [
+    account({ id: "chk", accountType: "checking", balance: clp(-100000) }),
+    account({ id: "tc1", accountType: "credit_card", balance: clp(-50000) }),
+    account({ id: "tc2", accountType: "credit_card", balance: clp(-30000) }),
+    account({ id: "tc3", accountType: "credit_card", balance: clp(0) }),
+  ];
+  const debts = creditCardDebts(accounts);
+  assert.equal(debts.length, 2); // solo las TC con saldo negativo
+  assert.deepEqual(
+    debts.map((d) => [d.account.id, d.debt.toMajor()]),
+    [
+      ["tc1", 50000],
+      ["tc2", 30000],
+    ],
+  );
+});
+
 // --- Uso por categoría ---
 
 const enero = (day: number) => new Date(2026, 0, day);
 
 test("uso por categoría: límite 70.000, gastos 45.000 → disponible 25.000", () => {
-  const cat: Category = { id: "cat1", budgetId: "bud1", name: "Supermercado", limit: clp(70000) };
+  const cat: Category = { id: "cat1", budgetId: "bud1", name: "Supermercado", limit: clp(70000), icon: null, color: null };
   const txs: Transaction[] = [
     { id: "t1", userId: "u1", accountId: "cc", categoryId: "cat1", date: enero(3), description: "x", amount: clp(30000), direction: "debit" },
     { id: "t2", userId: "u1", accountId: "cc", categoryId: "cat1", date: enero(9), description: "y", amount: clp(15000), direction: "debit" },
@@ -107,8 +127,17 @@ class InMemoryBudgets implements BudgetRepository {
   async findById(id: string) {
     return this.budget && this.budget.id === id ? this.budget : null;
   }
+  async findByUserMonth() {
+    return this.budget;
+  }
   async listCategories() {
     return this.cats;
+  }
+  async upsertBudget(): Promise<never> {
+    throw new Error("no usado en este test");
+  }
+  async upsertCategory(): Promise<never> {
+    throw new Error("no usado en este test");
   }
 }
 
@@ -120,13 +149,19 @@ class InMemoryTransactions implements TransactionRepository {
   async listByUserPeriod() {
     return this.txs;
   }
+  async listByCategoryPeriod() {
+    return this.txs;
+  }
+  async create(): Promise<never> {
+    throw new Error("no usado en este test");
+  }
 }
 
 test("getBudgetSummary: totales y estado por categoría", async () => {
   const budget: Budget = { id: "bud1", userId: "u1", name: "Enero 2026", year: 2026, month: 1 };
   const cats: Category[] = [
-    { id: "cat1", budgetId: "bud1", name: "Supermercado", limit: clp(70000) },
-    { id: "cat2", budgetId: "bud1", name: "Transporte", limit: clp(50000) },
+    { id: "cat1", budgetId: "bud1", name: "Supermercado", limit: clp(70000), icon: null, color: null },
+    { id: "cat2", budgetId: "bud1", name: "Transporte", limit: clp(50000), icon: null, color: null },
   ];
   const txs: Transaction[] = [
     { id: "t1", userId: "u1", accountId: "cc", categoryId: "cat1", date: enero(5), description: "super", amount: clp(70000), direction: "debit" },

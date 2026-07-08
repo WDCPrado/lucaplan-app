@@ -10,11 +10,11 @@ async function main() {
       data: { id: "demo-user", name: "Demo", email: "demo@lucaplan.cl", emailVerified: true },
     }));
 
-  const existing = await prisma.bank.findFirst({ where: { userId: user.id, name: "Banco de Chile" } });
-  if (existing) {
-    console.log("Seed: 'Banco de Chile' ya existe para", user.email, "— nada que hacer.");
-    return;
-  }
+  // Seed refrescante: borra los datos financieros del usuario y los recrea (cascade limpia
+  // cuentas/transacciones y categorías). Así `pnpm seed` es re-ejecutable en dev.
+  await prisma.transaction.deleteMany({ where: { userId: user.id } });
+  await prisma.bank.deleteMany({ where: { userId: user.id } });
+  await prisma.budget.deleteMany({ where: { userId: user.id } });
 
   const bank = await prisma.bank.create({ data: { userId: user.id, name: "Banco de Chile" } });
 
@@ -25,43 +25,50 @@ async function main() {
       name: "Cuenta corriente CLP",
       accountType: "checking",
       currency: "CLP",
-      balance: 19005,
+      balance: 12965,
       overdraftLimit: 1000000,
+      color: "#1e3a8a",
     },
   });
   await prisma.financialAccount.createMany({
     data: [
-      { userId: user.id, bankId: bank.id, name: "TC nacional CLP", accountType: "credit_card", currency: "CLP", balance: 0 },
-      { userId: user.id, bankId: bank.id, name: "TC internacional USD", accountType: "credit_card", currency: "USD", balance: 0 },
+      { userId: user.id, bankId: bank.id, name: "TC nacional CLP", accountType: "credit_card", currency: "CLP", balance: -50000, color: "#334155" },
+      { userId: user.id, bankId: bank.id, name: "TC internacional USD", accountType: "credit_card", currency: "USD", balance: 0, color: "#475569" },
     ],
   });
 
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
   const budget = await prisma.budget.create({
-    data: { userId: user.id, name: "Enero 2026", year: 2026, month: 1 },
+    data: { userId: user.id, name: `Presupuesto ${month}/${year}`, year, month },
   });
-  const categoriesSeed: [string, number][] = [
-    ["Cuentas", 920000],
-    ["Invertir", 60000],
-    ["Subscripciones", 100000],
-    ["Supermercado", 70000],
-    ["Transporte", 50000],
-    ["Viajes", 100000],
-    ["Margen libre", 50000],
-    ["Compras", 450000],
+  const categoriesSeed: [string, number, string, string][] = [
+    ["Cuentas", 920000, "🧾", "#f59e0b"],
+    ["Invertir", 60000, "📈", "#22c55e"],
+    ["Subscripciones", 100000, "🔁", "#8b5cf6"],
+    ["Supermercado", 70000, "🛒", "#f59e0b"],
+    ["Transporte", 50000, "🚌", "#38bdf8"],
+    ["Viajes", 100000, "✈️", "#06b6d4"],
+    ["Margen libre", 50000, "🟢", "#22c55e"],
+    ["Compras", 470000, "🛍️", "#ec4899"],
   ];
   await prisma.category.createMany({
-    data: categoriesSeed.map(([name, limitAmount]) => ({ budgetId: budget.id, name, limitAmount })),
+    data: categoriesSeed.map(([name, limitAmount, icon, color]) => ({ budgetId: budget.id, name, limitAmount, icon, color })),
   });
   const supermercado = await prisma.category.findFirstOrThrow({ where: { budgetId: budget.id, name: "Supermercado" } });
 
+  const compras = await prisma.category.findFirstOrThrow({ where: { budgetId: budget.id, name: "Compras" } });
   await prisma.transaction.createMany({
     data: [
-      { userId: user.id, accountId: checking.id, categoryId: supermercado.id, transactionDate: new Date(2026, 0, 3), description: "Jumbo", amount: 30000, currency: "CLP", direction: "debit" },
-      { userId: user.id, accountId: checking.id, categoryId: supermercado.id, transactionDate: new Date(2026, 0, 9), description: "Lider", amount: 15000, currency: "CLP", direction: "debit" },
+      { userId: user.id, accountId: checking.id, categoryId: supermercado.id, transactionDate: new Date(year, month - 1, 3), description: "Pago:unimarc Vitacura", amount: 6040, currency: "CLP", direction: "debit" },
+      { userId: user.id, accountId: checking.id, categoryId: compras.id, transactionDate: new Date(year, month - 1, 5), description: "MERCADOPAGODUNKIN", amount: 6750, currency: "CLP", direction: "debit" },
+      { userId: user.id, accountId: checking.id, categoryId: null, transactionDate: new Date(year, month - 1, 4), description: "Abono Segun Instruc.", amount: 17450, currency: "CLP", direction: "credit" },
+      { userId: user.id, accountId: checking.id, categoryId: compras.id, transactionDate: new Date(year, month - 1, 6), description: "DL RAPPI CHILE RAPPI", amount: 13590, currency: "CLP", direction: "debit" },
     ],
   });
 
-  console.log(`Seed OK para ${user.email}: banco + 3 cuentas + presupuesto "Enero 2026" (8 categorías) + 2 movimientos.`);
+  console.log(`Seed OK para ${user.email}: banco + 3 cuentas + presupuesto "${budget.name}" (8 categorías) + 4 movimientos.`);
 }
 
 main()

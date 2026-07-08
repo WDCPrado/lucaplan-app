@@ -81,6 +81,17 @@ export class Money {
     return Number(this.minor) / 10 ** CURRENCY_DECIMALS[this.currency];
   }
 
+  /** Decimal string exacto (sin float), para persistir en columnas NUMERIC. Ej. "19.10", "-100000". */
+  toDecimalString(): string {
+    const decimals = CURRENCY_DECIMALS[this.currency];
+    const neg = this.minor < BigInt(0);
+    const digits = (neg ? -this.minor : this.minor).toString().padStart(decimals + 1, "0");
+    if (decimals === 0) return (neg ? "-" : "") + digits;
+    const int = digits.slice(0, -decimals);
+    const frac = digits.slice(-decimals);
+    return `${neg ? "-" : ""}${int}.${frac}`;
+  }
+
   toString(): string {
     return `${this.toMajor()} ${this.currency}`;
   }

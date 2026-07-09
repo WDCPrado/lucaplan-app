@@ -4,6 +4,11 @@ import { ArrowUpRight } from "lucide-react"
 // Galería de mocks de diseño. Agrega aquí cada vista nueva (carpeta en app/design/<slug>).
 const mocks = [
   {
+    slug: "desktop-shell",
+    title: "Shell desktop-first",
+    desc: "Sidebar + drawer móvil, layout multi-columna responsive",
+  },
+  {
     slug: "dashboard",
     title: "Dashboard · Inicio",
     desc: "Balance, scroll de cuentas y movimientos",

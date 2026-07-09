@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,15 +49,11 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto rounded-t-3xl">
-        <SheetHeader>
-          <SheetTitle>Nueva cuenta</SheetTitle>
-        </SheetHeader>
+    <ResponsiveModal open={open} onOpenChange={onOpenChange} title="Nueva cuenta">
         <div className="flex flex-col gap-4 px-4 pb-6">
           <div>
             <Label className="mb-1 block text-xs">Banco</Label>
-            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+            <div className="flex flex-wrap gap-2">
               {BANKS.map((b) => (
                 <Chip key={b} active={bankName === b} onClick={() => setBankName(b)}>
                   {b}
@@ -98,8 +94,7 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
             {saving ? "Guardando…" : "Crear cuenta"}
           </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+    </ResponsiveModal>
   );
 }
 

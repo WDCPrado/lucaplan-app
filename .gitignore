@@ -11,6 +11,9 @@
 # testing
 /coverage
 
+# playwright mcp (snapshots/console logs de verificación de UI)
+/.playwright-mcp/
+
 # next.js
 /.next/
 /out/

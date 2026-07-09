@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,12 +59,8 @@ export function CategoryModal({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="rounded-t-3xl">
-        <SheetHeader>
-          <SheetTitle>{category ? "Editar categoría" : "Nueva categoría"}</SheetTitle>
-        </SheetHeader>
-        <div className="flex max-h-[80dvh] flex-col gap-4 overflow-y-auto px-4 pb-6">
+    <ResponsiveModal open={open} onOpenChange={onOpenChange} title={category ? "Editar categoría" : "Nueva categoría"}>
+        <div className="flex flex-col gap-4 px-4 pb-6">
           <div>
             <Label className="mb-1 block text-xs">Nombre</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Compras" className="h-11" />
@@ -87,12 +83,6 @@ export function CategoryModal({
                 </button>
               ))}
             </div>
-            <Input
-              value={icon.length <= 2 ? icon : ""}
-              onChange={(e) => setIcon(e.target.value.slice(0, 2))}
-              placeholder="…o pega un emoji"
-              className="mt-2 h-10 text-center text-lg"
-            />
           </div>
           <div>
             <Label className="mb-1 block text-xs">Límite de {monthName(period.month)} (CLP)</Label>
@@ -112,7 +102,6 @@ export function CategoryModal({
             {saving ? "Guardando…" : "Guardar"}
           </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+    </ResponsiveModal>
   );
 }

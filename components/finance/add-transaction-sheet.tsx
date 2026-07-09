@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -63,11 +63,7 @@ export function AddTransactionSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[92dvh] rounded-t-3xl">
-        <SheetHeader>
-          <SheetTitle>Nueva transacción</SheetTitle>
-        </SheetHeader>
+    <ResponsiveModal open={open} onOpenChange={onOpenChange} title="Nueva transacción">
         {accounts.length === 0 ? (
           <div className="flex flex-col items-center gap-4 px-4 py-10 text-center">
             <p className="text-sm text-muted-foreground">Necesitas una cuenta para registrar movimientos.</p>
@@ -76,7 +72,7 @@ export function AddTransactionSheet({
             </Button>
           </div>
         ) : (
-          <div className="flex flex-col gap-5 overflow-y-auto px-4 pb-6">
+          <div className="flex flex-col gap-5 px-4 pb-6">
           <Input
             placeholder="Descripción"
             value={description}
@@ -135,8 +131,7 @@ export function AddTransactionSheet({
           </Button>
           </div>
         )}
-      </SheetContent>
-    </Sheet>
+    </ResponsiveModal>
   );
 }
 

@@ -30,7 +30,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ y
     listTransactions(financeDeps, userId, year, month),
   ]);
 
-  const userInitial = (session.user.name || session.user.email || "?").charAt(0).toUpperCase();
+  const user = {
+    name: session.user.name || session.user.email || "Usuario",
+    initial: (session.user.name || session.user.email || "?").charAt(0).toUpperCase(),
+    email: session.user.email,
+  };
 
   return (
     <Dashboard
@@ -39,7 +43,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ y
       accounts={accounts}
       budget={budget}
       transactions={transactions}
-      userInitial={userInitial}
+      user={user}
     />
   );
 }

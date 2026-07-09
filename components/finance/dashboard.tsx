@@ -2,17 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, ChevronLeft, ChevronRight, Home, ArrowLeftRight, BarChart3, Search, Eye, EyeOff } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AppShell, type NavKey } from "./app-shell";
 import { AccountCard } from "./account-card";
 import { MovementRow } from "./movement-row";
 import { ProgressRing } from "./progress-ring";
+import { CategoryIcon } from "./category-icons";
 import { AddTransactionSheet } from "./add-transaction-sheet";
 import { CategoryModal } from "./category-modal";
 import { CategoryDetailSheet } from "./category-detail-sheet";
 import { AccountModal } from "./account-modal";
-import { CategoryIcon } from "./category-icons";
 import { formatCLP, formatCompact, monthName } from "@/lib/finance-format";
 import type {
   AccountDTO,
@@ -28,12 +29,13 @@ type Props = {
   accounts: AccountDTO[];
   budget: BudgetViewDTO;
   transactions: TransactionDTO[];
-  userInitial: string;
+  user: { name: string; initial: string; email: string };
 };
 
-export function Dashboard({ period, summary, accounts, budget, transactions, userInitial }: Props) {
+// Dashboard desktop-first: AppShell (sidebar + topbar + FAB) con el contenido en grid
+// multi-columna. Las mutaciones van por la API + router.refresh() dentro de cada superficie.
+export function Dashboard({ period, summary, accounts, budget, transactions, user }: Props) {
   const router = useRouter();
-  const [tab, setTab] = useState<"resumen" | "presupuestos">("resumen");
   const [showBalance, setShowBalance] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -45,78 +47,138 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
     router.push(`/?year=${d.getUTCFullYear()}&month=${d.getUTCMonth() + 1}`);
   }
 
+  async function signOut() {
+    await authClient.signOut();
+    router.push("/login");
+  }
+
+  // Nav de una sola página: Inicio → arriba; Movimientos/Presupuestos → scroll a su sección.
+  function navigate(key: NavKey) {
+    if (key === "inicio") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    document.getElementById(key)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-28">
-      {/* Top bar */}
-      <header className="flex items-center justify-between py-4">
-        <button onClick={() => setAddOpen(true)} className="grid size-11 place-items-center rounded-full bg-secondary" aria-label="Agregar">
-          <Plus className="size-5" />
-        </button>
-        <div className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2">
-          <button onClick={() => goMonth(-1)} aria-label="Mes anterior">
+    <AppShell
+      user={user}
+      onNavigate={navigate}
+      onSignOut={signOut}
+      onAdd={() => setAddOpen(true)}
+      title="Resumen"
+      actions={
+        <div className="flex items-center gap-1 rounded-full bg-secondary px-1.5 py-1">
+          <button onClick={() => goMonth(-1)} className="grid size-8 place-items-center rounded-full hover:bg-background" aria-label="Mes anterior">
             <ChevronLeft className="size-4" />
           </button>
-          <span className="min-w-20 text-center font-semibold">{monthName(period.month)}</span>
-          <button onClick={() => goMonth(1)} aria-label="Mes siguiente">
+          <span className="min-w-20 text-center text-sm font-semibold">{monthName(period.month)}</span>
+          <button onClick={() => goMonth(1)} className="grid size-8 place-items-center rounded-full hover:bg-background" aria-label="Mes siguiente">
             <ChevronRight className="size-4" />
           </button>
         </div>
-        <Avatar className="size-11 bg-primary">
-          <AvatarFallback className="bg-primary text-primary-foreground">{userInitial}</AvatarFallback>
-        </Avatar>
-      </header>
+      }
+    >
+      <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
+        {/* Cuentas */}
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-heading text-lg font-bold">Cuentas</h2>
+            <button onClick={() => setShowBalance((v) => !v)} className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              {showBalance ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+              {showBalance ? "Ocultar" : "Mostrar"}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="glass flex flex-col justify-between rounded-2xl p-5 sm:col-span-2 xl:col-span-1">
+              <div className="text-sm text-muted-foreground">Saldo bancario</div>
+              <div className="tabular my-3 text-3xl font-bold">{showBalance ? formatCLP(summary.activeCash) : "••••••"}</div>
+              <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-center">
+                <Stat label="Ingresos" value={formatCompact(summary.income, true)} className="text-success" />
+                <Stat label="Gastos" value={formatCompact(-summary.expense)} />
+                <Stat label="Presup." value={formatCompact(summary.totalBudget)} />
+              </div>
+            </div>
+            {accounts.map((a) => (
+              <AccountCard key={a.id} account={a} hidden={!showBalance} />
+            ))}
+            <button
+              onClick={() => setAccountOpen(true)}
+              className="flex min-h-40 flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+            >
+              <span className="text-2xl">＋</span>
+              <span className="text-sm font-medium">Nueva cuenta</span>
+            </button>
+          </div>
 
-      {/* Tabs */}
-      <div className="mb-4 flex gap-1 rounded-full bg-secondary p-1">
-        {(["resumen", "presupuestos"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={cn(
-              "h-10 flex-1 rounded-full text-sm font-medium capitalize transition-colors",
-              tab === t ? "bg-background shadow-sm" : "text-muted-foreground",
+          {(summary.overdraftDebt > 0 || summary.creditCardDebts.length > 0) && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {summary.overdraftDebt > 0 && <DebtPill label="Sobregiro" value={summary.overdraftDebt} />}
+              {summary.creditCardDebts.map((d) => (
+                <DebtPill key={d.accountId} label={d.name} value={d.debt} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Presupuestos + Movimientos */}
+        <div className="mt-8 grid gap-6 lg:grid-cols-3">
+          <section id="presupuestos" className="scroll-mt-20 lg:order-2 lg:col-span-1">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-heading text-lg font-bold">Presupuestos</h2>
+              <span className="text-sm text-muted-foreground">{monthName(period.month)}</span>
+            </div>
+            <div className="glass rounded-2xl p-4">
+              {budget.categories.length === 0 ? (
+                <button onClick={() => setEditCat(null)} className="flex w-full flex-col items-center gap-2 py-6 text-muted-foreground">
+                  <span className="grid size-18 place-items-center rounded-full border-2 border-dashed border-border text-2xl">+</span>
+                  <span className="text-sm">Crear categoría</span>
+                </button>
+              ) : (
+                <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-2">
+                  {budget.categories.map((c) => {
+                    const pct = c.limit > 0 ? (c.used / c.limit) * 100 : 0;
+                    return (
+                      <button key={c.id} onClick={() => setDetail(c)} className="flex flex-col items-center gap-1.5">
+                        <ProgressRing percent={pct} status={c.status} size={72}>
+                          <CategoryIcon icon={c.icon} size={22} color={c.color ?? undefined} />
+                        </ProgressRing>
+                        <div className="text-center">
+                          <div className="truncate text-xs font-medium">{c.name}</div>
+                          <div className="tabular text-xs text-muted-foreground">{formatCLP(c.available)}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  <button onClick={() => setEditCat(null)} className="flex flex-col items-center gap-1.5" aria-label="Nueva categoría">
+                    <span className="grid size-18 place-items-center rounded-full border-2 border-dashed border-border text-2xl text-muted-foreground">+</span>
+                    <span className="text-xs text-muted-foreground">Nueva</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section id="movimientos" className="scroll-mt-20 lg:order-1 lg:col-span-2">
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="font-heading text-lg font-bold">Movimientos</h2>
+              <span className="text-sm text-muted-foreground">{transactions.length} este mes</span>
+            </div>
+            {transactions.length === 0 ? (
+              <p className="glass-strong rounded-2xl py-10 text-center text-sm text-muted-foreground">Sin movimientos este mes</p>
+            ) : (
+              <div className="glass-strong divide-y divide-border/60 rounded-2xl px-4">
+                {transactions.map((t) => (
+                  <MovementRow key={t.id} tx={t} />
+                ))}
+              </div>
             )}
-          >
-            {t === "resumen" ? "Resumen" : "Presupuestos"}
-          </button>
-        ))}
+          </section>
+        </div>
       </div>
 
-      {tab === "resumen" ? (
-        <ResumenTab
-          summary={summary}
-          accounts={accounts}
-          showBalance={showBalance}
-          onToggle={() => setShowBalance((v) => !v)}
-          onCreateAccount={() => setAccountOpen(true)}
-        />
-      ) : (
-        <PresupuestosTab budget={budget} onSelect={setDetail} onCreate={() => setEditCat(null)} />
-      )}
-
-      {/* Movimientos */}
-      <section className="mt-6">
-        <h2 className="mb-1 text-lg font-bold">Movimientos</h2>
-        {transactions.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">Sin movimientos este mes</p>
-        ) : (
-          <div className="divide-y">
-            {transactions.map((t) => (
-              <MovementRow key={t.id} tx={t} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Bottom nav */}
-      <nav className="fixed inset-x-0 bottom-4 mx-auto flex max-w-xs items-center justify-around rounded-full bg-secondary/90 py-3 backdrop-blur">
-        <Home className="size-6" />
-        <ArrowLeftRight className="size-6 text-muted-foreground" />
-        <BarChart3 className="size-6 text-muted-foreground" />
-        <Search className="size-6 text-muted-foreground" />
-      </nav>
-
-      {/* Modales */}
+      {/* Superficies (adaptativas: dialog en escritorio, sheet en móvil) */}
       <AddTransactionSheet
         open={addOpen}
         onOpenChange={setAddOpen}
@@ -137,119 +199,25 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
           setEditCat(c);
         }}
       />
-      <CategoryModal
-        open={editCat !== undefined}
-        onOpenChange={(o) => !o && setEditCat(undefined)}
-        period={period}
-        category={editCat}
-      />
-    </div>
-  );
-}
-
-function ResumenTab({
-  summary,
-  accounts,
-  showBalance,
-  onToggle,
-  onCreateAccount,
-}: {
-  summary: MonthlySummaryDTO;
-  accounts: AccountDTO[];
-  showBalance: boolean;
-  onToggle: () => void;
-  onCreateAccount: () => void;
-}) {
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Un solo carrusel: saldo + tarjetas, mismo porte, scroll lateral con peek (full-bleed) */}
-      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="glass flex h-44 w-72 shrink-0 snap-start flex-col justify-between rounded-2xl p-5">
-          <button onClick={onToggle} className="flex items-center gap-2 text-sm text-muted-foreground">
-            Saldo bancario {showBalance ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-          </button>
-          <div className="tabular text-3xl font-bold">{showBalance ? formatCLP(summary.activeCash) : "••••••"}</div>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <Stat label="Ingresos" value={formatCompact(summary.income, true)} className="text-success" />
-            <Stat label="Gastos" value={formatCompact(-summary.expense)} />
-            <Stat label="Presup." value={formatCompact(summary.totalBudget)} />
-          </div>
-        </div>
-
-        {accounts.map((a) => (
-          <AccountCard key={a.id} account={a} hidden={!showBalance} />
-        ))}
-
-        <button
-          onClick={onCreateAccount}
-          className="flex h-44 w-72 shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed text-muted-foreground"
-          aria-label="Agregar cuenta"
-        >
-          <span className="text-2xl">＋</span>
-          <span className="text-sm font-medium">Nueva cuenta</span>
-        </button>
-      </div>
-
-      {(summary.overdraftDebt > 0 || summary.creditCardDebts.length > 0) && (
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {summary.overdraftDebt > 0 && <DebtPill label="Sobregiro" value={summary.overdraftDebt} />}
-          {summary.creditCardDebts.map((d) => (
-            <DebtPill key={d.accountId} label={d.name} value={d.debt} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PresupuestosTab({
-  budget,
-  onSelect,
-  onCreate,
-}: {
-  budget: BudgetViewDTO;
-  onSelect: (c: CategoryDTO) => void;
-  onCreate: () => void;
-}) {
-  return (
-    <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2">
-      {budget.categories.map((c) => {
-        const pct = c.limit > 0 ? (c.used / c.limit) * 100 : 0;
-        return (
-          <button key={c.id} onClick={() => onSelect(c)} className="flex w-24 shrink-0 flex-col items-center gap-2">
-            <ProgressRing percent={pct} status={c.status}>
-              <CategoryIcon icon={c.icon} size={28} color={c.color ?? undefined} />
-            </ProgressRing>
-            <div className="text-center">
-              <div className="tabular text-sm font-bold">{formatCLP(c.available)}</div>
-              <div className="text-xs text-muted-foreground">disponible</div>
-              <div className="tabular text-xs text-muted-foreground">de {formatCLP(c.limit)}</div>
-            </div>
-          </button>
-        );
-      })}
-      <button onClick={onCreate} className="flex w-24 shrink-0 flex-col items-center gap-2" aria-label="Crear categoría">
-        <span className="grid size-24 place-items-center rounded-full border-2 border-dashed text-3xl text-muted-foreground">+</span>
-        <span className="text-xs text-muted-foreground">Nueva</span>
-      </button>
-    </div>
+      <CategoryModal open={editCat !== undefined} onOpenChange={(o) => !o && setEditCat(undefined)} period={period} category={editCat} />
+    </AppShell>
   );
 }
 
 function Stat({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
     <div>
-      <div className="text-xs text-muted-foreground uppercase">{label}</div>
-      <div className={cn("tabular font-semibold", className)}>{value}</div>
+      <div className="text-xs uppercase text-muted-foreground">{label}</div>
+      <div className={cn("tabular text-sm font-semibold", className)}>{value}</div>
     </div>
   );
 }
 
 function DebtPill({ label, value }: { label: string; value: number }) {
   return (
-    <div className="shrink-0 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2">
+    <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="tabular font-semibold text-destructive">{formatCLP(value)}</div>
+      <div className="tabular font-semibold text-destructive">−{formatCLP(value)}</div>
     </div>
   );
 }

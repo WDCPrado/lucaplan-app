@@ -60,10 +60,17 @@ Todo el backend (doc + código) vive en `arch/`; no hay carpeta `src/`. Dentro d
   `app/globals.css`** (variables CSS de Tailwind v4). Es la fuente de verdad del diseño;
   no hardcodees valores en componentes, tira de esas variables. Detalle del design system
   (glassmorphism fintech, tokens, glass, dark/light) en [docs/design/design-system.md](docs/design/design-system.md).
-- **Responsividad obligatoria (mobile-first).** Diseña para móvil y escala con breakpoints
-  (`sm`/`md`/`lg`). Reglas mínimas: sin scroll horizontal; `min-h-dvh` (no `100vh`); inputs
-  y targets táctiles ≥44px (`h-11`) y texto ≥16px (`text-base`) en móvil para evitar zoom de
-  iOS; contenedores con `max-w-*`; prueba en 375px y desktop, y en dark + light.
+- **Responsividad obligatoria (desktop-first, aún responsive).** La experiencia primaria es
+  **escritorio** (LucaPlan es una webapp de acceso directo, sin depender de una tienda): sidebar
+  fija + layout multi-columna que aprovecha el ancho. El shell vive en
+  [components/finance/app-shell.tsx](components/finance/app-shell.tsx) (shadcn `sidebar`,
+  colapsable, drawer en móvil); las superficies contextuales usan
+  [components/ui/responsive-modal.tsx](components/ui/responsive-modal.tsx) (dialog en escritorio,
+  sheet en móvil). Escala **hacia abajo** con breakpoints (`sm`/`md`/`lg`): en móvil el shell
+  colapsa a drawer y el contenido se apila en una columna. Reglas mínimas (en ambos extremos):
+  sin scroll horizontal; `min-h-dvh` (no `100vh`); targets táctiles ≥44px (`h-11`) y texto
+  ≥16px (`text-base`) en móvil para evitar zoom de iOS; contenedores con `max-w-*`; prueba en
+  escritorio (~1440px) y en ~375px, y en dark + light.
 - Evita `useEffect` para lógica de otra capa (auth/redirects → proxy; errores de red →
   capa fetch; estado derivado → calcular en render; datos iniciales → server component).
 
@@ -79,8 +86,9 @@ Método para construir vistas nuevas (síguelo siempre):
 2. **Vive en `app/design/`.** Cada vista mock en `app/design/<slug>/page.tsx`; regístrala
    en el índice `app/design/page.tsx`. La home (`app/page.tsx`) queda limpia — **no mezcles
    mocks con la app real**.
-3. **Comprueba y MUESTRA.** Levanta `pnpm dev` (puerto libre, ej. 3007) y con Playwright a
-   viewport mobile (~420px) prueba la interacción. **REGLA INQUEBRANTABLE: el último paso de
+3. **Comprueba y MUESTRA.** Levanta `pnpm dev` (puerto libre, ej. 3007) y con Playwright prueba
+   la interacción en **escritorio (~1440px) y móvil (~420px)** (desktop-first, sin regresión
+   móvil). **REGLA INQUEBRANTABLE: el último paso de
    cada iteración es SIEMPRE un screenshot del resultado final, GUARDADO en la carpeta del
    feature como `app/design/<slug>/preview.png` (no lo borres — es la referencia visual del
    mock) y mostrado al usuario.** Las capturas intermedias sí se borran; el `preview.png`
@@ -95,7 +103,12 @@ Método para construir vistas nuevas (síguelo siempre):
 - Playwright corre **headless** (el plugin lleva `--headless` en su `.mcp.json`); no abre
   ventana del navegador. Si tras actualizar el plugin vuelve a abrir ventana, reaplica el flag.
 - Antes de navegar, **espera a que el dev server responda** (poll a la URL); Next compila on-demand.
-- Viewport mobile **~420px** de ancho (es una app de finanzas mobile-first).
+- Verifica en **escritorio (~1440px) y móvil (~420px)** — desktop-first, pero sin regresión móvil.
+- **Turbopack + rutas nuevas:** crear o borrar carpetas de ruta en `app/` con el dev server
+  corriendo puede corromper el caché incremental de Turbopack (panic
+  `directory_tree_to_loader_tree` → recarga en bucle en `/login` u otras). Si pasa: mata el
+  server, `rm -rf .next` y reinicia. Mejor: crea la carpeta de la ruta **antes** de levantar el
+  server. Nota: `.playwright-mcp/` (artefactos de Playwright) está en `.gitignore`.
 - El `preview.png` de cada feature **se versiona** junto a su `page.tsx` — es la referencia
   visual del mock; no lo borres.
 

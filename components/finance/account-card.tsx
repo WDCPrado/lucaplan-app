@@ -13,7 +13,7 @@ const TYPE_LABEL: Record<string, string> = {
 export function AccountCard({ account, hidden }: { account: AccountDTO; hidden?: boolean }) {
   return (
     <div
-      className="relative flex h-44 w-72 shrink-0 snap-start flex-col justify-between overflow-hidden rounded-2xl p-5 text-white shadow-lg"
+      className="relative flex min-h-40 w-full flex-col justify-between overflow-hidden rounded-2xl p-5 text-white shadow-lg"
       style={{ background: account.color ?? "var(--primary)" }}
     >
       <div className="text-lg font-semibold tracking-tight">{account.bankName || account.name}</div>

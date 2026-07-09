@@ -1,6 +1,6 @@
 "use client";
 
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { ProgressRing } from "./progress-ring";
 import { MovementRow } from "./movement-row";
@@ -25,13 +25,14 @@ export function CategoryDetailSheet({
   const txs = category ? transactions.filter((t) => t.categoryId === category.id) : [];
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto rounded-t-3xl">
+    <ResponsiveModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={category?.name ?? ""}
+      headerClassName="items-center"
+    >
         {category && (
           <>
-            <SheetHeader className="items-center">
-              <SheetTitle>{category.name}</SheetTitle>
-            </SheetHeader>
             <div className="flex flex-col items-center gap-1 px-4">
               <ProgressRing percent={pct} status={category.status} size={150} stroke={11}>
                 <CategoryIcon icon={category.icon} size={48} color={category.color ?? undefined} />
@@ -60,7 +61,6 @@ export function CategoryDetailSheet({
             </div>
           </>
         )}
-      </SheetContent>
-    </Sheet>
+    </ResponsiveModal>
   );
 }

@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDragScroll } from "@/hooks/use-drag-scroll";
 import { AppShell, type NavKey } from "@/components/finance/app-shell";
 import { MovementRow } from "@/components/finance/movement-row";
 import { ProgressRing } from "@/components/finance/progress-ring";
@@ -25,9 +26,9 @@ import type {
 const SUMMARY = { activeCash: 2_450_000, income: 1_800_000, expense: 920_000, totalBudget: 1_100_000 };
 
 const ACCOUNTS: AccountDTO[] = [
-  { id: "acc-8842", bankId: "b1", bankName: "Banco de Chile", name: "Cuenta Corriente", accountType: "checking", currency: "CLP", balance: 1_250_000, color: "#1e40af" },
-  { id: "acc-1120", bankId: "b2", bankName: "BancoEstado", name: "Ahorro", accountType: "savings", currency: "CLP", balance: 900_000, color: "#0f766e" },
-  { id: "acc-3390", bankId: "b3", bankName: "Santander", name: "Visa", accountType: "credit_card", currency: "CLP", balance: -340_000, color: "#7c3aed" },
+  { id: "acc-8842", bankId: "b1", bankName: "Banco de Chile", name: "Cuenta Corriente", accountType: "checking", currency: "CLP", balance: 1_250_000, color: "#1e40af", cardLast4: "8842" },
+  { id: "acc-1120", bankId: "b2", bankName: "BancoEstado", name: "Ahorro", accountType: "savings", currency: "CLP", balance: 900_000, color: "#0f766e", cardLast4: null },
+  { id: "acc-3390", bankId: "b3", bankName: "Santander", name: "Visa", accountType: "credit_card", currency: "CLP", balance: -340_000, color: "#7c3aed", cardLast4: "3390" },
 ];
 
 const CATEGORIES: CategoryDTO[] = [
@@ -56,6 +57,7 @@ export default function DesktopShellMock() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [detail, setDetail] = useState<CategoryDTO | null>(null);
   const [editCat, setEditCat] = useState<CategoryDTO | null | undefined>(undefined); // undefined=cerrado, null=crear
+  const { ref: cardsRef, handlers: cardsHandlers } = useDragScroll();
 
   return (
     <AppShell
@@ -77,18 +79,22 @@ export default function DesktopShellMock() {
         </div>
       }
     >
-      <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
+      <div className="py-6">
         {/* Cuentas */}
         <section>
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mx-auto mb-3 flex max-w-6xl items-center justify-between px-4 lg:px-8">
             <h2 className="font-heading text-lg font-bold">Cuentas</h2>
             <button onClick={() => setShowBalance((v) => !v)} className="flex items-center gap-1.5 text-sm text-muted-foreground">
               {showBalance ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
               {showBalance ? "Ocultar" : "Mostrar"}
             </button>
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <div className="glass flex flex-col justify-between rounded-2xl p-5 sm:col-span-2 xl:col-span-1">
+          <div
+            ref={cardsRef}
+            {...cardsHandlers}
+            className="flex cursor-grab snap-x gap-4 overflow-x-auto px-4 py-2 pb-8 active:cursor-grabbing lg:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            <div className="glass flex min-h-40 w-72 shrink-0 snap-start flex-col justify-between rounded-2xl p-5">
               <div className="text-sm text-muted-foreground">Saldo disponible</div>
               <div className="tabular my-3 text-3xl font-bold">{showBalance ? formatCLP(SUMMARY.activeCash) : "••••••"}</div>
               <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-center">
@@ -98,11 +104,13 @@ export default function DesktopShellMock() {
               </div>
             </div>
             {ACCOUNTS.map((a) => (
-              <AccountTile key={a.id} account={a} hidden={!showBalance} />
+              <div key={a.id} className="flex w-72 shrink-0 snap-start">
+                <AccountTile account={a} hidden={!showBalance} />
+              </div>
             ))}
             <button
               onClick={() => setAccountOpen(true)}
-              className="flex min-h-40 flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+              className="flex min-h-40 w-72 shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
             >
               <span className="text-2xl">＋</span>
               <span className="text-sm font-medium">Nueva cuenta</span>
@@ -111,7 +119,7 @@ export default function DesktopShellMock() {
         </section>
 
         {/* Presupuestos + Movimientos */}
-        <div className="mt-8 grid gap-6 lg:grid-cols-3">
+        <div className="mx-auto mt-8 grid max-w-6xl gap-6 px-4 lg:grid-cols-3 lg:px-8">
           <section className="lg:order-2 lg:col-span-1">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-heading text-lg font-bold">Presupuestos</h2>
@@ -193,7 +201,7 @@ function Stat({ label, value, className }: { label: string; value: string; class
 // Tarjeta de cuenta a ancho completo (versión de grid; la AccountCard real usa w-72 para carrusel).
 function AccountTile({ account, hidden }: { account: AccountDTO; hidden: boolean }) {
   return (
-    <div className="relative flex min-h-40 flex-col justify-between overflow-hidden rounded-2xl p-5 text-white shadow-lg" style={{ background: account.color ?? "var(--primary)" }}>
+    <div className="relative flex min-h-40 w-full flex-col justify-between overflow-hidden rounded-2xl p-5 text-white shadow-[0_2px_8px_-2px_rgb(0_0_0/0.1),0_16px_32px_-12px_rgb(0_0_0/0.22)]" style={{ background: account.color ?? "var(--primary)" }}>
       <div className="text-lg font-semibold tracking-tight">{account.bankName}</div>
       <div>
         <div className="text-xs text-white/70">Saldo {account.currency}</div>

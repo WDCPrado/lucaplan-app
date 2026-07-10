@@ -7,6 +7,7 @@ import {
   AccountNotFoundError,
   CategoryNotFoundError,
   TransactionCurrencyMismatchError,
+  CardLast4RequiredError,
 } from "../../domain/finance/finance.domain.ts";
 import {
   accountRepository,
@@ -24,7 +25,7 @@ export const financeDeps = {
 };
 
 function errorStatus(e: unknown): number {
-  if (e instanceof TransactionCurrencyMismatchError) return 422;
+  if (e instanceof TransactionCurrencyMismatchError || e instanceof CardLast4RequiredError) return 422;
   if (e instanceof NotOwnerError || e instanceof AccountNotFoundError || e instanceof CategoryNotFoundError) return 404;
   return 500;
 }

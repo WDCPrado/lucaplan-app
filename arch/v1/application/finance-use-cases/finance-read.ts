@@ -49,6 +49,7 @@ export type AccountDTO = {
   currency: string;
   balance: number;
   color: string | null;
+  cardLast4: string | null;
 };
 
 export type TransactionDTO = {
@@ -153,6 +154,7 @@ export async function listAccounts(deps: { accounts: AccountRepository; banks: B
       currency: a.currency,
       balance: a.balance.toMajor(),
       color: a.color,
+      cardLast4: a.cardLast4,
     }),
   );
 }

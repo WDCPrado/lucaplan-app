@@ -24,6 +24,7 @@ const acc = (over: Partial<Account>): Account => ({
   balance: clp(19005),
   overdraftLimit: clp(0),
   color: null,
+  cardLast4: null,
   ...over,
 });
 

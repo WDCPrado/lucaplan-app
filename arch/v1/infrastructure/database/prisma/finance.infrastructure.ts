@@ -32,6 +32,7 @@ function toAccount(row: any): Account {
     balance: Money.of(row.balance.toString(), currency),
     overdraftLimit: Money.of(row.overdraftLimit.toString(), currency),
     color: row.color ?? null,
+    cardLast4: row.cardLast4 ?? null,
   };
 }
 
@@ -107,6 +108,7 @@ export const accountRepository: AccountRepository = {
         balance: input.balance.toDecimalString(),
         overdraftLimit: input.overdraftLimit.toDecimalString(),
         color: input.color,
+        cardLast4: input.cardLast4,
       },
     });
     return toAccount(row);

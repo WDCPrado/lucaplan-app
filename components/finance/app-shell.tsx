@@ -81,13 +81,13 @@ export function AppShell({ user, active = "inicio", onNavigate, onSignOut, onAdd
           </SidebarFooter>
         </Sidebar>
 
-        <SidebarInset>
+        <SidebarInset className="min-w-0">
           <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-4 backdrop-blur lg:px-6">
             <SidebarTrigger className="size-9" />
             {title && <h1 className="font-heading text-lg font-bold tracking-tight">{title}</h1>}
             <div className="ml-auto flex items-center gap-2">{actions}</div>
           </header>
-          <div className="flex-1">{children}</div>
+          <div className="min-w-0 flex-1">{children}</div>
         </SidebarInset>
 
         {onAdd && (

@@ -17,6 +17,21 @@ export const ACCOUNT_TYPES = [
 ] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
+// Tipos de cuenta con tarjeta física: exigen últimos 4 dígitos y tienen arte de tarjeta.
+export const CARD_ACCOUNT_TYPES = ["checking", "credit_card"] as const;
+
+// ¿Este tipo de cuenta tiene tarjeta? (checking = débito, credit_card = crédito).
+export function accountHasCard(t: AccountType): boolean {
+  return t === "checking" || t === "credit_card";
+}
+
+// Variante de tarjeta por tipo, para resolver el arte: "debito" | "credito" | null (sin tarjeta).
+export function cardVariant(t: AccountType): "debito" | "credito" | null {
+  if (t === "checking") return "debito";
+  if (t === "credit_card") return "credito";
+  return null;
+}
+
 export const DIRECTIONS = ["debit", "credit"] as const;
 export type Direction = (typeof DIRECTIONS)[number];
 
@@ -43,6 +58,7 @@ export type Account = {
   balance: Money; // puede ser negativo en checking (sobregiro usado = deuda)
   overdraftLimit: Money;
   color: string | null; // presentación
+  cardLast4: string | null; // últimos 4 dígitos de la tarjeta; obligatorio en tipos con tarjeta (checking/credit_card)
 };
 
 // Categoría GLOBAL del usuario, compartida entre todos los meses. El límite NO vive aquí.
@@ -97,6 +113,7 @@ export type NewAccount = {
   balance: Money;
   overdraftLimit: Money;
   color: string | null;
+  cardLast4: string | null;
 };
 
 export type CategoryInput = {
@@ -159,6 +176,14 @@ export class TransactionCurrencyMismatchError extends Error {
   constructor() {
     super("La moneda del movimiento no coincide con la de la cuenta");
     this.name = "TransactionCurrencyMismatchError";
+  }
+}
+
+// Falta el número de tarjeta (últimos 4 dígitos) en una cuenta que lo exige (→ 422).
+export class CardLast4RequiredError extends Error {
+  constructor() {
+    super("La cuenta requiere los últimos 4 dígitos de la tarjeta (4 dígitos numéricos)");
+    this.name = "CardLast4RequiredError";
   }
 }
 

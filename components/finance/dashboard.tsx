@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { useDragScroll } from "@/hooks/use-drag-scroll";
 import { AppShell, type NavKey } from "./app-shell";
 import { AccountCard } from "./account-card";
 import { MovementRow } from "./movement-row";
@@ -41,10 +42,11 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
   const [accountOpen, setAccountOpen] = useState(false);
   const [detail, setDetail] = useState<CategoryDTO | null>(null);
   const [editCat, setEditCat] = useState<CategoryDTO | null | undefined>(undefined); // undefined=cerrado, null=crear
+  const { ref: cardsRef, handlers: cardsHandlers } = useDragScroll();
 
   function goMonth(delta: number) {
     const d = new Date(Date.UTC(period.year, period.month - 1 + delta, 1));
-    router.push(`/?year=${d.getUTCFullYear()}&month=${d.getUTCMonth() + 1}`);
+    router.push(`/dashboard?year=${d.getUTCFullYear()}&month=${d.getUTCMonth() + 1}`);
   }
 
   async function signOut() {
@@ -80,18 +82,22 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
         </div>
       }
     >
-      <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
+      <div className="py-6">
         {/* Cuentas */}
         <section>
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mx-auto mb-3 flex max-w-6xl items-center justify-between px-4 lg:px-8">
             <h2 className="font-heading text-lg font-bold">Cuentas</h2>
             <button onClick={() => setShowBalance((v) => !v)} className="flex items-center gap-1.5 text-sm text-muted-foreground">
               {showBalance ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
               {showBalance ? "Ocultar" : "Mostrar"}
             </button>
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <div className="glass flex flex-col justify-between rounded-2xl p-5 sm:col-span-2 xl:col-span-1">
+          <div
+            ref={cardsRef}
+            {...cardsHandlers}
+            className="flex cursor-grab snap-x gap-4 overflow-x-auto px-4 py-2 pb-8 active:cursor-grabbing lg:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            <div className="glass flex min-h-40 w-72 shrink-0 snap-start flex-col justify-between rounded-2xl p-5">
               <div className="text-sm text-muted-foreground">Saldo bancario</div>
               <div className="tabular my-3 text-3xl font-bold">{showBalance ? formatCLP(summary.activeCash) : "••••••"}</div>
               <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-center">
@@ -101,11 +107,13 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
               </div>
             </div>
             {accounts.map((a) => (
-              <AccountCard key={a.id} account={a} hidden={!showBalance} />
+              <div key={a.id} className="flex w-72 shrink-0 snap-start">
+                <AccountCard account={a} hidden={!showBalance} />
+              </div>
             ))}
             <button
               onClick={() => setAccountOpen(true)}
-              className="flex min-h-40 flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+              className="flex min-h-40 w-72 shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
             >
               <span className="text-2xl">＋</span>
               <span className="text-sm font-medium">Nueva cuenta</span>
@@ -113,7 +121,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
           </div>
 
           {(summary.overdraftDebt > 0 || summary.creditCardDebts.length > 0) && (
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mx-auto mt-4 flex max-w-6xl flex-wrap gap-2 px-4 lg:px-8">
               {summary.overdraftDebt > 0 && <DebtPill label="Sobregiro" value={summary.overdraftDebt} />}
               {summary.creditCardDebts.map((d) => (
                 <DebtPill key={d.accountId} label={d.name} value={d.debt} />
@@ -123,7 +131,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
         </section>
 
         {/* Presupuestos + Movimientos */}
-        <div className="mt-8 grid gap-6 lg:grid-cols-3">
+        <div className="mx-auto mt-8 grid max-w-6xl gap-6 px-4 lg:grid-cols-3 lg:px-8">
           <section id="presupuestos" className="scroll-mt-20 lg:order-2 lg:col-span-1">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-heading text-lg font-bold">Presupuestos</h2>

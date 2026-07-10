@@ -51,7 +51,7 @@ function AuthForm({ mode }: { mode: "signin" | "signup" }) {
       setError(res.error.message ?? "Algo salió mal. Inténtalo de nuevo.");
       return;
     }
-    router.push("/");
+    router.push("/dashboard");
     router.refresh();
   }
 

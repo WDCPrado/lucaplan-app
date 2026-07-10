@@ -2,6 +2,7 @@ import {
   type CategoryRepository,
   type Category,
   type CategoryLimit,
+  type CategoryType,
   CategoryNotFoundError,
   NotOwnerError,
 } from "../../domain/finance/finance.domain.ts";
@@ -13,14 +14,14 @@ const CLP = "CLP" as const;
 export async function upsertCategory(
   deps: { categories: CategoryRepository },
   userId: string,
-  input: { id?: string; name: string; icon: string | null; color: string | null },
+  input: { id?: string; name: string; type: CategoryType; icon: string | null; color: string | null },
 ): Promise<Category> {
   if (input.id) {
     const existing = await deps.categories.findById(input.id);
     if (!existing) throw new CategoryNotFoundError(input.id);
     if (existing.userId !== userId) throw new NotOwnerError();
   }
-  return deps.categories.upsert({ id: input.id, userId, name: input.name, icon: input.icon, color: input.color });
+  return deps.categories.upsert({ id: input.id, userId, name: input.name, type: input.type, icon: input.icon, color: input.color });
 }
 
 // Fija el límite de una categoría para un mes concreto (upsert por categoría+año+mes). Ownership.

@@ -15,6 +15,7 @@ import { AddTransactionSheet } from "./add-transaction-sheet";
 import { CategoryModal } from "./category-modal";
 import { CategoryDetailSheet } from "./category-detail-sheet";
 import { AccountModal } from "./account-modal";
+import { AccountInfoModal } from "./account-info-modal";
 import { ConnectBankButton } from "./connect-bank-button";
 import { TransactionModal } from "./transaction-modal";
 import { formatCLP, formatCompact, monthName } from "@/lib/finance-format";
@@ -46,35 +47,13 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
   const [detailTx, setDetailTx] = useState<TransactionDTO | null>(null);
   const [editCat, setEditCat] = useState<CategoryDTO | null | undefined>(undefined); // undefined=cerrado, null=crear
   const { ref: cardsRef, handlers: cardsHandlers } = useDragScroll();
-  const [refreshing, setRefreshing] = useState<string | null>(null);
+  const [infoAccount, setInfoAccount] = useState<AccountDTO | null>(null);
 
   // Solo cuentas manuales aceptan movimientos a mano; las conectadas (fintoc) son de solo lectura.
   const manualAccounts = accounts.filter((a) => a.provider === "manual");
-
-  // Refresco manual de un banco conectado: re-sincroniza (incremental) y recarga.
-  async function refreshBank(bankId: string) {
-    setRefreshing(bankId);
-    await fetch("/api/fintoc/refresh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bankId }),
-    });
-    setRefreshing(null);
-    router.refresh();
-  }
-
-  // Desconectar un banco: elimina sus cuentas y todos sus movimientos (con confirmación).
-  async function disconnectBank(bankId: string, bankName: string) {
-    if (!window.confirm(`¿Desconectar ${bankName}? Se eliminarán sus cuentas y todos sus movimientos.`)) return;
-    setRefreshing(bankId);
-    await fetch("/api/fintoc/disconnect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bankId }),
-    });
-    setRefreshing(null);
-    router.refresh();
-  }
+  // El presupuesto es de gastos: solo categorías de gasto tienen tope/uso. Las de ingreso solo
+  // clasifican (aparecen al categorizar movimientos de ingreso, no en esta grilla).
+  const expenseCategories = budget.categories.filter((c) => c.type === "expense");
 
   function goMonth(delta: number) {
     const d = new Date(Date.UTC(period.year, period.month - 1 + delta, 1));
@@ -140,13 +119,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
             </div>
             {accounts.map((a) => (
               <div key={a.id} className="flex w-72 shrink-0 snap-start">
-                <AccountCard
-                  account={a}
-                  hidden={!showBalance}
-                  onRefresh={a.provider === "fintoc" ? () => refreshBank(a.bankId) : undefined}
-                  onDisconnect={a.provider === "fintoc" ? () => disconnectBank(a.bankId, a.bankName) : undefined}
-                  refreshing={refreshing === a.bankId}
-                />
+                <AccountCard account={a} hidden={!showBalance} onClick={() => setInfoAccount(a)} />
               </div>
             ))}
             <ConnectBankButton />
@@ -177,14 +150,14 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
               <span className="text-sm text-muted-foreground">{monthName(period.month)}</span>
             </div>
             <div className="glass rounded-2xl p-4">
-              {budget.categories.length === 0 ? (
+              {expenseCategories.length === 0 ? (
                 <button onClick={() => setEditCat(null)} className="flex w-full flex-col items-center gap-2 py-6 text-muted-foreground">
                   <span className="grid size-18 place-items-center rounded-full border-2 border-dashed border-border text-2xl">+</span>
                   <span className="text-sm">Crear categoría</span>
                 </button>
               ) : (
                 <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-2">
-                  {budget.categories.map((c) => {
+                  {expenseCategories.map((c) => {
                     const pct = c.limit > 0 ? (c.used / c.limit) * 100 : 0;
                     return (
                       <button key={c.id} onClick={() => setDetail(c)} className="flex flex-col items-center gap-1.5">
@@ -233,6 +206,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
         }}
       />
       <AccountModal open={accountOpen} onOpenChange={setAccountOpen} />
+      <AccountInfoModal account={infoAccount} onOpenChange={(o) => !o && setInfoAccount(null)} />
       <CategoryDetailSheet
         category={detail}
         transactions={transactions}
@@ -242,7 +216,13 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
           setEditCat(c);
         }}
       />
-      <CategoryModal open={editCat !== undefined} onOpenChange={(o) => !o && setEditCat(undefined)} period={period} category={editCat} />
+      <CategoryModal
+        key={editCat?.id ?? "new"}
+        open={editCat !== undefined}
+        onOpenChange={(o) => !o && setEditCat(undefined)}
+        period={period}
+        category={editCat}
+      />
       <TransactionModal tx={detailTx} categories={budget.categories} onOpenChange={(o) => !o && setDetailTx(null)} />
     </AppShell>
   );

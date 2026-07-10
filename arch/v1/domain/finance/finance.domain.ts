@@ -47,6 +47,16 @@ export type MovementStatus = (typeof MOVEMENT_STATUSES)[number];
 export const CATEGORY_STATUSES = ["bueno", "moderado", "completado", "excedido"] as const;
 export type CategoryStatus = (typeof CATEGORY_STATUSES)[number];
 
+// Tipo de categoría: clasifica ingresos o gastos. Una categoría solo aplica a movimientos de su
+// lado (income ↔ credit, expense ↔ debit); no se mezclan.
+export const CATEGORY_TYPES = ["income", "expense"] as const;
+export type CategoryType = (typeof CATEGORY_TYPES)[number];
+
+// Tipo de categoría que corresponde a una dirección de movimiento.
+export function categoryTypeForDirection(direction: Direction): CategoryType {
+  return direction === "credit" ? "income" : "expense";
+}
+
 // --- Entidades ---
 
 export type Bank = {
@@ -80,6 +90,7 @@ export type Category = {
   id: string;
   userId: string;
   name: string;
+  type: CategoryType; // "income" (ingreso) | "expense" (gasto)
   icon: string | null; // presentación (icono lucide o emoji)
   color: string | null; // presentación
 };
@@ -175,6 +186,7 @@ export type CategoryInput = {
   id?: string;
   userId: string;
   name: string;
+  type: CategoryType;
   icon: string | null;
   color: string | null;
 };
@@ -221,6 +233,8 @@ export interface TransactionRepository {
   create(tx: NewTransaction): Promise<Transaction>;
   // Edita un movimiento manual reajustando el saldo por la diferencia (nuevo − viejo), atómico.
   update(input: UpdateTransaction): Promise<Transaction>;
+  // Asigna/cambia solo la categoría (permitido también en movimientos fintoc; no toca el saldo).
+  setCategory(transactionId: string, categoryId: string | null): Promise<Transaction>;
   // Borra un movimiento manual revirtiendo su efecto en el saldo, atómico.
   delete(transactionId: string): Promise<void>;
   // Fintoc: importa movimientos por upsert (accountId, externalId), preservando la categoría

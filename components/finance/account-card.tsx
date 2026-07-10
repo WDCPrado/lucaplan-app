@@ -1,14 +1,7 @@
-import { RefreshCw, MoreVertical, Unlink } from "lucide-react";
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
 import { formatCLP } from "@/lib/finance-format";
 import { resolveCardArt } from "@/lib/bank-cards";
 import { cn } from "@/lib/utils";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 const TYPE_LABEL: Record<string, string> = {
   checking: "Débito",
@@ -26,27 +19,31 @@ const VARIANT_BG: Record<string, string> = {
 };
 
 // Tarjeta de una cuenta: nuestro estilo (gradiente por variante) + el isotipo del banco como
-// marca de agua de fondo; encima, banco, saldo, los últimos 4 dígitos reales y el tipo. Si el
-// banco/tipo no tienen arte, cae al color plano.
-export function AccountCard({
-  account,
-  hidden,
-  onRefresh,
-  onDisconnect,
-  refreshing,
-}: {
-  account: AccountDTO;
-  hidden?: boolean;
-  onRefresh?: () => void; // solo cuentas conectadas (fintoc)
-  onDisconnect?: () => void; // desconecta el banco (elimina cuentas + movimientos)
-  refreshing?: boolean;
-}) {
+// marca de agua de fondo; encima, banco, saldo, los últimos 4 dígitos reales y el tipo. Clickable
+// (opcional) para abrir su detalle. Las conectadas muestran el distintivo "Conectado".
+export function AccountCard({ account, hidden, onClick }: { account: AccountDTO; hidden?: boolean; onClick?: () => void }) {
   const art = resolveCardArt(account.bankName, account.accountType);
   const connected = account.provider === "fintoc";
 
   return (
     <div
-      className="relative flex min-h-40 w-full flex-col justify-between overflow-hidden rounded-2xl p-5 text-white shadow-[0_2px_8px_-2px_rgb(0_0_0/0.1),0_16px_32px_-12px_rgb(0_0_0/0.22)]"
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={cn(
+        "relative flex min-h-40 w-full flex-col justify-between overflow-hidden rounded-2xl p-5 text-white shadow-[0_2px_8px_-2px_rgb(0_0_0/0.1),0_16px_32px_-12px_rgb(0_0_0/0.22)]",
+        onClick && "cursor-pointer transition-transform hover:-translate-y-0.5",
+      )}
       style={art ? { background: VARIANT_BG[art.variant] } : { background: account.color ?? "var(--primary)" }}
     >
       {art && (
@@ -65,45 +62,10 @@ export function AccountCard({
           {account.bankName || account.name}
         </div>
         {connected && (
-          <div className="flex shrink-0 items-center gap-1.5">
-            <span className="flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-medium backdrop-blur">
-              <span className="size-1.5 rounded-full bg-emerald-400" />
-              Conectado
-            </span>
-            {refreshing ? (
-              <span className="grid size-6 place-items-center rounded-full bg-white/15 backdrop-blur">
-                <RefreshCw className="size-3 animate-spin" />
-              </span>
-            ) : (
-              (onRefresh || onDisconnect) && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label="Opciones de la cuenta"
-                      className="grid size-6 place-items-center rounded-full bg-white/15 backdrop-blur hover:bg-white/25"
-                    >
-                      <MoreVertical className="size-3.5" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {onRefresh && (
-                      <DropdownMenuItem onSelect={() => onRefresh()}>
-                        <RefreshCw className="size-4" />
-                        Refrescar
-                      </DropdownMenuItem>
-                    )}
-                    {onDisconnect && (
-                      <DropdownMenuItem variant="destructive" onSelect={() => onDisconnect()}>
-                        <Unlink className="size-4" />
-                        Desconectar
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )
-            )}
-          </div>
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-medium backdrop-blur">
+            <span className="size-1.5 rounded-full bg-emerald-400" />
+            Conectado
+          </span>
         )}
       </div>
 

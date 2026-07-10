@@ -37,6 +37,16 @@ export function AddTransactionSheet({
   const amountNum = money.value;
   const canSave = amountNum > 0 && !!account && !saving;
 
+  // Las categorías se filtran por el lado elegido: gasto → categorías de gasto, ingreso → de ingreso.
+  const wantType = direction === "credit" ? "income" : "expense";
+  const visibleCategories = categories.filter((c) => c.type === wantType);
+
+  function changeDirection(d: "debit" | "credit") {
+    setDirection(d);
+    const t = d === "credit" ? "income" : "expense";
+    if (categoryId && categories.find((c) => c.id === categoryId)?.type !== t) setCategoryId(null);
+  }
+
   async function save() {
     if (!canSave || !account) return;
     setSaving(true);
@@ -85,14 +95,14 @@ export function AddTransactionSheet({
             <div className="flex overflow-hidden rounded-full border">
               <button
                 type="button"
-                onClick={() => setDirection("debit")}
+                onClick={() => changeDirection("debit")}
                 className={cn("size-11 text-xl", direction === "debit" && "bg-destructive text-destructive-foreground")}
               >
                 −
               </button>
               <button
                 type="button"
-                onClick={() => setDirection("credit")}
+                onClick={() => changeDirection("credit")}
                 className={cn("size-11 text-xl", direction === "credit" && "bg-success text-success-foreground")}
               >
                 +
@@ -121,11 +131,15 @@ export function AddTransactionSheet({
           )}
 
           <div className="flex flex-wrap gap-2">
-            {categories.map((c) => (
-              <Chip key={c.id} active={c.id === categoryId} onClick={() => setCategoryId(c.id === categoryId ? null : c.id)}>
-                <CategoryIcon icon={c.icon} size={16} /> {c.name}
-              </Chip>
-            ))}
+            {visibleCategories.length === 0 ? (
+              <span className="text-sm text-muted-foreground">Sin categorías de {direction === "credit" ? "ingreso" : "gasto"}.</span>
+            ) : (
+              visibleCategories.map((c) => (
+                <Chip key={c.id} active={c.id === categoryId} onClick={() => setCategoryId(c.id === categoryId ? null : c.id)}>
+                  <CategoryIcon icon={c.icon} size={16} /> {c.name}
+                </Chip>
+              ))
+            )}
           </div>
 
           <Button onClick={save} disabled={!canSave} className="h-12 rounded-full text-base">

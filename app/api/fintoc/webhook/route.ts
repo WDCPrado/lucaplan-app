@@ -19,14 +19,25 @@ export async function POST(req: Request) {
   const linkId: string | null = obj.id ?? d.link_id ?? d.id ?? null;
   const institutionName: string = obj.institution?.name ?? d.institution?.name ?? "Banco";
 
-  // A) Conexión del widget: uid firmado por nosotros + link_token del body.
-  // La sync corre en background: respondemos 200 ya (Fintoc espera un ack rápido; si tardamos,
-  // reintenta). Es idempotente, así que un reintento no duplica.
+  // A) Eventos del `webhookUrl` del widget (uid firmado por nosotros). Cubre la conexión inicial y
+  // las actualizaciones que Fintoc envía luego para ese Link. La sync corre en background:
+  // respondemos 200 ya (Fintoc espera un ack rápido; si tardamos, reintenta). Idempotente.
   const userId = verifyUid(new URL(req.url).searchParams.get("uid"));
-  if (userId && linkToken && linkId) {
-    void syncLink(financeDeps, userId, { linkId, linkToken, institutionName }).catch((e) =>
-      console.error("[fintoc webhook] sync (connect) falló:", e),
-    );
+  if (userId && linkId) {
+    if (linkToken) {
+      // Trae el token en el body (conexión) → conectar/sincronizar.
+      void syncLink(financeDeps, userId, { linkId, linkToken, institutionName }).catch((e) =>
+        console.error("[fintoc webhook] sync (connect) falló:", e),
+      );
+    } else {
+      // Actualización sin token → usar el token guardado del banco de ese usuario.
+      const bank = await financeDeps.banks.findByExternalLinkId(linkId);
+      if (bank?.userId === userId && bank.provider === "fintoc" && bank.linkToken) {
+        void syncLink(financeDeps, userId, { linkId, linkToken: bank.linkToken, institutionName: bank.name }).catch((e) =>
+          console.error("[fintoc webhook] sync (update) falló:", e),
+        );
+      }
+    }
     return json({ received: true }, 200);
   }
 

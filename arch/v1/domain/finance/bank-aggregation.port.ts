@@ -35,4 +35,7 @@ export interface BankAggregationProvider {
     accountExternalId: string,
     opts?: { confirmedOnly?: boolean; updatedSince?: Date },
   ): Promise<ProviderMovement[]>;
+  // Revoca el Link en Fintoc: deja de refrescarlo, invalida su link_token y deja de cobrarlo.
+  // Idempotente: si el Link ya no existe (404), se considera hecho.
+  revokeLink(linkId: string): Promise<void>;
 }

@@ -56,6 +56,11 @@ Todo el backend (doc + código) vive en `arch/`; no hay carpeta `src/`. Dentro d
   introduzcas otra librería de componentes.
 - **Componente que no existe → instálalo con el comando**, no lo escribas a mano:
   `pnpm dlx shadcn@latest add <componente>` → cae en `components/ui/`.
+- **Siempre shadcn, nunca primitivos del navegador.** Prohibido `window.confirm/alert/prompt` y
+  diálogos/notificaciones nativas. Usa los primitivos de shadcn: **AlertDialog** para
+  confirmaciones (sobre todo acciones destructivas), **Dialog**/`ResponsiveModal` para contenido en
+  modal, toast/sonner para avisos. Cualquier interacción modal, de confirmación o de aviso pasa por
+  shadcn; si el componente no está, instálalo con el comando de arriba.
 - **El estilo principal (tokens, colores, tipografía, radius, dark mode) se define en
   `app/globals.css`** (variables CSS de Tailwind v4). Es la fuente de verdad del diseño;
   no hardcodees valores en componentes, tira de esas variables. Detalle del design system

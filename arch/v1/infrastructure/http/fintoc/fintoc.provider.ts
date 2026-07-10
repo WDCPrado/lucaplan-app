@@ -89,4 +89,16 @@ export const fintocProvider: BankAggregationProvider = {
     const { rows } = await fintocGet(`/accounts/${encodeURIComponent(accountExternalId)}/movements?${params.toString()}`);
     return rows.map(toProviderMovement);
   },
+  async revokeLink(linkId) {
+    const { secretKey, baseUrl } = fintocConfig();
+    const res = await fetch(`${baseUrl}/links/${encodeURIComponent(linkId)}`, {
+      method: "DELETE",
+      headers: { Authorization: secretKey, Accept: "application/json" },
+    });
+    // 204 = revocado; 404 = ya no existe (ok). Otro código → error.
+    if (!res.ok && res.status !== 404) {
+      const body = await res.text().catch(() => "");
+      throw new BankConnectionError(`Fintoc DELETE link ${res.status}: ${body.slice(0, 200)}`);
+    }
+  },
 };

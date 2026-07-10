@@ -11,6 +11,7 @@ import type {
   Category,
   CategoryLimit,
   CategoryRepository,
+  CategoryType,
   ConnectedAccountInput,
   ConnectedBankInput,
   Direction,
@@ -50,6 +51,7 @@ function toCategory(row: any): Category {
     id: row.id,
     userId: row.userId,
     name: row.name,
+    type: (row.type ?? "expense") as CategoryType,
     icon: row.icon ?? null,
     color: row.color ?? null,
   };
@@ -190,7 +192,7 @@ export const categoryRepository: CategoryRepository = {
     return row ? toCategory(row) : null;
   },
   async upsert(input) {
-    const data = { userId: input.userId, name: input.name, icon: input.icon, color: input.color };
+    const data = { userId: input.userId, name: input.name, type: input.type, icon: input.icon, color: input.color };
     const row = input.id
       ? await prisma.category.update({ where: { id: input.id }, data })
       : await prisma.category.create({ data });
@@ -274,6 +276,10 @@ export const transactionRepository: TransactionRepository = {
       });
     });
     return toTransaction(row);
+  },
+  // Asigna/cambia solo la categoría (no toca el saldo; sirve para movimientos fintoc).
+  async setCategory(transactionId: string, categoryId: string | null) {
+    return toTransaction(await prisma.transaction.update({ where: { id: transactionId }, data: { categoryId } }));
   },
   // Borra un movimiento manual revirtiendo su efecto en el saldo, atómico.
   async delete(transactionId: string) {

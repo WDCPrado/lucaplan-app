@@ -33,6 +33,7 @@ const provider: BankAggregationProvider = {
       { externalId: "mov_2", description: "Abono", amount: 10000, currency: "CLP", postDate: "2026-07-02", transactionDate: "2026-07-02", status: "confirmed", pending: false },
     ];
   },
+  async revokeLink() {},
 };
 
 type FakeTxRow = { accountId: string; externalId: string; amount: number; categoryId: string | null };
@@ -102,6 +103,9 @@ function makeDeps() {
         return null;
       },
       async update() {
+        throw new Error("no usado");
+      },
+      async setCategory() {
         throw new Error("no usado");
       },
       async delete() {},

@@ -10,6 +10,7 @@ export async function POST(req: Request) {
       const c = await upsertCategory(financeDeps, userId, {
         id: body.id,
         name: body.name,
+        type: body.type === "income" ? "income" : "expense",
         icon: body.icon ?? null,
         color: body.color ?? null,
       });

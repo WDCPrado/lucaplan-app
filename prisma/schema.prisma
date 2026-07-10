@@ -134,6 +134,7 @@ model Category {
   id           String          @id @default(uuid())
   userId       String
   name         String
+  type         String          @default("expense") // income (ingreso) | expense (gasto)
   icon         String? // presentación: icono lucide o emoji (opcional)
   color        String? // presentación: color del anillo (opcional)
   isActive     Boolean         @default(true)

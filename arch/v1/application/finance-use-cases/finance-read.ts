@@ -73,6 +73,7 @@ export type TransactionDTO = {
 export type CategoryDTO = {
   id: string;
   name: string;
+  type: string; // "income" (ingreso) | "expense" (gasto)
   icon: string | null;
   color: string | null;
   limit: number;
@@ -193,6 +194,7 @@ export async function getBudgetView(deps: ReadDeps, userId: string, year: number
     return {
       id: category.id,
       name: category.name,
+      type: category.type,
       icon: category.icon,
       color: category.color,
       limit: limit.toMajor(),
@@ -225,6 +227,7 @@ export async function getCategoryDetail(
   return {
     id: category.id,
     name: category.name,
+    type: category.type,
     icon: category.icon,
     color: category.color,
     limit: limit.toMajor(),

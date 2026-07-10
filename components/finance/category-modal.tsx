@@ -26,33 +26,36 @@ export function CategoryModal({
 }) {
   const router = useRouter();
   const [name, setName] = useState(category?.name ?? "");
+  const [type, setType] = useState<"income" | "expense">((category?.type as "income" | "expense") ?? "expense");
   const limit = useMoneyInput("CLP", category?.limit ?? 0);
   const [icon, setIcon] = useState(category?.icon ?? "");
   const [color, setColor] = useState(category?.color ?? "#6366f1");
   const [saving, setSaving] = useState(false);
 
-  const canSave = name.trim() && limit.value >= 0 && !saving;
+  const canSave = !!name.trim() && !saving;
 
   async function save() {
     if (!canSave) return;
     setSaving(true);
-    // 1) Categoría global (nombre/icono/color)
+    // 1) Categoría global (nombre/tipo/icono/color)
     const catRes = await fetch("/api/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: category?.id, name: name.trim(), icon, color }),
+      body: JSON.stringify({ id: category?.id, name: name.trim(), type, icon, color }),
     });
     if (!catRes.ok) {
       setSaving(false);
       return;
     }
     const categoryId = category?.id ?? ((await catRes.json()).id as string);
-    // 2) Límite para el mes actual
-    await fetch("/api/category-limits", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ categoryId, year: period.year, month: period.month, limit: limit.value }),
-    });
+    // 2) Límite del mes: solo para categorías de gasto (las de ingreso no tienen tope).
+    if (type === "expense") {
+      await fetch("/api/category-limits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categoryId, year: period.year, month: period.month, limit: limit.value }),
+      });
+    }
     setSaving(false);
     onOpenChange(false);
     router.refresh();
@@ -64,6 +67,28 @@ export function CategoryModal({
           <div>
             <Label className="mb-1 block text-xs">Nombre</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Compras" className="h-11" />
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs">Tipo</Label>
+            <div className="flex gap-2">
+              {(["expense", "income"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setType(t)}
+                  className={cn(
+                    "h-11 flex-1 rounded-full border text-sm font-medium",
+                    type === t
+                      ? t === "income"
+                        ? "border-success bg-success/10 text-success"
+                        : "border-primary bg-primary/10 text-primary"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {t === "income" ? "Ingreso" : "Gasto"}
+                </button>
+              ))}
+            </div>
           </div>
           <div>
             <Label className="mb-1 block text-xs">Icono</Label>
@@ -84,16 +109,18 @@ export function CategoryModal({
               ))}
             </div>
           </div>
-          <div>
-            <Label className="mb-1 block text-xs">Límite de {monthName(period.month)} (CLP)</Label>
-            <Input
-              inputMode="numeric"
-              value={limit.display}
-              onChange={(e) => limit.onChange(e.target.value)}
-              placeholder="70.000"
-              className="tabular h-11"
-            />
-          </div>
+          {type === "expense" && (
+            <div>
+              <Label className="mb-1 block text-xs">Límite de {monthName(period.month)} (CLP)</Label>
+              <Input
+                inputMode="numeric"
+                value={limit.display}
+                onChange={(e) => limit.onChange(e.target.value)}
+                placeholder="70.000"
+                className="tabular h-11"
+              />
+            </div>
+          )}
           <div>
             <Label className="mb-1 block text-xs">Color</Label>
             <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-11 w-full rounded-md border bg-transparent" />

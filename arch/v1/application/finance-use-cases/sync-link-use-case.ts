@@ -46,17 +46,24 @@ export async function syncLink(
     providerAccounts.map(async (pa) => {
       const mapped = mapProviderAccount(pa);
       if (!mapped) return { accounts: 0, movements: 0 }; // moneda no soportada → se omite
-      const account = await deps.accounts.upsertConnected({
-        userId,
-        bankId: bank.id,
-        externalId: pa.externalId,
-        name: pa.name,
-        ...mapped,
-      });
-      const raw = await deps.provider.listMovements(input.linkToken, pa.externalId, { confirmedOnly: false, updatedSince });
-      const toImport = raw.map(mapProviderMovement).filter((m): m is NonNullable<typeof m> => m !== null);
-      await deps.transactions.importMovements(userId, account.id, toImport);
-      return { accounts: 1, movements: toImport.length };
+      try {
+        const account = await deps.accounts.upsertConnected({
+          userId,
+          bankId: bank.id,
+          externalId: pa.externalId,
+          name: pa.name,
+          ...mapped,
+        });
+        const raw = await deps.provider.listMovements(input.linkToken, pa.externalId, { confirmedOnly: false, updatedSince });
+        const toImport = raw.map(mapProviderMovement).filter((m): m is NonNullable<typeof m> => m !== null);
+        await deps.transactions.importMovements(userId, account.id, toImport);
+        return { accounts: 1, movements: toImport.length };
+      } catch (e) {
+        // Carrera benigna: el banco/cuenta se borró mientras sincronizábamos en background
+        // (desconectar concurrente) → la FK falla (P2003). El sync quedó obsoleto: se omite.
+        if ((e as { code?: string })?.code === "P2003") return { accounts: 0, movements: 0 };
+        throw e;
+      }
     }),
   );
   return {

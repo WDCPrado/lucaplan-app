@@ -18,6 +18,7 @@ const fontMono = IBM_Plex_Mono({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.BETTER_AUTH_URL ?? "http://localhost:3000"),
   title: "LucaPlan | Presupuestos mensuales",
   description:
     "Planifica cada mes con presupuestos claros, pagos recurrentes y conexión bancaria con Fintoc.",

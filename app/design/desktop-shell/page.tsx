@@ -79,10 +79,10 @@ export default function DesktopShellMock() {
         </div>
       }
     >
-      <div className="py-6">
+      <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
         {/* Cuentas */}
         <section>
-          <div className="mx-auto mb-3 flex max-w-6xl items-center justify-between px-4 lg:px-8">
+          <div className="mb-3 flex items-center justify-between">
             <h2 className="font-heading text-lg font-bold">Cuentas</h2>
             <button onClick={() => setShowBalance((v) => !v)} className="flex items-center gap-1.5 text-sm text-muted-foreground">
               {showBalance ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
@@ -92,7 +92,7 @@ export default function DesktopShellMock() {
           <div
             ref={cardsRef}
             {...cardsHandlers}
-            className="flex cursor-grab snap-x gap-4 overflow-x-auto px-4 py-2 pb-8 active:cursor-grabbing lg:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="-mx-4 flex cursor-grab snap-x gap-4 overflow-x-auto px-4 pb-4 active:cursor-grabbing lg:mx-0 lg:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             <div className="glass flex min-h-40 w-72 shrink-0 snap-start flex-col justify-between rounded-2xl p-5">
               <div className="text-sm text-muted-foreground">Saldo disponible</div>
@@ -119,7 +119,7 @@ export default function DesktopShellMock() {
         </section>
 
         {/* Presupuestos + Movimientos */}
-        <div className="mx-auto mt-8 grid max-w-6xl gap-6 px-4 lg:grid-cols-3 lg:px-8">
+        <div className="mt-8 grid gap-6 lg:grid-cols-3">
           <section className="lg:order-2 lg:col-span-1">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-heading text-lg font-bold">Presupuestos</h2>

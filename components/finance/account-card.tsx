@@ -41,7 +41,8 @@ export function AccountCard({ account, hidden, onClick }: { account: AccountDTO;
           : undefined
       }
       className={cn(
-        "relative flex min-h-40 w-full flex-col justify-between overflow-hidden rounded-2xl p-5 text-white shadow-[0_2px_8px_-2px_rgb(0_0_0/0.1),0_16px_32px_-12px_rgb(0_0_0/0.22)]",
+        // Sombra corta y contenida: una larga se recorta contra el borde del carrusel (overflow-x)
+        "relative flex min-h-40 w-full flex-col justify-between overflow-hidden rounded-2xl p-5 text-white shadow-[0_1px_2px_rgb(0_0_0/0.08),0_8px_20px_-10px_rgb(0_0_0/0.25)]",
         onClick && "cursor-pointer transition-transform hover:-translate-y-0.5",
       )}
       style={art ? { background: VARIANT_BG[art.variant] } : { background: account.color ?? "var(--primary)" }}

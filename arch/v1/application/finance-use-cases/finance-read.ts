@@ -76,6 +76,7 @@ export type CategoryDTO = {
   type: string; // "income" (ingreso) | "expense" (gasto)
   icon: string | null;
   color: string | null;
+  description: string | null; // contexto para la IA; se edita en el modal
   limit: number;
   used: number;
   available: number;
@@ -197,6 +198,7 @@ export async function getBudgetView(deps: ReadDeps, userId: string, year: number
       type: category.type,
       icon: category.icon,
       color: category.color,
+      description: category.description,
       limit: limit.toMajor(),
       used: used.toMajor(),
       available: available.toMajor(),
@@ -230,6 +232,7 @@ export async function getCategoryDetail(
     type: category.type,
     icon: category.icon,
     color: category.color,
+    description: category.description,
     limit: limit.toMajor(),
     used: used.toMajor(),
     available: available.toMajor(),

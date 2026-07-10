@@ -11,22 +11,37 @@ const PUBLIC_KEY = process.env.NEXT_PUBLIC_FINTOC_PUBLIC_KEY;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function accountCount(): Promise<number> {
+type SyncStatus = { connected: boolean; accounts: number; movements: number; uncategorized: number; aiEnabled: boolean };
+
+async function fetchStatus(): Promise<SyncStatus | null> {
   try {
-    const res = await fetch("/api/accounts", { cache: "no-store" });
-    const data = await res.json();
-    return Array.isArray(data) ? data.length : 0;
+    const res = await fetch("/api/fintoc/status", { cache: "no-store" });
+    return res.ok ? ((await res.json()) as SyncStatus) : null;
   } catch {
-    return 0;
+    return null;
   }
 }
 
-// El link_token llega por webhook (async) y la sync corre en background; sondeamos /api/accounts
-// hasta que crezca respecto al baseline, o hasta el tope (~30s).
-async function waitForNewAccounts(baseline: number): Promise<void> {
-  for (let i = 0; i < 20; i++) {
+// El link_token llega por webhook (async) y la sync corre en background. Esperamos hasta que el
+// primer lote de ESTA conexión esté importado y categorizado, comparando contra el baseline previo:
+//  - movimientos crecieron (se importó algo nuevo), y
+//  - si hay IA, la cantidad sin categoría se estabiliza (la categorización terminó su pasada; si algo
+//    quedó sin clasificar, igual se estabiliza y no colgamos).
+// Tope ~120s como red de seguridad (no importa si demora un poco, pero nunca cuelga para siempre).
+async function waitForFirstBatch(base: SyncStatus): Promise<void> {
+  let lastUncat = -1;
+  let stable = 0;
+  for (let i = 0; i < 80; i++) {
     await sleep(1500);
-    if ((await accountCount()) > baseline) return;
+    const s = await fetchStatus();
+    if (!s || s.movements <= base.movements) continue; // aún no aparece nada nuevo
+    if (!s.aiEnabled) return; // sin IA: basta con que aparezcan los movimientos
+    if (s.uncategorized === lastUncat) {
+      if (++stable >= 2) return; // sin cambios en 2 sondeos → categorización terminada
+    } else {
+      stable = 0;
+      lastUncat = s.uncategorized;
+    }
   }
 }
 
@@ -50,7 +65,7 @@ export function ConnectBankButton() {
       setState("idle");
       return;
     }
-    const baseline = await accountCount();
+    const baseline = (await fetchStatus()) ?? { connected: false, accounts: 0, movements: 0, uncategorized: 0, aiEnabled: false };
     const widget = Fintoc.create({
       holderType: "individual",
       product: "movements",
@@ -65,11 +80,13 @@ export function ConnectBankButton() {
           widget.destroy?.();
         } catch {}
         setState("syncing");
-        await waitForNewAccounts(baseline);
-        setState("done");
-        await sleep(1300); // deja ver el estado "listo" antes de recargar
-        setState("idle");
+        await waitForFirstBatch(baseline);
+        // Refresca los datos ANTES de revelar el "listo": así el overlay tapa el dashboard mientras
+        // se puebla, y al desvanecerse ya se ven los movimientos (no un "0 este mes" viejo).
         router.refresh();
+        setState("done");
+        await sleep(1300);
+        setState("idle");
       },
       onExit: () => setState("idle"),
     });

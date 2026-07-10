@@ -12,6 +12,12 @@ import type {
   ImportMovement,
 } from "../../domain/finance/finance.domain.ts";
 
+// Fechas del mes actual (la primera conexión solo importa desde el inicio del mes en curso, así que
+// los mocks deben caer en este mes para que el test sea robusto en cualquier fecha).
+const NOW = new Date();
+const day = (n: number) => new Date(Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth(), n)).toISOString().slice(0, 10);
+const prevMonthDay = (n: number) => new Date(Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth() - 1, n)).toISOString().slice(0, 10);
+
 const provider: BankAggregationProvider = {
   async listAccounts() {
     return [
@@ -29,8 +35,8 @@ const provider: BankAggregationProvider = {
   },
   async listMovements() {
     return [
-      { externalId: "mov_1", description: "Compra", amount: -3000, currency: "CLP", postDate: "2026-07-01", transactionDate: "2026-07-01", status: "confirmed", pending: false },
-      { externalId: "mov_2", description: "Abono", amount: 10000, currency: "CLP", postDate: "2026-07-02", transactionDate: "2026-07-02", status: "confirmed", pending: false },
+      { externalId: "mov_1", description: "Compra", amount: -3000, currency: "CLP", postDate: day(1), transactionDate: day(1), status: "confirmed", pending: false },
+      { externalId: "mov_2", description: "Abono", amount: 10000, currency: "CLP", postDate: day(2), transactionDate: day(2), status: "confirmed", pending: false },
     ];
   },
   async revokeLink() {},
@@ -38,12 +44,12 @@ const provider: BankAggregationProvider = {
 
 type FakeTxRow = { accountId: string; externalId: string; amount: number; categoryId: string | null };
 
-function makeDeps() {
+function makeDeps(providerOverride?: BankAggregationProvider) {
   const banks: Bank[] = [];
   const accounts: Account[] = [];
   const txs: FakeTxRow[] = [];
   const deps: SyncDeps = {
-    provider,
+    provider: providerOverride ?? provider,
     banks: {
       async listByUser() {
         return banks;
@@ -110,12 +116,14 @@ function makeDeps() {
       },
       async delete() {},
       // Dedupe por (accountId, externalId), preservando categoryId (como el upsert de Prisma).
+      // Devuelve [] porque estos tests no ejercen la categorización (deps.categorization ausente).
       async importMovements(_userId: string, accountId: string, movements: ImportMovement[]) {
         for (const m of movements) {
           const found = txs.find((t) => t.accountId === accountId && t.externalId === m.externalId);
           if (found) found.amount = m.amount.toMajor();
           else txs.push({ accountId, externalId: m.externalId, amount: m.amount.toMajor(), categoryId: null });
         }
+        return [];
       },
     },
   };
@@ -131,6 +139,23 @@ test("syncLink: primera sync crea banco, cuenta y movimientos; usa el saldo del 
   assert.equal(accounts.length, 1);
   assert.equal(accounts[0].balance.toMajor(), 500000); // saldo autoritativo del proveedor
   assert.equal(txs.length, 2);
+});
+
+test("syncLink: primera conexión importa solo desde el mes actual (descarta lo previo)", async () => {
+  const prov: BankAggregationProvider = {
+    ...provider,
+    async listMovements() {
+      return [
+        { externalId: "mov_new", description: "Reciente", amount: -1000, currency: "CLP", postDate: day(5), transactionDate: day(5), status: "confirmed", pending: false },
+        { externalId: "mov_old", description: "Viejo", amount: -2000, currency: "CLP", postDate: prevMonthDay(15), transactionDate: prevMonthDay(15), status: "confirmed", pending: false },
+      ];
+    },
+  };
+  const { deps, txs } = makeDeps(prov);
+  const res = await syncLink(deps, "u1", { linkId: "link_1", linkToken: "lt_1", institutionName: "Banco X" });
+  assert.equal(res.movements, 1); // solo el del mes actual
+  assert.equal(txs.length, 1);
+  assert.equal(txs[0].externalId, "mov_new");
 });
 
 test("syncLink: re-sync es idempotente (no duplica) y preserva la categoría", async () => {

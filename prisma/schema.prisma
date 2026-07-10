@@ -137,6 +137,7 @@ model Category {
   type         String          @default("expense") // income (ingreso) | expense (gasto)
   icon         String? // presentación: icono lucide o emoji (opcional)
   color        String? // presentación: color del anillo (opcional)
+  description  String? // contexto para la categorización con IA (opcional); no afecta cálculos
   isActive     Boolean         @default(true)
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt

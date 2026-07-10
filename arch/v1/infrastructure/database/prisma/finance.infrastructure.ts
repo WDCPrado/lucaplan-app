@@ -54,6 +54,7 @@ function toCategory(row: any): Category {
     type: (row.type ?? "expense") as CategoryType,
     icon: row.icon ?? null,
     color: row.color ?? null,
+    description: row.description ?? null,
   };
 }
 
@@ -192,7 +193,7 @@ export const categoryRepository: CategoryRepository = {
     return row ? toCategory(row) : null;
   },
   async upsert(input) {
-    const data = { userId: input.userId, name: input.name, type: input.type, icon: input.icon, color: input.color };
+    const data = { userId: input.userId, name: input.name, type: input.type, icon: input.icon, color: input.color, description: input.description };
     const row = input.id
       ? await prisma.category.update({ where: { id: input.id }, data })
       : await prisma.category.create({ data });
@@ -298,8 +299,9 @@ export const transactionRepository: TransactionRepository = {
   // categoryId (no se toca en update) y NO ajusta el saldo (lo fija el proveedor).
   async importMovements(userId: string, accountId: string, movements: ImportMovement[]) {
     const CHUNK = 10; // ponytail: upsert en lotes acotados (evita saturar el pool de conexiones).
+    const rows: Transaction[] = [];
     for (let i = 0; i < movements.length; i += CHUNK) {
-      await Promise.all(
+      const upserted = await Promise.all(
         movements.slice(i, i + CHUNK).map((m) => {
           const fields = {
             transactionDate: m.date,
@@ -317,9 +319,27 @@ export const transactionRepository: TransactionRepository = {
           });
         }),
       );
+      rows.push(...upserted.map(toTransaction));
     }
+    // Devuelve las filas con su categoryId actual: el sync categoriza las que sigan en null.
+    return rows;
   },
 };
+
+// Estado de la sincronización de los bancos conectados de un usuario, para el loader de la primera
+// conexión. Read-only: proyección directa por Prisma (no es lógica de negocio, no pasa por un port).
+export async function getFintocSyncStatus(
+  userId: string,
+): Promise<{ connected: boolean; accounts: number; movements: number; uncategorized: number }> {
+  const accts = await prisma.financialAccount.findMany({ where: { userId, provider: "fintoc" }, select: { id: true } });
+  const ids = accts.map((a) => a.id);
+  if (ids.length === 0) return { connected: false, accounts: 0, movements: 0, uncategorized: 0 };
+  const [movements, uncategorized] = await Promise.all([
+    prisma.transaction.count({ where: { accountId: { in: ids } } }),
+    prisma.transaction.count({ where: { accountId: { in: ids }, categoryId: null } }),
+  ]);
+  return { connected: true, accounts: ids.length, movements, uncategorized };
+}
 
 // Filtro [primer día del mes, primer día del mes siguiente) sobre transactionDate.
 function periodWhere(year: number, month: number) {

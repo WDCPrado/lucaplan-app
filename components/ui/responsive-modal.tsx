@@ -4,11 +4,11 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 
-// Superficie contextual adaptativa: diálogo centrado en escritorio, sheet inferior en móvil.
-// Mismo contenido y comportamiento; solo cambia el envoltorio según el viewport (useIsMobile,
-// breakpoint 768px). Drop-in para reemplazar el patrón <Sheet><SheetContent side="bottom">.
+// Superficie contextual adaptativa: diálogo centrado en escritorio, drawer inferior estilo iOS
+// en móvil (vaul: full-height, arrastrable, con el fondo escalado vía data-vaul-drawer-wrapper
+// en el layout). Mismo contenido y comportamiento; solo cambia el envoltorio (useIsMobile, 768px).
 export function ResponsiveModal({
   open,
   onOpenChange,
@@ -28,14 +28,16 @@ export function ResponsiveModal({
 
   if (isMobile) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className={cn("max-h-[92dvh] overflow-x-hidden overflow-y-auto rounded-t-3xl", className)}>
-          <SheetHeader className={headerClassName}>
-            <SheetTitle>{title}</SheetTitle>
-          </SheetHeader>
-          {children}
-        </SheetContent>
-      </Sheet>
+      <Drawer open={open} onOpenChange={onOpenChange} shouldScaleBackground setBackgroundColorOnScale={false}>
+        <DrawerContent
+          className={cn("h-[96dvh] data-[vaul-drawer-direction=bottom]:max-h-[96dvh]", className)}
+        >
+          <DrawerHeader className={headerClassName}>
+            <DrawerTitle>{title}</DrawerTitle>
+          </DrawerHeader>
+          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">{children}</div>
+        </DrawerContent>
+      </Drawer>
     );
   }
 

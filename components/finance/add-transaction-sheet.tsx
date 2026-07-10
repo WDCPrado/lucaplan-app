@@ -121,7 +121,7 @@ export function AddTransactionSheet({
           </div>
 
           {accounts.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
               {accounts.map((a) => (
                 <Chip key={a.id} active={a.id === account?.id} onClick={() => setAccountId(a.id)}>
                   {a.name}
@@ -130,7 +130,7 @@ export function AddTransactionSheet({
             </div>
           )}
 
-          <div className="flex flex-wrap gap-2">
+          <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
             {visibleCategories.length === 0 ? (
               <span className="text-sm text-muted-foreground">Sin categorías de {direction === "credit" ? "ingreso" : "gasto"}.</span>
             ) : (
@@ -157,7 +157,7 @@ function Chip({ active, onClick, children }: { active?: boolean; onClick: () => 
       type="button"
       onClick={onClick}
       className={cn(
-        "flex h-11 items-center gap-1.5 rounded-full border px-4 text-sm whitespace-nowrap",
+        "flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm whitespace-nowrap",
         active ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground",
       )}
     >

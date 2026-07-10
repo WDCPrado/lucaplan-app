@@ -8,6 +8,7 @@ const STEPS = [
   { label: "Vinculando con Fintoc", desc: "Conexión segura establecida" },
   { label: "Trayendo tus cuentas", desc: "Saldos, tarjetas y cupos" },
   { label: "Importando movimientos", desc: "Descargando tu historial" },
+  { label: "Categorizando con IA", desc: "Ordenando tus gastos por categoría" },
 ];
 
 // Overlay full-screen mientras se sincroniza un banco recién conectado. Bloquea la app. Los pasos

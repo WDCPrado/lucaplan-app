@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { MovementRow } from "./movement-row";
 import { formatDateHeader } from "@/lib/finance-format";
@@ -30,14 +31,22 @@ export function MovementsList({
   onOpen: (tx: TransactionDTO) => void;
 }) {
   const [page, setPage] = useState(1);
+  const topRef = useRef<HTMLDivElement>(null);
   const totalPages = Math.max(1, Math.ceil(transactions.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const start = (safePage - 1) * PAGE_SIZE;
   const groups = groupByDate(transactions.slice(start, start + PAGE_SIZE));
 
+  // Cambiar de página vuelve al inicio de la lista (scroll-mt compensa el header sticky).
+  // flushSync: commit del nuevo layout ANTES de scrollear, o el smooth scroll queda corto.
+  function goPage(p: number) {
+    flushSync(() => setPage(p));
+    topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
     <>
-      <div className="flex flex-col gap-5">
+      <div ref={topRef} className="flex scroll-mt-20 flex-col gap-5">
         {groups.map((g) => (
           <div key={g.date}>
             <div className="mb-1.5 px-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -58,9 +67,18 @@ export function MovementsList({
             Página {safePage} de {totalPages}
           </span>
           <div className="flex items-center gap-1.5">
+            {safePage > 1 && (
+              <button
+                type="button"
+                onClick={() => goPage(1)}
+                className="h-9 rounded-full border px-3.5 text-sm font-medium transition-colors hover:bg-secondary"
+              >
+                Hoy
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setPage(safePage - 1)}
+              onClick={() => goPage(safePage - 1)}
               disabled={safePage <= 1}
               className="grid size-9 place-items-center rounded-full border transition-colors hover:bg-secondary disabled:opacity-40"
               aria-label="Página anterior"
@@ -69,7 +87,7 @@ export function MovementsList({
             </button>
             <button
               type="button"
-              onClick={() => setPage(safePage + 1)}
+              onClick={() => goPage(safePage + 1)}
               disabled={safePage >= totalPages}
               className="grid size-9 place-items-center rounded-full border transition-colors hover:bg-secondary disabled:opacity-40"
               aria-label="Página siguiente"

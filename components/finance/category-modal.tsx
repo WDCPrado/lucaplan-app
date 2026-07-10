@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useMoneyInput } from "@/hooks/use-money-input";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ export function CategoryModal({
   const router = useRouter();
   const [name, setName] = useState(category?.name ?? "");
   const [type, setType] = useState<"income" | "expense">((category?.type as "income" | "expense") ?? "expense");
+  const [description, setDescription] = useState(category?.description ?? "");
   const limit = useMoneyInput("CLP", category?.limit ?? 0);
   const [icon, setIcon] = useState(category?.icon ?? "");
   const [color, setColor] = useState(category?.color ?? "#6366f1");
@@ -41,7 +43,7 @@ export function CategoryModal({
     const catRes = await fetch("/api/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: category?.id, name: name.trim(), type, icon, color }),
+      body: JSON.stringify({ id: category?.id, name: name.trim(), type, icon, color, description: description.trim() }),
     });
     if (!catRes.ok) {
       setSaving(false);
@@ -89,6 +91,17 @@ export function CategoryModal({
                 </button>
               ))}
             </div>
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs">Descripción (opcional)</Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Ej: comida y mercadería para la casa (Jumbo, Líder, Unimarc)"
+              rows={2}
+              className="resize-none text-base"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Ayuda a la IA a categorizar tus movimientos del banco.</p>
           </div>
           <div>
             <Label className="mb-1 block text-xs">Icono</Label>

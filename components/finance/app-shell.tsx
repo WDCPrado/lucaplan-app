@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useTheme } from "next-themes";
-import { Home, ArrowLeftRight, PieChart, Sun, Moon, LogOut, UserRound, ChevronsUpDown, Plus } from "lucide-react";
+import { Home, Sun, Moon, LogOut, UserRound, ChevronsUpDown, Plus } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,12 +28,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export type NavKey = "inicio" | "movimientos" | "presupuestos";
+// Solo rutas que existen. Movimientos/Presupuestos viven como secciones del
+// dashboard; cuando sean páginas propias, se agregan aquí.
+export type NavKey = "inicio";
 
 const NAV: { key: NavKey; label: string; Icon: typeof Home }[] = [
   { key: "inicio", label: "Inicio", Icon: Home },
-  { key: "movimientos", label: "Movimientos", Icon: ArrowLeftRight },
-  { key: "presupuestos", label: "Presupuestos", Icon: PieChart },
 ];
 
 type AppShellProps = {

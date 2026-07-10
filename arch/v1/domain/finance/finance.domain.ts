@@ -93,6 +93,7 @@ export type Category = {
   type: CategoryType; // "income" (ingreso) | "expense" (gasto)
   icon: string | null; // presentación (icono lucide o emoji)
   color: string | null; // presentación
+  description: string | null; // contexto para la categorización con IA; no afecta cálculos
 };
 
 // Límite de una categoría para un mes concreto. El mes sin registro hereda el último previo (carry).
@@ -189,6 +190,7 @@ export type CategoryInput = {
   type: CategoryType;
   icon: string | null;
   color: string | null;
+  description: string | null;
 };
 
 export type LimitInput = { categoryId: string; year: number; month: number; limit: Money };
@@ -238,8 +240,9 @@ export interface TransactionRepository {
   // Borra un movimiento manual revirtiendo su efecto en el saldo, atómico.
   delete(transactionId: string): Promise<void>;
   // Fintoc: importa movimientos por upsert (accountId, externalId), preservando la categoría
-  // asignada; NO ajusta el saldo (lo fija el proveedor). Idempotente.
-  importMovements(userId: string, accountId: string, movements: ImportMovement[]): Promise<void>;
+  // asignada; NO ajusta el saldo (lo fija el proveedor). Idempotente. Devuelve las filas
+  // resultantes (con su `categoryId` actual) para que el sync sepa cuáles siguen sin categoría.
+  importMovements(userId: string, accountId: string, movements: ImportMovement[]): Promise<Transaction[]>;
 }
 
 // --- Errores de negocio ---

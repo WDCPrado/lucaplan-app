@@ -17,6 +17,7 @@ import { CategoryDetailSheet } from "./category-detail-sheet";
 import { AccountModal } from "./account-modal";
 import { AccountInfoModal } from "./account-info-modal";
 import { ConnectBankButton } from "./connect-bank-button";
+import { CategorizationAutoRefresh } from "./categorization-auto-refresh";
 import { TransactionModal } from "./transaction-modal";
 import { formatCLP, formatCompact, monthName } from "@/lib/finance-format";
 import type {
@@ -51,6 +52,8 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
 
   // Solo cuentas manuales aceptan movimientos a mano; las conectadas (fintoc) son de solo lectura.
   const manualAccounts = accounts.filter((a) => a.provider === "manual");
+  // ¿Hay banco conectado? → montar el auto-refresh que sigue la categorización de fondo.
+  const hasConnected = accounts.some((a) => a.provider === "fintoc");
   // El presupuesto es de gastos: solo categorías de gasto tienen tope/uso. Las de ingreso solo
   // clasifican (aparecen al categorizar movimientos de ingreso, no en esta grilla).
   const expenseCategories = budget.categories.filter((c) => c.type === "expense");
@@ -60,18 +63,24 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
     router.push(`/dashboard?year=${d.getUTCFullYear()}&month=${d.getUTCMonth() + 1}`);
   }
 
+  const now = new Date();
+  const isCurrentMonth = period.year === now.getUTCFullYear() && period.month === now.getUTCMonth() + 1;
+
+  // Fade del carrusel según posición: aparece a la izquierda al scrollear y desaparece
+  // a la derecha al llegar al final.
+  function updateCarouselFades(el: HTMLElement) {
+    el.style.setProperty("--fade-l", el.scrollLeft > 8 ? "2.5rem" : "0rem");
+    el.style.setProperty("--fade-r", el.scrollLeft < el.scrollWidth - el.clientWidth - 8 ? "2.5rem" : "0rem");
+  }
+
   async function signOut() {
     await authClient.signOut();
     router.push("/login");
   }
 
-  // Nav de una sola página: Inicio → arriba; Movimientos/Presupuestos → scroll a su sección.
-  function navigate(key: NavKey) {
-    if (key === "inicio") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-    document.getElementById(key)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Nav de una sola página: Inicio → arriba.
+  function navigate(_key: NavKey) {
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   return (
@@ -82,14 +91,24 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
       onAdd={() => setAddOpen(true)}
       title="Resumen"
       actions={
-        <div className="flex items-center gap-1 rounded-full bg-secondary px-1.5 py-1">
-          <button onClick={() => goMonth(-1)} className="grid size-8 place-items-center rounded-full hover:bg-background" aria-label="Mes anterior">
-            <ChevronLeft className="size-4" />
-          </button>
-          <span className="min-w-20 text-center text-sm font-semibold">{monthName(period.month)}</span>
-          <button onClick={() => goMonth(1)} className="grid size-8 place-items-center rounded-full hover:bg-background" aria-label="Mes siguiente">
-            <ChevronRight className="size-4" />
-          </button>
+        <div className="flex items-center gap-2">
+          {!isCurrentMonth && (
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="rounded-full bg-secondary px-3.5 py-1.5 text-sm font-semibold transition-colors hover:bg-accent"
+            >
+              Hoy
+            </button>
+          )}
+          <div className="flex items-center gap-1 rounded-full bg-secondary px-1.5 py-1">
+            <button onClick={() => goMonth(-1)} className="grid size-8 place-items-center rounded-full hover:bg-background" aria-label="Mes anterior">
+              <ChevronLeft className="size-4" />
+            </button>
+            <span className="min-w-20 text-center text-sm font-semibold">{monthName(period.month)}</span>
+            <button onClick={() => goMonth(1)} className="grid size-8 place-items-center rounded-full hover:bg-background" aria-label="Mes siguiente">
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
         </div>
       }
     >
@@ -106,7 +125,10 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
           <div
             ref={cardsRef}
             {...cardsHandlers}
-            className="-mx-4 flex cursor-grab snap-x gap-4 overflow-x-auto px-4 pb-4 active:cursor-grabbing lg:mx-0 lg:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            onScroll={(e) => updateCarouselFades(e.currentTarget)}
+            // pt-1: aire para el hover -translate-y; mask con fade dinámico en ambos bordes
+            // (izquierda solo al scrollear, derecha desaparece al llegar al final).
+            className="scrollbar-none -mx-4 flex cursor-grab snap-x gap-4 overflow-x-auto px-4 pt-1 pb-4 active:cursor-grabbing lg:mx-0 lg:px-0 mask-[linear-gradient(90deg,transparent,black_var(--fade-l,0rem),black_calc(100%-var(--fade-r,2.5rem)),transparent)]"
           >
             <div className="glass flex min-h-40 w-72 shrink-0 snap-start flex-col justify-between rounded-2xl p-5">
               <div className="text-sm text-muted-foreground">Saldo bancario</div>
@@ -224,6 +246,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
         category={editCat}
       />
       <TransactionModal tx={detailTx} categories={budget.categories} onOpenChange={(o) => !o && setDetailTx(null)} />
+      {hasConnected && <CategorizationAutoRefresh />}
     </AppShell>
   );
 }

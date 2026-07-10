@@ -86,6 +86,9 @@ export const fintocProvider: BankAggregationProvider = {
     });
     // updated_since → solo movimientos nuevos o modificados desde el último sync (incremental).
     if (opts?.updatedSince) params.set("updated_since", opts.updatedSince.toISOString());
+    // since → solo movimientos con post_date ≥ fecha (YYYY-MM-DD). Acota la primera conexión al mes
+    // actual sin descargar todo el histórico.
+    if (opts?.since) params.set("since", opts.since.toISOString().slice(0, 10));
     const { rows } = await fintocGet(`/accounts/${encodeURIComponent(accountExternalId)}/movements?${params.toString()}`);
     return rows.map(toProviderMovement);
   },

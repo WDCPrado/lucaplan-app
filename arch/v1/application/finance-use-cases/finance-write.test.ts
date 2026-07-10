@@ -74,7 +74,9 @@ class FakeTx implements TransactionRepository {
     throw new Error("no usado en este test");
   }
   async delete() {}
-  async importMovements() {}
+  async importMovements() {
+    return [];
+  }
 }
 
 test("createTransaction: gasto CLP válido se crea como debit", async () => {

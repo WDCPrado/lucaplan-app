@@ -1,7 +1,7 @@
 # Design System — LucaPlan
 
-Estilo: **fintech ordenado y sobrio, con liquid glass**. Esquinas casi rectas, neutros
-slate fríos, primario azul confianza. Light + dark emparejados.
+Estilo: **fintech moderno y sereno, con liquid glass**. Esquinas suaves, neutros
+slate fríos, primario azul vibrante. Light + dark emparejados.
 Fuente de verdad: [app/globals.css](../../app/globals.css). No hardcodees valores en
 componentes — siempre tira de estos tokens (variables CSS / utilidades Tailwind v4).
 
@@ -38,12 +38,13 @@ y los tokens glass.
 
 ## Liquid glass
 
-El efecto depende de **dos cosas juntas**: un fondo vívido (los blobs del `body`) y
-superficies translúcidas que lo refractan. Sobre un fondo plano no se aprecia.
+El efecto depende de **dos cosas juntas**: un fondo con color (los blobs sutiles del
+`body`) y superficies translúcidas que lo refractan. Sobre un fondo plano no se aprecia.
 
-Tokens (light y dark): `--glass-tint-1` / `--glass-tint-2` (fill en gradiente, translucidez
-variable), `--glass-border` (hairline brillante), `--glass-shadow` (sombra + highlight
-especular inset), `--glass-blur`, y para controles `--glass-control` / `--glass-control-active`.
+Tokens (light y dark): `--glass-tint-1` / `--glass-tint-2` (fill en gradiente, casi sólido),
+`--glass-border` (hairline neutro), `--glass-shadow` (sombra corta y difusa — sin insets ni
+brillos, que sobre fondo plano se ven como recortes), `--glass-blur`, y para controles
+`--glass-control` / `--glass-control-active`.
 
 - `.glass` — card/panel flotante: fill en gradiente + blur fuerte + borde + sombra con
   highlight superior. Úsalo en `<div>` (no en el `Card` de shadcn, cuyo `bg-card` ganaría).
@@ -59,10 +60,13 @@ a `--card` sólido (sigue legible). Ojo: **no** uses `prefers-reduced-motion` pa
 
 ## Forma y tipografía
 
-- `--radius: 0.25rem` (esquinas casi rectas, estilo financiero); escala `radius-sm…4xl` derivada.
-- Tipografía: **IBM Plex Sans** (`--font-sans`, texto y headings) + **IBM Plex Mono**
-  (`--font-mono`, cifras). Cargadas vía `next/font/google` en `app/layout.tsx`. Cuerpo ≥16px,
-  line-height 1.5–1.75.
+- `--radius: 0.625rem` (esquinas suaves, look moderno y amigable); escala `radius-sm…4xl` derivada.
+- Tipografía (cargada vía `next/font/google` en `app/layout.tsx`):
+  - **Geist** (`--font-sans`) — UI y texto: moderna, neutra, muy legible en cuerpo pequeño.
+  - **Space Grotesk** (`--font-heading`, utilidad `font-heading`) — headings y marca:
+    la personalidad fintech de LucaPlan. Pesos 500–700.
+  - **Geist Mono** (`--font-mono`) — cifras.
+  - Cuerpo ≥16px, line-height 1.5–1.75.
 - Cifras: montos/precios usan **`font-mono` + `tabular-nums`** (utilidad `.tabular` = mono +
   `tabular-nums slashed-zero`) para alineación estable y lectura de análisis.
 

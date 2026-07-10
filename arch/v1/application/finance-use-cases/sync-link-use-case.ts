@@ -1,19 +1,26 @@
 // Sincroniza un Link de Fintoc: institución → banco, cuentas y movimientos. Idempotente (upsert por
-// id externo). Saldo del proveedor (autoritativo); movimientos sin categoría (categorización con IA
-// es un paso posterior). No ajusta el saldo local. Reutilizado por conectar, refrescar y webhook.
+// id externo). Saldo del proveedor (autoritativo). Tras importar, categoriza con IA los movimientos
+// que queden sin categoría (best-effort; no ajusta el saldo local). Reutilizado por conectar,
+// refrescar y webhook.
 import type {
   AccountRepository,
   BankRepository,
+  CategoryRepository,
   TransactionRepository,
 } from "../../domain/finance/finance.domain.ts";
 import type { BankAggregationProvider } from "../../domain/finance/bank-aggregation.port.ts";
+import type { CategorizationProvider } from "../../domain/finance/categorization.port.ts";
 import { mapProviderAccount, mapProviderMovement } from "./fintoc-map.ts";
+import { categorizeMovements } from "./categorize-movements-use-case.ts";
 
 export type SyncDeps = {
   banks: BankRepository;
   accounts: AccountRepository;
   transactions: TransactionRepository;
   provider: BankAggregationProvider;
+  // Opcionales: si faltan, se importa sin categorizar (degradación elegante).
+  categories?: CategoryRepository;
+  categorization?: CategorizationProvider;
 };
 
 export type SyncLinkInput = {
@@ -22,15 +29,23 @@ export type SyncLinkInput = {
   institutionName: string;
 };
 
+// Primer día del mes actual (UTC). En la primera conexión solo se importan movimientos desde aquí.
+function startOfCurrentMonthUTC(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
 export async function syncLink(
   deps: SyncDeps,
   userId: string,
   input: SyncLinkInput,
 ): Promise<{ bankId: string; accounts: number; movements: number }> {
   // Sync incremental: si el banco ya existía, solo trae lo creado/actualizado desde el último sync.
-  // Primera conexión (no existe) → `undefined` → histórico completo.
   const existing = await deps.banks.findByExternalLinkId(input.linkId);
   const updatedSince = existing?.lastSyncedAt ?? undefined;
+  // Primera conexión (aún sin sync): importar SOLO desde el inicio del mes actual (no todo el
+  // histórico). Los meses previos no se traen; lo nuevo llega después por el sync incremental.
+  const sinceDate = existing?.lastSyncedAt ? undefined : startOfCurrentMonthUTC();
 
   // listAccounts valida el linkToken (falla con BankConnectionError si es inválido).
   const providerAccounts = await deps.provider.listAccounts(input.linkToken);
@@ -54,9 +69,27 @@ export async function syncLink(
           name: pa.name,
           ...mapped,
         });
-        const raw = await deps.provider.listMovements(input.linkToken, pa.externalId, { confirmedOnly: false, updatedSince });
-        const toImport = raw.map(mapProviderMovement).filter((m): m is NonNullable<typeof m> => m !== null);
-        await deps.transactions.importMovements(userId, account.id, toImport);
+        // Primera conexión: `since` acota la descarga al mes actual (server-side, por post_date).
+        // Incremental: `updatedSince` trae solo lo cambiado. El filtro cliente por transaction_date
+        // deja exacto el "mes actual" (quita lo de meses previos que postearon este mes).
+        const raw = await deps.provider.listMovements(input.linkToken, pa.externalId, { confirmedOnly: false, updatedSince, since: sinceDate });
+        const toImport = raw
+          .map(mapProviderMovement)
+          .filter((m): m is NonNullable<typeof m> => m !== null)
+          .filter((m) => !sinceDate || m.date >= sinceDate);
+        const imported = await deps.transactions.importMovements(userId, account.id, toImport);
+        // Categorización con IA best-effort: solo los recién importados sin categoría; no rompe el sync.
+        if (deps.categorization && deps.categories) {
+          try {
+            await categorizeMovements(
+              { transactions: deps.transactions, categories: deps.categories, categorization: deps.categorization },
+              userId,
+              imported,
+            );
+          } catch (e) {
+            console.error("[sync] categorización con IA falló:", e);
+          }
+        }
         return { accounts: 1, movements: toImport.length };
       } catch (e) {
         // Carrera benigna: el banco/cuenta se borró mientras sincronizábamos en background

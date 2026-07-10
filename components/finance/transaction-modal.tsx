@@ -3,10 +3,14 @@
 import * as React from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { es } from "date-fns/locale";
+import { CalendarIcon } from "lucide-react";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useMoneyInput } from "@/hooks/use-money-input";
 import { CategoryIcon } from "./category-icons";
@@ -23,6 +27,41 @@ const STATUS_LABEL: Record<string, string> = {
 
 const fullDate = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+// YYYY-MM-DD ↔ Date en horario local (mediodía evita el corrimiento de día por zona horaria).
+const parseISODate = (s: string) => new Date(`${s}T12:00:00`);
+const toISODate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+// Selector de fecha shadcn (Calendar + Popover), en español.
+function DatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const selected = parseISODate(value);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-11 w-full justify-start rounded-lg text-base font-normal">
+          <CalendarIcon className="size-4 text-muted-foreground" />
+          {selected.toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" })}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          locale={es}
+          selected={selected}
+          defaultMonth={selected}
+          onSelect={(d) => {
+            if (!d) return;
+            onChange(toISODate(d));
+            setOpen(false);
+          }}
+          autoFocus
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // Movimiento manual → editable (form tipo crear + eliminar). Movimiento de Fintoc → solo lectura.
 export function TransactionModal({
@@ -121,7 +160,7 @@ function EditForm({ tx, categories, onClose }: { tx: TransactionDTO; categories:
 
       <div>
         <Label className="mb-1 block text-xs">Fecha</Label>
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-11" />
+        <DatePicker value={date} onChange={setDate} />
       </div>
 
       <div>
@@ -129,7 +168,7 @@ function EditForm({ tx, categories, onClose }: { tx: TransactionDTO; categories:
         {visibleCategories.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sin categorías de {direction === "credit" ? "ingreso" : "gasto"}.</p>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
             {visibleCategories.map((c) => (
               <Chip key={c.id} active={c.id === categoryId} onClick={() => setCategoryId(c.id === categoryId ? null : c.id)}>
                 <CategoryIcon icon={c.icon} size={16} color={c.color ?? undefined} /> {c.name}
@@ -198,7 +237,7 @@ function ConnectedDetail({ tx, categories, onClose }: { tx: TransactionDTO; cate
             Sin categorías de {income ? "ingreso" : "gasto"}. Crea una para clasificar este movimiento.
           </p>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
             {visibleCategories.map((c) => (
               <Chip key={c.id} active={c.id === categoryId} onClick={() => setCategoryId(c.id === categoryId ? null : c.id)}>
                 <CategoryIcon icon={c.icon} size={16} color={c.color ?? undefined} /> {c.name}
@@ -232,7 +271,7 @@ function Chip({ active, onClick, children }: { active?: boolean; onClick: () => 
       type="button"
       onClick={onClick}
       className={cn(
-        "flex h-11 items-center gap-1.5 rounded-full border px-4 text-sm whitespace-nowrap",
+        "flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm whitespace-nowrap",
         active ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground",
       )}
     >

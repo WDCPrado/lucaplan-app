@@ -29,11 +29,12 @@ export interface BankAggregationProvider {
   listAccounts(linkToken: string): Promise<ProviderAccount[]>;
   // Lista los movimientos de una cuenta del Link. confirmedOnly=false trae todo el ciclo
   // (pending/reversed/duplicated). updatedSince (ISO) → solo lo creado/actualizado desde entonces
-  // (sync incremental); ausente = histórico completo (primera conexión).
+  // (sync incremental). since → solo movimientos con post_date ≥ esa fecha (primera conexión acotada
+  // al mes actual). Ausentes ambos = histórico completo.
   listMovements(
     linkToken: string,
     accountExternalId: string,
-    opts?: { confirmedOnly?: boolean; updatedSince?: Date },
+    opts?: { confirmedOnly?: boolean; updatedSince?: Date; since?: Date },
   ): Promise<ProviderMovement[]>;
   // Revoca el Link en Fintoc: deja de refrescarlo, invalida su link_token y deja de cobrarlo.
   // Idempotente: si el Link ya no existe (404), se considera hecho.

@@ -13,6 +13,7 @@ export async function POST(req: Request) {
         type: body.type === "income" ? "income" : "expense",
         icon: body.icon ?? null,
         color: body.color ?? null,
+        description: typeof body.description === "string" && body.description.trim() ? body.description.trim() : null,
       });
       return { id: c.id };
     },

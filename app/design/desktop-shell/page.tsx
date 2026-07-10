@@ -32,11 +32,11 @@ const ACCOUNTS: AccountDTO[] = [
 ];
 
 const CATEGORIES: CategoryDTO[] = [
-  { id: "c1", name: "Supermercado", type: "expense", icon: "ShoppingCart", color: "#16a34a", limit: 400_000, used: 260_000, available: 140_000, status: "moderado" },
-  { id: "c2", name: "Transporte", type: "expense", icon: "Car", color: "#2563eb", limit: 150_000, used: 60_000, available: 90_000, status: "bueno" },
-  { id: "c3", name: "Comida fuera", type: "expense", icon: "Utensils", color: "#ea580c", limit: 120_000, used: 135_000, available: -15_000, status: "excedido" },
-  { id: "c4", name: "Servicios", type: "expense", icon: "Zap", color: "#ca8a04", limit: 180_000, used: 120_000, available: 60_000, status: "moderado" },
-  { id: "c5", name: "Entretención", type: "expense", icon: "Film", color: "#db2777", limit: 100_000, used: 40_000, available: 60_000, status: "bueno" },
+  { id: "c1", name: "Supermercado", type: "expense", description: null, icon: "ShoppingCart", color: "#16a34a", limit: 400_000, used: 260_000, available: 140_000, status: "moderado" },
+  { id: "c2", name: "Transporte", type: "expense", description: null, icon: "Car", color: "#2563eb", limit: 150_000, used: 60_000, available: 90_000, status: "bueno" },
+  { id: "c3", name: "Comida fuera", type: "expense", description: null, icon: "Utensils", color: "#ea580c", limit: 120_000, used: 135_000, available: -15_000, status: "excedido" },
+  { id: "c4", name: "Servicios", type: "expense", description: null, icon: "Zap", color: "#ca8a04", limit: 180_000, used: 120_000, available: 60_000, status: "moderado" },
+  { id: "c5", name: "Entretención", type: "expense", description: null, icon: "Film", color: "#db2777", limit: 100_000, used: 40_000, available: 60_000, status: "bueno" },
 ];
 
 const TX: TransactionDTO[] = [

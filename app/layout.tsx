@@ -1,17 +1,24 @@
-import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google"
+import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google"
 import type { Metadata } from "next"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 
-const fontSans = IBM_Plex_Sans({
+// Tipografía: Geist (UI, legible y moderna) + Space Grotesk (headings, identidad
+// fintech) + Geist Mono (cifras tabulares). Ver docs/design/design-system.md.
+const fontSans = Geist({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
   variable: "--font-sans",
 })
 
-const fontMono = IBM_Plex_Mono({
+const fontHeading = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-heading",
+})
+
+const fontMono = Geist_Mono({
   subsets: ["latin"],
   weight: ["400", "500"],
   variable: "--font-mono",
@@ -47,11 +54,17 @@ export default function RootLayout({
       className={cn(
         "font-sans antialiased",
         fontSans.variable,
+        fontHeading.variable,
         fontMono.variable
       )}
     >
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {/* data-vaul-drawer-wrapper: vaul escala este contenedor (efecto iOS) al abrir un drawer */}
+          <div data-vaul-drawer-wrapper className="min-h-dvh">
+            {children}
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   )

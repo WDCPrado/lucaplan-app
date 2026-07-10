@@ -44,3 +44,5 @@ next-env.d.ts
 
 # prisma client generado
 /arch/v1/infrastructure/database/prisma/generated
+
+/scripts/seed-categories.ts

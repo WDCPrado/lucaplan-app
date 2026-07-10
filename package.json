@@ -13,7 +13,8 @@
     "deploy:init": "node scripts/deploy-init.mjs",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "seed": "node --env-file=.env prisma/seed.ts"
+    "seed": "node --env-file=.env prisma/seed.ts",
+    "seed:categories": "node --env-file=.env scripts/seed-categories.ts"
   },
   "dependencies": {
     "@fintoc/fintoc-js": "^1.1.2",

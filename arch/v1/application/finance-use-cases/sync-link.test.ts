@@ -64,6 +64,7 @@ function makeDeps() {
         } else b.linkToken = input.linkToken;
         return b;
       },
+      async delete() {},
     },
     accounts: {
       async listByUser() {
@@ -97,6 +98,13 @@ function makeDeps() {
       async create() {
         throw new Error("no usado");
       },
+      async findById() {
+        return null;
+      },
+      async update() {
+        throw new Error("no usado");
+      },
+      async delete() {},
       // Dedupe por (accountId, externalId), preservando categoryId (como el upsert de Prisma).
       async importMovements(_userId: string, accountId: string, movements: ImportMovement[]) {
         for (const m of movements) {

@@ -55,6 +55,9 @@ export type AccountDTO = {
 
 export type TransactionDTO = {
   id: string;
+  accountId: string;
+  currency: string;
+  editable: boolean; // true solo si su cuenta es manual (las fintoc son de solo lectura)
   description: string;
   amount: number;
   direction: string;
@@ -80,9 +83,12 @@ export type CategoryDTO = {
 
 export type BudgetViewDTO = { categories: CategoryDTO[] };
 
-function txToDTO(t: Transaction, cat: Category | undefined, remaining: number | null = null): TransactionDTO {
+function txToDTO(t: Transaction, cat: Category | undefined, remaining: number | null, editable: boolean): TransactionDTO {
   return {
     id: t.id,
+    accountId: t.accountId,
+    currency: t.amount.currency,
+    editable,
     description: t.description,
     amount: t.amount.toMajor(),
     direction: t.direction,
@@ -168,13 +174,15 @@ export async function listAccounts(deps: { accounts: AccountRepository; banks: B
 export async function listTransactions(deps: ReadDeps, userId: string, year: number, month: number): Promise<TransactionDTO[]> {
   const txs = await deps.transactions.listByUserPeriod(userId, year, month);
   const withLimit = await categoriesWithLimit(deps, userId, year, month);
+  const accounts = await deps.accounts.listByUser(userId);
+  const manual = new Set(accounts.filter((a) => a.provider === "manual").map((a) => a.id));
   const catById = new Map(withLimit.map((x) => [x.category.id, x.category]));
   const limitById = new Map(withLimit.map((x) => [x.category.id, x.limit]));
   const remaining = historicalRemaining(txs, (id) => limitById.get(id) ?? null);
   // La lista no muestra reversados ni duplicados (ruido); sí muestra confirmed y pending.
   return txs
     .filter((t) => t.status !== "reversed" && t.status !== "duplicated")
-    .map((t) => txToDTO(t, t.categoryId ? catById.get(t.categoryId) : undefined, remaining.get(t.id) ?? null));
+    .map((t) => txToDTO(t, t.categoryId ? catById.get(t.categoryId) : undefined, remaining.get(t.id) ?? null, manual.has(t.accountId)));
 }
 
 export async function getBudgetView(deps: ReadDeps, userId: string, year: number, month: number): Promise<BudgetViewDTO> {
@@ -210,6 +218,8 @@ export async function getCategoryDetail(
   const limits = await deps.categories.listLimitsByUser(userId);
   const limit = effectiveLimit(limits, categoryId, year, month);
   const txs = await deps.transactions.listByCategoryPeriod(categoryId, year, month);
+  const accounts = await deps.accounts.listByUser(userId);
+  const manual = new Set(accounts.filter((a) => a.provider === "manual").map((a) => a.id));
   const { used, available } = computeCategoryUsage(categoryId, limit, txs, year, month);
   const remaining = historicalRemaining(txs, () => limit);
   return {
@@ -223,6 +233,6 @@ export async function getCategoryDetail(
     status: categoryStatus(used, limit),
     transactions: txs
       .filter((t) => t.status !== "reversed" && t.status !== "duplicated")
-      .map((t) => txToDTO(t, category, remaining.get(t.id) ?? null)),
+      .map((t) => txToDTO(t, category, remaining.get(t.id) ?? null, manual.has(t.accountId))),
   };
 }

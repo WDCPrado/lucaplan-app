@@ -1,8 +1,14 @@
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, MoreVertical, Unlink } from "lucide-react";
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
 import { formatCLP } from "@/lib/finance-format";
 import { resolveCardArt } from "@/lib/bank-cards";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const TYPE_LABEL: Record<string, string> = {
   checking: "Débito",
@@ -26,11 +32,13 @@ export function AccountCard({
   account,
   hidden,
   onRefresh,
+  onDisconnect,
   refreshing,
 }: {
   account: AccountDTO;
   hidden?: boolean;
   onRefresh?: () => void; // solo cuentas conectadas (fintoc)
+  onDisconnect?: () => void; // desconecta el banco (elimina cuentas + movimientos)
   refreshing?: boolean;
 }) {
   const art = resolveCardArt(account.bankName, account.accountType);
@@ -62,16 +70,38 @@ export function AccountCard({
               <span className="size-1.5 rounded-full bg-emerald-400" />
               Conectado
             </span>
-            {onRefresh && (
-              <button
-                type="button"
-                onClick={onRefresh}
-                disabled={refreshing}
-                aria-label="Refrescar"
-                className="grid size-6 place-items-center rounded-full bg-white/15 backdrop-blur hover:bg-white/25 disabled:opacity-60"
-              >
-                <RefreshCw className={cn("size-3", refreshing && "animate-spin")} />
-              </button>
+            {refreshing ? (
+              <span className="grid size-6 place-items-center rounded-full bg-white/15 backdrop-blur">
+                <RefreshCw className="size-3 animate-spin" />
+              </span>
+            ) : (
+              (onRefresh || onDisconnect) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="Opciones de la cuenta"
+                      className="grid size-6 place-items-center rounded-full bg-white/15 backdrop-blur hover:bg-white/25"
+                    >
+                      <MoreVertical className="size-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {onRefresh && (
+                      <DropdownMenuItem onSelect={() => onRefresh()}>
+                        <RefreshCw className="size-4" />
+                        Refrescar
+                      </DropdownMenuItem>
+                    )}
+                    {onDisconnect && (
+                      <DropdownMenuItem variant="destructive" onSelect={() => onDisconnect()}>
+                        <Unlink className="size-4" />
+                        Desconectar
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )
             )}
           </div>
         )}

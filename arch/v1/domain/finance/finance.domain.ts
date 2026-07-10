@@ -118,6 +118,15 @@ export type NewTransaction = {
   direction: Direction;
 };
 
+export type UpdateTransaction = {
+  id: string;
+  description: string;
+  date: Date;
+  amount: Money;
+  direction: Direction;
+  categoryId: string | null;
+};
+
 export type NewBank = { userId: string; name: string };
 
 export type NewAccount = {
@@ -182,6 +191,8 @@ export interface BankRepository {
   findByExternalLinkId(externalLinkId: string): Promise<Bank | null>;
   // Fintoc: crea o actualiza el banco conectado por (userId, externalLinkId).
   upsertConnected(input: ConnectedBankInput): Promise<Bank>;
+  // Borra el banco; la cascada de la DB elimina sus cuentas y movimientos.
+  delete(bankId: string): Promise<void>;
 }
 
 export interface AccountRepository {
@@ -205,8 +216,13 @@ export interface CategoryRepository {
 export interface TransactionRepository {
   listByUserPeriod(userId: string, year: number, month: number): Promise<Transaction[]>;
   listByCategoryPeriod(categoryId: string, year: number, month: number): Promise<Transaction[]>;
+  findById(id: string): Promise<Transaction | null>;
   // Crea el movimiento y ajusta el saldo de la cuenta atómicamente (débito resta, crédito suma).
   create(tx: NewTransaction): Promise<Transaction>;
+  // Edita un movimiento manual reajustando el saldo por la diferencia (nuevo − viejo), atómico.
+  update(input: UpdateTransaction): Promise<Transaction>;
+  // Borra un movimiento manual revirtiendo su efecto en el saldo, atómico.
+  delete(transactionId: string): Promise<void>;
   // Fintoc: importa movimientos por upsert (accountId, externalId), preservando la categoría
   // asignada; NO ajusta el saldo (lo fija el proveedor). Idempotente.
   importMovements(userId: string, accountId: string, movements: ImportMovement[]): Promise<void>;

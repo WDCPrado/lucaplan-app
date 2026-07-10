@@ -20,6 +20,7 @@ import type {
   Provider,
   Transaction,
   TransactionRepository,
+  UpdateTransaction,
 } from "../../../domain/finance/finance.domain.ts";
 
 const BUDGET_CURRENCY: CurrencyCode = "CLP";
@@ -125,6 +126,10 @@ export const bankRepository: BankRepository = {
       : await prisma.bank.create({ data: { userId: input.userId, ...data } });
     return toBank(row);
   },
+  async delete(bankId) {
+    // FK ON DELETE CASCADE: borrar el banco elimina sus cuentas y, con ellas, sus movimientos.
+    await prisma.bank.delete({ where: { id: bankId } });
+  },
 };
 
 export const accountRepository: AccountRepository = {
@@ -219,6 +224,10 @@ export const transactionRepository: TransactionRepository = {
     });
     return rows.map(toTransaction);
   },
+  async findById(id) {
+    const row = await prisma.transaction.findUnique({ where: { id } });
+    return row ? toTransaction(row) : null;
+  },
   async create(tx: NewTransaction) {
     // Inserta el movimiento y ajusta el saldo de la cuenta atómicamente.
     const delta = tx.direction === "credit" ? tx.amount : tx.amount.negate();
@@ -241,9 +250,46 @@ export const transactionRepository: TransactionRepository = {
     });
     return toTransaction(row);
   },
+  // Edita un movimiento manual reajustando el saldo por la diferencia (nuevo − viejo), atómico.
+  async update(input: UpdateTransaction) {
+    const row = await prisma.$transaction(async (db) => {
+      const old = await db.transaction.findUniqueOrThrow({ where: { id: input.id } });
+      const account = await db.financialAccount.findUniqueOrThrow({ where: { id: old.accountId } });
+      const currency = account.currency as CurrencyCode;
+      const oldMoney = Money.of(old.amount.toString(), old.currency as CurrencyCode);
+      const oldDelta = old.direction === "credit" ? oldMoney : oldMoney.negate();
+      const newDelta = input.direction === "credit" ? input.amount : input.amount.negate();
+      const balance = Money.of(account.balance.toString(), currency).add(newDelta).subtract(oldDelta);
+      await db.financialAccount.update({ where: { id: account.id }, data: { balance: balance.toDecimalString() } });
+      return db.transaction.update({
+        where: { id: input.id },
+        data: {
+          categoryId: input.categoryId,
+          transactionDate: input.date,
+          description: input.description,
+          amount: input.amount.toDecimalString(),
+          currency: input.amount.currency,
+          direction: input.direction,
+        },
+      });
+    });
+    return toTransaction(row);
+  },
+  // Borra un movimiento manual revirtiendo su efecto en el saldo, atómico.
+  async delete(transactionId: string) {
+    await prisma.$transaction(async (db) => {
+      const old = await db.transaction.findUniqueOrThrow({ where: { id: transactionId } });
+      const account = await db.financialAccount.findUniqueOrThrow({ where: { id: old.accountId } });
+      const currency = account.currency as CurrencyCode;
+      const oldMoney = Money.of(old.amount.toString(), old.currency as CurrencyCode);
+      const oldDelta = old.direction === "credit" ? oldMoney : oldMoney.negate();
+      const balance = Money.of(account.balance.toString(), currency).subtract(oldDelta);
+      await db.financialAccount.update({ where: { id: account.id }, data: { balance: balance.toDecimalString() } });
+      await db.transaction.delete({ where: { id: transactionId } });
+    });
+  },
   // Import idempotente de movimientos de Fintoc: upsert por (accountId, externalId), preserva
   // categoryId (no se toca en update) y NO ajusta el saldo (lo fija el proveedor).
-  // ponytail: upsert secuencial; batch si el volumen lo pide.
   async importMovements(userId: string, accountId: string, movements: ImportMovement[]) {
     const CHUNK = 10; // ponytail: upsert en lotes acotados (evita saturar el pool de conexiones).
     for (let i = 0; i < movements.length; i += CHUNK) {

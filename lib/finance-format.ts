@@ -58,6 +58,25 @@ export function formatShortDate(iso: string): string {
   return shortDate.format(new Date(iso));
 }
 
+const dateHeaderFmt = new Intl.DateTimeFormat("es-CL", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  timeZone: "UTC",
+});
+
+/** Encabezado de grupo por fecha: "Hoy", "Ayer" o "Martes 9 de julio". Compara en UTC (como el `@db.Date`). */
+export function formatDateHeader(iso: string): string {
+  const key = iso.slice(0, 10); // YYYY-MM-DD (UTC)
+  const now = new Date();
+  const todayKey = now.toISOString().slice(0, 10);
+  const yesterdayKey = new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
+  if (key === todayKey) return "Hoy";
+  if (key === yesterdayKey) return "Ayer";
+  const s = dateHeaderFmt.format(new Date(iso));
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 /** Color de token CSS según el estado de la categoría. */
 export function statusVar(status: string): string {
   if (status === "bueno") return "var(--success)";

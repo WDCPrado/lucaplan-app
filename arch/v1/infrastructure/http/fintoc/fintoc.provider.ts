@@ -79,10 +79,14 @@ export const fintocProvider: BankAggregationProvider = {
     return rows.map(toProviderAccount);
   },
   async listMovements(linkToken, accountExternalId, opts) {
-    const confirmedOnly = opts?.confirmedOnly ?? false;
-    const { rows } = await fintocGet(
-      `/accounts/${encodeURIComponent(accountExternalId)}/movements?link_token=${encodeURIComponent(linkToken)}&confirmed_only=${confirmedOnly}`,
-    );
+    const params = new URLSearchParams({
+      link_token: linkToken,
+      confirmed_only: String(opts?.confirmedOnly ?? false),
+      per_page: "300",
+    });
+    // updated_since → solo movimientos nuevos o modificados desde el último sync (incremental).
+    if (opts?.updatedSince) params.set("updated_since", opts.updatedSince.toISOString());
+    const { rows } = await fintocGet(`/accounts/${encodeURIComponent(accountExternalId)}/movements?${params.toString()}`);
     return rows.map(toProviderMovement);
   },
 };

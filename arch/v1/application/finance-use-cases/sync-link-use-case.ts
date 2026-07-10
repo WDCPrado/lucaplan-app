@@ -27,6 +27,11 @@ export async function syncLink(
   userId: string,
   input: SyncLinkInput,
 ): Promise<{ bankId: string; accounts: number; movements: number }> {
+  // Sync incremental: si el banco ya existía, solo trae lo creado/actualizado desde el último sync.
+  // Primera conexión (no existe) → `undefined` → histórico completo.
+  const existing = await deps.banks.findByExternalLinkId(input.linkId);
+  const updatedSince = existing?.lastSyncedAt ?? undefined;
+
   // listAccounts valida el linkToken (falla con BankConnectionError si es inválido).
   const providerAccounts = await deps.provider.listAccounts(input.linkToken);
   const bank = await deps.banks.upsertConnected({
@@ -48,7 +53,7 @@ export async function syncLink(
         name: pa.name,
         ...mapped,
       });
-      const raw = await deps.provider.listMovements(input.linkToken, pa.externalId, { confirmedOnly: false });
+      const raw = await deps.provider.listMovements(input.linkToken, pa.externalId, { confirmedOnly: false, updatedSince });
       const toImport = raw.map(mapProviderMovement).filter((m): m is NonNullable<typeof m> => m !== null);
       await deps.transactions.importMovements(userId, account.id, toImport);
       return { accounts: 1, movements: toImport.length };

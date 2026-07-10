@@ -64,6 +64,13 @@ class FakeTx implements TransactionRepository {
     this.created.push(tx);
     return { id: "t1", status: "confirmed", externalId: null, ...tx };
   }
+  async findById() {
+    return null;
+  }
+  async update(): Promise<never> {
+    throw new Error("no usado en este test");
+  }
+  async delete() {}
   async importMovements() {}
 }
 

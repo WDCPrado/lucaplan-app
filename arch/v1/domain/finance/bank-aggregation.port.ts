@@ -28,10 +28,11 @@ export interface BankAggregationProvider {
   // Lista las cuentas del Link. Valida implícitamente el linkToken (falla si es inválido).
   listAccounts(linkToken: string): Promise<ProviderAccount[]>;
   // Lista los movimientos de una cuenta del Link. confirmedOnly=false trae todo el ciclo
-  // (pending/reversed/duplicated) para poder reflejar cambios de estado.
+  // (pending/reversed/duplicated). updatedSince (ISO) → solo lo creado/actualizado desde entonces
+  // (sync incremental); ausente = histórico completo (primera conexión).
   listMovements(
     linkToken: string,
     accountExternalId: string,
-    opts?: { confirmedOnly?: boolean },
+    opts?: { confirmedOnly?: boolean; updatedSince?: Date },
   ): Promise<ProviderMovement[]>;
 }

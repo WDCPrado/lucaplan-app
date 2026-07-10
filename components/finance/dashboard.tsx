@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { useDragScroll } from "@/hooks/use-drag-scroll";
 import { AppShell, type NavKey } from "./app-shell";
 import { AccountCard } from "./account-card";
-import { MovementRow } from "./movement-row";
+import { MovementsList } from "./movements-list";
 import { ProgressRing } from "./progress-ring";
 import { CategoryIcon } from "./category-icons";
 import { AddTransactionSheet } from "./add-transaction-sheet";
@@ -16,6 +16,7 @@ import { CategoryModal } from "./category-modal";
 import { CategoryDetailSheet } from "./category-detail-sheet";
 import { AccountModal } from "./account-modal";
 import { ConnectBankButton } from "./connect-bank-button";
+import { TransactionModal } from "./transaction-modal";
 import { formatCLP, formatCompact, monthName } from "@/lib/finance-format";
 import type {
   AccountDTO,
@@ -42,6 +43,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
   const [addOpen, setAddOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [detail, setDetail] = useState<CategoryDTO | null>(null);
+  const [detailTx, setDetailTx] = useState<TransactionDTO | null>(null);
   const [editCat, setEditCat] = useState<CategoryDTO | null | undefined>(undefined); // undefined=cerrado, null=crear
   const { ref: cardsRef, handlers: cardsHandlers } = useDragScroll();
   const [refreshing, setRefreshing] = useState<string | null>(null);
@@ -49,10 +51,23 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
   // Solo cuentas manuales aceptan movimientos a mano; las conectadas (fintoc) son de solo lectura.
   const manualAccounts = accounts.filter((a) => a.provider === "manual");
 
-  // Refresco manual de un banco conectado: re-sincroniza y recarga.
+  // Refresco manual de un banco conectado: re-sincroniza (incremental) y recarga.
   async function refreshBank(bankId: string) {
     setRefreshing(bankId);
     await fetch("/api/fintoc/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bankId }),
+    });
+    setRefreshing(null);
+    router.refresh();
+  }
+
+  // Desconectar un banco: elimina sus cuentas y todos sus movimientos (con confirmación).
+  async function disconnectBank(bankId: string, bankName: string) {
+    if (!window.confirm(`¿Desconectar ${bankName}? Se eliminarán sus cuentas y todos sus movimientos.`)) return;
+    setRefreshing(bankId);
+    await fetch("/api/fintoc/disconnect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ bankId }),
@@ -129,6 +144,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
                   account={a}
                   hidden={!showBalance}
                   onRefresh={a.provider === "fintoc" ? () => refreshBank(a.bankId) : undefined}
+                  onDisconnect={a.provider === "fintoc" ? () => disconnectBank(a.bankId, a.bankName) : undefined}
                   refreshing={refreshing === a.bankId}
                 />
               </div>
@@ -155,7 +171,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
 
         {/* Presupuestos + Movimientos */}
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
-          <section id="presupuestos" className="scroll-mt-20 lg:order-2 lg:col-span-1">
+          <section id="presupuestos" className="min-w-0 scroll-mt-20 lg:order-2 lg:col-span-1 lg:sticky lg:top-20 lg:self-start">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-heading text-lg font-bold">Presupuestos</h2>
               <span className="text-sm text-muted-foreground">{monthName(period.month)}</span>
@@ -191,19 +207,15 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
             </div>
           </section>
 
-          <section id="movimientos" className="scroll-mt-20 lg:order-1 lg:col-span-2">
-            <div className="mb-1 flex items-center justify-between">
+          <section id="movimientos" className="min-w-0 scroll-mt-20 lg:order-1 lg:col-span-2">
+            <div className="mb-3 flex items-center justify-between">
               <h2 className="font-heading text-lg font-bold">Movimientos</h2>
               <span className="text-sm text-muted-foreground">{transactions.length} este mes</span>
             </div>
             {transactions.length === 0 ? (
               <p className="glass-strong rounded-2xl py-10 text-center text-sm text-muted-foreground">Sin movimientos este mes</p>
             ) : (
-              <div className="glass-strong divide-y divide-border/60 rounded-2xl px-4">
-                {transactions.map((t) => (
-                  <MovementRow key={t.id} tx={t} />
-                ))}
-              </div>
+              <MovementsList key={`${period.year}-${period.month}`} transactions={transactions} onOpen={setDetailTx} />
             )}
           </section>
         </div>
@@ -231,6 +243,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
         }}
       />
       <CategoryModal open={editCat !== undefined} onOpenChange={(o) => !o && setEditCat(undefined)} period={period} category={editCat} />
+      <TransactionModal tx={detailTx} categories={budget.categories} onOpenChange={(o) => !o && setDetailTx(null)} />
     </AppShell>
   );
 }

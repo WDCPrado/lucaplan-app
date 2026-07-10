@@ -1,37 +1,40 @@
 import type { TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
-import { formatCLP, formatShortDate } from "@/lib/finance-format";
+import { formatCLP } from "@/lib/finance-format";
 import { CategoryIcon } from "./category-icons";
 
-// Fila de movimiento: icono de categoría, categoría · fecha, descripción, disponible histórico
-// (lo que quedaba tras este movimiento), y monto con signo/color.
-export function MovementRow({ tx, remaining }: { tx: TransactionDTO; remaining?: number | null }) {
+// Fila de movimiento "suelta" (clickable): icono de categoría, descripción, categoría (+ estado si
+// pending), y monto con signo/color. La fecha va en el encabezado del grupo, no aquí.
+export function MovementRow({ tx, onOpen }: { tx: TransactionDTO; onOpen?: (tx: TransactionDTO) => void }) {
   const income = tx.direction === "credit";
   const color = tx.categoryColor ?? "var(--muted-foreground)";
   const bg = tx.categoryColor ? tx.categoryColor + "26" : "var(--muted)";
-  const rest = remaining ?? tx.remaining;
+  const pending = tx.status === "pending";
 
   return (
-    <div className="flex items-center gap-3 py-3">
+    <button
+      type="button"
+      onClick={() => onOpen?.(tx)}
+      className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-secondary/60"
+    >
       <div className="grid size-11 shrink-0 place-items-center rounded-full" style={{ background: bg }}>
         <CategoryIcon icon={tx.categoryIcon} size={20} color={color} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-xs text-muted-foreground">
-          {tx.categoryName ?? "Sin categoría"} · {formatShortDate(tx.date)}
-        </div>
         <div className="truncate font-medium">{tx.description}</div>
-        {rest !== null && rest !== undefined && (
-          <div className="tabular text-xs text-muted-foreground">Quedan {formatCLP(rest)}</div>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="truncate">{tx.categoryName ?? "Sin categoría"}</span>
+          {pending && (
+            <span className="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">Pendiente</span>
+          )}
+        </div>
+        {tx.remaining !== null && tx.remaining !== undefined && (
+          <div className="tabular text-xs text-muted-foreground">Quedan {formatCLP(tx.remaining)}</div>
         )}
       </div>
-      <div
-        className={`tabular flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium ${
-          income ? "bg-success/15 text-success" : "bg-secondary text-foreground"
-        }`}
-      >
-        <span>{income ? "+" : "−"}</span>
-        <span>{formatCLP(Math.abs(tx.amount))}</span>
+      <div className={`tabular shrink-0 text-sm font-semibold ${income ? "text-success" : "text-foreground"}`}>
+        {income ? "+" : "−"}
+        {formatCLP(Math.abs(tx.amount))}
       </div>
-    </div>
+    </button>
   );
 }

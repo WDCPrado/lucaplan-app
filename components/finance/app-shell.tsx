@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useTheme } from "next-themes";
-import { Home, Sun, Moon, LogOut, UserRound, ChevronsUpDown, Plus } from "lucide-react";
+import { Home, Sun, Moon, LogOut, UserRound, ChevronsUpDown, Plus, Search } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +42,7 @@ type AppShellProps = {
   onNavigate?: (key: NavKey) => void;
   onSignOut?: () => void;
   onAdd?: () => void; // si se pasa, muestra el FAB "agregar" flotante abajo-derecha
+  onSearch?: () => void; // si se pasa, muestra la lupa "Buscar" abajo en el sidebar
   title?: string;
   actions?: React.ReactNode; // topbar derecha: selector de mes u otros
   children: React.ReactNode;
@@ -49,7 +50,7 @@ type AppShellProps = {
 
 // Shell desktop-first de la app: sidebar shadcn colapsable (drawer en móvil), topbar con
 // acciones, y el contenido en SidebarInset. El toggle de tema vive en el menú de usuario.
-export function AppShell({ user, active = "inicio", onNavigate, onSignOut, onAdd, title, actions, children }: AppShellProps) {
+export function AppShell({ user, active = "inicio", onNavigate, onSignOut, onAdd, onSearch, title, actions, children }: AppShellProps) {
   return (
     <TooltipProvider delayDuration={0}>
       <SidebarProvider>
@@ -90,15 +91,25 @@ export function AppShell({ user, active = "inicio", onNavigate, onSignOut, onAdd
           <div className="min-w-0 flex-1">{children}</div>
         </SidebarInset>
 
-        {onAdd && (
-          <Button
-            onClick={onAdd}
-            size="icon"
-            aria-label="Agregar movimiento"
-            className="fixed right-5 bottom-5 z-30 size-14 rounded-full shadow-lg lg:right-8 lg:bottom-8"
-          >
-            <Plus className="size-6" />
-          </Button>
+        {(onAdd || onSearch) && (
+          <div className="fixed right-5 bottom-5 z-30 flex items-center gap-3 lg:right-8 lg:bottom-8">
+            {onSearch && (
+              <Button
+                onClick={onSearch}
+                size="icon"
+                variant="secondary"
+                aria-label="Buscar movimientos"
+                className="size-12 rounded-full shadow-lg"
+              >
+                <Search className="size-5" />
+              </Button>
+            )}
+            {onAdd && (
+              <Button onClick={onAdd} size="icon" aria-label="Agregar movimiento" className="size-14 rounded-full shadow-lg">
+                <Plus className="size-6" />
+              </Button>
+            )}
+          </div>
         )}
       </SidebarProvider>
     </TooltipProvider>

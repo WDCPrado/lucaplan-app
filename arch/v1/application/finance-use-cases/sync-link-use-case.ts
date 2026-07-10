@@ -29,10 +29,13 @@ export type SyncLinkInput = {
   institutionName: string;
 };
 
-// Primer día del mes actual (UTC). En la primera conexión solo se importan movimientos desde aquí.
-function startOfCurrentMonthUTC(): Date {
+// Primera conexión: importa los últimos N meses (mes actual + los N-1 previos), no todo el histórico.
+const INITIAL_MONTHS = 3;
+
+// Primer día del mes de inicio de la ventana inicial (UTC): (INITIAL_MONTHS-1) meses atrás.
+function initialWindowStartUTC(): Date {
   const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (INITIAL_MONTHS - 1), 1));
 }
 
 export async function syncLink(
@@ -43,9 +46,9 @@ export async function syncLink(
   // Sync incremental: si el banco ya existía, solo trae lo creado/actualizado desde el último sync.
   const existing = await deps.banks.findByExternalLinkId(input.linkId);
   const updatedSince = existing?.lastSyncedAt ?? undefined;
-  // Primera conexión (aún sin sync): importar SOLO desde el inicio del mes actual (no todo el
-  // histórico). Los meses previos no se traen; lo nuevo llega después por el sync incremental.
-  const sinceDate = existing?.lastSyncedAt ? undefined : startOfCurrentMonthUTC();
+  // Primera conexión (aún sin sync): importar SOLO los últimos meses (ventana inicial), no todo el
+  // histórico. Lo anterior no se trae; lo nuevo llega después por el sync incremental.
+  const sinceDate = existing?.lastSyncedAt ? undefined : initialWindowStartUTC();
 
   // listAccounts valida el linkToken (falla con BankConnectionError si es inválido).
   const providerAccounts = await deps.provider.listAccounts(input.linkToken);

@@ -227,6 +227,29 @@ export const transactionRepository: TransactionRepository = {
     });
     return rows.map(toTransaction);
   },
+  // Búsqueda con filtros combinados (AND). El texto matchea descripción o nombre de categoría,
+  // case-insensitive. Devuelve los más recientes primero, acotado por `limit`.
+  async searchByUser(userId, f) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const where: any = { userId };
+    if (f.direction) where.direction = f.direction;
+    if (f.categoryId) where.categoryId = f.categoryId;
+    // Filtra por banco (nombre): todas las cuentas de bancos con ese nombre, aunque haya varios.
+    if (f.bankName) where.account = { bank: { name: f.bankName } };
+    if (f.from || f.to) where.transactionDate = { ...(f.from ? { gte: f.from } : {}), ...(f.to ? { lte: f.to } : {}) };
+    if (f.query) {
+      where.OR = [
+        { description: { contains: f.query, mode: "insensitive" } },
+        { category: { name: { contains: f.query, mode: "insensitive" } } },
+      ];
+    }
+    const rows = await prisma.transaction.findMany({
+      where,
+      orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
+      take: Math.min(Math.max(f.limit ?? 50, 1), 100),
+    });
+    return rows.map(toTransaction);
+  },
   async findById(id) {
     const row = await prisma.transaction.findUnique({ where: { id } });
     return row ? toTransaction(row) : null;

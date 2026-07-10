@@ -4,7 +4,7 @@ import * as React from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { es } from "date-fns/locale";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, CreditCard } from "lucide-react";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -16,7 +16,15 @@ import { useMoneyInput } from "@/hooks/use-money-input";
 import { CategoryIcon } from "./category-icons";
 import { formatCLP } from "@/lib/finance-format";
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money";
-import type { TransactionDTO, CategoryDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
+import type { AccountDTO, TransactionDTO, CategoryDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
+
+// Descripción de la cuenta de un movimiento: "Banco · •••• 1234" (o el nombre si no hay tarjeta).
+function accountLabel(account: AccountDTO | undefined): string | null {
+  if (!account) return null;
+  const bank = account.bankName || account.name;
+  const card = account.cardLast4 ? `•••• ${account.cardLast4}` : account.name;
+  return account.cardLast4 ? `${bank} · ${card}` : bank;
+}
 
 const STATUS_LABEL: Record<string, string> = {
   confirmed: "Confirmado",
@@ -67,25 +75,28 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
 export function TransactionModal({
   tx,
   categories,
+  accounts,
   onOpenChange,
 }: {
   tx: TransactionDTO | null;
   categories: CategoryDTO[];
+  accounts: AccountDTO[];
   onOpenChange: (o: boolean) => void;
 }) {
+  const account = tx ? accounts.find((a) => a.id === tx.accountId) : undefined;
   return (
     <ResponsiveModal open={tx !== null} onOpenChange={onOpenChange} title={tx?.editable ? "Editar movimiento" : "Movimiento del banco"}>
       {tx &&
         (tx.editable ? (
-          <EditForm key={tx.id} tx={tx} categories={categories} onClose={() => onOpenChange(false)} />
+          <EditForm key={tx.id} tx={tx} account={account} categories={categories} onClose={() => onOpenChange(false)} />
         ) : (
-          <ConnectedDetail key={tx.id} tx={tx} categories={categories} onClose={() => onOpenChange(false)} />
+          <ConnectedDetail key={tx.id} tx={tx} account={account} categories={categories} onClose={() => onOpenChange(false)} />
         ))}
     </ResponsiveModal>
   );
 }
 
-function EditForm({ tx, categories, onClose }: { tx: TransactionDTO; categories: CategoryDTO[]; onClose: () => void }) {
+function EditForm({ tx, account, categories, onClose }: { tx: TransactionDTO; account: AccountDTO | undefined; categories: CategoryDTO[]; onClose: () => void }) {
   const router = useRouter();
   const [description, setDescription] = useState(tx.description);
   const [direction, setDirection] = useState<"debit" | "credit">(tx.direction === "credit" ? "credit" : "debit");
@@ -158,6 +169,13 @@ function EditForm({ tx, categories, onClose }: { tx: TransactionDTO; categories:
         />
       </div>
 
+      {accountLabel(account) && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <CreditCard className="size-4 shrink-0" />
+          <span className="truncate">{accountLabel(account)}</span>
+        </div>
+      )}
+
       <div>
         <Label className="mb-1 block text-xs">Fecha</Label>
         <DatePicker value={date} onChange={setDate} />
@@ -191,7 +209,7 @@ function EditForm({ tx, categories, onClose }: { tx: TransactionDTO; categories:
 }
 
 // Movimiento del banco (fintoc): datos de solo lectura, pero SÍ se puede asignar/cambiar la categoría.
-function ConnectedDetail({ tx, categories, onClose }: { tx: TransactionDTO; categories: CategoryDTO[]; onClose: () => void }) {
+function ConnectedDetail({ tx, account, categories, onClose }: { tx: TransactionDTO; account: AccountDTO | undefined; categories: CategoryDTO[]; onClose: () => void }) {
   const router = useRouter();
   const income = tx.direction === "credit";
   const [categoryId, setCategoryId] = useState<string | null>(tx.categoryId);
@@ -225,6 +243,10 @@ function ConnectedDetail({ tx, categories, onClose }: { tx: TransactionDTO; cate
       </div>
 
       <dl className="flex flex-col">
+        {account && <Row label="Banco" value={account.bankName || account.name} />}
+        {account && (
+          <Row label="Tarjeta" value={account.cardLast4 ? `•••• ${account.cardLast4}` : account.name} />
+        )}
         <Row label="Fecha" value={fullDate(tx.date)} />
         <Row label="Tipo" value={income ? "Ingreso" : "Gasto"} />
         <Row label="Estado" value={STATUS_LABEL[tx.status] ?? tx.status} />

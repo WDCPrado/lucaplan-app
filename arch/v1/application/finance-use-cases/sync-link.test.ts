@@ -16,7 +16,8 @@ import type {
 // los mocks deben caer en este mes para que el test sea robusto en cualquier fecha).
 const NOW = new Date();
 const day = (n: number) => new Date(Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth(), n)).toISOString().slice(0, 10);
-const prevMonthDay = (n: number) => new Date(Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth() - 1, n)).toISOString().slice(0, 10);
+// Fecha `n` meses atrás (para probar el filtro de la ventana inicial de 3 meses).
+const monthsAgoDay = (months: number, n: number) => new Date(Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth() - months, n)).toISOString().slice(0, 10);
 
 const provider: BankAggregationProvider = {
   async listAccounts() {
@@ -102,6 +103,9 @@ function makeDeps(providerOverride?: BankAggregationProvider) {
       async listByCategoryPeriod() {
         return [];
       },
+      async searchByUser() {
+        return [];
+      },
       async create() {
         throw new Error("no usado");
       },
@@ -141,19 +145,19 @@ test("syncLink: primera sync crea banco, cuenta y movimientos; usa el saldo del 
   assert.equal(txs.length, 2);
 });
 
-test("syncLink: primera conexión importa solo desde el mes actual (descarta lo previo)", async () => {
+test("syncLink: primera conexión importa solo la ventana inicial (3 meses; descarta lo más viejo)", async () => {
   const prov: BankAggregationProvider = {
     ...provider,
     async listMovements() {
       return [
         { externalId: "mov_new", description: "Reciente", amount: -1000, currency: "CLP", postDate: day(5), transactionDate: day(5), status: "confirmed", pending: false },
-        { externalId: "mov_old", description: "Viejo", amount: -2000, currency: "CLP", postDate: prevMonthDay(15), transactionDate: prevMonthDay(15), status: "confirmed", pending: false },
+        { externalId: "mov_old", description: "Viejo", amount: -2000, currency: "CLP", postDate: monthsAgoDay(4, 15), transactionDate: monthsAgoDay(4, 15), status: "confirmed", pending: false },
       ];
     },
   };
   const { deps, txs } = makeDeps(prov);
   const res = await syncLink(deps, "u1", { linkId: "link_1", linkToken: "lt_1", institutionName: "Banco X" });
-  assert.equal(res.movements, 1); // solo el del mes actual
+  assert.equal(res.movements, 1); // solo el de la ventana (el de hace 4 meses queda fuera)
   assert.equal(txs.length, 1);
   assert.equal(txs[0].externalId, "mov_new");
 });

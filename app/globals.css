@@ -109,8 +109,10 @@
 
 /* === Landing pública: SIEMPRE light, sin depender del tema del usuario.
    Redefine los tokens semánticos a sus valores light dentro de su subárbol,
-   ganándole al `.dark` heredado del <html>. === */
-[data-landing] {
+   ganándole al `.dark` heredado del <html>. `.force-light` es para superficies
+   que se montan en portales (modales de la landing) fuera de [data-landing]. === */
+[data-landing],
+.force-light {
     color-scheme: light;
     --background: oklch(0.985 0.003 250);
     --foreground: oklch(0.21 0.03 260);
@@ -128,9 +130,28 @@
     --accent-foreground: oklch(0.34 0.09 258);
     --success: oklch(0.55 0.14 152);
     --success-foreground: oklch(0.99 0.01 152);
+    --warning: oklch(0.76 0.15 78);
+    --warning-foreground: oklch(0.27 0.05 78);
+    --destructive: oklch(0.58 0.22 25);
+    --destructive-foreground: oklch(0.99 0.01 25);
     --border: oklch(0.905 0.008 255);
     --input: oklch(0.905 0.008 255);
     --ring: oklch(0.54 0.19 262);
+    --chart-1: oklch(0.54 0.19 262);
+    --chart-2: oklch(0.68 0.12 205);
+    --chart-3: oklch(0.66 0.15 150);
+    --chart-4: oklch(0.62 0.17 300);
+    --chart-5: oklch(0.70 0.15 55);
+}
+
+/* La landing es light-only: el lienzo raíz (html/body) también, aunque el tema del usuario
+   sea dark — evita la franja oscura en el borde superior y el overscroll. */
+html:has(main[data-landing]) {
+    color-scheme: light;
+    background: oklch(0.985 0.003 250);
+}
+html:has(main[data-landing]) body {
+    background: oklch(0.985 0.003 250);
 }
 
 /* === Dark: slate profundo, tonos desaturados/luminosos (no invertidos) === */
@@ -209,6 +230,13 @@
   }
   html {
     @apply font-sans;
+    /* Anchors (#mes, #app, …) navegan con scroll suave */
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
   }
 }
 
@@ -247,11 +275,22 @@
   transform: none;
 }
 
-/* Halo ambiental del hero: tokens del sistema, nunca hardcode */
-.landing-glow {
-  background-image:
-    radial-gradient(56rem 30rem at 82% -8%, color-mix(in oklch, var(--primary), transparent 86%), transparent 62%),
-    radial-gradient(40rem 26rem at 4% 32%, color-mix(in oklch, var(--accent), transparent 50%), transparent 60%);
+/* Halo ambiental del hero: mesh de varios puntos degradados con blur real (sin bordes
+   perceptibles). Tokens del sistema, nunca hardcode. El elemento que lleva la clase debe
+   estar posicionado (el ::before ancla a él). */
+.landing-glow::before {
+  content: "";
+  position: absolute;
+  inset: -8rem;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(46rem 36rem at 78% 14%, color-mix(in oklch, var(--primary), transparent 58%), transparent 68%),
+    radial-gradient(38rem 30rem at 58% 2%, color-mix(in oklch, var(--chart-2), transparent 62%), transparent 68%),
+    radial-gradient(34rem 30rem at 97% 48%, color-mix(in oklch, var(--chart-4), transparent 74%), transparent 68%),
+    radial-gradient(40rem 34rem at 4% 30%, color-mix(in oklch, var(--accent), transparent 25%), transparent 68%);
+  filter: blur(72px);
+  opacity: 0.55;
 }
 
 /* Barra de presupuesto: se llena al entrar en viewport */
@@ -263,6 +302,30 @@
   width: var(--bar, 50%);
 }
 
+/* Barra de progreso que se llena al montar (login) */
+@keyframes bar-fill {
+  from {
+    width: 0;
+  }
+}
+
+/* Flotación sutil de las cards del collage (dos fases para que no vayan al unísono) */
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+.landing-float-a {
+  animation: landing-float 7s ease-in-out infinite;
+}
+.landing-float-b {
+  animation: landing-float 9s ease-in-out 1.2s infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-reveal] {
     opacity: 1;
@@ -272,6 +335,10 @@
   .landing-bar {
     width: var(--bar, 50%);
     transition: none;
+  }
+  .landing-float-a,
+  .landing-float-b {
+    animation: none;
   }
 }
 

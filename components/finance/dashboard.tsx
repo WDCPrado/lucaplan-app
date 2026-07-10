@@ -19,6 +19,7 @@ import { AccountInfoModal } from "./account-info-modal";
 import { ConnectBankButton } from "./connect-bank-button";
 import { CategorizationAutoRefresh } from "./categorization-auto-refresh";
 import { TransactionModal } from "./transaction-modal";
+import { TransactionSearch } from "./transaction-search";
 import { formatCLP, formatCompact, monthName } from "@/lib/finance-format";
 import type {
   AccountDTO,
@@ -49,6 +50,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
   const [editCat, setEditCat] = useState<CategoryDTO | null | undefined>(undefined); // undefined=cerrado, null=crear
   const { ref: cardsRef, handlers: cardsHandlers } = useDragScroll();
   const [infoAccount, setInfoAccount] = useState<AccountDTO | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Solo cuentas manuales aceptan movimientos a mano; las conectadas (fintoc) son de solo lectura.
   const manualAccounts = accounts.filter((a) => a.provider === "manual");
@@ -57,6 +59,8 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
   // El presupuesto es de gastos: solo categorías de gasto tienen tope/uso. Las de ingreso solo
   // clasifican (aparecen al categorizar movimientos de ingreso, no en esta grilla).
   const expenseCategories = budget.categories.filter((c) => c.type === "expense");
+  // Suma de los presupuestos (topes) de las categorías de gasto; se recalcula al refrescar.
+  const totalBudget = expenseCategories.reduce((s, c) => s + c.limit, 0);
 
   function goMonth(delta: number) {
     const d = new Date(Date.UTC(period.year, period.month - 1 + delta, 1));
@@ -89,6 +93,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
       onNavigate={navigate}
       onSignOut={signOut}
       onAdd={() => setAddOpen(true)}
+      onSearch={() => setSearchOpen(true)}
       title="Resumen"
       actions={
         <div className="flex items-center gap-2">
@@ -167,9 +172,12 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
         {/* Presupuestos + Movimientos */}
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
           <section id="presupuestos" className="min-w-0 scroll-mt-20 lg:order-2 lg:col-span-1 lg:sticky lg:top-20 lg:self-start">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-heading text-lg font-bold">Presupuestos</h2>
-              <span className="text-sm text-muted-foreground">{monthName(period.month)}</span>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-baseline gap-2">
+                <h2 className="font-heading text-lg font-bold">Presupuestos</h2>
+                {totalBudget > 0 && <span className="tabular text-sm font-semibold text-muted-foreground">{formatCLP(totalBudget)}</span>}
+              </div>
+              <span className="shrink-0 text-sm text-muted-foreground">{monthName(period.month)}</span>
             </div>
             <div className="glass rounded-2xl p-4">
               {expenseCategories.length === 0 ? (
@@ -245,7 +253,17 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
         period={period}
         category={editCat}
       />
-      <TransactionModal tx={detailTx} categories={budget.categories} onOpenChange={(o) => !o && setDetailTx(null)} />
+      <TransactionModal tx={detailTx} categories={budget.categories} accounts={accounts} onOpenChange={(o) => !o && setDetailTx(null)} />
+      <TransactionSearch
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        categories={budget.categories}
+        accounts={accounts}
+        onOpenTransaction={(tx) => {
+          setSearchOpen(false);
+          setDetailTx(tx);
+        }}
+      />
       {hasConnected && <CategorizationAutoRefresh />}
     </AppShell>
   );

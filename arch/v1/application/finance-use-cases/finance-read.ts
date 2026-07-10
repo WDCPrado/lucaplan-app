@@ -8,6 +8,7 @@ import type {
   CategoryRepository,
   Transaction,
   TransactionRepository,
+  TransactionSearchFilters,
 } from "../../domain/finance/finance.domain.ts";
 import { NotOwnerError, CategoryNotFoundError } from "../../domain/finance/finance.domain.ts";
 import { Money } from "../../domain/finance/money.ts";
@@ -51,6 +52,7 @@ export type AccountDTO = {
   color: string | null;
   cardLast4: string | null;
   provider: string; // "manual" | "fintoc"; las fintoc son de solo lectura (badge "conectado")
+  lastSyncedAt: string | null; // ISO; última sync del banco conectado (null en cuentas manuales)
 };
 
 export type TransactionDTO = {
@@ -156,12 +158,13 @@ export async function getMonthlySummary(deps: ReadDeps, userId: string, year: nu
 
 export async function listAccounts(deps: { accounts: AccountRepository; banks: BankRepository }, userId: string): Promise<AccountDTO[]> {
   const [accounts, banks] = await Promise.all([deps.accounts.listByUser(userId), deps.banks.listByUser(userId)]);
-  const bankName = new Map(banks.map((b) => [b.id, b.name]));
-  return accounts.map(
-    (a: Account): AccountDTO => ({
+  const bankById = new Map(banks.map((b) => [b.id, b]));
+  return accounts.map((a: Account): AccountDTO => {
+    const bank = bankById.get(a.bankId);
+    return {
       id: a.id,
       bankId: a.bankId,
-      bankName: bankName.get(a.bankId) ?? "",
+      bankName: bank?.name ?? "",
       name: a.name,
       accountType: a.accountType,
       currency: a.currency,
@@ -169,8 +172,9 @@ export async function listAccounts(deps: { accounts: AccountRepository; banks: B
       color: a.color,
       cardLast4: a.cardLast4,
       provider: a.provider,
-    }),
-  );
+      lastSyncedAt: bank?.lastSyncedAt?.toISOString() ?? null,
+    };
+  });
 }
 
 export async function listTransactions(deps: ReadDeps, userId: string, year: number, month: number): Promise<TransactionDTO[]> {
@@ -185,6 +189,19 @@ export async function listTransactions(deps: ReadDeps, userId: string, year: num
   return txs
     .filter((t) => t.status !== "reversed" && t.status !== "duplicated")
     .map((t) => txToDTO(t, t.categoryId ? catById.get(t.categoryId) : undefined, remaining.get(t.id) ?? null, manual.has(t.accountId)));
+}
+
+// Búsqueda de movimientos con filtros combinados. Devuelve TransactionDTO[] (sin "quedan" histórico,
+// que es propio de la vista por periodo). editable según el origen de la cuenta.
+export async function searchTransactions(deps: ReadDeps, userId: string, filters: TransactionSearchFilters): Promise<TransactionDTO[]> {
+  const [txs, cats, accounts] = await Promise.all([
+    deps.transactions.searchByUser(userId, filters),
+    deps.categories.listByUser(userId),
+    deps.accounts.listByUser(userId),
+  ]);
+  const catById = new Map(cats.map((c) => [c.id, c]));
+  const manual = new Set(accounts.filter((a) => a.provider === "manual").map((a) => a.id));
+  return txs.map((t) => txToDTO(t, t.categoryId ? catById.get(t.categoryId) : undefined, null, manual.has(t.accountId)));
 }
 
 export async function getBudgetView(deps: ReadDeps, userId: string, year: number, month: number): Promise<BudgetViewDTO> {

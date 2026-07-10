@@ -59,6 +59,9 @@ function makeDeps(provider: CategorizationProvider, categories: Category[]) {
       async listByCategoryPeriod() {
         return [];
       },
+      async searchByUser() {
+        return [];
+      },
       async create() {
         throw new Error("no usado");
       },

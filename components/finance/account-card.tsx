@@ -2,6 +2,7 @@ import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance
 import { formatCLP } from "@/lib/finance-format";
 import { resolveCardArt } from "@/lib/bank-cards";
 import { cn } from "@/lib/utils";
+import { SyncStatusLine } from "./sync-status-line";
 
 const TYPE_LABEL: Record<string, string> = {
   checking: "Débito",
@@ -77,11 +78,14 @@ export function AccountCard({ account, hidden, onClick }: { account: AccountDTO;
         </div>
       </div>
 
-      <div className="relative flex items-center justify-between gap-2 text-sm text-white/85">
-        <span className="tabular truncate tracking-widest">
-          {account.cardLast4 ? `•••• ${account.cardLast4}` : account.name}
-        </span>
-        <span className="shrink-0">{TYPE_LABEL[account.accountType] ?? account.accountType}</span>
+      <div className="relative space-y-1.5">
+        <div className="flex items-center justify-between gap-2 text-sm text-white/85">
+          <span className="tabular truncate tracking-widest">
+            {account.cardLast4 ? `•••• ${account.cardLast4}` : account.name}
+          </span>
+          <span className="shrink-0">{TYPE_LABEL[account.accountType] ?? account.accountType}</span>
+        </div>
+        {connected && account.lastSyncedAt && <SyncStatusLine lastSyncedAt={account.lastSyncedAt} />}
       </div>
     </div>
   );

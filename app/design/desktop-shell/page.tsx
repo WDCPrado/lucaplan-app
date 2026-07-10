@@ -26,9 +26,9 @@ import type {
 const SUMMARY = { activeCash: 2_450_000, income: 1_800_000, expense: 920_000, totalBudget: 1_100_000 };
 
 const ACCOUNTS: AccountDTO[] = [
-  { id: "acc-8842", bankId: "b1", bankName: "Banco de Chile", name: "Cuenta Corriente", accountType: "checking", currency: "CLP", balance: 1_250_000, color: "#1e40af", cardLast4: "8842", provider: "fintoc" },
-  { id: "acc-1120", bankId: "b2", bankName: "BancoEstado", name: "Ahorro", accountType: "savings", currency: "CLP", balance: 900_000, color: "#0f766e", cardLast4: null, provider: "manual" },
-  { id: "acc-3390", bankId: "b3", bankName: "Santander", name: "Visa", accountType: "credit_card", currency: "CLP", balance: -340_000, color: "#7c3aed", cardLast4: "3390", provider: "manual" },
+  { id: "acc-8842", bankId: "b1", bankName: "Banco de Chile", name: "Cuenta Corriente", accountType: "checking", currency: "CLP", balance: 1_250_000, color: "#1e40af", cardLast4: "8842", provider: "fintoc", lastSyncedAt: "2026-07-10T04:00:00.000Z" },
+  { id: "acc-1120", bankId: "b2", bankName: "BancoEstado", name: "Ahorro", accountType: "savings", currency: "CLP", balance: 900_000, color: "#0f766e", cardLast4: null, provider: "manual", lastSyncedAt: null },
+  { id: "acc-3390", bankId: "b3", bankName: "Santander", name: "Visa", accountType: "credit_card", currency: "CLP", balance: -340_000, color: "#7c3aed", cardLast4: "3390", provider: "manual", lastSyncedAt: null },
 ];
 
 const CATEGORIES: CategoryDTO[] = [

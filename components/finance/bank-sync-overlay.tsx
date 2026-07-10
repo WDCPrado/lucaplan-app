@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Landmark, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +26,10 @@ export function BankSyncOverlay({ finished }: { finished: boolean }) {
 
   const progress = finished ? 100 : ((active + 1) / STEPS.length) * 100;
 
-  return (
+  // Portal a document.body: el overlay `fixed` debe cubrir el viewport, pero se monta dentro del
+  // carrusel de cuentas (overflow-x-auto + mask), que lo confinaría/recortaría. El portal lo saca.
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
       role="alertdialog"
       aria-busy={!finished}
@@ -89,6 +93,7 @@ export function BankSyncOverlay({ finished }: { finished: boolean }) {
           <div className="h-full rounded-full bg-primary transition-all duration-700 ease-out" style={{ width: `${progress}%` }} />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

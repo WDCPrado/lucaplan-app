@@ -9,11 +9,16 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useMoneyInput } from "@/hooks/use-money-input";
 import { variantForType } from "@/lib/bank-cards";
+import { isFintocSupportedBank } from "@/lib/fintoc/institutions";
 import { AccountCard } from "./account-card";
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money";
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
 
-const BANKS = ["Banco de Chile", "Santander", "BICE", "Mercado Pago", "Tenpo", "Racional", "Hapi"];
+// Alta manual = solo bancos/medios que Fintoc NO cubre (los que sí, se conectan por Fintoc). Se
+// filtra por el matcher para que nunca aparezca uno soportado, aunque se agregue a la lista.
+const BANKS = ["Mercado Pago", "Tenpo", "MACH", "Racional", "Hapi", "Banco Falabella", "Banco Ripley", "Coopeuch", "Efectivo"].filter(
+  (b) => !isFintocSupportedBank(b),
+);
 
 // Alta manual = tarjetas (solo tipos con tarjeta). Las cuentas bancarias completas llegan por Fintoc.
 const TYPES: { value: string; label: string }[] = [
@@ -23,7 +28,7 @@ const TYPES: { value: string; label: string }[] = [
 
 export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const router = useRouter();
-  const [bankName, setBankName] = useState("Banco de Chile");
+  const [bankName, setBankName] = useState(BANKS[0] ?? "");
   const [name, setName] = useState("");
   const [accountType, setAccountType] = useState("checking");
   const [currency, setCurrency] = useState<CurrencyCode>("CLP");
@@ -35,7 +40,9 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
   // Solo los tipos con tarjeta (corriente = débito, crédito) exigen los últimos 4 dígitos.
   const hasCard = variantForType(accountType) !== null;
   const cardOk = !hasCard || cardLast4.length === 4;
-  const canSave = !!bankName.trim() && !!name.trim() && cardOk && !saving;
+  // Los bancos de Fintoc no se dan de alta a mano: se conectan (movimientos automáticos).
+  const isFintocBank = isFintocSupportedBank(bankName);
+  const canSave = !!bankName.trim() && !!name.trim() && cardOk && !isFintocBank && !saving;
 
   // Cuenta ficticia para el preview en vivo (reacciona a banco, tipo, saldo y dígitos).
   const preview: AccountDTO = {
@@ -49,6 +56,7 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
     color,
     cardLast4: hasCard && cardLast4 ? cardLast4 : null,
     provider: "manual",
+    lastSyncedAt: null,
   };
 
   async function save() {
@@ -95,6 +103,15 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
                   </Chip>
                 ))}
               </div>
+              {isFintocBank ? (
+                <p className="mt-2 text-xs text-destructive">
+                  {bankName} está en Fintoc. Conéctalo desde <span className="font-medium">“Conectar banco”</span> para traer los movimientos automáticamente.
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  El alta manual es para bancos/medios fuera de Fintoc. Banco de Chile, Santander, BCI, Itaú, BICE, Scotiabank, BancoEstado y Security se conectan desde “Conectar banco”.
+                </p>
+              )}
             </div>
             <div>
               <Label className="mb-1 block text-xs">Tipo de cuenta</Label>

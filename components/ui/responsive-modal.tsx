@@ -43,7 +43,7 @@ export function ResponsiveModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("max-h-[90dvh] gap-0 overflow-x-hidden overflow-y-auto rounded-3xl p-0 sm:max-w-lg", className)}>
+      <DialogContent className={cn("max-h-[90dvh] gap-0 overflow-x-hidden overflow-y-auto rounded-3xl p-0 sm:max-w-lg [&>*]:min-w-0", className)}>
         <DialogHeader className={cn("p-6", headerClassName)}>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

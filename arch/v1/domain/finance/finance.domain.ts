@@ -195,6 +195,18 @@ export type CategoryInput = {
 
 export type LimitInput = { categoryId: string; year: number; month: number; limit: Money };
 
+// Filtros de búsqueda de movimientos (todos opcionales, se combinan con AND). `query` es texto libre
+// (descripción o nombre de categoría) case-insensitive.
+export type TransactionSearchFilters = {
+  query?: string;
+  direction?: Direction;
+  categoryId?: string;
+  bankName?: string; // filtra por banco: incluye TODAS las cuentas de bancos con ese nombre
+  from?: Date;
+  to?: Date;
+  limit?: number;
+};
+
 // --- Ports (los implementa la infraestructura; aquí solo el contrato) ---
 
 export interface BankRepository {
@@ -230,6 +242,8 @@ export interface CategoryRepository {
 export interface TransactionRepository {
   listByUserPeriod(userId: string, year: number, month: number): Promise<Transaction[]>;
   listByCategoryPeriod(categoryId: string, year: number, month: number): Promise<Transaction[]>;
+  // Búsqueda con filtros combinados (texto insensible a mayúsculas, dirección, categoría, cuenta, fechas).
+  searchByUser(userId: string, filters: TransactionSearchFilters): Promise<Transaction[]>;
   findById(id: string): Promise<Transaction | null>;
   // Crea el movimiento y ajusta el saldo de la cuenta atómicamente (débito resta, crédito suma).
   create(tx: NewTransaction): Promise<Transaction>;

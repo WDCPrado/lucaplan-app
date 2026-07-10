@@ -60,6 +60,9 @@ class FakeTx implements TransactionRepository {
   async listByCategoryPeriod() {
     return [];
   }
+  async searchByUser() {
+    return [];
+  }
   async create(tx: NewTransaction): Promise<Transaction> {
     this.created.push(tx);
     return { id: "t1", status: "confirmed", externalId: null, ...tx };

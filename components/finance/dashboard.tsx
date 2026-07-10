@@ -15,6 +15,7 @@ import { AddTransactionSheet } from "./add-transaction-sheet";
 import { CategoryModal } from "./category-modal";
 import { CategoryDetailSheet } from "./category-detail-sheet";
 import { AccountModal } from "./account-modal";
+import { ConnectBankButton } from "./connect-bank-button";
 import { formatCLP, formatCompact, monthName } from "@/lib/finance-format";
 import type {
   AccountDTO,
@@ -43,6 +44,22 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
   const [detail, setDetail] = useState<CategoryDTO | null>(null);
   const [editCat, setEditCat] = useState<CategoryDTO | null | undefined>(undefined); // undefined=cerrado, null=crear
   const { ref: cardsRef, handlers: cardsHandlers } = useDragScroll();
+  const [refreshing, setRefreshing] = useState<string | null>(null);
+
+  // Solo cuentas manuales aceptan movimientos a mano; las conectadas (fintoc) son de solo lectura.
+  const manualAccounts = accounts.filter((a) => a.provider === "manual");
+
+  // Refresco manual de un banco conectado: re-sincroniza y recarga.
+  async function refreshBank(bankId: string) {
+    setRefreshing(bankId);
+    await fetch("/api/fintoc/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bankId }),
+    });
+    setRefreshing(null);
+    router.refresh();
+  }
 
   function goMonth(delta: number) {
     const d = new Date(Date.UTC(period.year, period.month - 1 + delta, 1));
@@ -108,15 +125,21 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
             </div>
             {accounts.map((a) => (
               <div key={a.id} className="flex w-72 shrink-0 snap-start">
-                <AccountCard account={a} hidden={!showBalance} />
+                <AccountCard
+                  account={a}
+                  hidden={!showBalance}
+                  onRefresh={a.provider === "fintoc" ? () => refreshBank(a.bankId) : undefined}
+                  refreshing={refreshing === a.bankId}
+                />
               </div>
             ))}
+            <ConnectBankButton />
             <button
               onClick={() => setAccountOpen(true)}
               className="flex min-h-40 w-72 shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
             >
               <span className="text-2xl">＋</span>
-              <span className="text-sm font-medium">Nueva cuenta</span>
+              <span className="text-sm font-medium">Nueva tarjeta</span>
             </button>
           </div>
 
@@ -190,7 +213,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
       <AddTransactionSheet
         open={addOpen}
         onOpenChange={setAddOpen}
-        accounts={accounts}
+        accounts={manualAccounts}
         categories={budget.categories}
         onCreateAccount={() => {
           setAddOpen(false);

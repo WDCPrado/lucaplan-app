@@ -50,6 +50,7 @@ export type AccountDTO = {
   balance: number;
   color: string | null;
   cardLast4: string | null;
+  provider: string; // "manual" | "fintoc"; las fintoc son de solo lectura (badge "conectado")
 };
 
 export type TransactionDTO = {
@@ -58,6 +59,7 @@ export type TransactionDTO = {
   amount: number;
   direction: string;
   date: string;
+  status: string; // confirmed | pending | reversed | duplicated (solo confirmed cuenta)
   categoryId: string | null;
   categoryName: string | null;
   categoryIcon: string | null;
@@ -85,6 +87,7 @@ function txToDTO(t: Transaction, cat: Category | undefined, remaining: number | 
     amount: t.amount.toMajor(),
     direction: t.direction,
     date: t.date.toISOString(),
+    status: t.status,
     categoryId: t.categoryId,
     categoryName: cat?.name ?? null,
     categoryIcon: cat?.icon ?? null,
@@ -101,7 +104,7 @@ function historicalRemaining(txs: Transaction[], limitOf: (categoryId: string) =
   const out = new Map<string, number>();
   for (let i = txs.length - 1; i >= 0; i--) {
     const t = txs[i];
-    if (t.direction !== "debit" || !t.categoryId) continue;
+    if (t.direction !== "debit" || !t.categoryId || t.status !== "confirmed") continue;
     const limit = limitOf(t.categoryId);
     if (!limit || t.amount.currency !== limit.currency) continue;
     const spent = (acc.get(t.categoryId) ?? Money.zero(limit.currency)).add(t.amount);
@@ -128,7 +131,9 @@ export async function getMonthlySummary(deps: ReadDeps, userId: string, year: nu
   const withLimit = await categoriesWithLimit(deps, userId, year, month);
 
   const sumClp = (dir: string) =>
-    txs.filter((t) => t.direction === dir && t.amount.currency === CLP).reduce((s, t) => s.add(t.amount), Money.zero(CLP));
+    txs
+      .filter((t) => t.direction === dir && t.amount.currency === CLP && t.status === "confirmed")
+      .reduce((s, t) => s.add(t.amount), Money.zero(CLP));
 
   return {
     activeCash: computeActiveCash(accounts, CLP).toMajor(),
@@ -155,6 +160,7 @@ export async function listAccounts(deps: { accounts: AccountRepository; banks: B
       balance: a.balance.toMajor(),
       color: a.color,
       cardLast4: a.cardLast4,
+      provider: a.provider,
     }),
   );
 }
@@ -165,7 +171,10 @@ export async function listTransactions(deps: ReadDeps, userId: string, year: num
   const catById = new Map(withLimit.map((x) => [x.category.id, x.category]));
   const limitById = new Map(withLimit.map((x) => [x.category.id, x.limit]));
   const remaining = historicalRemaining(txs, (id) => limitById.get(id) ?? null);
-  return txs.map((t) => txToDTO(t, t.categoryId ? catById.get(t.categoryId) : undefined, remaining.get(t.id) ?? null));
+  // La lista no muestra reversados ni duplicados (ruido); sí muestra confirmed y pending.
+  return txs
+    .filter((t) => t.status !== "reversed" && t.status !== "duplicated")
+    .map((t) => txToDTO(t, t.categoryId ? catById.get(t.categoryId) : undefined, remaining.get(t.id) ?? null));
 }
 
 export async function getBudgetView(deps: ReadDeps, userId: string, year: number, month: number): Promise<BudgetViewDTO> {
@@ -212,6 +221,8 @@ export async function getCategoryDetail(
     used: used.toMajor(),
     available: available.toMajor(),
     status: categoryStatus(used, limit),
-    transactions: txs.map((t) => txToDTO(t, category, remaining.get(t.id) ?? null)),
+    transactions: txs
+      .filter((t) => t.status !== "reversed" && t.status !== "duplicated")
+      .map((t) => txToDTO(t, category, remaining.get(t.id) ?? null)),
   };
 }

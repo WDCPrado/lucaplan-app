@@ -36,6 +36,11 @@ export class Money {
     return new Money(toMinor(value, CURRENCY_DECIMALS[currency]), currency);
   }
 
+  /** Construye desde la unidad MÍNIMA ya entera (ej. Fintoc `amount`: centavos USD, pesos CLP). */
+  static fromMinor(minor: number | bigint, currency: CurrencyCode): Money {
+    return new Money(typeof minor === "bigint" ? minor : BigInt(Math.round(minor)), currency);
+  }
+
   static zero(currency: CurrencyCode): Money {
     return new Money(BigInt(0), currency);
   }

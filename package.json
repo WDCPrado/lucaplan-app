@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3005",
+    "dev": "prisma generate && next dev -p 3005",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
@@ -16,6 +16,7 @@
     "seed": "node --env-file=.env prisma/seed.ts"
   },
   "dependencies": {
+    "@fintoc/fintoc-js": "^1.1.2",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "better-auth": "^1.6.19",

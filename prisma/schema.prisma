@@ -86,15 +86,20 @@ model Verification {
 // (ver arch/v1/application/finance-use-cases), no columnas.
 
 model Bank {
-  id        String             @id @default(uuid())
-  userId    String
-  name      String
-  isActive  Boolean            @default(true)
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
-  accounts  FinancialAccount[]
+  id             String             @id @default(uuid())
+  userId         String
+  name           String
+  isActive       Boolean            @default(true)
+  provider       String             @default("manual") // manual | fintoc
+  externalLinkId String? // id del Link de Fintoc (link_...)
+  linkToken      String? // token secreto del Link para leer sus datos (server-only)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  accounts       FinancialAccount[]
 
   @@index([userId])
+  @@index([externalLinkId])
   @@map("bank")
 }
 
@@ -111,10 +116,14 @@ model FinancialAccount {
   color          String? // presentación: color de la tarjeta (opcional)
   cardLast4      String? // últimos 4 dígitos de la tarjeta; obligatorio en app para checking/credit_card
   status         String        @default("active")
+  provider       String        @default("manual") // manual | fintoc (fintoc = solo lectura)
+  externalId     String? // id de la cuenta en Fintoc (acc_...)
+  lastSyncedAt   DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   transactions   Transaction[]
 
+  @@unique([userId, externalId])
   @@index([userId, bankId])
   @@map("financial_account")
 }
@@ -166,9 +175,13 @@ model Transaction {
   amount          Decimal          @db.Decimal(18, 2)
   currency        String
   direction       String // debit | credit
+  status          String           @default("confirmed") // confirmed | pending | reversed | duplicated
+  pending         Boolean          @default(false)
+  externalId      String? // id del movimiento en Fintoc (mov_...); null si es manual
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
+  @@unique([accountId, externalId])
   @@index([accountId, transactionDate])
   @@index([categoryId])
   @@map("transaction")

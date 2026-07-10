@@ -27,6 +27,8 @@ const account = (over: Partial<Account>): Account => ({
   overdraftLimit: clp(0),
   color: null,
   cardLast4: null,
+  provider: "manual",
+  externalId: null,
   ...over,
 });
 
@@ -93,6 +95,8 @@ const tx = (over: Partial<Transaction>): Transaction => ({
   description: "x",
   amount: clp(0),
   direction: "debit",
+  status: "confirmed",
+  externalId: null,
   ...over,
 });
 

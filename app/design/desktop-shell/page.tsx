@@ -26,9 +26,9 @@ import type {
 const SUMMARY = { activeCash: 2_450_000, income: 1_800_000, expense: 920_000, totalBudget: 1_100_000 };
 
 const ACCOUNTS: AccountDTO[] = [
-  { id: "acc-8842", bankId: "b1", bankName: "Banco de Chile", name: "Cuenta Corriente", accountType: "checking", currency: "CLP", balance: 1_250_000, color: "#1e40af", cardLast4: "8842" },
-  { id: "acc-1120", bankId: "b2", bankName: "BancoEstado", name: "Ahorro", accountType: "savings", currency: "CLP", balance: 900_000, color: "#0f766e", cardLast4: null },
-  { id: "acc-3390", bankId: "b3", bankName: "Santander", name: "Visa", accountType: "credit_card", currency: "CLP", balance: -340_000, color: "#7c3aed", cardLast4: "3390" },
+  { id: "acc-8842", bankId: "b1", bankName: "Banco de Chile", name: "Cuenta Corriente", accountType: "checking", currency: "CLP", balance: 1_250_000, color: "#1e40af", cardLast4: "8842", provider: "fintoc" },
+  { id: "acc-1120", bankId: "b2", bankName: "BancoEstado", name: "Ahorro", accountType: "savings", currency: "CLP", balance: 900_000, color: "#0f766e", cardLast4: null, provider: "manual" },
+  { id: "acc-3390", bankId: "b3", bankName: "Santander", name: "Visa", accountType: "credit_card", currency: "CLP", balance: -340_000, color: "#7c3aed", cardLast4: "3390", provider: "manual" },
 ];
 
 const CATEGORIES: CategoryDTO[] = [
@@ -40,12 +40,12 @@ const CATEGORIES: CategoryDTO[] = [
 ];
 
 const TX: TransactionDTO[] = [
-  { id: "t1", description: "Jumbo Costanera", amount: 45_990, direction: "debit", date: "2026-07-08", categoryId: "c1", categoryName: "Supermercado", categoryIcon: "ShoppingCart", categoryColor: "#16a34a", remaining: 140_000 },
-  { id: "t2", description: "Sueldo Julio", amount: 1_800_000, direction: "credit", date: "2026-07-05", categoryId: null, categoryName: "Ingreso", categoryIcon: "TrendingUp", categoryColor: "#16a34a", remaining: null },
-  { id: "t3", description: "Copec", amount: 38_000, direction: "debit", date: "2026-07-04", categoryId: "c2", categoryName: "Transporte", categoryIcon: "Fuel", categoryColor: "#2563eb", remaining: 90_000 },
-  { id: "t4", description: "Starbucks", amount: 6_500, direction: "debit", date: "2026-07-03", categoryId: "c3", categoryName: "Comida fuera", categoryIcon: "Coffee", categoryColor: "#ea580c", remaining: -15_000 },
-  { id: "t5", description: "Cuenta Luz Enel", amount: 42_300, direction: "debit", date: "2026-07-02", categoryId: "c4", categoryName: "Servicios", categoryIcon: "Zap", categoryColor: "#ca8a04", remaining: 60_000 },
-  { id: "t6", description: "Netflix", amount: 9_990, direction: "debit", date: "2026-07-01", categoryId: "c5", categoryName: "Entretención", categoryIcon: "Film", categoryColor: "#db2777", remaining: 60_000 },
+  { id: "t1", description: "Jumbo Costanera", amount: 45_990, direction: "debit", date: "2026-07-08", status: "confirmed", categoryId: "c1", categoryName: "Supermercado", categoryIcon: "ShoppingCart", categoryColor: "#16a34a", remaining: 140_000 },
+  { id: "t2", description: "Sueldo Julio", amount: 1_800_000, direction: "credit", date: "2026-07-05", status: "confirmed", categoryId: null, categoryName: "Ingreso", categoryIcon: "TrendingUp", categoryColor: "#16a34a", remaining: null },
+  { id: "t3", description: "Copec", amount: 38_000, direction: "debit", date: "2026-07-04", status: "confirmed", categoryId: "c2", categoryName: "Transporte", categoryIcon: "Fuel", categoryColor: "#2563eb", remaining: 90_000 },
+  { id: "t4", description: "Starbucks", amount: 6_500, direction: "debit", date: "2026-07-03", status: "confirmed", categoryId: "c3", categoryName: "Comida fuera", categoryIcon: "Coffee", categoryColor: "#ea580c", remaining: -15_000 },
+  { id: "t5", description: "Cuenta Luz Enel", amount: 42_300, direction: "debit", date: "2026-07-02", status: "confirmed", categoryId: "c4", categoryName: "Servicios", categoryIcon: "Zap", categoryColor: "#ca8a04", remaining: 60_000 },
+  { id: "t6", description: "Netflix", amount: 9_990, direction: "debit", date: "2026-07-01", status: "confirmed", categoryId: "c5", categoryName: "Entretención", categoryIcon: "Film", categoryColor: "#db2777", remaining: 60_000 },
 ];
 
 // ---------------------------------------------------------------------------

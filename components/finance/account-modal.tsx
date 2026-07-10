@@ -15,11 +15,10 @@ import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance
 
 const BANKS = ["Banco de Chile", "Santander", "BICE", "Mercado Pago", "Tenpo", "Racional", "Hapi"];
 
+// Alta manual = tarjetas (solo tipos con tarjeta). Las cuentas bancarias completas llegan por Fintoc.
 const TYPES: { value: string; label: string }[] = [
-  { value: "checking", label: "Cuenta corriente" },
+  { value: "checking", label: "Tarjeta de débito" },
   { value: "credit_card", label: "Tarjeta de crédito" },
-  { value: "savings", label: "Ahorro" },
-  { value: "wallet", label: "Billetera" },
 ];
 
 export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -43,12 +42,13 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
     id: "preview",
     bankId: "preview",
     bankName,
-    name: name || "Nueva cuenta",
+    name: name || "Nueva tarjeta",
     accountType,
     currency,
     balance: balance.value,
     color,
     cardLast4: hasCard && cardLast4 ? cardLast4 : null,
+    provider: "manual",
   };
 
   async function save() {
@@ -78,7 +78,7 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
   }
 
   return (
-    <ResponsiveModal open={open} onOpenChange={onOpenChange} title="Nueva cuenta" className="sm:max-w-3xl">
+    <ResponsiveModal open={open} onOpenChange={onOpenChange} title="Nueva tarjeta" className="sm:max-w-3xl">
       <div className="px-4 pb-6">
         <div className="md:grid md:grid-cols-2 md:gap-6">
           {/* Columna izquierda: tarjeta grande + banco + tipo (+ dígitos) */}
@@ -123,8 +123,8 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
           {/* Columna derecha: nombre, moneda, saldo, color */}
           <div className="mt-4 flex flex-col gap-4 md:mt-0">
             <div>
-              <Label className="mb-1 block text-xs">Nombre de la cuenta</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Cuenta corriente CLP" className="h-11" />
+              <Label className="mb-1 block text-xs">Nombre de la tarjeta</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tarjeta débito CLP" className="h-11" />
             </div>
             <div>
               <Label className="mb-1 block text-xs">Moneda</Label>
@@ -148,7 +148,7 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
         </div>
 
         <Button onClick={save} disabled={!canSave} className="mt-6 h-12 w-full rounded-full text-base">
-          {saving ? "Guardando…" : "Crear cuenta"}
+          {saving ? "Guardando…" : "Crear tarjeta"}
         </Button>
       </div>
     </ResponsiveModal>

@@ -8,6 +8,9 @@ import {
   CategoryNotFoundError,
   TransactionCurrencyMismatchError,
   CardLast4RequiredError,
+  ConnectedAccountReadOnlyError,
+  BankConnectionError,
+  WebhookSignatureError,
 } from "../../domain/finance/finance.domain.ts";
 import {
   accountRepository,
@@ -15,6 +18,7 @@ import {
   categoryRepository,
   transactionRepository,
 } from "../../infrastructure/database/prisma/finance.infrastructure.ts";
+import { fintocProvider } from "../../infrastructure/http/fintoc/fintoc.provider.ts";
 
 // Todos los adapters, listos para inyectar en los use-cases.
 export const financeDeps = {
@@ -22,10 +26,18 @@ export const financeDeps = {
   banks: bankRepository,
   categories: categoryRepository,
   transactions: transactionRepository,
+  provider: fintocProvider,
 };
 
 function errorStatus(e: unknown): number {
-  if (e instanceof TransactionCurrencyMismatchError || e instanceof CardLast4RequiredError) return 422;
+  if (e instanceof WebhookSignatureError) return 401;
+  if (
+    e instanceof TransactionCurrencyMismatchError ||
+    e instanceof CardLast4RequiredError ||
+    e instanceof ConnectedAccountReadOnlyError ||
+    e instanceof BankConnectionError
+  )
+    return 422;
   if (e instanceof NotOwnerError || e instanceof AccountNotFoundError || e instanceof CategoryNotFoundError) return 404;
   return 500;
 }

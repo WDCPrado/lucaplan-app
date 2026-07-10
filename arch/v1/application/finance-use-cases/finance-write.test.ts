@@ -25,6 +25,8 @@ const acc = (over: Partial<Account>): Account => ({
   overdraftLimit: clp(0),
   color: null,
   cardLast4: null,
+  provider: "manual",
+  externalId: null,
   ...over,
 });
 
@@ -42,6 +44,12 @@ class FakeAccounts implements AccountRepository {
   async create(): Promise<never> {
     throw new Error("no usado en este test");
   }
+  async listByBank() {
+    return [];
+  }
+  async upsertConnected(): Promise<never> {
+    throw new Error("no usado en este test");
+  }
 }
 
 class FakeTx implements TransactionRepository {
@@ -54,8 +62,9 @@ class FakeTx implements TransactionRepository {
   }
   async create(tx: NewTransaction): Promise<Transaction> {
     this.created.push(tx);
-    return { id: "t1", ...tx };
+    return { id: "t1", status: "confirmed", externalId: null, ...tx };
   }
+  async importMovements() {}
 }
 
 test("createTransaction: gasto CLP válido se crea como debit", async () => {

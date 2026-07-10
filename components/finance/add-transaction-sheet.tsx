@@ -66,9 +66,11 @@ export function AddTransactionSheet({
     <ResponsiveModal open={open} onOpenChange={onOpenChange} title="Nueva transacción">
         {accounts.length === 0 ? (
           <div className="flex flex-col items-center gap-4 px-4 py-10 text-center">
-            <p className="text-sm text-muted-foreground">Necesitas una cuenta para registrar movimientos.</p>
+            <p className="text-sm text-muted-foreground">
+              Necesitas una tarjeta para registrar movimientos a mano. Las cuentas conectadas por Fintoc son de solo lectura.
+            </p>
             <Button onClick={onCreateAccount} className="h-12 rounded-full">
-              Crear cuenta
+              Nueva tarjeta
             </Button>
           </div>
         ) : (

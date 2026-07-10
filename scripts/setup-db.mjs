@@ -1,5 +1,6 @@
-// Setup de la DB local: parsea DATABASE_URL, levanta Postgres en Docker,
-// espera a que responda, y corre prisma generate + migrate deploy.
+// Setup de la DB local desde cero: parsea DATABASE_URL, levanta Postgres en Docker, espera a que
+// responda, y RESETEA la base (borra TODO) re-aplicando migraciones + seed.
+// ⚠ Destructivo: borra todos los datos. Solo actúa sobre una DB local (aborta si no lo es).
 // Uso: pnpm setup:db   (o: node scripts/setup-db.mjs)
 import "dotenv/config";
 import { execFileSync, execSync } from "node:child_process";
@@ -61,10 +62,17 @@ if (!ready) {
   process.exit(1);
 }
 
-// 3. Prisma
+// 3. Prisma: reset destructivo (borra TODO) + re-aplica migraciones + seed.
+// Guarda: migrate reset usa DATABASE_URL; si apunta a una DB no local, abortar para no nukear prod.
+if (!["localhost", "127.0.0.1", ""].includes(hostname)) {
+  console.error(`✗ setup:db BORRA TODA la base. DATABASE_URL apunta a "${hostname}" (no local); abortando por seguridad.`);
+  process.exit(1);
+}
 console.log("▶ prisma generate");
 execSync("prisma generate", { stdio: "inherit" });
-console.log("▶ prisma migrate deploy");
-execSync("prisma migrate deploy", { stdio: "inherit" });
+console.log("▶ prisma migrate reset --force  (borra todo y re-aplica migraciones)");
+execSync("prisma migrate reset --force", { stdio: "inherit" });
+console.log("▶ seed");
+execSync("node --env-file=.env prisma/seed.ts", { stdio: "inherit" });
 
-console.log("✓ Base de datos lista");
+console.log("✓ Base de datos reseteada: todo borrado, migraciones + seed aplicados");

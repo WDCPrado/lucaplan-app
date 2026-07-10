@@ -11,8 +11,13 @@ import type {
   Category,
   CategoryLimit,
   CategoryRepository,
+  ConnectedAccountInput,
+  ConnectedBankInput,
   Direction,
+  ImportMovement,
+  MovementStatus,
   NewTransaction,
+  Provider,
   Transaction,
   TransactionRepository,
 } from "../../../domain/finance/finance.domain.ts";
@@ -33,6 +38,8 @@ function toAccount(row: any): Account {
     overdraftLimit: Money.of(row.overdraftLimit.toString(), currency),
     color: row.color ?? null,
     cardLast4: row.cardLast4 ?? null,
+    provider: (row.provider ?? "manual") as Provider,
+    externalId: row.externalId ?? null,
   };
 }
 
@@ -70,14 +77,21 @@ function toTransaction(row: any): Transaction {
     description: row.description,
     amount: Money.of(row.amount.toString(), currency),
     direction: row.direction as Direction,
+    status: (row.status ?? "confirmed") as MovementStatus,
+    externalId: row.externalId ?? null,
   };
 }
 
-const toBank = (r: { id: string; userId: string; name: string; isActive: boolean }): Bank => ({
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toBank = (r: any): Bank => ({
   id: r.id,
   userId: r.userId,
   name: r.name,
   isActive: r.isActive,
+  provider: (r.provider ?? "manual") as Provider,
+  externalLinkId: r.externalLinkId ?? null,
+  linkToken: r.linkToken ?? null,
+  lastSyncedAt: r.lastSyncedAt ?? null,
 });
 
 export const bankRepository: BankRepository = {
@@ -86,6 +100,30 @@ export const bankRepository: BankRepository = {
   },
   async create(input) {
     return toBank(await prisma.bank.create({ data: { userId: input.userId, name: input.name } }));
+  },
+  async findById(id) {
+    const row = await prisma.bank.findUnique({ where: { id } });
+    return row ? toBank(row) : null;
+  },
+  async findByExternalLinkId(externalLinkId) {
+    const row = await prisma.bank.findFirst({ where: { externalLinkId } });
+    return row ? toBank(row) : null;
+  },
+  async upsertConnected(input: ConnectedBankInput) {
+    const existing = await prisma.bank.findFirst({
+      where: { userId: input.userId, externalLinkId: input.externalLinkId },
+    });
+    const data = {
+      name: input.name,
+      provider: "fintoc",
+      externalLinkId: input.externalLinkId,
+      linkToken: input.linkToken,
+      lastSyncedAt: new Date(),
+    };
+    const row = existing
+      ? await prisma.bank.update({ where: { id: existing.id }, data })
+      : await prisma.bank.create({ data: { userId: input.userId, ...data } });
+    return toBank(row);
   },
 };
 
@@ -111,6 +149,29 @@ export const accountRepository: AccountRepository = {
         cardLast4: input.cardLast4,
       },
     });
+    return toAccount(row);
+  },
+  async listByBank(bankId) {
+    return (await prisma.financialAccount.findMany({ where: { bankId } })).map(toAccount);
+  },
+  async upsertConnected(input: ConnectedAccountInput) {
+    const existing = await prisma.financialAccount.findFirst({
+      where: { userId: input.userId, externalId: input.externalId },
+    });
+    const data = {
+      bankId: input.bankId,
+      name: input.name,
+      accountType: input.accountType,
+      currency: input.currency,
+      balance: input.balance.toDecimalString(), // saldo del proveedor (se sobrescribe cada sync)
+      overdraftLimit: input.overdraftLimit.toDecimalString(),
+      cardLast4: input.cardLast4,
+      provider: "fintoc",
+      lastSyncedAt: new Date(),
+    };
+    const row = existing
+      ? await prisma.financialAccount.update({ where: { id: existing.id }, data })
+      : await prisma.financialAccount.create({ data: { userId: input.userId, externalId: input.externalId, ...data } });
     return toAccount(row);
   },
 };
@@ -179,6 +240,32 @@ export const transactionRepository: TransactionRepository = {
       });
     });
     return toTransaction(row);
+  },
+  // Import idempotente de movimientos de Fintoc: upsert por (accountId, externalId), preserva
+  // categoryId (no se toca en update) y NO ajusta el saldo (lo fija el proveedor).
+  // ponytail: upsert secuencial; batch si el volumen lo pide.
+  async importMovements(userId: string, accountId: string, movements: ImportMovement[]) {
+    const CHUNK = 10; // ponytail: upsert en lotes acotados (evita saturar el pool de conexiones).
+    for (let i = 0; i < movements.length; i += CHUNK) {
+      await Promise.all(
+        movements.slice(i, i + CHUNK).map((m) => {
+          const fields = {
+            transactionDate: m.date,
+            description: m.description,
+            amount: m.amount.toDecimalString(),
+            currency: m.amount.currency,
+            direction: m.direction,
+            status: m.status,
+            pending: m.status === "pending",
+          };
+          return prisma.transaction.upsert({
+            where: { accountId_externalId: { accountId, externalId: m.externalId } },
+            create: { userId, accountId, externalId: m.externalId, ...fields },
+            update: fields, // categoryId intacto → categoría preservada
+          });
+        }),
+      );
+    }
   },
 };
 

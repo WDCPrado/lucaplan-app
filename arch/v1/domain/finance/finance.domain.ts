@@ -35,6 +35,14 @@ export function cardVariant(t: AccountType): "debito" | "credito" | null {
 export const DIRECTIONS = ["debit", "credit"] as const;
 export type Direction = (typeof DIRECTIONS)[number];
 
+// Origen de un banco/cuenta/movimiento: creado a mano o agregado por Fintoc.
+export const PROVIDERS = ["manual", "fintoc"] as const;
+export type Provider = (typeof PROVIDERS)[number];
+
+// Estado del movimiento reportado por el proveedor. Solo `confirmed` cuenta para caja/presupuesto.
+export const MOVEMENT_STATUSES = ["confirmed", "pending", "reversed", "duplicated"] as const;
+export type MovementStatus = (typeof MOVEMENT_STATUSES)[number];
+
 // Estado de una categoría según cuánto de su límite se usó.
 export const CATEGORY_STATUSES = ["bueno", "moderado", "completado", "excedido"] as const;
 export type CategoryStatus = (typeof CATEGORY_STATUSES)[number];
@@ -46,6 +54,10 @@ export type Bank = {
   userId: string;
   name: string;
   isActive: boolean;
+  provider: Provider; // "manual" | "fintoc"
+  externalLinkId: string | null; // id del Link de Fintoc (link_...)
+  linkToken: string | null; // token secreto del Link para leer sus datos (nunca al cliente)
+  lastSyncedAt: Date | null;
 };
 
 export type Account = {
@@ -59,6 +71,8 @@ export type Account = {
   overdraftLimit: Money;
   color: string | null; // presentación
   cardLast4: string | null; // últimos 4 dígitos de la tarjeta; obligatorio en tipos con tarjeta (checking/credit_card)
+  provider: Provider; // "manual" | "fintoc"; las fintoc son de solo lectura
+  externalId: string | null; // id de la cuenta en Fintoc (acc_...)
 };
 
 // Categoría GLOBAL del usuario, compartida entre todos los meses. El límite NO vive aquí.
@@ -88,6 +102,8 @@ export type Transaction = {
   description: string;
   amount: Money;
   direction: Direction;
+  status: MovementStatus; // manual = "confirmed"; fintoc según el proveedor
+  externalId: string | null; // id del movimiento en Fintoc (mov_...); null si es manual
 };
 
 // --- Inputs de escritura ---
@@ -116,6 +132,36 @@ export type NewAccount = {
   cardLast4: string | null;
 };
 
+// --- Inputs de sincronización (Fintoc) ---
+
+export type ConnectedBankInput = {
+  userId: string;
+  name: string;
+  externalLinkId: string; // link_...
+  linkToken: string; // token secreto del Link (nunca al cliente)
+};
+
+export type ConnectedAccountInput = {
+  userId: string;
+  bankId: string;
+  externalId: string; // acc_...
+  name: string;
+  accountType: AccountType;
+  currency: CurrencyCode;
+  balance: Money; // saldo reportado por el proveedor (autoritativo)
+  overdraftLimit: Money;
+  cardLast4: string | null;
+};
+
+export type ImportMovement = {
+  externalId: string; // mov_...
+  date: Date;
+  description: string;
+  amount: Money;
+  direction: Direction;
+  status: MovementStatus;
+};
+
 export type CategoryInput = {
   id?: string;
   userId: string;
@@ -131,12 +177,20 @@ export type LimitInput = { categoryId: string; year: number; month: number; limi
 export interface BankRepository {
   listByUser(userId: string): Promise<Bank[]>;
   create(input: NewBank): Promise<Bank>;
+  findById(id: string): Promise<Bank | null>;
+  // Sistema (webhook): localiza el banco por el id del Link, sin userId. Null si no existe.
+  findByExternalLinkId(externalLinkId: string): Promise<Bank | null>;
+  // Fintoc: crea o actualiza el banco conectado por (userId, externalLinkId).
+  upsertConnected(input: ConnectedBankInput): Promise<Bank>;
 }
 
 export interface AccountRepository {
   listByUser(userId: string): Promise<Account[]>;
   findById(id: string): Promise<Account | null>;
   create(input: NewAccount): Promise<Account>;
+  listByBank(bankId: string): Promise<Account[]>;
+  // Fintoc: crea o actualiza la cuenta conectada por (userId, externalId); saldo del proveedor.
+  upsertConnected(input: ConnectedAccountInput): Promise<Account>;
 }
 
 export interface CategoryRepository {
@@ -153,6 +207,9 @@ export interface TransactionRepository {
   listByCategoryPeriod(categoryId: string, year: number, month: number): Promise<Transaction[]>;
   // Crea el movimiento y ajusta el saldo de la cuenta atómicamente (débito resta, crédito suma).
   create(tx: NewTransaction): Promise<Transaction>;
+  // Fintoc: importa movimientos por upsert (accountId, externalId), preservando la categoría
+  // asignada; NO ajusta el saldo (lo fija el proveedor). Idempotente.
+  importMovements(userId: string, accountId: string, movements: ImportMovement[]): Promise<void>;
 }
 
 // --- Errores de negocio ---
@@ -192,5 +249,29 @@ export class NotOwnerError extends Error {
   constructor() {
     super("El recurso no pertenece al usuario");
     this.name = "NotOwnerError";
+  }
+}
+
+// Se intenta editar/mover una cuenta o movimiento de origen `fintoc` (solo lectura) (→ 422).
+export class ConnectedAccountReadOnlyError extends Error {
+  constructor() {
+    super("Las cuentas y movimientos conectados por Fintoc son de solo lectura");
+    this.name = "ConnectedAccountReadOnlyError";
+  }
+}
+
+// La conexión con el proveedor falló (token inválido, Fintoc respondió error) (→ 422).
+export class BankConnectionError extends Error {
+  constructor(message = "No se pudo conectar con el proveedor bancario") {
+    super(message);
+    this.name = "BankConnectionError";
+  }
+}
+
+// La firma del webhook de Fintoc es inválida o falta (→ 401).
+export class WebhookSignatureError extends Error {
+  constructor() {
+    super("Firma de webhook inválida");
+    this.name = "WebhookSignatureError";
   }
 }

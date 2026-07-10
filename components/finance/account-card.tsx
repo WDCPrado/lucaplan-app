@@ -1,6 +1,8 @@
+import { RefreshCw } from "lucide-react";
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
 import { formatCLP } from "@/lib/finance-format";
 import { resolveCardArt } from "@/lib/bank-cards";
+import { cn } from "@/lib/utils";
 
 const TYPE_LABEL: Record<string, string> = {
   checking: "Débito",
@@ -20,8 +22,19 @@ const VARIANT_BG: Record<string, string> = {
 // Tarjeta de una cuenta: nuestro estilo (gradiente por variante) + el isotipo del banco como
 // marca de agua de fondo; encima, banco, saldo, los últimos 4 dígitos reales y el tipo. Si el
 // banco/tipo no tienen arte, cae al color plano.
-export function AccountCard({ account, hidden }: { account: AccountDTO; hidden?: boolean }) {
+export function AccountCard({
+  account,
+  hidden,
+  onRefresh,
+  refreshing,
+}: {
+  account: AccountDTO;
+  hidden?: boolean;
+  onRefresh?: () => void; // solo cuentas conectadas (fintoc)
+  refreshing?: boolean;
+}) {
   const art = resolveCardArt(account.bankName, account.accountType);
+  const connected = account.provider === "fintoc";
 
   return (
     <div
@@ -39,8 +52,29 @@ export function AccountCard({ account, hidden }: { account: AccountDTO; hidden?:
         />
       )}
 
-      <div className="relative text-lg font-semibold tracking-tight [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
-        {account.bankName || account.name}
+      <div className="relative flex items-start justify-between gap-2">
+        <div className="text-lg font-semibold tracking-tight [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
+          {account.bankName || account.name}
+        </div>
+        {connected && (
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className="flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-medium backdrop-blur">
+              <span className="size-1.5 rounded-full bg-emerald-400" />
+              Conectado
+            </span>
+            {onRefresh && (
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={refreshing}
+                aria-label="Refrescar"
+                className="grid size-6 place-items-center rounded-full bg-white/15 backdrop-blur hover:bg-white/25 disabled:opacity-60"
+              >
+                <RefreshCw className={cn("size-3", refreshing && "animate-spin")} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="relative">

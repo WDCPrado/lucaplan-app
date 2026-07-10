@@ -6,6 +6,7 @@ import {
   AccountNotFoundError,
   NotOwnerError,
   TransactionCurrencyMismatchError,
+  ConnectedAccountReadOnlyError,
 } from "../../domain/finance/finance.domain.ts";
 import { Money, type CurrencyCode } from "../../domain/finance/money.ts";
 
@@ -29,6 +30,8 @@ export async function createTransaction(
   const account = await deps.accounts.findById(input.accountId);
   if (!account) throw new AccountNotFoundError(input.accountId);
   if (account.userId !== userId) throw new NotOwnerError();
+  // Las cuentas conectadas (fintoc) son de solo lectura: sus movimientos solo llegan por sync.
+  if (account.provider === "fintoc") throw new ConnectedAccountReadOnlyError();
   if (input.currency !== account.currency) throw new TransactionCurrencyMismatchError();
 
   return deps.transactions.create({

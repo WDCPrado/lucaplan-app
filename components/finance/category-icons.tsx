@@ -72,6 +72,23 @@ export const CATEGORY_ICONS: { name: string; Icon: LucideIcon }[] = [
   { name: "Flame", Icon: Flame },
 ];
 
+// Paleta curada de colores de categoría. El color se persiste como hex (dato, no token CSS);
+// tonos medios legibles sobre fondo claro y oscuro. Un solo lugar para el set.
+export const CATEGORY_COLORS = [
+  "#6366f1", // índigo
+  "#3b82f6", // azul
+  "#06b6d4", // cian
+  "#10b981", // esmeralda
+  "#84cc16", // lima
+  "#eab308", // amarillo
+  "#f97316", // naranja
+  "#ef4444", // rojo
+  "#ec4899", // rosa
+  "#a855f7", // púrpura
+  "#14b8a6", // teal
+  "#64748b", // slate
+];
+
 const MAP: Record<string, LucideIcon> = Object.fromEntries(CATEGORY_ICONS.map((i) => [i.name, i.Icon]));
 
 // Renderiza el icono de una categoría: lucide si `icon` es un nombre conocido; si no, lo trata como

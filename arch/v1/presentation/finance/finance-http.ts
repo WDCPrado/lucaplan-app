@@ -6,6 +6,7 @@ import {
   NotOwnerError,
   AccountNotFoundError,
   CategoryNotFoundError,
+  InvalidMonthlyBudgetError,
   TransactionCurrencyMismatchError,
   CardLast4RequiredError,
   ConnectedAccountReadOnlyError,
@@ -16,6 +17,7 @@ import {
   accountRepository,
   bankRepository,
   categoryRepository,
+  monthlyBudgetRepository,
   transactionRepository,
 } from "../../infrastructure/database/prisma/finance.infrastructure.ts";
 import { fintocProvider } from "../../infrastructure/http/fintoc/fintoc.provider.ts";
@@ -27,6 +29,7 @@ export const financeDeps = {
   banks: bankRepository,
   categories: categoryRepository,
   transactions: transactionRepository,
+  monthlyBudgets: monthlyBudgetRepository,
   provider: fintocProvider,
   categorization: openaiCategorizationProvider,
 };
@@ -37,7 +40,8 @@ function errorStatus(e: unknown): number {
     e instanceof TransactionCurrencyMismatchError ||
     e instanceof CardLast4RequiredError ||
     e instanceof ConnectedAccountReadOnlyError ||
-    e instanceof BankConnectionError
+    e instanceof BankConnectionError ||
+    e instanceof InvalidMonthlyBudgetError
   )
     return 422;
   if (e instanceof NotOwnerError || e instanceof AccountNotFoundError || e instanceof CategoryNotFoundError) return 404;

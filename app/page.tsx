@@ -178,12 +178,10 @@ export default function Home() {
               Conecta tu banco
             </a>
           </div>
-          <Link
-            href="/login"
-            className="rounded-full border border-border bg-card px-4 py-2 text-sm font-medium transition-colors duration-200 hover:border-foreground hover:bg-foreground hover:text-background"
-          >
-            Entrar
-          </Link>
+          {/* LANZAMIENTO: restaurar <Link href="/login">Entrar</Link> */}
+          <span className="rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-muted-foreground">
+            Próximamente
+          </span>
         </div>
       </nav>
 
@@ -213,12 +211,10 @@ export default function Home() {
               style={delay(240)}
               className="mt-9 flex flex-wrap items-center gap-5"
             >
-              <Link
-                href="/login"
-                className="rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/30 active:translate-y-0 active:scale-[0.98]"
-              >
-                Crear mi plan
-              </Link>
+              {/* LANZAMIENTO: restaurar <Link href="/login">Crear mi plan</Link> */}
+              <span className="rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25">
+                Próximamente
+              </span>
               <a
                 href="#mes"
                 className="group inline-flex items-center gap-1.5 text-sm font-medium text-foreground"
@@ -525,12 +521,10 @@ export default function Home() {
           <h2 className="relative mt-5 max-w-2xl text-4xl leading-[0.98] font-semibold tracking-[-0.05em] lg:text-5xl">
             Un plan más claro para el mes que viene.
           </h2>
-          <Link
-            href="/login"
-            className="relative mt-9 inline-flex rounded-full bg-primary-foreground px-6 py-3.5 text-sm font-semibold text-primary transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 active:scale-[0.98]"
-          >
-            Crear mi plan
-          </Link>
+          {/* LANZAMIENTO: restaurar <Link href="/login">Crear mi plan</Link> */}
+          <span className="relative mt-9 inline-flex rounded-full bg-primary-foreground px-6 py-3.5 text-sm font-semibold text-primary">
+            Próximamente
+          </span>
         </div>
       </section>
 
@@ -556,7 +550,8 @@ export default function Home() {
                 <li><a href="#app" className="transition-colors hover:text-foreground">La app</a></li>
                 <li><a href="#categorias" className="transition-colors hover:text-foreground">Categorización con IA</a></li>
                 <li><a href="#conecta" className="transition-colors hover:text-foreground">Conecta tu banco</a></li>
-                <li><Link href="/login" className="transition-colors hover:text-foreground">Entrar</Link></li>
+                {/* LANZAMIENTO: restaurar <Link href="/login">Entrar</Link> */}
+                <li><span>Próximamente</span></li>
               </ul>
             </nav>
 

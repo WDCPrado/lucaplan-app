@@ -6,6 +6,7 @@ import type {
   BankRepository,
   Category,
   CategoryRepository,
+  MonthlyBudgetRepository,
   Transaction,
   TransactionRepository,
   TransactionSearchFilters,
@@ -20,6 +21,8 @@ import {
   computeCategoryUsage,
   categoryStatus,
   effectiveLimit,
+  effectiveGlobalLimit,
+  remainingToAllocate,
 } from "./budget-formulas.ts";
 
 const CLP = "CLP" as const;
@@ -29,6 +32,7 @@ type ReadDeps = {
   banks: BankRepository;
   categories: CategoryRepository;
   transactions: TransactionRepository;
+  monthlyBudgets: MonthlyBudgetRepository;
 };
 
 export type MonthlySummaryDTO = {
@@ -85,7 +89,12 @@ export type CategoryDTO = {
   status: string;
 };
 
-export type BudgetViewDTO = { categories: CategoryDTO[] };
+export type BudgetViewDTO = {
+  categories: CategoryDTO[];
+  globalLimit: number | null; // límite global efectivo del mes (carry); null = no definido
+  allocated: number; // Σ límites efectivos de las categorías de GASTO
+  remainingToAllocate: number | null; // globalLimit − allocated; null sin límite global
+};
 
 function txToDTO(t: Transaction, cat: Category | undefined, remaining: number | null, editable: boolean): TransactionDTO {
   return {
@@ -152,7 +161,11 @@ export async function getMonthlySummary(deps: ReadDeps, userId: string, year: nu
     creditCardDebts: creditCardDebts(accounts).map((d) => ({ accountId: d.account.id, name: d.account.name, debt: d.debt.toMajor() })),
     income: sumClp("credit").toMajor(),
     expense: sumClp("debit").toMajor(),
-    totalBudget: withLimit.reduce((s, x) => s.add(x.limit), Money.zero(CLP)).toMajor(),
+    // Solo categorías de gasto: mismo criterio que `allocated` en la vista de presupuestos.
+    totalBudget: withLimit
+      .filter((x) => x.category.type === "expense")
+      .reduce((s, x) => s.add(x.limit), Money.zero(CLP))
+      .toMajor(),
   };
 }
 
@@ -205,8 +218,11 @@ export async function searchTransactions(deps: ReadDeps, userId: string, filters
 }
 
 export async function getBudgetView(deps: ReadDeps, userId: string, year: number, month: number): Promise<BudgetViewDTO> {
-  const withLimit = await categoriesWithLimit(deps, userId, year, month);
-  const txs = await deps.transactions.listByUserPeriod(userId, year, month);
+  const [withLimit, txs, budgets] = await Promise.all([
+    categoriesWithLimit(deps, userId, year, month),
+    deps.transactions.listByUserPeriod(userId, year, month),
+    deps.monthlyBudgets.listByUser(userId),
+  ]);
   const categories = withLimit.map(({ category, limit }): CategoryDTO => {
     const { used, available } = computeCategoryUsage(category.id, limit, txs, year, month);
     return {
@@ -222,7 +238,17 @@ export async function getBudgetView(deps: ReadDeps, userId: string, year: number
       status: categoryStatus(used, limit),
     };
   });
-  return { categories };
+  const allocated = withLimit
+    .filter((x) => x.category.type === "expense")
+    .reduce((s, x) => s.add(x.limit), Money.zero(CLP));
+  const globalLimit = effectiveGlobalLimit(budgets, year, month);
+  const remaining = remainingToAllocate(globalLimit, allocated);
+  return {
+    categories,
+    globalLimit: globalLimit === null ? null : globalLimit.toMajor(),
+    allocated: allocated.toMajor(),
+    remainingToAllocate: remaining === null ? null : remaining.toMajor(),
+  };
 }
 
 export async function getCategoryDetail(

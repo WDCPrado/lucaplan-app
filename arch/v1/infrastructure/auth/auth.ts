@@ -10,7 +10,8 @@ import { prisma } from "../database/prisma/client.ts";
 export const auth = betterAuth({
   appName: "LucaPlan",
   database: prismaAdapter(prisma, { provider: "postgresql" }),
-  emailAndPassword: { enabled: true },
+  // LANZAMIENTO: quitar `disableSignUp: true` para abrir el registro (ver docs/pre-launch-lock.md)
+  emailAndPassword: { enabled: true, disableSignUp: true },
   plugins: [admin({ defaultRole: "USER", adminRoles: ["ADMIN"] })],
 });
 

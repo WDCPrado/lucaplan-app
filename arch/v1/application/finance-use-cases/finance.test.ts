@@ -3,7 +3,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Money } from "../../domain/finance/money.ts";
-import type { Account, CategoryLimit, Transaction } from "../../domain/finance/finance.domain.ts";
+import type {
+  Account,
+  CategoryLimit,
+  MonthlyBudget,
+  MonthlyBudgetInput,
+  MonthlyBudgetRepository,
+  Transaction,
+} from "../../domain/finance/finance.domain.ts";
+import { InvalidMonthlyBudgetError } from "../../domain/finance/finance.domain.ts";
 import {
   computeActiveCash,
   computeOverdraft,
@@ -12,7 +20,10 @@ import {
   computeCategoryUsage,
   categoryStatus,
   effectiveLimit,
+  effectiveGlobalLimit,
+  remainingToAllocate,
 } from "./budget-formulas.ts";
+import { setMonthlyBudget } from "./set-monthly-budget-use-case.ts";
 
 const clp = (n: number) => Money.of(n, "CLP");
 
@@ -136,4 +147,77 @@ test("effectiveLimit: exacto o hereda el mes anterior más reciente", () => {
   assert.equal(effectiveLimit(limits, "c1", 2026, 9).toMajor(), 300000); // hereda agosto
   assert.equal(effectiveLimit(limits, "c1", 2026, 5).toMajor(), 0); // antes de todo → 0
   assert.equal(effectiveLimit(limits, "c1", 2027, 1).toMajor(), 300000); // año siguiente hereda
+});
+
+// --- Límite global del presupuesto del mes (carry-forward) ---
+
+const budget = (year: number, month: number, amount: number): MonthlyBudget => ({
+  id: `mb-${year}-${month}`,
+  userId: "u1",
+  year,
+  month,
+  globalLimit: clp(amount),
+});
+
+test("effectiveGlobalLimit: exacto, hereda el previo, y null sin registros", () => {
+  const budgets = [budget(2026, 7, 500000), budget(2026, 9, 600000)];
+  assert.equal(effectiveGlobalLimit(budgets, 2026, 7)?.toMajor(), 500000); // exacto julio
+  assert.equal(effectiveGlobalLimit(budgets, 2026, 8)?.toMajor(), 500000); // agosto hereda julio
+  assert.equal(effectiveGlobalLimit(budgets, 2026, 9)?.toMajor(), 600000); // exacto septiembre
+  assert.equal(effectiveGlobalLimit(budgets, 2027, 2)?.toMajor(), 600000); // año siguiente hereda
+  assert.equal(effectiveGlobalLimit(budgets, 2026, 6), null); // antes de todo → no definido
+  assert.equal(effectiveGlobalLimit([], 2026, 7), null); // sin registros → no definido
+});
+
+test("remainingToAllocate: positivo, negativo (sobre-asignado) y null sin límite global", () => {
+  assert.equal(remainingToAllocate(clp(500000), clp(380000))?.toMajor(), 120000);
+  assert.equal(remainingToAllocate(clp(500000), clp(550000))?.toMajor(), -50000); // alerta, no bloquea
+  assert.equal(remainingToAllocate(clp(0), clp(100000))?.toMajor(), -100000); // 0 es un límite real, no "sin definir"
+  assert.equal(remainingToAllocate(null, clp(380000)), null);
+});
+
+// --- setMonthlyBudget (use-case de escritura) ---
+
+function fakeMonthlyBudgetRepo(): MonthlyBudgetRepository & { rows: MonthlyBudget[] } {
+  const rows: MonthlyBudget[] = [];
+  return {
+    rows,
+    async listByUser(userId) {
+      return rows.filter((b) => b.userId === userId);
+    },
+    async set(input: MonthlyBudgetInput) {
+      const existing = rows.find((b) => b.userId === input.userId && b.year === input.year && b.month === input.month);
+      if (existing) {
+        existing.globalLimit = input.globalLimit;
+        return existing;
+      }
+      const row: MonthlyBudget = { id: `mb${rows.length + 1}`, ...input };
+      rows.push(row);
+      return row;
+    },
+  };
+}
+
+test("setMonthlyBudget: upsert por usuario+año+mes, sin duplicados", async () => {
+  const repo = fakeMonthlyBudgetRepo();
+  await setMonthlyBudget({ monthlyBudgets: repo }, "u1", { year: 2026, month: 7, globalLimit: 500000 });
+  const updated = await setMonthlyBudget({ monthlyBudgets: repo }, "u1", { year: 2026, month: 7, globalLimit: 650000 });
+  assert.equal(repo.rows.length, 1);
+  assert.equal(updated.globalLimit.toMajor(), 650000);
+});
+
+test("setMonthlyBudget: rechaza decimales, negativos y periodos inválidos (sin redondeo silencioso)", async () => {
+  const repo = fakeMonthlyBudgetRepo();
+  const cases = [
+    { year: 2026, month: 7, globalLimit: 1.5 }, // decimal: 422, no se redondea a 2
+    { year: 2026, month: 7, globalLimit: -1 },
+    { year: 2026, month: 7, globalLimit: NaN },
+    { year: 2026, month: 0, globalLimit: 100 },
+    { year: 2026, month: 13, globalLimit: 100 },
+    { year: 1999, month: 7, globalLimit: 100 },
+  ];
+  for (const input of cases) {
+    await assert.rejects(() => setMonthlyBudget({ monthlyBudgets: repo }, "u1", input), InvalidMonthlyBudgetError);
+  }
+  assert.equal(repo.rows.length, 0); // nada persistido
 });

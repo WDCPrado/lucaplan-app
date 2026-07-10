@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Pencil } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { useDragScroll } from "@/hooks/use-drag-scroll";
@@ -13,6 +13,7 @@ import { ProgressRing } from "./progress-ring";
 import { CategoryIcon } from "./category-icons";
 import { AddTransactionSheet } from "./add-transaction-sheet";
 import { CategoryModal } from "./category-modal";
+import { BudgetLimitModal } from "./budget-limit-modal";
 import { CategoryDetailSheet } from "./category-detail-sheet";
 import { AccountModal } from "./account-modal";
 import { AccountInfoModal } from "./account-info-modal";
@@ -51,6 +52,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
   const { ref: cardsRef, handlers: cardsHandlers } = useDragScroll();
   const [infoAccount, setInfoAccount] = useState<AccountDTO | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [budgetLimitOpen, setBudgetLimitOpen] = useState(false);
 
   // Solo cuentas manuales aceptan movimientos a mano; las conectadas (fintoc) son de solo lectura.
   const manualAccounts = accounts.filter((a) => a.provider === "manual");
@@ -59,8 +61,8 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
   // El presupuesto es de gastos: solo categorías de gasto tienen tope/uso. Las de ingreso solo
   // clasifican (aparecen al categorizar movimientos de ingreso, no en esta grilla).
   const expenseCategories = budget.categories.filter((c) => c.type === "expense");
-  // Suma de los presupuestos (topes) de las categorías de gasto; se recalcula al refrescar.
-  const totalBudget = expenseCategories.reduce((s, c) => s + c.limit, 0);
+  // Sobre-asignado: los límites de categoría superan el límite global del mes (alerta, no bloquea).
+  const overAllocated = budget.remainingToAllocate !== null && budget.remainingToAllocate < 0;
 
   function goMonth(delta: number) {
     const d = new Date(Date.UTC(period.year, period.month - 1 + delta, 1));
@@ -173,13 +175,42 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
           <section id="presupuestos" className="min-w-0 scroll-mt-20 lg:order-2 lg:col-span-1 lg:sticky lg:top-20 lg:self-start">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="flex items-baseline gap-2">
-                <h2 className="font-heading text-lg font-bold">Presupuestos</h2>
-                {totalBudget > 0 && <span className="tabular text-sm font-semibold text-muted-foreground">{formatCLP(totalBudget)}</span>}
-              </div>
+              <h2 className="font-heading text-lg font-bold">Presupuestos</h2>
               <span className="shrink-0 text-sm text-muted-foreground">{monthName(period.month)}</span>
             </div>
             <div className="glass rounded-2xl p-4">
+              {/* Cabecera del límite global: restante por presupuestar (o CTA para definirlo) */}
+              {budget.globalLimit === null ? (
+                <button
+                  onClick={() => setBudgetLimitOpen(true)}
+                  className="mb-4 flex w-full items-center justify-between gap-3 rounded-xl border-2 border-dashed border-border px-4 py-3 text-left text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">Definir presupuesto del mes</div>
+                    <div className="text-xs">Fija un límite global para repartir entre categorías</div>
+                  </div>
+                  <span className="shrink-0 text-xl">＋</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setBudgetLimitOpen(true)}
+                  className="group mb-4 w-full rounded-xl bg-secondary/50 px-4 py-3 text-left transition-colors hover:bg-accent"
+                  aria-label="Editar presupuesto del mes"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs uppercase text-muted-foreground">
+                      {overAllocated ? "Sobre-asignado" : "Por presupuestar"}
+                    </span>
+                    <Pencil className="size-3.5 shrink-0 text-muted-foreground opacity-60 transition-opacity group-hover:opacity-100" />
+                  </div>
+                  <div className={cn("tabular text-2xl font-bold", overAllocated && "text-destructive")}>
+                    {formatCLP(budget.remainingToAllocate ?? 0)}
+                  </div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    Asignado {formatCLP(budget.allocated)} de {formatCLP(budget.globalLimit)}
+                  </div>
+                </button>
+              )}
               {expenseCategories.length === 0 ? (
                 <button onClick={() => setEditCat(null)} className="flex w-full flex-col items-center gap-2 py-6 text-muted-foreground">
                   <span className="grid size-18 place-items-center rounded-full border-2 border-dashed border-border text-2xl">+</span>
@@ -252,6 +283,14 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
         onOpenChange={(o) => !o && setEditCat(undefined)}
         period={period}
         category={editCat}
+        remainingToAllocate={budget.remainingToAllocate}
+      />
+      <BudgetLimitModal
+        key={`${period.year}-${period.month}-${budget.globalLimit ?? "unset"}`}
+        open={budgetLimitOpen}
+        onOpenChange={setBudgetLimitOpen}
+        period={period}
+        current={budget.globalLimit}
       />
       <TransactionModal tx={detailTx} categories={budget.categories} accounts={accounts} onOpenChange={(o) => !o && setDetailTx(null)} />
       <TransactionSearch

@@ -16,6 +16,8 @@ import type {
   ConnectedBankInput,
   Direction,
   ImportMovement,
+  MonthlyBudget,
+  MonthlyBudgetRepository,
   MovementStatus,
   NewTransaction,
   Provider,
@@ -209,6 +211,31 @@ export const categoryRepository: CategoryRepository = {
       update: { limitAmount: input.limit.toDecimalString() },
     });
     return toLimit(row);
+  },
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toMonthlyBudget(row: any): MonthlyBudget {
+  return {
+    id: row.id,
+    userId: row.userId,
+    year: row.year,
+    month: row.month,
+    globalLimit: Money.of(row.globalLimit.toString(), BUDGET_CURRENCY),
+  };
+}
+
+export const monthlyBudgetRepository: MonthlyBudgetRepository = {
+  async listByUser(userId) {
+    return (await prisma.monthlyBudget.findMany({ where: { userId } })).map(toMonthlyBudget);
+  },
+  async set(input) {
+    const row = await prisma.monthlyBudget.upsert({
+      where: { userId_year_month: { userId: input.userId, year: input.year, month: input.month } },
+      create: { userId: input.userId, year: input.year, month: input.month, globalLimit: input.globalLimit.toDecimalString() },
+      update: { globalLimit: input.globalLimit.toDecimalString() },
+    });
+    return toMonthlyBudget(row);
   },
 };
 

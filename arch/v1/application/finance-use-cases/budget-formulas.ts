@@ -3,7 +3,7 @@
 // es dinero); un saldo negativo es deuda de sobregiro, no caja; la posición neta combina
 // ambas. El uso por categoría se calcula desde los movimientos, no se persiste.
 
-import type { Account, CategoryLimit, Transaction, CategoryStatus } from "../../domain/finance/finance.domain.ts";
+import type { Account, CategoryLimit, MonthlyBudget, Transaction, CategoryStatus } from "../../domain/finance/finance.domain.ts";
 import { Money, type CurrencyCode } from "../../domain/finance/money.ts";
 
 /** Caja activa: Σ saldo POSITIVO de cuentas `checking` de la moneda dada. Cupos y negativos no cuentan. */
@@ -76,14 +76,34 @@ export function categoryStatus(used: Money, limit: Money): CategoryStatus {
 // Índice de mes comparable (año*12+mes) para ordenar límites.
 const monthIndex = (year: number, month: number) => year * 12 + (month - 1);
 
+// Registro más reciente con (year, month) ≤ objetivo — la base del carry-forward.
+function latestUpTo<T extends { year: number; month: number }>(records: T[], year: number, month: number): T | undefined {
+  const target = monthIndex(year, month);
+  return records
+    .filter((r) => monthIndex(r.year, r.month) <= target)
+    .sort((a, b) => monthIndex(b.year, b.month) - monthIndex(a.year, a.month))[0];
+}
+
 /**
  * Límite EFECTIVO de una categoría para (year, month): el registro de ese mes si existe; si no,
  * hereda el del mes anterior más reciente (carry-forward). Sin ninguno, 0 CLP.
  */
 export function effectiveLimit(limits: CategoryLimit[], categoryId: string, year: number, month: number): Money {
-  const target = monthIndex(year, month);
-  const candidates = limits
-    .filter((l) => l.categoryId === categoryId && monthIndex(l.year, l.month) <= target)
-    .sort((a, b) => monthIndex(b.year, b.month) - monthIndex(a.year, a.month));
-  return candidates[0]?.limit ?? Money.zero("CLP");
+  return latestUpTo(limits.filter((l) => l.categoryId === categoryId), year, month)?.limit ?? Money.zero("CLP");
+}
+
+/**
+ * Límite global EFECTIVO del presupuesto para (year, month): el registro de ese mes o el del mes
+ * anterior más reciente (carry-forward). Sin ningún registro, `null` = no definido (distinto de 0).
+ */
+export function effectiveGlobalLimit(budgets: MonthlyBudget[], year: number, month: number): Money | null {
+  return latestUpTo(budgets, year, month)?.globalLimit ?? null;
+}
+
+/**
+ * Restante por presupuestar = límite global − asignado (Σ límites de las categorías de GASTO).
+ * `null` sin límite global; puede ser negativo (sobre-asignado ⇒ alerta, nunca bloquea).
+ */
+export function remainingToAllocate(globalLimit: Money | null, allocated: Money): Money | null {
+  return globalLimit === null ? null : globalLimit.subtract(allocated);
 }

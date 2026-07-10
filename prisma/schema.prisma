@@ -165,6 +165,23 @@ model CategoryLimit {
   @@map("category_limit")
 }
 
+// Presupuesto del mes: una fila por usuario+mes con el límite global (cuánto puede presupuestarse
+// en total entre las categorías de gasto). Las categorías NO se asocian por FK: son globales con
+// límite por mes (CategoryLimit). El mes sin registro hereda el último previo (carry), igual que
+// los límites; sin ningún registro, el límite global está "no definido" (distinto de 0).
+model MonthlyBudget {
+  id          String   @id @default(uuid())
+  userId      String
+  year        Int
+  month       Int
+  globalLimit Decimal  @db.Decimal(18, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, year, month])
+  @@map("monthly_budget")
+}
+
 model Transaction {
   id              String           @id @default(uuid())
   userId          String

@@ -105,6 +105,17 @@ export type CategoryLimit = {
   limit: Money;
 };
 
+// Presupuesto del mes: límite global (cuánto puede presupuestarse en total entre las categorías de
+// gasto). Una fila por usuario+mes; el mes sin registro hereda el último previo (carry), y sin
+// ningún registro el límite global está "no definido" (distinto de 0). Sin FK a categorías.
+export type MonthlyBudget = {
+  id: string;
+  userId: string;
+  year: number;
+  month: number;
+  globalLimit: Money;
+};
+
 export type Transaction = {
   id: string;
   userId: string;
@@ -195,6 +206,8 @@ export type CategoryInput = {
 
 export type LimitInput = { categoryId: string; year: number; month: number; limit: Money };
 
+export type MonthlyBudgetInput = { userId: string; year: number; month: number; globalLimit: Money };
+
 // Filtros de búsqueda de movimientos (todos opcionales, se combinan con AND). `query` es texto libre
 // (descripción o nombre de categoría) case-insensitive.
 export type TransactionSearchFilters = {
@@ -239,6 +252,13 @@ export interface CategoryRepository {
   setLimit(input: LimitInput): Promise<CategoryLimit>;
 }
 
+export interface MonthlyBudgetRepository {
+  // Todos los presupuestos del usuario (para resolver el límite global efectivo con carry).
+  listByUser(userId: string): Promise<MonthlyBudget[]>;
+  // Upsert por (userId, year, month).
+  set(input: MonthlyBudgetInput): Promise<MonthlyBudget>;
+}
+
 export interface TransactionRepository {
   listByUserPeriod(userId: string, year: number, month: number): Promise<Transaction[]>;
   listByCategoryPeriod(categoryId: string, year: number, month: number): Promise<Transaction[]>;
@@ -272,6 +292,14 @@ export class CategoryNotFoundError extends Error {
   constructor(id: string) {
     super(`Categoría no encontrada: ${id}`);
     this.name = "CategoryNotFoundError";
+  }
+}
+
+// El input del presupuesto del mes es inválido: monto no entero/negativo o periodo fuera de rango (→ 422).
+export class InvalidMonthlyBudgetError extends Error {
+  constructor(message = "Presupuesto del mes inválido") {
+    super(message);
+    this.name = "InvalidMonthlyBudgetError";
   }
 }
 

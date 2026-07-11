@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/haptics";
 import { useDragScroll } from "@/hooks/use-drag-scroll";
 import { AppShell, type NavKey } from "./app-shell";
+import { MonthPicker } from "./month-picker";
 import { AccountCard } from "./account-card";
 import { MovementsList } from "./movements-list";
 import { ProgressRing } from "./progress-ring";
@@ -137,10 +138,14 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
       onSearch={() => setSearchOpen(true)}
       title="Resumen"
       actions={
-        <div className="flex items-center gap-2">
+        // Móvil: columna invertida → selector arriba y "Hoy" colgando debajo; escritorio: fila.
+        <div className="flex flex-col-reverse items-center gap-2 md:flex-row">
           {!isCurrentMonth && (
             <button
-              onClick={() => router.push("/dashboard")}
+              onClick={() => {
+                haptic("light");
+                router.push("/dashboard");
+              }}
               className="rounded-full bg-secondary px-3.5 py-1.5 text-sm font-semibold transition-colors hover:bg-accent"
             >
               Hoy
@@ -150,7 +155,7 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
             <button onClick={() => goMonth(-1)} className="grid size-8 place-items-center rounded-full hover:bg-background" aria-label="Mes anterior">
               <ChevronLeft className="size-4" />
             </button>
-            <span className="min-w-20 text-center text-sm font-semibold">{monthName(period.month)}</span>
+            <MonthPicker period={period} onSelect={(y, m) => router.push(`/dashboard?year=${y}&month=${m}`)} />
             <button onClick={() => goMonth(1)} className="grid size-8 place-items-center rounded-full hover:bg-background" aria-label="Mes siguiente">
               <ChevronRight className="size-4" />
             </button>

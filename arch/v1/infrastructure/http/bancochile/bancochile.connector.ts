@@ -1,23 +1,20 @@
-// Conector LOCAL de Banco de Chile (implementa LocalBankConnector). Automatiza el navegador con
-// Patchright (Chromium stealth) y perfil persistente. Solo lectura. Llama las APIs JSON internas del
-// portal DESDE la página (page.evaluate + fetch), que es lo único que pasa el anti-bot (Shape/F5):
-// `context.request` recibe un challenge, no el JSON. El usuario inicia sesión (2FA) en la ventana;
-// no automatizamos credenciales ni evadimos controles. Ante 401/403/429/challenge → BankBlockedError.
-//
-// Fuentes de los endpoints/payloads/formas: spike guiado (scripts/spike-bch-*.ts). Puntos marcados
-// `VERIFICAR` requieren una sesión limpia para confirmar (monto de movimientos internacionales,
-// nombre del titular en el payload de tarjeta).
+// Conector LOCAL de Banco de Chile con AUTO-LOGIN (implementa LocalBankConnector). Patchright
+// (Chromium stealth) + perfil persistente, en la máquina del usuario. Login de solo-lectura por
+// RUT + clave (BCH no pide 2FA para consultar; sí para transferir). Baja cadencia (cron 1-2×/día)
+// para no gatillar el anti-bot. Llama las APIs internas DESDE la página (page.evaluate + fetch), lo
+// único que pasa el anti-bot. Solo lectura; para duro ante 401/403/429/challenge. El mapeo crudo→
+// dominio es el compartido (bancochile-map.ts).
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import path from "node:path";
 import { chromium } from "patchright";
 import type {
   LocalBankConnector,
   LocalProductsSnapshot,
-  RawBucket,
   RawMovement,
-  RawProduct,
   RawUnbilledMovement,
 } from "../../../domain/finance/local-bank-connector.port.ts";
 import { BankBlockedError } from "../../../domain/finance/local-bank-connector.port.ts";
+import { mapProducts, mapCartolaMovimientos, mapNoFacturados } from "./bancochile-map.ts";
 
 const BASE = "https://portalpersonas.bancochile.cl/mibancochile/rest/persona";
 const HOME = "https://portalpersonas.bancochile.cl/mibancochile-web/front/persona/index.html";
@@ -29,35 +26,27 @@ const EP = {
   tarjetaSaldo: "/tarjeta-credito-digital/saldo/obtener-saldo",
   noFacturados: "/tarjeta-credito-digital/movimientos-no-facturados",
 } as const;
-const MAX_PAGES = 40; // ponytail: tope de páginas de cartola (~4000 movs). Subir si hace falta más histórico.
-const LOGIN_TIMEOUT_MS = 180_000;
+const MAX_PAGES = 40;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-type ApiResult = { status: number; body: any; raw: string | null };
+type ApiResult = { status: number; body: any };
 
-// USD llega en unidad mayor (ej. 48.51) → a mínima (centavos). CLP ya es entero (peso = mínima).
-const usd = (v: any): number => Math.round(Number(v ?? 0) * 100);
-const clp = (v: any): number => Math.round(Number(v ?? 0));
-const last4 = (s: any): string | null => {
-  const d = String(s ?? "").replace(/\D/g, "");
-  return d.length >= 4 ? d.slice(-4) : null;
-};
-
-// "20260710 21:46:41" → Date (parte fecha, UTC). Fallback a epoch si viene fechaContableMovimiento.
-function parseCartolaDate(fecha: any, epoch?: any): Date {
-  const s = String(fecha ?? "").replace(/\D/g, "");
-  if (s.length >= 8) return new Date(Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8)));
-  return new Date(Number(epoch ?? 0));
-}
+export type BancoChileCreds = { rut: string; pass: string };
 
 export class BancoChileConnector implements LocalBankConnector {
   private ctx: any = null;
   private page: any = null;
-  private productos: any = null; // cache de obtenerProductos (identificadores para los payloads)
-  private infoTarjetas: any[] = []; // cache de informacion-tarjetas
+  private productos: any = null;
+  private infoTarjetas: any[] = [];
+  private readonly rut: string;
+  private readonly pass: string;
+  private readonly headless: boolean;
 
-  constructor(private readonly profileDir: string) {}
-
-  // --- API vía la página (contexto autenticado + anti-bot) ---
+  constructor(private readonly profileDir: string, opts?: { creds?: BancoChileCreds; headless?: boolean }) {
+    this.rut = opts?.creds?.rut ?? process.env.BCH_RUT ?? "";
+    this.pass = opts?.creds?.pass ?? process.env.BCH_PASS ?? "";
+    this.headless = opts?.headless ?? true; // cron/background: headless. Poné false para depurar.
+  }
 
   private async apiGet(path: string): Promise<ApiResult> {
     return this.page.evaluate(async ([base, p]: [string, string]) => {
@@ -65,7 +54,7 @@ export class BancoChileConnector implements LocalBankConnector {
       const text = await r.text();
       let body: any = null;
       try { body = JSON.parse(text); } catch { /* challenge/HTML */ }
-      return { status: r.status, body, raw: body ? null : text.slice(0, 200) };
+      return { status: r.status, body };
     }, [BASE, path]);
   }
 
@@ -80,47 +69,30 @@ export class BancoChileConnector implements LocalBankConnector {
       const text = await r.text();
       let body: any = null;
       try { body = JSON.parse(text); } catch { /* challenge/HTML */ }
-      return { status: r.status, body, raw: body ? null : text.slice(0, 200) };
+      return { status: r.status, body };
     }, [BASE, path, data]);
   }
 
-  // Parada dura ante bloqueo/anti-bot: 401/403/429 o respuesta que no es JSON (challenge).
   private assertOk(r: ApiResult, what: string): void {
-    if (r.status === 401 || r.status === 403 || r.status === 429) {
-      throw new BankBlockedError(`${what}: HTTP ${r.status} (bloqueo/sesión expirada)`);
-    }
-    if (r.body == null) {
-      throw new BankBlockedError(`${what}: respuesta no-JSON (challenge anti-bot)`);
-    }
+    if (r.status === 401 || r.status === 403 || r.status === 429) throw new BankBlockedError(`${what}: HTTP ${r.status} (bloqueo/sesión)`);
+    if (r.body == null) throw new BankBlockedError(`${what}: respuesta no-JSON (challenge anti-bot)`);
   }
 
   private async isAuthed(): Promise<boolean> {
-    if (!this.page.url().includes("portalpersonas")) return false;
+    if (!String(this.page.url()).includes("portalpersonas")) return false;
     const r = await this.apiGet(EP.saldos).catch(() => null);
     return !!(r && r.status === 200 && r.body);
   }
 
   async ensureSession(): Promise<void> {
+    if (!this.rut || !this.pass) throw new BankBlockedError("Faltan credenciales BCH_RUT / BCH_PASS en el entorno.");
     if (!this.ctx) {
-      this.ctx = await chromium.launchPersistentContext(this.profileDir, {
-        channel: "chrome", // Chrome real: menos detección
-        headless: false, // el usuario inicia sesión y resuelve 2FA en la ventana
-        viewport: null,
-      });
+      this.ctx = await chromium.launchPersistentContext(this.profileDir, { channel: "chrome", headless: this.headless, viewport: null });
       this.page = this.ctx.pages()[0] ?? (await this.ctx.newPage());
     }
-    let ok = await this.isAuthed();
-    if (!ok) {
-      // Entrar por el portal (no el /login pelado de Auth0, que entra en loop sin estado OAuth).
-      await this.page.goto(HOME, { waitUntil: "domcontentloaded" }).catch(() => {});
-      const deadline = Date.now() + LOGIN_TIMEOUT_MS;
-      while (!ok && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 2000));
-        ok = await this.isAuthed().catch(() => false);
-      }
+    if (!(await this.isAuthed())) {
+      await this.autoLogin();
     }
-    if (!ok) throw new BankBlockedError("No se detectó sesión iniciada (login/2FA no completado o bloqueo).");
-
     // Cachea identificadores para armar los payloads.
     const prods = await this.apiGet(EP.productos);
     this.assertOk(prods, "obtenerProductos");
@@ -129,96 +101,87 @@ export class BancoChileConnector implements LocalBankConnector {
     this.infoTarjetas = Array.isArray(info.body) ? info.body : [];
   }
 
-  // --- Lectura ---
+  // Entra por el portal (inicia el OAuth con estado limpio) y completa RUT + clave en la pantalla de
+  // login. Sin 2FA (BCH no lo pide para consultar). Falla → BankBlockedError.
+  private async autoLogin(): Promise<void> {
+    await this.page.goto(HOME, { waitUntil: "domcontentloaded" }).catch(() => {});
+    // El HOME sin sesión redirige al login de Auth0 (login.portales.bancochile.cl) con el estado
+    // OAuth correcto. Esperamos el campo RUT directamente (más robusto que esperar la URL).
+    try {
+      const rutField = this.page.getByPlaceholder(/RUT/i).first();
+      await rutField.waitFor({ timeout: 45_000 });
+      await rutField.fill(this.rut);
+      const passField = this.page.getByPlaceholder(/Contrase|Clave/i).first();
+      await passField.fill(this.pass);
+      await this.page.waitForTimeout(600); // el form (Angular) tarda en habilitar INGRESAR tras rellenar
+      // Submit robusto: botón INGRESAR (varias formas) o Enter en la clave. Reintenta si el 1er clic
+      // corre antes de que el botón esté accionable (era la causa del "funcionó a la segunda").
+      const btn = this.page.locator('button:has-text("INGRESAR"), button[type=submit], input[type=submit]').first();
+      let ok = false;
+      for (let i = 0; i < 3 && !ok; i++) {
+        ok = await btn.click({ timeout: 6000 }).then(() => true).catch(() => false);
+        if (!ok) await this.page.waitForTimeout(800);
+      }
+      if (!ok) await passField.press("Enter").catch(() => {});
+    } catch {
+      // Form no encontrado (¿ya autenticado?, ¿challenge?, ¿layout distinto?); se valida por API.
+    }
+    for (let i = 0; i < 45; i++) {
+      await sleep(2000);
+      if (await this.isAuthed()) return;
+    }
+    await this.captureFailure();
+    throw new BankBlockedError(
+      `Login no completado. URL: ${this.page.url()}. Hay un screenshot en el perfil (login-fail.png). ` +
+        "Causas posibles: clave incorrecta, challenge anti-bot en headless, o layout distinto.",
+    );
+  }
+
+  // Guarda un screenshot al fallar el login, para diagnosticar sin estar mirando.
+  private async captureFailure(): Promise<void> {
+    try {
+      await this.page.screenshot({ path: path.join(this.profileDir, "login-fail.png"), fullPage: true });
+    } catch {
+      /* best-effort */
+    }
+  }
 
   async readProducts(): Promise<LocalProductsSnapshot> {
     const saldos = await this.apiGet(EP.saldos);
     this.assertOk(saldos, "cuentas/saldos");
-    const saldoRows: any[] = Array.isArray(saldos.body) ? saldos.body : [];
     const prods: any[] = this.productos?.productos ?? [];
-    const products: RawProduct[] = [];
-
-    // Cuenta corriente: cash (saldo CTD) + overdraft (línea LCD como bucket de la cuenta).
-    const ctd = prods.find((p) => p.codigo === "CTD");
-    if (ctd) {
-      const ctdSaldo = saldoRows.find((s) => s.codProducto === "CTD" || s.tipo === "CUENTA_CORRIENTE");
-      const lcdSaldo = saldoRows.find((s) => s.codProducto === "LCD" || s.tipo === "LINEA_CREDITO");
-      const buckets: RawBucket[] = [
-        { kind: "cash", currency: "CLP", limit: 0, used: 0, available: clp(ctdSaldo?.disponible) },
-      ];
-      if (lcdSaldo) {
-        // used=null → el use-case lo calcula (autorizado − disponible).
-        buckets.push({ kind: "overdraft", currency: "CLP", limit: clp(lcdSaldo.cupo), used: null, available: clp(lcdSaldo.disponible) });
-      }
-      products.push({
-        externalId: ctd.numero,
-        name: ctd.label ?? "Cuenta Corriente",
-        rawType: "CUENTA_CORRIENTE",
-        currency: "CLP",
-        last4: last4(ctd.mascara ?? ctd.numero),
-        buckets,
-      });
-    }
-
-    // Tarjetas de crédito (codigo TNM): buckets nacional (CLP) + internacional (USD) del saldo.
+    const tarjetaSaldos: Record<string, any> = {};
     for (const t of prods.filter((p) => p.codigo === "TNM")) {
       const info = this.infoTarjetas.find((x) => x.idProducto === t.id);
-      const saldoT = await this.apiPost(EP.tarjetaSaldo, this.cardPayload(t, info));
-      this.assertOk(saldoT, "tarjeta saldo/obtener-saldo");
-      const s = saldoT.body;
-      const buckets: RawBucket[] = [];
-      if (s?.cupoTotalNacional != null) {
-        buckets.push({ kind: "credit_national", currency: "CLP", limit: clp(s.cupoTotalNacional), used: clp(s.cupoUtilizadoNacional), available: clp(s.cupoDisponibleNacional) });
-      }
-      if (s?.cupoTotalInternacional != null) {
-        buckets.push({ kind: "credit_international", currency: "USD", limit: usd(s.cupoTotalInternacional), used: usd(s.cupoUtilizadoInternacional), available: usd(s.cupoDisponibleInternacional) });
-      }
-      products.push({
-        externalId: t.id,
-        name: info ? `${info.marca} ${info.tipo}`.trim() : (t.label ?? "Tarjeta de Crédito"),
-        rawType: "TARJETA_CREDITO",
-        currency: "CLP",
-        last4: last4(info?.numero ?? t.mascara),
-        buckets,
-      });
+      const r = await this.apiPost(EP.tarjetaSaldo, this.cardPayload(t, info));
+      this.assertOk(r, "tarjeta saldo/obtener-saldo");
+      tarjetaSaldos[t.id] = r.body;
     }
-
-    return { institutionName: "Banco de Chile", products };
+    return mapProducts({ saldos: saldos.body, productos: this.productos, infoTarjetas: this.infoTarjetas, tarjetaSaldos });
   }
 
   async readCartola(accountExternalId: string, opts?: { since?: Date }): Promise<RawMovement[]> {
     const t = (this.productos?.productos ?? []).find((p: any) => p.numero === accountExternalId && p.codigo === "CTD");
     if (!t) return [];
     const cuentaSeleccionada = {
-      nombreCliente: this.productos.nombre,
-      rutCliente: this.productos.rut,
-      numero: t.numero,
-      mascara: t.mascara,
-      selected: true,
-      codigoProducto: t.codigo,
-      claseCuenta: t.claseCuenta,
-      moneda: t.codigoMoneda,
+      nombreCliente: this.productos.nombre, rutCliente: this.productos.rut, numero: t.numero, mascara: t.mascara,
+      selected: true, codigoProducto: t.codigo, claseCuenta: t.claseCuenta, moneda: t.codigoMoneda,
     };
-    const out: RawMovement[] = [];
+    const all: any[] = [];
     for (let page = 1; page <= MAX_PAGES; page++) {
       const r = await this.apiPost(EP.getCartola, { cuentaSeleccionada, cabecera: { statusGenerico: true, paginacionDesde: page } });
       this.assertOk(r, "getCartola");
       const movs: any[] = r.body?.movimientos ?? [];
-      for (const m of movs) {
-        const date = parseCartolaDate(m.fecha, m.fechaContableMovimiento);
-        if (opts?.since && date < opts.since) return out; // newest-first: al pasar la ventana, corta
-        const magnitude = clp(m.monto);
-        out.push({
-          externalId: m.id,
-          date,
-          description: m.descripcion ?? "",
-          amount: m.tipo === "cargo" ? -magnitude : magnitude, // cargo = gasto (−), abono = ingreso (+)
-          currency: "CLP",
-        });
+      all.push(...movs);
+      // Corte por ventana: los movimientos vienen del más nuevo al más viejo.
+      if (opts?.since && movs.length) {
+        const oldest = mapCartolaMovimientos([movs[movs.length - 1]])[0];
+        if (oldest && oldest.date < opts.since) break;
       }
-      if (r.body?.pagina?.[0]?.masPaginas !== "Y") break; // no hay más páginas
+      if (r.body?.pagina?.[0]?.masPaginas !== "Y") break;
     }
-    return out;
+    const mapped = mapCartolaMovimientos(all);
+    return opts?.since ? mapped.filter((m) => m.date >= opts.since!) : mapped;
   }
 
   async readUnbilled(cardExternalId: string): Promise<RawUnbilledMovement[]> {
@@ -227,23 +190,7 @@ export class BancoChileConnector implements LocalBankConnector {
     const info = this.infoTarjetas.find((x) => x.idProducto === cardExternalId);
     const r = await this.apiPost(EP.noFacturados, this.cardPayload(t, info));
     this.assertOk(r, "movimientos-no-facturados");
-    const lista: any[] = r.body?.listaMovNoFactur ?? [];
-    return lista.map((m) => {
-      const scope: "national" | "international" = m.origenTransaccion === "INT" ? "international" : "national";
-      const currency = scope === "international" ? "USD" : "CLP";
-      // VERIFICAR: para INT, ¿el monto en USD es montoMonedaOrigen? (montoCompra podría venir en CLP).
-      const rawAmount = scope === "international" ? (m.montoMonedaOrigen ?? m.montoCompra) : m.montoCompra;
-      const amount = currency === "USD" ? usd(rawAmount) : clp(rawAmount);
-      const [cur, tot] = String(m.despliegueCuotas ?? "").split("/").map((n) => Number(n));
-      return {
-        date: new Date(Number(m.fechaTransaccion ?? 0)),
-        description: m.glosaTransaccion ?? "",
-        amount,
-        currency,
-        scope,
-        installments: cur && tot ? { current: cur, total: tot } : null,
-      };
-    });
+    return mapNoFacturados(r.body?.listaMovNoFactur ?? []);
   }
 
   async close(): Promise<void> {
@@ -252,15 +199,13 @@ export class BancoChileConnector implements LocalBankConnector {
     this.page = null;
   }
 
-  // Payload compartido de tarjeta (saldo y no facturados).
-  // VERIFICAR: `nombreTitular` — en la captura fue el titular en mayúsculas (formato apellidos-nombre);
-  // acá se usa el nombre de obtenerProductos como aproximación hasta confirmar la fuente exacta.
+  // VERIFICAR: `nombreTitular` — se usa el nombre de obtenerProductos como aproximación.
   private cardPayload(t: any, info: any): Record<string, unknown> {
     return {
       idTarjeta: t.id,
       codigoProducto: "TNM",
       tipoTarjeta: info ? `${info.marca} ${info.tipo}` : "",
-      mascara: t.mascara ?? (info?.numero ? `****${last4(info.numero)}` : ""),
+      mascara: t.mascara ?? "",
       nombreTitular: this.productos?.nombre ?? "",
       tipoCliente: "T",
     };

@@ -55,8 +55,12 @@ export type SyncLocalDeps = {
   importCartola(userId: string, accountId: string, bucketId: string | null, movements: ImportMovement[]): Promise<number>;
   // No facturados: reemplazo ATÓMICO de la foto de una tarjeta (borra la previa e inserta la nueva).
   replaceUnbilled(userId: string, accountId: string, cardId: string, movements: UnbilledInsert[]): Promise<number>;
+  // Saldo representativo de la cuenta para la UI (corriente = cash; crédito = deuda negativa).
+  setAccountBalance(accountId: string, amount: Money): Promise<void>;
   // Marca el fin de la sync (lastSyncedAt del banco).
   markSynced(bankId: string): Promise<void>;
+  // Categoriza con IA los movimientos confirmados sin categoría (best-effort). Opcional.
+  categorize?(userId: string): Promise<number>;
 };
 
 // --- Mapeo crudo BCH → dominio ---
@@ -155,12 +159,20 @@ export type SyncLocalResult = {
   unbilledMovements: number;
 };
 
+// Progreso de la sincronización para reportar en vivo a la UI (paso + etiqueta legible).
+export type SyncProgress = { step: string; label: string };
+
 export async function syncLocalConnection(
   deps: SyncLocalDeps,
   userId: string,
-  now: Date = new Date(),
+  opts: { now?: Date; onProgress?: (p: SyncProgress) => void } = {},
 ): Promise<SyncLocalResult> {
+  const now = opts.now ?? new Date();
+  const progress = opts.onProgress ?? (() => {});
+
+  progress({ step: "login", label: "Iniciando sesión en Banco de Chile…" });
   await deps.connector.ensureSession();
+  progress({ step: "products", label: "Leyendo cuentas, tarjetas y saldos…" });
   const snapshot = await deps.connector.readProducts();
   const bank = await deps.upsertBank(userId, snapshot.institutionName || "Banco de Chile");
   const since = windowSince(bank.lastSyncedAt, now);
@@ -201,17 +213,23 @@ export async function syncLocalConnection(
       cards++;
     }
 
-    // Buckets (saldos/cupos). Guardo el id por kind para asignar los no facturados a su cupo.
+    // Buckets (saldos/cupos). Guardo el id por kind para asignar los no facturados a su cupo, y el
+    // saldo representativo para la tarjeta de la UI (corriente = cash; crédito = deuda nacional −).
     const bucketIdByKind = new Map<BucketKind, string>();
+    let repBalance: Money | null = null;
     for (const rawBucket of product.buckets) {
       const b = bucketFromRaw(rawBucket);
       if (!b) continue;
       const bucket = await deps.upsertBucket({ ...b, userId, accountId: account.id, cardId });
       bucketIdByKind.set(b.kind, bucket.id);
+      if (b.kind === "cash") repBalance = b.available;
+      else if (b.kind === "credit_national" && !repBalance) repBalance = b.used.negate();
     }
+    if (repBalance) await deps.setAccountBalance(account.id, repBalance);
 
     // Movimientos por fuente.
     if (accountType === "checking") {
+      progress({ step: "cartola", label: `Importando movimientos de ${product.name}…` });
       const raw = await deps.connector.readCartola(product.externalId, { since });
       const movements = raw
         .map(toImportMovement)
@@ -219,6 +237,7 @@ export async function syncLocalConnection(
         .filter((m) => m.date >= since);
       cartolaMovements += await deps.importCartola(userId, account.id, null, movements);
     } else if (accountType === "credit_card" && cardId) {
+      progress({ step: "unbilled", label: `Leyendo no facturados de ${product.name}…` });
       // Snapshot-replace: bajar y VALIDAR la foto nueva antes de reemplazar (atómico en el repo).
       const unbilled = await deps.connector.readUnbilled(product.externalId);
       const toInsert = unbilledToInserts(unbilled, bucketIdByKind);
@@ -226,7 +245,15 @@ export async function syncLocalConnection(
     }
   }
 
+  progress({ step: "saving", label: "Guardando…" });
   await deps.markSynced(bank.id);
+
+  // Categorización con IA best-effort (solo confirmados; los no facturados quedan sin categoría).
+  if (deps.categorize) {
+    progress({ step: "categorize", label: "Categorizando movimientos…" });
+    await deps.categorize(userId).catch(() => {});
+  }
+
   return { bankId: bank.id, accounts, cards, cartolaMovements, unbilledMovements };
 }
 

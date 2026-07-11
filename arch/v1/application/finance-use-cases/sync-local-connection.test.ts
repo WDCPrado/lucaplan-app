@@ -114,6 +114,7 @@ function makeDeps(connector: LocalBankConnector, lastSyncedAt: Date | null = nul
       for (const m of movements) state.unbilled.push({ cardId, bucketId: m.bucketId, description: m.description, amount: m.amount.toMajor() });
       return movements.length;
     },
+    async setAccountBalance() {},
     async markSynced(bankId) {
       const b = state.banks.find((x) => x.id === bankId);
       if (b) b.lastSyncedAt = NOW;
@@ -124,7 +125,7 @@ function makeDeps(connector: LocalBankConnector, lastSyncedAt: Date | null = nul
 
 test("sync local: crea banco, cuentas, tarjetas y buckets; sobregiro usado se calcula", async () => {
   const { deps, state } = makeDeps(makeConnector());
-  const res = await syncLocalConnection(deps, "u1", NOW);
+  const res = await syncLocalConnection(deps, "u1", { now: NOW });
   assert.equal(res.accounts, 2); // corriente + tarjeta
   assert.equal(res.cards, 2); // débito + crédito
   assert.equal(state.buckets.length, 4); // cash + overdraft + nacional + internacional
@@ -136,7 +137,7 @@ test("sync local: crea banco, cuentas, tarjetas y buckets; sobregiro usado se ca
 
 test("sync local: cartola importa la ventana; los no facturados van a su bucket por ámbito", async () => {
   const { deps, state } = makeDeps(makeConnector());
-  await syncLocalConnection(deps, "u1", NOW);
+  await syncLocalConnection(deps, "u1", { now: NOW });
   assert.equal(state.cartola.length, 2);
   assert.equal(state.unbilled.length, 4); // incluye las 2 PAYWASH idénticas (no se fusionan)
   const natBucket = state.buckets.find((b) => b.kind === "credit_national")!.id;
@@ -147,19 +148,19 @@ test("sync local: cartola importa la ventana; los no facturados van a su bucket 
 
 test("sync local: re-sync hace snapshot-replace (no acumula no facturados) y upsert de cartola idempotente", async () => {
   const { deps, state } = makeDeps(makeConnector(), day(2026, 6, 10)); // ya sincronizado antes
-  await syncLocalConnection(deps, "u1", NOW);
-  await syncLocalConnection(deps, "u1", NOW);
+  await syncLocalConnection(deps, "u1", { now: NOW });
+  await syncLocalConnection(deps, "u1", { now: NOW });
   assert.equal(state.cartola.length, 2); // cartola no se duplica (upsert por id)
   assert.equal(state.unbilled.length, 4); // no facturados reemplazados, no acumulados (4, no 8)
 });
 
 test("sync local: snapshot-replace conserva la foto previa si la lectura falla", async () => {
   const { deps, state } = makeDeps(makeConnector());
-  await syncLocalConnection(deps, "u1", NOW); // primera foto ok
+  await syncLocalConnection(deps, "u1", { now: NOW }); // primera foto ok
   const before = state.unbilled.length;
   // Segunda sync: readUnbilled falla → replaceUnbilled no se llama → foto previa intacta.
   const failing = makeConnector({ async readUnbilled() { throw new Error("403 bloqueo"); } });
   const deps2 = { ...deps, connector: failing };
-  await assert.rejects(() => syncLocalConnection(deps2, "u1", NOW));
+  await assert.rejects(() => syncLocalConnection(deps2, "u1", { now: NOW }));
   assert.equal(state.unbilled.length, before); // no se tocó la foto previa
 });

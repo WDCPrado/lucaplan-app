@@ -20,6 +20,9 @@
 # perfil del navegador del scraper (cookies autenticadas del banco) — NUNCA commitear
 /.bancochile-profile/
 
+# llave de cifrado de credenciales del banco (auto-generada si no hay BANCOCHILE_ENC_KEY) — NUNCA commitear
+/.bancochile-key
+
 # next.js
 /.next/
 /out/

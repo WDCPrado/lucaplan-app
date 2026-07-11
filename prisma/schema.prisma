@@ -261,6 +261,7 @@ model Transaction {
   direction       String // debit | credit
   status          String           @default("confirmed") // confirmed | pending | reversed | duplicated
   pending         Boolean          @default(false)
+  isInternal      Boolean          @default(false) // transferencia/pago interno (traspaso, pago línea/tarjeta): NO cuenta en presupuesto
   externalId      String? // id del movimiento en el banco; null si es manual o snapshot (no facturado)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt

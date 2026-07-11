@@ -199,15 +199,6 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
             ))}
             <SyncBancoChileButton />
           </div>
-
-          {(summary.overdraftDebt > 0 || summary.creditCardDebts.length > 0) && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {summary.overdraftDebt > 0 && <DebtPill label="Sobregiro" value={summary.overdraftDebt} />}
-              {summary.creditCardDebts.map((d) => (
-                <DebtPill key={d.accountId} label={d.name} value={d.debt} />
-              ))}
-            </div>
-          )}
         </section>
 
         {/* Presupuestos + Movimientos */}
@@ -357,11 +348,3 @@ function Stat({ label, value, className }: { label: string; value: string; class
   );
 }
 
-function DebtPill({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="tabular font-semibold text-destructive">−{formatCLP(value)}</div>
-    </div>
-  );
-}

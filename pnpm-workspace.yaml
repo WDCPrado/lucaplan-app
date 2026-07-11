@@ -8,3 +8,5 @@ allowBuilds:
   prisma: true
   '@prisma/client': true
   esbuild: false
+  open-banking-chile: true
+  puppeteer: true

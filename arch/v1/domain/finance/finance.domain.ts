@@ -178,6 +178,7 @@ export type Transaction = {
   amount: Money;
   direction: Direction;
   status: MovementStatus; // manual = "confirmed"; fintoc según el proveedor
+  isInternal: boolean; // transferencia/pago interno: NO cuenta en presupuesto ni en el resumen
   externalId: string | null; // id del movimiento en Fintoc (mov_...); null si es manual
 };
 
@@ -244,6 +245,7 @@ export type ImportMovement = {
   amount: Money;
   direction: Direction;
   status: MovementStatus;
+  isInternal?: boolean; // transferencia/pago interno (no cuenta en presupuesto); default false
 };
 
 export type CategoryInput = {

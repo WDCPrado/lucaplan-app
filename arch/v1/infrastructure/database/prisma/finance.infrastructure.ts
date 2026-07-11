@@ -6,8 +6,12 @@ import type {
   Account,
   AccountRepository,
   AccountType,
+  BalanceBucket,
+  BalanceBucketRepository,
   Bank,
   BankRepository,
+  BucketKind,
+  ConnectedBucketInput,
   Category,
   CategoryLimit,
   CategoryRepository,
@@ -84,6 +88,7 @@ function toTransaction(row: any): Transaction {
     amount: Money.of(row.amount.toString(), currency),
     direction: row.direction as Direction,
     status: (row.status ?? "confirmed") as MovementStatus,
+    isInternal: row.isInternal ?? false,
     externalId: row.externalId ?? null,
   };
 }
@@ -183,6 +188,49 @@ export const accountRepository: AccountRepository = {
       ? await prisma.financialAccount.update({ where: { id: existing.id }, data })
       : await prisma.financialAccount.create({ data: { userId: input.userId, externalId: input.externalId, ...data } });
     return toAccount(row);
+  },
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toBucket(row: any): BalanceBucket {
+  const currency = row.currency as CurrencyCode;
+  return {
+    id: row.id,
+    userId: row.userId,
+    accountId: row.accountId,
+    cardId: row.cardId ?? null,
+    kind: row.kind as BucketKind,
+    currency,
+    limitAmount: Money.of(row.limitAmount.toString(), currency),
+    used: Money.of(row.used.toString(), currency),
+    available: Money.of(row.available.toString(), currency),
+    asOf: row.asOf ?? null,
+  };
+}
+
+export const balanceBucketRepository: BalanceBucketRepository = {
+  async listByUser(userId) {
+    return (await prisma.balanceBucket.findMany({ where: { userId } })).map(toBucket);
+  },
+  async listByAccount(accountId) {
+    return (await prisma.balanceBucket.findMany({ where: { accountId } })).map(toBucket);
+  },
+  async upsertConnected(input: ConnectedBucketInput) {
+    const existing = await prisma.balanceBucket.findFirst({
+      where: { accountId: input.accountId, cardId: input.cardId, kind: input.kind, currency: input.currency },
+    });
+    const data = {
+      limitAmount: input.limitAmount.toDecimalString(),
+      used: input.used.toDecimalString(),
+      available: input.available.toDecimalString(),
+      asOf: input.asOf,
+    };
+    const row = existing
+      ? await prisma.balanceBucket.update({ where: { id: existing.id }, data })
+      : await prisma.balanceBucket.create({
+          data: { userId: input.userId, accountId: input.accountId, cardId: input.cardId, kind: input.kind, currency: input.currency, ...data },
+        });
+    return toBucket(row);
   },
 };
 

@@ -88,6 +88,16 @@ export function mapProducts(d: Pick<BchRawData, "saldos" | "productos" | "infoTa
   return { institutionName: "Banco de Chile", products };
 }
 
+// Movimientos internos (no cuentan en presupuesto): pagos/transferencias de línea y tarjeta, y
+// traspasos de salida. Se dejan visibles en la lista pero fuera del gasto. Traspasos DE: (entrada)
+// se conservan como posible ingreso. ponytail: heurística por glosa; ajustar si aparecen otros casos.
+const INTERNAL_CARTOLA_RE =
+  /transferencia desde l[ií]nea|pago l[ií]nea de cr|pago tarjeta de cr[eé]dito|cargo por pago tc|pago pr[eé]stamo|intereses l[ií]nea|impuesto l[ií]nea|traspaso a:/i;
+
+export function isInternalCartola(descripcion: string): boolean {
+  return INTERNAL_CARTOLA_RE.test(descripcion ?? "");
+}
+
 // Movimientos de cartola (cuenta corriente) → RawMovement (id estable; signo por cargo/abono).
 export function mapCartolaMovimientos(movimientos: any[]): RawMovement[] {
   return (movimientos ?? []).map((m) => {
@@ -98,6 +108,7 @@ export function mapCartolaMovimientos(movimientos: any[]): RawMovement[] {
       description: m.descripcion ?? "",
       amount: m.tipo === "cargo" ? -magnitude : magnitude, // cargo = gasto (−), abono = ingreso (+)
       currency: "CLP",
+      isInternal: isInternalCartola(m.descripcion ?? ""),
     };
   });
 }

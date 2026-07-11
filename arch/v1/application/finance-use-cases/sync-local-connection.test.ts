@@ -74,7 +74,7 @@ function makeDeps(connector: LocalBankConnector, lastSyncedAt: Date | null = nul
     cards: [] as { id: string; accountId: string; last4: string }[],
     buckets: [] as (ConnectedBucketInput & { id: string })[],
     cartola: [] as { accountId: string; externalId: string; categoryId: string | null }[],
-    unbilled: [] as { cardId: string; bucketId: string; description: string; amount: number }[],
+    unbilled: [] as { cardId: string; description: string; amount: number; direction: string; isInternal: boolean }[],
   };
   let seq = 0;
   const id = (p: string) => `${p}${++seq}`;
@@ -111,7 +111,7 @@ function makeDeps(connector: LocalBankConnector, lastSyncedAt: Date | null = nul
     async replaceUnbilled(_userId, _accountId, cardId, movements) {
       // Snapshot-replace: borra los de esta tarjeta e inserta la foto nueva.
       state.unbilled = state.unbilled.filter((u) => u.cardId !== cardId);
-      for (const m of movements) state.unbilled.push({ cardId, bucketId: m.bucketId, description: m.description, amount: m.amount.toMajor() });
+      for (const m of movements) state.unbilled.push({ cardId, description: m.description, amount: m.amount.toMajor(), direction: m.direction, isInternal: m.isInternal });
       return movements.length;
     },
     async setAccountBalance() {},
@@ -135,15 +135,14 @@ test("sync local: crea banco, cuentas, tarjetas y buckets; sobregiro usado se ca
   assert.equal(intl?.currency, "USD");
 });
 
-test("sync local: cartola importa la ventana; los no facturados van a su bucket por ámbito", async () => {
+test("sync local: cartola importa la ventana; el internacional se convierte a CLP y cuenta como gasto", async () => {
   const { deps, state } = makeDeps(makeConnector());
   await syncLocalConnection(deps, "u1", { now: NOW });
   assert.equal(state.cartola.length, 2);
-  assert.equal(state.unbilled.length, 4); // incluye las 2 PAYWASH idénticas (no se fusionan)
-  const natBucket = state.buckets.find((b) => b.kind === "credit_national")!.id;
-  const intlBucket = state.buckets.find((b) => b.kind === "credit_international")!.id;
-  assert.equal(state.unbilled.filter((u) => u.bucketId === natBucket).length, 3);
-  assert.equal(state.unbilled.filter((u) => u.bucketId === intlBucket).length, 1);
+  assert.equal(state.unbilled.length, 4); // 3 nacionales + 1 internacional; las 2 PAYWASH no se fusionan
+  const aws = state.unbilled.find((u) => u.description === "AWS")!;
+  assert.ok(aws.amount > 40000, "US$48,51 se convirtió a CLP (× índice dólar), no quedó en 48");
+  assert.ok(state.unbilled.every((u) => u.direction === "debit" && !u.isInternal), "compras = gasto, no interno");
 });
 
 test("sync local: re-sync hace snapshot-replace (no acumula no facturados) y upsert de cartola idempotente", async () => {

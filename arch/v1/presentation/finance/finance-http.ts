@@ -17,6 +17,7 @@ import { BankBlockedError } from "../../domain/finance/local-bank-connector.port
 import { LockBusyError } from "../../../shared/mutex.ts";
 import {
   accountRepository,
+  balanceBucketRepository,
   bankRepository,
   categoryRepository,
   monthlyBudgetRepository,
@@ -29,6 +30,7 @@ import { openaiCategorizationProvider } from "../../infrastructure/http/ai/opena
 export const financeDeps = {
   accounts: accountRepository,
   banks: bankRepository,
+  balanceBuckets: balanceBucketRepository,
   categories: categoryRepository,
   transactions: transactionRepository,
   monthlyBudgets: monthlyBudgetRepository,

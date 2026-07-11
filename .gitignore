@@ -23,6 +23,9 @@
 # llave de cifrado de credenciales del banco (auto-generada si no hay BANCOCHILE_ENC_KEY) — NUNCA commitear
 /.bancochile-key
 
+# log de la sincronización programada
+/.bancochile-sync.log
+
 # next.js
 /.next/
 /out/

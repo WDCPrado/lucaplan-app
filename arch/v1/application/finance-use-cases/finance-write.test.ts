@@ -65,7 +65,7 @@ class FakeTx implements TransactionRepository {
   }
   async create(tx: NewTransaction): Promise<Transaction> {
     this.created.push(tx);
-    return { id: "t1", status: "confirmed", externalId: null, ...tx };
+    return { id: "t1", status: "confirmed", isInternal: false, externalId: null, ...tx };
   }
   async findById() {
     return null;

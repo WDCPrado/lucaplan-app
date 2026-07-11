@@ -28,12 +28,14 @@ const INITIAL_MONTHS = 3;
 const OVERLAP_DAYS = 30;
 
 // Movimiento no facturado listo para persistir (sin id externo; va en un snapshot que se reemplaza).
+// Los internacionales ya vienen convertidos a CLP (con el índice dólar). Cuentan como gasto salvo los
+// pagos a la tarjeta (isInternal).
 export type UnbilledInsert = {
-  bucketId: string;
   date: Date;
   description: string;
-  amount: Money;
+  amount: Money; // en CLP (internacional ya convertido)
   direction: Direction;
+  isInternal: boolean;
 };
 
 export type SyncLocalDeps = {
@@ -57,6 +59,8 @@ export type SyncLocalDeps = {
   replaceUnbilled(userId: string, accountId: string, cardId: string, movements: UnbilledInsert[]): Promise<number>;
   // Saldo representativo de la cuenta para la UI (corriente = cash; crédito = deuda negativa).
   setAccountBalance(accountId: string, amount: Money): Promise<void>;
+  // Tipo de cambio USD→CLP (dólar observado) para convertir los movimientos internacionales. Opcional.
+  getUsdRate?(): Promise<number>;
   // Marca el fin de la sync (lastSyncedAt del banco).
   markSynced(bankId: string): Promise<void>;
   // Categoriza con IA los movimientos confirmados sin categoría (best-effort). Opcional.
@@ -138,6 +142,7 @@ function toImportMovement(m: RawMovement): ImportMovement | null {
     amount,
     direction: directionOf(m.amount),
     status: "confirmed",
+    isInternal: m.isInternal ?? false, // transferencias internas no cuentan en presupuesto
   };
 }
 
@@ -176,6 +181,8 @@ export async function syncLocalConnection(
   const snapshot = await deps.connector.readProducts();
   const bank = await deps.upsertBank(userId, snapshot.institutionName || "Banco de Chile");
   const since = windowSince(bank.lastSyncedAt, now);
+  // Índice dólar para convertir movimientos internacionales (USD→CLP). Fallback si no hay proveedor.
+  const usdRate = deps.getUsdRate ? await deps.getUsdRate() : 950;
 
   let accounts = 0;
   let cards = 0;
@@ -213,15 +220,13 @@ export async function syncLocalConnection(
       cards++;
     }
 
-    // Buckets (saldos/cupos). Guardo el id por kind para asignar los no facturados a su cupo, y el
-    // saldo representativo para la tarjeta de la UI (corriente = cash; crédito = deuda nacional −).
-    const bucketIdByKind = new Map<BucketKind, string>();
+    // Buckets (saldos/cupos) + saldo representativo para la tarjeta de la UI (corriente = cash;
+    // crédito = deuda nacional −).
     let repBalance: Money | null = null;
     for (const rawBucket of product.buckets) {
       const b = bucketFromRaw(rawBucket);
       if (!b) continue;
-      const bucket = await deps.upsertBucket({ ...b, userId, accountId: account.id, cardId });
-      bucketIdByKind.set(b.kind, bucket.id);
+      await deps.upsertBucket({ ...b, userId, accountId: account.id, cardId });
       if (b.kind === "cash") repBalance = b.available;
       else if (b.kind === "credit_national" && !repBalance) repBalance = b.used.negate();
     }
@@ -240,7 +245,7 @@ export async function syncLocalConnection(
       progress({ step: "unbilled", label: `Leyendo no facturados de ${product.name}…` });
       // Snapshot-replace: bajar y VALIDAR la foto nueva antes de reemplazar (atómico en el repo).
       const unbilled = await deps.connector.readUnbilled(product.externalId);
-      const toInsert = unbilledToInserts(unbilled, bucketIdByKind);
+      const toInsert = unbilledToInserts(unbilled, usdRate);
       unbilledMovements += await deps.replaceUnbilled(userId, account.id, cardId, toInsert);
     }
   }
@@ -257,27 +262,19 @@ export async function syncLocalConnection(
   return { bankId: bank.id, accounts, cards, cartolaMovements, unbilledMovements };
 }
 
-// Mapea los no facturados a inserts, asignando el bucket por ámbito (NAC→credit_national CLP,
-// INT→credit_international USD). Si el bucket del ámbito no existe o la moneda no calza, se omite
-// (no se adivina).
-function unbilledToInserts(
-  unbilled: RawUnbilledMovement[],
-  bucketIdByKind: Map<BucketKind, string>,
-): UnbilledInsert[] {
-  const out: UnbilledInsert[] = [];
-  for (const m of unbilled) {
-    const kind: BucketKind = m.scope === "international" ? "credit_international" : "credit_national";
-    const bucketId = bucketIdByKind.get(kind);
-    if (!bucketId) continue;
-    const cur: CurrencyCode = m.scope === "international" ? "USD" : "CLP";
-    if (m.currency !== cur) continue;
-    out.push({
-      bucketId,
+// Mapea los no facturados a inserts en CLP: el internacional (USD, centavos) se convierte con el
+// índice dólar; el nacional ya viene en CLP. El signo se conserva: negativo = pago a la tarjeta
+// (interno, no cuenta como gasto ni ingreso). Compra (positivo) = gasto.
+function unbilledToInserts(unbilled: RawUnbilledMovement[], usdRate: number): UnbilledInsert[] {
+  return unbilled.map((m) => {
+    const clpPesos = m.scope === "international" ? Math.round((m.amount / 100) * usdRate) : Math.round(m.amount);
+    const isPayment = clpPesos < 0; // pago a la tarjeta → interno
+    return {
       date: m.date,
       description: m.description,
-      amount: Money.fromMinor(Math.abs(m.amount), cur),
-      direction: "debit", // una compra no facturada es un gasto
-    });
-  }
-  return out;
+      amount: Money.fromMinor(Math.abs(clpPesos), "CLP"),
+      direction: isPayment ? "credit" : "debit",
+      isInternal: isPayment,
+    };
+  });
 }

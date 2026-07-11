@@ -36,6 +36,7 @@ export type RawMovement = {
   description: string;
   amount: number; // unidad mínima, con signo (+ abono / − cargo)
   currency: string;
+  isInternal?: boolean; // transferencia/pago interno (traspaso, pago línea/tarjeta): no cuenta en presupuesto
 };
 
 // Movimiento no facturado de tarjeta: NO tiene id estable → snapshot-replace (no upsert).

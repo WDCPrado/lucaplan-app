@@ -40,12 +40,14 @@ export class BancoChileConnector implements LocalBankConnector {
   private infoTarjetas: any[] = [];
   private readonly rut: string;
   private readonly pass: string;
-  private readonly headless: boolean;
+  private readonly show: boolean;
 
-  constructor(private readonly profileDir: string, opts?: { creds?: BancoChileCreds; headless?: boolean }) {
+  constructor(private readonly profileDir: string, opts?: { creds?: BancoChileCreds; show?: boolean }) {
     this.rut = opts?.creds?.rut ?? process.env.BCH_RUT ?? "";
     this.pass = opts?.creds?.pass ?? process.env.BCH_PASS ?? "";
-    this.headless = opts?.headless ?? true; // cron/background: headless. Poné false para depurar.
+    // BCh BLOQUEA headless (detección TLS/fingerprint). Corremos siempre HEADFUL, pero por defecto con
+    // la ventana FUERA DE PANTALLA (invisible). BCH_SHOW=true la muestra (para depurar el login).
+    this.show = opts?.show ?? process.env.BCH_SHOW === "true";
   }
 
   private async apiGet(path: string): Promise<ApiResult> {
@@ -87,7 +89,13 @@ export class BancoChileConnector implements LocalBankConnector {
   async ensureSession(): Promise<void> {
     if (!this.rut || !this.pass) throw new BankBlockedError("Faltan credenciales BCH_RUT / BCH_PASS en el entorno.");
     if (!this.ctx) {
-      this.ctx = await chromium.launchPersistentContext(this.profileDir, { channel: "chrome", headless: this.headless, viewport: null });
+      this.ctx = await chromium.launchPersistentContext(this.profileDir, {
+        channel: "chrome",
+        headless: false, // headless lo bloquea el anti-bot de BCh → siempre headful
+        viewport: null,
+        // Oculto por defecto: ventana fuera de pantalla (sigue headful, pasa detección, no molesta).
+        args: this.show ? [] : ["--window-position=-32000,-32000"],
+      });
       this.page = this.ctx.pages()[0] ?? (await this.ctx.newPage());
     }
     if (!(await this.isAuthed())) {

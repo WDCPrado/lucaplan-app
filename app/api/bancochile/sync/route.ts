@@ -32,7 +32,7 @@ export async function POST(req: Request) {
       try {
         const result = await withLock(userId, async () => {
           const creds = (await loadBancoChileCreds(userId)) ?? undefined;
-          const connector = new BancoChileConnector(profileDir(userId), { creds, headless: process.env.BCH_HEADLESS !== "false" });
+          const connector = new BancoChileConnector(profileDir(userId), { creds });
           try {
             return await syncLocalConnection(makeSyncLocalDeps(connector), userId, {
               onProgress: (p) => send({ type: "progress", ...p }),

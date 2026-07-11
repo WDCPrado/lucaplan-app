@@ -107,6 +107,7 @@ const tx = (over: Partial<Transaction>): Transaction => ({
   amount: clp(0),
   direction: "debit",
   status: "confirmed",
+  isInternal: false,
   externalId: null,
   ...over,
 });

@@ -3,6 +3,7 @@
 import type {
   Account,
   AccountRepository,
+  BalanceBucketRepository,
   BankRepository,
   Category,
   CategoryRepository,
@@ -55,9 +56,13 @@ export type AccountDTO = {
   balance: number;
   color: string | null;
   cardLast4: string | null;
-  provider: string; // "manual" | "fintoc"; las fintoc son de solo lectura (badge "conectado")
+  provider: string; // "manual" | "fintoc" | "bancochile"; las conectadas son de solo lectura (badge)
   lastSyncedAt: string | null; // ISO; última sync del banco conectado (null en cuentas manuales)
+  buckets?: BucketDTO[]; // saldos/cupos por bucket (solo cuentas conectadas por scraper). Montos en unidad mayor.
 };
+
+// Saldo/cupo para la UI: cash | overdraft | credit_national | credit_international.
+export type BucketDTO = { kind: string; currency: string; limit: number; used: number; available: number };
 
 export type TransactionDTO = {
   id: string;
@@ -131,7 +136,7 @@ function historicalRemaining(txs: Transaction[], limitOf: (categoryId: string) =
   const out = new Map<string, number>();
   for (let i = txs.length - 1; i >= 0; i--) {
     const t = txs[i];
-    if (t.direction !== "debit" || !t.categoryId || t.status !== "confirmed") continue;
+    if (t.direction !== "debit" || !t.categoryId || t.status !== "confirmed" || t.isInternal) continue;
     const limit = limitOf(t.categoryId);
     if (!limit || t.amount.currency !== limit.currency) continue;
     const spent = (acc.get(t.categoryId) ?? Money.zero(limit.currency)).add(t.amount);
@@ -159,7 +164,7 @@ export async function getMonthlySummary(deps: ReadDeps, userId: string, year: nu
 
   const sumClp = (dir: string) =>
     txs
-      .filter((t) => t.direction === dir && t.amount.currency === CLP && t.status === "confirmed")
+      .filter((t) => t.direction === dir && t.amount.currency === CLP && t.status === "confirmed" && !t.isInternal)
       .reduce((s, t) => s.add(t.amount), Money.zero(CLP));
 
   return {
@@ -177,9 +182,22 @@ export async function getMonthlySummary(deps: ReadDeps, userId: string, year: nu
   };
 }
 
-export async function listAccounts(deps: { accounts: AccountRepository; banks: BankRepository }, userId: string): Promise<AccountDTO[]> {
-  const [accounts, banks] = await Promise.all([deps.accounts.listByUser(userId), deps.banks.listByUser(userId)]);
+export async function listAccounts(
+  deps: { accounts: AccountRepository; banks: BankRepository; balanceBuckets: BalanceBucketRepository },
+  userId: string,
+): Promise<AccountDTO[]> {
+  const [accounts, banks, allBuckets] = await Promise.all([
+    deps.accounts.listByUser(userId),
+    deps.banks.listByUser(userId),
+    deps.balanceBuckets.listByUser(userId),
+  ]);
   const bankById = new Map(banks.map((b) => [b.id, b]));
+  const bucketsByAccount = new Map<string, BucketDTO[]>();
+  for (const b of allBuckets) {
+    const arr = bucketsByAccount.get(b.accountId) ?? [];
+    arr.push({ kind: b.kind, currency: b.currency, limit: b.limitAmount.toMajor(), used: b.used.toMajor(), available: b.available.toMajor() });
+    bucketsByAccount.set(b.accountId, arr);
+  }
   return accounts.map((a: Account): AccountDTO => {
     const bank = bankById.get(a.bankId);
     return {
@@ -194,6 +212,7 @@ export async function listAccounts(deps: { accounts: AccountRepository; banks: B
       cardLast4: a.cardLast4,
       provider: a.provider,
       lastSyncedAt: bank?.lastSyncedAt?.toISOString() ?? null,
+      buckets: bucketsByAccount.get(a.id) ?? [],
     };
   });
 }

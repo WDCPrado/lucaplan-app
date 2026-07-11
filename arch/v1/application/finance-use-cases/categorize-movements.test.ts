@@ -27,6 +27,7 @@ const mov = (id: string, direction: Direction): Transaction => ({
   amount: Money.of(1000, "CLP"),
   direction,
   status: "confirmed",
+  isInternal: false,
   externalId: `mov_${id}`,
 });
 

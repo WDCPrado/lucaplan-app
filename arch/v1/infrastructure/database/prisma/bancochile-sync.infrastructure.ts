@@ -9,6 +9,7 @@ import type { SyncLocalDeps, UnbilledInsert } from "../../../application/finance
 import { categorizeMovements } from "../../../application/finance-use-cases/categorize-movements-use-case.ts";
 import { categoryRepository, transactionRepository } from "./finance.infrastructure.ts";
 import { openaiCategorizationProvider } from "../../http/ai/openai-categorization.provider.ts";
+import { getUsdClpRate } from "../../http/exchange/usd-clp.ts";
 
 const CHUNK = 10; // ponytail: upsert de cartola en lotes acotados (no satura el pool de conexiones).
 
@@ -88,6 +89,7 @@ export function makeSyncLocalDeps(connector: LocalBankConnector): SyncLocalDeps 
               direction: m.direction,
               status: m.status,
               pending: m.status === "pending",
+              isInternal: m.isInternal ?? false,
             };
             return prisma.transaction.upsert({
               where: { accountId_externalId: { accountId, externalId: m.externalId } },
@@ -100,26 +102,25 @@ export function makeSyncLocalDeps(connector: LocalBankConnector): SyncLocalDeps 
       return movements.length;
     },
 
-    async replaceUnbilled(userId, accountId, cardId, movements: UnbilledInsert[]) {
-      // Snapshot-replace ATÓMICO: borra la foto previa de la tarjeta (sus buckets) e inserta la nueva.
-      // Los no facturados entran como `pending` → las fórmulas los excluyen de caja/presupuesto.
+    async replaceUnbilled(userId, accountId, _cardId, movements: UnbilledInsert[]) {
+      // Snapshot-replace ATÓMICO: la foto previa de no-facturados de la tarjeta = sus transacciones
+      // SIN id externo (las de cartola sí lo tienen). Se borra e inserta la nueva. Ahora entran como
+      // `confirmed` y cuentan como gasto (salvo los pagos a la tarjeta, marcados `isInternal`).
       await prisma.$transaction(async (db) => {
-        const buckets = await db.balanceBucket.findMany({ where: { cardId }, select: { id: true } });
-        const bucketIds = buckets.map((b) => b.id);
-        await db.transaction.deleteMany({ where: { bucketId: { in: bucketIds }, externalId: null } });
+        await db.transaction.deleteMany({ where: { accountId, externalId: null } });
         for (const m of movements) {
           await db.transaction.create({
             data: {
               userId,
               accountId,
-              bucketId: m.bucketId,
               transactionDate: m.date,
               description: m.description,
               amount: m.amount.toDecimalString(),
               currency: m.amount.currency,
               direction: m.direction,
-              status: "pending",
-              pending: true,
+              status: "confirmed",
+              pending: false,
+              isInternal: m.isInternal,
             },
           });
         }
@@ -131,14 +132,19 @@ export function makeSyncLocalDeps(connector: LocalBankConnector): SyncLocalDeps 
       await prisma.financialAccount.update({ where: { id: accountId }, data: { balance: amount.toDecimalString() } });
     },
 
+    async getUsdRate() {
+      return getUsdClpRate();
+    },
+
     async markSynced(bankId) {
       await prisma.bank.update({ where: { id: bankId }, data: { lastSyncedAt: new Date() } });
     },
 
     // Categoriza con IA los movimientos confirmados sin categoría del usuario (best-effort).
     async categorize(userId) {
+      // Solo confirmados sin categoría y NO internos (las transferencias/pagos no se categorizan).
       const rows = await prisma.transaction.findMany({
-        where: { userId, categoryId: null, status: "confirmed" },
+        where: { userId, categoryId: null, status: "confirmed", isInternal: false },
         take: 500,
       });
       if (rows.length === 0) return 0;
@@ -152,6 +158,7 @@ export function makeSyncLocalDeps(connector: LocalBankConnector): SyncLocalDeps 
         amount: Money.of(r.amount.toString(), r.currency as CurrencyCode),
         direction: r.direction as Direction,
         status: (r.status ?? "confirmed") as MovementStatus,
+        isInternal: r.isInternal ?? false,
         externalId: r.externalId ?? null,
       }));
       return categorizeMovements(

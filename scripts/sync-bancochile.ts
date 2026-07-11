@@ -29,7 +29,7 @@ async function resolveUserId(): Promise<string> {
 const userId = await resolveUserId();
 const base = process.env.BANCOCHILE_PROFILE_DIR ?? path.join(process.cwd(), ".bancochile-profile");
 const creds = (await loadBancoChileCreds(userId)) ?? undefined; // cifradas en DB; fallback al entorno
-const connector = new BancoChileConnector(path.join(base, userId), { creds, headless: process.env.BCH_HEADLESS !== "false" });
+const connector = new BancoChileConnector(path.join(base, userId), { creds });
 try {
   const res = await syncLocalConnection(makeSyncLocalDeps(connector), userId);
   console.log(`[${new Date().toISOString()}] Sync OK:`, res);

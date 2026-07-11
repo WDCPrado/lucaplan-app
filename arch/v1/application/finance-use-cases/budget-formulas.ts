@@ -55,6 +55,7 @@ export function computeCategoryUsage(
         t.categoryId === categoryId &&
         t.direction === "debit" &&
         t.status === "confirmed" &&
+        !t.isInternal &&
         t.amount.currency === limit.currency &&
         t.date.getFullYear() === year &&
         t.date.getMonth() + 1 === month,

@@ -1,5 +1,5 @@
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
-import { formatCLP } from "@/lib/finance-format";
+import { formatCLP, formatMoney } from "@/lib/finance-format";
 import { resolveCardArt } from "@/lib/bank-cards";
 import { cn } from "@/lib/utils";
 import { SyncStatusLine } from "./sync-status-line";
@@ -24,7 +24,13 @@ const VARIANT_BG: Record<string, string> = {
 // (opcional) para abrir su detalle. Las conectadas muestran el distintivo "Conectado".
 export function AccountCard({ account, hidden, onClick }: { account: AccountDTO; hidden?: boolean; onClick?: () => void }) {
   const art = resolveCardArt(account.bankName, account.accountType);
-  const connected = account.provider === "fintoc";
+  const connected = account.provider === "fintoc" || account.provider === "bancochile";
+  const buckets = account.buckets ?? [];
+  const cash = buckets.find((b) => b.kind === "cash");
+  const overdraft = buckets.find((b) => b.kind === "overdraft");
+  const nat = buckets.find((b) => b.kind === "credit_national");
+  const intl = buckets.find((b) => b.kind === "credit_international");
+  const isCredit = account.accountType === "credit_card";
 
   return (
     <div
@@ -71,12 +77,49 @@ export function AccountCard({ account, hidden, onClick }: { account: AccountDTO;
         )}
       </div>
 
-      <div className="relative">
-        <div className="text-xs text-white/75">Saldo {account.currency}</div>
-        <div className="tabular text-3xl font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
-          {hidden ? "••••••" : formatCLP(account.balance)}
+      {isCredit && (nat || intl) ? (
+        // Tarjeta de crédito conectada: cupos nacional (CLP) e internacional (USD) por separado.
+        <div className="relative space-y-1">
+          {nat && (
+            <div>
+              <div className="text-xs text-white/75">Cupo nacional</div>
+              <div className="tabular text-2xl font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
+                {hidden ? "••••••" : formatCLP(nat.available)} <span className="text-xs font-normal text-white/60">disp</span>
+              </div>
+              {nat.used > 0 && <div className="tabular text-xs text-red-300">Usado −{hidden ? "••••" : formatCLP(nat.used)}</div>}
+            </div>
+          )}
+          {intl && (
+            <div className="text-xs text-white/85">
+              <span className="text-white/60">USD</span> <span className="tabular">{hidden ? "••" : formatMoney(intl.available, "USD")}</span> disp
+              {intl.used > 0 && <span className="tabular text-red-300"> · usado {formatMoney(intl.used, "USD")}</span>}
+            </div>
+          )}
         </div>
-      </div>
+      ) : (
+        // Cuenta corriente (cash + sobregiro) o cuenta manual (saldo simple).
+        <div className="relative">
+          <div className="text-xs text-white/75">Saldo {account.currency}</div>
+          <div
+            className={cn(
+              "tabular text-3xl font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]",
+              (cash ? cash.available : account.balance) < 0 && "text-red-300",
+            )}
+          >
+            {hidden ? "••••••" : formatCLP(cash ? cash.available : account.balance)}
+          </div>
+          {overdraft && overdraft.limit > 0 && (
+            <div className="tabular mt-0.5 text-xs text-white/70">
+              Sobregiro:{" "}
+              {overdraft.used > 0 ? (
+                <span className="text-red-300">usado −{hidden ? "••••" : formatCLP(overdraft.used)}</span>
+              ) : (
+                <span>{hidden ? "••••" : formatCLP(overdraft.available)} disp</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="relative space-y-1.5">
         <div className="flex items-center justify-between gap-2 text-sm text-white/85">

@@ -99,9 +99,9 @@ export function AppShell({ user, active = "inicio", onNavigate, onSignOut, onAdd
                 size="icon"
                 variant="secondary"
                 aria-label="Buscar movimientos"
-                className="size-12 rounded-full shadow-lg"
+                className="size-14 rounded-full shadow-lg"
               >
-                <Search className="size-5" />
+                <Search className="size-6" />
               </Button>
             )}
             {onAdd && (
@@ -151,11 +151,13 @@ function UserMenu({ user, onSignOut }: { user: AppShellProps["user"]; onSignOut?
             setTheme(resolvedTheme === "dark" ? "light" : "dark");
           }}
         >
-          {/* icono/texto por CSS según la clase .dark: sin mismatch de hidratación ni useEffect */}
-          <Sun className="hidden size-4 dark:block" />
-          <Moon className="size-4 dark:hidden" />
-          <span className="hidden dark:inline">Tema claro</span>
-          <span className="dark:hidden">Tema oscuro</span>
+          {/* icono/texto por CSS anclado al <html> (next-themes): el DropdownMenuContent lleva
+              la clase `dark` fija (glass oscuro del design system), así que `dark:` mentiría aquí;
+              [html.dark_&] mira solo el tema real. Sin mismatch de hidratación ni useEffect. */}
+          <Sun className="hidden size-4 [html.dark_&]:block" />
+          <Moon className="size-4 [html.dark_&]:hidden" />
+          <span className="hidden [html.dark_&]:inline">Tema claro</span>
+          <span className="[html.dark_&]:hidden">Tema oscuro</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={() => onSignOut?.()}>

@@ -26,14 +26,17 @@ if (!["localhost", "127.0.0.1", ""].includes(hostname)) {
 const dockerOut = (args) =>
   execFileSync("docker", args, { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
 
-// 1. Contenedor: reusar si existe, si no crearlo
+// 1. Contenedor: reusar si existe, si no crearlo. Siempre con restart=unless-stopped para que
+// arranque solo con Docker Desktop / Windows (sin esto, la DB queda caída tras cada reinicio).
 if (dockerOut(["ps", "-aq", "-f", `name=^${name}$`])) {
-  console.log(`▶ ${name} ya existe → docker start`);
+  console.log(`▶ ${name} ya existe → docker start (+ restart unless-stopped)`);
+  execFileSync("docker", ["update", "--restart", "unless-stopped", name], { stdio: "ignore" });
   execFileSync("docker", ["start", name], { stdio: "inherit" });
 } else {
   console.log(`▶ Creando ${name} (postgres:17-alpine) en :${hostPort}`);
   execFileSync("docker", [
     "run", "-d", "--name", name,
+    "--restart", "unless-stopped",
     "-e", `POSTGRES_USER=${user}`,
     "-e", `POSTGRES_PASSWORD=${pass}`,
     "-e", `POSTGRES_DB=${db}`,

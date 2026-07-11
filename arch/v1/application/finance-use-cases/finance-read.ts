@@ -74,6 +74,7 @@ export type TransactionDTO = {
   categoryIcon: string | null;
   categoryColor: string | null;
   remaining: number | null; // histórico: lo que quedaba de la categoría justo tras este movimiento
+  categoryLimit: number | null; // límite efectivo del mes de su categoría (para el arco); null si no aplica
 };
 
 export type CategoryDTO = {
@@ -96,7 +97,13 @@ export type BudgetViewDTO = {
   remainingToAllocate: number | null; // globalLimit − allocated; null sin límite global
 };
 
-function txToDTO(t: Transaction, cat: Category | undefined, remaining: number | null, editable: boolean): TransactionDTO {
+function txToDTO(
+  t: Transaction,
+  cat: Category | undefined,
+  remaining: number | null,
+  categoryLimit: number | null,
+  editable: boolean,
+): TransactionDTO {
   return {
     id: t.id,
     accountId: t.accountId,
@@ -112,6 +119,7 @@ function txToDTO(t: Transaction, cat: Category | undefined, remaining: number | 
     categoryIcon: cat?.icon ?? null,
     categoryColor: cat?.color ?? null,
     remaining,
+    categoryLimit,
   };
 }
 
@@ -201,7 +209,15 @@ export async function listTransactions(deps: ReadDeps, userId: string, year: num
   // La lista no muestra reversados ni duplicados (ruido); sí muestra confirmed y pending.
   return txs
     .filter((t) => t.status !== "reversed" && t.status !== "duplicated")
-    .map((t) => txToDTO(t, t.categoryId ? catById.get(t.categoryId) : undefined, remaining.get(t.id) ?? null, manual.has(t.accountId)));
+    .map((t) =>
+      txToDTO(
+        t,
+        t.categoryId ? catById.get(t.categoryId) : undefined,
+        remaining.get(t.id) ?? null,
+        t.categoryId ? (limitById.get(t.categoryId)?.toMajor() ?? null) : null,
+        manual.has(t.accountId),
+      ),
+    );
 }
 
 // Búsqueda de movimientos con filtros combinados. Devuelve TransactionDTO[] (sin "quedan" histórico,
@@ -214,7 +230,7 @@ export async function searchTransactions(deps: ReadDeps, userId: string, filters
   ]);
   const catById = new Map(cats.map((c) => [c.id, c]));
   const manual = new Set(accounts.filter((a) => a.provider === "manual").map((a) => a.id));
-  return txs.map((t) => txToDTO(t, t.categoryId ? catById.get(t.categoryId) : undefined, null, manual.has(t.accountId)));
+  return txs.map((t) => txToDTO(t, t.categoryId ? catById.get(t.categoryId) : undefined, null, null, manual.has(t.accountId)));
 }
 
 export async function getBudgetView(deps: ReadDeps, userId: string, year: number, month: number): Promise<BudgetViewDTO> {
@@ -282,6 +298,6 @@ export async function getCategoryDetail(
     status: categoryStatus(used, limit),
     transactions: txs
       .filter((t) => t.status !== "reversed" && t.status !== "duplicated")
-      .map((t) => txToDTO(t, category, remaining.get(t.id) ?? null, manual.has(t.accountId))),
+      .map((t) => txToDTO(t, category, remaining.get(t.id) ?? null, limit.toMajor(), manual.has(t.accountId))),
   };
 }

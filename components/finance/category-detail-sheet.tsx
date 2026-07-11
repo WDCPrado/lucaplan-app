@@ -2,6 +2,8 @@
 
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import { ProgressRing } from "./progress-ring";
 import { MovementRow } from "./movement-row";
 import { CategoryIcon } from "./category-icons";
@@ -30,9 +32,14 @@ export function CategoryDetailSheet({
       onOpenChange={onOpenChange}
       title={category?.name ?? ""}
       headerClassName="items-center"
+      // Solo escritorio (md:): cabecera fija y la lista absorbe el overflow (el mismo className
+      // llega al drawer móvil, que conserva su scroll full-height — por eso todo va con md:).
+      // Con movimientos, altura explícita: el área de lista (absolute) no aporta altura
+      // intrínseca y sin esto el dialog colapsaría al alto de la cabecera.
+      className={cn("md:flex md:flex-col md:overflow-hidden", txs.length > 0 && "md:h-[82dvh]")}
     >
         {category && (
-          <>
+          <div className="md:flex md:min-h-0 md:flex-1 md:flex-col">
             <div className="flex flex-col items-center gap-1 px-4">
               <ProgressRing percent={pct} status={category.status} size={150} stroke={11}>
                 <CategoryIcon icon={category.icon} size={48} color={category.color ?? undefined} />
@@ -47,19 +54,28 @@ export function CategoryDetailSheet({
                 Editar
               </Button>
             </div>
-            <div className="mt-4 px-4 pb-6">
+            <div className="mt-4 px-4 pb-6 md:flex md:min-h-0 md:flex-1 md:flex-col md:pb-4">
               <div className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">Movimientos del mes</div>
               {txs.length === 0 ? (
                 <p className="py-6 text-center text-sm text-muted-foreground">Sin movimientos</p>
               ) : (
-                <div className="divide-y">
-                  {txs.map((t) => (
-                    <MovementRow key={t.id} tx={t} />
-                  ))}
+                // El viewport de Radix resuelve height:100% solo contra alturas definidas (la
+                // flex no le basta), y su Root trae position:relative INLINE (imposible volverlo
+                // absolute por clase) → el absolute inset-0 va en un div envolvente.
+                <div className="md:relative md:min-h-0 md:flex-1">
+                  <div className="md:absolute md:inset-0">
+                    <ScrollArea className="md:h-full">
+                      <div className="divide-y">
+                        {txs.map((t) => (
+                          <MovementRow key={t.id} tx={t} />
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
     </ResponsiveModal>
   );

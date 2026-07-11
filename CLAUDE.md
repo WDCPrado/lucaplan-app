@@ -108,6 +108,10 @@ Método para construir vistas nuevas (síguelo siempre):
 
 **Notas de verificación (Playwright):**
 
+- **REGLA INQUEBRANTABLE: nunca dejes procesos colgando al terminar.** Todo dev server
+  (`pnpm dev`) u otro proceso que Claude levante (foreground o background) se MATA al cerrar la
+  tarea, y se confirma que el puerto quedó libre (`netstat`). Si queda tomado, el `pnpm dev` del
+  usuario falla con `EADDRINUSE`. Solo se deja corriendo lo que ya estaba corriendo del usuario.
 - Playwright corre **headless** (el plugin lleva `--headless` en su `.mcp.json`); no abre
   ventana del navegador. Si tras actualizar el plugin vuelve a abrir ventana, reaplica el flag.
 - Antes de navegar, **espera a que el dev server responda** (poll a la URL); Next compila on-demand.

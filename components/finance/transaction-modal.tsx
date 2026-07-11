@@ -36,6 +36,13 @@ const STATUS_LABEL: Record<string, string> = {
 const fullDate = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
+// La categoría GUARDADA del movimiento va primero en los chips (si pasa el filtro por tipo).
+// Se ancla a tx.categoryId, no a la selección en pantalla: el orden no salta al tocar chips.
+function savedFirst(list: CategoryDTO[], savedId: string | null): CategoryDTO[] {
+  const saved = savedId ? list.find((c) => c.id === savedId) : undefined;
+  return saved ? [saved, ...list.filter((c) => c.id !== saved.id)] : list;
+}
+
 // YYYY-MM-DD ↔ Date en horario local (mediodía evita el corrimiento de día por zona horaria).
 const parseISODate = (s: string) => new Date(`${s}T12:00:00`);
 const toISODate = (d: Date) =>
@@ -108,7 +115,10 @@ function EditForm({ tx, account, categories, onClose }: { tx: TransactionDTO; ac
   const canSave = money.value > 0 && description.trim() !== "" && busy === null;
 
   // Categorías filtradas por el lado elegido (gasto/ingreso); al cambiar de lado se limpia si no calza.
-  const visibleCategories = categories.filter((c) => c.type === (direction === "credit" ? "income" : "expense"));
+  const visibleCategories = savedFirst(
+    categories.filter((c) => c.type === (direction === "credit" ? "income" : "expense")),
+    tx.categoryId,
+  );
 
   function changeDirection(d: "debit" | "credit") {
     setDirection(d);
@@ -216,7 +226,10 @@ function ConnectedDetail({ tx, account, categories, onClose }: { tx: Transaction
   const [saving, setSaving] = useState(false);
   const changed = categoryId !== tx.categoryId;
   // Solo categorías del mismo lado del movimiento (ingreso ↔ credit, gasto ↔ debit).
-  const visibleCategories = categories.filter((c) => c.type === (income ? "income" : "expense"));
+  const visibleCategories = savedFirst(
+    categories.filter((c) => c.type === (income ? "income" : "expense")),
+    tx.categoryId,
+  );
 
   async function saveCategory() {
     setSaving(true);

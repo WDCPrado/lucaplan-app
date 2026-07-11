@@ -42,19 +42,19 @@ const demoMovements: TransactionDTO[] = [
     id: "m1", accountId: "demo", currency: "CLP", editable: false,
     description: "Jumbo Costanera", amount: 68450, direction: "debit",
     date: "", status: "confirmed", categoryId: "c1", categoryName: "Supermercado",
-    categoryIcon: "ShoppingCart", categoryColor: "#4f6ef7", remaining: 239250,
+    categoryIcon: "ShoppingCart", categoryColor: "#4f6ef7", remaining: 239250, categoryLimit: 650000,
   },
   {
     id: "m2", accountId: "demo", currency: "CLP", editable: false,
     description: "Sueldo julio", amount: 1480000, direction: "credit",
     date: "", status: "confirmed", categoryId: "c2", categoryName: "Sueldo",
-    categoryIcon: "TrendingUp", categoryColor: "#22a06b", remaining: null,
+    categoryIcon: "TrendingUp", categoryColor: "#22a06b", remaining: null, categoryLimit: null,
   },
   {
     id: "m3", accountId: "demo", currency: "CLP", editable: false,
     description: "Carga Bip!", amount: 15200, direction: "debit",
     date: "", status: "confirmed", categoryId: "c3", categoryName: "Transporte",
-    categoryIcon: "Bus", categoryColor: "#0e9488", remaining: 64800,
+    categoryIcon: "Bus", categoryColor: "#0e9488", remaining: 64800, categoryLimit: 100000,
   },
 ]
 
@@ -70,19 +70,19 @@ const demoCategorized: TransactionDTO[] = [
     id: "ai1", accountId: "demo", currency: "CLP", editable: false,
     description: "Pago:payu *uber eats", amount: 12990, direction: "debit",
     date: "", status: "confirmed", categoryId: "c4", categoryName: "Comida",
-    categoryIcon: "Utensils", categoryColor: "#e8618c", remaining: null,
+    categoryIcon: "Utensils", categoryColor: "#e8618c", remaining: null, categoryLimit: null,
   },
   {
     id: "ai2", accountId: "demo", currency: "CLP", editable: false,
     description: "Pago:red Movilidad San", amount: 815, direction: "debit",
     date: "", status: "confirmed", categoryId: "c3", categoryName: "Transporte",
-    categoryIcon: "Bus", categoryColor: "#0e9488", remaining: null,
+    categoryIcon: "Bus", categoryColor: "#0e9488", remaining: null, categoryLimit: null,
   },
   {
     id: "ai3", accountId: "demo", currency: "CLP", editable: false,
     description: "Pago:unimarc Vitacura", amount: 6040, direction: "debit",
     date: "", status: "confirmed", categoryId: "c1", categoryName: "Supermercado",
-    categoryIcon: "ShoppingCart", categoryColor: "#4f6ef7", remaining: null,
+    categoryIcon: "ShoppingCart", categoryColor: "#4f6ef7", remaining: null, categoryLimit: null,
   },
 ]
 

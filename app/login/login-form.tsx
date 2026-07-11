@@ -253,13 +253,7 @@ export function LoginForm() {
               <Tabs defaultValue="signin">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="signin">Ingresar</TabsTrigger>
-                  {/* LANZAMIENTO: quitar `disabled` y el badge para abrir el registro */}
-                  <TabsTrigger value="signup" disabled title="Disponible pronto">
-                    Crear cuenta
-                    <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                      Pronto
-                    </span>
-                  </TabsTrigger>
+                  <TabsTrigger value="signup">Crear cuenta</TabsTrigger>
                 </TabsList>
                 <TabsContent value="signin" className="mt-6">
                   <AuthForm mode="signin" />

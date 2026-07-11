@@ -35,9 +35,26 @@ export function cardVariant(t: AccountType): "debito" | "credito" | null {
 export const DIRECTIONS = ["debit", "credit"] as const;
 export type Direction = (typeof DIRECTIONS)[number];
 
-// Origen de un banco/cuenta/movimiento: creado a mano o agregado por Fintoc.
-export const PROVIDERS = ["manual", "fintoc"] as const;
+// Origen de un banco/cuenta/movimiento: creado a mano, agregado por Fintoc (legado, en retiro) o
+// leído del portal por el conector local de Banco de Chile (`bancochile`, solo lectura).
+export const PROVIDERS = ["manual", "fintoc", "bancochile"] as const;
 export type Provider = (typeof PROVIDERS)[number];
+
+// Tipo de tarjeta física asociada a una cuenta.
+export const CARD_TYPES = ["debito", "credito"] as const;
+export type CardType = (typeof CARD_TYPES)[number];
+
+// Tipo de saldo/cupo (bucket): una MEDICIÓN mutable de la cuenta/tarjeta, no el libro contable.
+//  - cash: dinero propio de la cuenta corriente (única caja activa).
+//  - overdraft: sobregiro/línea de crédito de la corriente; su `used` es DEUDA, no caja.
+//  - credit_national / credit_international: cupos de una tarjeta de crédito (CLP / USD).
+export const BUCKET_KINDS = ["cash", "overdraft", "credit_national", "credit_international"] as const;
+export type BucketKind = (typeof BUCKET_KINDS)[number];
+
+// ¿Este bucket cuenta como caja activa? Solo `cash`. Sobregiro y cupos son deuda/capacidad de deuda.
+export function bucketIsCash(kind: BucketKind): boolean {
+  return kind === "cash";
+}
 
 // Estado del movimiento reportado por el proveedor. Solo `confirmed` cuenta para caja/presupuesto.
 export const MOVEMENT_STATUSES = ["confirmed", "pending", "reversed", "duplicated"] as const;
@@ -84,6 +101,41 @@ export type Account = {
   provider: Provider; // "manual" | "fintoc"; las fintoc son de solo lectura
   externalId: string | null; // id de la cuenta en Fintoc (acc_...)
 };
+
+// Tarjeta física de una cuenta. Una cuenta corriente tiene una tarjeta de débito; una cuenta de
+// crédito puede tener 1+ tarjetas de crédito. Se crea solo con identidad real del banco (últimos 4).
+export type Card = {
+  id: string;
+  userId: string;
+  accountId: string;
+  cardType: CardType; // "debito" | "credito"
+  cardLast4: string; // 4 dígitos reales, nunca el número completo
+  brand: string | null; // marca/presentación (ej. "Visa Signature")
+  provider: Provider;
+  externalId: string | null; // id/máscara de la tarjeta en el banco
+};
+
+// Saldo/cupo como MEDICIÓN mutable (used/available/limit) con marca de tiempo del dato del banco
+// (`asOf`). Pertenece a una cuenta y, si aplica, a una tarjeta. Los buckets de distinta moneda
+// (CLP nacional, USD internacional) se mantienen SEPARADOS y nunca se suman.
+export type BalanceBucket = {
+  id: string;
+  userId: string;
+  accountId: string;
+  cardId: string | null;
+  kind: BucketKind;
+  currency: CurrencyCode;
+  limitAmount: Money; // límite/cupo total autorizado (0 si no aplica)
+  used: Money; // usado = deuda (en overdraft/crédito); 0 en cash
+  available: Money; // disponible reportado por el banco
+  asOf: Date | null; // marca de tiempo del dato del banco
+};
+
+// Sobregiro usado (deuda) calculado desde la línea: autorizado − disponible. El banco infla el
+// "disponible" sumándole la línea, así que su disponible NO es caja; calcularlo es más seguro.
+export function overdraftUsed(limitAmount: Money, available: Money): Money {
+  return limitAmount.subtract(available);
+}
 
 // Categoría GLOBAL del usuario, compartida entre todos los meses. El límite NO vive aquí.
 export type Category = {
@@ -241,6 +293,41 @@ export interface AccountRepository {
   listByBank(bankId: string): Promise<Account[]>;
   // Fintoc: crea o actualiza la cuenta conectada por (userId, externalId); saldo del proveedor.
   upsertConnected(input: ConnectedAccountInput): Promise<Account>;
+}
+
+export type ConnectedCardInput = {
+  userId: string;
+  accountId: string;
+  cardType: CardType;
+  cardLast4: string;
+  brand: string | null;
+  externalId: string; // máscara/id de la tarjeta en el banco
+};
+
+export type ConnectedBucketInput = {
+  userId: string;
+  accountId: string;
+  cardId: string | null;
+  kind: BucketKind;
+  currency: CurrencyCode;
+  limitAmount: Money;
+  used: Money;
+  available: Money;
+  asOf: Date | null;
+};
+
+export interface CardRepository {
+  listByUser(userId: string): Promise<Card[]>;
+  listByAccount(accountId: string): Promise<Card[]>;
+  // Local: crea o actualiza la tarjeta conectada por (accountId, externalId). Solo lectura para el usuario.
+  upsertConnected(input: ConnectedCardInput): Promise<Card>;
+}
+
+export interface BalanceBucketRepository {
+  listByUser(userId: string): Promise<BalanceBucket[]>;
+  listByAccount(accountId: string): Promise<BalanceBucket[]>;
+  // Local: crea o actualiza el bucket por (accountId, cardId, kind, currency); montos del banco.
+  upsertConnected(input: ConnectedBucketInput): Promise<BalanceBucket>;
 }
 
 export interface CategoryRepository {

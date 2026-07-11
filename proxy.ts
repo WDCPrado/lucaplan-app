@@ -6,9 +6,17 @@ import { getSessionCookie } from "better-auth/cookies"
 // server component / use-case. Rutas públicas: solo /login.
 const PUBLIC_ROUTES = ["/", "/login"]
 
+// Deploy landing-only (ej. Railway como vitrina del proyecto open source):
+// con NEXT_PUBLIC_LANDING_ONLY=true solo existe la landing; todo lo demás vuelve a /.
+const LANDING_ONLY = process.env.NEXT_PUBLIC_LANDING_ONLY === "true"
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isPublicAsset = /\.[^/]+$/.test(pathname)
+
+  if (LANDING_ONLY && pathname !== "/" && !isPublicAsset) {
+    return NextResponse.redirect(new URL("/", request.url))
+  }
   const isPublic =
     isPublicAsset ||
     PUBLIC_ROUTES.some((p) => pathname === p || pathname.startsWith(`${p}/`))

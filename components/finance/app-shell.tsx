@@ -19,6 +19,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { haptic } from "@/lib/haptics";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -95,7 +96,10 @@ export function AppShell({ user, active = "inicio", onNavigate, onSignOut, onAdd
           <div className="fixed right-5 bottom-5 z-30 flex items-center gap-3 lg:right-8 lg:bottom-8">
             {onSearch && (
               <Button
-                onClick={onSearch}
+                onClick={() => {
+                  haptic("light");
+                  onSearch();
+                }}
                 size="icon"
                 variant="secondary"
                 aria-label="Buscar movimientos"
@@ -105,7 +109,15 @@ export function AppShell({ user, active = "inicio", onNavigate, onSignOut, onAdd
               </Button>
             )}
             {onAdd && (
-              <Button onClick={onAdd} size="icon" aria-label="Agregar movimiento" className="size-14 rounded-full shadow-lg">
+              <Button
+                onClick={() => {
+                  haptic("medium");
+                  onAdd();
+                }}
+                size="icon"
+                aria-label="Agregar movimiento"
+                className="size-14 rounded-full shadow-lg"
+              >
                 <Plus className="size-6" />
               </Button>
             )}

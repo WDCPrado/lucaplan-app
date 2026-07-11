@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Eye, EyeOff, Pencil } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { haptic } from "@/lib/haptics";
 import { useDragScroll } from "@/hooks/use-drag-scroll";
 import { AppShell, type NavKey } from "./app-shell";
 import { AccountCard } from "./account-card";
@@ -17,7 +18,7 @@ import { BudgetLimitModal } from "./budget-limit-modal";
 import { CategoryDetailSheet } from "./category-detail-sheet";
 import { AccountModal } from "./account-modal";
 import { AccountInfoModal } from "./account-info-modal";
-import { ConnectBankButton } from "./connect-bank-button";
+import { SyncBancoChileButton } from "./sync-bancochile-button";
 import { CategorizationAutoRefresh } from "./categorization-auto-refresh";
 import { TransactionModal } from "./transaction-modal";
 import { TransactionSearch } from "./transaction-search";
@@ -73,11 +74,49 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
   const isCurrentMonth = period.year === now.getUTCFullYear() && period.month === now.getUTCMonth() + 1;
 
   // Fade del carrusel según posición: aparece a la izquierda al scrollear y desaparece
-  // a la derecha al llegar al final.
-  function updateCarouselFades(el: HTMLElement) {
+  // a la derecha al llegar al final. En móvil (snap-center, una tarjeta protagonista) además
+  // escala cada tarjeta según su distancia al centro (zoom estilo wallet) y dispara un haptic
+  // ligero cuando cambia la tarjeta activa.
+  const carouselRaf = useRef(0);
+  const activeCard = useRef(-1);
+  function updateCarousel(el: HTMLElement) {
     el.style.setProperty("--fade-l", el.scrollLeft > 8 ? "2.5rem" : "0rem");
     el.style.setProperty("--fade-r", el.scrollLeft < el.scrollWidth - el.clientWidth - 8 ? "2.5rem" : "0rem");
+    cancelAnimationFrame(carouselRaf.current);
+    carouselRaf.current = requestAnimationFrame(() => {
+      // Solo los ítems marcados: ConnectBankButton puede colar un overlay como hijo directo.
+      const children = Array.from(el.querySelectorAll<HTMLElement>(":scope > [data-card]"));
+      if (window.innerWidth >= 1024) {
+        // Escritorio: snap-start sin zoom; limpia escalas residuales (p. ej. tras rotar tablet).
+        for (const child of children) child.style.transform = "";
+        activeCard.current = -1;
+        return;
+      }
+      const viewCenter = el.scrollLeft + el.clientWidth / 2;
+      let nearest = -1;
+      let best = Infinity;
+      children.forEach((child, i) => {
+        // offsetLeft/offsetWidth son de layout: inmunes al scroll y al propio scale.
+        const center = child.offsetLeft - el.offsetLeft + child.offsetWidth / 2;
+        const dist = Math.abs(center - viewCenter);
+        child.style.transform = `scale(${1 - 0.07 * Math.min(1, dist / el.clientWidth)})`;
+        if (dist < best) {
+          best = dist;
+          nearest = i;
+        }
+      });
+      if (nearest !== activeCard.current) {
+        if (activeCard.current !== -1) haptic("light"); // no vibrar en el montaje
+        activeCard.current = nearest;
+      }
+    });
   }
+
+  // Zoom inicial: las escalas dependen de medidas del DOM, así que se aplican tras montar.
+  useEffect(() => {
+    if (cardsRef.current) updateCarousel(cardsRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar
+  }, []);
 
   async function signOut() {
     await authClient.signOut();
@@ -132,12 +171,14 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
           <div
             ref={cardsRef}
             {...cardsHandlers}
-            onScroll={(e) => updateCarouselFades(e.currentTarget)}
+            onScroll={(e) => updateCarousel(e.currentTarget)}
             // pt-1: aire para el hover -translate-y; mask con fade dinámico en ambos bordes
             // (izquierda solo al scrollear, derecha desaparece al llegar al final).
-            className="scrollbar-none -mx-4 flex cursor-grab snap-x gap-4 overflow-x-auto px-4 pt-1 pb-4 active:cursor-grabbing lg:mx-0 lg:px-0 mask-[linear-gradient(90deg,transparent,black_var(--fade-l,0rem),black_calc(100%-var(--fade-r,2.5rem)),transparent)]"
+            // snap-mandatory: las tarjetas siempre asientan en un punto de snap (no quedan a
+            // medias); en móvil centradas con lock (snap-always), en escritorio al inicio.
+            className="scrollbar-none -mx-4 flex cursor-grab snap-x snap-mandatory gap-4 overflow-x-auto px-4 pt-1 pb-4 active:cursor-grabbing lg:mx-0 lg:px-0 mask-[linear-gradient(90deg,transparent,black_var(--fade-l,0rem),black_calc(100%-var(--fade-r,2.5rem)),transparent)]"
           >
-            <div className="glass flex min-h-40 w-72 shrink-0 snap-start flex-col justify-between rounded-2xl p-5">
+            <div data-card className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-2xl p-5 lg:snap-start">
               <div className="text-sm text-muted-foreground">Saldo bancario</div>
               <div className="tabular my-3 text-3xl font-bold">{showBalance ? formatCLP(summary.activeCash) : "••••••"}</div>
               <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-center">
@@ -147,18 +188,11 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
               </div>
             </div>
             {accounts.map((a) => (
-              <div key={a.id} className="flex w-72 shrink-0 snap-start">
+              <div key={a.id} data-card className="flex w-72 shrink-0 snap-center snap-always lg:snap-start">
                 <AccountCard account={a} hidden={!showBalance} onClick={() => setInfoAccount(a)} />
               </div>
             ))}
-            <ConnectBankButton />
-            <button
-              onClick={() => setAccountOpen(true)}
-              className="flex min-h-40 w-72 shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-            >
-              <span className="text-2xl">＋</span>
-              <span className="text-sm font-medium">Nueva tarjeta</span>
-            </button>
+            <SyncBancoChileButton />
           </div>
 
           {(summary.overdraftDebt > 0 || summary.creditCardDebts.length > 0) && (
@@ -217,22 +251,23 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
                   <span className="text-sm">Crear categoría</span>
                 </button>
               ) : (
-                <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-2">
+                // Móvil: scroll-x sin wrap (más limpio que la grilla); escritorio: grid 2 col.
+                <div className="scrollbar-none -mx-4 flex gap-4 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-2 lg:overflow-visible lg:px-0">
                   {expenseCategories.map((c) => {
                     const pct = c.limit > 0 ? (c.used / c.limit) * 100 : 0;
                     return (
-                      <button key={c.id} onClick={() => setDetail(c)} className="flex flex-col items-center gap-1.5">
+                      <button key={c.id} onClick={() => setDetail(c)} className="flex w-20 shrink-0 flex-col items-center gap-1.5 lg:w-auto">
                         <ProgressRing percent={pct} status={c.status} size={72}>
                           <CategoryIcon icon={c.icon} size={22} color={c.color ?? undefined} />
                         </ProgressRing>
-                        <div className="text-center">
+                        <div className="w-full text-center">
                           <div className="truncate text-xs font-medium">{c.name}</div>
                           <div className="tabular text-xs text-muted-foreground">{formatCLP(c.available)}</div>
                         </div>
                       </button>
                     );
                   })}
-                  <button onClick={() => setEditCat(null)} className="flex flex-col items-center gap-1.5" aria-label="Nueva categoría">
+                  <button onClick={() => setEditCat(null)} className="flex w-20 shrink-0 flex-col items-center gap-1.5 lg:w-auto" aria-label="Nueva categoría">
                     <span className="grid size-18 place-items-center rounded-full border-2 border-dashed border-border text-2xl text-muted-foreground">+</span>
                     <span className="text-xs text-muted-foreground">Nueva</span>
                   </button>

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { haptic } from "@/lib/haptics";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
@@ -25,6 +26,16 @@ export function ResponsiveModal({
   headerClassName?: string;
 }) {
   const isMobile = useIsMobile();
+
+  // Haptic al abrir/cerrar (efecto genuino: sincroniza con el hardware de vibración).
+  // Cubre todos los modales de la app en un solo punto; en escritorio es no-op.
+  const prevOpen = React.useRef(open);
+  React.useEffect(() => {
+    if (prevOpen.current !== open) {
+      prevOpen.current = open;
+      haptic("light");
+    }
+  }, [open]);
 
   if (isMobile) {
     return (

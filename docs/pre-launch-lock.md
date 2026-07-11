@@ -1,6 +1,9 @@
 # Bloqueo pre-lanzamiento (registro cerrado)
 
-Estado actual: la landing muestra "Próximamente" y **nadie puede crear cuenta**
+> **Revertido el 2026-07-11**: registro abierto, CTAs de la landing apuntan a
+> `/login`. Este doc queda como referencia de cómo volver a bloquear si hace falta.
+
+Estado durante el bloqueo: la landing muestra "Próximamente" y **nadie puede crear cuenta**
 (bloqueado en front y en backend). El login sigue funcionando para cuentas
 existentes entrando directo a `/login`.
 
@@ -52,8 +55,8 @@ este mismo cambio).
 
 ## Checklist de lanzamiento
 
-- [ ] `auth.ts`: borrar `disableSignUp: true`
-- [ ] `login-form.tsx`: reactivar el tab "Crear cuenta"
-- [ ] `page.tsx`: restaurar los 4 links a `/login`
-- [ ] Verificar: `grep -rn "LANZAMIENTO:" app arch` no devuelve nada
+- [x] `auth.ts`: borrar `disableSignUp: true`
+- [x] `login-form.tsx`: reactivar el tab "Crear cuenta"
+- [x] `page.tsx`: restaurar los 4 links a `/login`
+- [x] Verificar: `grep -rn "LANZAMIENTO:" app arch` no devuelve nada
 - [ ] Probar: crear una cuenta nueva de punta a punta

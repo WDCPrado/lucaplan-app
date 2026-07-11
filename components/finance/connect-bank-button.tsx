@@ -99,7 +99,8 @@ export function ConnectBankButton() {
       <button
         onClick={connect}
         disabled={busy}
-        className="flex min-h-40 w-72 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-2xl border-2 border-primary/40 bg-primary/5 text-primary transition-colors hover:bg-primary/10 disabled:opacity-70"
+        data-card
+        className="flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col items-center justify-center gap-2 rounded-2xl border-2 border-primary/40 bg-primary/5 text-primary transition-colors hover:bg-primary/10 disabled:opacity-70 lg:snap-start"
       >
         {busy ? <Loader2 className="size-6 animate-spin" /> : <Landmark className="size-6" />}
         <span className="text-sm font-medium">Conectar banco</span>

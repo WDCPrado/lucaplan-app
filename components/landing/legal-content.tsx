@@ -36,11 +36,13 @@ export const LEGAL = {
         </p>
         <H>3. Conexión bancaria</H>
         <p>
-          La conexión con instituciones financieras se realiza a través de
-          Fintoc, un proveedor regulado de acceso a información financiera
-          (Ley Fintech 21.521, CMF). LucaPlan accede únicamente a información
-          de cuentas y movimientos en modo lectura; nunca recibe ni almacena
-          tus claves bancarias, y no puede operar sobre tus cuentas.
+          La conexión con instituciones financieras se realiza mediante un
+          conector de código abierto (open source) que se ejecuta de forma
+          local, en tu propio equipo, y está destinado exclusivamente a uso
+          personal y local. Tú inicias sesión directamente en el sitio de tu
+          banco; LucaPlan accede únicamente a información de cuentas y
+          movimientos en modo lectura, nunca recibe ni almacena tus claves
+          bancarias, y no puede operar sobre tus cuentas.
         </p>
         <H>4. Categorización con IA</H>
         <p>
@@ -69,8 +71,7 @@ export const LEGAL = {
           En la medida permitida por la ley chilena, LucaPlan no responde por
           perjuicios derivados de decisiones tomadas con base en la
           información mostrada, errores de categorización, ni por
-          indisponibilidad del servicio o de los proveedores de conexión
-          bancaria.
+          indisponibilidad del servicio o del conector bancario local.
         </p>
         <H>8. Término</H>
         <p>
@@ -108,7 +109,8 @@ export const LEGAL = {
         <p>
           (a) Datos de cuenta: nombre y correo electrónico. (b) Datos
           financieros: cuentas, saldos y movimientos bancarios que autorizas a
-          leer vía Fintoc, y los movimientos, categorías y presupuestos que
+          leer mediante el conector open source que se ejecuta localmente en
+          tu equipo, y los movimientos, categorías y presupuestos que
           registras manualmente. (c) Datos de uso: preferencias y
           correcciones de categorización, que se usan para mejorar la
           clasificación de tus propios movimientos.
@@ -123,9 +125,10 @@ export const LEGAL = {
         </p>
         <H>4. Encargados y terceros</H>
         <p>
-          (a) Fintoc: proveedor de conexión bancaria en modo solo lectura;
-          nunca compartimos tus claves y podemos revocar el acceso cuando
-          desconectas un banco. (b) Proveedor de IA: para categorizar, se
+          (a) Conexión bancaria: no interviene ningún proveedor externo; el
+          conector open source corre localmente en tu equipo, por lo que tus
+          claves y tu sesión bancaria nunca llegan a servidores de LucaPlan
+          ni de terceros. (b) Proveedor de IA: para categorizar, se
           envían descripciones y montos de movimientos, junto a los nombres y
           descripciones de tus categorías; no se envían tus credenciales ni
           identificadores bancarios. No vendemos tus datos ni los usamos para
@@ -148,8 +151,9 @@ export const LEGAL = {
         <H>7. Seguridad</H>
         <p>
           Aplicamos medidas técnicas y organizativas razonables: cifrado en
-          tránsito, tokens de acceso de terceros almacenados solo en el
-          servidor, y sesiones protegidas. Ningún sistema es infalible; te
+          tránsito, sesión bancaria que permanece únicamente en tu equipo (y
+          que puedes eliminar al desconectar el banco), y sesiones protegidas.
+          Ningún sistema es infalible; te
           notificaremos las brechas de seguridad que la ley exija informar.
         </p>
         <H>8. Cambios</H>

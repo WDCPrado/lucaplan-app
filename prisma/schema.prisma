@@ -104,28 +104,74 @@ model Bank {
 }
 
 model FinancialAccount {
-  id             String        @id @default(uuid())
+  id             String          @id @default(uuid())
   userId         String
   bankId         String
-  bank           Bank          @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  bank           Bank            @relation(fields: [bankId], references: [id], onDelete: Cascade)
   name           String
   accountType    String // checking | savings | credit_card | credit_line | wallet | investment
   currency       String // ISO 4217: CLP, USD
-  balance        Decimal       @default(0) @db.Decimal(18, 2) // permite negativo (sobregiro) en checking
-  overdraftLimit Decimal       @default(0) @db.Decimal(18, 2)
+  balance        Decimal         @default(0) @db.Decimal(18, 2) // permite negativo (sobregiro) en checking
+  overdraftLimit Decimal         @default(0) @db.Decimal(18, 2)
   color          String? // presentación: color de la tarjeta (opcional)
   cardLast4      String? // últimos 4 dígitos de la tarjeta; obligatorio en app para checking/credit_card
-  status         String        @default("active")
-  provider       String        @default("manual") // manual | fintoc (fintoc = solo lectura)
-  externalId     String? // id de la cuenta en Fintoc (acc_...)
+  status         String          @default("active")
+  provider       String          @default("manual") // manual | fintoc (legado) | bancochile (solo lectura)
+  externalId     String? // id de la cuenta en el banco (acc_... Fintoc / número de cuenta BCH)
   lastSyncedAt   DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   transactions   Transaction[]
+  cards          Card[]
+  buckets        BalanceBucket[]
 
   @@unique([userId, externalId])
   @@index([userId, bankId])
   @@map("financial_account")
+}
+
+// Tarjeta física de una cuenta (débito de la corriente; 1+ crédito de una cuenta de crédito).
+// Solo se crea con identidad real del banco (últimos 4). Solo lectura cuando provider != manual.
+model Card {
+  id         String           @id @default(uuid())
+  userId     String
+  accountId  String
+  account    FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  cardType   String // debito | credito
+  cardLast4  String
+  brand      String? // marca/presentación (ej. "Visa Signature")
+  provider   String           @default("manual") // manual | bancochile
+  externalId String? // máscara/id de la tarjeta en el banco (**** 2120)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  buckets    BalanceBucket[]
+
+  @@unique([accountId, externalId])
+  @@index([accountId])
+  @@map("card")
+}
+
+// Saldo/cupo como MEDICIÓN mutable (used/available/limit + asOf), no el libro contable. Pertenece a
+// una cuenta y, si aplica, a una tarjeta. Distinta moneda ⇒ buckets separados; nunca se suman.
+model BalanceBucket {
+  id           String           @id @default(uuid())
+  userId       String
+  accountId    String
+  account      FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  cardId       String?
+  card         Card?            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  kind         String // cash | overdraft | credit_national | credit_international
+  currency     String // ISO 4217: CLP, USD
+  limitAmount  Decimal          @default(0) @db.Decimal(18, 2)
+  used         Decimal          @default(0) @db.Decimal(18, 2) // usado = deuda (overdraft/crédito)
+  available    Decimal          @default(0) @db.Decimal(18, 2)
+  asOf         DateTime? // marca de tiempo del dato del banco
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  transactions Transaction[]
+
+  @@index([accountId, kind])
+  @@map("balance_bucket")
 }
 
 // Categoría GLOBAL del usuario, compartida entre todos los meses. El límite NO vive aquí:
@@ -189,6 +235,8 @@ model Transaction {
   account         FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
   categoryId      String?
   category        Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  bucketId        String? // bucket/cupo al que corresponde (solo si el banco lo identifica sin ambigüedad)
+  bucket          BalanceBucket?   @relation(fields: [bucketId], references: [id], onDelete: SetNull)
   transactionDate DateTime         @db.Date
   description     String
   amount          Decimal          @db.Decimal(18, 2)
@@ -196,12 +244,13 @@ model Transaction {
   direction       String // debit | credit
   status          String           @default("confirmed") // confirmed | pending | reversed | duplicated
   pending         Boolean          @default(false)
-  externalId      String? // id del movimiento en Fintoc (mov_...); null si es manual
+  externalId      String? // id del movimiento en el banco; null si es manual o snapshot (no facturado)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
   @@unique([accountId, externalId])
   @@index([accountId, transactionDate])
   @@index([categoryId])
+  @@index([bucketId])
   @@map("transaction")
 }

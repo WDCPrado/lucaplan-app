@@ -14,6 +14,12 @@
 # playwright mcp (snapshots/console logs de verificación de UI)
 /.playwright-mcp/
 
+# spike banco: perfil/cookies/sesión y cuerpos JSON con datos financieros — NUNCA commitear
+/scripts/.bch-local/
+
+# perfil del navegador del scraper (cookies autenticadas del banco) — NUNCA commitear
+/.bancochile-profile/
+
 # next.js
 /.next/
 /out/

@@ -13,6 +13,8 @@ import {
   BankConnectionError,
   WebhookSignatureError,
 } from "../../domain/finance/finance.domain.ts";
+import { BankBlockedError } from "../../domain/finance/local-bank-connector.port.ts";
+import { LockBusyError } from "../../../shared/mutex.ts";
 import {
   accountRepository,
   bankRepository,
@@ -36,6 +38,8 @@ export const financeDeps = {
 
 function errorStatus(e: unknown): number {
   if (e instanceof WebhookSignatureError) return 401;
+  if (e instanceof LockBusyError) return 409; // sync ya en curso
+  if (e instanceof BankBlockedError) return 422; // bloqueo/anti-bot/sesión no iniciada
   if (
     e instanceof TransactionCurrencyMismatchError ||
     e instanceof CardLast4RequiredError ||

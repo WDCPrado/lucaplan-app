@@ -16,6 +16,32 @@ import type {
   TransactionDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
+// Modo landing-only (deploy público sin app): los CTAs apuntan al repo en vez de /login.
+// El bloqueo real de /login y demás rutas lo hace proxy.ts con la misma env.
+const LANDING_ONLY = process.env.NEXT_PUBLIC_LANDING_ONLY === "true"
+const GITHUB_URL = "https://github.com/WDCPrado/lucaplan-app"
+const LINKEDIN_URL = "https://www.linkedin.com/in/welliton-da-costa-prado-5050b4251"
+
+// Iconos de marca inline (lucide los deprecó); mismo patrón que GoogleIcon en el login.
+function GitHubIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="size-4.5" aria-hidden="true">
+      <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+    </svg>
+  )
+}
+
+function LinkedInIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="size-4.5" aria-hidden="true">
+      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.225 0z" />
+    </svg>
+  )
+}
+const cta = LANDING_ONLY
+  ? { href: GITHUB_URL, enter: "GitHub", create: "Ver en GitHub", target: "_blank", rel: "noopener noreferrer" }
+  : { href: "/login", enter: "Entrar", create: "Crear mi plan", target: undefined, rel: undefined }
+
 const monthStats = [
   ["Lo que entra", "$1.480.000", "Tus ingresos del mes"],
   ["Lo que reservaste", "$850.000", "Categorías con un límite real"],
@@ -178,10 +204,14 @@ export default function Home() {
               Conecta tu banco
             </a>
           </div>
-          {/* LANZAMIENTO: restaurar <Link href="/login">Entrar</Link> */}
-          <span className="rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-muted-foreground">
-            Próximamente
-          </span>
+          <Link
+            href={cta.href}
+            target={cta.target}
+            rel={cta.rel}
+            className="rounded-full border border-border bg-card px-4 py-2 text-sm font-medium transition-colors duration-200 hover:border-foreground hover:bg-foreground hover:text-background"
+          >
+            {cta.enter}
+          </Link>
         </div>
       </nav>
 
@@ -211,10 +241,14 @@ export default function Home() {
               style={delay(240)}
               className="mt-9 flex flex-wrap items-center gap-5"
             >
-              {/* LANZAMIENTO: restaurar <Link href="/login">Crear mi plan</Link> */}
-              <span className="rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25">
-                Próximamente
-              </span>
+              <Link
+                href={cta.href}
+                target={cta.target}
+                rel={cta.rel}
+                className="rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/30 active:translate-y-0 active:scale-[0.98]"
+              >
+                {cta.create}
+              </Link>
               <a
                 href="#mes"
                 className="group inline-flex items-center gap-1.5 text-sm font-medium text-foreground"
@@ -478,8 +512,9 @@ export default function Home() {
             El plan mejora cuando ve lo que pasó.
           </h2>
           <p className="mt-7 max-w-xl text-lg leading-8 text-muted-foreground">
-            LucaPlan se conecta con tus bancos a través de Fintoc para llevar
-            los movimientos al presupuesto que corresponde.
+            LucaPlan se conecta con tu banco mediante un conector open source
+            que corre en tu propio equipo, y lleva los movimientos al
+            presupuesto que corresponde.
           </p>
         </div>
         <div className="grid content-center gap-8 lg:border-l lg:border-border lg:pl-16">
@@ -521,10 +556,14 @@ export default function Home() {
           <h2 className="relative mt-5 max-w-2xl text-4xl leading-[0.98] font-semibold tracking-[-0.05em] lg:text-5xl">
             Un plan más claro para el mes que viene.
           </h2>
-          {/* LANZAMIENTO: restaurar <Link href="/login">Crear mi plan</Link> */}
-          <span className="relative mt-9 inline-flex rounded-full bg-primary-foreground px-6 py-3.5 text-sm font-semibold text-primary">
-            Próximamente
-          </span>
+          <Link
+            href={cta.href}
+            target={cta.target}
+            rel={cta.rel}
+            className="relative mt-9 inline-flex rounded-full bg-primary-foreground px-6 py-3.5 text-sm font-semibold text-primary transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 active:scale-[0.98]"
+          >
+            {cta.create}
+          </Link>
         </div>
       </section>
 
@@ -550,8 +589,7 @@ export default function Home() {
                 <li><a href="#app" className="transition-colors hover:text-foreground">La app</a></li>
                 <li><a href="#categorias" className="transition-colors hover:text-foreground">Categorización con IA</a></li>
                 <li><a href="#conecta" className="transition-colors hover:text-foreground">Conecta tu banco</a></li>
-                {/* LANZAMIENTO: restaurar <Link href="/login">Entrar</Link> */}
-                <li><span>Próximamente</span></li>
+                <li><Link href={cta.href} target={cta.target} rel={cta.rel} className="transition-colors hover:text-foreground">{cta.enter}</Link></li>
               </ul>
             </nav>
 
@@ -574,23 +612,49 @@ export default function Home() {
             <div className="text-sm">
               <p className="font-semibold">Seguridad</p>
               <p className="mt-4 max-w-xs leading-6 text-muted-foreground">
-                Conexión bancaria de solo lectura a través de{" "}
-                <a
-                  href="https://fintoc.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-2 transition-colors hover:text-foreground"
-                >
-                  Fintoc
-                </a>
-                . LucaPlan nunca conoce tus claves ni puede mover tu dinero.
+                Conexión bancaria de solo lectura con un conector open source
+                que corre en tu propio equipo: tus credenciales nunca salen de
+                tu dispositivo y LucaPlan no puede mover tu dinero.
               </p>
             </div>
           </div>
 
           <div className="mt-12 flex flex-col gap-3 border-t border-border pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-            <p>© 2026 LucaPlan. Todos los derechos reservados.</p>
-            <p>Tratamiento de datos conforme a la Ley 21.719 (Chile).</p>
+            <p>
+              © 2026 LucaPlan · Open source, hecho por{" "}
+              <a
+                href={LINKEDIN_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 transition-colors hover:text-foreground"
+              >
+                Welliton da Costa Prado
+              </a>
+              .
+            </p>
+            <div className="flex items-center gap-5">
+              <p>Tratamiento de datos conforme a la Ley 21.719 (Chile).</p>
+              <div className="flex items-center gap-1">
+                <a
+                  href={GITHUB_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="GitHub"
+                  className="grid size-9 place-items-center rounded-md transition-colors hover:text-foreground"
+                >
+                  <GitHubIcon />
+                </a>
+                <a
+                  href={LINKEDIN_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="LinkedIn"
+                  className="grid size-9 place-items-center rounded-md transition-colors hover:text-foreground"
+                >
+                  <LinkedInIcon />
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </footer>

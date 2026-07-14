@@ -318,6 +318,13 @@ export const transactionRepository: TransactionRepository = {
         { category: { name: { contains: f.query, mode: "insensitive" } } },
       ];
     }
+    // Triage: el flag mete el criterio de elegibilidad COMPLETO al where (no post-filtrado),
+    // para que el `take` no se consuma con filas inelegibles.
+    if (f.uncategorized) {
+      where.categoryId = null;
+      where.status = { notIn: ["reversed", "duplicated"] };
+      where.isInternal = false;
+    }
     const rows = await prisma.transaction.findMany({
       where,
       orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
@@ -379,6 +386,12 @@ export const transactionRepository: TransactionRepository = {
   // Asigna/cambia solo la categoría (no toca el saldo; sirve para movimientos fintoc).
   async setCategory(transactionId: string, categoryId: string | null) {
     return toTransaction(await prisma.transaction.update({ where: { id: transactionId }, data: { categoryId } }));
+  },
+  // IA: escritura condicional atómica — el WHERE exige `categoryId IS NULL`, así la elección
+  // manual concurrente del usuario nunca se sobrescribe.
+  async setCategoryIfUncategorized(transactionId: string, categoryId: string) {
+    const res = await prisma.transaction.updateMany({ where: { id: transactionId, categoryId: null }, data: { categoryId } });
+    return res.count > 0;
   },
   // Borra un movimiento manual revirtiendo su efecto en el saldo, atómico.
   async delete(transactionId: string) {

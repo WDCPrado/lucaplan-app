@@ -76,6 +76,9 @@ class FakeTx implements TransactionRepository {
   async setCategory(): Promise<never> {
     throw new Error("no usado en este test");
   }
+  async setCategoryIfUncategorized(): Promise<never> {
+    throw new Error("no usado en este test");
+  }
   async delete() {}
   async importMovements() {
     return [];

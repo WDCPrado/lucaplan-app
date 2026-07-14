@@ -239,6 +239,28 @@ export async function listTransactions(deps: ReadDeps, userId: string, year: num
     );
 }
 
+// Tope del triage: se piden TRIAGE_LIMIT+1 filas para señalar "hay más" sin count.
+const TRIAGE_LIMIT = 50;
+
+export type UncategorizedDTO = { transactions: TransactionDTO[]; hasMore: boolean };
+
+// Movimientos sin categoría elegibles del usuario (todos los periodos, más nuevos primero) para
+// el triage del dashboard. El criterio de elegibilidad vive en el filtro `uncategorized` del repo.
+export async function listUncategorized(
+  deps: { transactions: TransactionRepository; accounts: AccountRepository },
+  userId: string,
+): Promise<UncategorizedDTO> {
+  const [txs, accounts] = await Promise.all([
+    deps.transactions.searchByUser(userId, { uncategorized: true, limit: TRIAGE_LIMIT + 1 }),
+    deps.accounts.listByUser(userId),
+  ]);
+  const manual = new Set(accounts.filter((a) => a.provider === "manual").map((a) => a.id));
+  return {
+    transactions: txs.slice(0, TRIAGE_LIMIT).map((t) => txToDTO(t, undefined, null, null, manual.has(t.accountId))),
+    hasMore: txs.length > TRIAGE_LIMIT,
+  };
+}
+
 // Búsqueda de movimientos con filtros combinados. Devuelve TransactionDTO[] (sin "quedan" histórico,
 // que es propio de la vista por periodo). editable según el origen de la cuenta.
 export async function searchTransactions(deps: ReadDeps, userId: string, filters: TransactionSearchFilters): Promise<TransactionDTO[]> {

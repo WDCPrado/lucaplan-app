@@ -21,6 +21,7 @@ import { AccountModal } from "./account-modal";
 import { AccountInfoModal } from "./account-info-modal";
 import { SyncBancoChileButton } from "./sync-bancochile-button";
 import { CategorizationAutoRefresh } from "./categorization-auto-refresh";
+import { UncategorizedTriage } from "./uncategorized-triage";
 import { TransactionModal } from "./transaction-modal";
 import { TransactionSearch } from "./transaction-search";
 import { formatCLP, formatCompact, monthName } from "@/lib/finance-format";
@@ -30,6 +31,7 @@ import type {
   CategoryDTO,
   MonthlySummaryDTO,
   TransactionDTO,
+  UncategorizedDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read";
 
 type Props = {
@@ -38,12 +40,13 @@ type Props = {
   accounts: AccountDTO[];
   budget: BudgetViewDTO;
   transactions: TransactionDTO[];
+  uncategorized: UncategorizedDTO;
   user: { name: string; initial: string; email: string };
 };
 
 // Dashboard desktop-first: AppShell (sidebar + topbar + FAB) con el contenido en grid
 // multi-columna. Las mutaciones van por la API + router.refresh() dentro de cada superficie.
-export function Dashboard({ period, summary, accounts, budget, transactions, user }: Props) {
+export function Dashboard({ period, summary, accounts, budget, transactions, uncategorized, user }: Props) {
   const router = useRouter();
   const [showBalance, setShowBalance] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
@@ -55,6 +58,10 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
   const [infoAccount, setInfoAccount] = useState<AccountDTO | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [budgetLimitOpen, setBudgetLimitOpen] = useState(false);
+  // Triage de sin categoría: descartado no reaparece hasta la PRÓXIMA carga (el estado vive en
+  // el cliente; recargar la app lo resetea). Se monta solo mientras está abierto.
+  const [triageDismissed, setTriageDismissed] = useState(false);
+  const triageOpen = uncategorized.transactions.length > 0 && !triageDismissed;
 
   // Solo cuentas manuales aceptan movimientos a mano; las conectadas (fintoc) son de solo lectura.
   const manualAccounts = accounts.filter((a) => a.provider === "manual");
@@ -339,7 +346,22 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
           setDetailTx(tx);
         }}
       />
-      {hasConnected && <CategorizationAutoRefresh />}
+      {triageOpen && (
+        <UncategorizedTriage
+          transactions={uncategorized.transactions}
+          hasMore={uncategorized.hasMore}
+          accounts={accounts}
+          categories={budget.categories}
+          onClose={() => setTriageDismissed(true)}
+          onCreateCategory={() => {
+            setTriageDismissed(true);
+            setEditCat(null); // abre el modal de categoría existente; el triage vuelve en la próxima carga
+          }}
+        />
+      )}
+      {/* Auto-refresh pausado mientras el triage está abierto: sus router.refresh() reemplazarían
+          las props del dashboard bajo el overlay en plena interacción. */}
+      {hasConnected && !triageOpen && <CategorizationAutoRefresh />}
     </AppShell>
   );
 }

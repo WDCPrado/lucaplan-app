@@ -272,6 +272,10 @@ export type TransactionSearchFilters = {
   from?: Date;
   to?: Date;
   limit?: number;
+  // Triage: solo movimientos sin categoría ELEGIBLES (excluye reversed/duplicated e internos).
+  // El repo mete el criterio completo al filtro, no post-filtra: el límite no se consume con
+  // filas inelegibles.
+  uncategorized?: boolean;
 };
 
 // --- Ports (los implementa la infraestructura; aquí solo el contrato) ---
@@ -360,6 +364,9 @@ export interface TransactionRepository {
   update(input: UpdateTransaction): Promise<Transaction>;
   // Asigna/cambia solo la categoría (permitido también en movimientos fintoc; no toca el saldo).
   setCategory(transactionId: string, categoryId: string | null): Promise<Transaction>;
+  // IA: asigna la categoría SOLO si el movimiento sigue sin categoría (escritura condicional
+  // atómica). En la carrera IA↔usuario gana el usuario. Devuelve si escribió.
+  setCategoryIfUncategorized(transactionId: string, categoryId: string): Promise<boolean>;
   // Borra un movimiento manual revirtiendo su efecto en el saldo, atómico.
   delete(transactionId: string): Promise<void>;
   // Fintoc: importa movimientos por upsert (accountId, externalId), preservando la categoría

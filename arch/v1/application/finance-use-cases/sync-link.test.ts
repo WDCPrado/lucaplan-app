@@ -118,6 +118,9 @@ function makeDeps(providerOverride?: BankAggregationProvider) {
       async setCategory() {
         throw new Error("no usado");
       },
+      async setCategoryIfUncategorized(): Promise<never> {
+        throw new Error("no usado");
+      },
       async delete() {},
       // Dedupe por (accountId, externalId), preservando categoryId (como el upsert de Prisma).
       // Devuelve [] porque estos tests no ejercen la categorización (deps.categorization ausente).

@@ -21,9 +21,10 @@ async function resolveUserId(): Promise<string> {
     if (u) return u.id;
     throw new Error(`No hay usuario con email ${email}.`);
   }
-  const only = await prisma.user.findFirst(); // uso personal: único usuario
-  if (!only) throw new Error("No hay usuarios. Configura BANCOCHILE_USER_ID o BANCOCHILE_USER_EMAIL.");
-  return only.id;
+  // Sin env: el usuario que tiene credenciales de bancochile guardadas (el que conectó en la app).
+  const cred = await prisma.bankCredential.findFirst({ where: { provider: "bancochile" } });
+  if (cred) return cred.userId;
+  throw new Error("No hay credenciales de Banco de Chile guardadas. Conéctate en la app o configura BANCOCHILE_USER_ID/EMAIL.");
 }
 
 const userId = await resolveUserId();

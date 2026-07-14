@@ -1,6 +1,6 @@
 // Tipo de cambio USD→CLP (dólar observado) desde mindicador.cl — API pública chilena, gratis y sin
-// key. Se usa para convertir los movimientos internacionales de tarjeta (USD) a CLP y que cuenten en
-// el presupuesto. Best-effort: si la API falla, cae a un valor aproximado para no perder el gasto.
+// key. Se usa para convertir los movimientos internacionales de tarjeta (montoCompra en USD) a CLP.
+// Best-effort: si la API falla, cae a un valor aproximado para no perder el gasto.
 const FALLBACK_CLP_PER_USD = 950; // ponytail: aproximado de respaldo si mindicador no responde.
 
 export async function getUsdClpRate(): Promise<number> {

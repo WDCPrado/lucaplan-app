@@ -59,7 +59,7 @@ function makeConnector(over?: Partial<LocalBankConnector>): LocalBankConnector {
         { date: day(2026, 6, 10), description: "DR. CLINICA", amount: 86795, currency: "CLP", scope: "national", installments: null },
         { date: day(2026, 6, 8), description: "PAYWASH", amount: 1400, currency: "CLP", scope: "national", installments: null },
         { date: day(2026, 6, 8), description: "PAYWASH", amount: 1400, currency: "CLP", scope: "national", installments: null }, // idéntico legítimo
-        { date: day(2026, 6, 7), description: "AWS", amount: 4851, currency: "USD", scope: "international", installments: null },
+        { date: day(2026, 6, 7), description: "AWS", amount: 4851, currency: "CLP", scope: "international", installments: null }, // montoCompra ya en CLP
       ];
     },
     async close() {},
@@ -135,13 +135,13 @@ test("sync local: crea banco, cuentas, tarjetas y buckets; sobregiro usado se ca
   assert.equal(intl?.currency, "USD");
 });
 
-test("sync local: cartola importa la ventana; el internacional se convierte a CLP y cuenta como gasto", async () => {
+test("sync local: cartola importa la ventana; el internacional se usa en CLP (montoCompra) y cuenta como gasto", async () => {
   const { deps, state } = makeDeps(makeConnector());
   await syncLocalConnection(deps, "u1", { now: NOW });
   assert.equal(state.cartola.length, 2);
   assert.equal(state.unbilled.length, 4); // 3 nacionales + 1 internacional; las 2 PAYWASH no se fusionan
   const aws = state.unbilled.find((u) => u.description === "AWS")!;
-  assert.ok(aws.amount > 40000, "US$48,51 se convirtió a CLP (× índice dólar), no quedó en 48");
+  assert.equal(aws.amount, 4851, "el internacional se usa en CLP directo (montoCompra), sin convertir ni explotar");
   assert.ok(state.unbilled.every((u) => u.direction === "debit" && !u.isInternal), "compras = gasto, no interno");
 });
 

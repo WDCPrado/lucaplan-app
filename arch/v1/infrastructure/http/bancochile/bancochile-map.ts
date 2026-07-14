@@ -113,20 +113,22 @@ export function mapCartolaMovimientos(movimientos: any[]): RawMovement[] {
   });
 }
 
-// Movimientos no facturados de tarjeta → RawUnbilledMovement (sin id; ámbito NAC/INT → moneda).
-export function mapNoFacturados(lista: any[]): RawUnbilledMovement[] {
+// Movimientos no facturados de tarjeta → RawUnbilledMovement (en CLP). `montoCompra` viene en la
+// moneda ORIGINAL: CLP para nacional, USD para internacional. `codigoMonedaOrigen` es el ISO 4217
+// numérico (152=CLP, 840=USD). Los USD se convierten a CLP con el índice dólar (`usdClpRate`). El signo
+// se conserva (negativo = pago a la tarjeta).
+export function mapNoFacturados(lista: any[], usdClpRate: number): RawUnbilledMovement[] {
   return (lista ?? []).map((m) => {
     const scope: "national" | "international" = m.origenTransaccion === "INT" ? "international" : "national";
-    const currency = scope === "international" ? "USD" : "CLP";
-    // VERIFICAR: para INT, ¿el monto en USD es montoMonedaOrigen? (montoCompra podría venir en CLP).
-    const rawAmount = scope === "international" ? (m.montoMonedaOrigen ?? m.montoCompra) : m.montoCompra;
-    const amount = currency === "USD" ? usdMinor(rawAmount) : clpMinor(rawAmount);
+    const isUsd = m.codigoMonedaOrigen === 840 || (m.codigoMonedaOrigen == null && scope === "international");
+    const native = Number(m.montoCompra ?? 0); // en su moneda original (CLP pesos o USD dólares)
+    const clpPesos = isUsd ? Math.round(native * usdClpRate) : Math.round(native);
     const [cur, tot] = String(m.despliegueCuotas ?? "").split("/").map((n) => Number(n));
     return {
       date: new Date(Number(m.fechaTransaccion ?? 0)),
       description: m.glosaTransaccion ?? "",
-      amount,
-      currency,
+      amount: clpPesos, // CLP (internacional ya convertido)
+      currency: "CLP",
       scope,
       installments: cur && tot ? { current: cur, total: tot } : null,
     };

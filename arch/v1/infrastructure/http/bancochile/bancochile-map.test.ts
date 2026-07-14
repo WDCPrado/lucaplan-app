@@ -61,16 +61,19 @@ test("mapCartolaMovimientos: cargo = gasto (−), abono = ingreso (+); id establ
   assert.equal(movs[0].date.getUTCMonth(), 6); // julio (0-indexed)
 });
 
-test("mapNoFacturados: ámbito NAC→CLP, INT→USD (centavos)", () => {
-  const nf = mapNoFacturados([
-    { origenTransaccion: "NAC", glosaTransaccion: "Clinica", montoCompra: 86795, fechaTransaccion: 1783656000000, despliegueCuotas: "01/01" },
-    { origenTransaccion: "INT", glosaTransaccion: "AWS", montoCompra: 45000, montoMonedaOrigen: "48.51", fechaTransaccion: 1783656000000, despliegueCuotas: "03/12" },
-  ]);
+test("mapNoFacturados: NAC en CLP directo; INT (codigoMonedaOrigen 840=USD) se convierte con el índice", () => {
+  const nf = mapNoFacturados(
+    [
+      { origenTransaccion: "NAC", glosaTransaccion: "Clinica", montoCompra: 86795, codigoMonedaOrigen: 152, fechaTransaccion: 1783656000000, despliegueCuotas: "01/01" },
+      { origenTransaccion: "INT", glosaTransaccion: "AWS", montoCompra: 48.51, codigoMonedaOrigen: 840, fechaTransaccion: 1783656000000, despliegueCuotas: "03/12" },
+    ],
+    950, // índice USD→CLP
+  );
   assert.equal(nf[0].scope, "national");
   assert.equal(nf[0].currency, "CLP");
-  assert.equal(nf[0].amount, 86795);
+  assert.equal(nf[0].amount, 86795); // CLP directo
   assert.equal(nf[1].scope, "international");
-  assert.equal(nf[1].currency, "USD");
-  assert.equal(nf[1].amount, 4851); // montoMonedaOrigen 48.51 USD → centavos
+  assert.equal(nf[1].currency, "CLP");
+  assert.equal(nf[1].amount, Math.round(48.51 * 950)); // US$48,51 × 950 = 46.085 CLP (no $48 ni millones)
   assert.deepEqual(nf[1].installments, { current: 3, total: 12 });
 });

@@ -1,0 +1,3848 @@
+{
+  "metadata": {
+    "name": "catalogo_empresas_comercios_chile",
+    "version": "1.0.0",
+    "generated_at": "2026-07-14",
+    "country": "CL",
+    "language": "es",
+    "purpose": "Normalización y categorización inicial de movimientos bancarios y compras.",
+    "scope": "Marcas y servicios frecuentes en Chile, más servicios digitales internacionales comúnmente cobrados a usuarios chilenos.",
+    "important_notes": [
+      "No es un catastro exhaustivo de todas las empresas de Chile.",
+      "Los descriptores bancarios cambian según banco, adquirente, sucursal, razón social y pasarela de pago.",
+      "Los términos de coincidencia deben compararse sin distinguir mayúsculas, acentos ni signos.",
+      "Los intermediarios de pago no deben definir por sí solos la categoría final del gasto.",
+      "Conviene combinar este catálogo con reglas aprendidas desde las transacciones reales del usuario."
+    ],
+    "company_count": 222
+  },
+  "companies": [
+    {
+      "id": "uber",
+      "name": "Uber",
+      "category": "transporte",
+      "subcategory": "movilidad_por_app",
+      "description": "Plataforma de viajes en automóvil y taxi solicitados mediante aplicación.",
+      "aliases": [
+        "UBER",
+        "UBER TRIP",
+        "UBER *TRIP",
+        "UBER BV",
+        "UBER CHILE"
+      ],
+      "match_terms": [
+        "uber",
+        "uber *trip",
+        "uber bv",
+        "uber chile",
+        "uber trip"
+      ],
+      "presence": "chile",
+      "notes": "No confundir con Uber Eats."
+    },
+    {
+      "id": "cabify",
+      "name": "Cabify",
+      "category": "transporte",
+      "subcategory": "movilidad_por_app",
+      "description": "Plataforma de transporte de pasajeros, reservas y envíos solicitados mediante aplicación.",
+      "aliases": [
+        "CABIFY",
+        "CABIFY CHILE",
+        "CABIFY CL",
+        "MAXI MOBILITY"
+      ],
+      "match_terms": [
+        "cabify",
+        "cabify chile",
+        "cabify cl",
+        "maxi mobility"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "didi",
+      "name": "DiDi",
+      "category": "transporte",
+      "subcategory": "movilidad_por_app",
+      "description": "Aplicación de movilidad para viajes en vehículos particulares y taxis.",
+      "aliases": [
+        "DIDI",
+        "DIDI CHILE",
+        "DIDI PASAJERO",
+        "DIDI MOBILITY"
+      ],
+      "match_terms": [
+        "didi",
+        "didi chile",
+        "didi mobility",
+        "didi pasajero"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "indrive",
+      "name": "inDrive",
+      "category": "transporte",
+      "subcategory": "movilidad_por_app",
+      "description": "Aplicación de movilidad en la que pasajero y conductor pueden acordar el valor del viaje.",
+      "aliases": [
+        "INDRIVE",
+        "IN DRIVE",
+        "INDRIVER",
+        "I.N.D MOBILE"
+      ],
+      "match_terms": [
+        "i.n.d mobile",
+        "in drive",
+        "indrive",
+        "indriver"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "metro-de-santiago",
+      "name": "Metro de Santiago",
+      "category": "transporte",
+      "subcategory": "transporte_publico",
+      "description": "Operador del ferrocarril metropolitano de Santiago.",
+      "aliases": [
+        "METRO",
+        "METRO SANTIAGO",
+        "METRO DE SANTIAGO"
+      ],
+      "match_terms": [
+        "metro",
+        "metro de santiago",
+        "metro santiago"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "red-movilidad",
+      "name": "Red Movilidad",
+      "category": "transporte",
+      "subcategory": "transporte_publico",
+      "description": "Sistema integrado de buses del transporte público de Santiago.",
+      "aliases": [
+        "RED MOVILIDAD",
+        "TRANSANTIAGO",
+        "RED BUS"
+      ],
+      "match_terms": [
+        "red bus",
+        "red movilidad",
+        "transantiago"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "tarjeta-bip!",
+      "name": "Tarjeta bip!",
+      "category": "transporte",
+      "subcategory": "transporte_publico",
+      "description": "Medio de pago y recarga para Metro, buses Red y otros servicios integrados.",
+      "aliases": [
+        "BIP",
+        "TARJETA BIP",
+        "RECARGA BIP",
+        "BIP QR"
+      ],
+      "match_terms": [
+        "bip",
+        "bip qr",
+        "recarga bip",
+        "tarjeta bip"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "efe-trenes-de-chile",
+      "name": "EFE Trenes de Chile",
+      "category": "transporte",
+      "subcategory": "tren",
+      "description": "Empresa ferroviaria de pasajeros que opera servicios urbanos e interurbanos.",
+      "aliases": [
+        "EFE",
+        "EFE TRENES",
+        "TREN CENTRAL",
+        "METROTREN"
+      ],
+      "match_terms": [
+        "efe",
+        "efe trenes",
+        "metrotren",
+        "tren central"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "turbus",
+      "name": "Turbus",
+      "category": "transporte",
+      "subcategory": "bus_interurbano",
+      "description": "Empresa de buses interurbanos y servicios de transporte de pasajeros.",
+      "aliases": [
+        "TURBUS",
+        "TUR BUS",
+        "TURBUS.CL"
+      ],
+      "match_terms": [
+        "tur bus",
+        "turbus",
+        "turbus.cl"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "pullman-bus",
+      "name": "Pullman Bus",
+      "category": "transporte",
+      "subcategory": "bus_interurbano",
+      "description": "Empresa y red de servicios de buses interurbanos.",
+      "aliases": [
+        "PULLMAN BUS",
+        "PULLMAN",
+        "PULLMANBUS"
+      ],
+      "match_terms": [
+        "pullman",
+        "pullman bus",
+        "pullmanbus"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "recorridocl",
+      "name": "Recorrido.cl",
+      "category": "transporte",
+      "subcategory": "venta_pasajes",
+      "description": "Plataforma de comparación y venta de pasajes de buses interurbanos.",
+      "aliases": [
+        "RECORRIDO",
+        "RECORRIDO.CL"
+      ],
+      "match_terms": [
+        "recorrido",
+        "recorrido.cl"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "latam-airlines",
+      "name": "LATAM Airlines",
+      "category": "viajes",
+      "subcategory": "aerolinea",
+      "description": "Aerolínea que vende vuelos nacionales e internacionales, equipaje y servicios asociados.",
+      "aliases": [
+        "LATAM",
+        "LATAM AIRLINES",
+        "LATAM AIR",
+        "LAN AIRLINES"
+      ],
+      "match_terms": [
+        "lan airlines",
+        "latam",
+        "latam air",
+        "latam airlines"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "sky-airline",
+      "name": "SKY Airline",
+      "category": "viajes",
+      "subcategory": "aerolinea",
+      "description": "Aerolínea de bajo costo para vuelos nacionales e internacionales.",
+      "aliases": [
+        "SKY AIRLINE",
+        "SKY AIR",
+        "SKY AIRLINES"
+      ],
+      "match_terms": [
+        "sky air",
+        "sky airline",
+        "sky airlines"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "jetsmart",
+      "name": "JetSMART",
+      "category": "viajes",
+      "subcategory": "aerolinea",
+      "description": "Aerolínea de ultra bajo costo para rutas nacionales e internacionales.",
+      "aliases": [
+        "JETSMART",
+        "JET SMART",
+        "JETSMART AIRLINES"
+      ],
+      "match_terms": [
+        "jet smart",
+        "jetsmart",
+        "jetsmart airlines"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "nuevo-pudahuel",
+      "name": "Nuevo Pudahuel",
+      "category": "viajes",
+      "subcategory": "aeropuerto",
+      "description": "Concesionaria del Aeropuerto Arturo Merino Benítez de Santiago y servicios aeroportuarios.",
+      "aliases": [
+        "NUEVO PUDAHUEL",
+        "AEROPUERTO SCL",
+        "SCL PARKING"
+      ],
+      "match_terms": [
+        "aeropuerto scl",
+        "nuevo pudahuel",
+        "scl parking"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "saba-estacionamientos",
+      "name": "Saba Estacionamientos",
+      "category": "transporte",
+      "subcategory": "estacionamiento",
+      "description": "Operador de estacionamientos urbanos, comerciales y hospitalarios.",
+      "aliases": [
+        "SABA",
+        "SABA ESTACIONAMIENTOS",
+        "SABA PARKING"
+      ],
+      "match_terms": [
+        "saba",
+        "saba estacionamientos",
+        "saba parking"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "aparca",
+      "name": "Aparca",
+      "category": "transporte",
+      "subcategory": "estacionamiento",
+      "description": "Servicio digital y operador asociado al pago de estacionamientos.",
+      "aliases": [
+        "APARCA",
+        "APARCA APP"
+      ],
+      "match_terms": [
+        "aparca",
+        "aparca app"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "uber-eats",
+      "name": "Uber Eats",
+      "category": "comida",
+      "subcategory": "delivery",
+      "description": "Plataforma de pedidos y entrega de comida, supermercado y comercios.",
+      "aliases": [
+        "UBER EATS",
+        "UBEREATS",
+        "UBER *EATS",
+        "UBER BV EATS"
+      ],
+      "match_terms": [
+        "uber *eats",
+        "uber bv eats",
+        "uber eats",
+        "ubereats"
+      ],
+      "presence": "chile",
+      "notes": "No clasificar como transporte de pasajeros."
+    },
+    {
+      "id": "rappi",
+      "name": "Rappi",
+      "category": "comida",
+      "subcategory": "delivery",
+      "description": "Aplicación de delivery para restaurantes, supermercados, farmacias y otros comercios.",
+      "aliases": [
+        "RAPPI",
+        "RAPPI CHILE",
+        "RAPPI PAY",
+        "RAPPI PRIME"
+      ],
+      "match_terms": [
+        "rappi",
+        "rappi chile",
+        "rappi pay",
+        "rappi prime"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "pedidosya",
+      "name": "PedidosYa",
+      "category": "comida",
+      "subcategory": "delivery",
+      "description": "Plataforma de pedidos y reparto de comida, supermercado, farmacia y tiendas.",
+      "aliases": [
+        "PEDIDOSYA",
+        "PEDIDOS YA",
+        "PEDIDOSYA CHILE",
+        "DELIVERY HERO"
+      ],
+      "match_terms": [
+        "delivery hero",
+        "pedidos ya",
+        "pedidosya",
+        "pedidosya chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "justo",
+      "name": "Justo",
+      "category": "comida",
+      "subcategory": "plataforma_pedidos",
+      "description": "Plataforma utilizada por restaurantes y comercios para recibir pedidos directos.",
+      "aliases": [
+        "JUSTO",
+        "GETJUSTO",
+        "GET JUSTO"
+      ],
+      "match_terms": [
+        "get justo",
+        "getjusto",
+        "justo"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "blue-express",
+      "name": "Blue Express",
+      "category": "compras",
+      "subcategory": "envios",
+      "description": "Empresa de distribución, courier y entrega de compras de comercio electrónico.",
+      "aliases": [
+        "BLUE EXPRESS",
+        "BLUEXPRESS",
+        "BLUE XPRESS"
+      ],
+      "match_terms": [
+        "blue express",
+        "blue xpress",
+        "bluexpress"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "dunkin",
+      "name": "Dunkin'",
+      "category": "comida",
+      "subcategory": "cafeteria",
+      "description": "Cadena de cafeterías especializada en donuts, café, bebidas y productos de desayuno.",
+      "aliases": [
+        "DUNKIN",
+        "DUNKIN DONUTS",
+        "DUNKIN CHILE",
+        "DUNKIN'"
+      ],
+      "match_terms": [
+        "dunkin",
+        "dunkin chile",
+        "dunkin donuts",
+        "dunkin'"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "starbucks",
+      "name": "Starbucks",
+      "category": "comida",
+      "subcategory": "cafeteria",
+      "description": "Cadena de cafeterías que vende café, bebidas, alimentos y productos de marca.",
+      "aliases": [
+        "STARBUCKS",
+        "STARBUCKS CHILE",
+        "STARBUCKS COFFEE"
+      ],
+      "match_terms": [
+        "starbucks",
+        "starbucks chile",
+        "starbucks coffee"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "juan-valdez-cafe",
+      "name": "Juan Valdez Café",
+      "category": "comida",
+      "subcategory": "cafeteria",
+      "description": "Cadena de cafeterías y venta de café colombiano.",
+      "aliases": [
+        "JUAN VALDEZ",
+        "JUAN VALDEZ CAFE"
+      ],
+      "match_terms": [
+        "juan valdez",
+        "juan valdez cafe"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "castano",
+      "name": "Castaño",
+      "category": "comida",
+      "subcategory": "panaderia_cafeteria",
+      "description": "Cadena chilena de panaderías, cafeterías y comida preparada.",
+      "aliases": [
+        "CASTAÑO",
+        "CASTANO",
+        "CASTAÑO PANADERIAS"
+      ],
+      "match_terms": [
+        "castano",
+        "castaño",
+        "castaño panaderias"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "san-camilo",
+      "name": "San Camilo",
+      "category": "comida",
+      "subcategory": "panaderia_cafeteria",
+      "description": "Cadena de panaderías, pastelerías y cafeterías.",
+      "aliases": [
+        "SAN CAMILO",
+        "PANADERIA SAN CAMILO"
+      ],
+      "match_terms": [
+        "panaderia san camilo",
+        "san camilo"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "mcdonalds",
+      "name": "McDonald's",
+      "category": "comida",
+      "subcategory": "comida_rapida",
+      "description": "Cadena de comida rápida especializada en hamburguesas, papas, postres y desayunos.",
+      "aliases": [
+        "MCDONALDS",
+        "MC DONALDS",
+        "MCDONALD'S",
+        "ARCOS DORADOS"
+      ],
+      "match_terms": [
+        "arcos dorados",
+        "mc donalds",
+        "mcdonald's",
+        "mcdonalds"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "burger-king",
+      "name": "Burger King",
+      "category": "comida",
+      "subcategory": "comida_rapida",
+      "description": "Cadena de comida rápida especializada en hamburguesas y menús combinados.",
+      "aliases": [
+        "BURGER KING",
+        "BK CHILE",
+        "MI BK"
+      ],
+      "match_terms": [
+        "bk chile",
+        "burger king",
+        "mi bk"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "kfc",
+      "name": "KFC",
+      "category": "comida",
+      "subcategory": "comida_rapida",
+      "description": "Cadena de comida rápida especializada en pollo frito, sándwiches y acompañamientos.",
+      "aliases": [
+        "KFC",
+        "KENTUCKY FRIED CHICKEN",
+        "KFC CHILE"
+      ],
+      "match_terms": [
+        "kentucky fried chicken",
+        "kfc",
+        "kfc chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "subway",
+      "name": "Subway",
+      "category": "comida",
+      "subcategory": "comida_rapida",
+      "description": "Cadena de sándwiches preparados a elección, ensaladas y galletas.",
+      "aliases": [
+        "SUBWAY",
+        "SUBWAY CHILE"
+      ],
+      "match_terms": [
+        "subway",
+        "subway chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "taco-bell",
+      "name": "Taco Bell",
+      "category": "comida",
+      "subcategory": "comida_rapida",
+      "description": "Cadena de comida rápida de inspiración mexicana.",
+      "aliases": [
+        "TACO BELL",
+        "TACOBELL"
+      ],
+      "match_terms": [
+        "taco bell",
+        "tacobell"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "doggis",
+      "name": "Doggis",
+      "category": "comida",
+      "subcategory": "comida_rapida",
+      "description": "Cadena chilena especializada en hot dogs, papas fritas y menús rápidos.",
+      "aliases": [
+        "DOGGIS",
+        "DOGGI'S",
+        "DOGGIS CHILE"
+      ],
+      "match_terms": [
+        "doggi's",
+        "doggis",
+        "doggis chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "juan-maestro",
+      "name": "Juan Maestro",
+      "category": "comida",
+      "subcategory": "sandwicheria",
+      "description": "Cadena chilena de sándwiches, churrascos y preparaciones tradicionales.",
+      "aliases": [
+        "JUAN MAESTRO",
+        "JUANMAESTRO"
+      ],
+      "match_terms": [
+        "juan maestro",
+        "juanmaestro"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "tommy-beans",
+      "name": "Tommy Beans",
+      "category": "comida",
+      "subcategory": "comida_rapida",
+      "description": "Cadena de comida rápida de inspiración mexicana, con burritos, tacos y bowls.",
+      "aliases": [
+        "TOMMY BEANS",
+        "TOMMYBEANS"
+      ],
+      "match_terms": [
+        "tommy beans",
+        "tommybeans"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "tarragona",
+      "name": "Tarragona",
+      "category": "comida",
+      "subcategory": "comida_rapida",
+      "description": "Cadena chilena de comida rápida especializada en pollo, sándwiches y acompañamientos.",
+      "aliases": [
+        "TARRAGONA",
+        "TARRAGONA CHILE"
+      ],
+      "match_terms": [
+        "tarragona",
+        "tarragona chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "pedro,-juan-y-diego",
+      "name": "Pedro, Juan & Diego",
+      "category": "comida",
+      "subcategory": "comida_rapida",
+      "description": "Cadena chilena de hamburguesas, completos, sándwiches y papas fritas.",
+      "aliases": [
+        "PEDRO JUAN Y DIEGO",
+        "PEDRO, JUAN & DIEGO",
+        "PJD"
+      ],
+      "match_terms": [
+        "pedro juan y diego",
+        "pedro, juan & diego",
+        "pjd"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "domino",
+      "name": "Dominó",
+      "category": "comida",
+      "subcategory": "sandwicheria",
+      "description": "Cadena chilena de completos, churrascos, sándwiches y platos rápidos.",
+      "aliases": [
+        "DOMINO",
+        "DOMINÓ",
+        "DOMINO FUENTE DE SODA"
+      ],
+      "match_terms": [
+        "domino",
+        "domino fuente de soda",
+        "dominó"
+      ],
+      "presence": "chile",
+      "notes": "No confundir con Domino's Pizza."
+    },
+    {
+      "id": "fuente-alemana",
+      "name": "Fuente Alemana",
+      "category": "comida",
+      "subcategory": "sandwicheria",
+      "description": "Restaurante tradicional chileno especializado en lomitos, churrascos y sándwiches.",
+      "aliases": [
+        "FUENTE ALEMANA"
+      ],
+      "match_terms": [
+        "fuente alemana"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "papa-johns",
+      "name": "Papa Johns",
+      "category": "comida",
+      "subcategory": "pizzeria",
+      "description": "Cadena de pizzerías con delivery, retiro y consumo en local.",
+      "aliases": [
+        "PAPA JOHNS",
+        "PAPA JOHN'S",
+        "PAPAJOHNS"
+      ],
+      "match_terms": [
+        "papa john's",
+        "papa johns",
+        "papajohns"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "little-caesars",
+      "name": "Little Caesars",
+      "category": "comida",
+      "subcategory": "pizzeria",
+      "description": "Cadena de pizzerías orientada a venta rápida, retiro y delivery.",
+      "aliases": [
+        "LITTLE CAESARS",
+        "LITTLECAESARS"
+      ],
+      "match_terms": [
+        "little caesars",
+        "littlecaesars"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "melt-pizzas",
+      "name": "Melt Pizzas",
+      "category": "comida",
+      "subcategory": "pizzeria",
+      "description": "Cadena chilena de pizzas con venta en local, retiro y delivery.",
+      "aliases": [
+        "MELT PIZZAS",
+        "MELT PIZZA",
+        "MELT"
+      ],
+      "match_terms": [
+        "melt",
+        "melt pizza",
+        "melt pizzas"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "emporio-la-rosa",
+      "name": "Emporio La Rosa",
+      "category": "comida",
+      "subcategory": "heladeria_cafeteria",
+      "description": "Cadena chilena de heladerías, cafeterías y restaurantes.",
+      "aliases": [
+        "EMPORIO LA ROSA",
+        "EMPORIO LAROSA"
+      ],
+      "match_terms": [
+        "emporio la rosa",
+        "emporio larosa"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "bravissimo",
+      "name": "Bravissimo",
+      "category": "comida",
+      "subcategory": "heladeria_restaurante",
+      "description": "Cadena de heladerías y restaurantes con postres, platos y cafetería.",
+      "aliases": [
+        "BRAVISSIMO"
+      ],
+      "match_terms": [
+        "bravissimo"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "yogurt-life",
+      "name": "Yogurt Life",
+      "category": "comida",
+      "subcategory": "heladeria",
+      "description": "Cadena de yogurt helado, postres y toppings.",
+      "aliases": [
+        "YOGURT LIFE",
+        "YOGURTLIFE"
+      ],
+      "match_terms": [
+        "yogurt life",
+        "yogurtlife"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "niu-sushi",
+      "name": "Niu Sushi",
+      "category": "comida",
+      "subcategory": "sushi",
+      "description": "Cadena de sushi y comida japonesa con delivery y retiro.",
+      "aliases": [
+        "NIU SUSHI",
+        "NIUSUSHI"
+      ],
+      "match_terms": [
+        "niu sushi",
+        "niusushi"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "sushi-blues",
+      "name": "Sushi Blues",
+      "category": "comida",
+      "subcategory": "sushi",
+      "description": "Cadena de sushi y comida japonesa con venta presencial y delivery.",
+      "aliases": [
+        "SUSHI BLUES",
+        "SUSHIBLUES"
+      ],
+      "match_terms": [
+        "sushi blues",
+        "sushiblues"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "china-wok",
+      "name": "China Wok",
+      "category": "comida",
+      "subcategory": "comida_rapida",
+      "description": "Cadena de comida rápida de inspiración china y asiática.",
+      "aliases": [
+        "CHINA WOK",
+        "CHINAWOK"
+      ],
+      "match_terms": [
+        "china wok",
+        "chinawok"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "tip-y-tap",
+      "name": "Tip y Tap",
+      "category": "comida",
+      "subcategory": "restaurante",
+      "description": "Cadena chilena de restaurantes y sandwicherías.",
+      "aliases": [
+        "TIP Y TAP",
+        "TIPYTAP"
+      ],
+      "match_terms": [
+        "tip y tap",
+        "tipytap"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "mamut",
+      "name": "Mamut",
+      "category": "comida",
+      "subcategory": "restaurante",
+      "description": "Cadena de restaurantes casuales con hamburguesas, carnes, sándwiches y tragos.",
+      "aliases": [
+        "MAMUT",
+        "MAMUT RESTAURANT"
+      ],
+      "match_terms": [
+        "mamut",
+        "mamut restaurant"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "chilis",
+      "name": "Chili's",
+      "category": "comida",
+      "subcategory": "restaurante",
+      "description": "Cadena de restaurantes casuales de estilo estadounidense y tex-mex.",
+      "aliases": [
+        "CHILIS",
+        "CHILI'S"
+      ],
+      "match_terms": [
+        "chili's",
+        "chilis"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "tgi-fridays",
+      "name": "TGI Fridays",
+      "category": "comida",
+      "subcategory": "restaurante",
+      "description": "Cadena de restaurantes casuales de estilo estadounidense.",
+      "aliases": [
+        "TGI FRIDAYS",
+        "FRIDAYS",
+        "T.G.I. FRIDAYS"
+      ],
+      "match_terms": [
+        "fridays",
+        "t.g.i. fridays",
+        "tgi fridays"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "lider",
+      "name": "Lider",
+      "category": "supermercado",
+      "subcategory": "hipermercado",
+      "description": "Cadena de supermercados e hipermercados con alimentos, hogar, vestuario y tecnología.",
+      "aliases": [
+        "LIDER",
+        "LÍDER",
+        "HIPER LIDER",
+        "WALMART CHILE"
+      ],
+      "match_terms": [
+        "hiper lider",
+        "lider",
+        "líder",
+        "walmart chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "express-de-lider",
+      "name": "Express de Lider",
+      "category": "supermercado",
+      "subcategory": "supermercado",
+      "description": "Formato de supermercado de proximidad de Lider.",
+      "aliases": [
+        "EXPRESS DE LIDER",
+        "LIDER EXPRESS",
+        "EXPRESS LIDER"
+      ],
+      "match_terms": [
+        "express de lider",
+        "express lider",
+        "lider express"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "superbodega-acuenta",
+      "name": "SuperBodega aCuenta",
+      "category": "supermercado",
+      "subcategory": "supermercado_descuento",
+      "description": "Cadena de supermercados de descuento y productos de consumo diario.",
+      "aliases": [
+        "ACUENTA",
+        "SUPERBODEGA ACUENTA",
+        "SUPER BODEGA A CUENTA"
+      ],
+      "match_terms": [
+        "acuenta",
+        "super bodega a cuenta",
+        "superbodega acuenta"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "jumbo",
+      "name": "Jumbo",
+      "category": "supermercado",
+      "subcategory": "hipermercado",
+      "description": "Cadena de supermercados e hipermercados de Cencosud.",
+      "aliases": [
+        "JUMBO",
+        "JUMBO CHILE",
+        "CENCOSUD JUMBO"
+      ],
+      "match_terms": [
+        "cencosud jumbo",
+        "jumbo",
+        "jumbo chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "santa-isabel",
+      "name": "Santa Isabel",
+      "category": "supermercado",
+      "subcategory": "supermercado",
+      "description": "Cadena de supermercados de Cencosud enfocada en compras de consumo diario.",
+      "aliases": [
+        "SANTA ISABEL",
+        "SANTAISABEL",
+        "CENCOSUD SANTA ISABEL"
+      ],
+      "match_terms": [
+        "cencosud santa isabel",
+        "santa isabel",
+        "santaisabel"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "unimarc",
+      "name": "Unimarc",
+      "category": "supermercado",
+      "subcategory": "supermercado",
+      "description": "Cadena de supermercados con presencia nacional y compras online.",
+      "aliases": [
+        "UNIMARC",
+        "SMU UNIMARC"
+      ],
+      "match_terms": [
+        "smu unimarc",
+        "unimarc"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "alvi",
+      "name": "Alvi",
+      "category": "supermercado",
+      "subcategory": "mayorista",
+      "description": "Supermercado mayorista orientado a comerciantes, negocios y familias.",
+      "aliases": [
+        "ALVI",
+        "ALVI MAYORISTA",
+        "SMU ALVI"
+      ],
+      "match_terms": [
+        "alvi",
+        "alvi mayorista",
+        "smu alvi"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "mayorista-10",
+      "name": "Mayorista 10",
+      "category": "supermercado",
+      "subcategory": "mayorista",
+      "description": "Cadena de supermercados mayoristas para compras por volumen y consumo familiar.",
+      "aliases": [
+        "MAYORISTA 10",
+        "MAYORISTA10",
+        "SMU MAYORISTA"
+      ],
+      "match_terms": [
+        "mayorista 10",
+        "mayorista10",
+        "smu mayorista"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "super-10",
+      "name": "Super 10",
+      "category": "supermercado",
+      "subcategory": "supermercado_descuento",
+      "description": "Formato de supermercado económico de SMU.",
+      "aliases": [
+        "SUPER 10",
+        "SUPER10"
+      ],
+      "match_terms": [
+        "super 10",
+        "super10"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "tottus",
+      "name": "Tottus",
+      "category": "supermercado",
+      "subcategory": "hipermercado",
+      "description": "Cadena de supermercados e hipermercados con alimentos, hogar y productos generales.",
+      "aliases": [
+        "TOTTUS",
+        "TOTTUS CHILE",
+        "HIPERBODEGA TOTTUS"
+      ],
+      "match_terms": [
+        "hiperbodega tottus",
+        "tottus",
+        "tottus chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "oxxo",
+      "name": "OXXO",
+      "category": "supermercado",
+      "subcategory": "tienda_conveniencia",
+      "description": "Cadena de tiendas de conveniencia con alimentos, bebidas y productos de uso diario.",
+      "aliases": [
+        "OXXO",
+        "OXXO CHILE"
+      ],
+      "match_terms": [
+        "oxxo",
+        "oxxo chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "ok-market",
+      "name": "OK Market",
+      "category": "supermercado",
+      "subcategory": "tienda_conveniencia",
+      "description": "Cadena chilena de tiendas de conveniencia y productos de consumo inmediato.",
+      "aliases": [
+        "OK MARKET",
+        "OKMARKET"
+      ],
+      "match_terms": [
+        "ok market",
+        "okmarket"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "pronto-copec",
+      "name": "Pronto Copec",
+      "category": "supermercado",
+      "subcategory": "tienda_conveniencia",
+      "description": "Tienda de conveniencia asociada a estaciones Copec, con comida, café y productos de viaje.",
+      "aliases": [
+        "PRONTO COPEC",
+        "PRONTO",
+        "PRONTO COPEC SA"
+      ],
+      "match_terms": [
+        "pronto",
+        "pronto copec",
+        "pronto copec sa"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "punto-copec",
+      "name": "Punto Copec",
+      "category": "supermercado",
+      "subcategory": "tienda_conveniencia",
+      "description": "Formato de tienda de conveniencia de Copec.",
+      "aliases": [
+        "PUNTO COPEC",
+        "PUNTO"
+      ],
+      "match_terms": [
+        "punto",
+        "punto copec"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "upa!",
+      "name": "upa!",
+      "category": "supermercado",
+      "subcategory": "tienda_conveniencia",
+      "description": "Tienda de conveniencia asociada a estaciones Shell.",
+      "aliases": [
+        "UPA",
+        "UPA!",
+        "SHELL UPA"
+      ],
+      "match_terms": [
+        "shell upa",
+        "upa",
+        "upa!"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "spacio-1",
+      "name": "Spacio 1",
+      "category": "supermercado",
+      "subcategory": "tienda_conveniencia",
+      "description": "Tienda de conveniencia asociada a estaciones Aramco y antiguas estaciones Esmax.",
+      "aliases": [
+        "SPACIO 1",
+        "SPACIO1",
+        "ESPACIO 1"
+      ],
+      "match_terms": [
+        "espacio 1",
+        "spacio 1",
+        "spacio1"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "club-de-amantes-del-vino",
+      "name": "Club de Amantes del Vino",
+      "category": "supermercado",
+      "subcategory": "bebidas",
+      "description": "Tienda especializada en vinos, licores y productos gourmet.",
+      "aliases": [
+        "CAV",
+        "CLUB DE AMANTES DEL VINO"
+      ],
+      "match_terms": [
+        "cav",
+        "club de amantes del vino"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "la-vinoteca",
+      "name": "La Vinoteca",
+      "category": "supermercado",
+      "subcategory": "bebidas",
+      "description": "Tienda especializada en vinos, destilados y productos gourmet.",
+      "aliases": [
+        "LA VINOTECA",
+        "VINOTECA"
+      ],
+      "match_terms": [
+        "la vinoteca",
+        "vinoteca"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "la-vega-central",
+      "name": "La Vega Central",
+      "category": "supermercado",
+      "subcategory": "mercado",
+      "description": "Mercado mayorista y minorista de frutas, verduras, abarrotes y alimentos.",
+      "aliases": [
+        "VEGA CENTRAL",
+        "LA VEGA"
+      ],
+      "match_terms": [
+        "la vega",
+        "vega central"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "mercado-lo-valledor",
+      "name": "Mercado Lo Valledor",
+      "category": "supermercado",
+      "subcategory": "mercado",
+      "description": "Mercado mayorista de alimentos, frutas, verduras y productos frescos.",
+      "aliases": [
+        "LO VALLEDOR",
+        "MERCADO LO VALLEDOR"
+      ],
+      "match_terms": [
+        "lo valledor",
+        "mercado lo valledor"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "mercado-libre",
+      "name": "Mercado Libre",
+      "category": "compras",
+      "subcategory": "marketplace",
+      "description": "Marketplace de productos nuevos y usados con múltiples vendedores.",
+      "aliases": [
+        "MERCADO LIBRE",
+        "MERCADOLIBRE",
+        "MELI",
+        "MERCADO LIBRE CHILE"
+      ],
+      "match_terms": [
+        "meli",
+        "mercado libre",
+        "mercado libre chile",
+        "mercadolibre"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "falabella",
+      "name": "Falabella",
+      "category": "compras",
+      "subcategory": "tienda_departamental",
+      "description": "Tienda por departamento y marketplace de moda, tecnología, hogar, belleza y otros productos.",
+      "aliases": [
+        "FALABELLA",
+        "FALABELLA RETAIL",
+        "FALABELLA.COM"
+      ],
+      "match_terms": [
+        "falabella",
+        "falabella retail",
+        "falabella.com"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "paris",
+      "name": "Paris",
+      "category": "compras",
+      "subcategory": "tienda_departamental",
+      "description": "Tienda por departamento y comercio online de Cencosud.",
+      "aliases": [
+        "PARIS",
+        "PARIS.CL",
+        "TIENDAS PARIS",
+        "CENCOSUD PARIS"
+      ],
+      "match_terms": [
+        "cencosud paris",
+        "paris",
+        "paris.cl",
+        "tiendas paris"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "ripley",
+      "name": "Ripley",
+      "category": "compras",
+      "subcategory": "tienda_departamental",
+      "description": "Tienda por departamento y comercio online de moda, tecnología, hogar y belleza.",
+      "aliases": [
+        "RIPLEY",
+        "RIPLEY CHILE",
+        "RIPLEY.COM"
+      ],
+      "match_terms": [
+        "ripley",
+        "ripley chile",
+        "ripley.com"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "hites",
+      "name": "Hites",
+      "category": "compras",
+      "subcategory": "tienda_departamental",
+      "description": "Tienda por departamento con vestuario, hogar, tecnología y productos generales.",
+      "aliases": [
+        "HITES",
+        "EMPRESAS HITES"
+      ],
+      "match_terms": [
+        "empresas hites",
+        "hites"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "la-polar",
+      "name": "La Polar",
+      "category": "compras",
+      "subcategory": "tienda_departamental",
+      "description": "Tienda por departamento con vestuario, hogar y productos de consumo.",
+      "aliases": [
+        "LA POLAR",
+        "LAPOLAR"
+      ],
+      "match_terms": [
+        "la polar",
+        "lapolar"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "tricot",
+      "name": "Tricot",
+      "category": "compras",
+      "subcategory": "moda",
+      "description": "Cadena chilena de vestuario, calzado y accesorios.",
+      "aliases": [
+        "TRICOT",
+        "TRICOT SA"
+      ],
+      "match_terms": [
+        "tricot",
+        "tricot sa"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "fashions-park",
+      "name": "Fashion's Park",
+      "category": "compras",
+      "subcategory": "moda",
+      "description": "Cadena chilena de vestuario y accesorios de precio accesible.",
+      "aliases": [
+        "FASHIONS PARK",
+        "FASHION'S PARK",
+        "FASHION PARK"
+      ],
+      "match_terms": [
+        "fashion park",
+        "fashion's park",
+        "fashions park"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "hym",
+      "name": "H&M",
+      "category": "compras",
+      "subcategory": "moda",
+      "description": "Cadena internacional de vestuario, accesorios y productos para el hogar.",
+      "aliases": [
+        "H&M",
+        "H M HENNES",
+        "HENNES MAURITZ"
+      ],
+      "match_terms": [
+        "h m hennes",
+        "h&m",
+        "hennes mauritz"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "zara",
+      "name": "Zara",
+      "category": "compras",
+      "subcategory": "moda",
+      "description": "Cadena internacional de vestuario y accesorios del grupo Inditex.",
+      "aliases": [
+        "ZARA",
+        "ZARA CHILE",
+        "INDITEX ZARA"
+      ],
+      "match_terms": [
+        "inditex zara",
+        "zara",
+        "zara chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "pullybear",
+      "name": "Pull&Bear",
+      "category": "compras",
+      "subcategory": "moda",
+      "description": "Marca de vestuario y accesorios juveniles del grupo Inditex.",
+      "aliases": [
+        "PULL&BEAR",
+        "PULL AND BEAR",
+        "INDITEX PULL"
+      ],
+      "match_terms": [
+        "inditex pull",
+        "pull and bear",
+        "pull&bear"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "bershka",
+      "name": "Bershka",
+      "category": "compras",
+      "subcategory": "moda",
+      "description": "Marca de vestuario y accesorios juveniles del grupo Inditex.",
+      "aliases": [
+        "BERSHKA",
+        "INDITEX BERSHKA"
+      ],
+      "match_terms": [
+        "bershka",
+        "inditex bershka"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "nike",
+      "name": "Nike",
+      "category": "compras",
+      "subcategory": "deporte_moda",
+      "description": "Marca y tiendas de calzado, vestuario y accesorios deportivos.",
+      "aliases": [
+        "NIKE",
+        "NIKE CHILE"
+      ],
+      "match_terms": [
+        "nike",
+        "nike chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "adidas",
+      "name": "Adidas",
+      "category": "compras",
+      "subcategory": "deporte_moda",
+      "description": "Marca y tiendas de calzado, vestuario y accesorios deportivos.",
+      "aliases": [
+        "ADIDAS",
+        "ADIDAS CHILE"
+      ],
+      "match_terms": [
+        "adidas",
+        "adidas chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "puma",
+      "name": "Puma",
+      "category": "compras",
+      "subcategory": "deporte_moda",
+      "description": "Marca y tiendas de calzado, vestuario y accesorios deportivos.",
+      "aliases": [
+        "PUMA",
+        "PUMA CHILE"
+      ],
+      "match_terms": [
+        "puma",
+        "puma chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "skechers",
+      "name": "Skechers",
+      "category": "compras",
+      "subcategory": "calzado",
+      "description": "Marca y cadena de tiendas de calzado y vestuario casual/deportivo.",
+      "aliases": [
+        "SKECHERS",
+        "SKECHERS CHILE"
+      ],
+      "match_terms": [
+        "skechers",
+        "skechers chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "bata",
+      "name": "Bata",
+      "category": "compras",
+      "subcategory": "calzado",
+      "description": "Cadena de tiendas de calzado y accesorios.",
+      "aliases": [
+        "BATA",
+        "BATA CHILE"
+      ],
+      "match_terms": [
+        "bata",
+        "bata chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "hush-puppies",
+      "name": "Hush Puppies",
+      "category": "compras",
+      "subcategory": "calzado",
+      "description": "Marca y cadena de tiendas de calzado, bolsos y accesorios.",
+      "aliases": [
+        "HUSH PUPPIES",
+        "HUSHPUPPIES"
+      ],
+      "match_terms": [
+        "hush puppies",
+        "hushpuppies"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "decathlon",
+      "name": "Decathlon",
+      "category": "compras",
+      "subcategory": "deportes",
+      "description": "Tienda especializada en vestuario, equipamiento y accesorios para múltiples deportes.",
+      "aliases": [
+        "DECATHLON",
+        "DECATHLON CHILE"
+      ],
+      "match_terms": [
+        "decathlon",
+        "decathlon chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "lippi",
+      "name": "Lippi",
+      "category": "compras",
+      "subcategory": "outdoor",
+      "description": "Marca chilena de vestuario, calzado y equipamiento outdoor.",
+      "aliases": [
+        "LIPPI",
+        "LIPPI OUTDOOR"
+      ],
+      "match_terms": [
+        "lippi",
+        "lippi outdoor"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "doite",
+      "name": "Doite",
+      "category": "compras",
+      "subcategory": "outdoor",
+      "description": "Marca chilena de equipamiento, vestuario y accesorios outdoor.",
+      "aliases": [
+        "DOITE",
+        "DOITE CHILE"
+      ],
+      "match_terms": [
+        "doite",
+        "doite chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "the-north-face",
+      "name": "The North Face",
+      "category": "compras",
+      "subcategory": "outdoor",
+      "description": "Marca de vestuario y equipamiento outdoor.",
+      "aliases": [
+        "THE NORTH FACE",
+        "NORTH FACE",
+        "TNF"
+      ],
+      "match_terms": [
+        "north face",
+        "the north face",
+        "tnf"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "casaideas",
+      "name": "Casaideas",
+      "category": "compras",
+      "subcategory": "hogar_decoracion",
+      "description": "Cadena de artículos de decoración, organización, cocina, dormitorio y regalos.",
+      "aliases": [
+        "CASAIDEAS",
+        "CASA IDEAS"
+      ],
+      "match_terms": [
+        "casa ideas",
+        "casaideas"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "ikea",
+      "name": "IKEA",
+      "category": "compras",
+      "subcategory": "hogar_decoracion",
+      "description": "Tienda de muebles, organización, decoración y productos para el hogar.",
+      "aliases": [
+        "IKEA",
+        "IKEA CHILE"
+      ],
+      "match_terms": [
+        "ikea",
+        "ikea chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "miniso",
+      "name": "Miniso",
+      "category": "compras",
+      "subcategory": "variedades",
+      "description": "Cadena de productos de hogar, belleza, accesorios, tecnología y regalos.",
+      "aliases": [
+        "MINISO",
+        "MINISO CHILE"
+      ],
+      "match_terms": [
+        "miniso",
+        "miniso chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "mumuso",
+      "name": "Mumuso",
+      "category": "compras",
+      "subcategory": "variedades",
+      "description": "Cadena de productos de hogar, belleza, accesorios y regalos.",
+      "aliases": [
+        "MUMUSO",
+        "MUMUSO CHILE"
+      ],
+      "match_terms": [
+        "mumuso",
+        "mumuso chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "todomoda",
+      "name": "TodoModa",
+      "category": "compras",
+      "subcategory": "accesorios",
+      "description": "Cadena de accesorios de moda, bisutería, belleza y regalos.",
+      "aliases": [
+        "TODOMODA",
+        "TODO MODA"
+      ],
+      "match_terms": [
+        "todo moda",
+        "todomoda"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "isadora",
+      "name": "Isadora",
+      "category": "compras",
+      "subcategory": "accesorios",
+      "description": "Cadena de accesorios, bolsos, bisutería y productos de moda.",
+      "aliases": [
+        "ISADORA",
+        "ISADORA CHILE"
+      ],
+      "match_terms": [
+        "isadora",
+        "isadora chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "sodimac-homecenter",
+      "name": "Sodimac Homecenter",
+      "category": "hogar",
+      "subcategory": "mejoramiento_hogar",
+      "description": "Tienda de construcción, ferretería, muebles, decoración y mejoramiento del hogar.",
+      "aliases": [
+        "SODIMAC",
+        "HOMECENTER",
+        "SODIMAC HOMECENTER"
+      ],
+      "match_terms": [
+        "homecenter",
+        "sodimac",
+        "sodimac homecenter"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "sodimac-constructor",
+      "name": "Sodimac Constructor",
+      "category": "hogar",
+      "subcategory": "materiales_construccion",
+      "description": "Formato de Sodimac orientado a construcción, materiales y clientes profesionales.",
+      "aliases": [
+        "SODIMAC CONSTRUCTOR",
+        "CONSTRUCTOR SODIMAC"
+      ],
+      "match_terms": [
+        "constructor sodimac",
+        "sodimac constructor"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "easy",
+      "name": "Easy",
+      "category": "hogar",
+      "subcategory": "mejoramiento_hogar",
+      "description": "Tienda de materiales, herramientas, muebles, jardín y decoración.",
+      "aliases": [
+        "EASY",
+        "EASY CHILE",
+        "CENCOSUD EASY"
+      ],
+      "match_terms": [
+        "cencosud easy",
+        "easy",
+        "easy chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "construmart",
+      "name": "Construmart",
+      "category": "hogar",
+      "subcategory": "materiales_construccion",
+      "description": "Tienda de materiales de construcción, ferretería, terminaciones y hogar.",
+      "aliases": [
+        "CONSTRUMART",
+        "CONSTRU MART"
+      ],
+      "match_terms": [
+        "constru mart",
+        "construmart"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "imperial",
+      "name": "Imperial",
+      "category": "hogar",
+      "subcategory": "materiales_construccion",
+      "description": "Tienda especializada en maderas, tableros, construcción y terminaciones.",
+      "aliases": [
+        "IMPERIAL",
+        "MADERAS IMPERIAL"
+      ],
+      "match_terms": [
+        "imperial",
+        "maderas imperial"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "rosen",
+      "name": "Rosen",
+      "category": "hogar",
+      "subcategory": "muebles_colchones",
+      "description": "Marca y tiendas de colchones, camas, muebles y productos de descanso.",
+      "aliases": [
+        "ROSEN",
+        "COLCHONES ROSEN"
+      ],
+      "match_terms": [
+        "colchones rosen",
+        "rosen"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "cic",
+      "name": "CIC",
+      "category": "hogar",
+      "subcategory": "muebles_colchones",
+      "description": "Marca chilena de colchones, camas y productos para el dormitorio.",
+      "aliases": [
+        "CIC",
+        "COLCHONES CIC"
+      ],
+      "match_terms": [
+        "cic",
+        "colchones cic"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "cannon-home",
+      "name": "Cannon Home",
+      "category": "hogar",
+      "subcategory": "textil_hogar",
+      "description": "Marca y tienda de ropa de cama, baño y textiles para el hogar.",
+      "aliases": [
+        "CANNON",
+        "CANNON HOME"
+      ],
+      "match_terms": [
+        "cannon",
+        "cannon home"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "kitchen-center",
+      "name": "Kitchen Center",
+      "category": "hogar",
+      "subcategory": "cocina",
+      "description": "Tienda especializada en electrodomésticos, muebles y equipamiento de cocina.",
+      "aliases": [
+        "KITCHEN CENTER",
+        "KITCHENCENTER"
+      ],
+      "match_terms": [
+        "kitchen center",
+        "kitchencenter"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "mts",
+      "name": "MTS",
+      "category": "hogar",
+      "subcategory": "ferreteria",
+      "description": "Red de ferreterías y tiendas de materiales para construcción y hogar.",
+      "aliases": [
+        "MTS",
+        "MTS FERRETERIAS"
+      ],
+      "match_terms": [
+        "mts",
+        "mts ferreterias"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "chilemat",
+      "name": "Chilemat",
+      "category": "hogar",
+      "subcategory": "ferreteria",
+      "description": "Red de ferreterías y materiales de construcción.",
+      "aliases": [
+        "CHILEMAT",
+        "CHILE MAT"
+      ],
+      "match_terms": [
+        "chile mat",
+        "chilemat"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "cruz-verde",
+      "name": "Cruz Verde",
+      "category": "salud",
+      "subcategory": "farmacia",
+      "description": "Cadena de farmacias con medicamentos, higiene, belleza y cuidado personal.",
+      "aliases": [
+        "CRUZ VERDE",
+        "FARMACIAS CRUZ VERDE",
+        "SOCOFAR"
+      ],
+      "match_terms": [
+        "cruz verde",
+        "farmacias cruz verde",
+        "socofar"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "salcobrand",
+      "name": "Salcobrand",
+      "category": "salud",
+      "subcategory": "farmacia",
+      "description": "Cadena de farmacias con medicamentos, belleza, higiene y productos de bienestar.",
+      "aliases": [
+        "SALCOBRAND",
+        "SALCO BRAND",
+        "FARMACIAS SALCOBRAND"
+      ],
+      "match_terms": [
+        "farmacias salcobrand",
+        "salco brand",
+        "salcobrand"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "farmacias-ahumada",
+      "name": "Farmacias Ahumada",
+      "category": "salud",
+      "subcategory": "farmacia",
+      "description": "Cadena de farmacias con medicamentos, cuidado personal, nutrición y belleza.",
+      "aliases": [
+        "FARMACIAS AHUMADA",
+        "FARMACIA AHUMADA",
+        "FASA"
+      ],
+      "match_terms": [
+        "farmacia ahumada",
+        "farmacias ahumada",
+        "fasa"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "farmacias-del-dr-simi",
+      "name": "Farmacias del Dr. Simi",
+      "category": "salud",
+      "subcategory": "farmacia",
+      "description": "Cadena de farmacias orientada a medicamentos genéricos y bioequivalentes.",
+      "aliases": [
+        "DR SIMI",
+        "DOCTOR SIMI",
+        "FARMACIAS SIMILARES",
+        "FARMACIAS DEL DR SIMI"
+      ],
+      "match_terms": [
+        "doctor simi",
+        "dr simi",
+        "farmacias del dr simi",
+        "farmacias similares"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "farmacias-knop",
+      "name": "Farmacias Knop",
+      "category": "salud",
+      "subcategory": "farmacia",
+      "description": "Cadena de farmacias especializada en productos naturales, homeopáticos y bienestar.",
+      "aliases": [
+        "FARMACIAS KNOP",
+        "KNOP"
+      ],
+      "match_terms": [
+        "farmacias knop",
+        "knop"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "preunic",
+      "name": "Preunic",
+      "category": "cuidado_personal",
+      "subcategory": "perfumeria_belleza",
+      "description": "Cadena de perfumería, cosmética, higiene y cuidado personal.",
+      "aliases": [
+        "PREUNIC",
+        "PRE UNIC"
+      ],
+      "match_terms": [
+        "pre unic",
+        "preunic"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "maicao",
+      "name": "Maicao",
+      "category": "cuidado_personal",
+      "subcategory": "perfumeria_belleza",
+      "description": "Cadena de perfumería, maquillaje, higiene y cuidado personal.",
+      "aliases": [
+        "MAICAO",
+        "MAICAO PERFUMERIAS"
+      ],
+      "match_terms": [
+        "maicao",
+        "maicao perfumerias"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "dbs-beauty-store",
+      "name": "DBS Beauty Store",
+      "category": "cuidado_personal",
+      "subcategory": "belleza",
+      "description": "Cadena especializada en maquillaje, cuidado de la piel, cabello y accesorios.",
+      "aliases": [
+        "DBS",
+        "DBS BEAUTY",
+        "DBS BEAUTY STORE"
+      ],
+      "match_terms": [
+        "dbs",
+        "dbs beauty",
+        "dbs beauty store"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "the-body-shop",
+      "name": "The Body Shop",
+      "category": "cuidado_personal",
+      "subcategory": "belleza",
+      "description": "Marca y tienda de cosmética, cuidado corporal, rostro y fragancias.",
+      "aliases": [
+        "THE BODY SHOP",
+        "BODY SHOP"
+      ],
+      "match_terms": [
+        "body shop",
+        "the body shop"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "loccitane",
+      "name": "L'Occitane",
+      "category": "cuidado_personal",
+      "subcategory": "belleza",
+      "description": "Marca y tienda de cosmética, fragancias y cuidado corporal.",
+      "aliases": [
+        "LOCCITANE",
+        "L'OCCITANE"
+      ],
+      "match_terms": [
+        "l'occitane",
+        "loccitane"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "natura",
+      "name": "Natura",
+      "category": "cuidado_personal",
+      "subcategory": "venta_directa",
+      "description": "Marca de cosmética, fragancias y cuidado personal vendida online y por consultoras.",
+      "aliases": [
+        "NATURA",
+        "NATURA COSMETICOS"
+      ],
+      "match_terms": [
+        "natura",
+        "natura cosmeticos"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "avon",
+      "name": "Avon",
+      "category": "cuidado_personal",
+      "subcategory": "venta_directa",
+      "description": "Marca de cosmética, fragancias, maquillaje y cuidado personal.",
+      "aliases": [
+        "AVON",
+        "AVON CHILE"
+      ],
+      "match_terms": [
+        "avon",
+        "avon chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "pc-factory",
+      "name": "PC Factory",
+      "category": "tecnologia",
+      "subcategory": "computacion",
+      "description": "Tienda de computadores, componentes, periféricos, celulares y electrónica.",
+      "aliases": [
+        "PC FACTORY",
+        "PCFACTORY",
+        "PC FACTORY SA"
+      ],
+      "match_terms": [
+        "pc factory",
+        "pc factory sa",
+        "pcfactory"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "sp-digital",
+      "name": "SP Digital",
+      "category": "tecnologia",
+      "subcategory": "computacion",
+      "description": "Tienda chilena de computadores, componentes, periféricos y tecnología.",
+      "aliases": [
+        "SP DIGITAL",
+        "SPDIGITAL"
+      ],
+      "match_terms": [
+        "sp digital",
+        "spdigital"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "weplay",
+      "name": "WePlay",
+      "category": "tecnologia",
+      "subcategory": "videojuegos",
+      "description": "Tienda de consolas, videojuegos, accesorios, figuras y tecnología gamer.",
+      "aliases": [
+        "WEPLAY",
+        "WE PLAY",
+        "WEPLAY STORE"
+      ],
+      "match_terms": [
+        "we play",
+        "weplay",
+        "weplay store"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "zmart",
+      "name": "Zmart",
+      "category": "tecnologia",
+      "subcategory": "videojuegos",
+      "description": "Tienda de videojuegos, consolas, accesorios y productos coleccionables.",
+      "aliases": [
+        "ZMART",
+        "Z MART"
+      ],
+      "match_terms": [
+        "z mart",
+        "zmart"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "microplay",
+      "name": "Microplay",
+      "category": "tecnologia",
+      "subcategory": "videojuegos",
+      "description": "Tienda de videojuegos, consolas, accesorios y productos gamer.",
+      "aliases": [
+        "MICROPLAY",
+        "MICRO PLAY"
+      ],
+      "match_terms": [
+        "micro play",
+        "microplay"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "reifstore",
+      "name": "Reifstore",
+      "category": "tecnologia",
+      "subcategory": "electronica",
+      "description": "Tienda chilena de electrónica, telefonía, computadores y productos importados.",
+      "aliases": [
+        "REIFSTORE",
+        "REIF STORE"
+      ],
+      "match_terms": [
+        "reif store",
+        "reifstore"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "maconline",
+      "name": "MacOnline",
+      "category": "tecnologia",
+      "subcategory": "apple_reseller",
+      "description": "Distribuidor y tienda especializada en productos y accesorios Apple.",
+      "aliases": [
+        "MACONLINE",
+        "MAC ONLINE"
+      ],
+      "match_terms": [
+        "mac online",
+        "maconline"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "apple",
+      "name": "Apple",
+      "category": "tecnologia",
+      "subcategory": "electronica",
+      "description": "Empresa de dispositivos, aplicaciones, servicios digitales y suscripciones.",
+      "aliases": [
+        "APPLE",
+        "APPLE.COM/BILL",
+        "ITUNES.COM/BILL",
+        "APPLE SERVICES"
+      ],
+      "match_terms": [
+        "apple",
+        "apple services",
+        "apple.com/bill",
+        "itunes.com/bill"
+      ],
+      "presence": "digital_global",
+      "notes": "Puede corresponder a una compra física, una app o una suscripción."
+    },
+    {
+      "id": "samsung",
+      "name": "Samsung",
+      "category": "tecnologia",
+      "subcategory": "electronica",
+      "description": "Marca y tiendas de celulares, televisores, electrodomésticos y accesorios.",
+      "aliases": [
+        "SAMSUNG",
+        "SAMSUNG CHILE",
+        "SAMSUNG STORE"
+      ],
+      "match_terms": [
+        "samsung",
+        "samsung chile",
+        "samsung store"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "xiaomi",
+      "name": "Xiaomi",
+      "category": "tecnologia",
+      "subcategory": "electronica",
+      "description": "Marca y tiendas de celulares, wearables, hogar inteligente y accesorios.",
+      "aliases": [
+        "XIAOMI",
+        "MI STORE",
+        "XIAOMI CHILE"
+      ],
+      "match_terms": [
+        "mi store",
+        "xiaomi",
+        "xiaomi chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "huawei",
+      "name": "Huawei",
+      "category": "tecnologia",
+      "subcategory": "electronica",
+      "description": "Marca de celulares, computadores, wearables y accesorios.",
+      "aliases": [
+        "HUAWEI",
+        "HUAWEI CHILE"
+      ],
+      "match_terms": [
+        "huawei",
+        "huawei chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "sony",
+      "name": "Sony",
+      "category": "tecnologia",
+      "subcategory": "electronica",
+      "description": "Marca de electrónica, audio, cámaras y productos PlayStation.",
+      "aliases": [
+        "SONY",
+        "SONY CHILE"
+      ],
+      "match_terms": [
+        "sony",
+        "sony chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "lg",
+      "name": "LG",
+      "category": "tecnologia",
+      "subcategory": "electronica",
+      "description": "Marca de televisores, línea blanca, monitores y electrodomésticos.",
+      "aliases": [
+        "LG",
+        "LG ELECTRONICS",
+        "LG CHILE"
+      ],
+      "match_terms": [
+        "lg chile",
+        "lg electronics"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "canon",
+      "name": "Canon",
+      "category": "tecnologia",
+      "subcategory": "fotografia_impresion",
+      "description": "Marca de cámaras, lentes, impresoras y accesorios.",
+      "aliases": [
+        "CANON",
+        "CANON CHILE"
+      ],
+      "match_terms": [
+        "canon",
+        "canon chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "epson",
+      "name": "Epson",
+      "category": "tecnologia",
+      "subcategory": "impresion",
+      "description": "Marca de impresoras, proyectores, escáneres y suministros.",
+      "aliases": [
+        "EPSON",
+        "EPSON CHILE"
+      ],
+      "match_terms": [
+        "epson",
+        "epson chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "entel",
+      "name": "Entel",
+      "category": "servicios",
+      "subcategory": "telecomunicaciones",
+      "description": "Operador de telefonía móvil, internet, televisión y servicios digitales.",
+      "aliases": [
+        "ENTEL",
+        "ENTEL PCS",
+        "ENTEL CHILE"
+      ],
+      "match_terms": [
+        "entel",
+        "entel chile",
+        "entel pcs"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "movistar",
+      "name": "Movistar",
+      "category": "servicios",
+      "subcategory": "telecomunicaciones",
+      "description": "Operador de telefonía móvil, internet hogar, televisión y servicios digitales.",
+      "aliases": [
+        "MOVISTAR",
+        "TELEFONICA CHILE",
+        "MOVISTAR CHILE"
+      ],
+      "match_terms": [
+        "movistar",
+        "movistar chile",
+        "telefonica chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "wom",
+      "name": "WOM",
+      "category": "servicios",
+      "subcategory": "telecomunicaciones",
+      "description": "Operador de telefonía móvil e internet.",
+      "aliases": [
+        "WOM",
+        "WOM CHILE",
+        "WOM SA"
+      ],
+      "match_terms": [
+        "wom",
+        "wom chile",
+        "wom sa"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "claro",
+      "name": "Claro",
+      "category": "servicios",
+      "subcategory": "telecomunicaciones",
+      "description": "Operador de telefonía móvil, internet, televisión y servicios digitales.",
+      "aliases": [
+        "CLARO",
+        "CLARO CHILE",
+        "AMERICA MOVIL"
+      ],
+      "match_terms": [
+        "america movil",
+        "claro",
+        "claro chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "vtr",
+      "name": "VTR",
+      "category": "servicios",
+      "subcategory": "telecomunicaciones",
+      "description": "Proveedor de internet hogar, televisión y telefonía.",
+      "aliases": [
+        "VTR",
+        "VTR CHILE",
+        "VTR.COM"
+      ],
+      "match_terms": [
+        "vtr",
+        "vtr chile",
+        "vtr.com"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "mundo",
+      "name": "Mundo",
+      "category": "servicios",
+      "subcategory": "telecomunicaciones",
+      "description": "Proveedor de internet por fibra óptica, televisión y telefonía.",
+      "aliases": [
+        "MUNDO",
+        "MUNDO PACIFICO",
+        "MUNDO TELECOMUNICACIONES"
+      ],
+      "match_terms": [
+        "mundo",
+        "mundo pacifico",
+        "mundo telecomunicaciones"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "gtd",
+      "name": "GTD",
+      "category": "servicios",
+      "subcategory": "telecomunicaciones",
+      "description": "Proveedor de internet, telefonía, televisión y servicios tecnológicos.",
+      "aliases": [
+        "GTD",
+        "GTD MANQUEHUE",
+        "TELSUR"
+      ],
+      "match_terms": [
+        "gtd",
+        "gtd manquehue",
+        "telsur"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "virgin-mobile",
+      "name": "Virgin Mobile",
+      "category": "servicios",
+      "subcategory": "telecomunicaciones",
+      "description": "Operador móvil virtual de planes y recargas.",
+      "aliases": [
+        "VIRGIN MOBILE",
+        "VIRGIN CHILE"
+      ],
+      "match_terms": [
+        "virgin chile",
+        "virgin mobile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "copec",
+      "name": "Copec",
+      "category": "transporte",
+      "subcategory": "combustible",
+      "description": "Cadena de estaciones de servicio, combustibles, lubricantes y tiendas de conveniencia.",
+      "aliases": [
+        "COPEC",
+        "COPEC SA",
+        "APP COPEC"
+      ],
+      "match_terms": [
+        "app copec",
+        "copec",
+        "copec sa"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "shell",
+      "name": "Shell",
+      "category": "transporte",
+      "subcategory": "combustible",
+      "description": "Cadena de estaciones de servicio, combustibles, lubricantes y tiendas de conveniencia.",
+      "aliases": [
+        "SHELL",
+        "SHELL CHILE",
+        "ENEX"
+      ],
+      "match_terms": [
+        "enex",
+        "shell",
+        "shell chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "aramco",
+      "name": "Aramco",
+      "category": "transporte",
+      "subcategory": "combustible",
+      "description": "Cadena de estaciones de servicio y combustibles que opera en Chile.",
+      "aliases": [
+        "ARAMCO",
+        "ARAMCO ESTACIONES",
+        "ESMAX",
+        "PETROBRAS CHILE"
+      ],
+      "match_terms": [
+        "aramco",
+        "aramco estaciones",
+        "esmax",
+        "petrobras chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "autoplanet",
+      "name": "Autoplanet",
+      "category": "transporte",
+      "subcategory": "repuestos_automotrices",
+      "description": "Cadena de repuestos, accesorios, lubricantes y productos para automóviles.",
+      "aliases": [
+        "AUTOPLANET",
+        "AUTO PLANET"
+      ],
+      "match_terms": [
+        "auto planet",
+        "autoplanet"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "dercocenter",
+      "name": "DercoCenter",
+      "category": "transporte",
+      "subcategory": "automotriz",
+      "description": "Red de venta de vehículos, repuestos, mantenciones y servicios automotrices.",
+      "aliases": [
+        "DERCOCENTER",
+        "DERCO CENTER",
+        "DERCO"
+      ],
+      "match_terms": [
+        "derco",
+        "derco center",
+        "dercocenter"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "salfa",
+      "name": "Salfa",
+      "category": "transporte",
+      "subcategory": "automotriz",
+      "description": "Empresa de venta y servicio de vehículos, camiones, maquinaria y repuestos.",
+      "aliases": [
+        "SALFA",
+        "SALFA AUTOMOTRIZ"
+      ],
+      "match_terms": [
+        "salfa",
+        "salfa automotriz"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "kaufmann",
+      "name": "Kaufmann",
+      "category": "transporte",
+      "subcategory": "automotriz",
+      "description": "Empresa de vehículos Mercedes-Benz, camiones, buses, repuestos y servicios.",
+      "aliases": [
+        "KAUFMANN",
+        "KAUFMANN CHILE"
+      ],
+      "match_terms": [
+        "kaufmann",
+        "kaufmann chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "superzoo",
+      "name": "SuperZoo",
+      "category": "mascotas",
+      "subcategory": "tienda_mascotas",
+      "description": "Cadena de alimentos, accesorios, higiene y productos para mascotas.",
+      "aliases": [
+        "SUPERZOO",
+        "SUPER ZOO"
+      ],
+      "match_terms": [
+        "super zoo",
+        "superzoo"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "pet-happy",
+      "name": "Pet Happy",
+      "category": "mascotas",
+      "subcategory": "tienda_mascotas",
+      "description": "Cadena de tiendas y servicios para mascotas.",
+      "aliases": [
+        "PET HAPPY",
+        "PETHAPPY"
+      ],
+      "match_terms": [
+        "pet happy",
+        "pethappy"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "club-de-perros-y-gatos",
+      "name": "Club de Perros y Gatos",
+      "category": "mascotas",
+      "subcategory": "tienda_mascotas",
+      "description": "Tienda de alimentos, accesorios y productos para perros y gatos.",
+      "aliases": [
+        "CLUB DE PERROS Y GATOS",
+        "PERROS Y GATOS"
+      ],
+      "match_terms": [
+        "club de perros y gatos",
+        "perros y gatos"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "cineplanet",
+      "name": "Cineplanet",
+      "category": "entretenimiento",
+      "subcategory": "cine",
+      "description": "Cadena de cines con venta de entradas, alimentos y membresías.",
+      "aliases": [
+        "CINEPLANET",
+        "CINE PLANET"
+      ],
+      "match_terms": [
+        "cine planet",
+        "cineplanet"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "cinemark",
+      "name": "Cinemark",
+      "category": "entretenimiento",
+      "subcategory": "cine",
+      "description": "Cadena de cines con venta de entradas, alimentos y formatos premium.",
+      "aliases": [
+        "CINEMARK",
+        "CINEMARK CHILE"
+      ],
+      "match_terms": [
+        "cinemark",
+        "cinemark chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "cinepolis",
+      "name": "Cinépolis",
+      "category": "entretenimiento",
+      "subcategory": "cine",
+      "description": "Cadena de cines con venta de entradas, alimentos y salas especiales.",
+      "aliases": [
+        "CINEPOLIS",
+        "CINÉPOLIS",
+        "CINE HOYTS"
+      ],
+      "match_terms": [
+        "cine hoyts",
+        "cinepolis",
+        "cinépolis"
+      ],
+      "presence": "chile",
+      "notes": "Algunas cartolas antiguas pueden mostrar Cine Hoyts."
+    },
+    {
+      "id": "muvix",
+      "name": "Muvix",
+      "category": "entretenimiento",
+      "subcategory": "cine",
+      "description": "Cadena chilena de cines y venta de entradas y alimentos.",
+      "aliases": [
+        "MUVIX",
+        "MUVIX CINEMA"
+      ],
+      "match_terms": [
+        "muvix",
+        "muvix cinema"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "puntoticket",
+      "name": "PuntoTicket",
+      "category": "entretenimiento",
+      "subcategory": "ticketing",
+      "description": "Plataforma de venta de entradas para conciertos, espectáculos y eventos.",
+      "aliases": [
+        "PUNTOTICKET",
+        "PUNTO TICKET"
+      ],
+      "match_terms": [
+        "punto ticket",
+        "puntoticket"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "ticketmaster-chile",
+      "name": "Ticketmaster Chile",
+      "category": "entretenimiento",
+      "subcategory": "ticketing",
+      "description": "Plataforma de venta y gestión de entradas para eventos.",
+      "aliases": [
+        "TICKETMASTER",
+        "TICKETMASTER CHILE"
+      ],
+      "match_terms": [
+        "ticketmaster",
+        "ticketmaster chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "passline",
+      "name": "Passline",
+      "category": "entretenimiento",
+      "subcategory": "ticketing",
+      "description": "Plataforma de venta de entradas para eventos, fiestas y espectáculos.",
+      "aliases": [
+        "PASSLINE",
+        "PASS LINE"
+      ],
+      "match_terms": [
+        "pass line",
+        "passline"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "ticketplus",
+      "name": "Ticketplus",
+      "category": "entretenimiento",
+      "subcategory": "ticketing",
+      "description": "Plataforma de venta de entradas para eventos y espectáculos.",
+      "aliases": [
+        "TICKETPLUS",
+        "TICKET PLUS"
+      ],
+      "match_terms": [
+        "ticket plus",
+        "ticketplus"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "lollapalooza-chile",
+      "name": "Lollapalooza Chile",
+      "category": "entretenimiento",
+      "subcategory": "festival",
+      "description": "Festival de música y venta de entradas, servicios y productos asociados.",
+      "aliases": [
+        "LOLLAPALOOZA",
+        "LOLLAPALOOZA CHILE"
+      ],
+      "match_terms": [
+        "lollapalooza",
+        "lollapalooza chile"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "netflix",
+      "name": "Netflix",
+      "category": "suscripciones",
+      "subcategory": "streaming_video",
+      "description": "Servicio de streaming por suscripción de series, películas y contenido audiovisual.",
+      "aliases": [
+        "NETFLIX",
+        "NETFLIX.COM"
+      ],
+      "match_terms": [
+        "netflix",
+        "netflix.com"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "disneyplus",
+      "name": "Disney+",
+      "category": "suscripciones",
+      "subcategory": "streaming_video",
+      "description": "Servicio de streaming por suscripción de Disney, Pixar, Marvel, Star Wars y otros contenidos.",
+      "aliases": [
+        "DISNEY PLUS",
+        "DISNEY+",
+        "DISNEYPLUS"
+      ],
+      "match_terms": [
+        "disney plus",
+        "disney+",
+        "disneyplus"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "max",
+      "name": "Max",
+      "category": "suscripciones",
+      "subcategory": "streaming_video",
+      "description": "Servicio de streaming por suscripción de Warner Bros. Discovery.",
+      "aliases": [
+        "MAX",
+        "HBO MAX",
+        "HBOMAX"
+      ],
+      "match_terms": [
+        "hbo max",
+        "hbomax",
+        "max"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "prime-video",
+      "name": "Prime Video",
+      "category": "suscripciones",
+      "subcategory": "streaming_video",
+      "description": "Servicio de streaming de Amazon incluido o contratado con Prime Video.",
+      "aliases": [
+        "PRIME VIDEO",
+        "AMAZON PRIME",
+        "AMZN PRIME"
+      ],
+      "match_terms": [
+        "amazon prime",
+        "amzn prime",
+        "prime video"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "paramountplus",
+      "name": "Paramount+",
+      "category": "suscripciones",
+      "subcategory": "streaming_video",
+      "description": "Servicio de streaming por suscripción de Paramount.",
+      "aliases": [
+        "PARAMOUNT PLUS",
+        "PARAMOUNT+",
+        "PARAMOUNTPLUS"
+      ],
+      "match_terms": [
+        "paramount plus",
+        "paramount+",
+        "paramountplus"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "crunchyroll",
+      "name": "Crunchyroll",
+      "category": "suscripciones",
+      "subcategory": "streaming_video",
+      "description": "Servicio de streaming especializado en anime.",
+      "aliases": [
+        "CRUNCHYROLL",
+        "CRUNCHY ROLL"
+      ],
+      "match_terms": [
+        "crunchy roll",
+        "crunchyroll"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "spotify",
+      "name": "Spotify",
+      "category": "suscripciones",
+      "subcategory": "streaming_musica",
+      "description": "Servicio de música y podcasts por suscripción.",
+      "aliases": [
+        "SPOTIFY",
+        "SPOTIFY AB",
+        "SPOTIFY P"
+      ],
+      "match_terms": [
+        "spotify",
+        "spotify ab",
+        "spotify p"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "youtube-premium",
+      "name": "YouTube Premium",
+      "category": "suscripciones",
+      "subcategory": "streaming_video",
+      "description": "Suscripción de YouTube sin anuncios y con beneficios de música y reproducción.",
+      "aliases": [
+        "YOUTUBE PREMIUM",
+        "GOOGLE YOUTUBE",
+        "YOUTUBE"
+      ],
+      "match_terms": [
+        "google youtube",
+        "youtube",
+        "youtube premium"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "google-play",
+      "name": "Google Play",
+      "category": "tecnologia",
+      "subcategory": "tienda_digital",
+      "description": "Tienda digital de aplicaciones, juegos, contenidos y suscripciones de Google.",
+      "aliases": [
+        "GOOGLE PLAY",
+        "GOOGLE *",
+        "GOOGLE PAYMENT"
+      ],
+      "match_terms": [
+        "google *",
+        "google payment",
+        "google play"
+      ],
+      "presence": "digital_global",
+      "notes": "El descriptor puede ocultar el nombre de la aplicación final."
+    },
+    {
+      "id": "steam",
+      "name": "Steam",
+      "category": "entretenimiento",
+      "subcategory": "videojuegos_digitales",
+      "description": "Plataforma digital de compra de videojuegos, contenidos y suscripciones.",
+      "aliases": [
+        "STEAM",
+        "STEAMGAMES.COM",
+        "VALVE"
+      ],
+      "match_terms": [
+        "steam",
+        "steamgames.com",
+        "valve"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "playstation-network",
+      "name": "PlayStation Network",
+      "category": "entretenimiento",
+      "subcategory": "videojuegos_digitales",
+      "description": "Tienda digital, juegos y suscripciones para consolas PlayStation.",
+      "aliases": [
+        "PLAYSTATION",
+        "PLAYSTATION NETWORK",
+        "PSN",
+        "SONY INTERACTIVE"
+      ],
+      "match_terms": [
+        "playstation",
+        "playstation network",
+        "psn",
+        "sony interactive"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "xbox",
+      "name": "Xbox",
+      "category": "entretenimiento",
+      "subcategory": "videojuegos_digitales",
+      "description": "Tienda digital, juegos y suscripciones Xbox y Game Pass.",
+      "aliases": [
+        "XBOX",
+        "MICROSOFT XBOX",
+        "XBOX GAME PASS"
+      ],
+      "match_terms": [
+        "microsoft xbox",
+        "xbox",
+        "xbox game pass"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "nintendo",
+      "name": "Nintendo",
+      "category": "entretenimiento",
+      "subcategory": "videojuegos_digitales",
+      "description": "Tienda digital Nintendo eShop, juegos y suscripciones Nintendo Switch Online.",
+      "aliases": [
+        "NINTENDO",
+        "NINTENDO ESHOP",
+        "NINTENDO OF AMERICA"
+      ],
+      "match_terms": [
+        "nintendo",
+        "nintendo eshop",
+        "nintendo of america"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "amazon",
+      "name": "Amazon",
+      "category": "compras",
+      "subcategory": "marketplace_internacional",
+      "description": "Marketplace internacional y proveedor de productos y servicios digitales.",
+      "aliases": [
+        "AMAZON",
+        "AMZN",
+        "AMAZON.COM",
+        "AMAZON MKTPLACE"
+      ],
+      "match_terms": [
+        "amazon",
+        "amazon mktplace",
+        "amazon.com",
+        "amzn"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "aliexpress",
+      "name": "AliExpress",
+      "category": "compras",
+      "subcategory": "marketplace_internacional",
+      "description": "Marketplace internacional de productos vendidos principalmente desde Asia.",
+      "aliases": [
+        "ALIEXPRESS",
+        "ALI EXPRESS",
+        "ALIPAY"
+      ],
+      "match_terms": [
+        "ali express",
+        "aliexpress",
+        "alipay"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "temu",
+      "name": "Temu",
+      "category": "compras",
+      "subcategory": "marketplace_internacional",
+      "description": "Marketplace internacional de productos de múltiples categorías.",
+      "aliases": [
+        "TEMU",
+        "TEMU.COM",
+        "PDD"
+      ],
+      "match_terms": [
+        "pdd",
+        "temu",
+        "temu.com"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "shein",
+      "name": "SHEIN",
+      "category": "compras",
+      "subcategory": "marketplace_internacional",
+      "description": "Tienda internacional de moda, accesorios, hogar y productos generales.",
+      "aliases": [
+        "SHEIN",
+        "SHEIN.COM"
+      ],
+      "match_terms": [
+        "shein",
+        "shein.com"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "adobe",
+      "name": "Adobe",
+      "category": "suscripciones",
+      "subcategory": "software",
+      "description": "Suscripciones de software creativo y documental, como Creative Cloud y Acrobat.",
+      "aliases": [
+        "ADOBE",
+        "ADOBE SYSTEMS",
+        "ADOBE CREATIVE CLOUD"
+      ],
+      "match_terms": [
+        "adobe",
+        "adobe creative cloud",
+        "adobe systems"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "microsoft",
+      "name": "Microsoft",
+      "category": "suscripciones",
+      "subcategory": "software",
+      "description": "Software, Microsoft 365, Azure, Xbox y otros servicios digitales.",
+      "aliases": [
+        "MICROSOFT",
+        "MSFT",
+        "MICROSOFT 365",
+        "MICROSOFT STORE"
+      ],
+      "match_terms": [
+        "microsoft",
+        "microsoft 365",
+        "microsoft store",
+        "msft"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "canva",
+      "name": "Canva",
+      "category": "suscripciones",
+      "subcategory": "software",
+      "description": "Plataforma de diseño gráfico y contenido digital con planes de suscripción.",
+      "aliases": [
+        "CANVA",
+        "CANVA PTY"
+      ],
+      "match_terms": [
+        "canva",
+        "canva pty"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "notion",
+      "name": "Notion",
+      "category": "suscripciones",
+      "subcategory": "software",
+      "description": "Plataforma de notas, documentos, bases de datos y gestión de trabajo.",
+      "aliases": [
+        "NOTION",
+        "NOTION LABS"
+      ],
+      "match_terms": [
+        "notion",
+        "notion labs"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "category": "suscripciones",
+      "subcategory": "inteligencia_artificial",
+      "description": "Proveedor de ChatGPT y servicios de inteligencia artificial por suscripción o consumo.",
+      "aliases": [
+        "OPENAI",
+        "CHATGPT",
+        "OPENAI *CHATGPT"
+      ],
+      "match_terms": [
+        "chatgpt",
+        "openai",
+        "openai *chatgpt"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "category": "suscripciones",
+      "subcategory": "software_desarrollo",
+      "description": "Plataforma de repositorios, colaboración de código y servicios para desarrolladores.",
+      "aliases": [
+        "GITHUB",
+        "GITHUB INC",
+        "GITHUB COPILOT"
+      ],
+      "match_terms": [
+        "github",
+        "github copilot",
+        "github inc"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "vercel",
+      "name": "Vercel",
+      "category": "suscripciones",
+      "subcategory": "hosting",
+      "description": "Plataforma de despliegue y hosting de aplicaciones web.",
+      "aliases": [
+        "VERCEL",
+        "VERCEL INC"
+      ],
+      "match_terms": [
+        "vercel",
+        "vercel inc"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "railway",
+      "name": "Railway",
+      "category": "suscripciones",
+      "subcategory": "hosting",
+      "description": "Plataforma de despliegue, bases de datos y hosting para aplicaciones.",
+      "aliases": [
+        "RAILWAY",
+        "RAILWAY APP",
+        "RAILWAY CORP"
+      ],
+      "match_terms": [
+        "railway",
+        "railway app",
+        "railway corp"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "amazon-web-services",
+      "name": "Amazon Web Services",
+      "category": "suscripciones",
+      "subcategory": "cloud",
+      "description": "Servicios de nube, servidores, bases de datos y almacenamiento de AWS.",
+      "aliases": [
+        "AWS",
+        "AMAZON WEB SERVICES",
+        "AMZN WEB SERVICES"
+      ],
+      "match_terms": [
+        "amazon web services",
+        "amzn web services",
+        "aws"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "google-cloud",
+      "name": "Google Cloud",
+      "category": "suscripciones",
+      "subcategory": "cloud",
+      "description": "Servicios de nube, infraestructura, almacenamiento y APIs de Google.",
+      "aliases": [
+        "GOOGLE CLOUD",
+        "GOOGLE GCP",
+        "GOOGLE *CLOUD"
+      ],
+      "match_terms": [
+        "google *cloud",
+        "google cloud",
+        "google gcp"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "digitalocean",
+      "name": "DigitalOcean",
+      "category": "suscripciones",
+      "subcategory": "cloud",
+      "description": "Proveedor de servidores, bases de datos y servicios de nube.",
+      "aliases": [
+        "DIGITALOCEAN",
+        "DIGITAL OCEAN"
+      ],
+      "match_terms": [
+        "digital ocean",
+        "digitalocean"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "dropbox",
+      "name": "Dropbox",
+      "category": "suscripciones",
+      "subcategory": "almacenamiento_nube",
+      "description": "Servicio de almacenamiento, sincronización y colaboración de archivos.",
+      "aliases": [
+        "DROPBOX",
+        "DROPBOX INTL"
+      ],
+      "match_terms": [
+        "dropbox",
+        "dropbox intl"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "google-one",
+      "name": "Google One",
+      "category": "suscripciones",
+      "subcategory": "almacenamiento_nube",
+      "description": "Suscripción de almacenamiento y beneficios para servicios de Google.",
+      "aliases": [
+        "GOOGLE ONE",
+        "GOOGLE STORAGE"
+      ],
+      "match_terms": [
+        "google one",
+        "google storage"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "icloud",
+      "name": "iCloud",
+      "category": "suscripciones",
+      "subcategory": "almacenamiento_nube",
+      "description": "Servicio de almacenamiento en la nube de Apple.",
+      "aliases": [
+        "ICLOUD",
+        "APPLE ICLOUD",
+        "APPLE.COM/BILL"
+      ],
+      "match_terms": [
+        "apple icloud",
+        "apple.com/bill",
+        "icloud"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "integramedica",
+      "name": "IntegraMédica",
+      "category": "salud",
+      "subcategory": "centro_medico",
+      "description": "Red de centros médicos, consultas, exámenes y procedimientos ambulatorios.",
+      "aliases": [
+        "INTEGRAMEDICA",
+        "INTEGRA MEDICA"
+      ],
+      "match_terms": [
+        "integra medica",
+        "integramedica"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "redsalud",
+      "name": "RedSalud",
+      "category": "salud",
+      "subcategory": "centro_medico",
+      "description": "Red de clínicas, centros médicos, dentales y servicios de salud.",
+      "aliases": [
+        "REDSALUD",
+        "RED SALUD"
+      ],
+      "match_terms": [
+        "red salud",
+        "redsalud"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "uc-christus",
+      "name": "UC CHRISTUS",
+      "category": "salud",
+      "subcategory": "clinica",
+      "description": "Red de salud de la Pontificia Universidad Católica con clínicas y centros médicos.",
+      "aliases": [
+        "UC CHRISTUS",
+        "UCCHRISTUS",
+        "RED SALUD UC"
+      ],
+      "match_terms": [
+        "red salud uc",
+        "uc christus",
+        "ucchristus"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "clinica-alemana",
+      "name": "Clínica Alemana",
+      "category": "salud",
+      "subcategory": "clinica",
+      "description": "Clínica privada y red de centros médicos y servicios de salud.",
+      "aliases": [
+        "CLINICA ALEMANA",
+        "CLÍNICA ALEMANA"
+      ],
+      "match_terms": [
+        "clinica alemana",
+        "clínica alemana"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "clinica-santa-maria",
+      "name": "Clínica Santa María",
+      "category": "salud",
+      "subcategory": "clinica",
+      "description": "Clínica privada y red de atención médica.",
+      "aliases": [
+        "CLINICA SANTA MARIA",
+        "CLÍNICA SANTA MARÍA"
+      ],
+      "match_terms": [
+        "clinica santa maria",
+        "clínica santa maría"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "bupa-chile",
+      "name": "Bupa Chile",
+      "category": "salud",
+      "subcategory": "clinica",
+      "description": "Red de clínicas, centros médicos, seguros y servicios de salud.",
+      "aliases": [
+        "BUPA",
+        "BUPA CHILE",
+        "CLINICA BUPA"
+      ],
+      "match_terms": [
+        "bupa",
+        "bupa chile",
+        "clinica bupa"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "smart-fit",
+      "name": "Smart Fit",
+      "category": "salud",
+      "subcategory": "gimnasio",
+      "description": "Cadena de gimnasios con membresías mensuales.",
+      "aliases": [
+        "SMART FIT",
+        "SMARTFIT"
+      ],
+      "match_terms": [
+        "smart fit",
+        "smartfit"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "pacific-fitness",
+      "name": "Pacific Fitness",
+      "category": "salud",
+      "subcategory": "gimnasio",
+      "description": "Cadena chilena de gimnasios y membresías deportivas.",
+      "aliases": [
+        "PACIFIC FITNESS",
+        "PACIFIC GYM"
+      ],
+      "match_terms": [
+        "pacific fitness",
+        "pacific gym"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "energy-club",
+      "name": "Energy Club",
+      "category": "salud",
+      "subcategory": "gimnasio",
+      "description": "Cadena de gimnasios, clases y planes de entrenamiento.",
+      "aliases": [
+        "ENERGY CLUB",
+        "ENERGY FITNESS"
+      ],
+      "match_terms": [
+        "energy club",
+        "energy fitness"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "buscalibre",
+      "name": "Buscalibre",
+      "category": "educacion",
+      "subcategory": "libros",
+      "description": "Comercio electrónico de libros, productos culturales y artículos importados.",
+      "aliases": [
+        "BUSCALIBRE",
+        "BUSCA LIBRE"
+      ],
+      "match_terms": [
+        "busca libre",
+        "buscalibre"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "libreria-antartica",
+      "name": "Librería Antártica",
+      "category": "educacion",
+      "subcategory": "libros",
+      "description": "Cadena chilena de librerías y venta online de libros y artículos relacionados.",
+      "aliases": [
+        "LIBRERIA ANTARTICA",
+        "ANTARTICA LIBROS"
+      ],
+      "match_terms": [
+        "antartica libros",
+        "libreria antartica"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "feria-chilena-del-libro",
+      "name": "Feria Chilena del Libro",
+      "category": "educacion",
+      "subcategory": "libros",
+      "description": "Cadena de librerías y venta online de libros.",
+      "aliases": [
+        "FERIA CHILENA DEL LIBRO",
+        "FERIA DEL LIBRO"
+      ],
+      "match_terms": [
+        "feria chilena del libro",
+        "feria del libro"
+      ],
+      "presence": "chile"
+    },
+    {
+      "id": "coursera",
+      "name": "Coursera",
+      "category": "educacion",
+      "subcategory": "cursos_online",
+      "description": "Plataforma internacional de cursos, certificados y programas online.",
+      "aliases": [
+        "COURSERA",
+        "COURSERA.ORG"
+      ],
+      "match_terms": [
+        "coursera",
+        "coursera.org"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "udemy",
+      "name": "Udemy",
+      "category": "educacion",
+      "subcategory": "cursos_online",
+      "description": "Marketplace internacional de cursos online.",
+      "aliases": [
+        "UDEMY",
+        "UDEMY.COM"
+      ],
+      "match_terms": [
+        "udemy",
+        "udemy.com"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "platzi",
+      "name": "Platzi",
+      "category": "educacion",
+      "subcategory": "cursos_online",
+      "description": "Plataforma latinoamericana de educación online por suscripción.",
+      "aliases": [
+        "PLATZI",
+        "PLATZI.COM"
+      ],
+      "match_terms": [
+        "platzi",
+        "platzi.com"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "duolingo",
+      "name": "Duolingo",
+      "category": "educacion",
+      "subcategory": "idiomas",
+      "description": "Aplicación de aprendizaje de idiomas con plan gratuito y suscripción.",
+      "aliases": [
+        "DUOLINGO",
+        "DUOLINGO PLUS",
+        "SUPER DUOLINGO"
+      ],
+      "match_terms": [
+        "duolingo",
+        "duolingo plus",
+        "super duolingo"
+      ],
+      "presence": "digital_global"
+    },
+    {
+      "id": "mercado-pago",
+      "name": "Mercado Pago",
+      "category": "intermediario_pago",
+      "subcategory": "billetera_pasarela",
+      "description": "Billetera y procesador de pagos; el comercio final puede aparecer oculto o separado.",
+      "aliases": [
+        "MERCADO PAGO",
+        "MERCADOPAGO",
+        "MPAGO",
+        "MERPAGO"
+      ],
+      "match_terms": [
+        "mercado pago",
+        "mercadopago",
+        "merpago",
+        "mpago"
+      ],
+      "presence": "chile",
+      "notes": "Revisar detalle antes de asignar la categoría definitiva."
+    },
+    {
+      "id": "webpay",
+      "name": "Webpay",
+      "category": "intermediario_pago",
+      "subcategory": "pasarela_pago",
+      "description": "Pasarela de pagos de Transbank usada por miles de comercios chilenos.",
+      "aliases": [
+        "WEBPAY",
+        "WEBPAY PLUS",
+        "TRANSBANK WEBPAY"
+      ],
+      "match_terms": [
+        "transbank webpay",
+        "webpay",
+        "webpay plus"
+      ],
+      "presence": "chile",
+      "notes": "No representa necesariamente al comercio final."
+    },
+    {
+      "id": "transbank",
+      "name": "Transbank",
+      "category": "intermediario_pago",
+      "subcategory": "adquirencia",
+      "description": "Procesador de pagos con tarjetas para comercios físicos y digitales.",
+      "aliases": [
+        "TRANSBANK",
+        "TBK",
+        "TRANSBANK SA"
+      ],
+      "match_terms": [
+        "tbk",
+        "transbank",
+        "transbank sa"
+      ],
+      "presence": "chile",
+      "notes": "Puede aparecer como intermediario en vez del comercio."
+    },
+    {
+      "id": "flow",
+      "name": "Flow",
+      "category": "intermediario_pago",
+      "subcategory": "pasarela_pago",
+      "description": "Pasarela chilena para pagos online, suscripciones y cobros de comercios.",
+      "aliases": [
+        "FLOW",
+        "FLOW.CL",
+        "PAGOS FLOW"
+      ],
+      "match_terms": [
+        "flow",
+        "flow.cl",
+        "pagos flow"
+      ],
+      "presence": "chile",
+      "notes": "Buscar el nombre del comercio en el detalle de la operación."
+    },
+    {
+      "id": "khipu",
+      "name": "Khipu",
+      "category": "intermediario_pago",
+      "subcategory": "transferencia_pago",
+      "description": "Plataforma de pagos y transferencias bancarias para comercios y servicios.",
+      "aliases": [
+        "KHIPU",
+        "KHIPU SPA"
+      ],
+      "match_terms": [
+        "khipu",
+        "khipu spa"
+      ],
+      "presence": "chile",
+      "notes": "El beneficiario real puede ser otro comercio."
+    },
+    {
+      "id": "paypal",
+      "name": "PayPal",
+      "category": "intermediario_pago",
+      "subcategory": "billetera_pasarela",
+      "description": "Billetera y procesador internacional de pagos online.",
+      "aliases": [
+        "PAYPAL",
+        "PAYPAL *",
+        "PP*"
+      ],
+      "match_terms": [
+        "paypal",
+        "paypal *",
+        "pp*"
+      ],
+      "presence": "digital_global",
+      "notes": "El descriptor suele incluir el comercio después de PAYPAL."
+    },
+    {
+      "id": "stripe",
+      "name": "Stripe",
+      "category": "intermediario_pago",
+      "subcategory": "pasarela_pago",
+      "description": "Procesador internacional de pagos usado por comercios y servicios digitales.",
+      "aliases": [
+        "STRIPE",
+        "STRIPE PAYMENTS"
+      ],
+      "match_terms": [
+        "stripe",
+        "stripe payments"
+      ],
+      "presence": "digital_global",
+      "notes": "Puede aparecer junto con el nombre del comercio."
+    },
+    {
+      "id": "sumup",
+      "name": "SumUp",
+      "category": "intermediario_pago",
+      "subcategory": "adquirencia",
+      "description": "Procesador de pagos y terminales para pequeños y medianos comercios.",
+      "aliases": [
+        "SUMUP",
+        "SUM UP"
+      ],
+      "match_terms": [
+        "sum up",
+        "sumup"
+      ],
+      "presence": "chile",
+      "notes": "El comercio final puede aparecer en un descriptor complementario."
+    },
+    {
+      "id": "getnet",
+      "name": "Getnet",
+      "category": "intermediario_pago",
+      "subcategory": "adquirencia",
+      "description": "Procesador de pagos y terminales para comercios.",
+      "aliases": [
+        "GETNET",
+        "GET NET",
+        "SANTANDER GETNET"
+      ],
+      "match_terms": [
+        "get net",
+        "getnet",
+        "santander getnet"
+      ],
+      "presence": "chile",
+      "notes": "No siempre identifica directamente el rubro comprado."
+    },
+    {
+      "id": "compraqui",
+      "name": "Compraquí",
+      "category": "intermediario_pago",
+      "subcategory": "adquirencia",
+      "description": "Solución de BancoEstado para cobros con tarjetas en comercios.",
+      "aliases": [
+        "COMPRAQUI",
+        "COMPRA AQUÍ",
+        "COMPRAQUI BANCOESTADO"
+      ],
+      "match_terms": [
+        "compra aquí",
+        "compraqui",
+        "compraqui bancoestado"
+      ],
+      "presence": "chile",
+      "notes": "Puede aparecer como procesador y no como comercio final."
+    }
+  ]
+}

@@ -15,6 +15,7 @@ import type {
 } from "../../../domain/finance/local-bank-connector.port.ts";
 import { BankBlockedError } from "../../../domain/finance/local-bank-connector.port.ts";
 import { mapProducts, mapCartolaMovimientos, mapNoFacturados } from "./bancochile-map.ts";
+import { getUsdClpRate } from "../exchange/usd-clp.ts";
 
 const BASE = "https://portalpersonas.bancochile.cl/mibancochile/rest/persona";
 const HOME = "https://portalpersonas.bancochile.cl/mibancochile-web/front/persona/index.html";
@@ -29,6 +30,13 @@ const EP = {
 const MAX_PAGES = 40;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// User-agent normal (Chrome de escritorio). CLAVE para headless: por defecto Chrome headless pone
+// "HeadlessChrome" en el UA — el mayor delator del anti-bot. Lo sobreescribimos (aprendido de
+// open-banking-chile). Args + Patchright cubren el resto (webdriver, blink automation, etc.).
+const STEALTH_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const STEALTH_ARGS = ["--disable-blink-features=AutomationControlled"];
+
 type ApiResult = { status: number; body: any };
 
 export type BancoChileCreds = { rut: string; pass: string };
@@ -37,22 +45,28 @@ export class BancoChileConnector implements LocalBankConnector {
   private ctx: any = null;
   private page: any = null;
   private productos: any = null;
+  private usdRateCache: number | null = null;
   private infoTarjetas: any[] = [];
+  private readonly profileDir: string;
   private readonly rut: string;
   private readonly pass: string;
   private readonly show: boolean;
 
-  constructor(private readonly profileDir: string, opts?: { creds?: BancoChileCreds; show?: boolean }) {
+  // Sin "parameter property" (private en el constructor): Node en modo strip-only (node --env-file)
+  // no lo soporta y rompería el cron/scripts. Se asigna a mano.
+  constructor(profileDir: string, opts?: { creds?: BancoChileCreds; show?: boolean }) {
+    this.profileDir = profileDir;
     this.rut = opts?.creds?.rut ?? process.env.BCH_RUT ?? "";
     this.pass = opts?.creds?.pass ?? process.env.BCH_PASS ?? "";
-    // BCh BLOQUEA headless (detección TLS/fingerprint). Corremos siempre HEADFUL, pero por defecto con
-    // la ventana FUERA DE PANTALLA (invisible). BCH_SHOW=true la muestra (para depurar el login).
+    // Por defecto HEADLESS (invisible) con stealth (UA normal + args + Patchright). BCH_SHOW=true
+    // muestra la ventana headful (para depurar el login).
     this.show = opts?.show ?? process.env.BCH_SHOW === "true";
   }
 
   private async apiGet(path: string): Promise<ApiResult> {
     return this.page.evaluate(async ([base, p]: [string, string]) => {
-      const r = await fetch(base + p, { headers: { accept: "application/json" }, credentials: "include" });
+      // signal timeout: un fetch colgado se aborta (evita "carga infinita" si el portal no responde).
+      const r = await fetch(base + p, { headers: { accept: "application/json" }, credentials: "include", signal: AbortSignal.timeout(25000) });
       const text = await r.text();
       let body: any = null;
       try { body = JSON.parse(text); } catch { /* challenge/HTML */ }
@@ -67,6 +81,7 @@ export class BancoChileConnector implements LocalBankConnector {
         headers: { accept: "application/json", "content-type": "application/json" },
         credentials: "include",
         body: JSON.stringify(d),
+        signal: AbortSignal.timeout(25000),
       });
       const text = await r.text();
       let body: any = null;
@@ -90,16 +105,27 @@ export class BancoChileConnector implements LocalBankConnector {
     if (!this.rut || !this.pass) throw new BankBlockedError("Faltan credenciales BCH_RUT / BCH_PASS en el entorno.");
     if (!this.ctx) {
       this.ctx = await chromium.launchPersistentContext(this.profileDir, {
-        channel: "chrome",
-        headless: false, // headless lo bloquea el anti-bot de BCh → siempre headful
+        channel: "chrome", // Chrome real del sistema
+        headless: !this.show, // headless invisible por defecto; show=true → ventana visible (depurar)
         viewport: null,
-        // Oculto por defecto: ventana fuera de pantalla (sigue headful, pasa detección, no molesta).
-        args: this.show ? [] : ["--window-position=-32000,-32000"],
+        userAgent: STEALTH_UA, // oculta "HeadlessChrome" del user-agent (delator clave en headless)
+        args: STEALTH_ARGS,
       });
       this.page = this.ctx.pages()[0] ?? (await this.ctx.newPage());
     }
     if (!(await this.isAuthed())) {
-      await this.autoLogin();
+      // Reintenta el login completo (headless a veces no completa el form al primer intento).
+      let ok = false;
+      for (let attempt = 1; attempt <= 2 && !ok; attempt++) {
+        ok = await this.attemptLogin();
+      }
+      if (!ok) {
+        await this.captureFailure();
+        throw new BankBlockedError(
+          `Login no completado. URL: ${this.page.url()}. Screenshot en el perfil (login-fail.png). ` +
+            "Causas posibles: clave incorrecta, challenge anti-bot en headless, o layout distinto.",
+        );
+      }
     }
     // Cachea identificadores para armar los payloads.
     const prods = await this.apiGet(EP.productos);
@@ -109,40 +135,36 @@ export class BancoChileConnector implements LocalBankConnector {
     this.infoTarjetas = Array.isArray(info.body) ? info.body : [];
   }
 
-  // Entra por el portal (inicia el OAuth con estado limpio) y completa RUT + clave en la pantalla de
-  // login. Sin 2FA (BCH no lo pide para consultar). Falla → BankBlockedError.
-  private async autoLogin(): Promise<void> {
+  // Un intento de login: entra por el portal (inicia el OAuth con estado limpio), completa RUT + clave
+  // y espera a autenticar. Devuelve true si autenticó. NO lanza (ensureSession decide reintentar/fallar).
+  private async attemptLogin(): Promise<boolean> {
     await this.page.goto(HOME, { waitUntil: "domcontentloaded" }).catch(() => {});
-    // El HOME sin sesión redirige al login de Auth0 (login.portales.bancochile.cl) con el estado
-    // OAuth correcto. Esperamos el campo RUT directamente (más robusto que esperar la URL).
+    // El HOME sin sesión redirige al login de Auth0 con el estado OAuth correcto. Esperamos el campo
+    // RUT directamente (más robusto que esperar la URL).
     try {
       const rutField = this.page.getByPlaceholder(/RUT/i).first();
-      await rutField.waitFor({ timeout: 45_000 });
+      await rutField.waitFor({ timeout: 30_000 });
       await rutField.fill(this.rut);
       const passField = this.page.getByPlaceholder(/Contrase|Clave/i).first();
       await passField.fill(this.pass);
       await this.page.waitForTimeout(600); // el form (Angular) tarda en habilitar INGRESAR tras rellenar
-      // Submit robusto: botón INGRESAR (varias formas) o Enter en la clave. Reintenta si el 1er clic
-      // corre antes de que el botón esté accionable (era la causa del "funcionó a la segunda").
+      // Submit robusto: botón INGRESAR (varias formas) o Enter. Reintenta si el 1er clic corre antes
+      // de que el botón esté accionable.
       const btn = this.page.locator('button:has-text("INGRESAR"), button[type=submit], input[type=submit]').first();
-      let ok = false;
-      for (let i = 0; i < 3 && !ok; i++) {
-        ok = await btn.click({ timeout: 6000 }).then(() => true).catch(() => false);
-        if (!ok) await this.page.waitForTimeout(800);
+      let clicked = false;
+      for (let i = 0; i < 3 && !clicked; i++) {
+        clicked = await btn.click({ timeout: 6000 }).then(() => true).catch(() => false);
+        if (!clicked) await this.page.waitForTimeout(800);
       }
-      if (!ok) await passField.press("Enter").catch(() => {});
+      if (!clicked) await passField.press("Enter").catch(() => {});
     } catch {
-      // Form no encontrado (¿ya autenticado?, ¿challenge?, ¿layout distinto?); se valida por API.
+      // Form no encontrado (¿ya autenticado?, ¿challenge?, ¿layout distinto?); se valida por API abajo.
     }
-    for (let i = 0; i < 45; i++) {
+    for (let i = 0; i < 20; i++) {
       await sleep(2000);
-      if (await this.isAuthed()) return;
+      if (await this.isAuthed()) return true;
     }
-    await this.captureFailure();
-    throw new BankBlockedError(
-      `Login no completado. URL: ${this.page.url()}. Hay un screenshot en el perfil (login-fail.png). ` +
-        "Causas posibles: clave incorrecta, challenge anti-bot en headless, o layout distinto.",
-    );
+    return false;
   }
 
   // Guarda un screenshot al fallar el login, para diagnosticar sin estar mirando.
@@ -198,7 +220,8 @@ export class BancoChileConnector implements LocalBankConnector {
     const info = this.infoTarjetas.find((x) => x.idProducto === cardExternalId);
     const r = await this.apiPost(EP.noFacturados, this.cardPayload(t, info));
     this.assertOk(r, "movimientos-no-facturados");
-    return mapNoFacturados(r.body?.listaMovNoFactur ?? []);
+    if (this.usdRateCache == null) this.usdRateCache = await getUsdClpRate();
+    return mapNoFacturados(r.body?.listaMovNoFactur ?? [], this.usdRateCache);
   }
 
   async close(): Promise<void> {

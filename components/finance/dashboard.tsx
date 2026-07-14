@@ -300,13 +300,18 @@ export function Dashboard({ period, summary, accounts, budget, transactions, use
       <AccountModal open={accountOpen} onOpenChange={setAccountOpen} />
       <AccountInfoModal account={infoAccount} onOpenChange={(o) => !o && setInfoAccount(null)} />
       <CategoryDetailSheet
-        category={detail}
+        // Derivada de las props frescas (no del snapshot en estado): si el modal de transacción
+        // guarda encima y refresca, el usado/disponible del detalle se actualiza solo.
+        category={detail && (expenseCategories.find((c) => c.id === detail.id) ?? detail)}
         transactions={transactions}
-        onOpenChange={(o) => !o && setDetail(null)}
+        // Con el modal de transacción abierto encima, su X / click fuera llega aquí como
+        // "interact outside": se ignora para que solo se cierre el modal de arriba.
+        onOpenChange={(o) => !o && detailTx === null && setDetail(null)}
         onEdit={(c) => {
           setDetail(null);
           setEditCat(c);
         }}
+        onOpenTx={setDetailTx}
       />
       <CategoryModal
         key={editCat?.id ?? "new"}

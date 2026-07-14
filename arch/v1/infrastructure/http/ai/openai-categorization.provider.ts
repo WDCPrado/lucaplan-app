@@ -12,21 +12,42 @@ import type {
   CategorizationProvider,
 } from "../../../domain/finance/categorization.port.ts";
 import { openaiConfig, openaiConfigured } from "./openai-config.ts";
+import { buildMerchantIndex, findMerchant, type MerchantCompany } from "./merchant-hints.ts";
+import catalog from "./merchants-catalog.json";
 
 const TIMEOUT_MS = 45_000;
+
+// Catálogo de comercios chilenos → índice de matching, construido una vez (module-level).
+const MERCHANT_INDEX = buildMerchantIndex((catalog as unknown as { companies: MerchantCompany[] }).companies);
 
 const SYSTEM =
   "Eres un clasificador de movimientos bancarios chilenos. Recibes categorías (con clave, nombre y " +
   "descripción) y movimientos (con clave y descripción). Lee con atención las descripciones de las " +
   "categorías: incluyen ejemplos concretos de comercios y reglas (a veces dicen qué NO incluir). Asigna " +
-  "a cada movimiento la categoría cuya descripción mejor lo cubra. Sé decidido: usa null SOLO si de " +
-  "verdad ninguna categoría aplica (p.ej. transferencias entre personas sin contexto). Usa SOLO las " +
-  'claves de categoría provistas (c0, c1, ...). Responde ÚNICAMENTE un JSON: ' +
+  "a CADA movimiento la categoría MÁS PROBABLE.\n" +
+  "REGLA CLAVE: para cualquier COMPRA o GASTO en un comercio, SIEMPRE elige la categoría más cercana, " +
+  "aunque NO reconozcas el comercio — usa tu conocimiento de comercios chilenos para adivinar. Pistas: " +
+  "PAYU*UBER / CABIFY / RED MOVILIDAD / MP*BIP / metro = transporte; UBER EATS / RAPPI / DUNKIN / " +
+  "restaurantes / sushi / coffee = comida; JUMBO / LIDER / UNIMARC / SB / market / DBS = supermercado; " +
+  "SALCOBRAND / farmacia / CLINICA / DR. / gimnasio / SMART FIT = salud; OPENAI / CHATGPT / PARAMOUNT / " +
+  "spotify / netflix / suscripción = subscripciones o servicios digitales; ENEL / AGUAS ANDINAS / ENTEL / " +
+  "GTD = servicios/cuentas; MERPAGO / MERCADOPAGO / MERCADOLIBRE / tiendas = compras. " +
+  "Devuelve null SOLO para transferencias o pagos entre personas sin contexto de compra (ej.: " +
+  '"Traspaso a Juan", "Pago:Rosa"). NUNCA dejes null una compra por no reconocer el comercio.\n' +
+  "Algunos movimientos incluyen \"pista\": el comercio más probable identificado por un catálogo de " +
+  "comercios chilenos (nombre · rubro). Trátala como indicio FUERTE del comercio real —aunque la " +
+  "descripción traiga códigos de pasarela (MERPAGO, PAYU, TBK...)— y elige la categoría acorde; " +
+  "ignórala solo si contradice claramente la descripción.\n" +
+  "Usa SOLO las claves de categoría provistas (c0, c1, ...). Responde ÚNICAMENTE un JSON: " +
   '{"asignaciones":[{"m":"m0","c":"c1"}]} donde "c" es la clave de la categoría o null.';
 
 function buildUserPrompt(movements: CategorizationMovement[], categories: CategorizationCategory[]): string {
   const cats = categories.map((c, i) => ({ clave: `c${i}`, nombre: c.name, descripcion: c.description ?? "" }));
-  const movs = movements.map((m, i) => ({ clave: `m${i}`, descripcion: m.description }));
+  const movs = movements.map((m, i) => {
+    const hint = findMerchant(MERCHANT_INDEX, m.description);
+    const base = { clave: `m${i}`, descripcion: m.description };
+    return hint ? { ...base, pista: `${hint.name} · ${hint.category}` } : base;
+  });
   return `CATEGORÍAS:\n${JSON.stringify(cats)}\n\nMOVIMIENTOS:\n${JSON.stringify(movs)}`;
 }
 

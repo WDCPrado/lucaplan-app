@@ -9,7 +9,6 @@ import type { SyncLocalDeps, UnbilledInsert } from "../../../application/finance
 import { categorizeMovements } from "../../../application/finance-use-cases/categorize-movements-use-case.ts";
 import { categoryRepository, transactionRepository } from "./finance.infrastructure.ts";
 import { openaiCategorizationProvider } from "../../http/ai/openai-categorization.provider.ts";
-import { getUsdClpRate } from "../../http/exchange/usd-clp.ts";
 
 const CHUNK = 10; // ponytail: upsert de cartola en lotes acotados (no satura el pool de conexiones).
 
@@ -130,10 +129,6 @@ export function makeSyncLocalDeps(connector: LocalBankConnector): SyncLocalDeps 
 
     async setAccountBalance(accountId, amount) {
       await prisma.financialAccount.update({ where: { id: accountId }, data: { balance: amount.toDecimalString() } });
-    },
-
-    async getUsdRate() {
-      return getUsdClpRate();
     },
 
     async markSynced(bankId) {

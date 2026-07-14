@@ -8,9 +8,13 @@ import type {
   RawUnbilledMovement,
 } from "../../../domain/finance/local-bank-connector.port.ts";
 import { mapProducts, mapCartolaMovimientos, mapNoFacturados, type BchRawData } from "./bancochile-map.ts";
+import { getUsdClpRate } from "../exchange/usd-clp.ts";
 
 export class PostedBankConnector implements LocalBankConnector {
-  constructor(private readonly data: BchRawData) {}
+  private readonly data: BchRawData;
+  constructor(data: BchRawData) {
+    this.data = data;
+  }
 
   async ensureSession(): Promise<void> {
     // no-op: la autenticación y la lectura ocurrieron en el navegador del usuario.
@@ -26,7 +30,8 @@ export class PostedBankConnector implements LocalBankConnector {
   }
 
   async readUnbilled(cardExternalId: string): Promise<RawUnbilledMovement[]> {
-    return mapNoFacturados(this.data.noFacturados?.[cardExternalId] ?? []);
+    const rate = await getUsdClpRate();
+    return mapNoFacturados(this.data.noFacturados?.[cardExternalId] ?? [], rate);
   }
 
   async close(): Promise<void> {

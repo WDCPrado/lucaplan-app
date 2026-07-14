@@ -25,6 +25,9 @@ const BANKS: { id: string; name: string; available: boolean }[] = [
   { id: "bancochile", name: "Banco de Chile", available: true },
 ];
 
+// Otros bancos aún no soportados (se muestran como "Próximamente" abajo).
+const COMING_SOON = ["Santander", "BCI", "Banco Estado", "Itaú", "Banco Falabella", "Scotiabank", "BICE"];
+
 type Phase = "idle" | "syncing" | "done" | "error";
 type Result = { accounts?: number; cartolaMovements?: number; unbilledMovements?: number } | null;
 
@@ -325,9 +328,26 @@ export function SyncBancoChileButton() {
             </div>
           )}
 
+          {/* Otros bancos, aún no soportados */}
+          {phase === "idle" && (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium text-muted-foreground">Próximamente</span>
+              {COMING_SOON.map((name) => (
+                <div
+                  key={name}
+                  className="flex h-12 cursor-not-allowed items-center gap-3 rounded-xl border border-border px-4 text-left opacity-50"
+                >
+                  <Landmark className="size-5 shrink-0 text-muted-foreground" />
+                  <span className="font-medium">{name}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">Próximamente</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {phase === "idle" && (
             <p className="text-xs text-muted-foreground">
-              También se sincroniza solo en segundo plano (1-2 veces al día) si programas la tarea. Todo corre local, de solo lectura.
+              También se sincroniza solo en segundo plano (cada hora) si programas la tarea. Todo corre local, de solo lectura.
             </p>
           )}
         </div>

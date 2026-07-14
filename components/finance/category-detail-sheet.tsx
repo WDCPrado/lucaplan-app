@@ -16,11 +16,13 @@ export function CategoryDetailSheet({
   transactions,
   onOpenChange,
   onEdit,
+  onOpenTx,
 }: {
   category: CategoryDTO | null;
   transactions: TransactionDTO[];
   onOpenChange: (o: boolean) => void;
   onEdit: (c: CategoryDTO) => void;
+  onOpenTx?: (t: TransactionDTO) => void;
 }) {
   const open = category !== null;
   const pct = category && category.limit > 0 ? (category.used / category.limit) * 100 : 0;
@@ -67,7 +69,7 @@ export function CategoryDetailSheet({
                     <ScrollArea className="md:h-full">
                       <div className="divide-y">
                         {txs.map((t) => (
-                          <MovementRow key={t.id} tx={t} />
+                          <MovementRow key={t.id} tx={t} onOpen={onOpenTx} />
                         ))}
                       </div>
                     </ScrollArea>

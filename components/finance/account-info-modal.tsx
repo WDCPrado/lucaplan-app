@@ -30,21 +30,24 @@ const TYPE_LABEL: Record<string, string> = {
   investment: "Inversión",
 };
 
-// Detalle de una cuenta/banco. Para las conectadas ofrece "Desconectar", que elimina el banco y sus
-// movimientos SOLO en LucaPlan (no revoca el Link en Fintoc).
+// Detalle de una cuenta/banco. Para las conectadas ofrece "Desconectar", que elimina el banco,
+// sus movimientos y las credenciales guardadas en LucaPlan.
 export function AccountInfoModal({ account, onOpenChange }: { account: AccountDTO | null; onOpenChange: (o: boolean) => void }) {
   const router = useRouter();
   const [disconnecting, setDisconnecting] = useState(false);
-  const connected = account?.provider === "fintoc";
+  const isBancoChile = account?.provider === "bancochile";
+  const connected = account?.provider === "fintoc" || isBancoChile;
 
   async function disconnect() {
     if (!account) return;
     setDisconnecting(true);
-    const res = await fetch("/api/fintoc/disconnect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bankId: account.bankId }),
-    });
+    const res = isBancoChile
+      ? await fetch("/api/bancochile/disconnect", { method: "POST" })
+      : await fetch("/api/fintoc/disconnect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bankId: account.bankId }),
+        });
     setDisconnecting(false);
     if (res.ok) {
       onOpenChange(false);
@@ -65,7 +68,7 @@ export function AccountInfoModal({ account, onOpenChange }: { account: AccountDT
             <Row label="Moneda" value={account.currency} />
             <Row label="Saldo" value={formatCLP(account.balance)} />
             {account.cardLast4 && <Row label="Tarjeta" value={`•••• ${account.cardLast4}`} />}
-            <Row label="Origen" value={connected ? "Conectado por Fintoc" : "Manual"} />
+            <Row label="Origen" value={connected ? "Conectado al banco" : "Manual"} />
           </dl>
 
           {connected && (
@@ -85,8 +88,8 @@ export function AccountInfoModal({ account, onOpenChange }: { account: AccountDT
                   <AlertDialogHeader>
                     <AlertDialogTitle>¿Desconectar {account.bankName}?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Se revoca la conexión en Fintoc (deja de refrescar y cobrar) y se eliminan sus cuentas y todos
-                      sus movimientos de LucaPlan. No se puede deshacer.
+                      Se elimina la conexión y sus credenciales, y se borran sus cuentas y todos sus
+                      movimientos de LucaPlan. No se puede deshacer.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -98,7 +101,7 @@ export function AccountInfoModal({ account, onOpenChange }: { account: AccountDT
                 </AlertDialogContent>
               </AlertDialog>
               <p className="text-center text-xs text-muted-foreground">
-                Revoca la conexión en Fintoc (deja de refrescar y cobrar) y borra sus datos de LucaPlan.
+                Elimina la conexión, sus credenciales y todos sus datos de LucaPlan.
               </p>
             </div>
           )}

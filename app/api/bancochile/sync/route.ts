@@ -34,9 +34,16 @@ export async function POST(req: Request) {
           const creds = (await loadBancoChileCreds(userId)) ?? undefined;
           const connector = new BancoChileConnector(profileDir(userId), { creds });
           try {
-            return await syncLocalConnection(makeSyncLocalDeps(connector), userId, {
-              onProgress: (p) => send({ type: "progress", ...p }),
-            });
+            // Timeout global: si algo se cuelga (launch/login), rechaza a los 4 min → cierra el
+            // navegador y libera el lock (evita "carga infinita" y perfil bloqueado).
+            return await Promise.race([
+              syncLocalConnection(makeSyncLocalDeps(connector), userId, {
+                onProgress: (p) => send({ type: "progress", ...p }),
+              }),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("La sincronización tardó demasiado (timeout). Reintenta.")), 4 * 60 * 1000),
+              ),
+            ]);
           } finally {
             await connector.close();
           }

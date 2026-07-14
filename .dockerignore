@@ -1,0 +1,18 @@
+node_modules
+.next
+.git
+.gitignore
+# Secretos: NO hornear en la imagen. Van por env_file en runtime (docker-compose).
+.env
+.env.*
+# Artefactos locales del scraper (perfil, llave, logs) — el scraping corre en Windows, no en Docker.
+.bancochile-profile
+.bancochile-key
+.bancochile-sync.log
+scripts/.bch-local
+.playwright-mcp
+*.log
+npm-debug.log*
+Dockerfile
+.dockerignore
+docker-compose.yml

@@ -11,6 +11,32 @@ services:
       - "5433:5432"
     volumes:
       - lucaplan-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lucaplan -d lucaplan"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: lucaplan-app
+    restart: unless-stopped
+    # Carga los secretos del .env (OpenAI, Better Auth, llave de cifrado)...
+    env_file: .env
+    # ...pero dentro de la red de compose la DB es "postgres:5432", no "localhost:5433".
+    # `environment` pisa el DATABASE_URL del .env (que apunta a localhost para el uso desde Windows).
+    environment:
+      DATABASE_URL: "postgresql://lucaplan:lucaplan@postgres:5432/lucaplan?schema=public"
+    ports:
+      # host:contenedor — la IP de Tailscale del host (100.101.76.33:3005) enruta hasta aquí.
+      - "3005:3005"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
+  # Volume EXISTENTE con tus datos (277 transactions, cuentas, tarjetas). `external: true` significa
+  # que Docker NUNCA lo crea ni lo borra — solo lo usa. Ni `docker compose down -v` lo toca.
   lucaplan-pgdata:
+    external: true
+    name: lucaplan-postgres-data

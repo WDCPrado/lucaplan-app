@@ -104,13 +104,26 @@ export class BancoChileConnector implements LocalBankConnector {
   async ensureSession(): Promise<void> {
     if (!this.rut || !this.pass) throw new BankBlockedError("Faltan credenciales BCH_RUT / BCH_PASS en el entorno.");
     if (!this.ctx) {
-      this.ctx = await chromium.launchPersistentContext(this.profileDir, {
-        channel: "chrome", // Chrome real del sistema
-        headless: !this.show, // headless invisible por defecto; show=true → ventana visible (depurar)
-        viewport: null,
-        userAgent: STEALTH_UA, // oculta "HeadlessChrome" del user-agent (delator clave en headless)
-        args: STEALTH_ARGS,
-      });
+      try {
+        this.ctx = await chromium.launchPersistentContext(this.profileDir, {
+          channel: "chrome", // Chrome real del sistema (Windows). El anti-bot del banco bloquea Chromium.
+          headless: !this.show, // headless invisible por defecto; show=true → ventana visible (depurar)
+          viewport: null,
+          userAgent: STEALTH_UA, // oculta "HeadlessChrome" del user-agent (delator clave en headless)
+          args: STEALTH_ARGS,
+        });
+      } catch (e) {
+        // Sin Chrome en el sistema (caso típico: la app corriendo en el contenedor Docker, que a
+        // propósito no trae navegador). Mensaje claro en vez del error crudo de Patchright.
+        const msg = (e as Error)?.message ?? "";
+        if (/not found at|Executable doesn't exist/i.test(msg)) {
+          throw new BankBlockedError(
+            "Este entorno no tiene Google Chrome (la app en Docker no trae navegador a propósito). " +
+              "El sync del banco corre en tu PC: ejecuta `pnpm sync:bank` en Windows.",
+          );
+        }
+        throw e;
+      }
       this.page = this.ctx.pages()[0] ?? (await this.ctx.newPage());
     }
     if (!(await this.isAuthed())) {

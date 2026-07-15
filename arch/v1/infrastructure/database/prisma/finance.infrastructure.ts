@@ -190,6 +190,9 @@ export const accountRepository: AccountRepository = {
       : await prisma.financialAccount.create({ data: { userId: input.userId, externalId: input.externalId, ...data } });
     return toAccount(row);
   },
+  async setBalance(accountId, balance) {
+    await prisma.financialAccount.update({ where: { id: accountId }, data: { balance: balance.toDecimalString() } });
+  },
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -232,6 +235,17 @@ export const balanceBucketRepository: BalanceBucketRepository = {
           data: { userId: input.userId, accountId: input.accountId, cardId: input.cardId, kind: input.kind, currency: input.currency, ...data },
         });
     return toBucket(row);
+  },
+  async updateAmounts(bucketId, amounts) {
+    await prisma.balanceBucket.update({
+      where: { id: bucketId },
+      data: {
+        limitAmount: amounts.limitAmount.toDecimalString(),
+        used: amounts.used.toDecimalString(),
+        available: amounts.available.toDecimalString(),
+        asOf: amounts.asOf,
+      },
+    });
   },
 };
 

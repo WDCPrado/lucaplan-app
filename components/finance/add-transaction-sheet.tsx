@@ -37,8 +37,13 @@ export function AddTransactionSheet({
   const amountNum = money.value;
   const canSave = amountNum > 0 && !!account && !saving;
 
+  // Cuenta conectada por correo: solo abonos/ingresos (los cargos llegan solos por correo).
+  // Se deriva en render: cambiar a una cuenta conectada fuerza el lado sin tocar el estado.
+  const incomeOnly = !!account && account.provider !== "manual";
+  const effDirection = incomeOnly ? "credit" : direction;
+
   // Las categorías se filtran por el lado elegido: gasto → categorías de gasto, ingreso → de ingreso.
-  const wantType = direction === "credit" ? "income" : "expense";
+  const wantType = effDirection === "credit" ? "income" : "expense";
   const visibleCategories = categories.filter((c) => c.type === wantType);
 
   function changeDirection(d: "debit" | "credit") {
@@ -55,10 +60,11 @@ export function AddTransactionSheet({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         accountId: account.id,
-        categoryId,
+        // Solo una categoría del lado visible (cambiar de cuenta puede voltear el lado).
+        categoryId: visibleCategories.some((c) => c.id === categoryId) ? categoryId : null,
         amount: amountNum,
         currency: account.currency,
-        direction,
+        direction: effDirection,
         description: description || "Movimiento",
       }),
     });
@@ -77,7 +83,7 @@ export function AddTransactionSheet({
         {accounts.length === 0 ? (
           <div className="flex flex-col items-center gap-4 px-4 py-10 text-center">
             <p className="text-sm text-muted-foreground">
-              Necesitas una tarjeta para registrar movimientos a mano. Las cuentas conectadas por Fintoc son de solo lectura.
+              Necesitas una tarjeta para registrar movimientos a mano.
             </p>
             <Button onClick={onCreateAccount} className="h-12 rounded-full">
               Nueva tarjeta
@@ -96,14 +102,20 @@ export function AddTransactionSheet({
               <button
                 type="button"
                 onClick={() => changeDirection("debit")}
-                className={cn("size-11 text-xl", direction === "debit" && "bg-destructive text-destructive-foreground")}
+                disabled={incomeOnly}
+                title={incomeOnly ? "Los cargos de esta cuenta llegan solos por correo" : undefined}
+                className={cn(
+                  "size-11 text-xl",
+                  effDirection === "debit" && "bg-destructive text-destructive-foreground",
+                  incomeOnly && "cursor-not-allowed opacity-40",
+                )}
               >
                 −
               </button>
               <button
                 type="button"
                 onClick={() => changeDirection("credit")}
-                className={cn("size-11 text-xl", direction === "credit" && "bg-success text-success-foreground")}
+                className={cn("size-11 text-xl", effDirection === "credit" && "bg-success text-success-foreground")}
               >
                 +
               </button>
@@ -115,10 +127,16 @@ export function AddTransactionSheet({
               onChange={(e) => money.onChange(e.target.value)}
               className={cn(
                 "tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0",
-                direction === "debit" ? "text-destructive" : "text-success",
+                effDirection === "debit" ? "text-destructive" : "text-success",
               )}
             />
           </div>
+          {incomeOnly && (
+            <p className="-mt-2 text-xs text-muted-foreground">
+              Cuenta conectada: aquí solo se registran abonos e ingresos — los cargos llegan solos
+              desde el correo del banco.
+            </p>
+          )}
 
           {accounts.length > 1 && (
             <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">

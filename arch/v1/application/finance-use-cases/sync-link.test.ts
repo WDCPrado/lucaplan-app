@@ -95,6 +95,7 @@ function makeDeps(providerOverride?: BankAggregationProvider) {
         } else a.balance = input.balance; // saldo del proveedor sobrescribe
         return a;
       },
+      async setBalance() {},
     },
     transactions: {
       async listByUserPeriod() {

@@ -91,6 +91,7 @@ function makeDeps(rows: Transaction[], accounts: Account[]) {
     async upsertConnected(): Promise<never> {
       throw new Error("no usado");
     },
+    async setBalance() {},
   };
   return { deps: { transactions, accounts: accountsRepo }, filters: () => received };
 }

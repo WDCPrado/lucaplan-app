@@ -83,3 +83,11 @@ export function statusVar(status: string): string {
   if (status === "moderado") return "var(--warning)";
   return "var(--destructive)"; // completado / excedido
 }
+
+/** Color de token CSS por cuartil de uso del presupuesto (verde → azul → ámbar → rojo). */
+export function quartileVar(percent: number): string {
+  if (percent < 25) return "var(--success)";
+  if (percent < 50) return "var(--primary)";
+  if (percent < 75) return "var(--warning)";
+  return "var(--destructive)";
+}

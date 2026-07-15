@@ -300,6 +300,8 @@ export interface AccountRepository {
   listByBank(bankId: string): Promise<Account[]>;
   // Fintoc: crea o actualiza la cuenta conectada por (userId, externalId); saldo del proveedor.
   upsertConnected(input: ConnectedAccountInput): Promise<Account>;
+  // Fija el saldo derivado de la proyección (cuentas conectadas: balance = caja disponible).
+  setBalance(accountId: string, balance: Money): Promise<void>;
 }
 
 export type ConnectedCardInput = {
@@ -335,6 +337,8 @@ export interface BalanceBucketRepository {
   listByAccount(accountId: string): Promise<BalanceBucket[]>;
   // Local: crea o actualiza el bucket por (accountId, cardId, kind, currency); montos del banco.
   upsertConnected(input: ConnectedBucketInput): Promise<BalanceBucket>;
+  // Avanza la medición de un bucket existente (proyección de un evento sobre la última medición).
+  updateAmounts(bucketId: string, amounts: { limitAmount: Money; used: Money; available: Money; asOf: Date | null }): Promise<void>;
 }
 
 export interface CategoryRepository {

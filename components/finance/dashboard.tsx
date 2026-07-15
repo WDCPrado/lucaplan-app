@@ -24,7 +24,7 @@ import { CategorizationAutoRefresh } from "./categorization-auto-refresh"
 import { UncategorizedTriage } from "./uncategorized-triage"
 import { TransactionModal } from "./transaction-modal"
 import { TransactionSearch } from "./transaction-search"
-import { formatCLP, formatCompact, monthName } from "@/lib/finance-format"
+import { formatCLP, formatCompact, monthName, quartileVar } from "@/lib/finance-format"
 import type {
   AccountDTO,
   BudgetViewDTO,
@@ -81,8 +81,13 @@ export function Dashboard({
   const [triageDismissed, setTriageDismissed] = useState(false)
   const triageOpen = uncategorized.transactions.length > 0 && !triageDismissed
 
-  // Solo cuentas manuales aceptan movimientos a mano; las conectadas (fintoc) son de solo lectura.
-  const manualAccounts = accounts.filter((a) => a.provider === "manual")
+  // Cuentas que aceptan movimientos a mano: manuales (todo) y corrientes conectadas por correo
+  // (solo abonos: el banco no notifica ingresos por correo; los cargos llegan solos).
+  const addableAccounts = accounts.filter(
+    (a) =>
+      a.provider === "manual" ||
+      (a.connectionMethod === "email" && a.accountType === "checking")
+  )
   // ¿Hay banco conectado? → montar el auto-refresh que sigue la categorización de fondo.
   const hasConnected = accounts.some((a) => a.provider === "fintoc")
   // El presupuesto de gastos usa las categorías de gasto (tope/uso). Las de ingreso se muestran
@@ -94,6 +99,10 @@ export function Dashboard({
   // Sobre-asignado: los límites de categoría superan el límite global del mes (alerta, no bloquea).
   const overAllocated =
     budget.remainingToAllocate !== null && budget.remainingToAllocate < 0
+
+  // Uso REAL del presupuesto total: gastado del mes (categorías de gasto) vs límite global.
+  const totalUsed = expenseCategories.reduce((s, c) => s + Math.max(0, c.used), 0)
+  const usedPct = budget.globalLimit ? (totalUsed / budget.globalLimit) * 100 : 0
 
   function goMonth(delta: number) {
     const d = new Date(Date.UTC(period.year, period.month - 1 + delta, 1))
@@ -288,6 +297,29 @@ export function Dashboard({
                     Asignado {formatCLP(budget.allocated)} de{" "}
                     {formatCLP(budget.globalLimit)}
                   </div>
+                  {/* Uso REAL del mes vs presupuesto total: línea con color por cuartil */}
+                  <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full transition-[width] duration-500"
+                      style={{
+                        width: `${Math.min(100, usedPct)}%`,
+                        background: quartileVar(usedPct),
+                      }}
+                    />
+                  </div>
+                  <div className="tabular mt-1.5 flex items-center justify-between gap-2 text-xs">
+                    <span
+                      className="font-medium"
+                      style={{ color: quartileVar(usedPct) }}
+                    >
+                      Usado {formatCLP(totalUsed)} · {Math.round(usedPct)}%
+                    </span>
+                    <span className="text-muted-foreground">
+                      {budget.globalLimit - totalUsed >= 0
+                        ? `Queda ${formatCLP(budget.globalLimit - totalUsed)}`
+                        : `Excedido ${formatCLP(totalUsed - budget.globalLimit)}`}
+                    </span>
+                  </div>
                 </button>
               )}
               {expenseCategories.length === 0 ? (
@@ -414,7 +446,7 @@ export function Dashboard({
       <AddTransactionSheet
         open={addOpen}
         onOpenChange={setAddOpen}
-        accounts={manualAccounts}
+        accounts={addableAccounts}
         categories={budget.categories}
         onCreateAccount={() => {
           setAddOpen(false)

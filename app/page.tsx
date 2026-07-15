@@ -38,6 +38,27 @@ function LinkedInIcon() {
     </svg>
   )
 }
+
+// Logos de los proveedores de correo (colores de marca, inline como los demás iconos de marca).
+function OutlookIcon({ className = "size-8" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="#0078D4" className={className} aria-hidden="true">
+      <path d="M7.88 12.04q0 .45-.11.87-.1.41-.33.74-.22.33-.58.52-.37.2-.87.2t-.85-.2q-.35-.21-.57-.55-.22-.33-.33-.75-.1-.42-.1-.86t.1-.87q.1-.43.34-.76.22-.34.59-.54.36-.2.87-.2t.86.2q.35.21.57.55.22.34.31.77.1.43.1.88zM24 12v9.38q0 .46-.33.8-.33.32-.8.32H7.13q-.46 0-.8-.33-.32-.33-.32-.8V18H1q-.41 0-.7-.3-.3-.29-.3-.7V7q0-.41.3-.7Q.58 6 1 6h6.5V2.55q0-.44.3-.75.3-.3.75-.3h12.9q.44 0 .75.3.3.3.3.75V10.85l1.24.72h.01q.1.07.18.18.07.12.07.25zm-6-8.25v3h3v-3zm0 4.5v3h3v-3zm0 4.5v1.83l3.05-1.83zm-5.25-9v3h3.75v-3zm0 4.5v3h3.75v-3zm0 4.5v2.03l2.41 1.5 1.34-.8v-2.73zM9 3.75V6h2l.13.01.12.04v-2.3zM5.98 15.98q.9 0 1.6-.3.7-.32 1.19-.86.48-.55.73-1.28.25-.74.25-1.61 0-.83-.25-1.55-.24-.71-.71-1.24t-1.15-.83q-.68-.3-1.55-.3-.92 0-1.64.3-.71.3-1.2.85-.5.54-.75 1.3-.25.74-.25 1.63 0 .85.26 1.56.26.72.74 1.23.48.52 1.17.81.69.3 1.56.3zM7.5 21h12.39L12 16.08V17q0 .41-.3.7-.29.3-.7.3H7.5zm15-.13v-7.24l-5.9 3.54Z" />
+    </svg>
+  )
+}
+
+function GmailIcon({ className = "size-8" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 36" className={className} aria-hidden="true">
+      <path fill="#4285F4" d="M3.27 36h6.55V16.9L0 9.45V32.7A3.27 3.27 0 0 0 3.27 36z" />
+      <path fill="#34A853" d="M38.18 36h6.55A3.27 3.27 0 0 0 48 32.73V9.45l-9.82 7.45z" />
+      <path fill="#FBBC04" d="M38.18 3.27v13.63L48 9.45V4.9c0-4.04-4.61-6.35-7.85-3.93z" />
+      <path fill="#EA4335" d="M9.82 16.9V3.27L24 13.9 38.18 3.27V16.9L24 27.55z" />
+      <path fill="#C5221F" d="M0 4.9v4.55l9.82 7.45V3.27L7.85.97C4.6-1.45 0 .86 0 4.9z" />
+    </svg>
+  )
+}
 const cta = LANDING_ONLY
   ? { href: GITHUB_URL, enter: "GitHub", create: "Ver en GitHub", target: "_blank", rel: "noopener noreferrer" }
   : { href: "/login", enter: "Entrar", create: "Crear mi plan", target: undefined, rel: undefined }
@@ -49,8 +70,8 @@ const monthStats = [
 ] as const
 
 // Demo con los componentes REALES de la app (mismos que usa el dashboard).
-const demoAccount: AccountDTO = {
-  id: "demo",
+const demoChecking: AccountDTO = {
+  id: "demo-checking",
   bankId: "demo",
   bankName: "Banco de Chile",
   name: "Cuenta corriente",
@@ -58,9 +79,33 @@ const demoAccount: AccountDTO = {
   currency: "CLP",
   balance: 1248500,
   color: null,
-  cardLast4: "4821",
-  provider: "fintoc",
+  cardLast4: "8901",
+  provider: "bancochile",
+  connectionMethod: "email",
   lastSyncedAt: null,
+  buckets: [
+    { kind: "cash", currency: "CLP", limit: 0, used: 0, available: 1248500, asOf: null },
+    { kind: "overdraft", currency: "CLP", limit: 1000000, used: 0, available: 1000000, asOf: null },
+  ],
+}
+
+const demoCredit: AccountDTO = {
+  id: "demo-credit",
+  bankId: "demo",
+  bankName: "Banco de Chile",
+  name: "Tarjeta de crédito",
+  accountType: "credit_card",
+  currency: "CLP",
+  balance: 0,
+  color: null,
+  cardLast4: "2140",
+  provider: "bancochile",
+  connectionMethod: "email",
+  lastSyncedAt: null,
+  buckets: [
+    { kind: "credit_national", currency: "CLP", limit: 3500000, used: 421300, available: 3078700, asOf: null },
+    { kind: "credit_international", currency: "USD", limit: 2500, used: 305.4, available: 2194.6, asOf: null },
+  ],
 }
 
 const demoMovements: TransactionDTO[] = [
@@ -127,6 +172,33 @@ const aiSources = [
     Icon: Repeat2,
     title: "Aprende de tus correcciones",
     body: "Cuando recategorizas un movimiento, tu elección queda guardada y afina las siguientes pasadas. Funciona en cualquier país y banco: aprende de tus datos, no de listas fijas.",
+  },
+] as const
+
+const faqs = [
+  {
+    q: "¿LucaPlan necesita las claves de mi banco?",
+    a: "No, nunca. LucaPlan se conecta a tu correo, no a tu banco: lee las notificaciones que el banco ya te envía, con un permiso de solo lectura que puedes revocar cuando quieras.",
+  },
+  {
+    q: "¿Qué necesito para empezar?",
+    a: "Tener activadas las notificaciones por correo en tu banco (la mayoría ya las envía) y conectar ese buzón. LucaPlan detecta tus cuentas y tarjetas desde los propios avisos; tú solo confirmas y registras tus saldos iniciales.",
+  },
+  {
+    q: "¿Lee todo mi correo?",
+    a: "No. Solo se procesan los mensajes de los remitentes oficiales del banco; el resto no se lee ni se guarda. Y del aviso se conserva únicamente el movimiento: monto, comercio y fecha.",
+  },
+  {
+    q: "¿Los saldos son exactos?",
+    a: "Son proyecciones desde el último saldo que registraste: cada aviso nuevo los actualiza al instante. Si algo no genera correo (un ajuste o reverso), lo corriges en un paso con “Actualizar saldos”.",
+  },
+  {
+    q: "¿Qué bancos y correos funcionan?",
+    a: "Hoy, Banco de Chile con notificaciones a un buzón de Outlook. Gmail viene próximamente, y más bancos se irán sumando.",
+  },
+  {
+    q: "¿Puedo desconectarme cuando quiera?",
+    a: "Sí. Un clic elimina la conexión, los movimientos importados y el token de acceso; además puedes revocar el permiso directamente desde tu proveedor de correo.",
   },
 ] as const
 
@@ -202,6 +274,12 @@ export default function Home() {
               className="transition-colors hover:text-foreground"
             >
               Conecta tu correo
+            </a>
+            <a
+              href="#preguntas"
+              className="transition-colors hover:text-foreground"
+            >
+              Preguntas
             </a>
           </div>
           <Link
@@ -373,7 +451,7 @@ export default function Home() {
           </div>
 
           {/* Collage con los componentes reales del dashboard */}
-          <div className="relative mx-auto w-full max-w-xl lg:min-h-[33rem]">
+          <div className="relative mx-auto w-full max-w-xl lg:min-h-[38rem]">
             <div
               data-reveal
               className="rounded-3xl border border-border bg-card p-4 shadow-xl lg:absolute lg:inset-x-0 lg:top-10"
@@ -422,7 +500,17 @@ export default function Home() {
               className="z-10 mt-6 w-72 max-w-full lg:absolute lg:top-82 lg:-left-14 lg:mt-0 lg:-rotate-3"
             >
               <div className="landing-float-b drop-shadow-2xl">
-                <AccountCard account={demoAccount} />
+                <AccountCard account={demoChecking} />
+              </div>
+            </div>
+
+            <div
+              data-reveal
+              style={delay(450)}
+              className="z-10 mt-6 w-72 max-w-full lg:absolute lg:top-[23rem] lg:right-2 lg:mt-0 lg:rotate-2"
+            >
+              <div className="landing-float-a drop-shadow-2xl">
+                <AccountCard account={demoCredit} />
               </div>
             </div>
           </div>
@@ -513,10 +601,40 @@ export default function Home() {
           </h2>
           <p className="mt-7 max-w-xl text-lg leading-8 text-muted-foreground">
             Cada compra o transferencia te llega como notificación al correo.
-            LucaPlan conecta tu Outlook, lee solo esos avisos del banco y
+            LucaPlan conecta tu buzón, lee solo esos avisos del banco y
             convierte cada uno en un movimiento categorizado — sin entregar
             tus claves bancarias a nadie.
           </p>
+          <p className="mt-4 max-w-xl text-lg leading-8 text-muted-foreground">
+            Y se configura solo: activa las notificaciones por correo en tu
+            banco, conecta el buzón donde llegan, y LucaPlan detecta tus
+            cuentas y tarjetas desde los propios avisos.
+          </p>
+          {/* Proveedores de correo: flotan desfasados (mismo motion que el collage) */}
+          <div className="mt-10 flex flex-wrap items-center gap-5">
+            <div
+              data-reveal
+              style={delay(150)}
+              className="landing-float-a flex rotate-1 items-center gap-3.5 rounded-2xl border border-border bg-card px-5 py-4 shadow-lg"
+            >
+              <OutlookIcon />
+              <div>
+                <p className="font-medium">Outlook</p>
+                <p className="text-xs font-medium text-success">Disponible</p>
+              </div>
+            </div>
+            <div
+              data-reveal
+              style={delay(280)}
+              className="landing-float-b flex -rotate-2 items-center gap-3.5 rounded-2xl border border-border bg-card px-5 py-4 shadow-lg"
+            >
+              <GmailIcon className="size-7" />
+              <div>
+                <p className="font-medium">Gmail</p>
+                <p className="text-xs text-muted-foreground">Próximamente</p>
+              </div>
+            </div>
+          </div>
         </div>
         <div className="grid content-center gap-8 lg:border-l lg:border-border lg:pl-16">
           <div data-reveal style={delay(100)} className="flex gap-5">
@@ -528,7 +646,7 @@ export default function Home() {
               <p className="mt-2 leading-7 text-muted-foreground">
                 Un permiso mínimo de lectura de correo: LucaPlan no puede
                 enviar, mover ni borrar nada, y quitas el acceso cuando
-                quieras desde tu cuenta Microsoft.
+                quieras desde tu proveedor de correo.
               </p>
             </div>
           </div>
@@ -557,6 +675,28 @@ export default function Home() {
               </p>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section
+        id="preguntas"
+        className="mx-auto grid max-w-[88rem] scroll-mt-24 gap-12 border-t border-border px-6 py-24 lg:grid-cols-[0.72fr_1.28fr] lg:gap-16 lg:px-10 lg:py-32"
+      >
+        <div data-reveal className="lg:pt-2">
+          <p className="text-sm font-semibold text-primary">
+            Preguntas frecuentes
+          </p>
+          <h2 className="mt-5 max-w-sm text-4xl leading-[0.98] font-semibold tracking-[-0.05em] lg:text-5xl">
+            Lo que siempre preguntan.
+          </h2>
+        </div>
+        <div className="grid gap-x-10 gap-y-10 sm:grid-cols-2 lg:border-l lg:border-border lg:pl-16">
+          {faqs.map(({ q, a }, i) => (
+            <div key={q} data-reveal style={delay((i % 2) * 100)}>
+              <h3 className="text-lg leading-6 font-medium">{q}</h3>
+              <p className="mt-2.5 leading-7 text-muted-foreground">{a}</p>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -604,6 +744,7 @@ export default function Home() {
                 <li><a href="#app" className="transition-colors hover:text-foreground">La app</a></li>
                 <li><a href="#categorias" className="transition-colors hover:text-foreground">Categorización con IA</a></li>
                 <li><a href="#conecta" className="transition-colors hover:text-foreground">Conecta tu correo</a></li>
+                <li><a href="#preguntas" className="transition-colors hover:text-foreground">Preguntas frecuentes</a></li>
                 <li><Link href={cta.href} target={cta.target} rel={cta.rel} className="transition-colors hover:text-foreground">{cta.enter}</Link></li>
               </ul>
             </nav>

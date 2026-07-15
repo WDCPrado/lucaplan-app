@@ -95,7 +95,7 @@ export function SyncBancoChileButton({
         open={open}
         onOpenChange={setOpen}
         title="Conectar banco"
-        className="sm:max-w-md"
+        className="sm:max-w-2xl"
       >
         <div className="flex flex-col gap-5 px-4 pb-6">
           {/* Selección de banco */}

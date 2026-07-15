@@ -34,7 +34,7 @@
 - [x] 5.1 Probar ventana del mes actual, cero persistencia antes de validar, agrupación de una tarjeta con dos cupos, mapeo ambiguo e idempotencia.
 - [x] 5.2 Probar que el snapshot no se redescuenta, el vínculo apunta al bucket correcto y solo movimientos no internos se categorizan.
 - [x] 5.3 Ejecutar tests, lint, typecheck y build aplicables; revisar que logs, errores y fixtures no contengan tokens ni PII.
-- [ ] 5.4 Validar manualmente con Outlook detección/revisión, gastos CLP/USD, abonos/pagos internos, buckets y categorización.
+- [x] 5.4 Validar manualmente con Outlook detección/revisión, gastos CLP/USD, abonos/pagos internos, buckets y categorización (validado por el usuario con su cuenta real: detección, snapshot, importación y categorización funcionando).
 
 ## 6. Correcciones de validación y detalle real
 

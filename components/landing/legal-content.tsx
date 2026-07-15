@@ -38,12 +38,14 @@ export const LEGAL = {
         <p>
           La información bancaria se obtiene desde las notificaciones que tu
           banco envía a tu correo electrónico. Al conectar tu cuenta de
-          correo autorizas a LucaPlan un permiso delegado de solo lectura,
-          que puedes revocar en cualquier momento desde tu cuenta Microsoft o
-          desconectando el banco en la aplicación. LucaPlan procesa
-          únicamente los mensajes de remitentes conocidos de tu banco, nunca
-          recibe ni almacena tus claves bancarias, no puede enviar, mover ni
-          eliminar correos, y no puede operar sobre tus cuentas.
+          correo (por ejemplo, Outlook o Gmail, según los proveedores
+          disponibles en la aplicación) autorizas a LucaPlan un permiso
+          delegado de solo lectura, que puedes revocar en cualquier momento
+          desde la cuenta de tu proveedor de correo o desconectando el banco
+          en la aplicación. LucaPlan procesa únicamente los mensajes de
+          remitentes conocidos de tu banco, nunca recibe ni almacena tus
+          claves bancarias, no puede enviar, mover ni eliminar correos, y no
+          puede operar sobre tus cuentas.
         </p>
         <H>4. Categorización con IA</H>
         <p>
@@ -129,10 +131,12 @@ export const LEGAL = {
         </p>
         <H>4. Encargados y terceros</H>
         <p>
-          (a) Conexión por correo: interviene Microsoft como proveedor de tu
-          buzón (Microsoft Graph); LucaPlan accede con un permiso delegado de
-          solo lectura y guarda el token de acceso cifrado en el servidor.
-          Tus claves bancarias nunca se solicitan ni se transmiten. (b)
+          (a) Conexión por correo: interviene el proveedor de tu buzón —
+          Microsoft (Microsoft Graph) para cuentas Outlook y, cuando esté
+          disponible, Google para cuentas Gmail —; LucaPlan accede con un
+          permiso delegado de solo lectura y guarda el token de acceso
+          cifrado en el servidor. Tus claves bancarias nunca se solicitan ni
+          se transmiten. (b)
           Proveedor de IA: para categorizar, se envían descripciones y montos
           de movimientos, junto a los nombres y descripciones de tus
           categorías; no se envían tus credenciales ni identificadores

@@ -11,6 +11,11 @@ import {
   type TransactionRepository,
 } from "../../domain/finance/finance.domain.ts";
 import type { CategorizationProvider } from "../../domain/finance/categorization.port.ts";
+import {
+  selectCorrectionsForBatch,
+  type CategorizationCorrection,
+  type CorrectionRepository,
+} from "../../domain/finance/categorization-learning.domain.ts";
 
 const CHUNK = 100; // movimientos por llamada (claves cortas ⇒ salida chica aunque el lote sea grande)
 const CONCURRENCY = 5; // lotes en paralelo (baja el tiempo de la 1ª conexión sin pegarle al rate limit)
@@ -20,21 +25,26 @@ export type CategorizeDeps = {
   transactions: TransactionRepository;
   categories: CategoryRepository;
   categorization: CategorizationProvider;
+  corrections?: CorrectionRepository; // opcional: sin repo, categoriza sin aprendizaje
 };
 
 // Categoriza un lote: pide al proveedor y persiste los ids válidos. Best-effort: un fallo del
-// proveedor deja el lote sin categoría (0). Devuelve cuántos asignó.
+// proveedor deja el lote sin categoría (0). Devuelve cuántos asignó. Las correcciones del usuario
+// relevantes al lote (texto exacto o parecido) van como contexto adicional.
 async function categorizeChunk(
   deps: CategorizeDeps,
   chunk: Transaction[],
   candidates: { id: string; name: string; type: "income" | "expense"; description: string | null }[],
   allowed: Set<string>,
+  corrections: CategorizationCorrection[],
 ): Promise<number> {
   let result: Record<string, string | null> = {};
   try {
+    const relevant = selectCorrectionsForBatch(chunk.map((m) => m.description), corrections);
     result = await deps.categorization.categorize({
       movements: chunk.map((m) => ({ id: m.id, description: m.description, amount: m.amount.toMajor(), direction: m.direction })),
       categories: candidates,
+      corrections: relevant.map((c) => ({ text: c.sampleText, note: c.note, categoryId: c.categoryId })),
     });
   } catch {
     return 0;
@@ -66,12 +76,23 @@ export async function categorizeMovements(deps: CategorizeDeps, userId: string, 
     const candidates = catsForSide.map((c) => ({ id: c.id, name: c.name, type: c.type, description: c.description }));
     const allowed = new Set(catsForSide.map((c) => c.id));
 
+    // Correcciones del usuario del mismo lado, solo hacia categorías permitidas. Best-effort:
+    // un retrieval caído degrada a categorizar sin correcciones, nunca aborta la pasada.
+    let corrections: CategorizationCorrection[] = [];
+    if (deps.corrections) {
+      try {
+        corrections = (await deps.corrections.listByUserDirection(userId, dir)).filter((c) => allowed.has(c.categoryId));
+      } catch {
+        corrections = [];
+      }
+    }
+
     const chunks: Transaction[][] = [];
     for (let i = 0; i < group.length; i += CHUNK) chunks.push(group.slice(i, i + CHUNK));
 
     for (let i = 0; i < chunks.length; i += CONCURRENCY) {
       const wave = chunks.slice(i, i + CONCURRENCY);
-      const counts = await Promise.all(wave.map((chunk) => categorizeChunk(deps, chunk, candidates, allowed)));
+      const counts = await Promise.all(wave.map((chunk) => categorizeChunk(deps, chunk, candidates, allowed, corrections)));
       assigned += counts.reduce((s, n) => s + n, 0);
     }
   }

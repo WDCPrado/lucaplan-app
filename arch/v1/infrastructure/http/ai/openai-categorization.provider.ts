@@ -8,6 +8,7 @@
 // reales y se valida contra el conjunto permitido (el caso de uso ya filtró por lado).
 import type {
   CategorizationCategory,
+  CategorizationCorrectionHint,
   CategorizationMovement,
   CategorizationProvider,
 } from "../../../domain/finance/categorization.port.ts";
@@ -38,17 +39,34 @@ const SYSTEM =
   "comercios chilenos (nombre · rubro). Trátala como indicio FUERTE del comercio real —aunque la " +
   "descripción traiga códigos de pasarela (MERPAGO, PAYU, TBK...)— y elige la categoría acorde; " +
   "ignórala solo si contradice claramente la descripción.\n" +
+  "Puede venir una sección CORRECCIONES DEL USUARIO: movimientos que el usuario YA clasificó a mano " +
+  "(texto → su categoría, a veces con una nota que explica qué es). Son la máxima autoridad: si la " +
+  "descripción de un movimiento coincide (ignorando números y fechas) con el texto de una corrección, " +
+  "usa ESA categoría, OBLIGATORIO, por encima de cualquier pista o criterio propio. Si solo se " +
+  "parece (mismo comercio con otro formato), trátala como pista muy fuerte.\n" +
   "Usa SOLO las claves de categoría provistas (c0, c1, ...). Responde ÚNICAMENTE un JSON: " +
   '{"asignaciones":[{"m":"m0","c":"c1"}]} donde "c" es la clave de la categoría o null.';
 
-function buildUserPrompt(movements: CategorizationMovement[], categories: CategorizationCategory[]): string {
+function buildUserPrompt(
+  movements: CategorizationMovement[],
+  categories: CategorizationCategory[],
+  corrections: CategorizationCorrectionHint[],
+): string {
+  const keyById = new Map(categories.map((c, i) => [c.id, `c${i}`]));
   const cats = categories.map((c, i) => ({ clave: `c${i}`, nombre: c.name, descripcion: c.description ?? "" }));
   const movs = movements.map((m, i) => {
     const hint = findMerchant(MERCHANT_INDEX, m.description);
     const base = { clave: `m${i}`, descripcion: m.description };
     return hint ? { ...base, pista: `${hint.name} · ${hint.category}` } : base;
   });
-  return `CATEGORÍAS:\n${JSON.stringify(cats)}\n\nMOVIMIENTOS:\n${JSON.stringify(movs)}`;
+  // Correcciones con clave corta de categoría; se descartan las de categorías fuera del conjunto.
+  const fixes = corrections.flatMap((c) => {
+    const clave = keyById.get(c.categoryId);
+    if (!clave) return [];
+    return [{ texto: c.text, categoria: clave, ...(c.note ? { nota: c.note } : {}) }];
+  });
+  const fixesBlock = fixes.length > 0 ? `\n\nCORRECCIONES DEL USUARIO:\n${JSON.stringify(fixes)}` : "";
+  return `CATEGORÍAS:\n${JSON.stringify(cats)}${fixesBlock}\n\nMOVIMIENTOS:\n${JSON.stringify(movs)}`;
 }
 
 // Parsea el content (JSON) → mapa { claveMovimiento → claveCategoría | null }. Tolera "null"/""
@@ -74,7 +92,7 @@ function parseAssignments(content: unknown): Record<string, string | null> {
 }
 
 export const openaiCategorizationProvider: CategorizationProvider = {
-  async categorize({ movements, categories }) {
+  async categorize({ movements, categories, corrections = [] }) {
     if (!openaiConfigured() || movements.length === 0 || categories.length === 0) return {};
     const cfg = openaiConfig();
     const controller = new AbortController();
@@ -89,7 +107,7 @@ export const openaiCategorizationProvider: CategorizationProvider = {
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: SYSTEM },
-            { role: "user", content: buildUserPrompt(movements, categories) },
+            { role: "user", content: buildUserPrompt(movements, categories, corrections) },
           ],
         }),
         signal: controller.signal,

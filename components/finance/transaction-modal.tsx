@@ -226,6 +226,10 @@ function ConnectedDetail({ tx, account, categories, onClose }: { tx: Transaction
   const income = tx.direction === "credit";
   const [categoryId, setCategoryId] = useState<string | null>(tx.categoryId);
   const [saving, setSaving] = useState(false);
+  // Paso de aprendizaje tras guardar: pregunta el "porqué" (opcional) y ofrece propagar la
+  // categoría a los N movimientos con la misma descripción. La categoría ya quedó persistida.
+  const [learn, setLearn] = useState<{ sameTextCount: number } | null>(null);
+  const [note, setNote] = useState("");
   const changed = categoryId !== tx.categoryId;
   // Solo categorías del mismo lado del movimiento (ingreso ↔ credit, gasto ↔ debit).
   const visibleCategories = savedFirst(
@@ -241,10 +245,75 @@ function ConnectedDetail({ tx, account, categories, onClose }: { tx: Transaction
       body: JSON.stringify({ categoryId }),
     });
     setSaving(false);
-    if (res.ok) {
+    if (!res.ok) return;
+    // Quitar categoría no aprende nada: cierre directo.
+    if (!categoryId) {
       onClose();
       router.refresh();
+      return;
     }
+    const data = await res.json().catch(() => ({}));
+    setLearn({ sameTextCount: Number(data.sameTextCount) || 0 });
+  }
+
+  async function finishLearn(applyToSameText: boolean) {
+    setSaving(true);
+    if (note.trim() || applyToSameText) {
+      // Best-effort: la categoría ya está guardada; si el follow-up falla, no bloquea el cierre.
+      await fetch("/api/categorization/corrections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transactionId: tx.id, note: note.trim() || undefined, applyToSameText }),
+      }).catch(() => {});
+    }
+    setSaving(false);
+    onClose();
+    router.refresh();
+  }
+
+  if (learn) {
+    const n = learn.sameTextCount;
+    return (
+      <div className="flex flex-col gap-5 px-4 pb-6">
+        <div className="flex flex-col items-center gap-1 pt-2 text-center">
+          <div className="text-lg font-semibold">Categoría guardada</div>
+          <div className="text-sm text-balance text-muted-foreground">{tx.description}</div>
+        </div>
+
+        <div>
+          <Label htmlFor="correction-note" className="mb-2 block text-xs">
+            ¿Qué es este movimiento? (opcional)
+          </Label>
+          <Input
+            id="correction-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            maxLength={120}
+            placeholder="Ej.: pedidos de comida a domicilio"
+            className="h-11 text-base"
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Tu explicación queda guardada y la IA la usa para clasificar los próximos movimientos parecidos.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          {n > 0 && (
+            <Button onClick={() => finishLearn(true)} disabled={saving} className="h-12 rounded-full text-base">
+              {saving ? "Guardando…" : `Aplicar a los ${n} con esta descripción`}
+            </Button>
+          )}
+          <Button
+            variant={n > 0 ? "outline" : "default"}
+            onClick={() => finishLearn(false)}
+            disabled={saving}
+            className="h-12 rounded-full text-base"
+          >
+            {saving ? "Guardando…" : n > 0 ? "Solo este" : "Listo"}
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (

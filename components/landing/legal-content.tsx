@@ -17,8 +17,11 @@ export const LEGAL = {
         <p className="text-xs">{UPDATED}</p>
         <p>
           Estos Términos y Condiciones regulan el uso de Luca Plan, una
-          aplicación web de planificación de finanzas personales. Al crear una
-          cuenta o usar el servicio, aceptas estos términos.
+          aplicación web de planificación de finanzas personales, en su
+          servicio hospedado en lucaplan.cl. Al crear una cuenta o usar el
+          servicio, aceptas estos términos. El código fuente de Luca Plan es
+          open source bajo licencia MIT: si instalas y ejecutas tu propia
+          instancia, esa licencia — y no estos términos — rige ese uso.
         </p>
         <H>1. El servicio</H>
         <p>
@@ -57,10 +60,11 @@ export const LEGAL = {
         </p>
         <H>5. Propiedad intelectual</H>
         <p>
-          El software, marca, diseño y contenidos de Luca Plan son de
-          propiedad de sus titulares. El uso del servicio no te otorga
-          licencia alguna sobre ellos, salvo el derecho de uso personal e
-          intransferible de la aplicación.
+          El código fuente de Luca Plan es open source y se distribuye bajo la
+          licencia MIT. El nombre, la marca, el diseño y los contenidos del
+          servicio hospedado en lucaplan.cl son de propiedad de sus titulares;
+          el uso del servicio no te otorga derechos sobre ellos más allá del
+          derecho de uso personal de la aplicación.
         </p>
         <H>6. Disponibilidad y cambios</H>
         <p>
@@ -99,8 +103,10 @@ export const LEGAL = {
         <p className="text-xs">{UPDATED}</p>
         <p>
           Esta política describe cómo Luca Plan trata tus datos personales,
-          conforme a la Ley N.º 21.719 de Protección de Datos Personales de
-          Chile.
+          conforme a la Ley N.º 19.628 sobre Protección de la Vida Privada y a
+          la Ley N.º 21.719 de Protección de Datos Personales de Chile (en
+          vigencia desde diciembre de 2026), a cuyo estándar esta política ya
+          se anticipa.
         </p>
         <H>1. Responsable del tratamiento</H>
         <p>
@@ -151,10 +157,12 @@ export const LEGAL = {
         </p>
         <H>6. Tus derechos</H>
         <p>
-          Conforme a la Ley 21.719 puedes ejercer los derechos de acceso,
-          rectificación, supresión, oposición y portabilidad de tus datos, y
-          a revocar tu consentimiento sin efecto retroactivo. También puedes
-          reclamar ante la Agencia de Protección de Datos Personales.
+          Puedes ejercer los derechos de acceso, rectificación, supresión y
+          oposición que reconoce la Ley 19.628 y, desde la entrada en vigencia
+          de la Ley 21.719, también la portabilidad de tus datos; asimismo
+          puedes revocar tu consentimiento sin efecto retroactivo. Podrás
+          además reclamar ante la Agencia de Protección de Datos Personales
+          una vez que entre en funciones (diciembre de 2026).
         </p>
         <H>7. Seguridad</H>
         <p>

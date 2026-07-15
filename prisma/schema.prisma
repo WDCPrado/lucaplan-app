@@ -234,10 +234,31 @@ model Category {
   updatedAt    DateTime        @updatedAt
   limits       CategoryLimit[]
   transactions Transaction[]
+  corrections  CategorizationCorrection[]
 
   @@unique([userId, name])
   @@index([userId])
   @@map("category")
+}
+
+// Corrección de categorización: memoria por usuario (texto normalizado del movimiento → categoría
+// elegida + nota "porqué"). Se registra al categorizar a mano y se inyecta como contexto de la IA.
+// A lo más una por (usuario, dirección, texto); la última gana. No entra en ningún cálculo.
+model CategorizationCorrection {
+  id             String   @id @default(uuid())
+  userId         String
+  direction      String // debit | credit (el mismo texto puede ser compra y reembolso)
+  normalizedText String
+  sampleText     String // descripción original de ejemplo (UI/prompt)
+  categoryId     String
+  category       Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  note           String? // el "porqué" del usuario (opcional)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, direction, normalizedText])
+  @@index([userId, direction])
+  @@map("categorization_correction")
 }
 
 // Límite de una categoría para un mes concreto. El mes sin registro hereda el último previo (carry).

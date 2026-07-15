@@ -14,6 +14,7 @@ import {
   transactionRepository,
 } from "./finance.infrastructure.ts"
 import { openaiCategorizationProvider } from "../../http/ai/openai-categorization.provider.ts"
+import { correctionRepository } from "./categorization-correction.infrastructure.ts"
 import { pendingCategorizationFilter } from "./categorize-pending-filter.ts"
 
 export async function categorizePendingMovements(
@@ -42,6 +43,7 @@ export async function categorizePendingMovements(
       transactions: transactionRepository,
       categories: categoryRepository,
       categorization: openaiCategorizationProvider,
+      corrections: correctionRepository,
     },
     userId,
     movements

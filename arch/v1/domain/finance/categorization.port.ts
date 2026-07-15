@@ -20,11 +20,20 @@ export type CategorizationCategory = {
   description: string | null; // contexto para desambiguar
 };
 
+// Corrección previa del usuario, ya filtrada como relevante para el lote por el caso de uso.
+// Texto exacto ⇒ el proveedor instruye usar esa categoría; parecido ⇒ pista fuerte.
+export type CategorizationCorrectionHint = {
+  text: string; // descripción de ejemplo tal como la corrigió el usuario
+  note: string | null; // el "porqué" del usuario (qué es el movimiento)
+  categoryId: string;
+};
+
 export interface CategorizationProvider {
   // Devuelve un mapa { movimientoId → categoryId | null }. Los movimientos ausentes o con null
   // quedan sin categoría. Ante cualquier fallo/no-configuración, devuelve un mapa vacío.
   categorize(input: {
     movements: CategorizationMovement[];
     categories: CategorizationCategory[];
+    corrections?: CategorizationCorrectionHint[];
   }): Promise<Record<string, string | null>>;
 }

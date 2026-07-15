@@ -17,9 +17,8 @@ import type {
   TransactionDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
-// Modo landing-only (deploy público sin app): los CTAs apuntan al repo en vez de /login.
-// El bloqueo real de /login y demás rutas lo hace proxy.ts con la misma env.
-const LANDING_ONLY = process.env.NEXT_PUBLIC_LANDING_ONLY === "true"
+// El modo landing-only no vive aquí: proxy.ts bloquea rutas y /login muestra el aviso
+// de GitHub cuando el registro está cerrado. La landing siempre apunta a /login.
 const GITHUB_URL = "https://github.com/WDCPrado/lucaplan-app"
 const LINKEDIN_URL = "https://www.linkedin.com/in/welliton-da-costa-prado-5050b4251"
 
@@ -69,13 +68,9 @@ const banks = [
   { name: "Bci", monogram: "Bci", color: "#004a98", available: false, motion: "landing-float-b rotate-2" },
 ]
 
-// Landing-only: entrar sigue disponible (/login, solo cuentas existentes); crear cuenta
-// se reemplaza por el repo (open source, se instala local).
 const cta = {
   enter: { href: "/login", label: "Entrar", target: undefined, rel: undefined },
-  create: LANDING_ONLY
-    ? { href: GITHUB_URL, label: "Ver en GitHub", target: "_blank", rel: "noopener noreferrer" }
-    : { href: "/login", label: "Crear mi plan", target: undefined, rel: undefined },
+  create: { href: "/login", label: "Crear mi plan", target: undefined, rel: undefined },
 }
 
 const monthStats = [
@@ -833,7 +828,7 @@ export default function Home() {
               .
             </p>
             <div className="flex items-center gap-5">
-              <p>Tratamiento de datos conforme a la Ley 21.719 (Chile).</p>
+              <p>Privacidad conforme a la Ley 19.628 y preparada para la Ley 21.719 (Chile).</p>
               <div className="flex items-center gap-1">
                 <a
                   href={GITHUB_URL}

@@ -401,6 +401,6 @@ El texto legal completo (en inglés, la versión vinculante) está en [LICENSE](
 
 Hecho en Chile 🇨🇱 por [Welliton da Costa Prado](https://www.linkedin.com/in/welliton-da-costa-prado-5050b4251)
 
-Tratamiento de datos conforme a la Ley 21.719 (Chile).
+Privacidad conforme a la Ley 19.628 y preparada para la Ley 21.719 (Chile).
 
 </div>

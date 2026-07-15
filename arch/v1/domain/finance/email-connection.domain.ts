@@ -2,11 +2,11 @@
 // errores. La conexión lee notificaciones de correo con permiso mínimo de lectura y alimenta el
 // mismo modelo financiero (Bank → FinancialAccount → Card → BalanceBucket → Transaction). Los
 // saldos resultantes son PROYECCIONES desde un snapshot manual, nunca saldos reportados por el
-// banco. Un banco usa `scraper` O `email`, nunca ambos (ver ConnectionMethodRepository).
+// banco. Un banco usa un solo método de conexión a la vez (ver ConnectionMethodRepository).
 
 // --- Enums / tipos base ---
 
-export const CONNECTION_METHODS = ["scraper", "email"] as const
+export const CONNECTION_METHODS = ["email"] as const
 export type ConnectionMethod = (typeof CONNECTION_METHODS)[number]
 
 export const EMAIL_CONNECTION_STATUSES = [
@@ -126,7 +126,7 @@ export interface ConnectionMethodRepository {
     bankProvider: string,
     method: ConnectionMethod
   ): Promise<void>
-  // Libera el método solo si es el vigente (desconectar scraper no libera email y viceversa).
+  // Libera el método solo si es el vigente.
   release(
     userId: string,
     bankProvider: string,
@@ -138,11 +138,9 @@ export interface ConnectionMethodRepository {
 
 // Ya existe otro método de conexión activo para ese banco (→ 409).
 export class ConnectionMethodConflictError extends Error {
-  constructor(active: ConnectionMethod) {
+  constructor() {
     super(
-      active === "scraper"
-        ? "Banco de Chile ya está conectado por scraper. Desconéctalo primero para usar el correo."
-        : "Banco de Chile ya está conectado por correo. Desconéctalo primero para usar el scraper."
+      "Banco de Chile ya está conectado por correo. Desconéctalo primero para volver a conectar."
     )
     this.name = "ConnectionMethodConflictError"
   }

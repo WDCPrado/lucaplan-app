@@ -16,7 +16,6 @@
     "typecheck": "tsc --noEmit",
     "seed": "node --env-file=.env prisma/seed.ts",
     "seed:categories": "node --env-file=.env scripts/seed-categories.ts",
-    "sync:bank": "node --env-file=.env scripts/sync-bancochile.ts",
     "sync:email": "node --env-file=.env scripts/sync-email.ts"
   },
   "dependencies": {
@@ -49,7 +48,6 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
-    "patchright": "^1.61.1",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "prisma": "^7.8.0",

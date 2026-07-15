@@ -82,7 +82,7 @@ export type Bank = {
   name: string;
   isActive: boolean;
   provider: Provider; // "manual" | "fintoc"
-  connectionMethod?: "scraper" | "email" | null; // solo bancos conectados; opcional para bancos legados/manuales
+  connectionMethod?: "email" | null; // solo bancos conectados; opcional para bancos legados/manuales
   externalLinkId: string | null; // id del Link de Fintoc (link_...)
   linkToken: string | null; // token secreto del Link para leer sus datos (nunca al cliente)
   lastSyncedAt: Date | null;

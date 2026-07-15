@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils"
 
 export type OutlookStatus = {
   configured: boolean
-  activeMethod: "scraper" | "email" | null
+  activeMethod: "email" | null
   connection: {
     status: string
     emailAddress: string
@@ -329,15 +329,6 @@ export function OutlookBankConnection({
       </Notice>
     )
   }
-  if (status.activeMethod === "scraper" && !status.connection) {
-    return (
-      <Notice icon={CircleAlert}>
-        Banco de Chile ya usa el scraper. Desconéctalo antes de cambiar a
-        Outlook.
-      </Notice>
-    )
-  }
-
   if (!status.connection) {
     return (
       <div className="space-y-4">

@@ -13,7 +13,7 @@ import {
   deriveVerifier,
   encryptSecret,
   EMAIL_PURPOSE,
-} from "../bancochile/crypto.ts"
+} from "../../crypto/secret-crypto.ts"
 import { outlookConfig, refreshTokens } from "./outlook-oauth.ts"
 
 const GRAPH = "https://graph.microsoft.com/v1.0"

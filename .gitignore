@@ -14,17 +14,8 @@
 # playwright mcp (snapshots/console logs de verificación de UI)
 /.playwright-mcp/
 
-# spike banco: perfil/cookies/sesión y cuerpos JSON con datos financieros — NUNCA commitear
-/scripts/.bch-local/
-
-# perfil del navegador del scraper (cookies autenticadas del banco) — NUNCA commitear
-/.bancochile-profile/
-
-# llave de cifrado de credenciales del banco (auto-generada si no hay BANCOCHILE_ENC_KEY) — NUNCA commitear
+# llave de cifrado de secretos de conexiones (auto-generada si no hay BANCOCHILE_ENC_KEY) — NUNCA commitear
 /.bancochile-key
-
-# log de la sincronización programada
-/.bancochile-sync.log
 
 # next.js
 /.next/

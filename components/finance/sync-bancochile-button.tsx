@@ -12,8 +12,7 @@ import {
   type OutlookStatus,
 } from "./outlook-bank-connection"
 
-// Método único de conexión: notificaciones de correo vía Outlook. El scraper local quedó fuera
-// de la UI (el backend sigue existiendo solo para desconectar datos antiguos).
+// Método único de conexión: notificaciones de correo vía Outlook.
 const BANKS: { id: string; name: string; available: boolean }[] = [
   { id: "bancochile", name: "Banco de Chile", available: true },
 ]

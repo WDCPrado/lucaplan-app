@@ -3,7 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { ArrowLeftRight, ArrowRight, LockKeyhole, NotebookPen, Repeat2, Sparkles } from "lucide-react"
+import { ArrowRight, LockKeyhole, Mail, NotebookPen, Repeat2, Sparkles, Zap } from "lucide-react"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { LEGAL, type LegalKey } from "@/components/landing/legal-content"
@@ -201,7 +201,7 @@ export default function Home() {
               href="#conecta"
               className="transition-colors hover:text-foreground"
             >
-              Conecta tu banco
+              Conecta tu correo
             </a>
           </div>
           <Link
@@ -507,14 +507,15 @@ export default function Home() {
         className="mx-auto grid max-w-[88rem] scroll-mt-24 gap-14 border-t border-border px-6 py-24 lg:grid-cols-[1.05fr_0.95fr] lg:px-10 lg:py-32"
       >
         <div data-reveal>
-          <p className="text-sm font-semibold text-primary">Conecta tu banco</p>
+          <p className="text-sm font-semibold text-primary">Conecta tu correo</p>
           <h2 className="mt-5 max-w-lg text-4xl leading-[0.98] font-semibold tracking-[-0.05em] lg:text-5xl">
-            El plan mejora cuando ve lo que pasó.
+            Tu banco ya te avisa. LucaPlan escucha.
           </h2>
           <p className="mt-7 max-w-xl text-lg leading-8 text-muted-foreground">
-            LucaPlan se conecta con tu banco mediante un conector open source
-            que corre en tu propio equipo, y lleva los movimientos al
-            presupuesto que corresponde.
+            Cada compra o transferencia te llega como notificación al correo.
+            LucaPlan conecta tu Outlook, lee solo esos avisos del banco y
+            convierte cada uno en un movimiento categorizado — sin entregar
+            tus claves bancarias a nadie.
           </p>
         </div>
         <div className="grid content-center gap-8 lg:border-l lg:border-border lg:pl-16">
@@ -523,22 +524,36 @@ export default function Home() {
               <LockKeyhole className="size-5" aria-hidden="true" />
             </span>
             <div>
-              <p className="text-xl font-medium">Solo lectura</p>
+              <p className="text-xl font-medium">Solo lectura, revocable</p>
               <p className="mt-2 leading-7 text-muted-foreground">
-                Tus datos aportan contexto. LucaPlan no mueve dinero ni pide
-                que cambies tu forma de pagar.
+                Un permiso mínimo de lectura de correo: LucaPlan no puede
+                enviar, mover ni borrar nada, y quitas el acceso cuando
+                quieras desde tu cuenta Microsoft.
               </p>
             </div>
           </div>
           <div data-reveal style={delay(200)} className="flex gap-5">
             <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
-              <ArrowLeftRight className="size-5" aria-hidden="true" />
+              <Zap className="size-5" aria-hidden="true" />
             </span>
             <div>
-              <p className="text-xl font-medium">Movimientos para decidir</p>
+              <p className="text-xl font-medium">Al momento, sin esfuerzo</p>
               <p className="mt-2 leading-7 text-muted-foreground">
-                Cada transacción aterriza donde te ayuda a saber cuánto puedes
-                gastar este mes.
+                Llega el correo del banco y segundos después el gasto aparece
+                en su categoría, descontando el presupuesto del mes.
+              </p>
+            </div>
+          </div>
+          <div data-reveal style={delay(300)} className="flex gap-5">
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
+              <Mail className="size-5" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-xl font-medium">Solo los avisos del banco</p>
+              <p className="mt-2 leading-7 text-muted-foreground">
+                Se procesan únicamente las notificaciones de remitentes
+                conocidos del banco. El resto de tu correo no se lee ni se
+                guarda.
               </p>
             </div>
           </div>
@@ -588,7 +603,7 @@ export default function Home() {
                 <li><a href="#mes" className="transition-colors hover:text-foreground">El mes</a></li>
                 <li><a href="#app" className="transition-colors hover:text-foreground">La app</a></li>
                 <li><a href="#categorias" className="transition-colors hover:text-foreground">Categorización con IA</a></li>
-                <li><a href="#conecta" className="transition-colors hover:text-foreground">Conecta tu banco</a></li>
+                <li><a href="#conecta" className="transition-colors hover:text-foreground">Conecta tu correo</a></li>
                 <li><Link href={cta.href} target={cta.target} rel={cta.rel} className="transition-colors hover:text-foreground">{cta.enter}</Link></li>
               </ul>
             </nav>
@@ -612,9 +627,9 @@ export default function Home() {
             <div className="text-sm">
               <p className="font-semibold">Seguridad</p>
               <p className="mt-4 max-w-xs leading-6 text-muted-foreground">
-                Conexión bancaria de solo lectura con un conector open source
-                que corre en tu propio equipo: tus credenciales nunca salen de
-                tu dispositivo y LucaPlan no puede mover tu dinero.
+                LucaPlan nunca conoce tus claves bancarias: lee solo las
+                notificaciones de tu correo con un permiso de solo lectura,
+                revocable cuando quieras, y no puede mover tu dinero.
               </p>
             </div>
           </div>

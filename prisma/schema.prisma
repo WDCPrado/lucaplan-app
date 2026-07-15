@@ -91,7 +91,7 @@ model Bank {
   name             String
   isActive         Boolean            @default(true)
   provider         String             @default("manual") // manual | fintoc
-  connectionMethod String? // scraper | email (solo bancos conectados, ej. bancochile); null = manual/fintoc
+  connectionMethod String? // email (solo bancos conectados, ej. bancochile); null = manual/fintoc
   externalLinkId   String? // id del Link de Fintoc (link_...)
   linkToken        String? // token secreto del Link para leer sus datos (server-only)
   lastSyncedAt     DateTime?
@@ -176,23 +176,6 @@ model BalanceBucket {
   @@map("balance_bucket")
 }
 
-// Credenciales del banco para el auto-login local del scraper. La clave se guarda CIFRADA
-// (AES-256-GCM; la llave deriva de un secreto del entorno). Uso personal y local. El RUT no es
-// secreto; la clave nunca en claro. Una fila por (usuario, proveedor).
-model BankCredential {
-  id        String   @id @default(uuid())
-  userId    String
-  provider  String // bancochile
-  rut       String
-  passEnc   String // ciphertext+tag AES-256-GCM (base64)
-  iv        String // nonce (base64)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([userId, provider])
-  @@map("bank_credential")
-}
-
 // Conexión de correo (Outlook vía Microsoft Graph) que alimenta un banco con sus notificaciones.
 // Una por (usuario, banco). El refresh token va CIFRADO (AES-256-GCM con llave derivada con
 // propósito propio, distinto del de credenciales bancarias); nunca sale al cliente ni a logs.
@@ -223,14 +206,13 @@ model EmailConnection {
   @@map("email_connection")
 }
 
-// Método de conexión ACTIVO por (usuario, banco): la fila única impide a nivel de DB tener
-// `scraper` y `email` a la vez para el mismo banco. Se reclama al conectar y se libera al
-// desconectar. Cambiar de método exige desconectar primero (borra esta fila).
+// Método de conexión ACTIVO por (usuario, banco): la fila única impide a nivel de DB tener dos
+// métodos a la vez para el mismo banco. Se reclama al conectar y se libera al desconectar.
 model BankConnectionMethod {
   id           String   @id @default(uuid())
   userId       String
   bankProvider String // bancochile
-  method       String // scraper | email
+  method       String // email
   createdAt    DateTime @default(now())
 
   @@unique([userId, bankProvider])

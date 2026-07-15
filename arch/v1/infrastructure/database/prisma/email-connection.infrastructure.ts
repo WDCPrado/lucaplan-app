@@ -22,7 +22,7 @@ import type {
   EmailStoredBucket,
   ResolvedEmailMovement,
 } from "../../../application/finance-use-cases/email-connection-use-cases.ts"
-import { encryptSecret, EMAIL_PURPOSE } from "../../http/bancochile/crypto.ts"
+import { encryptSecret, EMAIL_PURPOSE } from "../../crypto/secret-crypto.ts"
 import { msgraphMailProvider } from "../../http/outlook/msgraph.provider.ts"
 import { categorizePendingMovements } from "./categorize-pending.infrastructure.ts"
 
@@ -111,9 +111,7 @@ export const connectionMethodRepository: ConnectionMethodRepository = {
     })
     if (existing) {
       if (existing.method === method) return // ya reclamado por el mismo método (idempotente)
-      throw new ConnectionMethodConflictError(
-        existing.method as ConnectionMethod
-      )
+      throw new ConnectionMethodConflictError()
     }
     try {
       await prisma.bankConnectionMethod.create({
@@ -124,8 +122,7 @@ export const connectionMethodRepository: ConnectionMethodRepository = {
       const row = await prisma.bankConnectionMethod.findUnique({
         where: { userId_bankProvider: { userId, bankProvider } },
       })
-      if (row && row.method !== method)
-        throw new ConnectionMethodConflictError(row.method as ConnectionMethod)
+      if (row && row.method !== method) throw new ConnectionMethodConflictError()
       if (!row) throw e
     }
   },

@@ -1,13 +1,11 @@
-# App web de LucaPlan (Next.js 16). El scraping de Banco de Chile NO corre aquí: se ejecuta desde
-# Windows con Chrome real (`pnpm sync:bank`). Por eso NO se instala navegador → imagen liviana, solo
-# la web + Prisma. Single-stage a propósito: es una app personal/local, la simpleza gana al tamaño.
+# App web de LucaPlan (Next.js 16): la web + Prisma, sin navegador → imagen liviana.
+# Single-stage a propósito: es una app personal/local, la simpleza gana al tamaño.
 FROM node:24-slim
 
 WORKDIR /app
 RUN npm install -g pnpm@10
 
-# Deps primero (capa cacheable). pnpm NO descarga el Chromium de patchright: su build script queda
-# fuera de allowBuilds en pnpm-workspace.yaml, así el postinstall está bloqueado (justo lo deseado).
+# Deps primero (capa cacheable).
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 

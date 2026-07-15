@@ -14,7 +14,6 @@ import type {
   MovementStatus,
 } from "../../domain/finance/finance.domain.ts"
 import {
-  ConnectionMethodConflictError,
   EmailConnectionNotFoundError,
   EmailSetupStateError,
   type BankEmailMessage,
@@ -276,7 +275,6 @@ export async function completeEmailConnection(
   const existing = await deps.emailConnections.findByUser(userId, BANK_PROVIDER)
   if (existing) {
     const active = await deps.methods.activeMethod(userId, BANK_PROVIDER)
-    if (active === "scraper") throw new ConnectionMethodConflictError("scraper")
     if (!active) await deps.methods.claim(userId, BANK_PROVIDER, "email")
     const connection = await deps.emailConnections.update(existing.id, {
       emailAddress: input.emailAddress,
@@ -973,7 +971,7 @@ export async function findWebhookConnection(
 // --- Vista de estado para la UI (sin tokens ni contenido de correo) ---
 
 export type EmailConnectionViewDTO = {
-  activeMethod: "scraper" | "email" | null
+  activeMethod: "email" | null
   status: string
   emailAddress: string
   pendingSetup: boolean

@@ -34,15 +34,16 @@ export const LEGAL = {
           y de la actividad que ocurra en tu cuenta. Debes entregar
           información veraz y mantenerla actualizada.
         </p>
-        <H>3. Conexión bancaria</H>
+        <H>3. Conexión por correo</H>
         <p>
-          La conexión con instituciones financieras se realiza mediante un
-          conector de código abierto (open source) que se ejecuta de forma
-          local, en tu propio equipo, y está destinado exclusivamente a uso
-          personal y local. Tú inicias sesión directamente en el sitio de tu
-          banco; LucaPlan accede únicamente a información de cuentas y
-          movimientos en modo lectura, nunca recibe ni almacena tus claves
-          bancarias, y no puede operar sobre tus cuentas.
+          La información bancaria se obtiene desde las notificaciones que tu
+          banco envía a tu correo electrónico. Al conectar tu cuenta de
+          correo autorizas a LucaPlan un permiso delegado de solo lectura,
+          que puedes revocar en cualquier momento desde tu cuenta Microsoft o
+          desconectando el banco en la aplicación. LucaPlan procesa
+          únicamente los mensajes de remitentes conocidos de tu banco, nunca
+          recibe ni almacena tus claves bancarias, no puede enviar, mover ni
+          eliminar correos, y no puede operar sobre tus cuentas.
         </p>
         <H>4. Categorización con IA</H>
         <p>
@@ -71,7 +72,8 @@ export const LEGAL = {
           En la medida permitida por la ley chilena, LucaPlan no responde por
           perjuicios derivados de decisiones tomadas con base en la
           información mostrada, errores de categorización, ni por
-          indisponibilidad del servicio o del conector bancario local.
+          indisponibilidad del servicio o retrasos en la recepción de las
+          notificaciones bancarias de tu correo.
         </p>
         <H>8. Término</H>
         <p>
@@ -108,10 +110,12 @@ export const LEGAL = {
         <H>2. Qué datos tratamos</H>
         <p>
           (a) Datos de cuenta: nombre y correo electrónico. (b) Datos
-          financieros: cuentas, saldos y movimientos bancarios que autorizas a
-          leer mediante el conector open source que se ejecuta localmente en
-          tu equipo, y los movimientos, categorías y presupuestos que
-          registras manualmente. (c) Datos de uso: preferencias y
+          financieros: los movimientos y saldos que se extraen de las
+          notificaciones bancarias de tu correo que autorizas a leer, y los
+          movimientos, categorías y presupuestos que registras manualmente.
+          El contenido de los correos se procesa en memoria y no se almacena;
+          solo se guarda el evento financiero extraído (monto, fecha,
+          comercio e instrumento). (c) Datos de uso: preferencias y
           correcciones de categorización, que se usan para mejorar la
           clasificación de tus propios movimientos.
         </p>
@@ -125,14 +129,14 @@ export const LEGAL = {
         </p>
         <H>4. Encargados y terceros</H>
         <p>
-          (a) Conexión bancaria: no interviene ningún proveedor externo; el
-          conector open source corre localmente en tu equipo, por lo que tus
-          claves y tu sesión bancaria nunca llegan a servidores de LucaPlan
-          ni de terceros. (b) Proveedor de IA: para categorizar, se
-          envían descripciones y montos de movimientos, junto a los nombres y
-          descripciones de tus categorías; no se envían tus credenciales ni
-          identificadores bancarios. No vendemos tus datos ni los usamos para
-          publicidad.
+          (a) Conexión por correo: interviene Microsoft como proveedor de tu
+          buzón (Microsoft Graph); LucaPlan accede con un permiso delegado de
+          solo lectura y guarda el token de acceso cifrado en el servidor.
+          Tus claves bancarias nunca se solicitan ni se transmiten. (b)
+          Proveedor de IA: para categorizar, se envían descripciones y montos
+          de movimientos, junto a los nombres y descripciones de tus
+          categorías; no se envían tus credenciales ni identificadores
+          bancarios. No vendemos tus datos ni los usamos para publicidad.
         </p>
         <H>5. Conservación y supresión</H>
         <p>
@@ -151,9 +155,9 @@ export const LEGAL = {
         <H>7. Seguridad</H>
         <p>
           Aplicamos medidas técnicas y organizativas razonables: cifrado en
-          tránsito, sesión bancaria que permanece únicamente en tu equipo (y
-          que puedes eliminar al desconectar el banco), y sesiones protegidas.
-          Ningún sistema es infalible; te
+          tránsito, token de acceso al correo cifrado en reposo (AES-256-GCM)
+          y eliminado al desconectar el banco, cuerpos de correo no
+          persistidos, y sesiones protegidas. Ningún sistema es infalible; te
           notificaremos las brechas de seguridad que la ley exija informar.
         </p>
         <H>8. Cambios</H>

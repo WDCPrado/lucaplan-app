@@ -1,16 +1,15 @@
-// Cifrado simétrico para secretos locales (clave del banco). AES-256-GCM con llave derivada por HKDF
-// de una llave maestra. La maestra es: BANCOCHILE_ENC_KEY del entorno (>=32 chars) si está; si no,
-// una llave ALEATORIA generada una vez y persistida local (gitignored). NUNCA una constante
-// hardcodeada. Un dump de la DB solo no basta para descifrar (la llave no vive en la DB).
-// ponytail: uso personal/local; si algún día hay servidor/multiusuario, subir a un KMS/por-usuario.
+// Cifrado simétrico para secretos de conexiones (hoy: refresh token OAuth del correo). AES-256-GCM
+// con llave derivada por HKDF de una llave maestra. La maestra es: BANCOCHILE_ENC_KEY del entorno
+// (>=32 chars) si está; si no, una llave ALEATORIA generada una vez y persistida local (gitignored).
+// NUNCA una constante hardcodeada. Un dump de la DB solo no basta para descifrar (la llave no vive
+// en la DB). El nombre de la env y del archivo local son históricos: cambiarlos rompería el
+// descifrado de los secretos ya guardados.
+// ponytail: uso personal; si algún día hay servidor/multiusuario, subir a un KMS/por-usuario.
 import { createCipheriv, createDecipheriv, createHmac, hkdfSync, randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-// Propósitos de derivación soportados: cada secreto usa SU llave (dominio separado por HKDF info).
-//  - bancochile-cred-v1: clave de internet del banco (scraper local).
-//  - email-connection-v1: refresh token OAuth de la conexión por correo (Outlook).
-export const CRED_PURPOSE = "bancochile-cred-v1";
+// Propósito de derivación: cada tipo de secreto usa SU llave (dominio separado por HKDF info).
 export const EMAIL_PURPOSE = "email-connection-v1";
 
 function masterSecret(): string {
@@ -29,13 +28,13 @@ function masterSecret(): string {
 
 // Llave AES de 32 bytes derivada por HKDF (dominio separado por `purpose`, no reutiliza el secreto
 // tal cual ni comparte llave entre tipos de secreto).
-function key(purpose: string = CRED_PURPOSE): Buffer {
+function key(purpose: string): Buffer {
   const salt = Buffer.alloc(0);
   return Buffer.from(hkdfSync("sha256", Buffer.from(masterSecret(), "utf8"), salt, purpose, 32));
 }
 
 // Devuelve { enc, iv } en base64. `enc` = ciphertext || authTag (16 bytes).
-export function encryptSecret(plain: string, purpose: string = CRED_PURPOSE): { enc: string; iv: string } {
+export function encryptSecret(plain: string, purpose: string): { enc: string; iv: string } {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key(purpose), iv);
   const ct = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
@@ -43,7 +42,7 @@ export function encryptSecret(plain: string, purpose: string = CRED_PURPOSE): { 
   return { enc: Buffer.concat([ct, tag]).toString("base64"), iv: iv.toString("base64") };
 }
 
-export function decryptSecret(enc: string, iv: string, purpose: string = CRED_PURPOSE): string {
+export function decryptSecret(enc: string, iv: string, purpose: string): string {
   const raw = Buffer.from(enc, "base64");
   const ct = raw.subarray(0, raw.length - 16);
   const tag = raw.subarray(raw.length - 16);

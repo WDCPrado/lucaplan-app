@@ -60,7 +60,7 @@ export type AccountDTO = {
   color: string | null
   cardLast4: string | null
   provider: string // "manual" | "fintoc" | "bancochile"; las conectadas son de solo lectura (badge)
-  connectionMethod?: string | null // "scraper" | "email" (solo conectadas); email = saldos ESTIMADOS
+  connectionMethod?: string | null // "email" (solo conectadas) = saldos ESTIMADOS
   lastSyncedAt: string | null // ISO; última sync del banco conectado (null en cuentas manuales)
   buckets?: BucketDTO[] // saldos/cupos por bucket (solo cuentas conectadas por scraper). Montos en unidad mayor.
 }

@@ -1,6 +1,6 @@
-// Categorización IA best-effort de los movimientos pendientes de un usuario. Compartida por las
-// conexiones (scraper y correo): solo confirmados, sin categoría y NO internos (abonos/pagos
-// internos jamás se categorizan). Una falla del proveedor deja los movimientos sin categoría.
+// Categorización IA best-effort de los movimientos pendientes de un usuario: solo confirmados,
+// sin categoría y NO internos (abonos/pagos internos jamás se categorizan). Una falla del
+// proveedor deja los movimientos sin categoría.
 import { prisma } from "./client.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import type {

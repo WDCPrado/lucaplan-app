@@ -7,7 +7,7 @@ import {
   OAuthStateError,
   EmailReauthRequiredError,
 } from "../../../domain/finance/email-connection.domain.ts"
-import { deriveVerifier, EMAIL_PURPOSE } from "../bancochile/crypto.ts"
+import { deriveVerifier, EMAIL_PURPOSE } from "../../crypto/secret-crypto.ts"
 
 const STATE_TTL_MS = 10 * 60 * 1000 // el callback debe volver dentro de 10 minutos
 

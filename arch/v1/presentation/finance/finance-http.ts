@@ -13,7 +13,6 @@ import {
   BankConnectionError,
   WebhookSignatureError,
 } from "../../domain/finance/finance.domain.ts";
-import { BankBlockedError } from "../../domain/finance/local-bank-connector.port.ts";
 import {
   ConnectionMethodConflictError,
   EmailConnectionNotFoundError,
@@ -49,7 +48,6 @@ function errorStatus(e: unknown): number {
   if (e instanceof WebhookSignatureError || e instanceof OAuthStateError) return 401;
   if (e instanceof LockBusyError) return 409; // sync ya en curso
   if (e instanceof ConnectionMethodConflictError) return 409; // otro método de conexión activo
-  if (e instanceof BankBlockedError) return 422; // bloqueo/anti-bot/sesión no iniciada
   if (
     e instanceof TransactionCurrencyMismatchError ||
     e instanceof CardLast4RequiredError ||

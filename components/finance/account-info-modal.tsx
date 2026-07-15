@@ -48,12 +48,7 @@ export function AccountInfoModal({
     if (!account) return
     setDisconnecting(true)
     const res = isBancoChile
-      ? await fetch(
-          account.connectionMethod === "email"
-            ? "/api/email-connection/disconnect"
-            : "/api/bancochile/disconnect",
-          { method: "POST" }
-        )
+      ? await fetch("/api/email-connection/disconnect", { method: "POST" })
       : await fetch("/api/fintoc/disconnect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

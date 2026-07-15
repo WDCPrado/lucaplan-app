@@ -15,7 +15,12 @@ import { Dashboard } from "@/components/finance/dashboard"
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; month?: string }>
+  searchParams: Promise<{
+    year?: string
+    month?: string
+    outlook?: string
+    reason?: string
+  }>
 }) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) redirect("/login")
@@ -26,13 +31,14 @@ export default async function DashboardPage({
   const month = Number(sp.month) || now.getUTCMonth() + 1
   const userId = session.user.id
 
-  const [summary, accounts, budget, transactions, uncategorized] = await Promise.all([
-    getMonthlySummary(financeDeps, userId, year, month),
-    listAccounts(financeDeps, userId),
-    getBudgetView(financeDeps, userId, year, month),
-    listTransactions(financeDeps, userId, year, month),
-    listUncategorized(financeDeps, userId),
-  ])
+  const [summary, accounts, budget, transactions, uncategorized] =
+    await Promise.all([
+      getMonthlySummary(financeDeps, userId, year, month),
+      listAccounts(financeDeps, userId),
+      getBudgetView(financeDeps, userId, year, month),
+      listTransactions(financeDeps, userId, year, month),
+      listUncategorized(financeDeps, userId),
+    ])
 
   const user = {
     name: session.user.name || session.user.email || "Usuario",
@@ -51,6 +57,8 @@ export default async function DashboardPage({
       transactions={transactions}
       uncategorized={uncategorized}
       user={user}
+      outlookResult={sp.outlook ?? null}
+      outlookReason={sp.reason ?? null}
     />
   )
 }

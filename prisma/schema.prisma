@@ -86,17 +86,19 @@ model Verification {
 // (ver arch/v1/application/finance-use-cases), no columnas.
 
 model Bank {
-  id             String             @id @default(uuid())
-  userId         String
-  name           String
-  isActive       Boolean            @default(true)
-  provider       String             @default("manual") // manual | fintoc
-  externalLinkId String? // id del Link de Fintoc (link_...)
-  linkToken      String? // token secreto del Link para leer sus datos (server-only)
-  lastSyncedAt   DateTime?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  accounts       FinancialAccount[]
+  id               String             @id @default(uuid())
+  userId           String
+  name             String
+  isActive         Boolean            @default(true)
+  provider         String             @default("manual") // manual | fintoc
+  connectionMethod String? // scraper | email (solo bancos conectados, ej. bancochile); null = manual/fintoc
+  externalLinkId   String? // id del Link de Fintoc (link_...)
+  linkToken        String? // token secreto del Link para leer sus datos (server-only)
+  lastSyncedAt     DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  accounts         FinancialAccount[]
+  emailConnection  EmailConnection?
 
   @@index([userId])
   @@index([externalLinkId])
@@ -189,6 +191,50 @@ model BankCredential {
 
   @@unique([userId, provider])
   @@map("bank_credential")
+}
+
+// Conexión de correo (Outlook vía Microsoft Graph) que alimenta un banco con sus notificaciones.
+// Una por (usuario, banco). El refresh token va CIFRADO (AES-256-GCM con llave derivada con
+// propósito propio, distinto del de credenciales bancarias); nunca sale al cliente ni a logs.
+// Los cuerpos de correo NO se persisten: solo el evento financiero extraído.
+model EmailConnection {
+  id                      String    @id @default(uuid())
+  userId                  String
+  bankProvider            String    @default("bancochile") // banco cuyas notificaciones se leen
+  emailProvider           String    @default("outlook") // proveedor de correo (solo outlook en v1)
+  emailAddress            String
+  bankId                  String?   @unique // banco creado tras validar candidatos; null durante el setup
+  bank                    Bank?     @relation(fields: [bankId], references: [id], onDelete: SetNull)
+  status                  String    @default("pending_setup") // pending_setup | active | reauth_required | error
+  refreshTokenEnc         String // ciphertext+tag AES-256-GCM (base64)
+  refreshTokenIv          String // nonce (base64)
+  deltaLink               String? // estado delta de Graph (recuperación de notificaciones perdidas)
+  subscriptionId          String? // suscripción webhook de Graph (null sin webhook HTTPS)
+  subscriptionExpiresAt   DateTime?
+  lastSyncedAt            DateTime?
+  lastError               String? // último error operativo, sin PII ni tokens
+  skippedCount            Int       @default(0) // mensajes omitidos (conteo, sin contenido)
+  lastBalanceReconciledAt DateTime? // fecha/hora del snapshot manual vigente (la proyección parte aquí)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@unique([userId, bankProvider])
+  @@index([subscriptionId])
+  @@map("email_connection")
+}
+
+// Método de conexión ACTIVO por (usuario, banco): la fila única impide a nivel de DB tener
+// `scraper` y `email` a la vez para el mismo banco. Se reclama al conectar y se libera al
+// desconectar. Cambiar de método exige desconectar primero (borra esta fila).
+model BankConnectionMethod {
+  id           String   @id @default(uuid())
+  userId       String
+  bankProvider String // bancochile
+  method       String // scraper | email
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, bankProvider])
+  @@map("bank_connection_method")
 }
 
 // Categoría GLOBAL del usuario, compartida entre todos los meses. El límite NO vive aquí:

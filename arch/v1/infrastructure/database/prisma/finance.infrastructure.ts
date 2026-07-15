@@ -100,6 +100,7 @@ const toBank = (r: any): Bank => ({
   name: r.name,
   isActive: r.isActive,
   provider: (r.provider ?? "manual") as Provider,
+  connectionMethod: r.connectionMethod ?? null,
   externalLinkId: r.externalLinkId ?? null,
   linkToken: r.linkToken ?? null,
   lastSyncedAt: r.lastSyncedAt ?? null,

@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="public/og-lucaplan.png" alt="Luca Plan — Tu plan, mes a mes" width="720" />
-
 # Luca Plan
 
 **Este mes sí tiene un plan.**
@@ -15,6 +13,7 @@ gastos y cuadra tu presupuesto mensual — sin entregarle tus claves bancarias a
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38bdf8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Prisma](https://img.shields.io/badge/Prisma-7-2d3748?logo=prisma)](https://www.prisma.io)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169e1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 </div>
 
@@ -172,7 +171,6 @@ cp .env.example .env
 | `OUTLOOK_WEBHOOK_URL`      | opcional  | Solo producción: URL HTTPS pública del webhook                               |
 | `OUTLOOK_RENEW_SECRET`     | opcional  | Solo producción: bearer para renovar la suscripción del webhook              |
 | `BANCOCHILE_ENC_KEY`       | opcional  | Llave maestra de cifrado de secretos. Si falta, se autogenera en `.bancochile-key` (gitignored). En producción defínela (≥32 chars de alta entropía) y **respáldala**. |
-| `NEXT_PUBLIC_LANDING_ONLY` | opcional  | `true` = deploy vitrina: landing + login accesibles, registro cerrado — ver [Modo landing-only](#modo-landing-only) |
 
 ### 3. Levanta la base de datos
 
@@ -207,7 +205,7 @@ pnpm dev
 
 Abre **http://localhost:3005**, entra a `/login` y crea tu cuenta (email + contraseña).
 El registro está abierto por defecto; para cerrarlo en un deploy propio, mira
-[Modo landing-only](#modo-landing-only) y [docs/pre-launch-lock.md](docs/pre-launch-lock.md).
+[docs/pre-launch-lock.md](docs/pre-launch-lock.md).
 
 ### 5. (Opcional) Siembra un set de categorías con contexto para la IA
 
@@ -367,13 +365,6 @@ docker compose up -d --build
 La app queda en el puerto `3005` y Postgres en `5433` (host). Los secretos se leen del
 `.env`.
 
-### Modo landing-only
-
-Para un deploy público tipo vitrina del proyecto (por ejemplo en Railway): setea
-`NEXT_PUBLIC_LANDING_ONLY="true"`. La landing y `/login` quedan accesibles, pero el
-**registro se cierra** (solo entran cuentas existentes), el login enlaza al repo de
-GitHub para instalar en local, y el resto de rutas sin sesión redirige a `/`.
-
 ## Documentación adicional
 
 - [arch/clean-architecture.md](arch/clean-architecture.md) — definición de la arquitectura y regla de dependencias.
@@ -390,6 +381,19 @@ GitHub para instalar en local, y el resto de rutas sin sesión redirige a `/`.
 3. Antes de abrir el PR: `pnpm lint && pnpm typecheck && node --test "arch/**/*.test.ts"`.
 4. Respeta la regla de dependencias de `arch/` y los primitivos de UI (shadcn/ui — si
    falta un componente, se instala con `pnpm dlx shadcn@latest add <componente>`).
+
+## Licencia
+
+Este proyecto se distribuye bajo la **licencia [MIT](LICENSE)**. En resumen:
+
+- **Puedes** usar, copiar, modificar, fusionar, publicar, distribuir, sublicenciar y
+  vender copias del software, incluso con fines comerciales.
+- **Debes** incluir el aviso de copyright y el texto de la licencia en toda copia o
+  parte sustancial del software.
+- **Sin garantía**: el software se entrega "tal cual" (*as is*), sin garantía de ningún
+  tipo; los autores no responden por daños derivados de su uso.
+
+El texto legal completo (en inglés, la versión vinculante) está en [LICENSE](LICENSE).
 
 ---
 

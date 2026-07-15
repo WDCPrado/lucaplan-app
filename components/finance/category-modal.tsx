@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { haptic } from "@/lib/haptics";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +69,7 @@ export function CategoryModal({
     });
     if (!catRes.ok) {
       setSaving(false);
+      haptic("error");
       toast.error("No se pudo guardar la categoría");
       return;
     }
@@ -81,11 +83,13 @@ export function CategoryModal({
       });
       if (!limRes.ok) {
         setSaving(false);
+        haptic("error");
         toast.error("La categoría se guardó, pero el límite no. Vuelve a intentarlo.");
         return;
       }
     }
     setSaving(false);
+    haptic("success");
     onOpenChange(false);
     router.refresh();
   }

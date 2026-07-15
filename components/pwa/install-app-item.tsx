@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { MonitorDown, Share, SquarePlus } from "lucide-react";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
+import { haptic } from "@/lib/haptics";
 
 // Evento no tipado por TS DOM: prompt de instalación de Chromium.
 type BeforeInstallPromptEvent = Event & {
@@ -62,6 +63,7 @@ export function InstallAppItem() {
     <>
       <DropdownMenuItem
         onSelect={(e) => {
+          haptic("light");
           if (deferred) {
             void deferred.prompt();
             return;

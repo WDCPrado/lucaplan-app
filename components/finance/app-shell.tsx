@@ -207,6 +207,7 @@ function UserMenu({
         <DropdownMenuItem
           onSelect={(e) => {
             e.preventDefault(); // no cerrar el menú al alternar
+            haptic("light");
             setTheme(resolvedTheme === "dark" ? "light" : "dark");
           }}
         >

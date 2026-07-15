@@ -81,10 +81,11 @@ export function UncategorizedTriage({
     }
     if (!ok) {
       setBusy(false);
+      haptic("error");
       toast.error("No se pudo guardar la categoría");
       return; // la card sigue al frente
     }
-    haptic("light");
+    haptic(pending.length === 1 ? "success" : "light"); // el último cierra el triage: éxito
     const doneTx = { ...front, categoryId }; // guarda la elección para preseleccionar al corregir
     setReturningId(null);
     setExiting(true);

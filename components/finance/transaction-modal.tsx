@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { haptic } from "@/lib/haptics";
 import { useMoneyInput } from "@/hooks/use-money-input";
 import { CategoryIcon } from "./category-icons";
 import { formatCLP } from "@/lib/finance-format";
@@ -47,11 +48,12 @@ export function savedFirst(list: CategoryDTO[], savedId: string | null): Categor
 
 // YYYY-MM-DD ↔ Date en horario local (mediodía evita el corrimiento de día por zona horaria).
 const parseISODate = (s: string) => new Date(`${s}T12:00:00`);
-const toISODate = (d: Date) =>
+export const toISODate = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-// Selector de fecha shadcn (Calendar + Popover), en español.
-function DatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+// Selector de fecha shadcn (Calendar + Popover), en español. Exportado: lo reutiliza el sheet
+// de nueva transacción.
+export function DatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const selected = parseISODate(value);
   return (
@@ -137,6 +139,7 @@ function EditForm({ tx, account, categories, onClose }: { tx: TransactionDTO; ac
       body: JSON.stringify({ description: description.trim(), amount: money.value, direction, categoryId, date }),
     });
     setBusy(null);
+    haptic(res.ok ? "success" : "error");
     if (res.ok) {
       onClose();
       router.refresh();
@@ -145,11 +148,14 @@ function EditForm({ tx, account, categories, onClose }: { tx: TransactionDTO; ac
 
   async function remove() {
     setBusy("delete");
+    haptic("heavy"); // acción destructiva
     const res = await fetch(`/api/transactions/${tx.id}`, { method: "DELETE" });
     setBusy(null);
     if (res.ok) {
       onClose();
       router.refresh();
+    } else {
+      haptic("error");
     }
   }
 
@@ -245,7 +251,11 @@ function ConnectedDetail({ tx, account, categories, onClose }: { tx: Transaction
       body: JSON.stringify({ categoryId }),
     });
     setSaving(false);
-    if (!res.ok) return;
+    if (!res.ok) {
+      haptic("error");
+      return;
+    }
+    haptic("success");
     // Quitar categoría no aprende nada: cierre directo.
     if (!categoryId) {
       onClose();
@@ -265,6 +275,7 @@ function ConnectedDetail({ tx, account, categories, onClose }: { tx: Transaction
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transactionId: tx.id, note: note.trim() || undefined, applyToSameText }),
       }).catch(() => {});
+      haptic(applyToSameText ? "success" : "light");
     }
     setSaving(false);
     onClose();
@@ -386,7 +397,10 @@ export function Chip({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => {
+        haptic("light"); // selección de chip
+        onClick();
+      }}
       disabled={disabled}
       className={cn(
         "flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm whitespace-nowrap disabled:opacity-50",

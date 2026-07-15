@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { haptic } from "@/lib/haptics";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,9 +38,11 @@ export function BudgetLimitModal({
     });
     setSaving(false);
     if (!res.ok) {
+      haptic("error");
       toast.error("No se pudo guardar el presupuesto del mes");
       return;
     }
+    haptic("success");
     onOpenChange(false);
     router.refresh();
   }

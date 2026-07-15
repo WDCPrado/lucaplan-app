@@ -6,8 +6,10 @@ import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { haptic } from "@/lib/haptics";
 import { useMoneyInput } from "@/hooks/use-money-input";
 import { CategoryIcon } from "./category-icons";
+import { DatePicker, toISODate } from "./transaction-modal";
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money";
 import type { AccountDTO, CategoryDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
 
@@ -25,10 +27,10 @@ export function AddTransactionSheet({
   onCreateAccount: () => void;
 }) {
   const router = useRouter();
-  const [direction, setDirection] = useState<"debit" | "credit">("debit");
   const [description, setDescription] = useState("");
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [date, setDate] = useState(() => toISODate(new Date()));
   const [saving, setSaving] = useState(false);
 
   // Cuenta activa: la seleccionada o la primera (cubre el caso de crear una cuenta recién).
@@ -37,20 +39,10 @@ export function AddTransactionSheet({
   const amountNum = money.value;
   const canSave = amountNum > 0 && !!account && !saving;
 
-  // Cuenta conectada por correo: solo abonos/ingresos (los cargos llegan solos por correo).
-  // Se deriva en render: cambiar a una cuenta conectada fuerza el lado sin tocar el estado.
-  const incomeOnly = !!account && account.provider !== "manual";
-  const effDirection = incomeOnly ? "credit" : direction;
-
-  // Las categorías se filtran por el lado elegido: gasto → categorías de gasto, ingreso → de ingreso.
-  const wantType = effDirection === "credit" ? "income" : "expense";
-  const visibleCategories = categories.filter((c) => c.type === wantType);
-
-  function changeDirection(d: "debit" | "credit") {
-    setDirection(d);
-    const t = d === "credit" ? "income" : "expense";
-    if (categoryId && categories.find((c) => c.id === categoryId)?.type !== t) setCategoryId(null);
-  }
+  // ponytail: el formulario crea SOLO ingresos por ahora — los gastos llegan solos por el correo
+  // del banco; reponer el toggle de lado si algún día vuelve el gasto manual.
+  const connected = !!account && account.provider !== "manual";
+  const visibleCategories = categories.filter((c) => c.type === "income");
 
   async function save() {
     if (!canSave || !account) return;
@@ -60,26 +52,28 @@ export function AddTransactionSheet({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         accountId: account.id,
-        // Solo una categoría del lado visible (cambiar de cuenta puede voltear el lado).
-        categoryId: visibleCategories.some((c) => c.id === categoryId) ? categoryId : null,
+        categoryId,
         amount: amountNum,
         currency: account.currency,
-        direction: effDirection,
-        description: description || "Movimiento",
+        direction: "credit",
+        description: description || "Ingreso",
+        date,
       }),
     });
     setSaving(false);
+    haptic(res.ok ? "success" : "error");
     if (res.ok) {
       money.reset();
       setDescription("");
       setCategoryId(null);
+      setDate(toISODate(new Date()));
       onOpenChange(false);
       router.refresh();
     }
   }
 
   return (
-    <ResponsiveModal open={open} onOpenChange={onOpenChange} title="Nueva transacción">
+    <ResponsiveModal open={open} onOpenChange={onOpenChange} title="Nuevo ingreso">
         {accounts.length === 0 ? (
           <div className="flex flex-col items-center gap-4 px-4 py-10 text-center">
             <p className="text-sm text-muted-foreground">
@@ -98,45 +92,25 @@ export function AddTransactionSheet({
             className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
           />
           <div className="flex items-center gap-3">
-            <div className="flex overflow-hidden rounded-full border">
-              <button
-                type="button"
-                onClick={() => changeDirection("debit")}
-                disabled={incomeOnly}
-                title={incomeOnly ? "Los cargos de esta cuenta llegan solos por correo" : undefined}
-                className={cn(
-                  "size-11 text-xl",
-                  effDirection === "debit" && "bg-destructive text-destructive-foreground",
-                  incomeOnly && "cursor-not-allowed opacity-40",
-                )}
-              >
-                −
-              </button>
-              <button
-                type="button"
-                onClick={() => changeDirection("credit")}
-                className={cn("size-11 text-xl", effDirection === "credit" && "bg-success text-success-foreground")}
-              >
-                +
-              </button>
-            </div>
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-success text-xl text-success-foreground" aria-hidden="true">
+              +
+            </span>
             <Input
               inputMode="numeric"
               placeholder="0"
               value={money.display}
               onChange={(e) => money.onChange(e.target.value)}
-              className={cn(
-                "tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0",
-                effDirection === "debit" ? "text-destructive" : "text-success",
-              )}
+              className="tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold text-success shadow-none focus-visible:ring-0"
             />
           </div>
-          {incomeOnly && (
+          {connected && (
             <p className="-mt-2 text-xs text-muted-foreground">
-              Cuenta conectada: aquí solo se registran abonos e ingresos — los cargos llegan solos
-              desde el correo del banco.
+              Cuenta conectada: aquí registras abonos e ingresos — los cargos llegan solos desde el
+              correo del banco.
             </p>
           )}
+
+          <DatePicker value={date} onChange={setDate} />
 
           {accounts.length > 1 && (
             <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
@@ -150,7 +124,7 @@ export function AddTransactionSheet({
 
           <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
             {visibleCategories.length === 0 ? (
-              <span className="text-sm text-muted-foreground">Sin categorías de {direction === "credit" ? "ingreso" : "gasto"}.</span>
+              <span className="text-sm text-muted-foreground">Sin categorías de ingreso.</span>
             ) : (
               visibleCategories.map((c) => (
                 <Chip key={c.id} active={c.id === categoryId} onClick={() => setCategoryId(c.id === categoryId ? null : c.id)}>
@@ -173,7 +147,10 @@ function Chip({ active, onClick, children }: { active?: boolean; onClick: () => 
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => {
+        haptic("light"); // selección de chip
+        onClick();
+      }}
       className={cn(
         "flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm whitespace-nowrap",
         active ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground",

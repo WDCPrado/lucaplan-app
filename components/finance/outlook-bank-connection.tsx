@@ -11,6 +11,7 @@ import {
   Unplug,
 } from "lucide-react"
 import { toast } from "sonner"
+import { haptic } from "@/lib/haptics"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "./transaction-modal"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { useMoneyInput } from "@/hooks/use-money-input"
@@ -283,8 +285,11 @@ export function OutlookBankConnection({
     })
     const data = await res.json().catch(() => ({}))
     setBusy(false)
-    if (!res.ok)
+    if (!res.ok) {
+      haptic("error")
       return toast.error(data.error ?? "No se pudieron guardar los saldos")
+    }
+    haptic("success")
     toast.success(
       mode === "confirm"
         ? "Outlook conectado y movimientos importados"
@@ -299,18 +304,26 @@ export function OutlookBankConnection({
     const res = await fetch("/api/email-connection/refresh", { method: "POST" })
     const data = await res.json().catch(() => ({}))
     setBusy(false)
-    if (!res.ok) return toast.error(data.error ?? "No se pudo sincronizar")
+    if (!res.ok) {
+      haptic("error")
+      return toast.error(data.error ?? "No se pudo sincronizar")
+    }
+    haptic("success")
     toast.success(`${data.created ?? 0} movimientos nuevos`)
     await onReload()
   }
 
   async function disconnect() {
     setBusy(true)
+    haptic("heavy") // acción destructiva confirmada
     const res = await fetch("/api/email-connection/disconnect", {
       method: "POST",
     })
     setBusy(false)
-    if (!res.ok) return toast.error("No se pudo desconectar Outlook")
+    if (!res.ok) {
+      haptic("error")
+      return toast.error("No se pudo desconectar Outlook")
+    }
     toast.success("Outlook desconectado")
     await onReload()
   }
@@ -584,11 +597,23 @@ export function SnapshotForm({
   return (
     <div className="space-y-4">
       <Field label="Fecha y hora del saldo">
-        <Input
-          type="datetime-local"
-          value={snapshotAt}
-          onChange={(e) => setSnapshotAt(e.target.value)}
-        />
+        {/* snapshotAt = "YYYY-MM-DDTHH:mm": Calendar+Popover de shadcn para la fecha (regla del
+            proyecto: nunca input date nativo) + input de hora al lado. */}
+        <div className="flex gap-2">
+          <div className="min-w-0 flex-1">
+            <DatePicker
+              value={snapshotAt.slice(0, 10)}
+              onChange={(d) => setSnapshotAt(`${d}T${snapshotAt.slice(11, 16)}`)}
+            />
+          </div>
+          <Input
+            type="time"
+            value={snapshotAt.slice(11, 16)}
+            onChange={(e) => setSnapshotAt(`${snapshotAt.slice(0, 10)}T${e.target.value}`)}
+            aria-label="Hora del saldo"
+            className="h-11 w-auto shrink-0"
+          />
+        </div>
       </Field>
       {checking ? (
         <CandidateCard

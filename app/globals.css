@@ -373,3 +373,16 @@ html:has(main[data-landing]) body {
     background-color: var(--card);
   }
 }
+
+/* PWA instalada (standalone): con viewport-fit=cover el lienzo llega hasta notch/home indicator;
+   estas compensaciones aplican SOLO instalada (en navegador normal env() ≈ 0 y no se duplica
+   espacio). max() conserva el padding mínimo actual de cada superficie. */
+@media (display-mode: standalone) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  .pwa-safe-top {
+    padding-top: max(env(safe-area-inset-top), 0.75rem);
+  }
+}

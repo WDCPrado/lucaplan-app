@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Sin conexión · Luca Plan</title>
+    <!-- Página offline PÚBLICA: lo único que el service worker precachea. Sin datos, sin JS externo. -->
+    <style>
+      * { margin: 0; box-sizing: border-box; }
+      body {
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 24px calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
+        background: #0f141d;
+        color: #e7ebf2;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        text-align: center;
+      }
+      .logo {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        margin: 0 auto 20px;
+        background: linear-gradient(135deg, #0a2a6b, #0850c0);
+        color: #fff;
+        font-size: 26px;
+        font-weight: 700;
+      }
+      h1 { font-size: 22px; letter-spacing: -0.02em; }
+      p { margin-top: 10px; font-size: 15px; line-height: 1.55; color: #9aa4b5; max-width: 34ch; }
+      button {
+        margin-top: 24px;
+        height: 44px;
+        padding: 0 28px;
+        border: 0;
+        border-radius: 999px;
+        background: #0850c0;
+        color: #fff;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      @media (prefers-color-scheme: light) {
+        body { background: #f9fafc; color: #101828; }
+        p { color: #55627a; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="logo" aria-hidden="true">L</div>
+      <h1>Sin conexión</h1>
+      <p>Luca Plan necesita internet para mostrar tus datos. Revisa tu conexión y vuelve a intentarlo.</p>
+      <button onclick="location.reload()">Reintentar</button>
+    </main>
+  </body>
+</html>

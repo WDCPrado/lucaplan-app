@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { haptic } from "@/lib/haptics";
+import { InstallAppItem } from "@/components/pwa/install-app-item";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -85,7 +86,7 @@ export function AppShell({ user, active = "inicio", onNavigate, onSignOut, onAdd
 
         <SidebarInset className="min-w-0">
           {/* Topbar solo en escritorio; en móvil el selector de mes flota (sticky) centrado. */}
-          <header className="sticky top-0 z-10 hidden h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-4 backdrop-blur md:flex lg:px-6">
+          <header className="pwa-safe-top sticky top-0 z-10 hidden min-h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-4 backdrop-blur md:flex lg:px-6">
             <SidebarTrigger className="size-9" />
             {title && <h1 className="font-heading text-lg font-bold tracking-tight">{title}</h1>}
             <div className="ml-auto flex items-center gap-2">{actions}</div>
@@ -93,7 +94,7 @@ export function AppShell({ user, active = "inicio", onNavigate, onSignOut, onAdd
           {/* Móvil: fila flotante a la altura del selector de mes — lupa | selector | usuario.
               items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar. */}
           {actions && (
-            <div className="pointer-events-none sticky top-0 z-20 flex justify-center px-4 pt-3 md:hidden">
+            <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center px-4 pt-3 md:hidden">
               <div className="pointer-events-auto flex w-full items-start justify-between gap-2 drop-shadow-md">
                 {onSearch && (
                   <button
@@ -217,6 +218,8 @@ function UserMenu({
           <span className="hidden [html.dark_&]:inline">Tema claro</span>
           <span className="[html.dark_&]:hidden">Tema oscuro</span>
         </DropdownMenuItem>
+        {/* Solo aparece si hay vía de instalación y la app no corre ya instalada */}
+        <InstallAppItem />
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={() => onSignOut?.()}>
           <LogOut className="size-4" />

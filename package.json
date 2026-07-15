@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "seed": "node --env-file=.env prisma/seed.ts",
     "seed:categories": "node --env-file=.env scripts/seed-categories.ts",
-    "sync:bank": "node --env-file=.env scripts/sync-bancochile.ts"
+    "sync:bank": "node --env-file=.env scripts/sync-bancochile.ts",
+    "sync:email": "node --env-file=.env scripts/sync-email.ts"
   },
   "dependencies": {
     "@fintoc/fintoc-js": "^1.1.2",

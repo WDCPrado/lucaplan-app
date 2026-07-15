@@ -14,6 +14,13 @@ import {
   WebhookSignatureError,
 } from "../../domain/finance/finance.domain.ts";
 import { BankBlockedError } from "../../domain/finance/local-bank-connector.port.ts";
+import {
+  ConnectionMethodConflictError,
+  EmailConnectionNotFoundError,
+  EmailReauthRequiredError,
+  EmailSetupStateError,
+  OAuthStateError,
+} from "../../domain/finance/email-connection.domain.ts";
 import { LockBusyError } from "../../../shared/mutex.ts";
 import {
   accountRepository,
@@ -39,18 +46,27 @@ export const financeDeps = {
 };
 
 function errorStatus(e: unknown): number {
-  if (e instanceof WebhookSignatureError) return 401;
+  if (e instanceof WebhookSignatureError || e instanceof OAuthStateError) return 401;
   if (e instanceof LockBusyError) return 409; // sync ya en curso
+  if (e instanceof ConnectionMethodConflictError) return 409; // otro método de conexión activo
   if (e instanceof BankBlockedError) return 422; // bloqueo/anti-bot/sesión no iniciada
   if (
     e instanceof TransactionCurrencyMismatchError ||
     e instanceof CardLast4RequiredError ||
     e instanceof ConnectedAccountReadOnlyError ||
     e instanceof BankConnectionError ||
-    e instanceof InvalidMonthlyBudgetError
+    e instanceof InvalidMonthlyBudgetError ||
+    e instanceof EmailReauthRequiredError ||
+    e instanceof EmailSetupStateError
   )
     return 422;
-  if (e instanceof NotOwnerError || e instanceof AccountNotFoundError || e instanceof CategoryNotFoundError) return 404;
+  if (
+    e instanceof NotOwnerError ||
+    e instanceof AccountNotFoundError ||
+    e instanceof CategoryNotFoundError ||
+    e instanceof EmailConnectionNotFoundError
+  )
+    return 404;
   return 500;
 }
 

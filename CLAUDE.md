@@ -4,6 +4,24 @@ App **fullstack Next.js 16** (App Router, React 19) con **clean architecture** p
 Dominio: **planificación financiera** (presupuestos, gastos, metas de ahorro).
 Gestor de paquetes: **pnpm**.
 
+## Ejecución desde Codex
+
+Cuando Codex te invoque de forma no interactiva:
+
+- Lee este `CLAUDE.md` y el OpenSpec indicado en el prompt antes de editar. El OpenSpec aprobado es
+  el plan y contrato; no abras otra sesión de planificación.
+- Trabaja únicamente dentro de esta invocación. No crees sesiones, agentes en background,
+  subagentes, worktrees, tmux ni procesos MCP.
+- Si el OpenSpec es ambiguo, contradictorio o inseguro, no improvises el alcance: detente y devuelve
+  el hallazgo con una recomendación concreta.
+- Al terminar, devuelve resumen, archivos modificados, verificaciones y riesgos, y cierra la
+  ejecución. No dejes procesos hijos vivos.
+- No hagas commit/push, no instales dependencias, no toques secretos o `.env`, no despliegues ni
+  ejecutes cambios destructivos sin autorización explícita.
+
+Si levantas un servidor o proceso para verificar, ciérralo antes de responder y confirma que su
+puerto quedó libre. Conserva cualquier proceso que ya estuviera ejecutando el usuario.
+
 ## Flujo OpenSpec — obligatorio para cada feature nueva
 
 Toda feature nueva pasa por OpenSpec **en este orden**. No saltes pasos ni escribas código de

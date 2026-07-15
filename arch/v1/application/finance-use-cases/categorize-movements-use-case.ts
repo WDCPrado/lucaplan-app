@@ -43,8 +43,8 @@ async function categorizeChunk(
   for (const m of chunk) {
     const chosen = result[m.id];
     if (chosen && allowed.has(chosen)) {
-      await deps.transactions.setCategory(m.id, chosen);
-      n++;
+      // Condicional: si el usuario categorizó mientras la IA respondía, su elección se conserva.
+      if (await deps.transactions.setCategoryIfUncategorized(m.id, chosen)) n++;
     }
   }
   return n;

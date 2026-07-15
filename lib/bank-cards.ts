@@ -5,6 +5,12 @@
 
 export type CardVariant = "debito" | "credito";
 
+// Fondo por variante: azul (débito) / negro (crédito). Estilo propio, no una foto de tarjeta.
+export const CARD_VARIANT_BG: Record<CardVariant, string> = {
+  debito: "linear-gradient(135deg, #0a2a6b 0%, #0b3f9e 55%, #0850c0 100%)",
+  credito: "linear-gradient(135deg, #0a0a0d 0%, #17171c 55%, #26262d 100%)",
+};
+
 // Nombre del banco (tal como se guarda) → isotipo del catálogo. Solo los mapeados tienen arte.
 const BANK_ICONS: Record<string, string> = {
   "Banco de Chile": "/imagenes/bancos/banco-chile/bch.png",

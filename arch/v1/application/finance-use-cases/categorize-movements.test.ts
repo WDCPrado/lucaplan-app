@@ -76,6 +76,12 @@ function makeDeps(provider: CategorizationProvider, categories: Category[]) {
         applied.push({ id, categoryId });
         return mov(id, "debit");
       },
+      // La IA escribe por aquí (condicional). Por defecto siempre "gana"; los tests de carrera
+      // lo sobrescriben con un store con estado.
+      async setCategoryIfUncategorized(id, categoryId) {
+        applied.push({ id, categoryId });
+        return true;
+      },
       async delete() {},
       async importMovements() {
         return [];
@@ -127,6 +133,27 @@ test("categorizeMovements: provider que falla no lanza y no asigna (skip elegant
   const assigned = await categorizeMovements(deps, "u1", [mov("d", "debit")]);
   assert.equal(assigned, 0);
   assert.equal(applied.length, 0);
+});
+
+test("categorizeMovements: si el usuario categoriza durante la carrera, la IA no sobrescribe", async () => {
+  // Store con estado: null = sin categoría. El provider simula la carrera asignando la elección
+  // del usuario MIENTRAS la IA "responde"; la escritura condicional debe respetarla.
+  const store = new Map<string, string | null>([["d", null]]);
+  const provider: CategorizationProvider = {
+    async categorize({ movements, categories }) {
+      store.set("d", "eleccion-del-usuario");
+      return Object.fromEntries(movements.map((m) => [m.id, categories[0].id]));
+    },
+  };
+  const { deps } = makeDeps(provider, [cat("gasto1", "expense")]);
+  deps.transactions.setCategoryIfUncategorized = async (id, categoryId) => {
+    if (store.get(id) !== null) return false; // ya no está null → la IA no escribe
+    store.set(id, categoryId);
+    return true;
+  };
+  const assigned = await categorizeMovements(deps, "u1", [mov("d", "debit")]);
+  assert.equal(assigned, 0);
+  assert.equal(store.get("d"), "eleccion-del-usuario"); // la elección manual se conserva
 });
 
 test("categorizeMovements: no re-categoriza los que ya tienen categoría", async () => {

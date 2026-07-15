@@ -2,13 +2,12 @@
 // operaciones que necesita `syncLocalConnection` (application), inyectando el `LocalBankConnector`.
 // El dominio nunca ve Prisma; aquí se mapea Money ↔ Decimal string.
 import { prisma } from "./client.ts";
-import { Money, type CurrencyCode } from "../../../domain/finance/money.ts";
-import type { Direction, ImportMovement, MovementStatus, Transaction } from "../../../domain/finance/finance.domain.ts";
+import type { ImportMovement } from "../../../domain/finance/finance.domain.ts";
+import { ConnectionMethodConflictError } from "../../../domain/finance/email-connection.domain.ts";
 import type { LocalBankConnector } from "../../../domain/finance/local-bank-connector.port.ts";
 import type { SyncLocalDeps, UnbilledInsert } from "../../../application/finance-use-cases/sync-local-connection-use-case.ts";
-import { categorizeMovements } from "../../../application/finance-use-cases/categorize-movements-use-case.ts";
-import { categoryRepository, transactionRepository } from "./finance.infrastructure.ts";
-import { openaiCategorizationProvider } from "../../http/ai/openai-categorization.provider.ts";
+import { categorizePendingMovements } from "./categorize-pending.infrastructure.ts";
+import { connectionMethodRepository } from "./email-connection.infrastructure.ts";
 
 const CHUNK = 10; // ponytail: upsert de cartola en lotes acotados (no satura el pool de conexiones).
 
@@ -18,12 +17,17 @@ export function makeSyncLocalDeps(connector: LocalBankConnector): SyncLocalDeps 
     connector,
 
     async upsertBank(userId, name) {
+      // Exclusividad de método: si el banco está conectado por CORREO, el scraper no puede correr
+      // (hay que desconectar primero). Reclama/valida la fila única (userId, banco).
+      const active = await connectionMethodRepository.activeMethod(userId, "bancochile");
+      if (active === "email") throw new ConnectionMethodConflictError("email");
+      if (!active) await connectionMethodRepository.claim(userId, "bancochile", "scraper");
       // Un solo banco BCH por usuario (provider). lastSyncedAt se devuelve ANTES de esta sync
       // (markSynced lo actualiza al final) para calcular la ventana solapada.
       const existing = await prisma.bank.findFirst({ where: { userId, provider: "bancochile" } });
       const row = existing
-        ? await prisma.bank.update({ where: { id: existing.id }, data: { name } })
-        : await prisma.bank.create({ data: { userId, name, provider: "bancochile" } });
+        ? await prisma.bank.update({ where: { id: existing.id }, data: { name, connectionMethod: "scraper" } })
+        : await prisma.bank.create({ data: { userId, name, provider: "bancochile", connectionMethod: "scraper" } });
       return { id: row.id, lastSyncedAt: existing?.lastSyncedAt ?? null };
     },
 
@@ -137,30 +141,7 @@ export function makeSyncLocalDeps(connector: LocalBankConnector): SyncLocalDeps 
 
     // Categoriza con IA los movimientos confirmados sin categoría del usuario (best-effort).
     async categorize(userId) {
-      // Solo confirmados sin categoría y NO internos (las transferencias/pagos no se categorizan).
-      const rows = await prisma.transaction.findMany({
-        where: { userId, categoryId: null, status: "confirmed", isInternal: false },
-        take: 500,
-      });
-      if (rows.length === 0) return 0;
-      const movements: Transaction[] = rows.map((r) => ({
-        id: r.id,
-        userId: r.userId,
-        accountId: r.accountId,
-        categoryId: null,
-        date: r.transactionDate,
-        description: r.description,
-        amount: Money.of(r.amount.toString(), r.currency as CurrencyCode),
-        direction: r.direction as Direction,
-        status: (r.status ?? "confirmed") as MovementStatus,
-        isInternal: r.isInternal ?? false,
-        externalId: r.externalId ?? null,
-      }));
-      return categorizeMovements(
-        { transactions: transactionRepository, categories: categoryRepository, categorization: openaiCategorizationProvider },
-        userId,
-        movements,
-      );
+      return categorizePendingMovements(userId);
     },
   };
 }

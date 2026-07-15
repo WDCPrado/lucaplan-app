@@ -19,7 +19,8 @@ import type { CurrencyCode } from "@/arch/v1/domain/finance/money";
 import type { AccountDTO, TransactionDTO, CategoryDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
 
 // Descripción de la cuenta de un movimiento: "Banco · •••• 1234" (o el nombre si no hay tarjeta).
-function accountLabel(account: AccountDTO | undefined): string | null {
+// Exportado: el triage de sin categoría reutiliza la misma línea de cuenta.
+export function accountLabel(account: AccountDTO | undefined): string | null {
   if (!account) return null;
   const bank = account.bankName || account.name;
   const card = account.cardLast4 ? `•••• ${account.cardLast4}` : account.name;
@@ -38,7 +39,8 @@ const fullDate = (iso: string) =>
 
 // La categoría GUARDADA del movimiento va primero en los chips (si pasa el filtro por tipo).
 // Se ancla a tx.categoryId, no a la selección en pantalla: el orden no salta al tocar chips.
-function savedFirst(list: CategoryDTO[], savedId: string | null): CategoryDTO[] {
+// Exportado: el triage reutiliza el mismo orden.
+export function savedFirst(list: CategoryDTO[], savedId: string | null): CategoryDTO[] {
   const saved = savedId ? list.find((c) => c.id === savedId) : undefined;
   return saved ? [saved, ...list.filter((c) => c.id !== saved.id)] : list;
 }
@@ -300,13 +302,25 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function Chip({ active, onClick, children }: { active?: boolean; onClick: () => void; children: React.ReactNode }) {
+// Chip de categoría (exportado: lo reutiliza el triage). `disabled` mientras se persiste.
+export function Chip({
+  active,
+  onClick,
+  disabled,
+  children,
+}: {
+  active?: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={cn(
-        "flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm whitespace-nowrap",
+        "flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm whitespace-nowrap disabled:opacity-50",
         active ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground",
       )}
     >

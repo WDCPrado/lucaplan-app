@@ -379,7 +379,8 @@ export async function getBudgetView(
       limit,
       txs,
       year,
-      month
+      month,
+      category.type === "income" ? "credit" : "debit"
     )
     return {
       id: category.id,
@@ -434,7 +435,8 @@ export async function getCategoryDetail(
     limit,
     txs,
     year,
-    month
+    month,
+    category.type === "income" ? "credit" : "debit"
   )
   const remaining = historicalRemaining(txs, () => limit)
   return {

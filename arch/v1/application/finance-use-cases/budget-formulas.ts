@@ -48,12 +48,14 @@ export function computeCategoryUsage(
   transactions: Transaction[],
   year: number,
   month: number,
+  // Dirección que "usa" la categoría: gastos suman débitos; categorías de ingreso suman créditos.
+  direction: "debit" | "credit" = "debit",
 ): { used: Money; available: Money } {
   const used = transactions
     .filter(
       (t) =>
         t.categoryId === categoryId &&
-        t.direction === "debit" &&
+        t.direction === direction &&
         t.status === "confirmed" &&
         !t.isInternal &&
         t.amount.currency === limit.currency &&

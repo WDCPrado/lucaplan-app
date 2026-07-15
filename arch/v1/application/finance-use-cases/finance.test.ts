@@ -124,6 +124,16 @@ test("uso por categoría: límite 70.000, gastos 45.000 → disponible 25.000", 
   assert.equal(available.toMajor(), 25000);
 });
 
+test("uso por categoría de ingreso: suma créditos y omite débitos", () => {
+  const txs = [
+    tx({ id: "t1", amount: clp(250000), date: enero(5), direction: "credit" }),
+    tx({ id: "t2", amount: clp(100000), date: enero(20), direction: "credit" }),
+    tx({ id: "t3", amount: clp(9999), date: enero(9) }), // gasto no cuenta en ingreso
+  ];
+  const { used } = computeCategoryUsage("cat1", clp(0), txs, 2026, 1, "credit");
+  assert.equal(used.toMajor(), 350000);
+});
+
 // --- Estado por porcentaje ---
 
 test("categoryStatus: 4 umbrales", () => {

@@ -385,6 +385,11 @@ export function OutlookBankConnection({
               Revisando notificaciones de este mes…
             </div>
           )}
+          <DisconnectOutlookButton
+            busy={busy}
+            onConfirm={disconnect}
+            description="Se eliminará la autorización de Outlook. Aún no se creó ninguna cuenta ni movimiento."
+          />
         </div>
       )
     }
@@ -416,6 +421,11 @@ export function OutlookBankConnection({
           {busy && <Loader2 className="animate-spin" />} Validar e importar
           movimientos
         </Button>
+        <DisconnectOutlookButton
+          busy={busy}
+          onConfirm={disconnect}
+          description="Se eliminará la autorización de Outlook. Aún no se creó ninguna cuenta ni movimiento."
+        />
       </div>
     )
   }
@@ -516,33 +526,48 @@ export function OutlookBankConnection({
       >
         Actualizar saldos
       </Button>
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button
-            variant="ghost"
-            disabled={busy}
-            className="h-10 w-full rounded-full text-destructive hover:text-destructive"
-          >
-            <Unplug /> Desconectar Outlook
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Desconectar Outlook?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se borrarán las cuentas y los movimientos importados por Outlook.
-              Podrás volver a conectar el banco más adelante.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={disconnect}>
-              Desconectar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DisconnectOutlookButton
+        busy={busy}
+        onConfirm={disconnect}
+        description="Se borrarán las cuentas y los movimientos importados por Outlook. Podrás volver a conectar el banco más adelante."
+      />
     </div>
+  )
+}
+
+function DisconnectOutlookButton({
+  busy,
+  description,
+  onConfirm,
+}: {
+  busy: boolean
+  description: string
+  onConfirm: () => void
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="ghost"
+          disabled={busy}
+          className="h-10 w-full rounded-full text-destructive hover:text-destructive"
+        >
+          <Unplug /> Desconectar Outlook
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>¿Desconectar Outlook?</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={onConfirm}>
+            Desconectar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 

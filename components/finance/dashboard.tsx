@@ -81,11 +81,12 @@ export function Dashboard({
   const manualAccounts = accounts.filter((a) => a.provider === "manual")
   // ¿Hay banco conectado? → montar el auto-refresh que sigue la categorización de fondo.
   const hasConnected = accounts.some((a) => a.provider === "fintoc")
-  // El presupuesto es de gastos: solo categorías de gasto tienen tope/uso. Las de ingreso solo
-  // clasifican (aparecen al categorizar movimientos de ingreso, no en esta grilla).
+  // El presupuesto de gastos usa las categorías de gasto (tope/uso). Las de ingreso se muestran
+  // en su propio grupo con lo recibido en el mes (y su meta, si tienen límite).
   const expenseCategories = budget.categories.filter(
     (c) => c.type === "expense"
   )
+  const incomeCategories = budget.categories.filter((c) => c.type === "income")
   // Sobre-asignado: los límites de categoría superan el límite global del mes (alerta, no bloquea).
   const overAllocated =
     budget.remainingToAllocate !== null && budget.remainingToAllocate < 0
@@ -385,6 +386,47 @@ export function Dashboard({
                     <span className="text-xs text-muted-foreground">Nueva</span>
                   </button>
                 </div>
+              )}
+              {incomeCategories.length > 0 && (
+                <>
+                  <div className="mt-5 mb-3 text-xs font-medium text-muted-foreground">
+                    Ingresos
+                  </div>
+                  <div className="-mx-4 flex scrollbar-none gap-4 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-2 lg:overflow-visible lg:px-0">
+                    {incomeCategories.map((c) => {
+                      // Anillo = avance hacia la meta de ingreso; sin meta, lleno si ya entró algo.
+                      const pct =
+                        c.limit > 0
+                          ? (c.used / c.limit) * 100
+                          : c.used > 0
+                            ? 100
+                            : 0
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => setDetail(c)}
+                          className="flex w-20 shrink-0 flex-col items-center gap-1.5 lg:w-auto"
+                        >
+                          <ProgressRing percent={pct} status="bueno" size={72}>
+                            <CategoryIcon
+                              icon={c.icon}
+                              size={22}
+                              color={c.color ?? undefined}
+                            />
+                          </ProgressRing>
+                          <div className="w-full text-center">
+                            <div className="truncate text-xs font-medium">
+                              {c.name}
+                            </div>
+                            <div className="tabular text-xs text-success">
+                              +{formatCLP(c.used)}
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
               )}
             </div>
           </section>

@@ -13,7 +13,7 @@ import type {
 } from "../../../domain/finance/categorization.port.ts";
 import { openaiConfig, openaiConfigured } from "./openai-config.ts";
 import { buildMerchantIndex, findMerchant, type MerchantCompany } from "./merchant-hints.ts";
-import catalog from "./merchants-catalog.json";
+import catalog from "./merchants-catalog.json" with { type: "json" };
 
 const TIMEOUT_MS = 45_000;
 

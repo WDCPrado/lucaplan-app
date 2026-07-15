@@ -71,6 +71,51 @@ test("parser fail-closed extrae gastos CLP/USD y excluye remitentes/asuntos no p
   )
 })
 
+// Fixture sanitizado con la estructura de la plantilla real de "Cargo en Cuenta":
+// "compra por <monto> con cargo a Cuenta <cuenta> en <comercio> el <fecha>".
+const CARGO_CUENTA_HTML = `
+<table><tr><td>
+  <p>Estimado cliente:</p>
+  <p>Te informamos que se ha realizado una compra por $ 25.990 con cargo a
+  Cuenta ***8900 en COMERCIO EJEMPLO SPA el 14/07/2026 a las 18:32 hrs.</p>
+</td></tr></table>`
+
+test("cargo en cuenta usa el comercio de la plantilla real como descripción, no el asunto", () => {
+  const parsed = parseBancoChileEmail(
+    message({ subject: "Cargo en Cuenta", htmlBody: CARGO_CUENTA_HTML })
+  )
+  assert.equal(parsed.ok, true)
+  if (!parsed.ok) return
+  assert.equal(parsed.event.description, "COMERCIO EJEMPLO SPA")
+  assert.equal(parsed.event.amount.toMajor(), 25990)
+  assert.equal(parsed.event.amount.currency, "CLP")
+  assert.deepEqual(parsed.event.instrument, { kind: "checking", ref: "8900" })
+  assert.equal(parsed.event.date.toISOString().slice(0, 10), "2026-07-14")
+})
+
+// Fixture sanitizado con la estructura de la plantilla real de "Compra con Tarjeta de Crédito":
+// "compra por <monto> con Tarjeta de Crédito ****<last4> en <comercio> el <fecha> <hora>".
+const COMPRA_TARJETA_HTML = `
+<table><tr><td>
+  <p>NOMBRE CLIENTE PRUEBA:</p>
+  <p>Te informamos que se ha realizado una compra por $1.890 con Tarjeta de
+  Crédito ****2120 en COMERCIO PRUEBA el 14/07/2026 19:32.
+  Revisa Saldos y Movimientos en App Mi Banco o Banco en Línea.</p>
+</td></tr></table>`
+
+test("compra con tarjeta usa el comercio de la plantilla real como descripción, no el asunto", () => {
+  const parsed = parseBancoChileEmail(message({ htmlBody: COMPRA_TARJETA_HTML }))
+  assert.equal(parsed.ok, true)
+  if (!parsed.ok) return
+  assert.equal(parsed.event.description, "COMERCIO PRUEBA")
+  assert.equal(parsed.event.amount.toMajor(), 1890)
+  assert.equal(parsed.event.amount.currency, "CLP")
+  assert.deepEqual(parsed.event.instrument, {
+    kind: "credit_card",
+    last4: "2120",
+  })
+})
+
 test("parser extrae TEF y trata abonos/pagos como eventos internos", () => {
   const transfer = parseBancoChileEmail(
     message({

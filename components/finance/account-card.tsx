@@ -1,6 +1,6 @@
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
-import { resolveCardArt } from "@/lib/bank-cards"
+import { CARD_VARIANT_BG, resolveCardArt } from "@/lib/bank-cards"
 import { cn } from "@/lib/utils"
 import { SyncStatusLine } from "./sync-status-line"
 
@@ -11,12 +11,6 @@ const TYPE_LABEL: Record<string, string> = {
   credit_line: "Línea",
   wallet: "Billetera",
   investment: "Inversión",
-}
-
-// Fondo por variante: azul (débito) / negro (crédito). Estilo propio, no una foto de tarjeta.
-const VARIANT_BG: Record<string, string> = {
-  debito: "linear-gradient(135deg, #0a2a6b 0%, #0b3f9e 55%, #0850c0 100%)",
-  credito: "linear-gradient(135deg, #0a0a0d 0%, #17171c 55%, #26262d 100%)",
 }
 
 // Tarjeta de una cuenta: nuestro estilo (gradiente por variante) + el isotipo del banco como
@@ -67,7 +61,7 @@ export function AccountCard({
       )}
       style={
         art
-          ? { background: VARIANT_BG[art.variant] }
+          ? { background: CARD_VARIANT_BG[art.variant] }
           : { background: account.color ?? "var(--primary)" }
       }
     >

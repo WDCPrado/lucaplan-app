@@ -16,8 +16,10 @@ export function useMoneyInput(currency: CurrencyCode, initialValue = 0) {
 
   const onChange = useCallback((raw: string) => {
     const digits = raw.replace(/\D/g, "").slice(0, 15);
-    setMinor(digits ? Number(digits) : 0);
-  }, []);
+    const nextMinor = digits ? Number(digits) : 0;
+    setMinor(nextMinor);
+    return nextMinor / scale;
+  }, [scale]);
 
   const reset = useCallback((v = 0) => setMinor(Math.round(v * scale)), [scale]);
 

@@ -13,6 +13,11 @@ const mocks = [
     title: "Dashboard · Inicio",
     desc: "Balance, scroll de cuentas y movimientos",
   },
+  {
+    slug: "email-snapshot",
+    title: "Outlook · Revisión y snapshot",
+    desc: "Tarjetas editables de candidatos con saldos total/disponible",
+  },
 ]
 
 export default function DesignIndex() {

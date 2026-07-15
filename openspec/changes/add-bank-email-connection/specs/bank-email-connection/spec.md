@@ -26,11 +26,11 @@ El sistema SHALL conectar una cuenta Outlook personal mediante OAuth 2.0 Authori
 
 ### Requirement: Filtrado cerrado de notificaciones Banco de Chile
 
-El sistema SHALL crear movimientos de gasto únicamente desde remitentes exactos de Banco de Chile y estos asuntos: `Cargo en Cuenta`, `Compra con Tarjeta de Crédito`, `Transferencia a Terceros` o el prefijo `Transferencias de Fondos a `. MAY procesar `Aviso de transferencia de fondos` y comprobantes de pago de tarjeta/línea exclusivamente como movimientos internos de balance. Todo correo que no coincida con estas reglas SHALL ser ignorado. Los cuerpos y datos personales del correo SHALL NOT persistirse una vez extraído el evento necesario.
+El sistema SHALL crear movimientos de gasto únicamente desde remitentes exactos de Banco de Chile y estos asuntos: `Cargo en Cuenta`, `Compra con Tarjeta de Crédito`, `Transferencia a Terceros` o el prefijo `Transferencias de Fondos a `. MAY procesar `Aviso de transferencia de fondos` y comprobantes de pago de tarjeta/línea exclusivamente como movimientos internos de balance. Todo correo que no coincida con estas reglas SHALL ser ignorado. Los cuerpos y datos personales del correo SHALL NOT persistirse una vez extraído el evento necesario. Cuando una plantilla permitida incluya comercio o destinatario, el sistema MUST usar ese detalle como descripción del movimiento y SHALL NOT sustituirlo por el asunto genérico del correo.
 
 #### Scenario: Compra con cargo en cuenta
-- **WHEN** llega desde `enviodigital@bancochile.cl` un correo `Cargo en Cuenta` CLP con monto, comercio, fecha y últimos cuatro dígitos
-- **THEN** el sistema genera un débito CLP candidato para la cuenta mapeada
+- **WHEN** llega desde `enviodigital@bancochile.cl` un correo `Cargo en Cuenta` con la frase `compra por <monto> con cargo a Cuenta <cuenta> en <comercio> el <fecha>`
+- **THEN** el sistema genera un débito CLP para la cuenta mapeada y usa `<comercio>` como descripción antes de categorizar
 
 #### Scenario: Transferencia saliente
 - **WHEN** llega desde `serviciodetransferencias@bancochile.cl` una `Transferencia a Terceros` o `Transferencias de Fondos a <comercio>` CLP con ID TEF
@@ -68,11 +68,11 @@ El sistema MUST excluir del ingreso, gasto categorizable y presupuesto los abono
 
 Después de autorizar Outlook, el sistema SHALL escanear desde el primer día del mes actual hasta el instante de conexión y descubrir candidatos de cuentas/tarjetas por número o últimos cuatro dígitos. Cargos nacionales CLP e internacionales USD del mismo último 4 y tipo crediticio MUST proponerse como una sola tarjeta con dos buckets, no como dos tarjetas. Antes de crear entidades financieras o transacciones, la UI SHALL mostrar los candidatos y exigir que el usuario confirme, corrija o agregue instrumentos faltantes.
 
-Después de validar, el usuario MUST registrar un snapshot con fecha/hora: saldo propio disponible de la cuenta corriente; límite y usado de sobregiro si aplica; y, para cada tarjeta de crédito, límite y usado nacional CLP e internacional USD si aplica. El sistema SHALL calcular `available = limitAmount - used` y SHALL reutilizar los buckets `cash`, `overdraft`, `credit_national` y `credit_international` existentes.
+Después de validar, el usuario MUST registrar un snapshot con fecha/hora: saldo propio disponible de la cuenta corriente; límite y disponible de sobregiro si aplica; y, para cada tarjeta de crédito, límite y disponible nacional CLP e internacional USD si aplica. El sistema SHALL validar `0 <= available <= limitAmount`, calcular `used = limitAmount - available` y SHALL reutilizar los buckets `cash`, `overdraft`, `credit_national` y `credit_international` existentes.
 
 #### Scenario: Cuenta corriente con sobregiro
-- **WHEN** el usuario valida la cuenta e informa caja CLP, límite total y sobregiro usado
-- **THEN** el sistema crea `cash` y `overdraft`, calcula el disponible y guarda la fecha del snapshot
+- **WHEN** el usuario valida la cuenta e informa caja CLP, límite total y sobregiro disponible
+- **THEN** el sistema crea `cash` y `overdraft`, deriva el usado y guarda la fecha del snapshot
 
 #### Scenario: Cuenta corriente sin sobregiro
 - **WHEN** el usuario valida la cuenta, informa su caja CLP y marca que no tiene sobregiro
@@ -80,7 +80,23 @@ Después de validar, el usuario MUST registrar un snapshot con fecha/hora: saldo
 
 #### Scenario: Tarjeta con dos cupos
 - **WHEN** los correos del mes muestran cargos CLP y USD con el mismo último 4 de tarjeta de crédito y el usuario valida el agrupamiento
-- **THEN** el sistema crea una sola `Card` con `credit_national` y `credit_international`, usando cupo total/usado ingresados y sin sumar monedas
+- **THEN** el sistema crea una sola `Card` con `credit_national` y `credit_international`, usando cupo total/disponible ingresados, derivando el usado y sin sumar monedas
+
+#### Scenario: Escaneo visible inmediatamente después de OAuth
+- **WHEN** el usuario vuelve del OAuth con una conexión pendiente de configuración
+- **THEN** la UI inicia el escaneo sin exigir otro clic y muestra directamente las cuentas y tarjetas detectadas cuando termina
+
+#### Scenario: Instrumentos editables con diseño bancario
+- **WHEN** el escaneo detecta una cuenta o tarjeta
+- **THEN** la UI la presenta como una tarjeta editable con el arte del banco, últimos cuatro y campos de saldo o cupo dentro de la misma superficie y jerarquía visual del dashboard
+
+#### Scenario: Entrada monetaria CLP y USD
+- **WHEN** el usuario edita un monto CLP o USD en una tarjeta detectada
+- **THEN** la UI reutiliza el formateador monetario vigente, muestra CLP sin decimales y USD con dos decimales y coma decimal `es-CL`, conservando el valor numérico exacto
+
+#### Scenario: Disponible supera el total
+- **WHEN** el usuario informa un disponible negativo o mayor que el cupo total
+- **THEN** el sistema muestra un error en el instrumento y no permite confirmar el snapshot
 
 #### Scenario: Revisión antes de crear
 - **WHEN** finaliza el escaneo inicial

@@ -5,26 +5,33 @@ import { Money } from "../../domain/finance/money.ts"
 import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
 import type { EmailSnapshotInput } from "../../application/finance-use-cases/email-connection-use-cases.ts"
 
-type RawLimitUsed = { limit?: number; used?: number } | null | undefined
+type RawLimitAvailable =
+  | { limit?: number; available?: number }
+  | null
+  | undefined
 
-function limitUsed(
-  raw: RawLimitUsed,
+function limitAvailable(
+  raw: RawLimitAvailable,
   currency: "CLP" | "USD"
 ): { limit: Money; used: Money } | null {
   if (!raw) return null
   const limit = Number(raw.limit)
-  const used = Number(raw.used)
+  const available = Number(raw.available)
   if (
     !Number.isFinite(limit) ||
-    !Number.isFinite(used) ||
+    !Number.isFinite(available) ||
     limit < 0 ||
-    used < 0
+    available < 0 ||
+    available > limit
   ) {
     throw new EmailSetupStateError(
-      "Cupo o usado inválido (deben ser montos no negativos)"
+      "El disponible debe estar entre cero y el cupo total"
     )
   }
-  return { limit: Money.of(limit, currency), used: Money.of(used, currency) }
+  return {
+    limit: Money.of(limit, currency),
+    used: Money.of(limit - available, currency),
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,7 +53,7 @@ export function parseSnapshotBody(body: any): EmailSnapshotInput {
     checking = {
       ref,
       cash: Money.of(cash, "CLP"),
-      overdraft: limitUsed(body.checking.overdraft, "CLP"),
+      overdraft: limitAvailable(body.checking.overdraft, "CLP"),
     }
   }
 
@@ -61,8 +68,8 @@ export function parseSnapshotBody(body: any): EmailSnapshotInput {
       )
     return {
       last4,
-      national: limitUsed(card?.national, "CLP"),
-      international: limitUsed(card?.international, "USD"),
+      national: limitAvailable(card?.national, "CLP"),
+      international: limitAvailable(card?.international, "USD"),
     }
   })
 

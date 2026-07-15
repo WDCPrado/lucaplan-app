@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   Check,
   CircleAlert,
@@ -11,9 +11,25 @@ import {
   Unplug,
 } from "lucide-react"
 import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
+import { useMoneyInput } from "@/hooks/use-money-input"
+import { CARD_VARIANT_BG, resolveCardArt, type CardVariant } from "@/lib/bank-cards"
+import { formatMoney } from "@/lib/finance-format"
+import { cn } from "@/lib/utils"
 
 export type OutlookStatus = {
   configured: boolean
@@ -45,22 +61,23 @@ type Scan = {
   internalCount: number
   skippedCount: number
 }
-type CheckingForm = {
+export type CheckingForm = {
   ref: string
-  cash: string
+  cash: number
   hasOverdraft: boolean
-  overdraftLimit: string
-  overdraftUsed: string
+  overdraftLimit: number
+  overdraftAvailable: number
   movementCount?: number
 }
-type CardForm = {
+export type CardForm = {
+  id: string
   last4: string
   national: boolean
-  nationalLimit: string
-  nationalUsed: string
+  nationalLimit: number
+  nationalAvailable: number
   international: boolean
-  internationalLimit: string
-  internationalUsed: string
+  internationalLimit: number
+  internationalAvailable: number
   movementCount?: number
 }
 
@@ -77,21 +94,18 @@ function formsFromAccounts(accounts: AccountDTO[]): {
   const checking = checkingAccount
     ? {
         ref: checkingAccount.cardLast4 ?? "",
-        cash: String(
+        cash:
           checkingAccount.buckets?.find((b) => b.kind === "cash")?.available ??
-            checkingAccount.balance
-        ),
+          checkingAccount.balance,
         hasOverdraft: Boolean(
           checkingAccount.buckets?.some((b) => b.kind === "overdraft")
         ),
-        overdraftLimit: String(
+        overdraftLimit:
           checkingAccount.buckets?.find((b) => b.kind === "overdraft")?.limit ??
-            0
-        ),
-        overdraftUsed: String(
-          checkingAccount.buckets?.find((b) => b.kind === "overdraft")?.used ??
-            0
-        ),
+          0,
+        overdraftAvailable:
+          checkingAccount.buckets?.find((b) => b.kind === "overdraft")
+            ?.available ?? 0,
       }
     : null
   const cards = accounts
@@ -102,16 +116,37 @@ function formsFromAccounts(accounts: AccountDTO[]): {
         (b) => b.kind === "credit_international"
       )
       return {
+        id: crypto.randomUUID(),
         last4: a.cardLast4 ?? "",
         national: Boolean(national),
-        nationalLimit: String(national?.limit ?? 0),
-        nationalUsed: String(national?.used ?? 0),
+        nationalLimit: national?.limit ?? 0,
+        nationalAvailable: national?.available ?? 0,
         international: Boolean(international),
-        internationalLimit: String(international?.limit ?? 0),
-        internationalUsed: String(international?.used ?? 0),
+        internationalLimit: international?.limit ?? 0,
+        internationalAvailable: international?.available ?? 0,
       }
     })
   return { checking, cards }
+}
+
+const bucketInvalid = (limit: number, available: number) =>
+  available < 0 || available > limit
+
+function snapshotInvalid(checking: CheckingForm | null, cards: CardForm[]) {
+  return Boolean(
+    (checking?.hasOverdraft &&
+      bucketInvalid(checking.overdraftLimit, checking.overdraftAvailable)) ||
+      cards.some(
+        (card) =>
+          (card.national &&
+            bucketInvalid(card.nationalLimit, card.nationalAvailable)) ||
+          (card.international &&
+            bucketInvalid(
+              card.internationalLimit,
+              card.internationalAvailable
+            ))
+      )
+  )
 }
 
 export function OutlookBankConnection({
@@ -129,6 +164,9 @@ export function OutlookBankConnection({
   const [checking, setChecking] = useState<CheckingForm | null>(null)
   const [cards, setCards] = useState<CardForm[]>([])
   const [reconciling, setReconciling] = useState(false)
+  const [scanError, setScanError] = useState<string | null>(null)
+  const automaticScanStarted = useRef(false)
+  const invalidSnapshot = snapshotInvalid(checking, cards)
 
   async function connect() {
     setBusy(true)
@@ -140,52 +178,68 @@ export function OutlookBankConnection({
     window.location.assign(data.url)
   }
 
-  async function detect() {
+  const detect = useCallback(async () => {
     setBusy(true)
-    const res = await fetch("/api/email-connection/candidates", {
-      cache: "no-store",
-    })
-    const data = (await res.json().catch(() => ({}))) as Scan & {
-      error?: string
+    setScanError(null)
+    try {
+      const res = await fetch("/api/email-connection/candidates", {
+        cache: "no-store",
+      })
+      const data = (await res.json().catch(() => ({}))) as Scan & {
+        error?: string
+      }
+      if (!res.ok) {
+        setScanError(data.error ?? "No se pudo revisar el correo")
+        return
+      }
+      setScan(data)
+      const foundChecking = data.candidates.find(
+        (c): c is Extract<Candidate, { kind: "checking" }> =>
+          c.kind === "checking"
+      )
+      setChecking(
+        foundChecking
+          ? {
+              ref: foundChecking.ref,
+              cash: 0,
+              hasOverdraft: false,
+              overdraftLimit: 0,
+              overdraftAvailable: 0,
+              movementCount: foundChecking.movementCount,
+            }
+          : null
+      )
+      setCards(
+        data.candidates
+          .filter(
+            (c): c is Extract<Candidate, { kind: "credit_card" }> =>
+              c.kind === "credit_card"
+          )
+          .map((c) => ({
+            id: crypto.randomUUID(),
+            last4: c.last4,
+            national: c.currencies.includes("CLP"),
+            nationalLimit: 0,
+            nationalAvailable: 0,
+            international: c.currencies.includes("USD"),
+            internationalLimit: 0,
+            internationalAvailable: 0,
+            movementCount: c.movementCount,
+          }))
+      )
+    } catch {
+      setScanError("No se pudo revisar el correo")
+    } finally {
+      setBusy(false)
     }
-    setBusy(false)
-    if (!res.ok)
-      return toast.error(data.error ?? "No se pudo revisar el correo")
-    setScan(data)
-    const foundChecking = data.candidates.find(
-      (c): c is Extract<Candidate, { kind: "checking" }> =>
-        c.kind === "checking"
-    )
-    setChecking(
-      foundChecking
-        ? {
-            ref: foundChecking.ref,
-            cash: "",
-            hasOverdraft: false,
-            overdraftLimit: "",
-            overdraftUsed: "",
-            movementCount: foundChecking.movementCount,
-          }
-        : null
-    )
-    setCards(
-      data.candidates
-        .filter(
-          (c): c is Extract<Candidate, { kind: "credit_card" }> =>
-            c.kind === "credit_card"
-        )
-        .map((c) => ({
-          last4: c.last4,
-          national: c.currencies.includes("CLP"),
-          nationalLimit: "",
-          nationalUsed: "",
-          international: c.currencies.includes("USD"),
-          internationalLimit: "",
-          internationalUsed: "",
-          movementCount: c.movementCount,
-        }))
-    )
-  }
+  }, [])
+
+  useEffect(() => {
+    if (status?.connection?.pendingSetup && !automaticScanStarted.current) {
+      automaticScanStarted.current = true
+      void detect()
+    }
+  }, [status?.connection?.pendingSetup, detect])
 
   function snapshotBody() {
     return {
@@ -193,11 +247,11 @@ export function OutlookBankConnection({
       checking: checking
         ? {
             ref: checking.ref,
-            cash: Number(checking.cash),
+            cash: checking.cash,
             overdraft: checking.hasOverdraft
               ? {
-                  limit: Number(checking.overdraftLimit),
-                  used: Number(checking.overdraftUsed),
+                  limit: checking.overdraftLimit,
+                  available: checking.overdraftAvailable,
                 }
               : null,
           }
@@ -206,14 +260,14 @@ export function OutlookBankConnection({
         last4: card.last4,
         national: card.national
           ? {
-              limit: Number(card.nationalLimit),
-              used: Number(card.nationalUsed),
+              limit: card.nationalLimit,
+              available: card.nationalAvailable,
             }
           : null,
         international: card.international
           ? {
-              limit: Number(card.internationalLimit),
-              used: Number(card.internationalUsed),
+              limit: card.internationalLimit,
+              available: card.internationalAvailable,
             }
           : null,
       })),
@@ -251,12 +305,6 @@ export function OutlookBankConnection({
   }
 
   async function disconnect() {
-    if (
-      !window.confirm(
-        "Se borrarán las cuentas y movimientos importados por Outlook. ¿Continuar?"
-      )
-    )
-      return
     setBusy(true)
     const res = await fetch("/api/email-connection/disconnect", {
       method: "POST",
@@ -317,14 +365,26 @@ export function OutlookBankConnection({
             Outlook autorizado como {status.connection.emailAddress}. Aún no se
             creó ninguna cuenta ni movimiento.
           </Notice>
-          <Button
-            onClick={detect}
-            disabled={busy}
-            className="h-12 w-full rounded-full"
-          >
-            {busy ? <Loader2 className="animate-spin" /> : <Mail />} Revisar
-            notificaciones de este mes
-          </Button>
+          {scanError ? (
+            <>
+              <Notice icon={CircleAlert}>{scanError}</Notice>
+              <Button
+                onClick={detect}
+                disabled={busy}
+                className="h-12 w-full rounded-full"
+              >
+                <RefreshCw /> Reintentar revisión
+              </Button>
+            </>
+          ) : (
+            <div
+              className="flex items-center justify-center gap-2 rounded-2xl border bg-muted/30 p-5 text-sm text-muted-foreground"
+              role="status"
+            >
+              <Loader2 className="size-4 animate-spin text-primary" />
+              Revisando notificaciones de este mes…
+            </div>
+          )}
         </div>
       )
     }
@@ -350,7 +410,7 @@ export function OutlookBankConnection({
         />
         <Button
           onClick={() => saveSnapshot("confirm")}
-          disabled={busy}
+          disabled={busy || invalidSnapshot}
           className="h-12 w-full rounded-full"
         >
           {busy && <Loader2 className="animate-spin" />} Validar e importar
@@ -381,7 +441,7 @@ export function OutlookBankConnection({
           </Button>
           <Button
             onClick={() => saveSnapshot("reconcile")}
-            disabled={busy}
+            disabled={busy || invalidSnapshot}
             className="h-11 flex-1 rounded-full"
           >
             Guardar saldos
@@ -456,19 +516,37 @@ export function OutlookBankConnection({
       >
         Actualizar saldos
       </Button>
-      <Button
-        variant="ghost"
-        onClick={disconnect}
-        disabled={busy}
-        className="h-10 w-full rounded-full text-destructive hover:text-destructive"
-      >
-        <Unplug /> Desconectar Outlook
-      </Button>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="ghost"
+            disabled={busy}
+            className="h-10 w-full rounded-full text-destructive hover:text-destructive"
+          >
+            <Unplug /> Desconectar Outlook
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Desconectar Outlook?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se borrarán las cuentas y los movimientos importados por Outlook.
+              Podrás volver a conectar el banco más adelante.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={disconnect}>
+              Desconectar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
 
-function SnapshotForm({
+export function SnapshotForm({
   snapshotAt,
   setSnapshotAt,
   checking,
@@ -483,9 +561,9 @@ function SnapshotForm({
   cards: CardForm[]
   setCards: (value: CardForm[]) => void
 }) {
-  const updateCard = (index: number, patch: Partial<CardForm>) =>
+  const updateCard = (id: string, patch: Partial<CardForm>) =>
     setCards(
-      cards.map((card, i) => (i === index ? { ...card, ...patch } : card))
+      cards.map((card) => (card.id === id ? { ...card, ...patch } : card))
     )
   return (
     <div className="space-y-4">
@@ -497,142 +575,126 @@ function SnapshotForm({
         />
       </Field>
       {checking ? (
-        <div className="space-y-3 rounded-xl border p-4">
-          <div className="flex items-center justify-between">
-            <span className="font-medium">
-              Cuenta corriente{" "}
-              {checking.movementCount
-                ? `· ${checking.movementCount} movimientos`
-                : ""}
-            </span>
-            <button
-              className="text-xs text-destructive"
-              onClick={() => setChecking(null)}
-            >
-              Quitar
-            </button>
+        <CandidateCard
+          variant="debito"
+          typeLabel="Débito"
+          movementCount={checking.movementCount}
+          onRemove={() => setChecking(null)}
+          refValue={checking.ref}
+          onRef={(ref) => setChecking({ ...checking, ref })}
+          refPlaceholder="Cuenta"
+          refLabel="Número de cuenta o últimos 4"
+        >
+          <div>
+            <div className="text-xs text-white/75">Saldo propio CLP</div>
+            <MoneyField
+              currency="CLP"
+              value={checking.cash}
+              onValue={(cash) => setChecking({ ...checking, cash })}
+              ariaLabel="Saldo propio CLP"
+              kind="primary"
+            />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Número o últimos 4">
-              <Input
-                inputMode="numeric"
-                value={checking.ref}
-                onChange={(e) =>
-                  setChecking({ ...checking, ref: e.target.value })
-                }
-              />
-            </Field>
-            <Field label="Saldo propio CLP">
-              <Input
-                type="number"
-                min="0"
-                value={checking.cash}
-                onChange={(e) =>
-                  setChecking({ ...checking, cash: e.target.value })
-                }
-              />
-            </Field>
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={checking.hasOverdraft}
-              onChange={(e) =>
-                setChecking({ ...checking, hasOverdraft: e.target.checked })
+          <div className="space-y-2">
+            <CardToggle
+              pressed={checking.hasOverdraft}
+              onPressed={(hasOverdraft) =>
+                setChecking({ ...checking, hasOverdraft })
               }
-            />{" "}
-            Tiene sobregiro
-          </label>
-          {checking.hasOverdraft && (
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Cupo sobregiro">
-                <Input
-                  type="number"
-                  min="0"
-                  value={checking.overdraftLimit}
-                  onChange={(e) =>
-                    setChecking({ ...checking, overdraftLimit: e.target.value })
-                  }
+            >
+              Línea de sobregiro
+            </CardToggle>
+            {checking.hasOverdraft && (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  <CardField label="Cupo total">
+                    <MoneyField
+                      currency="CLP"
+                      value={checking.overdraftLimit}
+                      onValue={(overdraftLimit) =>
+                        setChecking({ ...checking, overdraftLimit })
+                      }
+                      ariaLabel="Cupo total del sobregiro"
+                    />
+                  </CardField>
+                  <CardField label="Disponible">
+                    <MoneyField
+                      currency="CLP"
+                      value={checking.overdraftAvailable}
+                      onValue={(overdraftAvailable) =>
+                        setChecking({ ...checking, overdraftAvailable })
+                      }
+                      ariaLabel="Sobregiro disponible"
+                    />
+                  </CardField>
+                </div>
+                <DerivedUsed
+                  limit={checking.overdraftLimit}
+                  available={checking.overdraftAvailable}
+                  currency="CLP"
                 />
-              </Field>
-              <Field label="Sobregiro usado">
-                <Input
-                  type="number"
-                  min="0"
-                  value={checking.overdraftUsed}
-                  onChange={(e) =>
-                    setChecking({ ...checking, overdraftUsed: e.target.value })
-                  }
-                />
-              </Field>
-            </div>
-          )}
-        </div>
+              </>
+            )}
+          </div>
+        </CandidateCard>
       ) : (
         <Button
           variant="outline"
           onClick={() =>
             setChecking({
               ref: "",
-              cash: "",
+              cash: 0,
               hasOverdraft: false,
-              overdraftLimit: "",
-              overdraftUsed: "",
+              overdraftLimit: 0,
+              overdraftAvailable: 0,
             })
           }
-          className="w-full border-dashed"
+          className="h-11 w-full border-dashed"
         >
           <Plus /> Agregar cuenta corriente
         </Button>
       )}
-      {cards.map((card, index) => (
-        <div
-          key={`${index}-${card.last4}`}
-          className="space-y-3 rounded-xl border p-4"
+      {cards.map((card) => (
+        <CandidateCard
+          key={card.id}
+          variant="credito"
+          typeLabel="Crédito"
+          movementCount={card.movementCount}
+          onRemove={() => setCards(cards.filter((c) => c.id !== card.id))}
+          refValue={card.last4}
+          onRef={(last4) => updateCard(card.id, { last4 })}
+          refPlaceholder="1234"
+          refLabel="Últimos 4 de la tarjeta"
+          refMaxLength={4}
         >
-          <div className="flex items-center justify-between">
-            <span className="font-medium">
-              Tarjeta de crédito{" "}
-              {card.movementCount ? `· ${card.movementCount} movimientos` : ""}
-            </span>
-            <button
-              className="text-xs text-destructive"
-              onClick={() => setCards(cards.filter((_, i) => i !== index))}
-            >
-              Quitar
-            </button>
-          </div>
-          <Field label="Últimos 4">
-            <Input
-              inputMode="numeric"
-              maxLength={4}
-              value={card.last4}
-              onChange={(e) => updateCard(index, { last4: e.target.value })}
-            />
-          </Field>
-          <BucketFields
+          <BucketEditor
             label="Cupo nacional CLP"
+            currency="CLP"
             enabled={card.national}
-            onEnabled={(national) => updateCard(index, { national })}
+            onEnabled={(national) => updateCard(card.id, { national })}
             limit={card.nationalLimit}
-            used={card.nationalUsed}
-            onLimit={(nationalLimit) => updateCard(index, { nationalLimit })}
-            onUsed={(nationalUsed) => updateCard(index, { nationalUsed })}
+            available={card.nationalAvailable}
+            onLimit={(nationalLimit) => updateCard(card.id, { nationalLimit })}
+            onAvailable={(nationalAvailable) =>
+              updateCard(card.id, { nationalAvailable })
+            }
+            primary
           />
-          <BucketFields
+          <BucketEditor
             label="Cupo internacional USD"
+            currency="USD"
             enabled={card.international}
-            onEnabled={(international) => updateCard(index, { international })}
+            onEnabled={(international) => updateCard(card.id, { international })}
             limit={card.internationalLimit}
-            used={card.internationalUsed}
+            available={card.internationalAvailable}
             onLimit={(internationalLimit) =>
-              updateCard(index, { internationalLimit })
+              updateCard(card.id, { internationalLimit })
             }
-            onUsed={(internationalUsed) =>
-              updateCard(index, { internationalUsed })
+            onAvailable={(internationalAvailable) =>
+              updateCard(card.id, { internationalAvailable })
             }
           />
-        </div>
+        </CandidateCard>
       ))}
       <Button
         variant="outline"
@@ -640,17 +702,18 @@ function SnapshotForm({
           setCards([
             ...cards,
             {
+              id: crypto.randomUUID(),
               last4: "",
               national: true,
-              nationalLimit: "",
-              nationalUsed: "",
+              nationalLimit: 0,
+              nationalAvailable: 0,
               international: false,
-              internationalLimit: "",
-              internationalUsed: "",
+              internationalLimit: 0,
+              internationalAvailable: 0,
             },
           ])
         }
-        className="w-full border-dashed"
+        className="h-11 w-full border-dashed"
       >
         <Plus /> Agregar tarjeta
       </Button>
@@ -662,55 +725,260 @@ function SnapshotForm({
   )
 }
 
-function BucketFields({
+// Inputs sobre el arte oscuro de la tarjeta: caja translúcida (secundarios) y transparente
+// grande (dato principal, misma posición que el saldo/cupo disponible del AccountCard).
+// El fondo va inline porque el frost global de [data-slot="input"] (globals.css, fuera de
+// @layer) pisa las utilidades de Tailwind; inline le gana sin tocar el design system.
+const boxedMoneyInput =
+  "h-11 rounded-xl border-white/20 text-base text-white placeholder:text-white/40 selection:bg-white/25 selection:text-white focus-visible:border-white/40 focus-visible:ring-white/20 md:text-base"
+const primaryMoneyInput =
+  "h-auto rounded-none border-0 px-0 py-0.5 text-3xl font-semibold text-white shadow-none placeholder:text-white/30 selection:bg-white/25 selection:text-white focus-visible:ring-0 md:text-3xl [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]"
+const boxedInputStyle: React.CSSProperties = {
+  backgroundColor: "rgb(255 255 255 / 0.12)",
+  backdropFilter: "none",
+  WebkitBackdropFilter: "none",
+}
+const primaryInputStyle: React.CSSProperties = {
+  backgroundColor: "transparent",
+  backdropFilter: "none",
+  WebkitBackdropFilter: "none",
+}
+
+// Input de monto que reutiliza el formateo vigente (CLP entero agrupado, USD con coma y 2
+// decimales). `value` solo inicializa; el estado vive en useMoneyInput y se reporta por onValue.
+function MoneyField({
+  currency,
+  value,
+  onValue,
+  ariaLabel,
+  kind = "boxed",
+  className,
+}: {
+  currency: CurrencyCode
+  value: number
+  onValue: (v: number) => void
+  ariaLabel: string
+  kind?: "boxed" | "primary"
+  className?: string
+}) {
+  const money = useMoneyInput(currency, value)
+  return (
+    <Input
+      inputMode="numeric"
+      value={money.display}
+      placeholder={currency === "USD" ? "0,00" : "0"}
+      aria-label={ariaLabel}
+      onChange={(e) => onValue(money.onChange(e.target.value))}
+      style={kind === "primary" ? primaryInputStyle : boxedInputStyle}
+      className={cn(
+        "tabular",
+        kind === "primary" ? primaryMoneyInput : boxedMoneyInput,
+        className
+      )}
+    />
+  )
+}
+
+// Cupo de tarjeta de crédito (nacional CLP / internacional USD): toggle del bucket y, si está
+// activo, disponible como dato principal + cupo total; el usado se deriva y solo se muestra.
+function BucketEditor({
   label,
+  currency,
   enabled,
   onEnabled,
   limit,
-  used,
+  available,
   onLimit,
-  onUsed,
+  onAvailable,
+  primary,
 }: {
   label: string
+  currency: CurrencyCode
   enabled: boolean
   onEnabled: (v: boolean) => void
-  limit: string
-  used: string
-  onLimit: (v: string) => void
-  onUsed: (v: string) => void
+  limit: number
+  available: number
+  onLimit: (v: number) => void
+  onAvailable: (v: number) => void
+  primary?: boolean
 }) {
   return (
     <div className="space-y-2">
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => onEnabled(e.target.checked)}
-        />{" "}
+      <CardToggle pressed={enabled} onPressed={onEnabled}>
         {label}
-      </label>
+      </CardToggle>
       {enabled && (
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Cupo total">
-            <Input
-              type="number"
-              min="0"
-              step="any"
-              value={limit}
-              onChange={(e) => onLimit(e.target.value)}
+        <>
+          <div>
+            <div className="text-xs text-white/75">Disponible</div>
+            <MoneyField
+              currency={currency}
+              value={available}
+              onValue={onAvailable}
+              ariaLabel={`Disponible · ${label}`}
+              kind="primary"
+              className={primary ? undefined : "text-xl md:text-xl"}
             />
-          </Field>
-          <Field label="Utilizado">
-            <Input
-              type="number"
-              min="0"
-              step="any"
-              value={used}
-              onChange={(e) => onUsed(e.target.value)}
-            />
-          </Field>
-        </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <CardField label="Cupo total">
+              <MoneyField
+                currency={currency}
+                value={limit}
+                onValue={onLimit}
+                ariaLabel={`Cupo total · ${label}`}
+              />
+            </CardField>
+          </div>
+          <DerivedUsed limit={limit} available={available} currency={currency} />
+        </>
       )}
+    </div>
+  )
+}
+
+// Usado derivado de total − disponible (regla del snapshot); nunca se ingresa a mano.
+function DerivedUsed({
+  limit,
+  available,
+  currency,
+}: {
+  limit: number
+  available: number
+  currency: CurrencyCode
+}) {
+  if (bucketInvalid(limit, available))
+    return (
+      <p className="text-xs font-medium text-red-300">
+        El disponible debe estar entre cero y el cupo total
+      </p>
+    )
+  const used = limit - available
+  if (used <= 0) return null
+  return (
+    <p className="tabular text-xs text-red-300">
+      Usado −{formatMoney(used, currency)}
+    </p>
+  )
+}
+
+function CardToggle({
+  pressed,
+  onPressed,
+  children,
+}: {
+  pressed: boolean
+  onPressed: (v: boolean) => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={() => onPressed(!pressed)}
+      className={cn(
+        "flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+        pressed
+          ? "border-white/30 bg-white/20 text-white"
+          : "border-white/15 text-white/60 hover:text-white/85"
+      )}
+    >
+      {pressed && <Check className="size-3" />}
+      {children}
+    </button>
+  )
+}
+
+function CardField({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <label className="block space-y-1">
+      <span className="block text-xs text-white/75">{label}</span>
+      {children}
+    </label>
+  )
+}
+
+// Superficie editable con el mismo arte y jerarquía del AccountCard del dashboard: banco arriba,
+// datos al centro, últimos 4 + tipo abajo; el isotipo del banco queda como marca de agua.
+function CandidateCard({
+  variant,
+  typeLabel,
+  movementCount,
+  onRemove,
+  refValue,
+  onRef,
+  refPlaceholder,
+  refLabel,
+  refMaxLength,
+  children,
+}: {
+  variant: CardVariant
+  typeLabel: string
+  movementCount?: number
+  onRemove: () => void
+  refValue: string
+  onRef: (v: string) => void
+  refPlaceholder: string
+  refLabel: string
+  refMaxLength?: number
+  children: React.ReactNode
+}) {
+  const art = resolveCardArt(
+    "Banco de Chile",
+    variant === "debito" ? "checking" : "credit_card"
+  )
+  return (
+    <div
+      className="relative flex min-h-40 w-full flex-col gap-4 overflow-hidden rounded-2xl p-5 text-white shadow-[0_1px_2px_rgb(0_0_0/0.08),0_8px_20px_-10px_rgb(0_0_0/0.25)]"
+      style={{ background: CARD_VARIANT_BG[variant] }}
+    >
+      {art && (
+        // eslint-disable-next-line @next/next/no-img-element -- decorativo de fondo, no LCP
+        <img
+          src={art.icon}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 -right-4 h-36 w-auto -translate-y-1/2 opacity-[0.16] filter-[brightness(0)_invert(1)]"
+        />
+      )}
+      <div className="relative flex items-start justify-between gap-2">
+        <div className="text-lg font-semibold tracking-tight [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
+          Banco de Chile
+        </div>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="text-xs font-medium text-white/60 transition-colors hover:text-red-300"
+        >
+          Quitar
+        </button>
+      </div>
+      <div className="relative flex-1 space-y-3">{children}</div>
+      <div className="relative flex items-center justify-between gap-2 text-sm text-white/85">
+        <span className="flex items-center gap-1.5">
+          <span className="tracking-widest">••••</span>
+          <Input
+            inputMode="numeric"
+            maxLength={refMaxLength}
+            value={refValue}
+            placeholder={refPlaceholder}
+            aria-label={refLabel}
+            onChange={(e) => onRef(e.target.value)}
+            style={boxedInputStyle}
+            className="tabular h-8 w-24 rounded-lg border-white/20 px-2 text-sm tracking-widest text-white placeholder:text-white/40 selection:bg-white/25 selection:text-white focus-visible:border-white/40 focus-visible:ring-white/20"
+          />
+        </span>
+        <span className="shrink-0">
+          {typeLabel}
+          {movementCount ? ` · ${movementCount} movs` : ""}
+        </span>
+      </div>
     </div>
   )
 }

@@ -63,6 +63,8 @@ Solo se procesarán combinaciones conocidas:
 
 Se rechazarán por defecto remitentes/asuntos desconocidos. `Aviso de transferencia de fondos` y comprobantes de pago de tarjeta/línea podrán leerse únicamente como eventos internos de balance: se guardan con `isInternal = true`, no llevan categoría y no cuentan en presupuesto. Cartolas, intereses y ajustes ambiguos se ignoran. El parser extraerá texto desde el cuerpo HTML con reglas acotadas, sin ejecutar contenido ni descargar adjuntos/recursos remotos. Los fixtures de prueba serán sanitizados y no contendrán destinatarios, RUT, cuentas o correos reales.
 
+Para `Cargo en Cuenta`, la plantilla vigente contiene la frase `compra por <monto> con cargo a Cuenta <cuenta> en <comercio> el <fecha>`. El parser deberá reconocer esa estructura y guardar el comercio como descripción. El asunto del correo representa la fuente bancaria, no el título útil del movimiento.
+
 ### 5. Asistente inicial de instrumentos y saldos
 
 Después de OAuth, LucaPlan escaneará primero los mensajes del mes para descubrir números de cuenta y últimos cuatro dígitos. `Cargo en Cuenta` propone una cuenta/tarjeta de débito; `Compra con Tarjeta de Crédito` propone una tarjeta de crédito. Cargos CLP y USD con el mismo último 4 y tipo se agrupan en una sola `Card` con buckets distintos, nunca en dos tarjetas.
@@ -71,8 +73,10 @@ El resultado se devuelve como candidatos, sin crear aún `Bank`, `FinancialAccou
 
 Después de validar los candidatos, el usuario registra un snapshot con fecha/hora:
 
-- Cuenta corriente: saldo propio disponible CLP y, solo si aplica, línea total y sobregiro usado. `available = limitAmount - used`.
-- Cada tarjeta de crédito: cupo total y usado nacional CLP y, si aplica, cupo total y usado internacional USD. En ambos, `available = limitAmount - used`.
+- Cuenta corriente: saldo propio disponible CLP y, solo si aplica, línea total y sobregiro disponible. `used = limitAmount - available`.
+- Cada tarjeta de crédito: cupo total y disponible nacional CLP y, si aplica, cupo total y disponible internacional USD. En ambos, `used = limitAmount - available`.
+
+La UI validará `0 <= available <= limitAmount` y enviará al contrato de dominio el `used` derivado. Así se conserva `BalanceBucket` sin migración y se presenta al usuario el mismo concepto que muestran las tarjetas del dashboard.
 
 El modelo vigente ya contiene `BalanceBucket` para `cash`, `overdraft`, `credit_national` y `credit_international`; no se creará otro modelo de saldos. Tras confirmar, una única operación crea instrumentos/buckets y luego importa los movimientos del mes apuntando a su cuenta, tarjeta y bucket. La conexión guarda `lastBalanceReconciledAt`. Los movimientos del mes hasta ese snapshot se crean para historial/presupuesto, pero **no** vuelven a modificar los saldos ingresados; solo eventos posteriores actualizan buckets.
 
@@ -95,6 +99,12 @@ Las reglas de proyección serán pequeñas y deterministas:
 La UI mostrará “Saldo estimado desde <fecha>” junto con última sincronización y botón de reconciliación. Nunca lo rotulará como saldo informado por Banco de Chile.
 
 Después de vincular cada movimiento, los no internos se envían al categorizador existente. Una falla de IA no revierte la importación: el movimiento queda sin categoría para revisión manual. Los abonos/pagos `isInternal` nunca se categorizan.
+
+### 7. Revisión inmediata en tarjetas editables
+
+Al volver del OAuth, la UI iniciará automáticamente el escaneo pendiente y sustituirá el botón intermedio por un estado de carga breve. Los candidatos se mostrarán dentro del modal como tarjetas editables que reutilizan el arte, jerarquía y posiciones de datos de `AccountCard`: banco y últimos cuatro arriba, saldo o cupo disponible como dato principal, total como dato secundario y los inputs integrados en la propia tarjeta.
+
+Los campos monetarios reutilizarán `useMoneyInput` y la fuente única de formato. CLP acepta enteros agrupados; USD conserva dos decimales y muestra coma decimal en locale `es-CL`. No se añadirá una dependencia ni un segundo sistema de componentes. La transición de carga a candidatos comunicará cambio de estado, sin animación ornamental.
 
 ## Risks / Trade-offs
 

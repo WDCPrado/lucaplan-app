@@ -35,3 +35,11 @@
 - [x] 5.2 Probar que el snapshot no se redescuenta, el vínculo apunta al bucket correcto y solo movimientos no internos se categorizan.
 - [x] 5.3 Ejecutar tests, lint, typecheck y build aplicables; revisar que logs, errores y fixtures no contengan tokens ni PII.
 - [ ] 5.4 Validar manualmente con Outlook detección/revisión, gastos CLP/USD, abonos/pagos internos, buckets y categorización.
+
+## 6. Correcciones de validación y detalle real
+
+- [x] 6.1 Agregar un fixture sanitizado de la plantilla real `Cargo en Cuenta` y extraer el comercio de `con cargo a Cuenta ... en <comercio> el ...`, sin persistir PII.
+- [x] 6.2 Reutilizar el formateador monetario existente en el snapshot y cambiar sobregiro/cupos a total más disponible, derivando y validando el usado.
+- [x] 6.3 Iniciar automáticamente el escaneo tras OAuth y rediseñar los candidatos como tarjetas editables coherentes con `AccountCard`, responsivas y accesibles.
+- [x] 6.4 Probar descripción de comercio, derivación total/disponible y precisión USD con dos decimales y coma local.
+- [x] 6.5 Ejecutar tests, lint, typecheck, build y validación visual móvil/escritorio del flujo completo (mock funcional en `app/design/email-snapshot`; el flujo real con Outlook queda en 5.4).

@@ -188,18 +188,20 @@ function parseTefId(text: string): string | null {
   return m ? m[1] : null
 }
 
-// Comercio de una compra: "compra por $X en COMERCIO el ..." | "en COMERCIO con tu tarjeta".
+// Comercio de una compra. Cubre la plantilla real "compra por $X con Tarjeta de Crédito
+// ****NNNN en COMERCIO el <fecha>" y las variantes "compra por $X en COMERCIO el ..." |
+// "en COMERCIO con tu tarjeta".
 function parseMerchant(text: string): string | null {
   const m = text.match(
-    /compra(?:\s+por\s+(?:US\$|USD|\$)\s*[\d.,]+)?\s+en\s+(.{2,60}?)(?=\s+el\s+\d|\s+con\s+(?:tu|su)\s+tarjeta|\s*[.,\n]|$)/i
+    /compra(?:\s+por\s+(?:US\$|USD|\$)\s*[\d.,]+)?(?:\s+con\s+tarjeta\s+de\s+cr[eé]dito\s+[*•Xx\s]*\d{4})?\s+en\s+(.{2,60}?)(?=\s+el\s+\d|\s+con\s+(?:tu|su)\s+tarjeta|\s*[.,\n]|$)/i
   )
   return m ? cleanupName(m[1]) : null
 }
 
-// Motivo de un cargo en cuenta: "asociado a X" | "por concepto de X" | "correspondiente a X".
+// Motivo de un cargo en cuenta, incluida la plantilla real "... cargo a Cuenta ... en X el ...".
 function parseChargeReason(text: string): string | null {
   const m = text.match(
-    /(?:asociado\s+a|por\s+concepto\s+de|correspondiente\s+a)\s+(.{2,60}?)(?=\s*[.,\n]|$)/i
+    /(?:con\s+cargo\s+a\s+cuenta\s+[*•Xx\d-]+\s+en|asociado\s+a|por\s+concepto\s+de|correspondiente\s+a)\s+(.{2,60}?)(?=\s+el\s+\d|\s*[.,\n]|$)/i
   )
   return m ? cleanupName(m[1]) : null
 }

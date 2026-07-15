@@ -309,7 +309,9 @@ html:has(main[data-landing]) body {
   }
 }
 
-/* Flotación sutil de las cards del collage (dos fases para que no vayan al unísono) */
+/* Flotación sutil de las cards del collage (dos fases para que no vayan al unísono).
+   Como @utility para poder aplicarla con variantes (ej. lg:landing-float-a: las tarjetas
+   demo solo flotan en escritorio; en móvil van en carrusel como el dashboard). */
 @keyframes landing-float {
   0%,
   100% {
@@ -319,10 +321,10 @@ html:has(main[data-landing]) body {
     transform: translateY(-8px);
   }
 }
-.landing-float-a {
+@utility landing-float-a {
   animation: landing-float 7s ease-in-out infinite;
 }
-.landing-float-b {
+@utility landing-float-b {
   animation: landing-float 9s ease-in-out 1.2s infinite;
 }
 
@@ -336,8 +338,7 @@ html:has(main[data-landing]) body {
     width: var(--bar, 50%);
     transition: none;
   }
-  .landing-float-a,
-  .landing-float-b {
+  [class*="landing-float"] {
     animation: none;
   }
 }

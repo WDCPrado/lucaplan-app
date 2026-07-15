@@ -7,6 +7,7 @@ import { ArrowRight, LockKeyhole, Mail, NotebookPen, Repeat2, Sparkles, Zap } fr
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { LEGAL, type LegalKey } from "@/components/landing/legal-content"
+import { useCardCarousel } from "@/hooks/use-card-carousel"
 import { AccountCard } from "@/components/finance/account-card"
 import { MovementRow } from "@/components/finance/movement-row"
 import { ProgressRing } from "@/components/finance/progress-ring"
@@ -207,6 +208,12 @@ const delay = (ms: number) =>
 
 export default function Home() {
   const [legal, setLegal] = useState<LegalKey | null>(null)
+  // Carrusel móvil de las tarjetas demo (misma sensación que el dashboard real).
+  const {
+    ref: demoCardsRef,
+    handlers: demoCardsHandlers,
+    onScroll: demoCardsScroll,
+  } = useCardCarousel()
 
   // ponytail: useEffect legítimo — sincroniza con IntersectionObserver y el scroll del DOM
   useEffect(() => {
@@ -451,7 +458,7 @@ export default function Home() {
           </div>
 
           {/* Collage con los componentes reales del dashboard */}
-          <div className="relative mx-auto w-full max-w-xl lg:min-h-[38rem]">
+          <div className="relative mx-auto w-full max-w-xl min-w-0 lg:min-h-[38rem]">
             <div
               data-reveal
               className="rounded-3xl border border-border bg-card p-4 shadow-xl lg:absolute lg:inset-x-0 lg:top-10"
@@ -494,23 +501,30 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Tarjetas demo: en móvil, el MISMO carrusel del dashboard (snap, zoom wallet,
+                haptic, fade en los bordes) para que el gesto ya resulte familiar; en escritorio
+                el contenedor desaparece (lg:contents) y quedan flotando en el collage. */}
             <div
-              data-reveal
-              style={delay(300)}
-              className="z-10 mt-6 w-72 max-w-full lg:absolute lg:top-82 lg:-left-14 lg:mt-0 lg:-rotate-3"
+              ref={demoCardsRef}
+              {...demoCardsHandlers}
+              onScroll={demoCardsScroll}
+              className="-mx-6 mt-6 flex cursor-grab snap-x snap-mandatory scrollbar-none gap-4 overflow-x-auto mask-[linear-gradient(90deg,transparent,black_var(--fade-l,0rem),black_calc(100%-var(--fade-r,2.5rem)),transparent)] px-4 pt-1 pb-4 active:cursor-grabbing lg:contents"
             >
-              <div className="landing-float-b drop-shadow-2xl">
-                <AccountCard account={demoChecking} />
+              <div
+                data-card
+                className="z-10 flex w-72 shrink-0 snap-center snap-always lg:absolute lg:top-82 lg:-left-14 lg:-rotate-3"
+              >
+                <div className="flex w-full lg:landing-float-b lg:drop-shadow-2xl">
+                  <AccountCard account={demoChecking} />
+                </div>
               </div>
-            </div>
-
-            <div
-              data-reveal
-              style={delay(450)}
-              className="z-10 mt-6 w-72 max-w-full lg:absolute lg:top-[23rem] lg:right-2 lg:mt-0 lg:rotate-2"
-            >
-              <div className="landing-float-a drop-shadow-2xl">
-                <AccountCard account={demoCredit} />
+              <div
+                data-card
+                className="z-10 flex w-72 shrink-0 snap-center snap-always lg:absolute lg:top-[23rem] lg:right-2 lg:rotate-2"
+              >
+                <div className="flex w-full lg:landing-float-a lg:drop-shadow-2xl">
+                  <AccountCard account={demoCredit} />
+                </div>
               </div>
             </div>
           </div>

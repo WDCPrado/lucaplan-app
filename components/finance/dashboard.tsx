@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, ChevronRight, Eye, EyeOff, Pencil } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
-import { useDragScroll } from "@/hooks/use-drag-scroll"
+import { useCardCarousel } from "@/hooks/use-card-carousel"
 import { AppShell, type NavKey } from "./app-shell"
 import { MonthPicker } from "./month-picker"
 import { AccountCard } from "./account-card"
@@ -68,7 +68,11 @@ export function Dashboard({
   const [editCat, setEditCat] = useState<CategoryDTO | null | undefined>(
     undefined
   ) // undefined=cerrado, null=crear
-  const { ref: cardsRef, handlers: cardsHandlers } = useDragScroll()
+  const {
+    ref: cardsRef,
+    handlers: cardsHandlers,
+    onScroll: cardsScroll,
+  } = useCardCarousel()
   const [infoAccount, setInfoAccount] = useState<AccountDTO | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [budgetLimitOpen, setBudgetLimitOpen] = useState(false)
@@ -102,56 +106,6 @@ export function Dashboard({
   const isCurrentMonth =
     period.year === now.getUTCFullYear() &&
     period.month === now.getUTCMonth() + 1
-
-  // Fade del carrusel según posición: aparece a la izquierda al scrollear y desaparece
-  // a la derecha al llegar al final. En móvil (snap-center, una tarjeta protagonista) además
-  // escala cada tarjeta según su distancia al centro (zoom estilo wallet) y dispara un haptic
-  // ligero cuando cambia la tarjeta activa.
-  const carouselRaf = useRef(0)
-  const activeCard = useRef(-1)
-  function updateCarousel(el: HTMLElement) {
-    el.style.setProperty("--fade-l", el.scrollLeft > 8 ? "2.5rem" : "0rem")
-    el.style.setProperty(
-      "--fade-r",
-      el.scrollLeft < el.scrollWidth - el.clientWidth - 8 ? "2.5rem" : "0rem"
-    )
-    cancelAnimationFrame(carouselRaf.current)
-    carouselRaf.current = requestAnimationFrame(() => {
-      // Solo los ítems marcados: ConnectBankButton puede colar un overlay como hijo directo.
-      const children = Array.from(
-        el.querySelectorAll<HTMLElement>(":scope > [data-card]")
-      )
-      if (window.innerWidth >= 1024) {
-        // Escritorio: snap-start sin zoom; limpia escalas residuales (p. ej. tras rotar tablet).
-        for (const child of children) child.style.transform = ""
-        activeCard.current = -1
-        return
-      }
-      const viewCenter = el.scrollLeft + el.clientWidth / 2
-      let nearest = -1
-      let best = Infinity
-      children.forEach((child, i) => {
-        // offsetLeft/offsetWidth son de layout: inmunes al scroll y al propio scale.
-        const center = child.offsetLeft - el.offsetLeft + child.offsetWidth / 2
-        const dist = Math.abs(center - viewCenter)
-        child.style.transform = `scale(${1 - 0.07 * Math.min(1, dist / el.clientWidth)})`
-        if (dist < best) {
-          best = dist
-          nearest = i
-        }
-      })
-      if (nearest !== activeCard.current) {
-        if (activeCard.current !== -1) haptic("light") // no vibrar en el montaje
-        activeCard.current = nearest
-      }
-    })
-  }
-
-  // Zoom inicial: las escalas dependen de medidas del DOM, así que se aplican tras montar.
-  useEffect(() => {
-    if (cardsRef.current) updateCarousel(cardsRef.current)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar
-  }, [])
 
   async function signOut() {
     await authClient.signOut()
@@ -230,7 +184,7 @@ export function Dashboard({
           <div
             ref={cardsRef}
             {...cardsHandlers}
-            onScroll={(e) => updateCarousel(e.currentTarget)}
+            onScroll={cardsScroll}
             // pt-1: aire para el hover -translate-y; mask con fade dinámico en ambos bordes
             // (izquierda solo al scrollear, derecha desaparece al llegar al final).
             // snap-mandatory: las tarjetas siempre asientan en un punto de snap (no quedan a

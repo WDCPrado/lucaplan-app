@@ -1,4 +1,4 @@
-# Design System — LucaPlan
+# Design System — Luca Plan
 
 Estilo: **fintech moderno y sereno, con liquid glass**. Esquinas suaves, neutros
 slate fríos, primario azul vibrante. Light + dark emparejados.
@@ -64,7 +64,7 @@ a `--card` sólido (sigue legible). Ojo: **no** uses `prefers-reduced-motion` pa
 - Tipografía (cargada vía `next/font/google` en `app/layout.tsx`):
   - **Geist** (`--font-sans`) — UI y texto: moderna, neutra, muy legible en cuerpo pequeño.
   - **Space Grotesk** (`--font-heading`, utilidad `font-heading`) — headings y marca:
-    la personalidad fintech de LucaPlan. Pesos 500–700.
+    la personalidad fintech de Luca Plan. Pesos 500–700.
   - **Geist Mono** (`--font-mono`) — cifras.
   - Cuerpo ≥16px, line-height 1.5–1.75.
 - Cifras: montos/precios usan **`font-mono` + `tabular-nums`** (utilidad `.tabular` = mono +

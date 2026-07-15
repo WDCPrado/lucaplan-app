@@ -10,7 +10,7 @@ Personas en Chile que administran sus finanzas personales desde el teléfono o e
 
 ## Product Purpose
 
-LucaPlan reúne cuentas, tarjetas y movimientos, los categoriza y los convierte en un plan mensual confiable. El éxito es que el usuario pueda cuadrar su situación financiera real y saber cuánto tiene disponible.
+Luca Plan reúne cuentas, tarjetas y movimientos, los categoriza y los convierte en un plan mensual confiable. El éxito es que el usuario pueda cuadrar su situación financiera real y saber cuánto tiene disponible.
 
 ## Brand Personality
 

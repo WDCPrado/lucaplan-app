@@ -31,7 +31,7 @@ const TYPE_LABEL: Record<string, string> = {
 }
 
 // Detalle de una cuenta/banco. Para las conectadas ofrece "Desconectar", que elimina el banco,
-// sus movimientos y las credenciales guardadas en LucaPlan.
+// sus movimientos y las credenciales guardadas en Luca Plan.
 export function AccountInfoModal({
   account,
   onOpenChange,
@@ -115,7 +115,7 @@ export function AccountInfoModal({
                     </AlertDialogTitle>
                     <AlertDialogDescription>
                       Se elimina la conexión y sus credenciales, y se borran sus
-                      cuentas y todos sus movimientos de LucaPlan. No se puede
+                      cuentas y todos sus movimientos de Luca Plan. No se puede
                       deshacer.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
@@ -132,7 +132,7 @@ export function AccountInfoModal({
               </AlertDialog>
               <p className="text-center text-xs text-muted-foreground">
                 Elimina la conexión, sus credenciales y todos sus datos de
-                LucaPlan.
+                Luca Plan.
               </p>
             </div>
           )}

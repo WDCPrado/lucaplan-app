@@ -78,7 +78,7 @@ model Verification {
   @@map("verification")
 }
 
-// ── Dominio financiero (LucaPlan) ──────────────────────────────────────────────
+// ── Dominio financiero (Luca Plan) ──────────────────────────────────────────────
 // Desacoplado del modelo de auth: la relación con el usuario es por columna `userId`
 // (String, = User.id) SIN @relation, para no tocar los modelos que genera Better Auth.
 // Las relaciones entre modelos propios sí llevan FK real. Montos en Decimal(18,2);

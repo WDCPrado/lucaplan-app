@@ -59,7 +59,7 @@ export function AppShell({ user, active = "inicio", onNavigate, onSignOut, onAdd
           <SidebarHeader>
             <div className="flex items-center gap-2 px-1 py-1">
               <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary font-heading font-bold text-primary-foreground">L</div>
-              <span className="font-heading text-lg font-bold tracking-tight group-data-[collapsible=icon]:hidden">LucaPlan</span>
+              <span className="font-heading text-lg font-bold tracking-tight group-data-[collapsible=icon]:hidden">Luca Plan</span>
             </div>
           </SidebarHeader>
 

@@ -60,9 +60,23 @@ function GmailIcon({ className = "size-8" }: { className?: string }) {
     </svg>
   )
 }
-const cta = LANDING_ONLY
-  ? { href: GITHUB_URL, enter: "GitHub", create: "Ver en GitHub", target: "_blank", rel: "noopener noreferrer" }
-  : { href: "/login", enter: "Entrar", create: "Crear mi plan", target: undefined, rel: undefined }
+// Bancos soportados/en camino: monogramas propios con color de marca (sin logos de
+// terceros, evita assets con trademark). Flotan con el mismo motion del collage.
+const banks = [
+  { name: "Banco de Chile", monogram: "Ch", color: "#0b3f9e", available: true, motion: "landing-float-a rotate-1" },
+  { name: "Santander", monogram: "S", color: "#ec0000", available: false, motion: "landing-float-b -rotate-2" },
+  { name: "BancoEstado", monogram: "BE", color: "#e8590c", available: false, motion: "landing-float-a -rotate-1" },
+  { name: "Bci", monogram: "Bci", color: "#004a98", available: false, motion: "landing-float-b rotate-2" },
+]
+
+// Landing-only: entrar sigue disponible (/login, solo cuentas existentes); crear cuenta
+// se reemplaza por el repo (open source, se instala local).
+const cta = {
+  enter: { href: "/login", label: "Entrar", target: undefined, rel: undefined },
+  create: LANDING_ONLY
+    ? { href: GITHUB_URL, label: "Ver en GitHub", target: "_blank", rel: "noopener noreferrer" }
+    : { href: "/login", label: "Crear mi plan", target: undefined, rel: undefined },
+}
 
 const monthStats = [
   ["Lo que entra", "$1.480.000", "Tus ingresos del mes"],
@@ -178,12 +192,12 @@ const aiSources = [
 
 const faqs = [
   {
-    q: "¿LucaPlan necesita las claves de mi banco?",
-    a: "No, nunca. LucaPlan se conecta a tu correo, no a tu banco: lee las notificaciones que el banco ya te envía, con un permiso de solo lectura que puedes revocar cuando quieras.",
+    q: "¿Luca Plan necesita las claves de mi banco?",
+    a: "No, nunca. Luca Plan se conecta a tu correo, no a tu banco: lee las notificaciones que el banco ya te envía, con un permiso de solo lectura que puedes revocar cuando quieras.",
   },
   {
     q: "¿Qué necesito para empezar?",
-    a: "Tener activadas las notificaciones por correo en tu banco (la mayoría ya las envía) y conectar ese buzón. LucaPlan detecta tus cuentas y tarjetas desde los propios avisos; tú solo confirmas y registras tus saldos iniciales.",
+    a: "Tener activadas las notificaciones por correo en tu banco (la mayoría ya las envía) y conectar ese buzón. Luca Plan detecta tus cuentas y tarjetas desde los propios avisos; tú solo confirmas y registras tus saldos iniciales.",
   },
   {
     q: "¿Lee todo mi correo?",
@@ -267,7 +281,7 @@ export default function Home() {
             <span className="grid size-8 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
               L
             </span>
-            LucaPlan
+            Luca Plan
           </Link>
           <div className="hidden items-center gap-8 text-sm text-muted-foreground lg:flex">
             <a href="#mes" className="transition-colors hover:text-foreground">
@@ -280,7 +294,7 @@ export default function Home() {
               href="#conecta"
               className="transition-colors hover:text-foreground"
             >
-              Conecta tu correo
+              Conecta tu banco
             </a>
             <a
               href="#preguntas"
@@ -290,12 +304,12 @@ export default function Home() {
             </a>
           </div>
           <Link
-            href={cta.href}
-            target={cta.target}
-            rel={cta.rel}
+            href={cta.enter.href}
+            target={cta.enter.target}
+            rel={cta.enter.rel}
             className="rounded-full border border-border bg-card px-4 py-2 text-sm font-medium transition-colors duration-200 hover:border-foreground hover:bg-foreground hover:text-background"
           >
-            {cta.enter}
+            {cta.enter.label}
           </Link>
         </div>
       </nav>
@@ -327,12 +341,12 @@ export default function Home() {
               className="mt-9 flex flex-wrap items-center gap-5"
             >
               <Link
-                href={cta.href}
-                target={cta.target}
-                rel={cta.rel}
+                href={cta.create.href}
+                target={cta.create.target}
+                rel={cta.create.rel}
                 className="rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/30 active:translate-y-0 active:scale-[0.98]"
               >
-                {cta.create}
+                {cta.create.label}
               </Link>
               <a
                 href="#mes"
@@ -355,7 +369,7 @@ export default function Home() {
             <div className="relative aspect-[1.15/1] overflow-hidden rounded-3xl border border-border shadow-2xl">
               <Image
                 src="/monthly-system.webp"
-                alt="Sistema visual de planificación mensual de LucaPlan"
+                alt="Sistema visual de planificación mensual de Luca Plan"
                 fill
                 unoptimized
                 priority
@@ -416,7 +430,7 @@ export default function Home() {
             style={delay(100)}
             className="max-w-2xl text-2xl leading-snug tracking-[-0.02em] text-foreground/80 lg:text-3xl"
           >
-            Cada mes parte limpio. LucaPlan convierte tus gastos reales en
+            Cada mes parte limpio. Luca Plan convierte tus gastos reales en
             decisiones para ahora, no en una cifra acumulada que ya no dice
             nada.
           </p>
@@ -566,7 +580,7 @@ export default function Home() {
                 texto?
               </p>
               <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
-                LucaPlan guardará tu elección y la usará para categorizar
+                Luca Plan guardará tu elección y la usará para categorizar
                 mejor la próxima vez.
               </p>
               <div className="mt-4 flex gap-2" aria-hidden="true">
@@ -609,46 +623,62 @@ export default function Home() {
         className="mx-auto grid max-w-[88rem] scroll-mt-24 gap-14 border-t border-border px-6 py-24 lg:grid-cols-[1.05fr_0.95fr] lg:px-10 lg:py-32"
       >
         <div data-reveal>
-          <p className="text-sm font-semibold text-primary">Conecta tu correo</p>
+          <p className="text-sm font-semibold text-primary">Conecta tu banco</p>
           <h2 className="mt-5 max-w-lg text-4xl leading-[0.98] font-semibold tracking-[-0.05em] lg:text-5xl">
-            Tu banco ya te avisa. LucaPlan escucha.
+            Tu banco ya te avisa. Luca Plan escucha.
           </h2>
           <p className="mt-7 max-w-xl text-lg leading-8 text-muted-foreground">
-            Cada compra o transferencia te llega como notificación al correo.
-            LucaPlan conecta tu buzón, lee solo esos avisos del banco y
-            convierte cada uno en un movimiento categorizado — sin entregar
-            tus claves bancarias a nadie.
+            Sin claves ni trámites: tu banco ya te envía un correo por cada
+            compra o transferencia. Luca Plan lee solo esos avisos y convierte
+            cada uno en un movimiento categorizado, al momento.
           </p>
           <p className="mt-4 max-w-xl text-lg leading-8 text-muted-foreground">
-            Y se configura solo: activa las notificaciones por correo en tu
-            banco, conecta el buzón donde llegan, y LucaPlan detecta tus
+            Y se configura solo según tu banco: activa sus notificaciones por
+            correo, conecta el buzón donde llegan, y Luca Plan detecta tus
             cuentas y tarjetas desde los propios avisos.
           </p>
-          {/* Proveedores de correo: flotan desfasados (mismo motion que el collage) */}
+          {/* Bancos: flotan desfasados (mismo motion que el collage) */}
           <div className="mt-10 flex flex-wrap items-center gap-5">
-            <div
-              data-reveal
-              style={delay(150)}
-              className="landing-float-a flex rotate-1 items-center gap-3.5 rounded-2xl border border-border bg-card px-5 py-4 shadow-lg"
-            >
-              <OutlookIcon />
-              <div>
-                <p className="font-medium">Outlook</p>
-                <p className="text-xs font-medium text-success">Disponible</p>
+            {banks.map((b, i) => (
+              <div
+                key={b.name}
+                data-reveal
+                style={delay(150 + i * 120)}
+                className={`flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4 shadow-lg ${b.motion}`}
+              >
+                <span
+                  className="grid size-9 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
+                  style={{ background: b.color }}
+                  aria-hidden="true"
+                >
+                  {b.monogram}
+                </span>
+                <div>
+                  <p className="font-medium whitespace-nowrap">{b.name}</p>
+                  {b.available ? (
+                    <p className="text-xs font-medium text-success">Disponible</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Próximamente</p>
+                  )}
+                </div>
               </div>
-            </div>
-            <div
-              data-reveal
-              style={delay(280)}
-              className="landing-float-b flex -rotate-2 items-center gap-3.5 rounded-2xl border border-border bg-card px-5 py-4 shadow-lg"
-            >
-              <GmailIcon className="size-7" />
-              <div>
-                <p className="font-medium">Gmail</p>
-                <p className="text-xs text-muted-foreground">Próximamente</p>
-              </div>
-            </div>
+            ))}
           </div>
+          <p
+            data-reveal
+            style={delay(500)}
+            className="mt-8 flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
+          >
+            Vía el correo donde te llegan los avisos:
+            <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+              <OutlookIcon className="size-4.5" /> Outlook
+            </span>
+            hoy,
+            <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+              <GmailIcon className="size-4" /> Gmail
+            </span>
+            próximamente.
+          </p>
         </div>
         <div className="grid content-center gap-8 lg:border-l lg:border-border lg:pl-16">
           <div data-reveal style={delay(100)} className="flex gap-5">
@@ -658,7 +688,7 @@ export default function Home() {
             <div>
               <p className="text-xl font-medium">Solo lectura, revocable</p>
               <p className="mt-2 leading-7 text-muted-foreground">
-                Un permiso mínimo de lectura de correo: LucaPlan no puede
+                Un permiso mínimo de lectura de correo: Luca Plan no puede
                 enviar, mover ni borrar nada, y quitas el acceso cuando
                 quieras desde tu proveedor de correo.
               </p>
@@ -721,17 +751,17 @@ export default function Home() {
         >
           <div className="absolute -top-32 -right-24 size-96 rounded-full border-[36px] border-primary-foreground/10" />
           <div className="absolute -bottom-44 -left-20 size-80 rounded-full bg-primary-foreground/5" />
-          <p className="relative text-sm font-semibold">LucaPlan</p>
+          <p className="relative text-sm font-semibold">Luca Plan</p>
           <h2 className="relative mt-5 max-w-2xl text-4xl leading-[0.98] font-semibold tracking-[-0.05em] lg:text-5xl">
             Un plan más claro para el mes que viene.
           </h2>
           <Link
-            href={cta.href}
-            target={cta.target}
-            rel={cta.rel}
+            href={cta.create.href}
+            target={cta.create.target}
+            rel={cta.create.rel}
             className="relative mt-9 inline-flex rounded-full bg-primary-foreground px-6 py-3.5 text-sm font-semibold text-primary transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 active:scale-[0.98]"
           >
-            {cta.create}
+            {cta.create.label}
           </Link>
         </div>
       </section>
@@ -744,7 +774,7 @@ export default function Home() {
                 <span className="grid size-8 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
                   L
                 </span>
-                LucaPlan
+                Luca Plan
               </div>
               <p className="mt-4 text-sm leading-6 text-muted-foreground">
                 Finanzas personales, un mes a la vez. Hecho en Chile.
@@ -757,9 +787,9 @@ export default function Home() {
                 <li><a href="#mes" className="transition-colors hover:text-foreground">El mes</a></li>
                 <li><a href="#app" className="transition-colors hover:text-foreground">La app</a></li>
                 <li><a href="#categorias" className="transition-colors hover:text-foreground">Categorización con IA</a></li>
-                <li><a href="#conecta" className="transition-colors hover:text-foreground">Conecta tu correo</a></li>
+                <li><a href="#conecta" className="transition-colors hover:text-foreground">Conecta tu banco</a></li>
                 <li><a href="#preguntas" className="transition-colors hover:text-foreground">Preguntas frecuentes</a></li>
-                <li><Link href={cta.href} target={cta.target} rel={cta.rel} className="transition-colors hover:text-foreground">{cta.enter}</Link></li>
+                <li><Link href={cta.enter.href} target={cta.enter.target} rel={cta.enter.rel} className="transition-colors hover:text-foreground">{cta.enter.label}</Link></li>
               </ul>
             </nav>
 
@@ -782,7 +812,7 @@ export default function Home() {
             <div className="text-sm">
               <p className="font-semibold">Seguridad</p>
               <p className="mt-4 max-w-xs leading-6 text-muted-foreground">
-                LucaPlan nunca conoce tus claves bancarias: lee solo las
+                Luca Plan nunca conoce tus claves bancarias: lee solo las
                 notificaciones de tu correo con un permiso de solo lectura,
                 revocable cuando quieras, y no puede mover tu dinero.
               </p>
@@ -791,7 +821,7 @@ export default function Home() {
 
           <div className="mt-12 flex flex-col gap-3 border-t border-border pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <p>
-              © 2026 LucaPlan · Open source, hecho por{" "}
+              © 2026 Luca Plan · Open source, hecho por{" "}
               <a
                 href={LINKEDIN_URL}
                 target="_blank"

@@ -1,4 +1,4 @@
-# Clean Architecture — LucaPlan
+# Clean Architecture — Luca Plan
 
 App **fullstack Next.js 16** (App Router) con clean architecture para el backend.
 Dominio: **planificación financiera** (presupuestos, gastos, metas de ahorro).

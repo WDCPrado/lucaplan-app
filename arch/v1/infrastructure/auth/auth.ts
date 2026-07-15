@@ -8,9 +8,14 @@ import { admin } from "better-auth/plugins";
 import { prisma } from "../database/prisma/client.ts";
 
 export const auth = betterAuth({
-  appName: "LucaPlan",
+  appName: "Luca Plan",
   database: prismaAdapter(prisma, { provider: "postgresql" }),
-  emailAndPassword: { enabled: true },
+  // Landing-only (vitrina open source): el registro se cierra también en el endpoint,
+  // no solo en la UI. Solo entran cuentas existentes.
+  emailAndPassword: {
+    enabled: true,
+    disableSignUp: process.env.NEXT_PUBLIC_LANDING_ONLY === "true",
+  },
   plugins: [admin({ defaultRole: "USER", adminRoles: ["ADMIN"] })],
 });
 

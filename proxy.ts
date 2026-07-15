@@ -7,14 +7,20 @@ import { getSessionCookie } from "better-auth/cookies"
 const PUBLIC_ROUTES = ["/", "/login"]
 
 // Deploy landing-only (ej. Railway como vitrina del proyecto open source):
-// con NEXT_PUBLIC_LANDING_ONLY=true solo existe la landing; todo lo demás vuelve a /.
+// con NEXT_PUBLIC_LANDING_ONLY=true existen la landing y /login (sin registro —
+// auth.ts cierra el sign-up); sin sesión, el resto de rutas vuelve a / en vez de /login.
 const LANDING_ONLY = process.env.NEXT_PUBLIC_LANDING_ONLY === "true"
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isPublicAsset = /\.[^/]+$/.test(pathname)
 
-  if (LANDING_ONLY && pathname !== "/" && !isPublicAsset) {
+  if (
+    LANDING_ONLY &&
+    !isPublicAsset &&
+    !PUBLIC_ROUTES.includes(pathname) &&
+    !getSessionCookie(request)
+  ) {
     return NextResponse.redirect(new URL("/", request.url))
   }
   const isPublic =

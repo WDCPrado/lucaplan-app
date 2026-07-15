@@ -1,4 +1,4 @@
-# CLAUDE.md — LucaPlan
+# CLAUDE.md — Luca Plan
 
 App **fullstack Next.js 16** (App Router, React 19) con **clean architecture** para el backend.
 Dominio: **planificación financiera** (presupuestos, gastos, metas de ahorro).
@@ -84,7 +84,7 @@ Todo el backend (doc + código) vive en `arch/`; no hay carpeta `src/`. Dentro d
   no hardcodees valores en componentes, tira de esas variables. Detalle del design system
   (glassmorphism fintech, tokens, glass, dark/light) en [docs/design/design-system.md](docs/design/design-system.md).
 - **Responsividad obligatoria (desktop-first, aún responsive).** La experiencia primaria es
-  **escritorio** (LucaPlan es una webapp de acceso directo, sin depender de una tienda): sidebar
+  **escritorio** (Luca Plan es una webapp de acceso directo, sin depender de una tienda): sidebar
   fija + layout multi-columna que aprovecha el ancho. El shell vive en
   [components/finance/app-shell.tsx](components/finance/app-shell.tsx) (shadcn `sidebar`,
   colapsable, drawer en móvil); las superficies contextuales usan

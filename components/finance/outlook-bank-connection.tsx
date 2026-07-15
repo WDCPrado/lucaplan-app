@@ -333,7 +333,7 @@ export function OutlookBankConnection({
     return (
       <div className="space-y-4">
         <Notice icon={Mail}>
-          LucaPlan solo leerá notificaciones de Banco de Chile con el permiso
+          Luca Plan solo leerá notificaciones de Banco de Chile con el permiso
           Mail.Read. No puede enviar ni borrar correos.
         </Notice>
         <Button

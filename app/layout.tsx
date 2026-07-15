@@ -27,17 +27,17 @@ const fontMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.BETTER_AUTH_URL ?? "http://localhost:3000"),
-  title: "LucaPlan | Presupuestos mensuales",
+  title: "Luca Plan | Presupuestos mensuales",
   description:
     "Planifica cada mes con presupuestos claros, pagos recurrentes y conexión bancaria con Fintoc.",
   openGraph: {
-    title: "LucaPlan | Presupuestos mensuales",
+    title: "Luca Plan | Presupuestos mensuales",
     description: "Tu plan, mes a mes.",
     images: ["/og-lucaplan.png"],
   },
   twitter: {
     card: "summary_large_image",
-    title: "LucaPlan | Presupuestos mensuales",
+    title: "Luca Plan | Presupuestos mensuales",
     description: "Tu plan, mes a mes.",
     images: ["/og-lucaplan.png"],
   },

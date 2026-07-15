@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 
-// Textos legales de LucaPlan (borrador base alineado a la Ley 21.719 de Protección de
+// Textos legales de Luca Plan (borrador base alineado a la Ley 21.719 de Protección de
 // Datos Personales de Chile). Revisar con asesoría legal antes del lanzamiento comercial.
 
 function H(props: { children: ReactNode }) {
@@ -16,15 +16,15 @@ export const LEGAL = {
       <div className="space-y-4 text-sm leading-6 text-muted-foreground">
         <p className="text-xs">{UPDATED}</p>
         <p>
-          Estos Términos y Condiciones regulan el uso de LucaPlan, una
+          Estos Términos y Condiciones regulan el uso de Luca Plan, una
           aplicación web de planificación de finanzas personales. Al crear una
           cuenta o usar el servicio, aceptas estos términos.
         </p>
         <H>1. El servicio</H>
         <p>
-          LucaPlan te permite organizar presupuestos mensuales, registrar
+          Luca Plan te permite organizar presupuestos mensuales, registrar
           movimientos y conectar cuentas bancarias en modalidad de solo
-          lectura. LucaPlan es una herramienta informativa: no mueve dinero,
+          lectura. Luca Plan es una herramienta informativa: no mueve dinero,
           no ejecuta pagos ni transferencias, y no constituye asesoría
           financiera, tributaria ni de inversión.
         </p>
@@ -39,17 +39,17 @@ export const LEGAL = {
           La información bancaria se obtiene desde las notificaciones que tu
           banco envía a tu correo electrónico. Al conectar tu cuenta de
           correo (por ejemplo, Outlook o Gmail, según los proveedores
-          disponibles en la aplicación) autorizas a LucaPlan un permiso
+          disponibles en la aplicación) autorizas a Luca Plan un permiso
           delegado de solo lectura, que puedes revocar en cualquier momento
           desde la cuenta de tu proveedor de correo o desconectando el banco
-          en la aplicación. LucaPlan procesa únicamente los mensajes de
+          en la aplicación. Luca Plan procesa únicamente los mensajes de
           remitentes conocidos de tu banco, nunca recibe ni almacena tus
           claves bancarias, no puede enviar, mover ni eliminar correos, y no
           puede operar sobre tus cuentas.
         </p>
         <H>4. Categorización con IA</H>
         <p>
-          LucaPlan puede clasificar automáticamente tus movimientos usando
+          Luca Plan puede clasificar automáticamente tus movimientos usando
           inteligencia artificial. Esta clasificación es una sugerencia y
           puede contener errores; siempre puedes corregirla. Las decisiones
           financieras que tomes a partir de la información mostrada son de tu
@@ -57,7 +57,7 @@ export const LEGAL = {
         </p>
         <H>5. Propiedad intelectual</H>
         <p>
-          El software, marca, diseño y contenidos de LucaPlan son de
+          El software, marca, diseño y contenidos de Luca Plan son de
           propiedad de sus titulares. El uso del servicio no te otorga
           licencia alguna sobre ellos, salvo el derecho de uso personal e
           intransferible de la aplicación.
@@ -71,7 +71,7 @@ export const LEGAL = {
         </p>
         <H>7. Limitación de responsabilidad</H>
         <p>
-          En la medida permitida por la ley chilena, LucaPlan no responde por
+          En la medida permitida por la ley chilena, Luca Plan no responde por
           perjuicios derivados de decisiones tomadas con base en la
           información mostrada, errores de categorización, ni por
           indisponibilidad del servicio o retrasos en la recepción de las
@@ -98,13 +98,13 @@ export const LEGAL = {
       <div className="space-y-4 text-sm leading-6 text-muted-foreground">
         <p className="text-xs">{UPDATED}</p>
         <p>
-          Esta política describe cómo LucaPlan trata tus datos personales,
+          Esta política describe cómo Luca Plan trata tus datos personales,
           conforme a la Ley N.º 21.719 de Protección de Datos Personales de
           Chile.
         </p>
         <H>1. Responsable del tratamiento</H>
         <p>
-          LucaPlan actúa como responsable del tratamiento de los datos
+          Luca Plan actúa como responsable del tratamiento de los datos
           personales que entregas al usar la aplicación. Puedes contactarnos
           para cualquier asunto de privacidad a través del correo indicado en
           la aplicación.
@@ -133,7 +133,7 @@ export const LEGAL = {
         <p>
           (a) Conexión por correo: interviene el proveedor de tu buzón —
           Microsoft (Microsoft Graph) para cuentas Outlook y, cuando esté
-          disponible, Google para cuentas Gmail —; LucaPlan accede con un
+          disponible, Google para cuentas Gmail —; Luca Plan accede con un
           permiso delegado de solo lectura y guarda el token de acceso
           cifrado en el servidor. Tus claves bancarias nunca se solicitan ni
           se transmiten. (b)

@@ -18,7 +18,10 @@ import {
 } from "@/arch/v1/infrastructure/http/outlook/outlook-oauth"
 
 function redirectTo(req: Request, params: Record<string, string>): Response {
-  const url = new URL("/dashboard", req.url)
+  // La base es la URL PÚBLICA de la app (BETTER_AUTH_URL), no `req.url`: detrás del reverse proxy
+  // `req.url` trae la dirección interna del contenedor (localhost:3005) y el 302 terminaría ahí.
+  const base = process.env.BETTER_AUTH_URL ?? new URL(req.url).origin
+  const url = new URL("/dashboard", base)
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
   return Response.redirect(url, 302)
 }

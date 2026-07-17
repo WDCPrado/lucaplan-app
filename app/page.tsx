@@ -129,6 +129,20 @@ const banks = [
     available: false,
     motion: "landing-float-b rotate-2",
   },
+  {
+    name: "Scotiabank",
+    monogram: "Sc",
+    color: "#e01e2d",
+    available: false,
+    motion: "landing-float-a rotate-1",
+  },
+  {
+    name: "Itaú",
+    monogram: "It",
+    color: "#ec7000",
+    available: false,
+    motion: "landing-float-b -rotate-1",
+  },
 ]
 
 const cta = {
@@ -835,13 +849,13 @@ export default function Home() {
             cuentas y tarjetas desde los propios avisos.
           </p>
           {/* Bancos: flotan desfasados (mismo motion que el collage) */}
-          <div className="mt-10 flex flex-wrap items-center gap-5">
+          <div className="mt-10 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center sm:gap-5">
             {banks.map((b, i) => (
               <div
                 key={b.name}
                 data-reveal
                 style={delay(150 + i * 120)}
-                className={`flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4 shadow-lg ${b.motion}`}
+                className={`flex items-center gap-2.5 rounded-2xl border border-border bg-card px-3 py-3 shadow-lg sm:gap-3 sm:px-5 sm:py-4 ${b.motion}`}
               >
                 <span
                   className="grid size-9 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
@@ -850,8 +864,10 @@ export default function Home() {
                 >
                   {b.monogram}
                 </span>
-                <div>
-                  <p className="font-medium whitespace-nowrap">{b.name}</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium sm:text-base sm:whitespace-nowrap">
+                    {b.name}
+                  </p>
                   {b.available ? (
                     <p className="text-xs font-medium text-success">
                       Disponible
@@ -864,10 +880,17 @@ export default function Home() {
                 </div>
               </div>
             ))}
+            <div
+              data-reveal
+              style={delay(150 + banks.length * 120)}
+              className="landing-float-a flex items-center justify-center rounded-2xl border border-dashed border-border px-3 py-3 text-sm text-muted-foreground sm:px-5 sm:py-4"
+            >
+              y más
+            </div>
           </div>
           <p
             data-reveal
-            style={delay(500)}
+            style={delay(500 + banks.length * 120)}
             className="mt-8 flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
           >
             Vía el correo donde te llegan los avisos:

@@ -1,48 +1,63 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { ResponsiveModal } from "@/components/ui/responsive-modal";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
-import { useMoneyInput } from "@/hooks/use-money-input";
-import { variantForType } from "@/lib/bank-cards";
-import { isFintocSupportedBank } from "@/lib/fintoc/institutions";
-import { AccountCard } from "./account-card";
-import type { CurrencyCode } from "@/arch/v1/domain/finance/money";
-import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
+import { useMoneyInput } from "@/hooks/use-money-input"
+import { variantForType } from "@/lib/bank-cards"
+import { isFintocSupportedBank } from "@/lib/fintoc/institutions"
+import { AccountCard } from "./account-card"
+import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
+import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 // Alta manual = solo bancos/medios que Fintoc NO cubre (los que sí, se conectan por Fintoc). Se
 // filtra por el matcher para que nunca aparezca uno soportado, aunque se agregue a la lista.
-const BANKS = ["Mercado Pago", "Tenpo", "MACH", "Racional", "Hapi", "Banco Falabella", "Banco Ripley", "Coopeuch", "Efectivo"].filter(
-  (b) => !isFintocSupportedBank(b),
-);
+const BANKS = [
+  "Mercado Pago",
+  "Tenpo",
+  "MACH",
+  "Racional",
+  "Hapi",
+  "Banco Falabella",
+  "Banco Ripley",
+  "Coopeuch",
+  "Efectivo",
+].filter((b) => !isFintocSupportedBank(b))
 
 // Alta manual = tarjetas (solo tipos con tarjeta). Las cuentas bancarias completas llegan por Fintoc.
 const TYPES: { value: string; label: string }[] = [
   { value: "checking", label: "Tarjeta de débito" },
   { value: "credit_card", label: "Tarjeta de crédito" },
-];
+]
 
-export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const router = useRouter();
-  const [bankName, setBankName] = useState(BANKS[0] ?? "");
-  const [name, setName] = useState("");
-  const [accountType, setAccountType] = useState("checking");
-  const [currency, setCurrency] = useState<CurrencyCode>("CLP");
-  const [color, setColor] = useState("#1e3a8a");
-  const [cardLast4, setCardLast4] = useState("");
-  const [saving, setSaving] = useState(false);
-  const balance = useMoneyInput(currency, 0);
+export function AccountModal({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+}) {
+  const router = useRouter()
+  const [bankName, setBankName] = useState(BANKS[0] ?? "")
+  const [name, setName] = useState("")
+  const [accountType, setAccountType] = useState("checking")
+  const [currency, setCurrency] = useState<CurrencyCode>("CLP")
+  const [color, setColor] = useState("#1e3a8a")
+  const [cardLast4, setCardLast4] = useState("")
+  const [saving, setSaving] = useState(false)
+  const balance = useMoneyInput(currency, 0)
 
   // Solo los tipos con tarjeta (corriente = débito, crédito) exigen los últimos 4 dígitos.
-  const hasCard = variantForType(accountType) !== null;
-  const cardOk = !hasCard || cardLast4.length === 4;
+  const hasCard = variantForType(accountType) !== null
+  const cardOk = !hasCard || cardLast4.length === 4
   // Los bancos de Fintoc no se dan de alta a mano: se conectan (movimientos automáticos).
-  const isFintocBank = isFintocSupportedBank(bankName);
-  const canSave = !!bankName.trim() && !!name.trim() && cardOk && !isFintocBank && !saving;
+  const isFintocBank = isFintocSupportedBank(bankName)
+  const canSave =
+    !!bankName.trim() && !!name.trim() && cardOk && !isFintocBank && !saving
 
   // Cuenta ficticia para el preview en vivo (reacciona a banco, tipo, saldo y dígitos).
   const preview: AccountDTO = {
@@ -57,11 +72,11 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
     cardLast4: hasCard && cardLast4 ? cardLast4 : null,
     provider: "manual",
     lastSyncedAt: null,
-  };
+  }
 
   async function save() {
-    if (!canSave) return;
-    setSaving(true);
+    if (!canSave) return
+    setSaving(true)
     const res = await fetch("/api/accounts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -74,19 +89,24 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
         color,
         cardLast4: hasCard ? cardLast4 : null,
       }),
-    });
-    setSaving(false);
+    })
+    setSaving(false)
     if (res.ok) {
-      setName("");
-      setCardLast4("");
-      balance.reset();
-      onOpenChange(false);
-      router.refresh();
+      setName("")
+      setCardLast4("")
+      balance.reset()
+      onOpenChange(false)
+      router.refresh()
     }
   }
 
   return (
-    <ResponsiveModal open={open} onOpenChange={onOpenChange} title="Nueva tarjeta" className="sm:max-w-3xl">
+    <ResponsiveModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Nueva tarjeta"
+      className="sm:max-w-3xl"
+    >
       <div className="px-4 pb-6">
         <div className="md:grid md:grid-cols-2 md:gap-6">
           {/* Columna izquierda: tarjeta grande + banco + tipo (+ dígitos) */}
@@ -98,18 +118,26 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
               <Label className="mb-1 block text-xs">Banco</Label>
               <div className="flex flex-wrap gap-2">
                 {BANKS.map((b) => (
-                  <Chip key={b} active={bankName === b} onClick={() => setBankName(b)}>
+                  <Chip
+                    key={b}
+                    active={bankName === b}
+                    onClick={() => setBankName(b)}
+                  >
                     {b}
                   </Chip>
                 ))}
               </div>
               {isFintocBank ? (
                 <p className="mt-2 text-xs text-destructive">
-                  {bankName} está en Fintoc. Conéctalo desde <span className="font-medium">“Conectar banco”</span> para traer los movimientos automáticamente.
+                  {bankName} está en Fintoc. Conéctalo desde{" "}
+                  <span className="font-medium">“Conectar banco”</span> para
+                  traer los movimientos automáticamente.
                 </p>
               ) : (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  El alta manual es para bancos/medios fuera de Fintoc. Banco de Chile, Santander, BCI, Itaú, BICE, Scotiabank, BancoEstado y Security se conectan desde “Conectar banco”.
+                  El alta manual es para bancos/medios fuera de Fintoc. Banco de
+                  Chile, Santander, BCI, Itaú, BICE, Scotiabank, BancoEstado y
+                  Security se conectan desde “Conectar banco”.
                 </p>
               )}
             </div>
@@ -117,7 +145,11 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
               <Label className="mb-1 block text-xs">Tipo de cuenta</Label>
               <div className="flex flex-wrap gap-2">
                 {TYPES.map((t) => (
-                  <Chip key={t.value} active={accountType === t.value} onClick={() => setAccountType(t.value)}>
+                  <Chip
+                    key={t.value}
+                    active={accountType === t.value}
+                    onClick={() => setAccountType(t.value)}
+                  >
                     {t.label}
                   </Chip>
                 ))}
@@ -125,11 +157,15 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
             </div>
             {hasCard && (
               <div>
-                <Label className="mb-1 block text-xs">Últimos 4 dígitos de la tarjeta</Label>
+                <Label className="mb-1 block text-xs">
+                  Últimos 4 dígitos de la tarjeta
+                </Label>
                 <Input
                   inputMode="numeric"
                   value={cardLast4}
-                  onChange={(e) => setCardLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  onChange={(e) =>
+                    setCardLast4(e.target.value.replace(/\D/g, "").slice(0, 4))
+                  }
                   placeholder="8821"
                   className="tabular h-11 tracking-widest"
                 />
@@ -141,13 +177,22 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
           <div className="mt-4 flex flex-col gap-4 md:mt-0">
             <div>
               <Label className="mb-1 block text-xs">Nombre de la tarjeta</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tarjeta débito CLP" className="h-11" />
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Tarjeta débito CLP"
+                className="h-11"
+              />
             </div>
             <div>
               <Label className="mb-1 block text-xs">Moneda</Label>
               <div className="flex gap-2">
                 {(["CLP", "USD"] as const).map((c) => (
-                  <Chip key={c} active={currency === c} onClick={() => setCurrency(c)}>
+                  <Chip
+                    key={c}
+                    active={currency === c}
+                    onClick={() => setCurrency(c)}
+                  >
                     {c}
                   </Chip>
                 ))}
@@ -155,34 +200,61 @@ export function AccountModal({ open, onOpenChange }: { open: boolean; onOpenChan
             </div>
             <div>
               <Label className="mb-1 block text-xs">Saldo inicial</Label>
-              <Input inputMode="numeric" value={balance.display} onChange={(e) => balance.onChange(e.target.value)} placeholder="0" className="tabular h-11" />
+              <Input
+                inputMode="numeric"
+                value={balance.display}
+                onChange={(e) => balance.onChange(e.target.value)}
+                placeholder="0"
+                className="tabular h-11"
+              />
             </div>
             <div>
-              <Label className="mb-1 block text-xs">Color (fallback sin arte)</Label>
-              <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-11 w-full rounded-md border bg-transparent" />
+              <Label className="mb-1 block text-xs">
+                Color (fallback sin arte)
+              </Label>
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                className="h-11 w-full rounded-md border bg-transparent"
+              />
             </div>
           </div>
         </div>
 
-        <Button onClick={save} disabled={!canSave} className="mt-6 h-12 w-full rounded-full text-base">
+        <Button
+          onClick={save}
+          disabled={!canSave}
+          className="mt-6 h-12 w-full rounded-full text-base"
+        >
           {saving ? "Guardando…" : "Crear tarjeta"}
         </Button>
       </div>
     </ResponsiveModal>
-  );
+  )
 }
 
-function Chip({ active, onClick, children }: { active?: boolean; onClick: () => void; children: React.ReactNode }) {
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
         "flex h-11 items-center rounded-full border px-4 text-sm whitespace-nowrap",
-        active ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground",
+        active
+          ? "border-primary bg-primary/10 text-primary"
+          : "text-muted-foreground"
       )}
     >
       {children}
     </button>
-  );
+  )
 }

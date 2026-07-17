@@ -1,11 +1,15 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
-import { haptic } from "@/lib/haptics";
-import { monthName } from "@/lib/finance-format";
+import { useState } from "react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
+import { haptic } from "@/lib/haptics"
+import { monthName } from "@/lib/finance-format"
 
 // Selector de mes con Popover de shadcn: el pill del mes abre un grid de 12 meses con
 // navegación de año. El mes seleccionado va en primary; el mes actual lleva un anillo.
@@ -13,19 +17,19 @@ export function MonthPicker({
   period,
   onSelect,
 }: {
-  period: { year: number; month: number };
-  onSelect: (year: number, month: number) => void;
+  period: { year: number; month: number }
+  onSelect: (year: number, month: number) => void
 }) {
-  const [open, setOpen] = useState(false);
-  const [year, setYear] = useState(period.year);
-  const now = new Date();
+  const [open, setOpen] = useState(false)
+  const [year, setYear] = useState(period.year)
+  const now = new Date()
 
   return (
     <Popover
       open={open}
       onOpenChange={(o) => {
-        setOpen(o);
-        if (o) setYear(period.year); // al abrir, arrancar en el año del período visible
+        setOpen(o)
+        if (o) setYear(period.year) // al abrir, arrancar en el año del período visible
       }}
     >
       <PopoverTrigger asChild>
@@ -53,28 +57,31 @@ export function MonthPicker({
         </div>
         <div className="grid grid-cols-3 gap-1">
           {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
-            const selected = year === period.year && m === period.month;
-            const isNow = year === now.getUTCFullYear() && m === now.getUTCMonth() + 1;
+            const selected = year === period.year && m === period.month
+            const isNow =
+              year === now.getUTCFullYear() && m === now.getUTCMonth() + 1
             return (
               <button
                 key={m}
                 onClick={() => {
-                  haptic("light");
-                  setOpen(false);
-                  onSelect(year, m);
+                  haptic("light")
+                  setOpen(false)
+                  onSelect(year, m)
                 }}
                 className={cn(
                   "h-11 rounded-lg text-sm transition-colors md:h-9",
-                  selected ? "bg-primary font-semibold text-primary-foreground" : "hover:bg-accent",
-                  !selected && isNow && "ring-1 ring-primary/50",
+                  selected
+                    ? "bg-primary font-semibold text-primary-foreground"
+                    : "hover:bg-accent",
+                  !selected && isNow && "ring-1 ring-primary/50"
                 )}
               >
                 {monthName(m).slice(0, 3)}
               </button>
-            );
+            )
           })}
         </div>
       </PopoverContent>
     </Popover>
-  );
+  )
 }

@@ -15,20 +15,16 @@ const FINTOC_BANK_KEYWORDS = [
   "banco estado",
   "estado",
   "security", // Banco Security
-];
+]
 
 // Normaliza para comparar: minúsculas, sin acentos, sin espacios de más.
 function normalize(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .trim();
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim()
 }
 
 // ¿El nombre de banco escrito por el usuario corresponde a uno soportado por Fintoc?
 export function isFintocSupportedBank(name: string): boolean {
-  const n = normalize(name);
-  if (!n) return false;
-  return FINTOC_BANK_KEYWORDS.some((k) => n.includes(k));
+  const n = normalize(name)
+  if (!n) return false
+  return FINTOC_BANK_KEYWORDS.some((k) => n.includes(k))
 }

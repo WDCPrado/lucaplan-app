@@ -45,7 +45,13 @@ export const metadata: Metadata = {
   // PWA: iconos de instalación + comportamiento como web app en iOS (Agregar a inicio).
   icons: {
     icon: [{ url: "/icons/icon-32.png", sizes: "32x32", type: "image/png" }],
-    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    apple: [
+      {
+        url: "/icons/apple-touch-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
   },
   appleWebApp: {
     capable: true,

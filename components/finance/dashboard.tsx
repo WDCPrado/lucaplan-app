@@ -24,7 +24,12 @@ import { CategorizationAutoRefresh } from "./categorization-auto-refresh"
 import { UncategorizedTriage } from "./uncategorized-triage"
 import { TransactionModal } from "./transaction-modal"
 import { TransactionSearch } from "./transaction-search"
-import { formatCLP, formatCompact, monthName, quartileVar } from "@/lib/finance-format"
+import {
+  formatCLP,
+  formatCompact,
+  monthName,
+  quartileVar,
+} from "@/lib/finance-format"
 import type {
   AccountDTO,
   BudgetViewDTO,
@@ -101,8 +106,13 @@ export function Dashboard({
     budget.remainingToAllocate !== null && budget.remainingToAllocate < 0
 
   // Uso REAL del presupuesto total: gastado del mes (categorías de gasto) vs límite global.
-  const totalUsed = expenseCategories.reduce((s, c) => s + Math.max(0, c.used), 0)
-  const usedPct = budget.globalLimit ? (totalUsed / budget.globalLimit) * 100 : 0
+  const totalUsed = expenseCategories.reduce(
+    (s, c) => s + Math.max(0, c.used),
+    0
+  )
+  const usedPct = budget.globalLimit
+    ? (totalUsed / budget.globalLimit) * 100
+    : 0
 
   function goMonth(delta: number) {
     const d = new Date(Date.UTC(period.year, period.month - 1 + delta, 1))

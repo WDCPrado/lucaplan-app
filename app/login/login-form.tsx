@@ -1,26 +1,35 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
-import { AlertCircle, Check, Copy, Eye, EyeOff, Loader2, Moon, Sun } from "lucide-react";
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useTheme } from "next-themes"
+import {
+  AlertCircle,
+  Check,
+  Copy,
+  Eye,
+  EyeOff,
+  Loader2,
+  Moon,
+  Sun,
+} from "lucide-react"
 
-import { authClient } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ResponsiveModal } from "@/components/ui/responsive-modal";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LEGAL, type LegalKey } from "@/components/landing/legal-content";
+import { authClient } from "@/lib/auth-client"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { LEGAL, type LegalKey } from "@/components/landing/legal-content"
 
 // Landing-only (vitrina open source): sin registro — solo entran cuentas existentes;
 // el resto instala local desde GitHub. El endpoint de sign-up lo cierra auth.ts.
-const LANDING_ONLY = process.env.NEXT_PUBLIC_LANDING_ONLY === "true";
-const GITHUB_URL = "https://github.com/WDCPrado/lucaplan-app";
+const LANDING_ONLY = process.env.NEXT_PUBLIC_LANDING_ONLY === "true"
+const GITHUB_URL = "https://github.com/WDCPrado/lucaplan-app"
 
 function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme()
   return (
     <Button
       variant="ghost"
@@ -32,32 +41,37 @@ function ThemeToggle() {
       <Sun className="size-5 dark:hidden" />
       <Moon className="hidden size-5 dark:block" />
     </Button>
-  );
+  )
 }
 
 // Marca GitHub inline (mismo patrón que GoogleIcon; lucide deprecó los iconos de marca).
 function GitHubIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="size-4.5" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className="size-4.5"
+      aria-hidden="true"
+    >
       <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
     </svg>
-  );
+  )
 }
 
 // Registro cerrado en la vitrina: Luca Plan es open source y se instala local.
 function OpenSourceNotice() {
-  const [copied, setCopied] = useState(false);
-  const cloneCmd = `git clone ${GITHUB_URL}.git`;
+  const [copied, setCopied] = useState(false)
+  const cloneCmd = `git clone ${GITHUB_URL}.git`
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(cloneCmd);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      await navigator.clipboard.writeText(cloneCmd)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
     } catch {
       // Sin permiso de clipboard: el comando queda visible para copiarlo a mano.
     }
-  };
+  }
 
   return (
     <div className="mt-6 rounded-2xl border border-border bg-secondary/40 p-5">
@@ -69,7 +83,9 @@ function OpenSourceNotice() {
           Open source
         </span>
       </div>
-      <p className="mt-3 text-sm font-semibold">¿Quieres tu propio Luca Plan?</p>
+      <p className="mt-3 text-sm font-semibold">
+        ¿Quieres tu propio Luca Plan?
+      </p>
       <p className="mt-1 text-sm leading-6 text-muted-foreground">
         Esta demo no permite crear cuentas. Clónalo y córrelo en tu máquina, con
         tus datos.
@@ -81,7 +97,7 @@ function OpenSourceNotice() {
         title="Copiar comando"
         className="group/copy mt-4 flex w-full items-center gap-2.5 rounded-xl border border-border bg-background px-3.5 py-2.5 text-left transition-colors hover:border-foreground/25"
       >
-        <code className="flex-1 overflow-x-auto font-mono text-xs whitespace-nowrap text-muted-foreground scrollbar-none">
+        <code className="flex-1 scrollbar-none overflow-x-auto font-mono text-xs whitespace-nowrap text-muted-foreground">
           {cloneCmd}
         </code>
         {copied ? (
@@ -101,47 +117,63 @@ function OpenSourceNotice() {
         </a>
       </Button>
     </div>
-  );
+  )
 }
 
 // Logo "G" multicolor oficial de Google (inline, sin dependencia).
 function GoogleIcon() {
   return (
     <svg viewBox="0 0 24 24" className="size-4.5" aria-hidden="true">
-      <path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.67-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.4 3.62v3h3.88c2.27-2.09 3.57-5.17 3.57-8.81Z" />
-      <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.94-2.91l-3.88-3.01c-1.07.72-2.45 1.15-4.06 1.15-3.12 0-5.77-2.11-6.71-4.95H1.28v3.11A12 12 0 0 0 12 24Z" />
-      <path fill="#FBBC05" d="M5.29 14.28a7.2 7.2 0 0 1 0-4.56V6.61H1.28a12 12 0 0 0 0 10.78l4.01-3.11Z" />
-      <path fill="#EA4335" d="M12 4.77c1.76 0 3.34.61 4.58 1.8l3.44-3.44A11.97 11.97 0 0 0 12 0 12 12 0 0 0 1.28 6.61l4.01 3.11C6.23 6.88 8.88 4.77 12 4.77Z" />
+      <path
+        fill="#4285F4"
+        d="M23.5 12.27c0-.85-.08-1.67-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.4 3.62v3h3.88c2.27-2.09 3.57-5.17 3.57-8.81Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.96-1.07 7.94-2.91l-3.88-3.01c-1.07.72-2.45 1.15-4.06 1.15-3.12 0-5.77-2.11-6.71-4.95H1.28v3.11A12 12 0 0 0 12 24Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.29 14.28a7.2 7.2 0 0 1 0-4.56V6.61H1.28a12 12 0 0 0 0 10.78l4.01-3.11Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.77c1.76 0 3.34.61 4.58 1.8l3.44-3.44A11.97 11.97 0 0 0 12 0 12 12 0 0 0 1.28 6.61l4.01 3.11C6.23 6.88 8.88 4.77 12 4.77Z"
+      />
     </svg>
-  );
+  )
 }
 
 function AuthForm({ mode }: { mode: "signin" | "signup" }) {
-  const router = useRouter();
-  const [showPw, setShowPw] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter()
+  const [showPw, setShowPw] = useState(false)
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-    setPending(true);
-    const form = new FormData(e.currentTarget);
-    const email = String(form.get("email"));
-    const password = String(form.get("password"));
+    e.preventDefault()
+    setError(null)
+    setPending(true)
+    const form = new FormData(e.currentTarget)
+    const email = String(form.get("email"))
+    const password = String(form.get("password"))
 
     const res =
       mode === "signup"
-        ? await authClient.signUp.email({ email, password, name: String(form.get("name")) })
-        : await authClient.signIn.email({ email, password });
+        ? await authClient.signUp.email({
+            email,
+            password,
+            name: String(form.get("name")),
+          })
+        : await authClient.signIn.email({ email, password })
 
-    setPending(false);
+    setPending(false)
     if (res.error) {
-      setError(res.error.message ?? "Algo salió mal. Inténtalo de nuevo.");
-      return;
+      setError(res.error.message ?? "Algo salió mal. Inténtalo de nuevo.")
+      return
     }
-    router.push("/dashboard");
-    router.refresh();
+    router.push("/dashboard")
+    router.refresh()
   }
 
   return (
@@ -149,7 +181,14 @@ function AuthForm({ mode }: { mode: "signin" | "signup" }) {
       {mode === "signup" && (
         <div className="space-y-2">
           <Label htmlFor="name">Nombre</Label>
-          <Input id="name" name="name" autoComplete="name" required placeholder="Tu nombre" className="h-11 text-base" />
+          <Input
+            id="name"
+            name="name"
+            autoComplete="name"
+            required
+            placeholder="Tu nombre"
+            className="h-11 text-base"
+          />
         </div>
       )}
 
@@ -174,7 +213,9 @@ function AuthForm({ mode }: { mode: "signin" | "signup" }) {
             id={`${mode}-password`}
             name="password"
             type={showPw ? "text" : "password"}
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            autoComplete={
+              mode === "signup" ? "new-password" : "current-password"
+            }
             required
             minLength={8}
             placeholder="••••••••"
@@ -186,7 +227,11 @@ function AuthForm({ mode }: { mode: "signin" | "signup" }) {
             aria-label={showPw ? "Ocultar contraseña" : "Mostrar contraseña"}
             className="absolute top-1 right-1 grid size-9 place-items-center rounded-md text-muted-foreground hover:text-foreground"
           >
-            {showPw ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+            {showPw ? (
+              <EyeOff className="size-5" />
+            ) : (
+              <Eye className="size-5" />
+            )}
           </button>
         </div>
         {mode === "signup" && (
@@ -195,7 +240,10 @@ function AuthForm({ mode }: { mode: "signin" | "signup" }) {
       </div>
 
       {error && (
-        <p role="alert" className="flex items-center gap-2 text-sm text-destructive">
+        <p
+          role="alert"
+          className="flex items-center gap-2 text-sm text-destructive"
+        >
           <AlertCircle className="size-4 shrink-0" />
           {error}
         </p>
@@ -210,11 +258,11 @@ function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         {mode === "signup" ? "Crear cuenta" : "Ingresar"}
       </Button>
     </form>
-  );
+  )
 }
 
 export function LoginForm() {
-  const [legal, setLegal] = useState<LegalKey | null>(null);
+  const [legal, setLegal] = useState<LegalKey | null>(null)
 
   return (
     <main className="relative grid min-h-dvh lg:grid-cols-2">
@@ -224,7 +272,10 @@ export function LoginForm() {
           tarjetas débito en lib/bank-cards) — branding constante en dark y light. */}
       <aside
         className="relative hidden overflow-hidden p-12 text-white lg:flex lg:flex-col lg:justify-between"
-        style={{ background: "linear-gradient(135deg, #0a2a6b 0%, #0b3f9e 55%, #0850c0 100%)" }}
+        style={{
+          background:
+            "linear-gradient(135deg, #0a2a6b 0%, #0b3f9e 55%, #0850c0 100%)",
+        }}
       >
         <div className="absolute -top-32 -right-24 size-96 rounded-full border-36 border-white/10" />
         <div className="absolute -bottom-44 -left-20 size-80 rounded-full bg-white/5" />
@@ -241,8 +292,8 @@ export function LoginForm() {
             Este mes sí tiene un plan.
           </h1>
           <p className="mt-5 max-w-sm text-lg leading-8 text-white/75">
-            Presupuestos que reinician contigo, pagos visibles y tus
-            movimientos en un solo lugar.
+            Presupuestos que reinician contigo, pagos visibles y tus movimientos
+            en un solo lugar.
           </p>
         </div>
 
@@ -282,13 +333,19 @@ export function LoginForm() {
               L
             </span>
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Luca Plan</h1>
-              <p className="text-sm text-muted-foreground">Planifica tu dinero con claridad.</p>
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Luca Plan
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Planifica tu dinero con claridad.
+              </p>
             </div>
           </div>
 
           <div className="hidden animate-in duration-500 fade-in slide-in-from-bottom-2 lg:block">
-            <h2 className="text-3xl font-semibold tracking-[-0.03em]">Entra a tu plan</h2>
+            <h2 className="text-3xl font-semibold tracking-[-0.03em]">
+              Entra a tu plan
+            </h2>
             <p className="mt-2 text-muted-foreground">
               Tu mes te está esperando.
             </p>
@@ -298,7 +355,10 @@ export function LoginForm() {
             {/* ponytail: Google OAuth aún sin backend → botón visible pero bloqueado */}
             <div
               className="animate-in duration-500 fade-in slide-in-from-bottom-2"
-              style={{ animationDelay: "100ms", animationFillMode: "backwards" }}
+              style={{
+                animationDelay: "100ms",
+                animationFillMode: "backwards",
+              }}
             >
               <Button
                 variant="outline"
@@ -322,7 +382,10 @@ export function LoginForm() {
 
             <div
               className="animate-in duration-500 fade-in slide-in-from-bottom-2"
-              style={{ animationDelay: "200ms", animationFillMode: "backwards" }}
+              style={{
+                animationDelay: "200ms",
+                animationFillMode: "backwards",
+              }}
             >
               {LANDING_ONLY ? (
                 <>
@@ -347,7 +410,10 @@ export function LoginForm() {
 
             <p
               className="mt-8 animate-in text-center text-xs leading-5 text-muted-foreground duration-500 fade-in"
-              style={{ animationDelay: "350ms", animationFillMode: "backwards" }}
+              style={{
+                animationDelay: "350ms",
+                animationFillMode: "backwards",
+              }}
             >
               Al continuar aceptas los{" "}
               <button
@@ -385,5 +451,5 @@ export function LoginForm() {
         </ResponsiveModal>
       )}
     </main>
-  );
+  )
 }

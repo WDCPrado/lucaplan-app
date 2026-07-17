@@ -1,23 +1,29 @@
 // Sincronización de un Link con fakes en memoria (dedupe por id externo, como el upsert de Prisma).
 // Corre con: node --test arch/v1/application/finance-use-cases/sync-link.test.ts
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import { syncLink, type SyncDeps } from "./sync-link-use-case.ts";
-import type { BankAggregationProvider } from "../../domain/finance/bank-aggregation.port.ts";
+import { test } from "node:test"
+import assert from "node:assert/strict"
+import { syncLink, type SyncDeps } from "./sync-link-use-case.ts"
+import type { BankAggregationProvider } from "../../domain/finance/bank-aggregation.port.ts"
 import type {
   Account,
   Bank,
   ConnectedAccountInput,
   ConnectedBankInput,
   ImportMovement,
-} from "../../domain/finance/finance.domain.ts";
+} from "../../domain/finance/finance.domain.ts"
 
 // Fechas del mes actual (la primera conexión solo importa desde el inicio del mes en curso, así que
 // los mocks deben caer en este mes para que el test sea robusto en cualquier fecha).
-const NOW = new Date();
-const day = (n: number) => new Date(Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth(), n)).toISOString().slice(0, 10);
+const NOW = new Date()
+const day = (n: number) =>
+  new Date(Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth(), n))
+    .toISOString()
+    .slice(0, 10)
 // Fecha `n` meses atrás (para probar el filtro de la ventana inicial de 3 meses).
-const monthsAgoDay = (months: number, n: number) => new Date(Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth() - months, n)).toISOString().slice(0, 10);
+const monthsAgoDay = (months: number, n: number) =>
+  new Date(Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth() - months, n))
+    .toISOString()
+    .slice(0, 10)
 
 const provider: BankAggregationProvider = {
   async listAccounts() {
@@ -32,145 +38,242 @@ const provider: BankAggregationProvider = {
         balanceCurrent: 500000, // saldo del proveedor
         balanceLimit: 0,
       },
-    ];
+    ]
   },
   async listMovements() {
     return [
-      { externalId: "mov_1", description: "Compra", amount: -3000, currency: "CLP", postDate: day(1), transactionDate: day(1), status: "confirmed", pending: false },
-      { externalId: "mov_2", description: "Abono", amount: 10000, currency: "CLP", postDate: day(2), transactionDate: day(2), status: "confirmed", pending: false },
-    ];
+      {
+        externalId: "mov_1",
+        description: "Compra",
+        amount: -3000,
+        currency: "CLP",
+        postDate: day(1),
+        transactionDate: day(1),
+        status: "confirmed",
+        pending: false,
+      },
+      {
+        externalId: "mov_2",
+        description: "Abono",
+        amount: 10000,
+        currency: "CLP",
+        postDate: day(2),
+        transactionDate: day(2),
+        status: "confirmed",
+        pending: false,
+      },
+    ]
   },
   async revokeLink() {},
-};
+}
 
-type FakeTxRow = { accountId: string; externalId: string; amount: number; categoryId: string | null };
+type FakeTxRow = {
+  accountId: string
+  externalId: string
+  amount: number
+  categoryId: string | null
+}
 
 function makeDeps(providerOverride?: BankAggregationProvider) {
-  const banks: Bank[] = [];
-  const accounts: Account[] = [];
-  const txs: FakeTxRow[] = [];
+  const banks: Bank[] = []
+  const accounts: Account[] = []
+  const txs: FakeTxRow[] = []
   const deps: SyncDeps = {
     provider: providerOverride ?? provider,
     banks: {
       async listByUser() {
-        return banks;
+        return banks
       },
       async create() {
-        throw new Error("no usado");
+        throw new Error("no usado")
       },
       async findById(id) {
-        return banks.find((b) => b.id === id) ?? null;
+        return banks.find((b) => b.id === id) ?? null
       },
       async findByExternalLinkId(x) {
-        return banks.find((b) => b.externalLinkId === x) ?? null;
+        return banks.find((b) => b.externalLinkId === x) ?? null
       },
       async upsertConnected(input: ConnectedBankInput) {
-        let b = banks.find((x) => x.userId === input.userId && x.externalLinkId === input.externalLinkId);
+        let b = banks.find(
+          (x) =>
+            x.userId === input.userId &&
+            x.externalLinkId === input.externalLinkId
+        )
         if (!b) {
-          b = { id: "bank1", userId: input.userId, name: input.name, isActive: true, provider: "fintoc", externalLinkId: input.externalLinkId, linkToken: input.linkToken, lastSyncedAt: null };
-          banks.push(b);
-        } else b.linkToken = input.linkToken;
-        return b;
+          b = {
+            id: "bank1",
+            userId: input.userId,
+            name: input.name,
+            isActive: true,
+            provider: "fintoc",
+            externalLinkId: input.externalLinkId,
+            linkToken: input.linkToken,
+            lastSyncedAt: null,
+          }
+          banks.push(b)
+        } else b.linkToken = input.linkToken
+        return b
       },
       async delete() {},
     },
     accounts: {
       async listByUser() {
-        return accounts;
+        return accounts
       },
       async findById(id) {
-        return accounts.find((a) => a.id === id) ?? null;
+        return accounts.find((a) => a.id === id) ?? null
       },
       async create() {
-        throw new Error("no usado");
+        throw new Error("no usado")
       },
       async listByBank(bankId) {
-        return accounts.filter((a) => a.bankId === bankId);
+        return accounts.filter((a) => a.bankId === bankId)
       },
       async upsertConnected(input: ConnectedAccountInput) {
-        let a = accounts.find((x) => x.userId === input.userId && x.externalId === input.externalId);
+        let a = accounts.find(
+          (x) => x.userId === input.userId && x.externalId === input.externalId
+        )
         if (!a) {
-          a = { id: "acc_" + input.externalId, userId: input.userId, bankId: input.bankId, name: input.name, accountType: input.accountType, currency: input.currency, balance: input.balance, overdraftLimit: input.overdraftLimit, color: null, cardLast4: input.cardLast4, provider: "fintoc", externalId: input.externalId };
-          accounts.push(a);
-        } else a.balance = input.balance; // saldo del proveedor sobrescribe
-        return a;
+          a = {
+            id: "acc_" + input.externalId,
+            userId: input.userId,
+            bankId: input.bankId,
+            name: input.name,
+            accountType: input.accountType,
+            currency: input.currency,
+            balance: input.balance,
+            overdraftLimit: input.overdraftLimit,
+            color: null,
+            cardLast4: input.cardLast4,
+            provider: "fintoc",
+            externalId: input.externalId,
+          }
+          accounts.push(a)
+        } else a.balance = input.balance // saldo del proveedor sobrescribe
+        return a
       },
       async setBalance() {},
     },
     transactions: {
       async listByUserPeriod() {
-        return [];
+        return []
       },
       async listByCategoryPeriod() {
-        return [];
+        return []
       },
       async searchByUser() {
-        return [];
+        return []
       },
       async create() {
-        throw new Error("no usado");
+        throw new Error("no usado")
       },
       async findById() {
-        return null;
+        return null
       },
       async update() {
-        throw new Error("no usado");
+        throw new Error("no usado")
       },
       async setCategory() {
-        throw new Error("no usado");
+        throw new Error("no usado")
       },
       async setCategoryIfUncategorized(): Promise<never> {
-        throw new Error("no usado");
+        throw new Error("no usado")
       },
       async delete() {},
       // Dedupe por (accountId, externalId), preservando categoryId (como el upsert de Prisma).
       // Devuelve [] porque estos tests no ejercen la categorización (deps.categorization ausente).
-      async importMovements(_userId: string, accountId: string, movements: ImportMovement[]) {
+      async importMovements(
+        _userId: string,
+        accountId: string,
+        movements: ImportMovement[]
+      ) {
         for (const m of movements) {
-          const found = txs.find((t) => t.accountId === accountId && t.externalId === m.externalId);
-          if (found) found.amount = m.amount.toMajor();
-          else txs.push({ accountId, externalId: m.externalId, amount: m.amount.toMajor(), categoryId: null });
+          const found = txs.find(
+            (t) => t.accountId === accountId && t.externalId === m.externalId
+          )
+          if (found) found.amount = m.amount.toMajor()
+          else
+            txs.push({
+              accountId,
+              externalId: m.externalId,
+              amount: m.amount.toMajor(),
+              categoryId: null,
+            })
         }
-        return [];
+        return []
       },
     },
-  };
-  return { deps, banks, accounts, txs };
+  }
+  return { deps, banks, accounts, txs }
 }
 
 test("syncLink: primera sync crea banco, cuenta y movimientos; usa el saldo del proveedor", async () => {
-  const { deps, banks, accounts, txs } = makeDeps();
-  const res = await syncLink(deps, "u1", { linkId: "link_1", linkToken: "lt_1", institutionName: "Banco X" });
-  assert.equal(res.accounts, 1);
-  assert.equal(res.movements, 2);
-  assert.equal(banks.length, 1);
-  assert.equal(accounts.length, 1);
-  assert.equal(accounts[0].balance.toMajor(), 500000); // saldo autoritativo del proveedor
-  assert.equal(txs.length, 2);
-});
+  const { deps, banks, accounts, txs } = makeDeps()
+  const res = await syncLink(deps, "u1", {
+    linkId: "link_1",
+    linkToken: "lt_1",
+    institutionName: "Banco X",
+  })
+  assert.equal(res.accounts, 1)
+  assert.equal(res.movements, 2)
+  assert.equal(banks.length, 1)
+  assert.equal(accounts.length, 1)
+  assert.equal(accounts[0].balance.toMajor(), 500000) // saldo autoritativo del proveedor
+  assert.equal(txs.length, 2)
+})
 
 test("syncLink: primera conexión importa solo la ventana inicial (3 meses; descarta lo más viejo)", async () => {
   const prov: BankAggregationProvider = {
     ...provider,
     async listMovements() {
       return [
-        { externalId: "mov_new", description: "Reciente", amount: -1000, currency: "CLP", postDate: day(5), transactionDate: day(5), status: "confirmed", pending: false },
-        { externalId: "mov_old", description: "Viejo", amount: -2000, currency: "CLP", postDate: monthsAgoDay(4, 15), transactionDate: monthsAgoDay(4, 15), status: "confirmed", pending: false },
-      ];
+        {
+          externalId: "mov_new",
+          description: "Reciente",
+          amount: -1000,
+          currency: "CLP",
+          postDate: day(5),
+          transactionDate: day(5),
+          status: "confirmed",
+          pending: false,
+        },
+        {
+          externalId: "mov_old",
+          description: "Viejo",
+          amount: -2000,
+          currency: "CLP",
+          postDate: monthsAgoDay(4, 15),
+          transactionDate: monthsAgoDay(4, 15),
+          status: "confirmed",
+          pending: false,
+        },
+      ]
     },
-  };
-  const { deps, txs } = makeDeps(prov);
-  const res = await syncLink(deps, "u1", { linkId: "link_1", linkToken: "lt_1", institutionName: "Banco X" });
-  assert.equal(res.movements, 1); // solo el de la ventana (el de hace 4 meses queda fuera)
-  assert.equal(txs.length, 1);
-  assert.equal(txs[0].externalId, "mov_new");
-});
+  }
+  const { deps, txs } = makeDeps(prov)
+  const res = await syncLink(deps, "u1", {
+    linkId: "link_1",
+    linkToken: "lt_1",
+    institutionName: "Banco X",
+  })
+  assert.equal(res.movements, 1) // solo el de la ventana (el de hace 4 meses queda fuera)
+  assert.equal(txs.length, 1)
+  assert.equal(txs[0].externalId, "mov_new")
+})
 
 test("syncLink: re-sync es idempotente (no duplica) y preserva la categoría", async () => {
-  const { deps, txs } = makeDeps();
-  await syncLink(deps, "u1", { linkId: "link_1", linkToken: "lt_1", institutionName: "Banco X" });
-  txs[0].categoryId = "cat-user"; // categorización futura (IA)
-  await syncLink(deps, "u1", { linkId: "link_1", linkToken: "lt_1", institutionName: "Banco X" });
-  assert.equal(txs.length, 2); // sin duplicados
-  assert.equal(txs[0].categoryId, "cat-user"); // categoría preservada
-});
+  const { deps, txs } = makeDeps()
+  await syncLink(deps, "u1", {
+    linkId: "link_1",
+    linkToken: "lt_1",
+    institutionName: "Banco X",
+  })
+  txs[0].categoryId = "cat-user" // categorización futura (IA)
+  await syncLink(deps, "u1", {
+    linkId: "link_1",
+    linkToken: "lt_1",
+    institutionName: "Banco X",
+  })
+  assert.equal(txs.length, 2) // sin duplicados
+  assert.equal(txs[0].categoryId, "cat-user") // categoría preservada
+})

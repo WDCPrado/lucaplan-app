@@ -1,32 +1,49 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { Search, X, Loader2, CalendarRange } from "lucide-react";
-import type { DateRange } from "react-day-picker";
-import { ResponsiveModal } from "@/components/ui/responsive-modal";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
-import { MovementRow } from "./movement-row";
-import { formatDateHeader } from "@/lib/finance-format";
-import type { AccountDTO, CategoryDTO, TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read";
+import { useEffect, useState } from "react"
+import { Search, X, Loader2, CalendarRange } from "lucide-react"
+import type { DateRange } from "react-day-picker"
+import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { cn } from "@/lib/utils"
+import { MovementRow } from "./movement-row"
+import { formatDateHeader } from "@/lib/finance-format"
+import type {
+  AccountDTO,
+  CategoryDTO,
+  TransactionDTO,
+} from "@/arch/v1/application/finance-use-cases/finance-read"
 
-const RANGE_FMT = new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short" });
+const RANGE_FMT = new Intl.DateTimeFormat("es-CL", {
+  day: "numeric",
+  month: "short",
+})
 
 // YYYY-MM-DD desde los componentes locales (sin corrimiento de zona horaria como toISOString).
 function ymd(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
-type Dir = "" | "debit" | "credit";
+type Dir = "" | "debit" | "credit"
 const DIRS: { value: Dir; label: string }[] = [
   { value: "", label: "Todos" },
   { value: "debit", label: "Gastos" },
   { value: "credit", label: "Ingresos" },
-];
+]
 
 // Buscador de movimientos: filtros combinados (texto insensible, dirección, categoría, cuenta,
 // rango de fechas) contra el backend con debounce (300ms) y cancelación de la petición anterior.
@@ -37,72 +54,85 @@ export function TransactionSearch({
   accounts,
   onOpenTransaction,
 }: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  categories: CategoryDTO[];
-  accounts: AccountDTO[];
-  onOpenTransaction: (tx: TransactionDTO) => void;
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  categories: CategoryDTO[]
+  accounts: AccountDTO[]
+  onOpenTransaction: (tx: TransactionDTO) => void
 }) {
-  const [q, setQ] = useState("");
-  const [direction, setDirection] = useState<Dir>("");
-  const [categoryId, setCategoryId] = useState("all");
-  const [bank, setBank] = useState("all");
-  const [range, setRange] = useState<DateRange | undefined>();
+  const [q, setQ] = useState("")
+  const [direction, setDirection] = useState<Dir>("")
+  const [categoryId, setCategoryId] = useState("all")
+  const [bank, setBank] = useState("all")
+  const [range, setRange] = useState<DateRange | undefined>()
 
   // Bancos únicos (deduplicados por nombre): si hay 2 "Banco de Chile", una sola opción.
-  const banks = [...new Set(accounts.map((a) => a.bankName).filter(Boolean))];
-  const [results, setResults] = useState<TransactionDTO[]>([]);
-  const [loading, setLoading] = useState(false);
+  const banks = [...new Set(accounts.map((a) => a.bankName).filter(Boolean))]
+  const [results, setResults] = useState<TransactionDTO[]>([])
+  const [loading, setLoading] = useState(false)
 
   // Debounce + abort: rearma la búsqueda 300ms después del último cambio de query o filtro.
   useEffect(() => {
-    if (!open) return;
-    const params = new URLSearchParams();
-    if (q.trim()) params.set("q", q.trim());
-    if (direction) params.set("direction", direction);
-    if (categoryId !== "all") params.set("categoryId", categoryId);
-    if (bank !== "all") params.set("bank", bank);
-    if (range?.from) params.set("from", ymd(range.from));
-    if (range?.to) params.set("to", ymd(range.to));
+    if (!open) return
+    const params = new URLSearchParams()
+    if (q.trim()) params.set("q", q.trim())
+    if (direction) params.set("direction", direction)
+    if (categoryId !== "all") params.set("categoryId", categoryId)
+    if (bank !== "all") params.set("bank", bank)
+    if (range?.from) params.set("from", ymd(range.from))
+    if (range?.to) params.set("to", ymd(range.to))
 
-    const ctrl = new AbortController();
+    const ctrl = new AbortController()
     const t = setTimeout(() => {
-      setLoading(true);
-      fetch(`/api/transactions/search?${params.toString()}`, { signal: ctrl.signal, cache: "no-store" })
+      setLoading(true)
+      fetch(`/api/transactions/search?${params.toString()}`, {
+        signal: ctrl.signal,
+        cache: "no-store",
+      })
         .then((r) => (r.ok ? r.json() : []))
         .then((d) => setResults(Array.isArray(d) ? d : []))
         .catch(() => {})
-        .finally(() => setLoading(false));
-    }, 300);
+        .finally(() => setLoading(false))
+    }, 300)
     return () => {
-      clearTimeout(t);
-      ctrl.abort();
-    };
-  }, [open, q, direction, categoryId, bank, range]);
+      clearTimeout(t)
+      ctrl.abort()
+    }
+  }, [open, q, direction, categoryId, bank, range])
 
-  const hasFilters = !!q || !!direction || categoryId !== "all" || bank !== "all" || !!range?.from;
+  const hasFilters =
+    !!q ||
+    !!direction ||
+    categoryId !== "all" ||
+    bank !== "all" ||
+    !!range?.from
   function clearAll() {
-    setQ("");
-    setDirection("");
-    setCategoryId("all");
-    setBank("all");
-    setRange(undefined);
+    setQ("")
+    setDirection("")
+    setCategoryId("all")
+    setBank("all")
+    setRange(undefined)
   }
 
   // Agrupa por fecha (resultados vienen más-nuevo primero).
-  const groups: { header: string; txs: TransactionDTO[] }[] = [];
-  let lastKey = "";
+  const groups: { header: string; txs: TransactionDTO[] }[] = []
+  let lastKey = ""
   for (const tx of results) {
-    const key = tx.date.slice(0, 10);
+    const key = tx.date.slice(0, 10)
     if (key !== lastKey) {
-      groups.push({ header: formatDateHeader(tx.date), txs: [] });
-      lastKey = key;
+      groups.push({ header: formatDateHeader(tx.date), txs: [] })
+      lastKey = key
     }
-    groups[groups.length - 1].txs.push(tx);
+    groups[groups.length - 1].txs.push(tx)
   }
 
   return (
-    <ResponsiveModal open={open} onOpenChange={onOpenChange} title="Buscar movimientos" className="sm:max-w-2xl">
+    <ResponsiveModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Buscar movimientos"
+      className="sm:max-w-2xl"
+    >
       <div className="flex flex-col gap-3 px-4 pb-6">
         {/* Campo de búsqueda */}
         <div className="relative">
@@ -140,7 +170,7 @@ export function TransactionSearch({
                       : d.value === "debit"
                         ? "bg-destructive text-destructive-foreground"
                         : "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-secondary",
+                    : "text-muted-foreground hover:bg-secondary"
                 )}
               >
                 {d.label}
@@ -183,7 +213,10 @@ export function TransactionSearch({
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
-                className={cn("h-9 justify-start gap-2 rounded-full font-normal", !range?.from && "text-muted-foreground")}
+                className={cn(
+                  "h-9 justify-start gap-2 rounded-full font-normal",
+                  !range?.from && "text-muted-foreground"
+                )}
               >
                 <CalendarRange className="size-4 shrink-0" />
                 {range?.from
@@ -194,11 +227,20 @@ export function TransactionSearch({
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="range" selected={range} onSelect={setRange} numberOfMonths={1} autoFocus />
+              <Calendar
+                mode="range"
+                selected={range}
+                onSelect={setRange}
+                numberOfMonths={1}
+                autoFocus
+              />
             </PopoverContent>
           </Popover>
           {hasFilters && (
-            <button onClick={clearAll} className="ml-auto shrink-0 text-sm text-muted-foreground hover:text-foreground">
+            <button
+              onClick={clearAll}
+              className="ml-auto shrink-0 text-sm text-muted-foreground hover:text-foreground"
+            >
               Limpiar
             </button>
           )}
@@ -211,15 +253,23 @@ export function TransactionSearch({
               <Loader2 className="size-5 animate-spin" />
             </div>
           ) : results.length === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">Sin resultados</p>
+            <p className="py-12 text-center text-sm text-muted-foreground">
+              Sin resultados
+            </p>
           ) : (
             <div className="flex flex-col gap-4">
               {groups.map((g) => (
                 <div key={g.header}>
-                  <div className="mb-1 px-3 text-xs font-medium text-muted-foreground">{g.header}</div>
+                  <div className="mb-1 px-3 text-xs font-medium text-muted-foreground">
+                    {g.header}
+                  </div>
                   <div className="flex flex-col">
                     {g.txs.map((tx) => (
-                      <MovementRow key={tx.id} tx={tx} onOpen={onOpenTransaction} />
+                      <MovementRow
+                        key={tx.id}
+                        tx={tx}
+                        onOpen={onOpenTransaction}
+                      />
                     ))}
                   </div>
                 </div>
@@ -229,5 +279,5 @@ export function TransactionSearch({
         </div>
       </div>
     </ResponsiveModal>
-  );
+  )
 }

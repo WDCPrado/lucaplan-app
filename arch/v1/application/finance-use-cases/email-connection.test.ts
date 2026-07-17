@@ -104,7 +104,9 @@ const COMPRA_TARJETA_HTML = `
 </td></tr></table>`
 
 test("compra con tarjeta usa el comercio de la plantilla real como descripción, no el asunto", () => {
-  const parsed = parseBancoChileEmail(message({ htmlBody: COMPRA_TARJETA_HTML }))
+  const parsed = parseBancoChileEmail(
+    message({ htmlBody: COMPRA_TARJETA_HTML })
+  )
   assert.equal(parsed.ok, true)
   if (!parsed.ok) return
   assert.equal(parsed.event.description, "COMERCIO PRUEBA")
@@ -153,6 +155,113 @@ test("parser extrae TEF y trata abonos/pagos como eventos internos", () => {
     assert.equal(payment.event.kind, "internal_payment")
     assert.equal(payment.event.paymentTarget, "credit_national")
   }
+})
+
+// Fixture SANITIZADA (datos ficticios) con la estructura real de "Comprobante Pago Credito
+// Consumo": varias cifras ($ interés, penal, cobranza) antes del monto pagado, y dos fechas.
+const PAGO_CONSUMO_HTML = `
+<table><tr><td>
+  <p>Estimado(a) NOMBRE CLIENTE PRUEBA</p>
+  <p>Te informamos que has realizado un Pago de Cuota de tu Cr&eacute;dito de Consumo
+  N&deg; 999900001111222233, el d&iacute;a 03/07/2026.</p>
+  <p>Datos de Origen</p>
+  <table><tr><td>Cuenta de Cargo</td><td>Cuenta Corriente</td></tr>
+  <tr><td>N&deg; de Cuenta</td><td>00-999-11111-00</td></tr></table>
+  <p>Datos de Destino</p>
+  <table><tr><td>N&deg; de Cr&eacute;dito</td><td>999900001111222233</td></tr>
+  <tr><td>Fecha de Vencimiento</td><td>06/07/2026</td></tr>
+  <tr><td>N&deg; Cuota</td><td>3</td></tr>
+  <tr><td>Inter&eacute;s</td><td>$136.097</td></tr>
+  <tr><td>Inter&eacute;s Penal</td><td>$0</td></tr>
+  <tr><td>Inter&eacute;s Cobranza</td><td>$0</td></tr></table>
+  <p>Datos de la Transacci&oacute;n</p>
+  <table><tr><td>Fecha</td><td>03/07/2026</td></tr>
+  <tr><td>Hora</td><td>21:14 horas</td></tr>
+  <tr><td>Monto Pagado</td><td>$265.708</td></tr></table>
+</td></tr></table>`
+
+const pagoConsumo = (over: Partial<BankEmailMessage> = {}) =>
+  message({
+    from: "serviciodetransferencias@bancochile.cl",
+    subject: "Comprobante Pago Credito Consumo",
+    htmlBody: PAGO_CONSUMO_HTML,
+    ...over,
+  })
+
+test("pago de crédito de consumo es interno, toma el monto pagado y la cuenta de origen", () => {
+  const parsed = parseBancoChileEmail(pagoConsumo())
+  assert.equal(parsed.ok, true)
+  if (!parsed.ok) return
+  assert.equal(parsed.event.kind, "internal_payment")
+  assert.equal(parsed.event.source, "pago_credito_consumo")
+  assert.equal(parsed.event.paymentTarget, null) // nunca tarjeta ni sobregiro
+  assert.equal(parsed.event.amount.toMajor(), 265708) // no el interés ($136.097)
+  assert.equal(parsed.event.date.toISOString().slice(0, 10), "2026-07-03") // no el vencimiento
+  assert.deepEqual(parsed.event.instrument, {
+    kind: "checking",
+    ref: "009991111100",
+  })
+  assert.equal(parsed.event.description, "Pago cuota 3 de crédito de consumo")
+  // Sin ID de operación: identidad idempotente por Message-ID, y sin el N° de crédito.
+  assert.equal(parsed.event.externalId, "email:mid:<sanitized-1@example.test>")
+  assert.ok(!parsed.event.description.includes("9999"))
+})
+
+test("pago de crédito de consumo se omite fail-closed sin monto o con asunto parecido", () => {
+  assert.deepEqual(
+    parseBancoChileEmail(
+      pagoConsumo({ subject: "Comprobante Pago Credito Consumo Vigente" })
+    ),
+    { ok: false, reason: "asunto_desconocido" }
+  )
+  assert.deepEqual(
+    parseBancoChileEmail(
+      pagoConsumo({
+        htmlBody: PAGO_CONSUMO_HTML.replace("Monto Pagado", "Monto"),
+      })
+    ),
+    { ok: false, reason: "sin_monto" }
+  )
+  assert.deepEqual(
+    parseBancoChileEmail(
+      pagoConsumo({
+        htmlBody: PAGO_CONSUMO_HTML.replace(/Cuenta/g, "Producto"),
+      })
+    ),
+    { ok: false, reason: "sin_instrumento" }
+  )
+})
+
+test("pago de crédito de consumo baja la caja de origen y no cuenta como gasto", () => {
+  const parsed = parseBancoChileEmail(pagoConsumo())
+  assert.equal(parsed.ok, true)
+  if (!parsed.ok) return
+  const accounts = [
+    {
+      id: "acc-1",
+      accountType: "checking",
+      currency: "CLP" as const,
+      externalRef: "009991111100",
+      cardLast4: "1100",
+    },
+  ]
+  const buckets: EmailStoredBucket[] = [
+    {
+      id: "b-cash",
+      accountId: "acc-1",
+      kind: "cash",
+      currency: "CLP",
+      limitAmount: Money.zero("CLP"),
+      used: Money.zero("CLP"),
+      available: Money.fromMinor(500000, "CLP"),
+    },
+  ]
+  assert.deepEqual(resolveEventTarget(parsed.event, accounts, buckets), {
+    accountId: "acc-1",
+    bucketId: "b-cash",
+  })
+  const res = applyDebitToCash(buckets[0], null, parsed.event.amount)
+  assert.equal(res.cash.available.toMajor(), 234292)
 })
 
 test("detección agrupa cargos CLP/USD del mismo last4 en una tarjeta con dos monedas", () => {

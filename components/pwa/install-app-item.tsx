@@ -1,35 +1,39 @@
-"use client";
+"use client"
 
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { MonitorDown, Share, SquarePlus } from "lucide-react";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { ResponsiveModal } from "@/components/ui/responsive-modal";
-import { haptic } from "@/lib/haptics";
+import { useEffect, useState, useSyncExternalStore } from "react"
+import { MonitorDown, Share, SquarePlus } from "lucide-react"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
+import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { haptic } from "@/lib/haptics"
 
 // Evento no tipado por TS DOM: prompt de instalación de Chromium.
 type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-};
+  prompt: () => Promise<void>
+}
 
 // ¿Corre ya como app instalada? External store sobre display-mode + appinstalled: en SSR e
 // hidratación responde true (item oculto) y tras montar refleja el estado real del navegador.
-let installedInSession = false;
+let installedInSession = false
 function subscribeStandalone(onChange: () => void): () => void {
-  const media = window.matchMedia("(display-mode: standalone)");
+  const media = window.matchMedia("(display-mode: standalone)")
   const onInstalled = () => {
-    installedInSession = true;
-    onChange();
-  };
-  media.addEventListener("change", onChange);
-  window.addEventListener("appinstalled", onInstalled);
+    installedInSession = true
+    onChange()
+  }
+  media.addEventListener("change", onChange)
+  window.addEventListener("appinstalled", onInstalled)
   return () => {
-    media.removeEventListener("change", onChange);
-    window.removeEventListener("appinstalled", onInstalled);
-  };
+    media.removeEventListener("change", onChange)
+    window.removeEventListener("appinstalled", onInstalled)
+  }
 }
 function getStandalone(): boolean {
-  const nav = navigator as Navigator & { standalone?: boolean };
-  return installedInSession || window.matchMedia("(display-mode: standalone)").matches || nav.standalone === true;
+  const nav = navigator as Navigator & { standalone?: boolean }
+  return (
+    installedInSession ||
+    window.matchMedia("(display-mode: standalone)").matches ||
+    nav.standalone === true
+  )
 }
 
 // "Instalar Luca Plan" en el menú de usuario. Progresivo según capacidad:
@@ -37,41 +41,48 @@ function getStandalone(): boolean {
 // - iOS/iPadOS (sin prompt programable): instrucciones de Compartir → Agregar a inicio.
 // - Ya instalada (standalone) o sin vía de instalación: no se muestra nada.
 export function InstallAppItem() {
-  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
-  const [iosHelp, setIosHelp] = useState(false);
-  const standalone = useSyncExternalStore(subscribeStandalone, getStandalone, () => true);
+  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
+    null
+  )
+  const [iosHelp, setIosHelp] = useState(false)
+  const standalone = useSyncExternalStore(
+    subscribeStandalone,
+    getStandalone,
+    () => true
+  )
   // iPadOS se reporta como Mac pero es táctil. No afecta la hidratación: con standalone=true
   // (snapshot de servidor) el primer render es null en servidor y cliente por igual.
   const isIOS =
     typeof navigator !== "undefined" &&
-    (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.userAgent.includes("Mac") && navigator.maxTouchPoints > 1));
+    (/iPhone|iPad|iPod/.test(navigator.userAgent) ||
+      (navigator.userAgent.includes("Mac") && navigator.maxTouchPoints > 1))
 
   // useEffect justificado: beforeinstallprompt es un evento externo del navegador; el estado se
   // setea solo desde su handler (asíncrono), nunca síncrono en el cuerpo del efecto.
   useEffect(() => {
     const onPrompt = (e: Event) => {
-      e.preventDefault(); // el prompt se abre desde la acción del usuario, no solo
-      setDeferred(e as BeforeInstallPromptEvent);
-    };
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
-  }, []);
+      e.preventDefault() // el prompt se abre desde la acción del usuario, no solo
+      setDeferred(e as BeforeInstallPromptEvent)
+    }
+    window.addEventListener("beforeinstallprompt", onPrompt)
+    return () => window.removeEventListener("beforeinstallprompt", onPrompt)
+  }, [])
 
-  if (standalone || (!deferred && !isIOS)) return null;
+  if (standalone || (!deferred && !isIOS)) return null
 
   return (
     <>
       <DropdownMenuItem
         onSelect={(e) => {
-          haptic("light");
+          haptic("light")
           if (deferred) {
-            void deferred.prompt();
-            return;
+            void deferred.prompt()
+            return
           }
           // El modal vive dentro del item: cerrar el menú lo desmontaría (mismo patrón que el
           // toggle de tema de este menú).
-          e.preventDefault();
-          setIosHelp(true);
+          e.preventDefault()
+          setIosHelp(true)
         }}
       >
         <MonitorDown className="size-4" />
@@ -79,10 +90,15 @@ export function InstallAppItem() {
       </DropdownMenuItem>
 
       {iosHelp && (
-        <ResponsiveModal open onOpenChange={(o) => !o && setIosHelp(false)} title="Instalar Luca Plan">
+        <ResponsiveModal
+          open
+          onOpenChange={(o) => !o && setIosHelp(false)}
+          title="Instalar Luca Plan"
+        >
           <div className="flex flex-col gap-4 px-4 pb-8">
             <p className="text-sm leading-6 text-muted-foreground">
-              En iPhone y iPad la instalación se hace desde Safari, en dos pasos:
+              En iPhone y iPad la instalación se hace desde Safari, en dos
+              pasos:
             </p>
             <ol className="flex flex-col gap-3">
               <li className="flex items-center gap-3 text-base">
@@ -99,11 +115,12 @@ export function InstallAppItem() {
               </li>
             </ol>
             <p className="text-sm leading-6 text-muted-foreground">
-              Luca Plan quedará como app en tu pantalla de inicio, con su propio icono y ventana.
+              Luca Plan quedará como app en tu pantalla de inicio, con su propio
+              icono y ventana.
             </p>
           </div>
         </ResponsiveModal>
       )}
     </>
-  );
+  )
 }

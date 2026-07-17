@@ -19,6 +19,8 @@ const SUBJECT_ABONOS = [
   "aviso de transferencia de fondos",
   "notificación de abono",
 ]
+// Comprobante de pago de cuota de un crédito de consumo (exacto; tolera tildes).
+const SUBJECT_PAGO_CONSUMO = /^comprobante pago cr[eé]dito consumo$/
 
 // --- Tipos del evento extraído ---
 
@@ -38,6 +40,7 @@ export type EmailEventSource =
   | "abono"
   | "pago_tarjeta"
   | "pago_linea"
+  | "pago_credito_consumo"
 
 export type EmailEvent = {
   kind: EmailEventKind
@@ -240,6 +243,33 @@ function parseDate(text: string, receivedAt: Date): Date {
   )
 }
 
+// Sección "Datos de Origen" del comprobante de pago (acota de dónde sale la cuenta de cargo, para
+// no confundirla con el crédito de destino). Sin sección, se busca en todo el texto.
+function originSection(text: string): string {
+  const m = text.match(/datos de origen([\s\S]*?)(?=datos de destino|$)/i)
+  return m ? m[1] : text
+}
+
+// Monto CLP de una etiqueta concreta ("Monto Pagado: $265.708"). Obligatorio en plantillas con
+// varias cifras (interés, interés penal, cobranza): el primer "$" del texto NO es el monto pagado.
+function parseLabeledClp(text: string, label: RegExp): Money | null {
+  const m = text.match(label)
+  return m ? parseClp(m[1]) : null
+}
+
+// Fecha de la etiqueta "Fecha: dd/mm/yyyy" ("Fecha de Vencimiento" no coincide). Sin ella, la del
+// cuerpo/recepción.
+function parseLabeledDate(text: string, fallback: Date): Date {
+  const m = text.match(/\bfecha\s*[:.]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})\b/i)
+  return m ? parseDate(m[1], fallback) : fallback
+}
+
+// N° de cuota pagada ("N° Cuota: 3").
+function parseInstallment(text: string): string | null {
+  const m = text.match(/n[°º]?\s*cuota\s*[:.]?\s*(\d{1,3})(?!\d)/i)
+  return m ? m[1] : null
+}
+
 // Identidad idempotente del movimiento: ID TEF > Message-ID > id inmutable de Graph.
 export function emailExternalId(
   tefId: string | null,
@@ -376,6 +406,33 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
   }
   if (SUBJECT_ABONOS.includes(subject)) {
     return parseAbono(text, base.date, msg)
+  }
+  // Pago de cuota de crédito de consumo: movimiento INTERNO que solo saca caja de la cuenta de
+  // origen (no gasto, no ingreso, no presupuesto/IA). El N° de crédito no se extrae ni se guarda.
+  // ponytail: MVP sin proyectar la deuda del crédito; modelar el bucket cuando exista el
+  // instrumento de crédito de consumo (decisión de dominio del issue WDC-11).
+  if (SUBJECT_PAGO_CONSUMO.test(subject)) {
+    const amount = parseLabeledClp(
+      text,
+      /monto\s+pagado\s*[:.]?\s*(\$\s*[\d.]+)/i
+    )
+    if (!amount) return { ok: false, reason: "sin_monto" }
+    const ref = parseAccountRef(originSection(text))
+    if (!ref) return { ok: false, reason: "sin_instrumento" }
+    const cuota = parseInstallment(text)
+    return event({
+      date: parseLabeledDate(text, base.date),
+      tefId: parseTefId(text),
+      kind: "internal_payment",
+      source: "pago_credito_consumo",
+      amount,
+      description: cuota
+        ? `Pago cuota ${cuota} de crédito de consumo`
+        : "Pago de cuota de crédito de consumo",
+      instrument: { kind: "checking", ref },
+      paymentTarget: null,
+      msg,
+    })
   }
   return { ok: false, reason: "asunto_desconocido" }
 }

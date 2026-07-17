@@ -33,7 +33,7 @@ import {
   Flame,
   Tag,
   type LucideIcon,
-} from "lucide-react";
+} from "lucide-react"
 
 // Catálogo predefinido de iconos de categoría (lucide-react). El campo `icon` guarda el NOMBRE
 // (ej. "ShoppingBag") o, alternativamente, un emoji de teclado. Un solo lugar para el set.
@@ -70,7 +70,7 @@ export const CATEGORY_ICONS: { name: string; Icon: LucideIcon }[] = [
   { name: "Wrench", Icon: Wrench },
   { name: "Droplet", Icon: Droplet },
   { name: "Flame", Icon: Flame },
-];
+]
 
 // Paleta curada de colores de categoría. El color se persiste como hex (dato, no token CSS);
 // tonos medios legibles sobre fondo claro y oscuro. Un solo lugar para el set.
@@ -87,16 +87,27 @@ export const CATEGORY_COLORS = [
   "#a855f7", // púrpura
   "#14b8a6", // teal
   "#64748b", // slate
-];
+]
 
-const MAP: Record<string, LucideIcon> = Object.fromEntries(CATEGORY_ICONS.map((i) => [i.name, i.Icon]));
+const MAP: Record<string, LucideIcon> = Object.fromEntries(
+  CATEGORY_ICONS.map((i) => [i.name, i.Icon])
+)
 
 // Renderiza el icono de una categoría: lucide si `icon` es un nombre conocido; si no, lo trata como
 // emoji; si está vacío, muestra un icono por defecto (Tag). `size` en px, funciona para ambos.
-export function CategoryIcon({ icon, size = 20, color }: { icon: string | null; size?: number; color?: string }) {
-  const Lucide = icon ? MAP[icon] : undefined;
-  if (Lucide) return <Lucide size={size} color={color} />;
-  if (icon) return <span style={{ fontSize: size * 1.05, lineHeight: 1 }}>{icon}</span>;
-  const Fallback = Tag;
-  return <Fallback size={size} color={color} />;
+export function CategoryIcon({
+  icon,
+  size = 20,
+  color,
+}: {
+  icon: string | null
+  size?: number
+  color?: string
+}) {
+  const Lucide = icon ? MAP[icon] : undefined
+  if (Lucide) return <Lucide size={size} color={color} />
+  if (icon)
+    return <span style={{ fontSize: size * 1.05, lineHeight: 1 }}>{icon}</span>
+  const Fallback = Tag
+  return <Fallback size={size} color={color} />
 }

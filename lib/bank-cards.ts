@@ -3,32 +3,35 @@
 // marca de agua de fondo. El catálogo `{ banco: icono }` es la misma forma que tendrá la
 // futura tabla `banco → url de icono`, así que migrar a un bucket es cambiar la fuente aquí.
 
-export type CardVariant = "debito" | "credito";
+export type CardVariant = "debito" | "credito"
 
 // Fondo por variante: azul (débito) / negro (crédito). Estilo propio, no una foto de tarjeta.
 export const CARD_VARIANT_BG: Record<CardVariant, string> = {
   debito: "linear-gradient(135deg, #0a2a6b 0%, #0b3f9e 55%, #0850c0 100%)",
   credito: "linear-gradient(135deg, #0a0a0d 0%, #17171c 55%, #26262d 100%)",
-};
+}
 
 // Nombre del banco (tal como se guarda) → isotipo del catálogo. Solo los mapeados tienen arte.
 const BANK_ICONS: Record<string, string> = {
   "Banco de Chile": "/imagenes/bancos/banco-chile/bch.png",
-};
+}
 
 // Variante de tarjeta según el tipo de cuenta: checking = débito, credit_card = crédito.
 // Los demás tipos (ahorro, billetera, …) no tienen tarjeta → null.
 export function variantForType(accountType: string): CardVariant | null {
-  if (accountType === "checking") return "debito";
-  if (accountType === "credit_card") return "credito";
-  return null;
+  if (accountType === "checking") return "debito"
+  if (accountType === "credit_card") return "credito"
+  return null
 }
 
 // Arte de la tarjeta: variante (define el color) + icono del banco (marca de fondo).
 // null si el banco no tiene icono o el tipo no tiene tarjeta → la tarjeta cae a color plano.
-export function resolveCardArt(bankName: string, accountType: string): { variant: CardVariant; icon: string } | null {
-  const variant = variantForType(accountType);
-  const icon = BANK_ICONS[bankName];
-  if (!variant || !icon) return null;
-  return { variant, icon };
+export function resolveCardArt(
+  bankName: string,
+  accountType: string
+): { variant: CardVariant; icon: string } | null {
+  const variant = variantForType(accountType)
+  const icon = BANK_ICONS[bankName]
+  if (!variant || !icon) return null
+  return { variant, icon }
 }

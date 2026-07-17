@@ -122,7 +122,8 @@ export const connectionMethodRepository: ConnectionMethodRepository = {
       const row = await prisma.bankConnectionMethod.findUnique({
         where: { userId_bankProvider: { userId, bankProvider } },
       })
-      if (row && row.method !== method) throw new ConnectionMethodConflictError()
+      if (row && row.method !== method)
+        throw new ConnectionMethodConflictError()
       if (!row) throw e
     }
   },

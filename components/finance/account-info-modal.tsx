@@ -131,8 +131,8 @@ export function AccountInfoModal({
                 </AlertDialogContent>
               </AlertDialog>
               <p className="text-center text-xs text-muted-foreground">
-                Elimina la conexión, sus credenciales y todos sus datos de
-                Luca Plan.
+                Elimina la conexión, sus credenciales y todos sus datos de Luca
+                Plan.
               </p>
             </div>
           )}

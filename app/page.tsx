@@ -3,7 +3,15 @@
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { ArrowRight, LockKeyhole, Mail, NotebookPen, Repeat2, Sparkles, Zap } from "lucide-react"
+import {
+  ArrowRight,
+  LockKeyhole,
+  Mail,
+  NotebookPen,
+  Repeat2,
+  Sparkles,
+  Zap,
+} from "lucide-react"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { LEGAL, type LegalKey } from "@/components/landing/legal-content"
@@ -20,12 +28,18 @@ import type {
 // El modo landing-only no vive aquí: proxy.ts bloquea rutas y /login muestra el aviso
 // de GitHub cuando el registro está cerrado. La landing siempre apunta a /login.
 const GITHUB_URL = "https://github.com/WDCPrado/lucaplan-app"
-const LINKEDIN_URL = "https://www.linkedin.com/in/welliton-da-costa-prado-5050b4251"
+const LINKEDIN_URL =
+  "https://www.linkedin.com/in/welliton-da-costa-prado-5050b4251"
 
 // Iconos de marca inline (lucide los deprecó); mismo patrón que GoogleIcon en el login.
 function GitHubIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="size-4.5" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className="size-4.5"
+      aria-hidden="true"
+    >
       <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
     </svg>
   )
@@ -33,7 +47,12 @@ function GitHubIcon() {
 
 function LinkedInIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="size-4.5" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className="size-4.5"
+      aria-hidden="true"
+    >
       <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.225 0z" />
     </svg>
   )
@@ -42,7 +61,12 @@ function LinkedInIcon() {
 // Logos de los proveedores de correo (colores de marca, inline como los demás iconos de marca).
 function OutlookIcon({ className = "size-8" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="#0078D4" className={className} aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="#0078D4"
+      className={className}
+      aria-hidden="true"
+    >
       <path d="M7.88 12.04q0 .45-.11.87-.1.41-.33.74-.22.33-.58.52-.37.2-.87.2t-.85-.2q-.35-.21-.57-.55-.22-.33-.33-.75-.1-.42-.1-.86t.1-.87q.1-.43.34-.76.22-.34.59-.54.36-.2.87-.2t.86.2q.35.21.57.55.22.34.31.77.1.43.1.88zM24 12v9.38q0 .46-.33.8-.33.32-.8.32H7.13q-.46 0-.8-.33-.32-.33-.32-.8V18H1q-.41 0-.7-.3-.3-.29-.3-.7V7q0-.41.3-.7Q.58 6 1 6h6.5V2.55q0-.44.3-.75.3-.3.75-.3h12.9q.44 0 .75.3.3.3.3.75V10.85l1.24.72h.01q.1.07.18.18.07.12.07.25zm-6-8.25v3h3v-3zm0 4.5v3h3v-3zm0 4.5v1.83l3.05-1.83zm-5.25-9v3h3.75v-3zm0 4.5v3h3.75v-3zm0 4.5v2.03l2.41 1.5 1.34-.8v-2.73zM9 3.75V6h2l.13.01.12.04v-2.3zM5.98 15.98q.9 0 1.6-.3.7-.32 1.19-.86.48-.55.73-1.28.25-.74.25-1.61 0-.83-.25-1.55-.24-.71-.71-1.24t-1.15-.83q-.68-.3-1.55-.3-.92 0-1.64.3-.71.3-1.2.85-.5.54-.75 1.3-.25.74-.25 1.63 0 .85.26 1.56.26.72.74 1.23.48.52 1.17.81.69.3 1.56.3zM7.5 21h12.39L12 16.08V17q0 .41-.3.7-.29.3-.7.3H7.5zm15-.13v-7.24l-5.9 3.54Z" />
     </svg>
   )
@@ -51,26 +75,70 @@ function OutlookIcon({ className = "size-8" }: { className?: string }) {
 function GmailIcon({ className = "size-8" }: { className?: string }) {
   return (
     <svg viewBox="0 0 48 36" className={className} aria-hidden="true">
-      <path fill="#4285F4" d="M3.27 36h6.55V16.9L0 9.45V32.7A3.27 3.27 0 0 0 3.27 36z" />
-      <path fill="#34A853" d="M38.18 36h6.55A3.27 3.27 0 0 0 48 32.73V9.45l-9.82 7.45z" />
-      <path fill="#FBBC04" d="M38.18 3.27v13.63L48 9.45V4.9c0-4.04-4.61-6.35-7.85-3.93z" />
-      <path fill="#EA4335" d="M9.82 16.9V3.27L24 13.9 38.18 3.27V16.9L24 27.55z" />
-      <path fill="#C5221F" d="M0 4.9v4.55l9.82 7.45V3.27L7.85.97C4.6-1.45 0 .86 0 4.9z" />
+      <path
+        fill="#4285F4"
+        d="M3.27 36h6.55V16.9L0 9.45V32.7A3.27 3.27 0 0 0 3.27 36z"
+      />
+      <path
+        fill="#34A853"
+        d="M38.18 36h6.55A3.27 3.27 0 0 0 48 32.73V9.45l-9.82 7.45z"
+      />
+      <path
+        fill="#FBBC04"
+        d="M38.18 3.27v13.63L48 9.45V4.9c0-4.04-4.61-6.35-7.85-3.93z"
+      />
+      <path
+        fill="#EA4335"
+        d="M9.82 16.9V3.27L24 13.9 38.18 3.27V16.9L24 27.55z"
+      />
+      <path
+        fill="#C5221F"
+        d="M0 4.9v4.55l9.82 7.45V3.27L7.85.97C4.6-1.45 0 .86 0 4.9z"
+      />
     </svg>
   )
 }
 // Bancos soportados/en camino: monogramas propios con color de marca (sin logos de
 // terceros, evita assets con trademark). Flotan con el mismo motion del collage.
 const banks = [
-  { name: "Banco de Chile", monogram: "Ch", color: "#0b3f9e", available: true, motion: "landing-float-a rotate-1" },
-  { name: "Santander", monogram: "S", color: "#ec0000", available: false, motion: "landing-float-b -rotate-2" },
-  { name: "BancoEstado", monogram: "BE", color: "#e8590c", available: false, motion: "landing-float-a -rotate-1" },
-  { name: "Bci", monogram: "Bci", color: "#004a98", available: false, motion: "landing-float-b rotate-2" },
+  {
+    name: "Banco de Chile",
+    monogram: "Ch",
+    color: "#0b3f9e",
+    available: true,
+    motion: "landing-float-a rotate-1",
+  },
+  {
+    name: "Santander",
+    monogram: "S",
+    color: "#ec0000",
+    available: false,
+    motion: "landing-float-b -rotate-2",
+  },
+  {
+    name: "BancoEstado",
+    monogram: "BE",
+    color: "#e8590c",
+    available: false,
+    motion: "landing-float-a -rotate-1",
+  },
+  {
+    name: "Bci",
+    monogram: "Bci",
+    color: "#004a98",
+    available: false,
+    motion: "landing-float-b rotate-2",
+  },
 ]
 
 const cta = {
   enter: { href: "/login", label: "Entrar", target: undefined, rel: undefined },
-  create: { href: "/login", label: "Crear mi plan", target: undefined, rel: undefined },
+  create: {
+    href: "/login",
+    label: "Crear mi plan",
+    target: undefined,
+    rel: undefined,
+  },
 }
 
 const monthStats = [
@@ -94,8 +162,22 @@ const demoChecking: AccountDTO = {
   connectionMethod: "email",
   lastSyncedAt: null,
   buckets: [
-    { kind: "cash", currency: "CLP", limit: 0, used: 0, available: 1248500, asOf: null },
-    { kind: "overdraft", currency: "CLP", limit: 1000000, used: 0, available: 1000000, asOf: null },
+    {
+      kind: "cash",
+      currency: "CLP",
+      limit: 0,
+      used: 0,
+      available: 1248500,
+      asOf: null,
+    },
+    {
+      kind: "overdraft",
+      currency: "CLP",
+      limit: 1000000,
+      used: 0,
+      available: 1000000,
+      asOf: null,
+    },
   ],
 }
 
@@ -113,57 +195,158 @@ const demoCredit: AccountDTO = {
   connectionMethod: "email",
   lastSyncedAt: null,
   buckets: [
-    { kind: "credit_national", currency: "CLP", limit: 3500000, used: 421300, available: 3078700, asOf: null },
-    { kind: "credit_international", currency: "USD", limit: 2500, used: 305.4, available: 2194.6, asOf: null },
+    {
+      kind: "credit_national",
+      currency: "CLP",
+      limit: 3500000,
+      used: 421300,
+      available: 3078700,
+      asOf: null,
+    },
+    {
+      kind: "credit_international",
+      currency: "USD",
+      limit: 2500,
+      used: 305.4,
+      available: 2194.6,
+      asOf: null,
+    },
   ],
 }
 
 const demoMovements: TransactionDTO[] = [
   {
-    id: "m1", accountId: "demo", currency: "CLP", editable: false,
-    description: "Jumbo Costanera", amount: 68450, direction: "debit",
-    date: "", status: "confirmed", categoryId: "c1", categoryName: "Supermercado",
-    categoryIcon: "ShoppingCart", categoryColor: "#4f6ef7", remaining: 239250, categoryLimit: 650000,
+    id: "m1",
+    accountId: "demo",
+    currency: "CLP",
+    editable: false,
+    description: "Jumbo Costanera",
+    amount: 68450,
+    direction: "debit",
+    date: "",
+    status: "confirmed",
+    categoryId: "c1",
+    categoryName: "Supermercado",
+    categoryIcon: "ShoppingCart",
+    categoryColor: "#4f6ef7",
+    remaining: 239250,
+    categoryLimit: 650000,
   },
   {
-    id: "m2", accountId: "demo", currency: "CLP", editable: false,
-    description: "Sueldo julio", amount: 1480000, direction: "credit",
-    date: "", status: "confirmed", categoryId: "c2", categoryName: "Sueldo",
-    categoryIcon: "TrendingUp", categoryColor: "#22a06b", remaining: null, categoryLimit: null,
+    id: "m2",
+    accountId: "demo",
+    currency: "CLP",
+    editable: false,
+    description: "Sueldo julio",
+    amount: 1480000,
+    direction: "credit",
+    date: "",
+    status: "confirmed",
+    categoryId: "c2",
+    categoryName: "Sueldo",
+    categoryIcon: "TrendingUp",
+    categoryColor: "#22a06b",
+    remaining: null,
+    categoryLimit: null,
   },
   {
-    id: "m3", accountId: "demo", currency: "CLP", editable: false,
-    description: "Carga Bip!", amount: 15200, direction: "debit",
-    date: "", status: "confirmed", categoryId: "c3", categoryName: "Transporte",
-    categoryIcon: "Bus", categoryColor: "#0e9488", remaining: 64800, categoryLimit: 100000,
+    id: "m3",
+    accountId: "demo",
+    currency: "CLP",
+    editable: false,
+    description: "Carga Bip!",
+    amount: 15200,
+    direction: "debit",
+    date: "",
+    status: "confirmed",
+    categoryId: "c3",
+    categoryName: "Transporte",
+    categoryIcon: "Bus",
+    categoryColor: "#0e9488",
+    remaining: 64800,
+    categoryLimit: 100000,
   },
 ]
 
 const demoBudgets = [
-  { name: "Supermercado", icon: "ShoppingCart", color: "#4f6ef7", pct: 63, status: "bueno", available: "$239.250" },
-  { name: "Transporte", icon: "Bus", color: "#0e9488", pct: 34, status: "bueno", available: "$64.800" },
-  { name: "Ocio", icon: "Film", color: "#e8618c", pct: 86, status: "moderado", available: "$16.800" },
+  {
+    name: "Supermercado",
+    icon: "ShoppingCart",
+    color: "#4f6ef7",
+    pct: 63,
+    status: "bueno",
+    available: "$239.250",
+  },
+  {
+    name: "Transporte",
+    icon: "Bus",
+    color: "#0e9488",
+    pct: 34,
+    status: "bueno",
+    available: "$64.800",
+  },
+  {
+    name: "Ocio",
+    icon: "Film",
+    color: "#e8618c",
+    pct: 86,
+    status: "moderado",
+    available: "$16.800",
+  },
 ] as const
 
 // Movimientos "crudos" del banco ya categorizados por la IA (descripciones bancarias reales).
 const demoCategorized: TransactionDTO[] = [
   {
-    id: "ai1", accountId: "demo", currency: "CLP", editable: false,
-    description: "Pago:payu *uber eats", amount: 12990, direction: "debit",
-    date: "", status: "confirmed", categoryId: "c4", categoryName: "Comida",
-    categoryIcon: "Utensils", categoryColor: "#e8618c", remaining: null, categoryLimit: null,
+    id: "ai1",
+    accountId: "demo",
+    currency: "CLP",
+    editable: false,
+    description: "Pago:payu *uber eats",
+    amount: 12990,
+    direction: "debit",
+    date: "",
+    status: "confirmed",
+    categoryId: "c4",
+    categoryName: "Comida",
+    categoryIcon: "Utensils",
+    categoryColor: "#e8618c",
+    remaining: null,
+    categoryLimit: null,
   },
   {
-    id: "ai2", accountId: "demo", currency: "CLP", editable: false,
-    description: "Pago:red Movilidad San", amount: 815, direction: "debit",
-    date: "", status: "confirmed", categoryId: "c3", categoryName: "Transporte",
-    categoryIcon: "Bus", categoryColor: "#0e9488", remaining: null, categoryLimit: null,
+    id: "ai2",
+    accountId: "demo",
+    currency: "CLP",
+    editable: false,
+    description: "Pago:red Movilidad San",
+    amount: 815,
+    direction: "debit",
+    date: "",
+    status: "confirmed",
+    categoryId: "c3",
+    categoryName: "Transporte",
+    categoryIcon: "Bus",
+    categoryColor: "#0e9488",
+    remaining: null,
+    categoryLimit: null,
   },
   {
-    id: "ai3", accountId: "demo", currency: "CLP", editable: false,
-    description: "Pago:unimarc Vitacura", amount: 6040, direction: "debit",
-    date: "", status: "confirmed", categoryId: "c1", categoryName: "Supermercado",
-    categoryIcon: "ShoppingCart", categoryColor: "#4f6ef7", remaining: null, categoryLimit: null,
+    id: "ai3",
+    accountId: "demo",
+    currency: "CLP",
+    editable: false,
+    description: "Pago:unimarc Vitacura",
+    amount: 6040,
+    direction: "debit",
+    date: "",
+    status: "confirmed",
+    categoryId: "c1",
+    categoryName: "Supermercado",
+    categoryIcon: "ShoppingCart",
+    categoryColor: "#4f6ef7",
+    remaining: null,
+    categoryLimit: null,
   },
 ]
 
@@ -235,7 +418,7 @@ export default function Home() {
           }
         }
       },
-      { threshold: 0.15, rootMargin: "0px 0px -8% 0px" },
+      { threshold: 0.15, rootMargin: "0px 0px -8% 0px" }
     )
     document.querySelectorAll("[data-reveal]").forEach((el) => io.observe(el))
 
@@ -256,7 +439,10 @@ export default function Home() {
   return (
     // overflow-x-clip (no hidden): recorta los decorativos sin romper el sticky del navbar.
     // isolate: permite pintar el mesh (-z-10) sobre el fondo del main pero bajo el contenido.
-    <main data-landing className="relative isolate overflow-x-clip bg-background text-foreground">
+    <main
+      data-landing
+      className="relative isolate overflow-x-clip bg-background text-foreground"
+    >
       {/* Mesh degradado continuo detrás del navbar y el hero (sin cortes) */}
       <div
         aria-hidden="true"
@@ -399,7 +585,7 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            <div className="landing-float-a absolute -top-5 -left-6 hidden rounded-2xl border border-border bg-card px-5 py-4 shadow-lg lg:block">
+            <div className="absolute -top-5 -left-6 hidden landing-float-a rounded-2xl border border-border bg-card px-5 py-4 shadow-lg lg:block">
               <p className="text-xs text-muted-foreground">Próximo pago</p>
               <p className="mt-1 font-medium">Spotify, mañana</p>
             </div>
@@ -452,7 +638,10 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="app" className="scroll-mt-24 border-y border-border bg-secondary/60">
+      <section
+        id="app"
+        className="scroll-mt-24 border-y border-border bg-secondary/60"
+      >
         <div className="mx-auto grid max-w-[88rem] gap-16 px-6 py-24 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:px-10 lg:py-36">
           <div data-reveal>
             <p className="text-sm font-semibold text-primary">La app</p>
@@ -489,13 +678,21 @@ export default function Home() {
               className="z-10 mt-6 lg:absolute lg:-top-16 lg:-right-6 lg:mt-0 lg:rotate-2"
             >
               <div className="landing-float-a rounded-3xl border border-border bg-card p-5 shadow-2xl">
-                <p className="font-heading pb-4 text-sm font-bold">
+                <p className="pb-4 font-heading text-sm font-bold">
                   Presupuestos
                 </p>
                 <div className="flex gap-5">
                   {demoBudgets.map((b) => (
-                    <div key={b.name} className="flex flex-col items-center gap-1.5">
-                      <ProgressRing percent={b.pct} status={b.status} size={64} stroke={6}>
+                    <div
+                      key={b.name}
+                      className="flex flex-col items-center gap-1.5"
+                    >
+                      <ProgressRing
+                        percent={b.pct}
+                        status={b.status}
+                        size={64}
+                        stroke={6}
+                      >
                         <CategoryIcon icon={b.icon} size={20} color={b.color} />
                       </ProgressRing>
                       <div className="text-center">
@@ -575,8 +772,8 @@ export default function Home() {
                 texto?
               </p>
               <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
-                Luca Plan guardará tu elección y la usará para categorizar
-                mejor la próxima vez.
+                Luca Plan guardará tu elección y la usará para categorizar mejor
+                la próxima vez.
               </p>
               <div className="mt-4 flex gap-2" aria-hidden="true">
                 <span className="grid flex-1 place-items-center rounded-full border border-border py-2 text-sm font-medium text-muted-foreground">
@@ -599,7 +796,12 @@ export default function Home() {
           </h2>
           <div className="mt-8 grid gap-7">
             {aiSources.map(({ Icon, title, body }, i) => (
-              <div key={title} data-reveal style={delay(100 + i * 100)} className="flex gap-5">
+              <div
+                key={title}
+                data-reveal
+                style={delay(100 + i * 100)}
+                className="flex gap-5"
+              >
                 <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
                   <Icon className="size-5" aria-hidden="true" />
                 </span>
@@ -651,9 +853,13 @@ export default function Home() {
                 <div>
                   <p className="font-medium whitespace-nowrap">{b.name}</p>
                   {b.available ? (
-                    <p className="text-xs font-medium text-success">Disponible</p>
+                    <p className="text-xs font-medium text-success">
+                      Disponible
+                    </p>
                   ) : (
-                    <p className="text-xs text-muted-foreground">Próximamente</p>
+                    <p className="text-xs text-muted-foreground">
+                      Próximamente
+                    </p>
                   )}
                 </div>
               </div>
@@ -684,8 +890,8 @@ export default function Home() {
               <p className="text-xl font-medium">Solo lectura, revocable</p>
               <p className="mt-2 leading-7 text-muted-foreground">
                 Un permiso mínimo de lectura de correo: Luca Plan no puede
-                enviar, mover ni borrar nada, y quitas el acceso cuando
-                quieras desde tu proveedor de correo.
+                enviar, mover ni borrar nada, y quitas el acceso cuando quieras
+                desde tu proveedor de correo.
               </p>
             </div>
           </div>
@@ -696,8 +902,8 @@ export default function Home() {
             <div>
               <p className="text-xl font-medium">Al momento, sin esfuerzo</p>
               <p className="mt-2 leading-7 text-muted-foreground">
-                Llega el correo del banco y segundos después el gasto aparece
-                en su categoría, descontando el presupuesto del mes.
+                Llega el correo del banco y segundos después el gasto aparece en
+                su categoría, descontando el presupuesto del mes.
               </p>
             </div>
           </div>
@@ -779,12 +985,56 @@ export default function Home() {
             <nav aria-label="Producto" className="text-sm">
               <p className="font-semibold">Producto</p>
               <ul className="mt-4 space-y-3 text-muted-foreground">
-                <li><a href="#mes" className="transition-colors hover:text-foreground">El mes</a></li>
-                <li><a href="#app" className="transition-colors hover:text-foreground">La app</a></li>
-                <li><a href="#categorias" className="transition-colors hover:text-foreground">Categorización con IA</a></li>
-                <li><a href="#conecta" className="transition-colors hover:text-foreground">Conecta tu banco</a></li>
-                <li><a href="#preguntas" className="transition-colors hover:text-foreground">Preguntas frecuentes</a></li>
-                <li><Link href={cta.enter.href} target={cta.enter.target} rel={cta.enter.rel} className="transition-colors hover:text-foreground">{cta.enter.label}</Link></li>
+                <li>
+                  <a
+                    href="#mes"
+                    className="transition-colors hover:text-foreground"
+                  >
+                    El mes
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#app"
+                    className="transition-colors hover:text-foreground"
+                  >
+                    La app
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#categorias"
+                    className="transition-colors hover:text-foreground"
+                  >
+                    Categorización con IA
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#conecta"
+                    className="transition-colors hover:text-foreground"
+                  >
+                    Conecta tu banco
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#preguntas"
+                    className="transition-colors hover:text-foreground"
+                  >
+                    Preguntas frecuentes
+                  </a>
+                </li>
+                <li>
+                  <Link
+                    href={cta.enter.href}
+                    target={cta.enter.target}
+                    rel={cta.enter.rel}
+                    className="transition-colors hover:text-foreground"
+                  >
+                    {cta.enter.label}
+                  </Link>
+                </li>
               </ul>
             </nav>
 
@@ -792,12 +1042,18 @@ export default function Home() {
               <p className="font-semibold">Legal</p>
               <ul className="mt-4 space-y-3 text-muted-foreground">
                 <li>
-                  <button onClick={() => setLegal("terminos")} className="transition-colors hover:text-foreground">
+                  <button
+                    onClick={() => setLegal("terminos")}
+                    className="transition-colors hover:text-foreground"
+                  >
                     Términos y Condiciones
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => setLegal("privacidad")} className="transition-colors hover:text-foreground">
+                  <button
+                    onClick={() => setLegal("privacidad")}
+                    className="transition-colors hover:text-foreground"
+                  >
                     Política de Privacidad
                   </button>
                 </li>
@@ -828,7 +1084,10 @@ export default function Home() {
               .
             </p>
             <div className="flex items-center gap-5">
-              <p>Privacidad conforme a la Ley 19.628 y preparada para la Ley 21.719 (Chile).</p>
+              <p>
+                Privacidad conforme a la Ley 19.628 y preparada para la Ley
+                21.719 (Chile).
+              </p>
               <div className="flex items-center gap-1">
                 <a
                   href={GITHUB_URL}

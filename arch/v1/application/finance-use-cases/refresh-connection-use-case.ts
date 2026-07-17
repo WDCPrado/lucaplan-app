@@ -4,19 +4,23 @@ import {
   AccountNotFoundError,
   BankConnectionError,
   NotOwnerError,
-} from "../../domain/finance/finance.domain.ts";
-import { syncLink, type SyncDeps } from "./sync-link-use-case.ts";
+} from "../../domain/finance/finance.domain.ts"
+import { syncLink, type SyncDeps } from "./sync-link-use-case.ts"
 
-export async function refreshConnection(deps: SyncDeps, userId: string, bankId: string) {
-  const bank = await deps.banks.findById(bankId);
-  if (!bank) throw new AccountNotFoundError(bankId);
-  if (bank.userId !== userId) throw new NotOwnerError();
+export async function refreshConnection(
+  deps: SyncDeps,
+  userId: string,
+  bankId: string
+) {
+  const bank = await deps.banks.findById(bankId)
+  if (!bank) throw new AccountNotFoundError(bankId)
+  if (bank.userId !== userId) throw new NotOwnerError()
   if (bank.provider !== "fintoc" || !bank.externalLinkId || !bank.linkToken) {
-    throw new BankConnectionError("El banco no está conectado con Fintoc");
+    throw new BankConnectionError("El banco no está conectado con Fintoc")
   }
   return syncLink(deps, userId, {
     linkId: bank.externalLinkId,
     linkToken: bank.linkToken,
     institutionName: bank.name,
-  });
+  })
 }

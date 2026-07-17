@@ -121,9 +121,7 @@ export type ResolvedEmailMovement = {
 export interface EmailSetupStore {
   // Confirmación ATÓMICA: crea banco (provider bancochile, método email), cuentas, tarjetas y
   // buckets, e importa los movimientos del mes vinculados. Todo o nada.
-  confirmSetup(
-    input: EmailConfirmPersistInput
-  ): Promise<{
+  confirmSetup(input: EmailConfirmPersistInput): Promise<{
     bankId: string
     accounts: number
     cards: number
@@ -254,8 +252,22 @@ function resolveChecking(
   return matches.length === 1 ? matches[0] : null
 }
 
+// Pago interno CON bucket de deuda destino (tarjeta/línea) = abono a ese bucket; SIN bucket (pago de
+// crédito de consumo) sale caja de la cuenta corriente de origen.
 function directionOf(event: EmailEvent): Direction {
-  return event.kind === "expense" ? "debit" : "credit"
+  if (event.kind === "internal_credit") return "credit"
+  if (event.kind === "internal_payment")
+    return event.paymentTarget ? "credit" : "debit"
+  return "debit"
+}
+
+// ¿El evento saca caja de la cuenta corriente? (gasto, o pago interno sin bucket de deuda destino)
+function debitsCash(event: EmailEvent): boolean {
+  if (event.instrument?.kind !== "checking") return false
+  return (
+    event.kind === "expense" ||
+    (event.kind === "internal_payment" && !event.paymentTarget)
+  )
 }
 
 // --- OAuth: alta / reconexión ---
@@ -599,7 +611,7 @@ function applyEventToProjection(
     if (prev) projected.set(`${accountKey}:${kind}`, { ...prev, ...amounts })
   }
 
-  if (event.kind === "expense" && event.instrument?.kind === "checking") {
+  if (debitsCash(event)) {
     const cash = get("cash")
     if (!cash) return
     const res = applyDebitToCash(cash, get("overdraft"), event.amount)
@@ -797,7 +809,7 @@ function applyEventToStoredBuckets(
     if (bucket) bucketById.set(bucket.id, { ...bucket, ...amounts })
   }
 
-  if (event.kind === "expense" && event.instrument?.kind === "checking") {
+  if (debitsCash(event)) {
     const cash = ofKind("cash")
     if (!cash) return
     const od = ofKind("overdraft")

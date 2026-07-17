@@ -29,7 +29,11 @@ import { DatePicker } from "./transaction-modal"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { useMoneyInput } from "@/hooks/use-money-input"
-import { CARD_VARIANT_BG, resolveCardArt, type CardVariant } from "@/lib/bank-cards"
+import {
+  CARD_VARIANT_BG,
+  resolveCardArt,
+  type CardVariant,
+} from "@/lib/bank-cards"
 import { formatMoney } from "@/lib/finance-format"
 import { cn } from "@/lib/utils"
 
@@ -138,16 +142,13 @@ function snapshotInvalid(checking: CheckingForm | null, cards: CardForm[]) {
   return Boolean(
     (checking?.hasOverdraft &&
       bucketInvalid(checking.overdraftLimit, checking.overdraftAvailable)) ||
-      cards.some(
-        (card) =>
-          (card.national &&
-            bucketInvalid(card.nationalLimit, card.nationalAvailable)) ||
-          (card.international &&
-            bucketInvalid(
-              card.internationalLimit,
-              card.internationalAvailable
-            ))
-      )
+    cards.some(
+      (card) =>
+        (card.national &&
+          bucketInvalid(card.nationalLimit, card.nationalAvailable)) ||
+        (card.international &&
+          bucketInvalid(card.internationalLimit, card.internationalAvailable))
+    )
   )
 }
 
@@ -603,13 +604,17 @@ export function SnapshotForm({
           <div className="min-w-0 flex-1">
             <DatePicker
               value={snapshotAt.slice(0, 10)}
-              onChange={(d) => setSnapshotAt(`${d}T${snapshotAt.slice(11, 16)}`)}
+              onChange={(d) =>
+                setSnapshotAt(`${d}T${snapshotAt.slice(11, 16)}`)
+              }
             />
           </div>
           <Input
             type="time"
             value={snapshotAt.slice(11, 16)}
-            onChange={(e) => setSnapshotAt(`${snapshotAt.slice(0, 10)}T${e.target.value}`)}
+            onChange={(e) =>
+              setSnapshotAt(`${snapshotAt.slice(0, 10)}T${e.target.value}`)
+            }
             aria-label="Hora del saldo"
             className="h-11 w-auto shrink-0"
           />
@@ -725,7 +730,9 @@ export function SnapshotForm({
             label="Cupo internacional USD"
             currency="USD"
             enabled={card.international}
-            onEnabled={(international) => updateCard(card.id, { international })}
+            onEnabled={(international) =>
+              updateCard(card.id, { international })
+            }
             limit={card.internationalLimit}
             available={card.internationalAvailable}
             onLimit={(internationalLimit) =>
@@ -871,7 +878,11 @@ function BucketEditor({
               />
             </CardField>
           </div>
-          <DerivedUsed limit={limit} available={available} currency={currency} />
+          <DerivedUsed
+            limit={limit}
+            available={available}
+            currency={currency}
+          />
         </>
       )}
     </div>
@@ -1012,7 +1023,7 @@ function CandidateCard({
             aria-label={refLabel}
             onChange={(e) => onRef(e.target.value)}
             style={boxedInputStyle}
-            className="tabular h-8 w-24 rounded-lg border-white/20 px-2 text-sm tracking-widest text-white placeholder:text-white/40 selection:bg-white/25 selection:text-white focus-visible:border-white/40 focus-visible:ring-white/20"
+            className="tabular h-8 w-24 rounded-lg border-white/20 px-2 text-sm tracking-widest text-white selection:bg-white/25 selection:text-white placeholder:text-white/40 focus-visible:border-white/40 focus-visible:ring-white/20"
           />
         </span>
         <span className="shrink-0">

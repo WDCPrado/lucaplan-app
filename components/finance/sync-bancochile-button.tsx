@@ -51,7 +51,11 @@ export function SyncBancoChileButton({
       })
       setOutlookStatus(await res.json())
     } catch {
-      setOutlookStatus({ configured: false, activeMethod: null, connection: null })
+      setOutlookStatus({
+        configured: false,
+        activeMethod: null,
+        connection: null,
+      })
     }
   }
 

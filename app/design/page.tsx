@@ -25,7 +25,9 @@ export default function DesignIndex() {
     <main className="min-h-svh bg-background text-foreground">
       <div className="mx-auto max-w-md px-5 py-10">
         <p className="text-sm text-muted-foreground">Mocks de diseño</p>
-        <h1 className="font-heading text-3xl font-bold tracking-tight">Luca Plan · Design</h1>
+        <h1 className="font-heading text-3xl font-bold tracking-tight">
+          Luca Plan · Design
+        </h1>
 
         <ul className="mt-8 space-y-3">
           {mocks.map((m) => (

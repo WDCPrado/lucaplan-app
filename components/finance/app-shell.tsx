@@ -125,7 +125,7 @@ export function AppShell({
           {/* Móvil: fila flotante a la altura del selector de mes — lupa | selector | usuario.
               items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar. */}
           {actions && (
-            <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center px-4 pt-3 md:hidden">
+            <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center bg-linear-to-b from-background via-background/85 to-transparent px-4 pt-3 pb-6 md:hidden">
               <div className="pointer-events-auto flex w-full items-start justify-between gap-2 drop-shadow-md">
                 {onSearch && (
                   <button

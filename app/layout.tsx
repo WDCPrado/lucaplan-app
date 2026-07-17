@@ -97,9 +97,6 @@ export default function RootLayout({
     >
       <body>
         <ThemeProvider>
-          {/* Instalada (standalone): tapa la franja del notch/isla para que el contenido no se
-              transparente bajo la hora al hacer scroll. Ver .pwa-status-cover en globals.css. */}
-          <div className="pwa-status-cover" aria-hidden />
           {/* data-vaul-drawer-wrapper: vaul escala este contenedor (efecto iOS) al abrir un drawer */}
           <div data-vaul-drawer-wrapper className="min-h-dvh">
             {children}

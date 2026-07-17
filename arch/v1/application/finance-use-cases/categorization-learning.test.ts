@@ -166,14 +166,27 @@ test("normalizeMovementText: dos operaciones del mismo comercio normalizan igual
     "compra cafe altura 03/06/2026 N°998877 $4.500"
   )
   assert.equal(a, b)
-  assert.equal(a, "COMPRA CAFE ALTURA N° $")
+  assert.equal(a, "COMPRA CAFE ALTURA N")
 })
 
-test("normalizeMovementText: conserva lo distintivo del comercio", () => {
+test("normalizeMovementText: conserva lo distintivo del comercio, sin puntuación", () => {
   assert.equal(
     normalizeMovementText("Pago:payu *uber eats"),
-    "PAGO:PAYU *UBER EATS"
+    "PAGO PAYU UBER EATS"
   )
+})
+
+test("normalizeMovementText: agrupa variantes de pasarela del mismo comercio (Cabify)", () => {
+  // Casos reales: mismo Cabify, distinto código de pasarela pegado. Deben normalizar igual.
+  const variantes = [
+    "MERPAGO*CABIFY262",
+    "MERPAGO*CABIFY2627VUV4X00",
+    "MERPAGO*CABIFY2627WHRNLGJ",
+    "MERPAGO*CABIFY2629BV7CDHP",
+  ].map(normalizeMovementText)
+  assert.deepEqual(new Set(variantes), new Set(["MERPAGO CABIFY"]))
+  // El "*" ya no separa comercios distintos.
+  assert.equal(normalizeMovementText("SumUp * WOKAHOLIC"), "SUMUP WOKAHOLIC")
 })
 
 // --- selección exacta/parecida ---

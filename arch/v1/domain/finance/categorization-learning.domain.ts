@@ -58,18 +58,21 @@ export interface CorrectionRepository {
   ): Promise<number>
 }
 
-// Normalización determinista de la descripción de un movimiento: mayúsculas sin tildes y sin las
-// partes que varían entre operaciones del mismo comercio — fechas dd/mm[/aaaa], horas hh:mm,
-// montos con separador de miles y series de 4+ dígitos (nº de operación, últimos 4 de tarjeta).
+// Normalización determinista de la descripción de un movimiento: deja solo lo distintivo del
+// comercio, quitando lo que VARÍA entre operaciones del mismo comercio. Así "MERPAGO*CABIFY262" y
+// "MERPAGO*CABIFY2627VUV4X00" (mismo Cabify, distinto código de pasarela) normalizan igual y se
+// agrupan. Pasos: mayúsculas sin tildes → puntuación a espacio (`*`, `:`, `°`, `$`, …) → recorta el
+// código pegado a un comercio (letra+dígitos: "CABIFY2627…" → "CABIFY") → quita tokens que empiezan
+// con dígito (montos, fechas, horas, ids, últimos 4). ⚠ Cambiarla invalida las correcciones ya
+// guardadas (su `normalizedText` quedó con la forma anterior): re-normalizar con scripts/renormalize-corrections.
 export function normalizeMovementText(text: string): string {
   return text
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toUpperCase()
-    .replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, " ")
-    .replace(/\b\d{1,2}:\d{2}\b/g, " ")
-    .replace(/\d{1,3}(?:[.,]\d{3})+(?:[.,]\d+)?/g, " ")
-    .replace(/\d{4,}/g, " ")
+    .replace(/[^A-Z0-9]+/g, " ")
+    .replace(/\b([A-Z]{2,})\d[A-Z0-9]*/g, "$1")
+    .replace(/\b\d[A-Z0-9]*\b/g, " ")
     .replace(/\s+/g, " ")
     .trim()
 }

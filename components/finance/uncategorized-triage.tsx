@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { formatCLP, formatDateHeader } from "@/lib/finance-format"
 import { CategoryIcon } from "./category-icons"
+import { CorrectionLearnStep } from "./correction-learn-step"
 import { accountLabel, Chip, savedFirst } from "./transaction-modal"
 import type {
   AccountDTO,
@@ -56,6 +57,12 @@ export function UncategorizedTriage({
   const [busy, setBusy] = useState(false)
   const [exiting, setExiting] = useState(false) // card frontal animando su salida hacia arriba
   const [returningId, setReturningId] = useState<string | null>(null) // card recuperada (entra desde arriba)
+  // Paso de aprendizaje sobre la card frontal (tras elegir categoría, antes de volarla): nota
+  // "¿por qué?" + propagar a los N con la misma descripción. Refiere siempre al frontal.
+  const [learn, setLearn] = useState<{
+    categoryId: string
+    sameTextCount: number
+  } | null>(null)
   const drag = useRef({ active: false, startY: 0, dy: 0 })
 
   const front = pending[0]
@@ -63,22 +70,28 @@ export function UncategorizedTriage({
   // Un único router.refresh() al cerrar/terminar (no por card): el dashboard no se re-renderiza
   // bajo el overlay en plena interacción. Con busy/exiting no se cierra ni se salta a crear
   // categoría: el refresh correría antes de que termine el PATCH en vuelo.
+  // Hubo cambios que persistir (movimientos categorizados o uno en pleno paso de aprendizaje).
+  const dirty = () => done.length > 0 || learn !== null
+
   function handleClose() {
     if (busy || exiting) return
-    if (done.length > 0) router.refresh()
+    if (dirty()) router.refresh()
     onClose()
   }
 
   function createCategory() {
     if (busy || exiting) return
-    if (done.length > 0) router.refresh()
+    if (dirty()) router.refresh()
     onCreateCategory()
   }
 
+  // Elegir categoría PERSISTE (PATCH) y abre el paso de aprendizaje sobre la card; recién al
+  // terminarlo (finishLearn) la card vuela al montón de hechas.
   async function pick(categoryId: string) {
-    if (!front || busy || exiting) return
+    if (!front || busy || exiting || learn) return
     setBusy(true)
     let ok = false
+    let sameTextCount = 0
     try {
       const res = await fetch(`/api/transactions/${front.id}/category`, {
         method: "PATCH",
@@ -86,32 +99,71 @@ export function UncategorizedTriage({
         body: JSON.stringify({ categoryId }),
       })
       ok = res.ok
+      if (ok) {
+        const data = await res.json().catch(() => ({}))
+        sameTextCount = Number(data.sameTextCount) || 0
+      }
     } catch {
       // red caída → mismo aviso que un error del servidor
     }
+    setBusy(false)
     if (!ok) {
-      setBusy(false)
       haptic("error")
       toast.error("No se pudo guardar la categoría")
       return // la card sigue al frente
     }
-    haptic(pending.length === 1 ? "success" : "light") // el último cierra el triage: éxito
-    const doneTx = { ...front, categoryId } // guarda la elección para preseleccionar al corregir
+    haptic("light")
+    setLearn({ categoryId, sameTextCount })
+  }
+
+  // Cierre del paso de aprendizaje: guarda la nota y/o propaga a los parecidos (best-effort), y
+  // recién entonces vuela la card. Al propagar, quita del montón los pendientes con la MISMA
+  // descripción exacta (subconjunto seguro de los que el servidor ya categorizó; el resto se
+  // reconcilia con el refresh al cerrar).
+  async function finishLearn({
+    note,
+    applyToSameText,
+  }: {
+    note: string
+    applyToSameText: boolean
+  }) {
+    if (!front || !learn) return
+    setBusy(true)
+    if (note.trim() || applyToSameText) {
+      await fetch("/api/categorization/corrections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transactionId: front.id,
+          note: note.trim() || undefined,
+          applyToSameText,
+        }),
+      }).catch(() => {})
+    }
+    haptic(pending.length === 1 ? "success" : "light") // el último cierra el triage
+    const doneTx = { ...front, categoryId: learn.categoryId }
+    const desc = front.description
     setReturningId(null)
     setExiting(true)
     // ponytail: timeout emparejado con la transición (sin escuchar transitionend)
     window.setTimeout(() => {
-      setPending((p) => p.slice(1))
+      setPending((p) => {
+        const rest = p.slice(1)
+        return applyToSameText
+          ? rest.filter((t) => t.description !== desc)
+          : rest
+      })
       setDone((d) => [...d, doneTx])
       setExiting(false)
       setBusy(false)
+      setLearn(null)
     }, EXIT_MS)
   }
 
   // Corregir: la última hecha vuelve al frente con su categoría marcada; elegir otra re-persiste.
   // (Es corrección, no deshacer: la categoría guardada se mantiene hasta elegir otra.)
   function restoreLast() {
-    if (busy || exiting || done.length === 0) return
+    if (busy || exiting || learn || done.length === 0) return
     const last = done[done.length - 1]
     setDone((d) => d.slice(0, -1))
     setPending((p) => [last, ...p])
@@ -121,7 +173,7 @@ export function UncategorizedTriage({
   // Drag hacia abajo SOLO sobre el montón de hechas (touch-action none local: no pelea con el
   // tap de los chips ni con su scroll-x). El botón interno corrige con click normal.
   function onPileDown(e: React.PointerEvent<HTMLDivElement>) {
-    if (busy || exiting || done.length === 0) return
+    if (busy || exiting || learn || done.length === 0) return
     if ((e.target as HTMLElement).closest("button")) return
     drag.current = { active: true, startY: e.clientY, dy: 0 }
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -257,16 +309,26 @@ export function UncategorizedTriage({
                         "pointer-events-none absolute inset-0 z-1 -translate-y-6 scale-90"
                     )}
                   >
-                    {i === 0 && (
-                      <TriageCard
-                        tx={t}
-                        account={accounts.find((a) => a.id === t.accountId)}
-                        categories={categories}
-                        busy={busy || exiting}
-                        onPick={pick}
-                        onCreateCategory={createCategory}
-                      />
-                    )}
+                    {i === 0 &&
+                      (learn ? (
+                        <div className="p-6">
+                          <CorrectionLearnStep
+                            description={t.description}
+                            sameTextCount={learn.sameTextCount}
+                            saving={busy}
+                            onFinish={finishLearn}
+                          />
+                        </div>
+                      ) : (
+                        <TriageCard
+                          tx={t}
+                          account={accounts.find((a) => a.id === t.accountId)}
+                          categories={categories}
+                          busy={busy || exiting}
+                          onPick={pick}
+                          onCreateCategory={createCategory}
+                        />
+                      ))}
                   </div>
                 ))}
               </div>

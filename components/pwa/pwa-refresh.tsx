@@ -86,12 +86,14 @@ export function PwaRefresh() {
       className="pwa-safe-top pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center"
       style={{ transform: `translateY(${offset - MAX_PULL}px)` }}
     >
-      <div className="bg-background/90 mt-2 rounded-full border p-2 shadow-md backdrop-blur">
+      <div className="mt-2 rounded-full border bg-background/90 p-2 shadow-md backdrop-blur">
         <Loader2
           className={
             refreshing || pull >= THRESHOLD ? "size-5 animate-spin" : "size-5"
           }
-          style={refreshing ? undefined : { transform: `rotate(${pull * 3}deg)` }}
+          style={
+            refreshing ? undefined : { transform: `rotate(${pull * 3}deg)` }
+          }
         />
       </div>
     </div>

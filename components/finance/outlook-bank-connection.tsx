@@ -35,7 +35,11 @@ import {
   type CardVariant,
 } from "@/lib/bank-cards"
 import { formatMoney } from "@/lib/finance-format"
+import { importStep } from "@/lib/import-progress"
 import { cn } from "@/lib/utils"
+import { ImportProgressTimeline } from "./import-progress-timeline"
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 export type OutlookStatus = {
   configured: boolean
@@ -156,10 +160,13 @@ export function OutlookBankConnection({
   status,
   accounts,
   onReload,
+  onImportingChange,
 }: {
   status: OutlookStatus | null
   accounts: AccountDTO[]
   onReload: () => Promise<void>
+  // Aviso al padre de que la importación inicial está en curso (para bloquear el cierre del modal).
+  onImportingChange?: (v: boolean) => void
 }) {
   const [busy, setBusy] = useState(false)
   const [scan, setScan] = useState<Scan | null>(null)
@@ -168,6 +175,8 @@ export function OutlookBankConnection({
   const [cards, setCards] = useState<CardForm[]>([])
   const [reconciling, setReconciling] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importStepIdx, setImportStepIdx] = useState(0)
   const automaticScanStarted = useRef(false)
   const invalidSnapshot = snapshotInvalid(checking, cards)
 
@@ -277,6 +286,63 @@ export function OutlookBankConnection({
     }
   }
 
+  // Importación inicial con overlay de pasos: la petición /confirm corre en paralelo mientras el
+  // timeline avanza; el paso "Categorizando" espera la respuesta y recién ahí llega a "Listo". El
+  // modal queda bloqueado (onImportingChange) para que no se cierre a mitad.
+  async function startInitialImport() {
+    setImporting(true)
+    setImportStepIdx(0)
+    onImportingChange?.(true)
+    const start = Date.now()
+    let resolved = false
+    let result: { ok: boolean; errMsg: string | null } = {
+      ok: false,
+      errMsg: null,
+    }
+    void fetch("/api/email-connection/confirm", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(snapshotBody()),
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}))
+        result = {
+          ok: res.ok,
+          errMsg: res.ok
+            ? null
+            : (data.error ?? "No se pudieron guardar los saldos"),
+        }
+      })
+      .catch(() => {
+        result = { ok: false, errMsg: "No se pudieron guardar los saldos" }
+      })
+      .finally(() => {
+        resolved = true
+      })
+
+    // El modal está bloqueado durante la importación ⇒ el componente no se desmonta y el bucle es
+    // seguro. Avanza el paso cada ~120ms hasta "Listo" (o corta ante error).
+    for (;;) {
+      setImportStepIdx(importStep(Date.now() - start, resolved))
+      if (resolved && !result.ok) {
+        setImporting(false)
+        onImportingChange?.(false)
+        haptic("error")
+        toast.error(result.errMsg ?? "No se pudieron guardar los saldos")
+        return
+      }
+      if (importStep(Date.now() - start, resolved) === 3) break
+      await sleep(120)
+    }
+    await sleep(800) // "Listo" visible un instante antes de cerrar
+    setImporting(false)
+    onImportingChange?.(false)
+    haptic("success")
+    toast.success("Outlook conectado y movimientos importados")
+    setReconciling(false)
+    await onReload()
+  }
+
   async function saveSnapshot(mode: "confirm" | "reconcile") {
     setBusy(true)
     const res = await fetch(`/api/email-connection/${mode}`, {
@@ -328,6 +394,9 @@ export function OutlookBankConnection({
     toast.success("Outlook desconectado")
     await onReload()
   }
+
+  // Importación inicial en curso: el overlay de pasos toma toda la superficie del modal (bloqueado).
+  if (importing) return <ImportProgressTimeline current={importStepIdx} />
 
   if (!status)
     return (
@@ -419,12 +488,11 @@ export function OutlookBankConnection({
           setCards={setCards}
         />
         <Button
-          onClick={() => saveSnapshot("confirm")}
+          onClick={startInitialImport}
           disabled={busy || invalidSnapshot}
           className="h-12 w-full rounded-full"
         >
-          {busy && <Loader2 className="animate-spin" />} Validar e importar
-          movimientos
+          Validar e importar movimientos
         </Button>
         <DisconnectOutlookButton
           busy={busy}

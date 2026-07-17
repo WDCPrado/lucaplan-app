@@ -27,6 +27,7 @@ export function ResponsiveModal({
   children,
   className,
   headerClassName,
+  dismissible = true,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
@@ -34,8 +35,16 @@ export function ResponsiveModal({
   children: React.ReactNode
   className?: string
   headerClassName?: string
+  // `false` bloquea el cierre (Esc, click afuera, arrastre, botón X): para operaciones que no deben
+  // interrumpirse a mitad (ej.: importación inicial en curso).
+  dismissible?: boolean
 }) {
   const isMobile = useIsMobile()
+  // Ignora los intentos de cierre cuando está bloqueado; el resto pasa tal cual.
+  const handleOpenChange = (o: boolean) => {
+    if (!o && !dismissible) return
+    onOpenChange(o)
+  }
 
   // Haptic al abrir/cerrar (efecto genuino: sincroniza con el hardware de vibración).
   // Cubre todos los modales de la app en un solo punto; en escritorio es no-op.
@@ -51,7 +60,8 @@ export function ResponsiveModal({
     return (
       <Drawer
         open={open}
-        onOpenChange={onOpenChange}
+        onOpenChange={handleOpenChange}
+        dismissible={dismissible}
         shouldScaleBackground
         setBackgroundColorOnScale={false}
       >
@@ -73,8 +83,11 @@ export function ResponsiveModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
+        showCloseButton={dismissible}
+        onEscapeKeyDown={dismissible ? undefined : (e) => e.preventDefault()}
+        onInteractOutside={dismissible ? undefined : (e) => e.preventDefault()}
         className={cn(
           "max-h-[90dvh] [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto rounded-3xl p-0 sm:max-w-lg [&>*]:min-w-0",
           className

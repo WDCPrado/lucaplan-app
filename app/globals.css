@@ -385,4 +385,16 @@ html:has(main[data-landing]) body {
   .pwa-safe-top {
     padding-top: max(env(safe-area-inset-top), 0.75rem);
   }
+  /* Tapa la franja de la status bar (notch/isla) con el color de fondo: con statusBarStyle
+     black-translucent la app se dibuja bajo la hora, y las barras superiores flotan sin fondo,
+     así que el contenido se transparentaba bajo el notch al hacer scroll. Solo cubre esa franja;
+     los controles flotantes quedan debajo. z bajo el spinner de refresh (z-50) y los modales. */
+  .pwa-status-cover {
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: env(safe-area-inset-top);
+    background: var(--background);
+    z-index: 40;
+    pointer-events: none;
+  }
 }

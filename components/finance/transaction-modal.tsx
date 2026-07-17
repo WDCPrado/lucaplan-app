@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
+import { CorrectionLearnStep } from "./correction-learn-step"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
 import { formatCLP } from "@/lib/finance-format"
@@ -347,7 +348,6 @@ function ConnectedDetail({
   // Paso de aprendizaje tras guardar: pregunta el "porqué" (opcional) y ofrece propagar la
   // categoría a los N movimientos con la misma descripción. La categoría ya quedó persistida.
   const [learn, setLearn] = useState<{ sameTextCount: number } | null>(null)
-  const [note, setNote] = useState("")
   const changed = categoryId !== tx.categoryId
   // Solo categorías del mismo lado del movimiento (ingreso ↔ credit, gasto ↔ debit).
   const visibleCategories = savedFirst(
@@ -378,7 +378,13 @@ function ConnectedDetail({
     setLearn({ sameTextCount: Number(data.sameTextCount) || 0 })
   }
 
-  async function finishLearn(applyToSameText: boolean) {
+  async function finishLearn({
+    note,
+    applyToSameText,
+  }: {
+    note: string
+    applyToSameText: boolean
+  }) {
     setSaving(true)
     if (note.trim() || applyToSameText) {
       // Best-effort: la categoría ya está guardada; si el follow-up falla, no bloquea el cierre.
@@ -399,55 +405,14 @@ function ConnectedDetail({
   }
 
   if (learn) {
-    const n = learn.sameTextCount
     return (
       <div className="flex flex-col gap-5 px-4 pb-6">
-        <div className="flex flex-col items-center gap-1 pt-2 text-center">
-          <div className="text-lg font-semibold">Categoría guardada</div>
-          <div className="text-sm text-balance text-muted-foreground">
-            {tx.description}
-          </div>
-        </div>
-
-        <div>
-          <Label htmlFor="correction-note" className="mb-2 block text-xs">
-            ¿Qué es este movimiento? (opcional)
-          </Label>
-          <Input
-            id="correction-note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            maxLength={120}
-            placeholder="Ej.: pedidos de comida a domicilio"
-            className="h-11 text-base"
-          />
-          <p className="mt-2 text-xs text-muted-foreground">
-            Tu explicación queda guardada y la IA la usa para clasificar los
-            próximos movimientos parecidos.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          {n > 0 && (
-            <Button
-              onClick={() => finishLearn(true)}
-              disabled={saving}
-              className="h-12 rounded-full text-base"
-            >
-              {saving
-                ? "Guardando…"
-                : `Aplicar a los ${n} con esta descripción`}
-            </Button>
-          )}
-          <Button
-            variant={n > 0 ? "outline" : "default"}
-            onClick={() => finishLearn(false)}
-            disabled={saving}
-            className="h-12 rounded-full text-base"
-          >
-            {saving ? "Guardando…" : n > 0 ? "Solo este" : "Listo"}
-          </Button>
-        </div>
+        <CorrectionLearnStep
+          description={tx.description}
+          sameTextCount={learn.sameTextCount}
+          saving={saving}
+          onFinish={finishLearn}
+        />
       </div>
     )
   }

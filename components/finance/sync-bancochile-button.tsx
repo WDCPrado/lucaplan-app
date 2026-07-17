@@ -41,6 +41,7 @@ export function SyncBancoChileButton({
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState("bancochile")
   const [outlookStatus, setOutlookStatus] = useState<OutlookStatus | null>(null)
+  const [locked, setLocked] = useState(false) // importación inicial en curso: no cerrar el modal
   const callbackHandled = useRef(false)
 
   async function openModal() {
@@ -98,6 +99,7 @@ export function SyncBancoChileButton({
       <ResponsiveModal
         open={open}
         onOpenChange={setOpen}
+        dismissible={!locked}
         title="Conectar banco"
         className="sm:max-w-2xl"
       >
@@ -135,6 +137,7 @@ export function SyncBancoChileButton({
               (account) => account.connectionMethod === "email"
             )}
             onReload={reloadOutlook}
+            onImportingChange={setLocked}
           />
 
           {/* Otros bancos, aún no soportados */}

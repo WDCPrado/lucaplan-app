@@ -311,15 +311,20 @@ export type UncategorizedDTO = {
   hasMore: boolean
 }
 
-// Movimientos sin categoría elegibles del usuario (todos los periodos, más nuevos primero) para
-// el triage del dashboard. El criterio de elegibilidad vive en el filtro `uncategorized` del repo.
+// Movimientos sin categoría elegibles del usuario, ACOTADOS al mes (year, month) —más nuevos
+// primero— para el triage del dashboard. Solo el mes en vista: los pendientes de meses anteriores no
+// abruman el triage inicial. El criterio de elegibilidad vive en el filtro `uncategorized` del repo.
 export async function listUncategorized(
   deps: { transactions: TransactionRepository; accounts: AccountRepository },
-  userId: string
+  userId: string,
+  year: number,
+  month: number
 ): Promise<UncategorizedDTO> {
   const [txs, accounts] = await Promise.all([
     deps.transactions.searchByUser(userId, {
       uncategorized: true,
+      from: new Date(Date.UTC(year, month - 1, 1)),
+      to: new Date(Date.UTC(year, month, 0)), // último día del mes
       limit: TRIAGE_LIMIT + 1,
     }),
     deps.accounts.listByUser(userId),

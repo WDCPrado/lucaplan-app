@@ -156,24 +156,9 @@ export type EmailConnectionDeps = {
 
 // --- Helpers de ventana y mapeo ---
 
-// Nº de meses que abarca la carga inicial (mes actual + anteriores). Ajustar aquí cambia la ventana.
-const INITIAL_LOAD_MONTHS = 2
-
-// Primer día del mes calendario actual (UTC). Lo usa el fallback de sincronización sin estado delta.
+// Primer día del mes calendario actual (UTC), inicio de la carga inicial y fallback de sync.
 export function firstDayOfMonth(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-}
-
-// Inicio de la carga inicial (UTC): primer día del mes que está INITIAL_LOAD_MONTHS-1 meses antes de
-// `now` (2 meses ⇒ mes actual + el anterior). Date normaliza el subdesbordamiento de mes/año.
-export function initialLoadSince(now: Date): Date {
-  return new Date(
-    Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth() - (INITIAL_LOAD_MONTHS - 1),
-      1
-    )
-  )
 }
 
 async function requireConnection(
@@ -355,7 +340,7 @@ export async function scanEmailCandidates(
   const now = opts.now ?? new Date()
   const scanUntil =
     conn.createdAt.getTime() <= now.getTime() ? conn.createdAt : now
-  const since = initialLoadSince(scanUntil)
+  const since = firstDayOfMonth(scanUntil)
   const messages = await deps.mail.listMessagesSince(conn.id, since)
   const parsed = messages
     .filter((message) => message.receivedAt.getTime() <= scanUntil.getTime())
@@ -407,7 +392,7 @@ export async function confirmEmailSetup(
   const now = opts.now ?? new Date()
   const scanUntil =
     conn.createdAt.getTime() <= now.getTime() ? conn.createdAt : now
-  const since = initialLoadSince(scanUntil)
+  const since = firstDayOfMonth(scanUntil)
 
   // Instrumentos y buckets desde el snapshot ingresado (available = limit − used).
   const accounts: EmailAccountDef[] = []

@@ -37,7 +37,7 @@ export default async function DashboardPage({
       listAccounts(financeDeps, userId),
       getBudgetView(financeDeps, userId, year, month),
       listTransactions(financeDeps, userId, year, month),
-      listUncategorized(financeDeps, userId),
+      listUncategorized(financeDeps, userId, year, month),
     ])
 
   const user = {

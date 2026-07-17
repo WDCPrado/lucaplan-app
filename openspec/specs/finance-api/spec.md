@@ -133,9 +133,9 @@ icon, color) vía POST/PUT, respetando la unicidad de nombre por presupuesto y d
 
 ### Requirement: Lectura de movimientos sin categoría
 
-La capa de lectura SHALL exponer `listUncategorized(deps, userId)`: movimientos del usuario
-con `categoryId = null`, excluyendo `status ∈ {reversed, duplicated}` y `isInternal = true`,
-de todos los periodos, ordenados por fecha descendente. Se implementa como filtro
+La capa de lectura SHALL exponer `listUncategorized(deps, userId, year, month)`: movimientos del
+usuario con `categoryId = null`, excluyendo `status ∈ {reversed, duplicated}` y `isInternal = true`,
+**acotados al mes (year, month)** en vista, ordenados por fecha descendente. Se implementa como filtro
 `uncategorized` en `TransactionSearchFilters`; el repo Prisma SHALL traducir el flag al
 criterio completo dentro del `where` (no post-filtrado), de modo que el `limit` no se consuma
 con filas inelegibles. La lectura pide `limit + 1` (51) para señalar "hay más" sin count. El

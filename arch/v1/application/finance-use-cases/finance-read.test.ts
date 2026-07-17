@@ -93,17 +93,20 @@ function makeDeps(rows: Transaction[], accounts: Account[]) {
   }
 }
 
-test("listUncategorized: delega el criterio al filtro uncategorized y pide limit+1 (51)", async () => {
+test("listUncategorized: acota al mes (from/to), delega el criterio y pide limit+1 (51)", async () => {
   const { deps, filters } = makeDeps([mov("t1")], [account("a1", "bancochile")])
-  await listUncategorized(deps, "u1")
+  await listUncategorized(deps, "u1", 2026, 7)
   assert.equal(filters()?.uncategorized, true)
   assert.equal(filters()?.limit, 51)
+  // Ventana del mes en vista: [1 jul, 31 jul].
+  assert.equal(filters()?.from?.toISOString(), "2026-07-01T00:00:00.000Z")
+  assert.equal(filters()?.to?.toISOString(), "2026-07-31T00:00:00.000Z")
 })
 
 test("listUncategorized: con más filas que el tope devuelve 50 y hasMore", async () => {
   const rows = Array.from({ length: 60 }, (_, i) => mov(`t${i}`))
   const { deps } = makeDeps(rows, [account("a1", "bancochile")])
-  const result = await listUncategorized(deps, "u1")
+  const result = await listUncategorized(deps, "u1", 2026, 7)
   assert.equal(result.transactions.length, 50)
   assert.equal(result.hasMore, true)
 })
@@ -113,7 +116,7 @@ test("listUncategorized: bajo el tope devuelve todas sin hasMore, con DTO mapead
     [mov("t1", "a1"), mov("t2", "a2")],
     [account("a1", "manual"), account("a2", "bancochile")]
   )
-  const result = await listUncategorized(deps, "u1")
+  const result = await listUncategorized(deps, "u1", 2026, 7)
   assert.equal(result.transactions.length, 2)
   assert.equal(result.hasMore, false)
   assert.equal(result.transactions[0].amount, 1000)

@@ -550,7 +550,7 @@ test("mapeo ambiguo por last4 se omite", () => {
   assert.equal(resolveEventTarget(parsed.event, accounts, buckets), null)
 })
 
-test("carga inicial usa la ventana de 2 meses e instante del OAuth y no persiste candidatos", async () => {
+test("carga inicial usa el mes e instante del OAuth y no persiste candidatos", async () => {
   const connectedAt = new Date("2026-06-30T23:00:00Z")
   const connection: EmailConnection = {
     id: "conn-1",
@@ -601,8 +601,8 @@ test("carga inicial usa la ventana de 2 meses e instante del OAuth y no persiste
     "user-1",
     { now: new Date("2026-07-14T12:00:00Z") }
   )
-  // Ventana de carga inicial de 2 meses: arranca el 1° del mes anterior al de la conexión (junio).
-  assert.equal(requestedSince.value?.toISOString(), "2026-05-01T00:00:00.000Z")
+  // Carga inicial: arranca el 1° del mes de la conexión (junio).
+  assert.equal(requestedSince.value?.toISOString(), "2026-06-01T00:00:00.000Z")
   assert.equal(result.totalMessages, 1)
 })
 

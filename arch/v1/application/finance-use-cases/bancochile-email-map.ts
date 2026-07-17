@@ -21,6 +21,12 @@ const SUBJECT_ABONOS = [
 ]
 // Comprobante de pago de cuota de un crédito de consumo (exacto; tolera tildes).
 const SUBJECT_PAGO_CONSUMO = /^comprobante pago cr[eé]dito consumo$/
+// Comprobante de pago de tarjeta de crédito, nacional o internacional (asunto exacto; tolera
+// tildes). El cuerpo se valida además con SUBJECT_PAGO_TARJETA_BODY.
+const SUBJECT_PAGO_TARJETA =
+  /^pago de tarjeta de cr[eé]dito (nacional|internacional)$/
+const SUBJECT_PAGO_TARJETA_BODY =
+  /se ha efectuado el pago de la tarjeta de cr[eé]dito/i
 
 // --- Tipos del evento extraído ---
 
@@ -52,8 +58,11 @@ export type EmailEvent = {
   instrument: EmailInstrumentRef | null // null = el correo no identifica el instrumento
   // Bucket que ajusta un pago interno inequívoco (pago tarjeta CLP/USD o pago de línea).
   paymentTarget: "credit_national" | "credit_international" | "overdraft" | null
+  // Segunda pata del pago de tarjeta: débito CLP en la cuenta corriente de origen. null salvo en el
+  // pago de tarjeta (nacional/internacional). El use-case lo expande a un segundo movimiento.
+  cashLeg: { ref: string; amount: Money } | null
   tefId: string | null // ID TEF (identidad bancaria estable de transferencias)
-  externalId: string // identidad idempotente: email:tef:<id> | email:mid:<Message-ID> | email:gid:<id Graph>
+  externalId: string // identidad idempotente: email:txn:<Transacción> | email:tef:<id> | email:mid:<Message-ID> | email:gid:<id Graph>
 }
 
 export type EmailSkipReason =
@@ -128,9 +137,10 @@ function parseClp(text: string): Money | null {
     : null
 }
 
-// USD: "US$ 12,34" | "USD 1.234,56" | "US$1,234.56". El último separador con 2 dígitos es decimal.
+// USD: "US$ 12,34" | "USD 1.234,56" | "US$1,234.56" | "USD$142,05". El último separador con 2
+// dígitos es decimal.
 function parseUsd(text: string): Money | null {
-  const m = text.match(/(?:US\$|USD)\s*(\d[\d.,]*)/i)
+  const m = text.match(/(?:US\$|USD\$?)\s*(\d[\d.,]*)/i)
   if (!m) return null
   const raw = m[1]
   const sep = Math.max(raw.lastIndexOf(","), raw.lastIndexOf("."))
@@ -243,18 +253,36 @@ function parseDate(text: string, receivedAt: Date): Date {
   )
 }
 
-// Sección "Datos de Origen" del comprobante de pago (acota de dónde sale la cuenta de cargo, para
-// no confundirla con el crédito de destino). Sin sección, se busca en todo el texto.
+// Sección de "Origen" del comprobante de pago (acota de dónde sale la cuenta de cargo, para no
+// confundirla con la tarjeta/crédito de destino). Cubre "Datos de Origen … Datos de Destino" (crédito
+// de consumo) y "Origen … Destino" (pago de tarjeta). Sin sección, se busca en todo el texto.
 function originSection(text: string): string {
-  const m = text.match(/datos de origen([\s\S]*?)(?=datos de destino|$)/i)
+  const m = text.match(
+    /(?:datos de )?origen([\s\S]*?)(?=(?:datos de )?destino|$)/i
+  )
   return m ? m[1] : text
 }
 
 // Monto CLP de una etiqueta concreta ("Monto Pagado: $265.708"). Obligatorio en plantillas con
-// varias cifras (interés, interés penal, cobranza): el primer "$" del texto NO es el monto pagado.
+// varias cifras (interés, utilizado, tipo de cambio): el primer "$" del texto NO es el monto pagado.
 function parseLabeledClp(text: string, label: RegExp): Money | null {
   const m = text.match(label)
   return m ? parseClp(m[1]) : null
+}
+
+// Monto USD de una etiqueta concreta ("Monto pagado USD$142,05"). El grupo 1 incluye el prefijo
+// USD$/US$ para que parseUsd lo interprete.
+function parseLabeledUsd(text: string, label: RegExp): Money | null {
+  const m = text.match(label)
+  return m ? parseUsd(m[1]) : null
+}
+
+// ID de "Transacción" del comprobante (alfanumérico: BCAMOVIL01…, INTERNET_P…). Identidad estable
+// por operación; presente porque el remitente es el de transferencias (parseTefId solo acepta
+// dígitos, no sirve para esto).
+function parseTransaccionId(text: string): string | null {
+  const m = text.match(/transacci[oó]n\s*[:.]?\s*([A-Za-z0-9_]{6,})/i)
+  return m ? m[1] : null
 }
 
 // Fecha de la etiqueta "Fecha: dd/mm/yyyy" ("Fecha de Vencimiento" no coincide). Sin ella, la del
@@ -270,12 +298,14 @@ function parseInstallment(text: string): string | null {
   return m ? m[1] : null
 }
 
-// Identidad idempotente del movimiento: ID TEF > Message-ID > id inmutable de Graph.
+// Identidad idempotente del movimiento: Transacción > ID TEF > Message-ID > id inmutable de Graph.
 export function emailExternalId(
+  txnId: string | null,
   tefId: string | null,
   internetMessageId: string | null,
   graphId: string
 ): string {
+  if (txnId) return `email:txn:${txnId}`
   if (tefId) return `email:tef:${tefId}`
   if (internetMessageId) return `email:mid:${internetMessageId}`
   return `email:gid:${graphId}`
@@ -407,6 +437,48 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
   if (SUBJECT_ABONOS.includes(subject)) {
     return parseAbono(text, base.date, msg)
   }
+  // Pago de tarjeta de crédito (nacional/internacional): movimiento INTERNO de dos patas. La pata de
+  // deuda baja el Utilizado de la tarjeta (libera cupo); la pata de caja (cashLeg) baja la cuenta
+  // corriente de origen. Nada de esto es gasto/ingreso/presupuesto. El monto sale de la etiqueta
+  // "Monto"/"Monto pagado", NUNCA de "Utilizado". El use-case expande cashLeg a un segundo movimiento.
+  const pagoTarjeta = subject.match(SUBJECT_PAGO_TARJETA)
+  if (pagoTarjeta) {
+    if (!SUBJECT_PAGO_TARJETA_BODY.test(text))
+      return { ok: false, reason: "plantilla_desconocida" }
+    const internacional = pagoTarjeta[1] === "internacional"
+    // Deuda en la moneda de la tarjeta: USD ("Monto pagado") o CLP ("Monto"). "Utilizado" es la
+    // deuda previa, no el pago.
+    const debtAmount = internacional
+      ? parseLabeledUsd(
+          text,
+          /monto\s+pagado\s*[:.]?\s*((?:US\$|USD\$?)\s*[\d.,]+)/i
+        )
+      : parseLabeledClp(text, /\bmonto\s*[:.]?\s*(\$\s*[\d.]+)/i)
+    if (!debtAmount) return { ok: false, reason: "sin_monto" }
+    // Caja: CLP cargado a la cuenta corriente. Nacional = mismo monto; internacional = etiqueta
+    // "Monto" en CLP. El requisito de "$" inmediato tras "Monto" evita capturar "Monto pagado" (USD).
+    const cashAmount = internacional
+      ? parseLabeledClp(text, /\bmonto\s*[:.]?\s*(\$\s*[\d.]+)/i)
+      : debtAmount
+    if (!cashAmount) return { ok: false, reason: "sin_monto" }
+    const last4 = parseCardLast4(text)
+    if (!last4) return { ok: false, reason: "sin_instrumento" }
+    const ref = parseAccountRef(originSection(text))
+    if (!ref) return { ok: false, reason: "sin_instrumento" }
+    return event({
+      date: base.date,
+      txnId: parseTransaccionId(text),
+      tefId: null,
+      kind: "internal_payment",
+      source: "pago_tarjeta",
+      amount: debtAmount,
+      description: `Pago Tarjeta de Crédito ••••${last4}`,
+      instrument: { kind: "credit_card", last4 },
+      paymentTarget: internacional ? "credit_international" : "credit_national",
+      cashLeg: { ref, amount: cashAmount },
+      msg,
+    })
+  }
   // Pago de cuota de crédito de consumo: GASTO real de la cuenta de origen, no un pago interno. A
   // diferencia de la tarjeta (cuya compra ya se registró el día que ocurrió), el consumo financiado
   // por el crédito nunca entró a la app: la cuota es la única vez que ese dinero aparece, y además
@@ -471,6 +543,8 @@ function event(input: {
   description: string
   instrument: EmailInstrumentRef | null
   paymentTarget: EmailEvent["paymentTarget"]
+  cashLeg?: { ref: string; amount: Money } | null
+  txnId?: string | null
   tefId: string | null
   msg: BankEmailMessage
 }): ParsedEmail {
@@ -485,8 +559,10 @@ function event(input: {
       description: input.description,
       instrument: input.instrument,
       paymentTarget: input.paymentTarget,
+      cashLeg: input.cashLeg ?? null,
       tefId: input.tefId,
       externalId: emailExternalId(
+        input.txnId ?? null,
         input.tefId,
         input.msg.internetMessageId,
         input.msg.id

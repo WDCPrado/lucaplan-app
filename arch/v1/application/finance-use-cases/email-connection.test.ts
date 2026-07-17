@@ -11,6 +11,7 @@ import {
   applyCreditPurchase,
   applyDebitToCash,
   applyInternalCredit,
+  applyInternalPayment,
 } from "./email-projection.ts"
 import {
   confirmEmailSetup,
@@ -266,6 +267,211 @@ test("pago de crédito de consumo baja la caja de la cuenta de origen", () => {
   assert.equal(res.cash.available.toMajor(), 234292)
 })
 
+// Fixture SANITIZADA (datos ficticios) del comprobante de pago de tarjeta NACIONAL. El asunto real
+// es "Pago de Tarjeta de Crédito Nacional"; el cuerpo se titula "Comprobante pago...". El primer
+// monto es "Utilizado" (deuda previa), el pago es "Monto".
+const PAGO_TARJETA_NAC_HTML = `
+<table><tr><td>
+  <p>Comprobante pago Tarjeta de Crédito Nacional</p>
+  <p>Estimado(a): NOMBRE CLIENTE PRUEBA</p>
+  <p>Te informamos que se ha efectuado el pago de la tarjeta de crédito
+  nacional en forma exitosa con el siguiente detalle:</p>
+  <p>Origen</p>
+  <table><tr><td>Tipo de cuenta</td><td>Cuenta Corriente</td></tr>
+  <tr><td>N&deg; de cuenta</td><td>00-999-11111-00</td></tr></table>
+  <p>Destino</p>
+  <table><tr><td>Tipo de tarjeta</td><td>Tarjeta de Crédito</td></tr>
+  <tr><td>N&deg; de tarjeta</td><td>************2120</td></tr>
+  <tr><td>Utilizado</td><td>$540.835</td></tr>
+  <tr><td>Monto</td><td>$652.580</td></tr></table>
+  <p>Fecha y Hora</p><p>28/06/2026 16:33</p>
+  <p>Transacci&oacute;n</p><p>BCAMOVIL012026062800111122223</p>
+</td></tr></table>`
+
+// Fixture SANITIZADA del comprobante INTERNACIONAL: deuda en USD ("Monto pagado"), cargo a la
+// cuenta corriente en CLP ("Monto"), con "Utilizado" en USD y "Tipo de cambio" como ruido.
+const PAGO_TARJETA_INT_HTML = `
+<table><tr><td>
+  <p>Comprobante pago Tarjeta de Crédito Internacional</p>
+  <p>Estimado(a): NOMBRE CLIENTE PRUEBA</p>
+  <p>Te informamos que se ha efectuado el pago de la tarjeta de crédito
+  internacional en forma exitosa con el siguiente detalle:</p>
+  <p>Origen</p>
+  <table><tr><td>Tipo de cuenta</td><td>Cuenta Corriente</td></tr>
+  <tr><td>N&ordm; de cuenta</td><td>00-999-11111-00</td></tr></table>
+  <p>Destino</p>
+  <table><tr><td>Tipo de tarjeta</td><td>Tarjeta de Crédito</td></tr>
+  <tr><td>N&ordm; de tarjeta</td><td>************2120</td></tr>
+  <tr><td>Utilizado</td><td>USD$12,00</td></tr></table>
+  <p>Detalle</p>
+  <table><tr><td>Monto pagado</td><td>USD$142,05</td></tr>
+  <tr><td>Tipo de cambio</td><td>$947</td></tr>
+  <tr><td>Monto</td><td>$134.571</td></tr></table>
+  <p>Transacci&oacute;n</p><p>INTERNET_P2026062800222233</p>
+</td></tr></table>`
+
+const TEF = "serviciodetransferencias@bancochile.cl"
+const pagoTarjetaNac = (over: Partial<BankEmailMessage> = {}) =>
+  message({
+    id: "graph-tn",
+    from: TEF,
+    subject: "Pago de Tarjeta de Crédito Nacional",
+    htmlBody: PAGO_TARJETA_NAC_HTML,
+    ...over,
+  })
+const pagoTarjetaInt = (over: Partial<BankEmailMessage> = {}) =>
+  message({
+    id: "graph-ti",
+    from: TEF,
+    subject: "Pago de Tarjeta de Crédito Internacional",
+    htmlBody: PAGO_TARJETA_INT_HTML,
+    ...over,
+  })
+
+test("pago de tarjeta nacional: interno, toma Monto (no Utilizado), con pata de caja", () => {
+  const parsed = parseBancoChileEmail(pagoTarjetaNac())
+  assert.equal(parsed.ok, true)
+  if (!parsed.ok) return
+  assert.equal(parsed.event.kind, "internal_payment")
+  assert.equal(parsed.event.source, "pago_tarjeta")
+  assert.equal(parsed.event.paymentTarget, "credit_national")
+  assert.deepEqual(parsed.event.instrument, {
+    kind: "credit_card",
+    last4: "2120",
+  })
+  assert.equal(parsed.event.amount.toMajor(), 652580) // no 540835 (Utilizado)
+  assert.equal(parsed.event.amount.currency, "CLP")
+  assert.equal(parsed.event.cashLeg?.ref, "009991111100")
+  assert.equal(parsed.event.cashLeg?.amount.toMajor(), 652580)
+  assert.equal(parsed.event.cashLeg?.amount.currency, "CLP")
+  assert.equal(parsed.event.description, "Pago Tarjeta de Crédito ••••2120")
+  // Identidad por el campo Transacción (sufijo por pata lo agrega el use-case).
+  assert.equal(
+    parsed.event.externalId,
+    "email:txn:BCAMOVIL012026062800111122223"
+  )
+})
+
+test("pago de tarjeta internacional: deuda USD (Monto pagado), caja CLP (Monto)", () => {
+  const parsed = parseBancoChileEmail(pagoTarjetaInt())
+  assert.equal(parsed.ok, true)
+  if (!parsed.ok) return
+  assert.equal(parsed.event.paymentTarget, "credit_international")
+  assert.equal(parsed.event.amount.currency, "USD")
+  assert.equal(parsed.event.amount.toDecimalString(), "142.05") // no 12,00
+  assert.equal(parsed.event.cashLeg?.amount.currency, "CLP")
+  assert.equal(parsed.event.cashLeg?.amount.toMajor(), 134571)
+  assert.equal(parsed.event.externalId, "email:txn:INTERNET_P2026062800222233")
+})
+
+test("pago de tarjeta: baja la caja de origen y el Utilizado de la tarjeta (libera cupo)", () => {
+  const parsed = parseBancoChileEmail(pagoTarjetaNac())
+  assert.equal(parsed.ok, true)
+  if (!parsed.ok) return
+  const accounts = [
+    {
+      id: "cta",
+      accountType: "checking",
+      currency: "CLP" as const,
+      externalRef: "009991111100",
+      cardLast4: "1100",
+    },
+    {
+      id: "tj",
+      accountType: "credit_card",
+      currency: "CLP" as const,
+      externalRef: "2120",
+      cardLast4: "2120",
+    },
+  ]
+  const cashBucket: EmailStoredBucket = {
+    id: "b-cash",
+    accountId: "cta",
+    kind: "cash",
+    currency: "CLP",
+    limitAmount: Money.zero("CLP"),
+    used: Money.zero("CLP"),
+    available: Money.fromMinor(1_000_000, "CLP"),
+  }
+  const natBucket: EmailStoredBucket = {
+    id: "b-nat",
+    accountId: "tj",
+    kind: "credit_national",
+    currency: "CLP",
+    limitAmount: Money.fromMinor(2_000_000, "CLP"),
+    used: Money.fromMinor(800_000, "CLP"),
+    available: Money.fromMinor(1_200_000, "CLP"),
+  }
+  // La pata de deuda resuelve la tarjeta y su bucket nacional.
+  assert.deepEqual(
+    resolveEventTarget(parsed.event, accounts, [cashBucket, natBucket]),
+    { accountId: "tj", bucketId: "b-nat" }
+  )
+  // Proyección: la deuda baja (libera cupo) y la caja baja por el mismo monto.
+  const debt = applyInternalPayment(natBucket, parsed.event.amount)
+  assert.equal(debt.used.toMajor(), 147420) // 800.000 − 652.580
+  const cash = applyDebitToCash(cashBucket, null, parsed.event.cashLeg!.amount)
+  assert.equal(cash.cash.available.toMajor(), 347420) // 1.000.000 − 652.580
+  // Interno: nunca gasto/ingreso.
+  assert.equal(parsed.event.kind !== "expense", true)
+})
+
+test("pago de tarjeta se omite fail-closed sin Monto, sin cuenta o con cuerpo ajeno", () => {
+  // Sin la etiqueta "Monto" (queda solo "Utilizado") → sin_monto (no toma el Utilizado).
+  assert.deepEqual(
+    parseBancoChileEmail(
+      pagoTarjetaNac({
+        htmlBody: PAGO_TARJETA_NAC_HTML.replace(
+          "<td>Monto</td>",
+          "<td>Total</td>"
+        ),
+      })
+    ),
+    { ok: false, reason: "sin_monto" }
+  )
+  // Sin número de cuenta en Origen → sin_instrumento (la caja no resuelve).
+  assert.deepEqual(
+    parseBancoChileEmail(
+      pagoTarjetaNac({
+        htmlBody: PAGO_TARJETA_NAC_HTML.replace(
+          "00-999-11111-00",
+          "no-disponible"
+        ),
+      })
+    ),
+    { ok: false, reason: "sin_instrumento" }
+  )
+  // Asunto de pago de tarjeta pero cuerpo sin la frase de validación → plantilla_desconocida.
+  assert.deepEqual(
+    parseBancoChileEmail(
+      pagoTarjetaNac({
+        htmlBody: "<p>Contenido cualquiera con Monto $1.000</p>",
+      })
+    ),
+    { ok: false, reason: "plantilla_desconocida" }
+  )
+})
+
+test("mismo remitente TEF, otro asunto, no se procesa como pago de tarjeta", () => {
+  const transfer = parseBancoChileEmail(
+    message({
+      from: TEF,
+      subject: "Transferencia a Terceros",
+      htmlBody:
+        "Transferencia a DESTINATARIO por $ 5.000. Cuenta N° 001-2345. N° de operación 987654.",
+    })
+  )
+  assert.equal(transfer.ok, true)
+  if (transfer.ok) assert.equal(transfer.event.source, "transferencia")
+  // Un asunto que no es exactamente el de pago de tarjeta sigue siendo desconocido.
+  assert.deepEqual(
+    parseBancoChileEmail(
+      pagoTarjetaNac({ subject: "Pago de Tarjeta de Crédito" })
+    ),
+    { ok: false, reason: "asunto_desconocido" }
+  )
+})
+
 test("detección agrupa cargos CLP/USD del mismo last4 en una tarjeta con dos monedas", () => {
   const parsed = [
     parseBancoChileEmail(message()),
@@ -344,7 +550,7 @@ test("mapeo ambiguo por last4 se omite", () => {
   assert.equal(resolveEventTarget(parsed.event, accounts, buckets), null)
 })
 
-test("carga inicial usa el mes e instante del OAuth y no persiste candidatos", async () => {
+test("carga inicial usa la ventana de 2 meses e instante del OAuth y no persiste candidatos", async () => {
   const connectedAt = new Date("2026-06-30T23:00:00Z")
   const connection: EmailConnection = {
     id: "conn-1",
@@ -395,7 +601,8 @@ test("carga inicial usa el mes e instante del OAuth y no persiste candidatos", a
     "user-1",
     { now: new Date("2026-07-14T12:00:00Z") }
   )
-  assert.equal(requestedSince.value?.toISOString(), "2026-06-01T00:00:00.000Z")
+  // Ventana de carga inicial de 2 meses: arranca el 1° del mes anterior al de la conexión (junio).
+  assert.equal(requestedSince.value?.toISOString(), "2026-05-01T00:00:00.000Z")
   assert.equal(result.totalMessages, 1)
 })
 
@@ -606,4 +813,212 @@ test("sync repetido es idempotente: crea y proyecta una sola vez", async () => {
   assert.equal(bucket.available.toMajor(), 9000)
   assert.equal(seen.size, 1)
   assert.equal(categorized, 1)
+})
+
+// Conexión activa base para los tests de sync del pago de tarjeta.
+const activeConnection = (
+  over: Partial<EmailConnection> = {}
+): EmailConnection => ({
+  id: "conn-tj",
+  userId: "user-1",
+  bankProvider: "bancochile",
+  emailProvider: "outlook",
+  emailAddress: "sanitized@example.test",
+  bankId: "bank-1",
+  status: "active",
+  createdAt: new Date("2026-06-01T00:00:00Z"),
+  deltaLink: "delta-1",
+  subscriptionId: null,
+  subscriptionExpiresAt: null,
+  lastSyncedAt: new Date("2026-07-14T10:00:00Z"),
+  lastError: null,
+  skippedCount: 0,
+  lastBalanceReconciledAt: new Date("2026-07-14T10:00:00Z"),
+  ...over,
+})
+
+const syncDepsForCardPayment = (
+  instruments: {
+    accounts: {
+      id: string
+      accountType: string
+      currency: "CLP"
+      externalRef: string
+      cardLast4: string
+    }[]
+    buckets: EmailStoredBucket[]
+  },
+  captured: {
+    seen: Set<string>
+    upserted: string[]
+    byId: Map<string, EmailStoredBucket>
+  }
+) =>
+  ({
+    emailConnections: {
+      findByUser: async () => activeConnection(),
+      findById: async () => activeConnection(),
+      findBySubscriptionId: async () => null,
+      create: async () => activeConnection(),
+      update: async () => activeConnection(),
+      delete: async () => {},
+    },
+    methods: {
+      activeMethod: async () => "email" as const,
+      claim: async () => {},
+      release: async () => {},
+    },
+    mail: {
+      listMessagesSince: async () => [],
+      startDelta: async () => "delta-2",
+      runDelta: async () => ({
+        messages: [pagoTarjetaNac()],
+        deltaLink: "delta-2",
+      }),
+      fetchMessage: async () => null,
+      ensureSubscription: async () => null,
+      deleteSubscription: async () => {},
+    },
+    store: {
+      confirmSetup: async () => ({
+        bankId: "bank-1",
+        accounts: 2,
+        cards: 1,
+        movements: 0,
+      }),
+      listInstruments: async () => instruments,
+      upsertMovements: async (
+        _userId: string,
+        movements: { externalId: string }[]
+      ) => {
+        captured.upserted.push(...movements.map((m) => m.externalId))
+        const createdExternalIds = movements
+          .filter((m) => !captured.seen.has(m.externalId))
+          .map((m) => m.externalId)
+        createdExternalIds.forEach((id) => captured.seen.add(id))
+        return { createdExternalIds }
+      },
+      updateBucketAmounts: async (
+        id: string,
+        amounts: { used: Money; available: Money }
+      ) => {
+        const b = captured.byId.get(id)
+        if (b) {
+          b.used = amounts.used
+          b.available = amounts.available
+        }
+      },
+      setAccountBalance: async () => {},
+      markBankSynced: async () => {},
+      deleteBank: async () => {},
+    },
+  }) satisfies EmailConnectionDeps
+
+test("pago de tarjeta: sync expande dos patas (caja + deuda) y es idempotente", async () => {
+  const buckets: EmailStoredBucket[] = [
+    {
+      id: "b-cash",
+      accountId: "acct-cta",
+      kind: "cash",
+      currency: "CLP",
+      limitAmount: Money.zero("CLP"),
+      used: Money.zero("CLP"),
+      available: Money.of(1000000, "CLP"),
+    },
+    {
+      id: "b-nat",
+      accountId: "acct-tj",
+      kind: "credit_national",
+      currency: "CLP",
+      limitAmount: Money.of(2000000, "CLP"),
+      used: Money.of(800000, "CLP"),
+      available: Money.of(1200000, "CLP"),
+    },
+  ]
+  const captured = {
+    seen: new Set<string>(),
+    upserted: [] as string[],
+    byId: new Map(buckets.map((b) => [b.id, b])),
+  }
+  const deps = syncDepsForCardPayment(
+    {
+      accounts: [
+        {
+          id: "acct-cta",
+          accountType: "checking",
+          currency: "CLP",
+          externalRef: "009991111100",
+          cardLast4: "1100",
+        },
+        {
+          id: "acct-tj",
+          accountType: "credit_card",
+          currency: "CLP",
+          externalRef: "2120",
+          cardLast4: "2120",
+        },
+      ],
+      buckets,
+    },
+    captured
+  )
+
+  await syncEmailConnection(deps, "user-1", {
+    now: new Date("2026-07-14T13:00:00Z"),
+  })
+  await syncEmailConnection(deps, "user-1", {
+    now: new Date("2026-07-14T13:05:00Z"),
+  })
+
+  // Dos patas con identidad distinta (sufijo por pata); reprocesar no crea nuevas.
+  assert.deepEqual([...captured.seen].sort(), [
+    "email:txn:BCAMOVIL012026062800111122223:card",
+    "email:txn:BCAMOVIL012026062800111122223:cash",
+  ])
+  // La caja de origen bajó una sola vez y la deuda de la tarjeta se redujo (liberó cupo).
+  assert.equal(captured.byId.get("b-cash")!.available.toMajor(), 347420)
+  assert.equal(captured.byId.get("b-nat")!.used.toMajor(), 147420)
+})
+
+test("pago de tarjeta: sin la cuenta de origen confirmada se omite el pago completo", async () => {
+  // Solo la tarjeta está confirmada; la cuenta corriente de origen no. Ni la deuda ni la caja se
+  // registran (nunca medio pago).
+  const buckets: EmailStoredBucket[] = [
+    {
+      id: "b-nat",
+      accountId: "acct-tj",
+      kind: "credit_national",
+      currency: "CLP",
+      limitAmount: Money.of(2000000, "CLP"),
+      used: Money.of(800000, "CLP"),
+      available: Money.of(1200000, "CLP"),
+    },
+  ]
+  const captured = {
+    seen: new Set<string>(),
+    upserted: [] as string[],
+    byId: new Map(buckets.map((b) => [b.id, b])),
+  }
+  const deps = syncDepsForCardPayment(
+    {
+      accounts: [
+        {
+          id: "acct-tj",
+          accountType: "credit_card",
+          currency: "CLP",
+          externalRef: "2120",
+          cardLast4: "2120",
+        },
+      ],
+      buckets,
+    },
+    captured
+  )
+
+  await syncEmailConnection(deps, "user-1", {
+    now: new Date("2026-07-14T13:00:00Z"),
+  })
+
+  assert.deepEqual(captured.upserted, []) // ninguna pata
+  assert.equal(captured.byId.get("b-nat")!.used.toMajor(), 800000) // deuda intacta
 })

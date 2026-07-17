@@ -4,7 +4,7 @@
 
 Conexión bancaria por notificaciones de correo: OAuth de Outlook (Microsoft Graph, permiso mínimo
 `Mail.Read`), exclusividad del método de conexión por banco, filtrado fail-closed de notificaciones
-de Banco de Chile, carga inicial del mes y sincronización incremental (webhook + delta), snapshot
+de Banco de Chile, carga inicial de los últimos 2 meses y sincronización incremental (webhook + delta), snapshot
 manual de saldos con proyección estimada, e importación idempotente con categorización IA. Los
 saldos resultantes son proyecciones desde el último snapshot, nunca saldos reportados por el banco.
 
@@ -148,11 +148,11 @@ Solo los eventos posteriores al snapshot vigente SHALL actualizar balances estim
 
 ### Requirement: Carga inicial e incremental recuperable
 
-Al conectar Outlook, el sistema SHALL revisar el Inbox desde el primer día del mes calendario actual hasta el instante de conexión. Ese escaneo SHALL detectar candidatos sin persistir entidades financieras. Solo después de la validación SHALL crear instrumentos e importar los mensajes permitidos, conservando el estado delta de Microsoft Graph. Posteriormente SHALL procesar cambios por webhook y ejecutar delta como recuperación de notificaciones perdidas. La suscripción SHALL renovarse antes de expirar y el usuario SHALL disponer de refresco manual.
+Al conectar Outlook, el sistema SHALL revisar el Inbox desde el primer día del mes calendario anterior (ventana de 2 meses: mes actual + el anterior) hasta el instante de conexión. Ese escaneo SHALL detectar candidatos sin persistir entidades financieras. Solo después de la validación SHALL crear instrumentos e importar los mensajes permitidos, conservando el estado delta de Microsoft Graph. Posteriormente SHALL procesar cambios por webhook y ejecutar delta como recuperación de notificaciones perdidas. La suscripción SHALL renovarse antes de expirar y el usuario SHALL disponer de refresco manual.
 
 #### Scenario: Primera conexión
 - **WHEN** Outlook se conecta correctamente
-- **THEN** el sistema escanea el mes actual, muestra candidatos, espera validación/snapshot y recién entonces crea e importa guardando el estado delta
+- **THEN** el sistema escanea los últimos 2 meses (mes actual + el anterior), muestra candidatos, espera validación/snapshot y recién entonces crea e importa guardando el estado delta
 
 #### Scenario: Webhook repetido o perdido
 - **WHEN** Microsoft repite una notificación o una notificación no llega

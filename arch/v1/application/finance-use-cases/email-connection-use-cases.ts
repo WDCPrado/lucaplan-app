@@ -156,9 +156,24 @@ export type EmailConnectionDeps = {
 
 // --- Helpers de ventana y mapeo ---
 
-// Primer día del mes calendario actual (UTC), inicio de la carga inicial.
+// Nº de meses que abarca la carga inicial (mes actual + anteriores). Ajustar aquí cambia la ventana.
+const INITIAL_LOAD_MONTHS = 2
+
+// Primer día del mes calendario actual (UTC). Lo usa el fallback de sincronización sin estado delta.
 export function firstDayOfMonth(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+}
+
+// Inicio de la carga inicial (UTC): primer día del mes que está INITIAL_LOAD_MONTHS-1 meses antes de
+// `now` (2 meses ⇒ mes actual + el anterior). Date normaliza el subdesbordamiento de mes/año.
+export function initialLoadSince(now: Date): Date {
+  return new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth() - (INITIAL_LOAD_MONTHS - 1),
+      1
+    )
+  )
 }
 
 async function requireConnection(
@@ -234,14 +249,12 @@ export function resolveEventTarget(
   return { accountId: target.id, bucketId: cash?.id ?? null }
 }
 
-// Cuenta corriente cuyo ref coincide con el del evento (por número completo o últimos 4). Con cero
-// o más de una coincidencia devuelve null (ambigüedad = omitir).
-function resolveChecking(
-  event: EmailEvent,
+// Cuenta corriente cuyo ref coincide (por número completo o últimos 4). Con cero o más de una
+// coincidencia devuelve null (ambigüedad = omitir).
+function resolveCheckingByRef(
+  ref: string,
   accounts: EmailStoredAccount[]
 ): EmailStoredAccount | null {
-  if (!event.instrument || event.instrument.kind !== "checking") return null
-  const ref = event.instrument.ref
   const matches = accounts.filter((a) => {
     if (a.accountType !== "checking") return false
     if (a.externalRef === ref) return true
@@ -250,6 +263,29 @@ function resolveChecking(
     return false
   })
   return matches.length === 1 ? matches[0] : null
+}
+
+function resolveChecking(
+  event: EmailEvent,
+  accounts: EmailStoredAccount[]
+): EmailStoredAccount | null {
+  if (!event.instrument || event.instrument.kind !== "checking") return null
+  return resolveCheckingByRef(event.instrument.ref, accounts)
+}
+
+// Pata de caja de un pago de tarjeta: la cuenta corriente de origen (por ref) y su bucket `cash`.
+// Null si la cuenta no está confirmada (ambigüedad ⇒ se omite el pago completo).
+function resolveCashLeg(
+  ref: string,
+  accounts: EmailStoredAccount[],
+  buckets: EmailStoredBucket[]
+): { accountId: string; bucketId: string | null } | null {
+  const target = resolveCheckingByRef(ref, accounts)
+  if (!target) return null
+  const cash = buckets.find(
+    (b) => b.accountId === target.id && b.kind === "cash"
+  )
+  return { accountId: target.id, bucketId: cash?.id ?? null }
 }
 
 function directionOf(event: EmailEvent): Direction {
@@ -319,7 +355,7 @@ export async function scanEmailCandidates(
   const now = opts.now ?? new Date()
   const scanUntil =
     conn.createdAt.getTime() <= now.getTime() ? conn.createdAt : now
-  const since = firstDayOfMonth(scanUntil)
+  const since = initialLoadSince(scanUntil)
   const messages = await deps.mail.listMessagesSince(conn.id, since)
   const parsed = messages
     .filter((message) => message.receivedAt.getTime() <= scanUntil.getTime())
@@ -371,7 +407,7 @@ export async function confirmEmailSetup(
   const now = opts.now ?? new Date()
   const scanUntil =
     conn.createdAt.getTime() <= now.getTime() ? conn.createdAt : now
-  const since = firstDayOfMonth(scanUntil)
+  const since = initialLoadSince(scanUntil)
 
   // Instrumentos y buckets desde el snapshot ingresado (available = limit − used).
   const accounts: EmailAccountDef[] = []
@@ -481,12 +517,31 @@ export async function confirmEmailSetup(
       skipped++
       continue
     }
-    const accountKey = target.accountId // en el mapeo temporal, accountId === key
-    const bucketKind = target.bucketId as BucketKind | null // y bucketId === kind
+    // Pago de tarjeta: la pata de caja (cuenta de origen) debe resolver también, o se omite el pago
+    // completo (nunca medio pago).
+    let cashTarget: { accountId: string; bucketId: string | null } | null = null
+    if (event.cashLeg) {
+      cashTarget = resolveCashLeg(
+        event.cashLeg.ref,
+        stored.accounts,
+        stored.buckets
+      )
+      if (!cashTarget) {
+        skipped++
+        continue
+      }
+    }
+    // Los movimientos del mes hasta el snapshot NO se re-descuentan de los saldos ingresados. Se
+    // compara con el instante de recepción del correo (precisión real), no con la fecha de día.
+    const posterior = event.receivedAt.getTime() > input.snapshotAt.getTime()
+    // Con dos patas, cada movimiento lleva su externalId sufijado para ser único e idempotente.
+    const debtExternalId = event.cashLeg
+      ? `${event.externalId}:card`
+      : event.externalId
     movements.push({
-      accountKey,
-      bucketKind,
-      externalId: event.externalId,
+      accountKey: target.accountId, // en el mapeo temporal, accountId === key
+      bucketKind: target.bucketId as BucketKind | null, // y bucketId === kind
+      externalId: debtExternalId,
       date: event.date,
       description: event.description,
       amount: event.amount,
@@ -494,10 +549,25 @@ export async function confirmEmailSetup(
       status: "confirmed",
       isInternal: event.kind !== "expense",
     })
-    // Los movimientos del mes hasta el snapshot NO se re-descuentan de los saldos ingresados. Se
-    // compara con el instante de recepción del correo (precisión real), no con la fecha de día.
-    if (event.receivedAt.getTime() > input.snapshotAt.getTime()) {
-      applyEventToProjection(projected, accountKey, event)
+    if (posterior) applyEventToProjection(projected, target.accountId, event)
+    if (event.cashLeg && cashTarget) {
+      movements.push({
+        accountKey: cashTarget.accountId,
+        bucketKind: "cash",
+        externalId: `${event.externalId}:cash`,
+        date: event.date,
+        description: event.description,
+        amount: event.cashLeg.amount,
+        direction: "debit",
+        status: "confirmed",
+        isInternal: true,
+      })
+      if (posterior)
+        applyCashDebitToProjection(
+          projected,
+          cashTarget.accountId,
+          event.cashLeg.amount
+        )
     }
   }
 
@@ -629,6 +699,22 @@ function applyEventToProjection(
   }
 }
 
+// Pata de caja de un pago de tarjeta sobre la proyección temporal: débito CLP a la corriente de
+// origen (consume caja; el exceso va al sobregiro, igual que un cargo).
+function applyCashDebitToProjection(
+  projected: Map<string, EmailBucketDef>,
+  accountKey: string,
+  amount: Money
+): void {
+  const cash = projected.get(`${accountKey}:cash`)
+  if (!cash) return
+  const overdraft = projected.get(`${accountKey}:overdraft`) ?? null
+  const res = applyDebitToCash(cash, overdraft, amount)
+  projected.set(`${accountKey}:cash`, { ...cash, ...res.cash })
+  if (overdraft && res.overdraft)
+    projected.set(`${accountKey}:overdraft`, { ...overdraft, ...res.overdraft })
+}
+
 // --- Sincronización incremental (delta / webhook / refresco manual) ---
 
 export type EmailSyncResult = {
@@ -686,17 +772,43 @@ export async function syncEmailConnection(
       skipped++
       continue
     }
+    // Pago de tarjeta: la pata de caja debe resolver también, o se omite el pago completo.
+    let cashTarget: { accountId: string; bucketId: string | null } | null = null
+    if (event.cashLeg) {
+      cashTarget = resolveCashLeg(event.cashLeg.ref, accounts, buckets)
+      if (!cashTarget) {
+        skipped++
+        continue
+      }
+    }
+    const debtExternalId = event.cashLeg
+      ? `${event.externalId}:card`
+      : event.externalId
     resolved.push({
       accountId: target.accountId,
       bucketId: target.bucketId,
-      externalId: event.externalId,
+      externalId: debtExternalId,
       date: event.date,
       description: event.description,
       amount: event.amount,
       direction: directionOf(event),
       isInternal: event.kind !== "expense",
     })
-    byExternalId.set(event.externalId, event)
+    byExternalId.set(debtExternalId, event)
+    if (event.cashLeg && cashTarget) {
+      const cashExternalId = `${event.externalId}:cash`
+      resolved.push({
+        accountId: cashTarget.accountId,
+        bucketId: cashTarget.bucketId,
+        externalId: cashExternalId,
+        date: event.date,
+        description: event.description,
+        amount: event.cashLeg.amount,
+        direction: "debit",
+        isInternal: true,
+      })
+      byExternalId.set(cashExternalId, event)
+    }
   }
 
   const { createdExternalIds } = await deps.store.upsertMovements(
@@ -719,7 +831,17 @@ export async function syncEmailConnection(
       event.receivedAt.getTime() <= reconciledAt
     )
       continue
-    applyEventToStoredBuckets(bucketById, mov.accountId, event)
+    // Pata de caja del pago de tarjeta: débito a la corriente de origen; el resto (incl. la pata de
+    // deuda) usa la proyección del evento.
+    if (event.cashLeg && mov.externalId === `${event.externalId}:cash`) {
+      applyCashDebitToStoredBuckets(
+        bucketById,
+        mov.accountId,
+        event.cashLeg.amount
+      )
+    } else {
+      applyEventToStoredBuckets(bucketById, mov.accountId, event)
+    }
     touchedAccounts.add(mov.accountId)
   }
   for (const accountId of touchedAccounts) {
@@ -826,6 +948,25 @@ function applyEventToStoredBuckets(
     const bucket = ofKind(event.paymentTarget)
     if (bucket) set(bucket, applyInternalPayment(bucket, event.amount))
   }
+}
+
+// Pata de caja de un pago de tarjeta sobre los buckets persistidos: débito CLP a la corriente de
+// origen (consume caja; el exceso va al sobregiro).
+function applyCashDebitToStoredBuckets(
+  bucketById: Map<string, EmailStoredBucket>,
+  accountId: string,
+  amount: Money
+): void {
+  const ofKind = (kind: BucketKind) =>
+    [...bucketById.values()].find(
+      (b) => b.accountId === accountId && b.kind === kind
+    ) ?? null
+  const cash = ofKind("cash")
+  if (!cash) return
+  const od = ofKind("overdraft")
+  const res = applyDebitToCash(cash, od, amount)
+  bucketById.set(cash.id, { ...cash, ...res.cash })
+  if (od && res.overdraft) bucketById.set(od.id, { ...od, ...res.overdraft })
 }
 
 async function markSyncError(

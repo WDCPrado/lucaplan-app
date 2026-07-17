@@ -20,6 +20,10 @@ import {
   EmailSetupStateError,
   OAuthStateError,
 } from "../../domain/finance/email-connection.domain.ts"
+import {
+  InvalidIncomeError,
+  IncomeNotFoundError,
+} from "../../domain/finance/income.domain.ts"
 import { LockBusyError } from "../../../shared/mutex.ts"
 import {
   accountRepository,
@@ -30,6 +34,7 @@ import {
   transactionRepository,
 } from "../../infrastructure/database/prisma/finance.infrastructure.ts"
 import { correctionRepository } from "../../infrastructure/database/prisma/categorization-correction.infrastructure.ts"
+import { incomeRepository } from "../../infrastructure/database/prisma/income.infrastructure.ts"
 import { openaiCategorizationProvider } from "../../infrastructure/http/ai/openai-categorization.provider.ts"
 
 // Todos los adapters, listos para inyectar en los use-cases.
@@ -40,6 +45,7 @@ export const financeDeps = {
   categories: categoryRepository,
   transactions: transactionRepository,
   monthlyBudgets: monthlyBudgetRepository,
+  incomes: incomeRepository,
   categorization: openaiCategorizationProvider,
   corrections: correctionRepository,
 }
@@ -55,6 +61,7 @@ function errorStatus(e: unknown): number {
     e instanceof ConnectedAccountReadOnlyError ||
     e instanceof BankConnectionError ||
     e instanceof InvalidMonthlyBudgetError ||
+    e instanceof InvalidIncomeError ||
     e instanceof EmailReauthRequiredError ||
     e instanceof EmailSetupStateError
   )
@@ -63,6 +70,7 @@ function errorStatus(e: unknown): number {
     e instanceof NotOwnerError ||
     e instanceof AccountNotFoundError ||
     e instanceof CategoryNotFoundError ||
+    e instanceof IncomeNotFoundError ||
     e instanceof EmailConnectionNotFoundError
   )
     return 404

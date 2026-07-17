@@ -149,6 +149,28 @@ function AuthForm({ mode }: { mode: "signin" | "signup" }) {
   const [showPw, setShowPw] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resetSent, setResetSent] = useState(false)
+
+  async function onForgot(e: React.MouseEvent<HTMLButtonElement>) {
+    setError(null)
+    const form = e.currentTarget.closest("form")!
+    const email = String(new FormData(form).get("email")).trim()
+    if (!email) {
+      setError("Escribe tu correo para enviarte el enlace de recuperación.")
+      return
+    }
+    setPending(true)
+    const res = await authClient.requestPasswordReset({
+      email,
+      redirectTo: "/reset-password",
+    })
+    setPending(false)
+    if (res.error) {
+      setError(res.error.message ?? "No se pudo enviar el enlace.")
+      return
+    }
+    setResetSent(true)
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -237,7 +259,24 @@ function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         {mode === "signup" && (
           <p className="text-xs text-muted-foreground">Mínimo 8 caracteres.</p>
         )}
+        {mode === "signin" && (
+          <button
+            type="button"
+            onClick={onForgot}
+            disabled={pending}
+            className="text-xs text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground disabled:opacity-50"
+          >
+            ¿Olvidaste tu contraseña?
+          </button>
+        )}
       </div>
+
+      {resetSent && (
+        <p className="flex items-center gap-2 text-sm text-success">
+          <Check className="size-4 shrink-0" />
+          Si el correo existe, te enviamos un enlace para restablecerla.
+        </p>
+      )}
 
       {error && (
         <p

@@ -23,6 +23,8 @@ import { SyncBancoChileButton } from "./sync-bancochile-button"
 import { UncategorizedTriage } from "./uncategorized-triage"
 import { TransactionModal } from "./transaction-modal"
 import { TransactionSearch } from "./transaction-search"
+import { MonthlyIncomes } from "./monthly-incomes"
+import { OnboardingFlow } from "./onboarding/onboarding-flow"
 import {
   formatCLP,
   formatCompact,
@@ -33,6 +35,7 @@ import type {
   AccountDTO,
   BudgetViewDTO,
   CategoryDTO,
+  IncomeDTO,
   MonthlySummaryDTO,
   TransactionDTO,
   UncategorizedDTO,
@@ -45,6 +48,7 @@ type Props = {
   budget: BudgetViewDTO
   transactions: TransactionDTO[]
   uncategorized: UncategorizedDTO
+  incomes: IncomeDTO[]
   user: { name: string; initial: string; email: string }
   outlookResult: string | null
   outlookReason: string | null
@@ -59,11 +63,14 @@ export function Dashboard({
   budget,
   transactions,
   uncategorized,
+  incomes,
   user,
   outlookResult,
   outlookReason,
 }: Props) {
   const router = useRouter()
+  // Primera conexión de correo (callback OAuth ?outlook=setup, aún sin banco): onboarding fullscreen.
+  const [onboarding, setOnboarding] = useState(outlookResult === "setup")
   const [showBalance, setShowBalance] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
@@ -245,10 +252,22 @@ export function Dashboard({
             ))}
             <SyncBancoChileButton
               accounts={accounts}
-              outlookResult={outlookResult}
+              outlookResult={onboarding ? null : outlookResult}
               outlookReason={outlookReason}
             />
           </div>
+        </section>
+
+        {/* Ingresos del mes: fuentes de ingreso del usuario (generar, CRUD, sugerir presupuesto) */}
+        <section className="mt-8">
+          <MonthlyIncomes
+            incomes={incomes}
+            accounts={accounts}
+            categories={budget.categories}
+            period={period}
+            globalLimit={budget.globalLimit}
+            onCreateCategory={() => setEditCat(null)}
+          />
         </section>
 
         {/* Presupuestos + Movimientos */}
@@ -513,7 +532,7 @@ export function Dashboard({
           setDetailTx(tx)
         }}
       />
-      {triageOpen && (
+      {triageOpen && !onboarding && (
         <UncategorizedTriage
           transactions={uncategorized.transactions}
           hasMore={uncategorized.hasMore}
@@ -523,6 +542,23 @@ export function Dashboard({
           onCreateCategory={() => {
             setTriageDismissed(true)
             setEditCat(null) // abre el modal de categoría existente; el triage vuelve en la próxima carga
+          }}
+        />
+      )}
+
+      {onboarding && (
+        <OnboardingFlow
+          accounts={accounts}
+          categories={budget.categories}
+          uncategorized={uncategorized}
+          incomes={incomes}
+          period={period}
+          globalLimit={budget.globalLimit}
+          totalSpent={totalUsed}
+          remainingToAllocate={budget.remainingToAllocate}
+          onFinish={() => {
+            setOnboarding(false)
+            router.replace("/dashboard", { scroll: false })
           }}
         />
       )}

@@ -19,6 +19,8 @@ export async function GET(req: Request) {
       bankName: sp.get("bank") || undefined,
       from: parseDate(sp.get("from")),
       to: parseDate(sp.get("to")),
+      // Solo movimientos sin categoría elegibles (para el triage del onboarding).
+      uncategorized: sp.get("uncategorized") === "1" || undefined,
     })
   )
 }

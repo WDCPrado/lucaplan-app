@@ -126,6 +126,7 @@ model FinancialAccount {
   transactions   Transaction[]
   cards          Card[]
   buckets        BalanceBucket[]
+  incomes        Income[]
 
   @@unique([userId, externalId])
   @@index([userId, bankId])
@@ -222,23 +223,51 @@ model BankConnectionMethod {
 // Categoría GLOBAL del usuario, compartida entre todos los meses. El límite NO vive aquí:
 // es por mes (ver CategoryLimit). Lo único que cambia mes a mes es el límite; la categoría no.
 model Category {
-  id           String          @id @default(uuid())
+  id           String                     @id @default(uuid())
   userId       String
   name         String
-  type         String          @default("expense") // income (ingreso) | expense (gasto)
+  type         String                     @default("expense") // income (ingreso) | expense (gasto)
   icon         String? // presentación: icono lucide o emoji (opcional)
   color        String? // presentación: color del anillo (opcional)
   description  String? // contexto para la categorización con IA (opcional); no afecta cálculos
-  isActive     Boolean         @default(true)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  isActive     Boolean                    @default(true)
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
   limits       CategoryLimit[]
   transactions Transaction[]
   corrections  CategorizationCorrection[]
+  incomes      Income[]
 
   @@unique([userId, name])
   @@index([userId])
   @@map("category")
+}
+
+// Fuente de ingreso mensual del usuario (sueldo, arriendo, freelance...), creada a mano. Semilla del
+// límite global del presupuesto (Σ ingresos activos). El botón "generar" materializa el ingreso del
+// mes como una Transaction (credit) en la cuenta destino (que NO es de crédito). `incomeId` en la
+// Transaction deja el gancho para la recurrencia automática futura. Relación con el usuario por
+// columna `userId` (convención: el dominio financiero no toca el User que regenera Better Auth).
+model Income {
+  id           String           @id @default(uuid())
+  userId       String
+  accountId    String // cuenta destino (no credit_card/credit_line): donde entra el ingreso
+  account      FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  categoryId   String // categoría type=income
+  category     Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name         String
+  amount       Decimal          @db.Decimal(18, 2)
+  currency     String // ISO 4217: coincide con la moneda de la cuenta destino
+  dayOfMonth   Int // día de ingreso esperado (1–31)
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  transactions Transaction[]
+
+  @@index([userId])
+  @@index([accountId])
+  @@index([categoryId])
+  @@map("income")
 }
 
 // Corrección de categorización: memoria por usuario (texto normalizado del movimiento → categoría
@@ -303,6 +332,8 @@ model Transaction {
   category        Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   bucketId        String? // bucket/cupo al que corresponde (solo si el banco lo identifica sin ambigüedad)
   bucket          BalanceBucket?   @relation(fields: [bucketId], references: [id], onDelete: SetNull)
+  incomeId        String? // fuente de ingreso que generó este movimiento (gancho para recurrencia); null en el resto
+  income          Income?          @relation(fields: [incomeId], references: [id], onDelete: SetNull)
   transactionDate DateTime         @db.Date
   description     String
   amount          Decimal          @db.Decimal(18, 2)
@@ -319,5 +350,6 @@ model Transaction {
   @@index([accountId, transactionDate])
   @@index([categoryId])
   @@index([bucketId])
+  @@index([incomeId])
   @@map("transaction")
 }

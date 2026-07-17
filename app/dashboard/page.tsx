@@ -9,6 +9,7 @@ import {
   getBudgetView,
   listTransactions,
   listUncategorized,
+  listIncomesView,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { Dashboard } from "@/components/finance/dashboard"
 
@@ -31,13 +32,14 @@ export default async function DashboardPage({
   const month = Number(sp.month) || now.getUTCMonth() + 1
   const userId = session.user.id
 
-  const [summary, accounts, budget, transactions, uncategorized] =
+  const [summary, accounts, budget, transactions, uncategorized, incomes] =
     await Promise.all([
       getMonthlySummary(financeDeps, userId, year, month),
       listAccounts(financeDeps, userId),
       getBudgetView(financeDeps, userId, year, month),
       listTransactions(financeDeps, userId, year, month),
       listUncategorized(financeDeps, userId, year, month),
+      listIncomesView(financeDeps, userId, year, month),
     ])
 
   const user = {
@@ -56,6 +58,7 @@ export default async function DashboardPage({
       budget={budget}
       transactions={transactions}
       uncategorized={uncategorized}
+      incomes={incomes}
       user={user}
       outlookResult={sp.outlook ?? null}
       outlookReason={sp.reason ?? null}

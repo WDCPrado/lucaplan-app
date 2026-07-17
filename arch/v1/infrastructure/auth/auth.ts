@@ -15,6 +15,10 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     disableSignUp: process.env.NEXT_PUBLIC_LANDING_ONLY === "true",
+    // ponytail: reset por consola en local; cambiar por envío de correo cuando toque.
+    sendResetPassword: async ({ url }) => {
+      console.log("[reset-password]", url)
+    },
   },
   plugins: [admin({ defaultRole: "USER", adminRoles: ["ADMIN"] })],
 })

@@ -700,12 +700,12 @@ export function SnapshotForm({
           refLabel="Número de cuenta o últimos 4"
         >
           <div>
-            <div className="text-xs text-white/75">Saldo propio CLP</div>
+            <div className="text-xs text-white/75">Saldo actual (CLP)</div>
             <MoneyField
               currency="CLP"
               value={checking.cash}
               onValue={(cash) => setChecking({ ...checking, cash })}
-              ariaLabel="Saldo propio CLP"
+              ariaLabel="Saldo actual en pesos"
               kind="primary"
             />
           </div>

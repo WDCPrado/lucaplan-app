@@ -16,6 +16,7 @@ import {
   NotOwnerError,
   CategoryNotFoundError,
 } from "../../domain/finance/finance.domain.ts"
+import type { IncomeRepository } from "../../domain/finance/income.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
 import {
   computeActiveCash,
@@ -411,6 +412,63 @@ export async function getBudgetView(
     allocated: allocated.toMajor(),
     remainingToAllocate: remaining === null ? null : remaining.toMajor(),
   }
+}
+
+export type IncomeDTO = {
+  id: string
+  name: string
+  accountId: string
+  accountName: string
+  categoryId: string
+  categoryName: string
+  categoryIcon: string | null
+  categoryColor: string | null
+  amount: number
+  currency: string
+  dayOfMonth: number
+  isActive: boolean
+  generated: boolean // ¿ya se generó el movimiento de ingreso de este mes?
+}
+
+// Fuentes de ingreso del usuario con nombres resueltos y la marca de si su movimiento del mes
+// (year, month) ya fue generado. Para la sección "Ingresos del mes" y el paso de onboarding.
+export async function listIncomesView(
+  deps: {
+    incomes: IncomeRepository
+    accounts: AccountRepository
+    categories: CategoryRepository
+  },
+  userId: string,
+  year: number,
+  month: number
+): Promise<IncomeDTO[]> {
+  const [incomes, accounts, categories] = await Promise.all([
+    deps.incomes.listByUser(userId),
+    deps.accounts.listByUser(userId),
+    deps.categories.listByUser(userId),
+  ])
+  const accById = new Map(accounts.map((a) => [a.id, a]))
+  const catById = new Map(categories.map((c) => [c.id, c]))
+  return Promise.all(
+    incomes.map(async (i): Promise<IncomeDTO> => {
+      const cat = catById.get(i.categoryId)
+      return {
+        id: i.id,
+        name: i.name,
+        accountId: i.accountId,
+        accountName: accById.get(i.accountId)?.name ?? "",
+        categoryId: i.categoryId,
+        categoryName: cat?.name ?? "",
+        categoryIcon: cat?.icon ?? null,
+        categoryColor: cat?.color ?? null,
+        amount: i.amount.toMajor(),
+        currency: i.currency,
+        dayOfMonth: i.dayOfMonth,
+        isActive: i.isActive,
+        generated: await deps.incomes.hasGeneratedFor(i.id, year, month),
+      }
+    })
+  )
 }
 
 export async function getCategoryDetail(

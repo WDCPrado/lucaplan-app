@@ -4,6 +4,7 @@ import type { Metadata, Viewport } from "next"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration"
+import { PwaRefresh } from "@/components/pwa/pwa-refresh"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 
@@ -102,6 +103,7 @@ export default function RootLayout({
           </div>
           <Toaster />
           <ServiceWorkerRegistration />
+          <PwaRefresh />
         </ThemeProvider>
       </body>
     </html>

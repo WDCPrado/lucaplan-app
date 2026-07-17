@@ -6,9 +6,7 @@ Modelo de datos del dominio financiero de LucaPlan: bancos y cuentas (con tipo, 
 movimientos categorizables, con las invariantes de moneda y tipo de cuenta. Base multi-banco
 (Banco de Chile como primer caso). Fuente de verdad del esquema: `prisma/schema.prisma`; dominio
 en `arch/v1/domain/finance/`.
-
 ## Requirements
-
 ### Requirement: Bancos y cuentas del usuario
 
 El sistema SHALL permitir que un usuario tenga N bancos (entidades financieras) y que cada banco
@@ -173,3 +171,44 @@ sincronizarse (sin borrarse ni duplicarse). Los movimientos manuales se consider
 #### Scenario: Movimiento reversado deja de contar
 - **WHEN** un movimiento confirmado se marca `reversed` en una sincronización posterior
 - **THEN** deja de contar para caja/presupuesto, sin borrarse ni duplicarse
+
+### Requirement: Memoria de correcciones de categorización
+
+El modelo SHALL incluir una entidad de **corrección de categorización** por usuario: la descripción
+normalizada de un movimiento y su dirección apuntando a la categoría que el usuario eligió, con una
+nota opcional que explica qué es el movimiento y una descripción original de ejemplo. SHALL existir a
+lo más una corrección por (usuario, dirección, texto normalizado). La corrección referencia la
+categoría con borrado en cascada: eliminar la categoría elimina sus correcciones. La entidad es
+contexto para la categorización con IA y NO SHALL entrar en ningún cálculo financiero (saldos,
+presupuestos, usos).
+
+#### Scenario: Una corrección vigente por texto
+
+- **WHEN** se registra una corrección para un (usuario, dirección, texto normalizado) que ya tiene una
+- **THEN** la nueva reemplaza a la anterior; nunca conviven dos para la misma clave
+
+#### Scenario: Borrar la categoría se lleva sus correcciones
+
+- **WHEN** el usuario elimina una categoría con correcciones asociadas
+- **THEN** las correcciones se eliminan en cascada
+
+#### Scenario: No afecta cálculos
+
+- **WHEN** se calculan saldos, usos o presupuestos
+- **THEN** las correcciones no participan en ninguna fórmula
+
+### Requirement: Descripción opcional de categoría
+
+Una categoría MAY tener una **descripción** opcional (texto libre) que aclara qué movimientos le corresponden y MUST NOT afectar ningún cálculo financiero (límite, uso, caja activa, estado, posición neta).
+La descripción se usa como contexto para la categorización con IA (ver `ai-categorization`). Una
+categoría sin descripción SHALL comportarse exactamente como hasta ahora.
+
+#### Scenario: Categoría con descripción
+- **WHEN** se crea la categoría "Supermercado" con la descripción "compras de comida y hogar en super/almacén"
+- **THEN** la descripción se guarda y queda disponible como contexto para la IA
+- **AND** su límite, uso y estado se calculan igual que sin descripción
+
+#### Scenario: Descripción es opcional
+- **WHEN** una categoría no define descripción
+- **THEN** el sistema la trata como vacía y ningún cálculo ni comportamiento cambia
+

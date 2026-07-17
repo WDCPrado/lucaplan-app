@@ -7,9 +7,7 @@ protegida con selector de mes, pestañas Resumen/Presupuestos y bottom nav. Cubr
 cuentas, saldo/caja activa, totales del mes y movimientos (Resumen); los anillos por categoría con
 estado y creación (Presupuestos); el detalle de categoría; y el patrón de creación/edición siempre
 en modal (transacción, categoría, presupuesto). Usa los tokens del design-system.
-
 ## Requirements
-
 ### Requirement: App shell mobile-first con navegación
 
 La UI SHALL vivir en una ruta real protegida (redirige a login sin sesión) y ser mobile-first
@@ -85,11 +83,19 @@ título, fecha, selección de cuenta y chips de categoría; al guardar hace POST
 
 La UI SHALL mostrar el detalle de una categoría: anillo grande, usado/de/disponible y los
 movimientos del mes de esa categoría. SHALL permitir editar su límite/presentación (si la escritura
-lo cubre).
+lo cubre). En escritorio, la cabecera del detalle (anillo, cifras y botón Editar) SHALL permanecer
+fija y solo la lista de movimientos SHALL hacer scroll, usando el primitivo `ScrollArea` de shadcn
+(no el overflow nativo del contenedor del modal).
 
 #### Scenario: Abrir categoría
+
 - **WHEN** el usuario toca una categoría en Presupuestos
 - **THEN** ve su usado/de/disponible y los movimientos del mes de esa categoría
+
+#### Scenario: Scroll solo en la lista (escritorio)
+
+- **WHEN** el usuario abre en escritorio una categoría con más movimientos de los que caben
+- **THEN** el anillo y las cifras permanecen visibles mientras la lista de movimientos scrollea dentro de su propia área
 
 ### Requirement: Cabecera de Presupuestos con restante por presupuestar
 
@@ -206,3 +212,21 @@ alerta), nunca dividir por cero.
 
 - **WHEN** el restante del movimiento es negativo
 - **THEN** el arco se muestra lleno con el color de `excedido`
+
+### Requirement: Categoría del movimiento primero en los chips
+
+El chip de la categoría ya asignada al movimiento SHALL aparecer **primero** en la lista
+horizontal de categorías del modal de movimiento (edición y detalle de movimiento conectado). El
+orden SHALL ser estable durante la sesión del modal (cambiar la selección en pantalla NO SHALL
+reordenar los chips).
+
+#### Scenario: Movimiento categorizado
+
+- **WHEN** el usuario abre un movimiento cuya categoría es "Viajes" (creada última)
+- **THEN** el chip "Viajes" aparece primero en la lista, ya seleccionado y visible sin scroll
+
+#### Scenario: Orden estable al cambiar selección
+
+- **WHEN** el usuario toca otro chip dentro del modal
+- **THEN** la selección cambia pero los chips no se reordenan hasta reabrir el modal
+

@@ -11,6 +11,7 @@
     "setup:prisma": "prisma generate && prisma migrate deploy",
     "setup:db": "node scripts/setup-db.mjs",
     "migrate:db": "node scripts/migrate-db.mjs",
+    "clone:db": "node scripts/clone-prod-db.mjs",
     "deploy:init": "node scripts/deploy-init.mjs",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",

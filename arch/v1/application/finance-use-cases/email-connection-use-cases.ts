@@ -252,22 +252,8 @@ function resolveChecking(
   return matches.length === 1 ? matches[0] : null
 }
 
-// Pago interno CON bucket de deuda destino (tarjeta/línea) = abono a ese bucket; SIN bucket (pago de
-// crédito de consumo) sale caja de la cuenta corriente de origen.
 function directionOf(event: EmailEvent): Direction {
-  if (event.kind === "internal_credit") return "credit"
-  if (event.kind === "internal_payment")
-    return event.paymentTarget ? "credit" : "debit"
-  return "debit"
-}
-
-// ¿El evento saca caja de la cuenta corriente? (gasto, o pago interno sin bucket de deuda destino)
-function debitsCash(event: EmailEvent): boolean {
-  if (event.instrument?.kind !== "checking") return false
-  return (
-    event.kind === "expense" ||
-    (event.kind === "internal_payment" && !event.paymentTarget)
-  )
+  return event.kind === "expense" ? "debit" : "credit"
 }
 
 // --- OAuth: alta / reconexión ---
@@ -611,7 +597,7 @@ function applyEventToProjection(
     if (prev) projected.set(`${accountKey}:${kind}`, { ...prev, ...amounts })
   }
 
-  if (debitsCash(event)) {
+  if (event.kind === "expense" && event.instrument?.kind === "checking") {
     const cash = get("cash")
     if (!cash) return
     const res = applyDebitToCash(cash, get("overdraft"), event.amount)
@@ -809,7 +795,7 @@ function applyEventToStoredBuckets(
     if (bucket) bucketById.set(bucket.id, { ...bucket, ...amounts })
   }
 
-  if (debitsCash(event)) {
+  if (event.kind === "expense" && event.instrument?.kind === "checking") {
     const cash = ofKind("cash")
     if (!cash) return
     const od = ofKind("overdraft")

@@ -36,7 +36,7 @@ El sistema SHALL conectar una cuenta Outlook personal mediante OAuth 2.0 Authori
 
 ### Requirement: Filtrado cerrado de notificaciones Banco de Chile
 
-El sistema SHALL crear movimientos de gasto únicamente desde remitentes exactos de Banco de Chile y estos asuntos: `Cargo en Cuenta`, `Compra con Tarjeta de Crédito`, `Transferencia a Terceros` o el prefijo `Transferencias de Fondos a `. MAY procesar `Aviso de transferencia de fondos`, comprobantes de pago de tarjeta/línea y `Comprobante Pago Credito Consumo` exclusivamente como movimientos internos de balance. Todo correo que no coincida con estas reglas SHALL ser ignorado. Los cuerpos y datos personales del correo SHALL NOT persistirse una vez extraído el evento necesario. Cuando una plantilla permitida incluya comercio o destinatario, el sistema MUST usar ese detalle como descripción del movimiento y SHALL NOT sustituirlo por el asunto genérico del correo.
+El sistema SHALL crear movimientos de gasto únicamente desde remitentes exactos de Banco de Chile y estos asuntos: `Cargo en Cuenta`, `Compra con Tarjeta de Crédito`, `Transferencia a Terceros` o el prefijo `Transferencias de Fondos a `. El asunto `Comprobante Pago Credito Consumo` SHALL producir un gasto CLP. MAY procesar `Aviso de transferencia de fondos` y comprobantes de pago de tarjeta/línea exclusivamente como movimientos internos de balance. Todo correo que no coincida con estas reglas SHALL ser ignorado. Los cuerpos y datos personales del correo SHALL NOT persistirse una vez extraído el evento necesario. Cuando una plantilla permitida incluya comercio o destinatario, el sistema MUST usar ese detalle como descripción del movimiento y SHALL NOT sustituirlo por el asunto genérico del correo.
 
 #### Scenario: Compra con cargo en cuenta
 - **WHEN** llega desde `enviodigital@bancochile.cl` un correo `Cargo en Cuenta` con la frase `compra por <monto> con cargo a Cuenta <cuenta> en <comercio> el <fecha>`
@@ -68,8 +68,9 @@ El sistema MUST excluir del ingreso, gasto categorizable y presupuesto los abono
 
 #### Scenario: Pago de cuota de crédito de consumo
 - **WHEN** llega desde `serviciodetransferencias@bancochile.cl` un `Comprobante Pago Credito Consumo` con `Monto Pagado` y una cuenta de cargo identificable en `Datos de Origen`
-- **THEN** el sistema genera un movimiento interno que reduce la caja de esa cuenta corriente por el monto pagado (nunca el interés), no lo mapea a tarjeta ni sobregiro, no lo cuenta como gasto/ingreso/presupuesto ni lo envía al categorizador de IA
-- **AND** el N° de crédito SHALL NOT persistirse ni registrarse; sin `Monto Pagado` o sin cuenta identificable el correo se omite
+- **THEN** el sistema genera un **gasto** CLP por el monto pagado (nunca el interés como monto total) que reduce la caja de esa cuenta corriente, cuenta en presupuesto y se envía al categorizador de IA
+- **AND** SHALL NOT tratarse como movimiento interno: a diferencia del pago de tarjeta —cuya compra ya se registró el día que ocurrió— el consumo financiado por el crédito nunca ingresó al sistema, y la cuota incluye intereses
+- **AND** SHALL NOT mapearse a un bucket de tarjeta ni de sobregiro; el N° de crédito SHALL NOT persistirse ni registrarse; sin `Monto Pagado` o sin cuenta identificable el correo se omite
 
 #### Scenario: Compra en USD
 - **WHEN** un correo permitido representa una compra USD en una tarjeta mapeada

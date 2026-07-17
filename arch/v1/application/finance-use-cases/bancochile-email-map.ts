@@ -407,10 +407,12 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
   if (SUBJECT_ABONOS.includes(subject)) {
     return parseAbono(text, base.date, msg)
   }
-  // Pago de cuota de crédito de consumo: movimiento INTERNO que solo saca caja de la cuenta de
-  // origen (no gasto, no ingreso, no presupuesto/IA). El N° de crédito no se extrae ni se guarda.
-  // ponytail: MVP sin proyectar la deuda del crédito; modelar el bucket cuando exista el
-  // instrumento de crédito de consumo (decisión de dominio del issue WDC-11).
+  // Pago de cuota de crédito de consumo: GASTO real de la cuenta de origen, no un pago interno. A
+  // diferencia de la tarjeta (cuya compra ya se registró el día que ocurrió), el consumo financiado
+  // por el crédito nunca entró a la app: la cuota es la única vez que ese dinero aparece, y además
+  // incluye intereses. El N° de crédito no se extrae ni se guarda.
+  // ponytail: la cuota completa es un gasto categorizable; separar interés/amortización solo si se
+  // modela la deuda del crédito (decisión de dominio del issue WDC-11).
   if (SUBJECT_PAGO_CONSUMO.test(subject)) {
     const amount = parseLabeledClp(
       text,
@@ -423,7 +425,7 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
     return event({
       date: parseLabeledDate(text, base.date),
       tefId: parseTefId(text),
-      kind: "internal_payment",
+      kind: "expense",
       source: "pago_credito_consumo",
       amount,
       description: cuota

@@ -188,11 +188,13 @@ const pagoConsumo = (over: Partial<BankEmailMessage> = {}) =>
     ...over,
   })
 
-test("pago de crédito de consumo es interno, toma el monto pagado y la cuenta de origen", () => {
+test("pago de crédito de consumo es gasto categorizable, con el monto pagado y la cuenta de origen", () => {
   const parsed = parseBancoChileEmail(pagoConsumo())
   assert.equal(parsed.ok, true)
   if (!parsed.ok) return
-  assert.equal(parsed.event.kind, "internal_payment")
+  // Gasto real: el consumo financiado por el crédito nunca entró a la app, y la cuota trae
+  // intereses. Va a presupuesto y al categorizador de IA (a diferencia del pago de tarjeta).
+  assert.equal(parsed.event.kind, "expense")
   assert.equal(parsed.event.source, "pago_credito_consumo")
   assert.equal(parsed.event.paymentTarget, null) // nunca tarjeta ni sobregiro
   assert.equal(parsed.event.amount.toMajor(), 265708) // no el interés ($136.097)
@@ -232,7 +234,7 @@ test("pago de crédito de consumo se omite fail-closed sin monto o con asunto pa
   )
 })
 
-test("pago de crédito de consumo baja la caja de origen y no cuenta como gasto", () => {
+test("pago de crédito de consumo baja la caja de la cuenta de origen", () => {
   const parsed = parseBancoChileEmail(pagoConsumo())
   assert.equal(parsed.ok, true)
   if (!parsed.ok) return

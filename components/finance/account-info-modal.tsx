@@ -41,19 +41,14 @@ export function AccountInfoModal({
 }) {
   const router = useRouter()
   const [disconnecting, setDisconnecting] = useState(false)
-  const isBancoChile = account?.provider === "bancochile"
-  const connected = account?.provider === "fintoc" || isBancoChile
+  const connected = account?.provider === "bancochile"
 
   async function disconnect() {
     if (!account) return
     setDisconnecting(true)
-    const res = isBancoChile
-      ? await fetch("/api/email-connection/disconnect", { method: "POST" })
-      : await fetch("/api/fintoc/disconnect", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ bankId: account.bankId }),
-        })
+    const res = await fetch("/api/email-connection/disconnect", {
+      method: "POST",
+    })
     setDisconnecting(false)
     if (res.ok) {
       onOpenChange(false)

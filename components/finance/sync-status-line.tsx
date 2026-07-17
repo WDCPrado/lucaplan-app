@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { RefreshCw } from "lucide-react"
 
-// Cadencia nominal de actualización de un banco conectado (Fintoc refresca por su lado y avisa por
+// Cadencia nominal de actualización de un banco conectado (el banco refresca por su lado y avisa por
 // webhook; esto es la referencia visual de "próxima ~actualización").
 const INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 h
 

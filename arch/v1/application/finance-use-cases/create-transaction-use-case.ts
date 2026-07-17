@@ -25,7 +25,7 @@ export type CreateTransactionInput = {
 // Crea un movimiento: valida ownership + moneda vs. cuenta, y el adapter ajusta el saldo atómicamente
 // (débito resta → en credit_card sube su deuda; crédito suma).
 //
-// Cuentas conectadas: fintoc sigue de solo lectura. Las conectadas por correo aceptan SOLO
+// Cuentas conectadas por correo: aceptan SOLO
 // ingresos (credit) en la cuenta corriente — el banco no notifica abonos por correo, así que se
 // registran a mano; los cargos sí llegan solos y no se duplican. El abono se proyecta en los
 // buckets igual que un abono del banco (paga sobregiro primero, el resto sube la caja) y el saldo
@@ -46,9 +46,7 @@ export async function createTransaction(
   // Conectadas: solo abonos manuales a la corriente por correo; todo lo demás llega por sync.
   if (
     connected &&
-    (account.provider === "fintoc" ||
-      input.direction !== "credit" ||
-      account.accountType !== "checking")
+    (input.direction !== "credit" || account.accountType !== "checking")
   )
     throw new ConnectedAccountReadOnlyError()
   if (input.currency !== account.currency)

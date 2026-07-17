@@ -1,5 +1,5 @@
 // Asignar/cambiar la categoría de un movimiento. Es la ÚNICA edición permitida sobre movimientos
-// de cuentas conectadas (fintoc); también sirve para los manuales. Valida ownership del movimiento
+// de cuentas conectadas; también sirve para los manuales. Valida ownership del movimiento
 // y de la categoría. No toca el saldo.
 //
 // Aprendizaje: toda asignación no-null registra/actualiza la corrección del usuario (texto

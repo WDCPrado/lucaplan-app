@@ -47,9 +47,6 @@ class FakeAccounts implements AccountRepository {
   async listByBank() {
     return []
   }
-  async upsertConnected(): Promise<never> {
-    throw new Error("no usado en este test")
-  }
   setBalance: AccountRepository["setBalance"] = async () => {}
 }
 
@@ -87,9 +84,6 @@ class FakeTx implements TransactionRepository {
     throw new Error("no usado en este test")
   }
   async delete() {}
-  async importMovements() {
-    return []
-  }
 }
 
 test("createTransaction: gasto CLP válido se crea como debit", async () => {
@@ -210,9 +204,6 @@ class FakeBuckets implements BalanceBucketRepository {
   }
   async listByAccount(accountId: string) {
     return this.list.filter((b) => b.accountId === accountId)
-  }
-  async upsertConnected(): Promise<never> {
-    throw new Error("no usado en este test")
   }
   async updateAmounts(id: string, amounts: { used: Money; available: Money }) {
     this.updated.push({

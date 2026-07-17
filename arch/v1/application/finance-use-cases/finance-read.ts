@@ -59,10 +59,10 @@ export type AccountDTO = {
   balance: number
   color: string | null
   cardLast4: string | null
-  provider: string // "manual" | "fintoc" | "bancochile"; las conectadas son de solo lectura (badge)
+  provider: string // "manual" | "bancochile"; las conectadas son de solo lectura (badge)
   connectionMethod?: string | null // "email" (solo conectadas) = saldos ESTIMADOS
   lastSyncedAt: string | null // ISO; última sync del banco conectado (null en cuentas manuales)
-  buckets?: BucketDTO[] // saldos/cupos por bucket (solo cuentas conectadas por scraper). Montos en unidad mayor.
+  buckets?: BucketDTO[] // saldos/cupos por bucket (solo cuentas conectadas). Montos en unidad mayor.
 }
 
 // Saldo/cupo para la UI: cash | overdraft | credit_national | credit_international.
@@ -79,7 +79,7 @@ export type TransactionDTO = {
   id: string
   accountId: string
   currency: string
-  editable: boolean // true solo si su cuenta es manual (las fintoc son de solo lectura)
+  editable: boolean // true solo si su cuenta es manual (las conectadas son de solo lectura)
   description: string
   amount: number
   direction: string

@@ -20,7 +20,6 @@ import { CategoryDetailSheet } from "./category-detail-sheet"
 import { AccountModal } from "./account-modal"
 import { AccountInfoModal } from "./account-info-modal"
 import { SyncBancoChileButton } from "./sync-bancochile-button"
-import { CategorizationAutoRefresh } from "./categorization-auto-refresh"
 import { UncategorizedTriage } from "./uncategorized-triage"
 import { TransactionModal } from "./transaction-modal"
 import { TransactionSearch } from "./transaction-search"
@@ -93,8 +92,6 @@ export function Dashboard({
       a.provider === "manual" ||
       (a.connectionMethod === "email" && a.accountType === "checking")
   )
-  // ¿Hay banco conectado? → montar el auto-refresh que sigue la categorización de fondo.
-  const hasConnected = accounts.some((a) => a.provider === "fintoc")
   // El presupuesto de gastos usa las categorías de gasto (tope/uso). Las de ingreso se muestran
   // en su propio grupo con lo recibido en el mes (y su meta, si tienen límite).
   const expenseCategories = budget.categories.filter(
@@ -529,9 +526,6 @@ export function Dashboard({
           }}
         />
       )}
-      {/* Auto-refresh pausado mientras el triage está abierto: sus router.refresh() reemplazarían
-          las props del dashboard bajo el overlay en plena interacción. */}
-      {hasConnected && !triageOpen && <CategorizationAutoRefresh />}
     </AppShell>
   )
 }

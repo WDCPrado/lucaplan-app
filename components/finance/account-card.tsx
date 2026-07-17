@@ -26,8 +26,7 @@ export function AccountCard({
   onClick?: () => void
 }) {
   const art = resolveCardArt(account.bankName, account.accountType)
-  const connected =
-    account.provider === "fintoc" || account.provider === "bancochile"
+  const connected = account.provider === "bancochile"
   const buckets = account.buckets ?? []
   const cash = buckets.find((b) => b.kind === "cash")
   const overdraft = buckets.find((b) => b.kind === "overdraft")

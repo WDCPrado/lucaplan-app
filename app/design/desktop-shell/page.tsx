@@ -41,7 +41,7 @@ const ACCOUNTS: AccountDTO[] = [
     balance: 1_250_000,
     color: "#1e40af",
     cardLast4: "8842",
-    provider: "fintoc",
+    provider: "bancochile",
     lastSyncedAt: "2026-07-10T04:00:00.000Z",
   },
   {

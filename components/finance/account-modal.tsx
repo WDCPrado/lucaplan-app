@@ -9,13 +9,11 @@ import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { variantForType } from "@/lib/bank-cards"
-import { isFintocSupportedBank } from "@/lib/fintoc/institutions"
 import { AccountCard } from "./account-card"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
-// Alta manual = solo bancos/medios que Fintoc NO cubre (los que sí, se conectan por Fintoc). Se
-// filtra por el matcher para que nunca aparezca uno soportado, aunque se agregue a la lista.
+// Alta manual = bancos/medios sin conexión automática (los conectados llegan por correo).
 const BANKS = [
   "Mercado Pago",
   "Tenpo",
@@ -26,9 +24,9 @@ const BANKS = [
   "Banco Ripley",
   "Coopeuch",
   "Efectivo",
-].filter((b) => !isFintocSupportedBank(b))
+]
 
-// Alta manual = tarjetas (solo tipos con tarjeta). Las cuentas bancarias completas llegan por Fintoc.
+// Alta manual = tarjetas (solo tipos con tarjeta).
 const TYPES: { value: string; label: string }[] = [
   { value: "checking", label: "Tarjeta de débito" },
   { value: "credit_card", label: "Tarjeta de crédito" },
@@ -54,10 +52,7 @@ export function AccountModal({
   // Solo los tipos con tarjeta (corriente = débito, crédito) exigen los últimos 4 dígitos.
   const hasCard = variantForType(accountType) !== null
   const cardOk = !hasCard || cardLast4.length === 4
-  // Los bancos de Fintoc no se dan de alta a mano: se conectan (movimientos automáticos).
-  const isFintocBank = isFintocSupportedBank(bankName)
-  const canSave =
-    !!bankName.trim() && !!name.trim() && cardOk && !isFintocBank && !saving
+  const canSave = !!bankName.trim() && !!name.trim() && cardOk && !saving
 
   // Cuenta ficticia para el preview en vivo (reacciona a banco, tipo, saldo y dígitos).
   const preview: AccountDTO = {
@@ -127,19 +122,10 @@ export function AccountModal({
                   </Chip>
                 ))}
               </div>
-              {isFintocBank ? (
-                <p className="mt-2 text-xs text-destructive">
-                  {bankName} está en Fintoc. Conéctalo desde{" "}
-                  <span className="font-medium">“Conectar banco”</span> para
-                  traer los movimientos automáticamente.
-                </p>
-              ) : (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  El alta manual es para bancos/medios fuera de Fintoc. Banco de
-                  Chile, Santander, BCI, Itaú, BICE, Scotiabank, BancoEstado y
-                  Security se conectan desde “Conectar banco”.
-                </p>
-              )}
+              <p className="mt-2 text-xs text-muted-foreground">
+                El alta manual es para bancos/medios sin conexión automática.
+                Banco de Chile se conecta por correo desde “Conectar banco”.
+              </p>
             </div>
             <div>
               <Label className="mb-1 block text-xs">Tipo de cuenta</Label>

@@ -7,7 +7,7 @@ import {
   deleteTransaction,
 } from "@/arch/v1/application/finance-use-cases/update-transaction-use-case"
 
-// Editar un movimiento manual (los de cuentas fintoc son de solo lectura → 422).
+// Editar un movimiento manual (los de cuentas conectadas son de solo lectura → 422).
 export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ id: string }> }

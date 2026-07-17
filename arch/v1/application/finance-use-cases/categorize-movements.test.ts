@@ -90,9 +90,6 @@ function makeDeps(provider: CategorizationProvider, categories: Category[]) {
         return true
       },
       async delete() {},
-      async importMovements() {
-        return []
-      },
     },
   }
   return { deps, applied }

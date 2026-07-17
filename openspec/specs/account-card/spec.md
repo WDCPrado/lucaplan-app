@@ -61,17 +61,17 @@ conexión con el proveedor (ver `bank-connection`).
 
 #### Scenario: Tipos sin tarjeta no se ofrecen a mano
 - **WHEN** el usuario abre "Nueva tarjeta"
-- **THEN** solo puede elegir tipos con tarjeta (débito/crédito); ahorro y billetera no aparecen (llegan por Fintoc)
+- **THEN** solo puede elegir tipos con tarjeta (débito/crédito); ahorro y billetera no aparecen (llegan por la conexión de correo)
 
 ### Requirement: Distintivo de cuenta conectada
 
-Una cuenta de origen `fintoc` SHALL mostrarse con un **distintivo de "conectado"** y una acción de
+Una cuenta de origen `bancochile` SHALL mostrarse con un **distintivo de "conectado"** y una acción de
 **refrescar**, y SHALL renderizarse como **solo lectura** (sin editar ni agregar movimientos a
 mano). El resto de su presentación (arte por banco/tipo, últimos 4 dígitos, saldo/cupo) SHALL
 seguir las reglas de tarjeta existentes.
 
 #### Scenario: Cuenta conectada muestra distintivo y refrescar
-- **WHEN** una cuenta tiene origen `fintoc`
+- **WHEN** una cuenta tiene origen `bancochile`
 - **THEN** su tarjeta muestra el distintivo de "conectado" y ofrece refrescar, sin acciones de edición manual
 
 #### Scenario: Cuenta manual no muestra distintivo de conexión

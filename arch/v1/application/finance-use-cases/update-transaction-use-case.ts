@@ -1,4 +1,4 @@
-// Editar/borrar un movimiento MANUAL. Los movimientos de cuentas `fintoc` son de solo lectura →
+// Editar/borrar un movimiento MANUAL. Los movimientos de cuentas conectadas son de solo lectura →
 // se rechazan. El repo reajusta el saldo de la cuenta atómicamente.
 import {
   type AccountRepository,
@@ -23,7 +23,7 @@ export type UpdateTransactionInput = {
 type Deps = { accounts: AccountRepository; transactions: TransactionRepository }
 
 // Carga el movimiento y valida que sea editable (existe, es del usuario, y su cuenta es manual).
-// En cuentas conectadas (fintoc/correo) editar/borrar ajustaría la columna de saldo por fuera de
+// En cuentas conectadas por correo editar/borrar ajustaría la columna de saldo por fuera de
 // la proyección de buckets → todo queda de solo lectura; los abonos manuales se corrigen con
 // "Actualizar saldos".
 async function loadEditable(deps: Deps, userId: string, transactionId: string) {

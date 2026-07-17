@@ -13,7 +13,7 @@ en `arch/v1/domain/finance/`.
 
 El sistema SHALL permitir que un usuario tenga N bancos (entidades financieras) y que cada banco
 tenga N cuentas. Un banco y sus cuentas MAY ser de origen `manual` (creados por el usuario) o
-`fintoc` (agregados al conectar el banco con el proveedor). Cada cuenta MUST tener un
+`bancochile` (agregados al conectar el banco por correo). Cada cuenta MUST tener un
 `account_type`, una moneda (`currency_code`) y un saldo (`balance`). Las claves foráneas a usuario
 MUST usar el tipo del `User.id` existente (`String`), no UUID. Un banco MUST pertenecer a un
 usuario y una cuenta a un banco.
@@ -26,9 +26,9 @@ usuario y una cuenta a un banco.
 - **WHEN** se agrega una cuenta de tarjeta internacional en USD
 - **THEN** coexiste con las cuentas CLP; su `currency_code` es USD
 
-#### Scenario: Banco conectado por Fintoc
-- **WHEN** el usuario conecta un banco con el proveedor
-- **THEN** ese banco y sus cuentas quedan con origen `fintoc` y conviven con los manuales del usuario
+#### Scenario: Banco conectado por correo
+- **WHEN** el usuario conecta un banco por correo
+- **THEN** ese banco y sus cuentas quedan con origen `bancochile` y conviven con los manuales del usuario
 
 ### Requirement: Tipos de cuenta
 
@@ -117,22 +117,22 @@ caja activa, estado, posición neta).
 ### Requirement: Origen de bancos y cuentas
 
 `Bank` y `FinancialAccount` SHALL declarar su **origen** (`provider`): `manual` (creado por el
-usuario) o `fintoc` (agregado por el proveedor). Las entidades de origen `fintoc` MUST guardar el
-**id externo** del proveedor (Link/cuenta) para poder re-sincronizar sin duplicar. El `balance` de
-una cuenta de origen `fintoc` SHALL provenir del proveedor (se sobrescribe en cada sincronización);
+usuario) o `bancochile` (agregado por la conexión de correo). Las entidades de origen `bancochile` MUST guardar el
+**id externo** (número de cuenta / últimos 4) para poder re-sincronizar sin duplicar. El `balance` de
+una cuenta de origen `bancochile` SHALL provenir de la proyección de saldos (se sobrescribe en cada sincronización);
 el de una cuenta `manual` SHALL derivarse de sus movimientos como hasta ahora.
 
 #### Scenario: Cuenta conectada trae su origen e id externo
-- **WHEN** se sincroniza una cuenta desde Fintoc
-- **THEN** se guarda con `provider = fintoc` y el id externo de la cuenta del proveedor
+- **WHEN** se sincroniza una cuenta desde la conexión de correo
+- **THEN** se guarda con `provider = bancochile` y el id externo de la cuenta
 
 #### Scenario: Cuenta manual conserva su comportamiento
 - **WHEN** el usuario crea una tarjeta a mano
 - **THEN** se guarda con `provider = manual` y su saldo se deriva de sus movimientos
 
-#### Scenario: El saldo de la cuenta conectada lo fija el proveedor
-- **WHEN** se re-sincroniza una cuenta de origen fintoc
-- **THEN** su `balance` toma el valor del proveedor, sin recalcularse desde las transacciones locales
+#### Scenario: El saldo de la cuenta conectada lo fija la proyección
+- **WHEN** se re-sincroniza una cuenta de origen `bancochile`
+- **THEN** su `balance` toma el valor de la proyección de saldos, sin recalcularse desde las transacciones locales
 
 ### Requirement: Importación idempotente y mutable de movimientos
 

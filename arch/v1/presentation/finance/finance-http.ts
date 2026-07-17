@@ -30,7 +30,6 @@ import {
   transactionRepository,
 } from "../../infrastructure/database/prisma/finance.infrastructure.ts"
 import { correctionRepository } from "../../infrastructure/database/prisma/categorization-correction.infrastructure.ts"
-import { fintocProvider } from "../../infrastructure/http/fintoc/fintoc.provider.ts"
 import { openaiCategorizationProvider } from "../../infrastructure/http/ai/openai-categorization.provider.ts"
 
 // Todos los adapters, listos para inyectar en los use-cases.
@@ -41,7 +40,6 @@ export const financeDeps = {
   categories: categoryRepository,
   transactions: transactionRepository,
   monthlyBudgets: monthlyBudgetRepository,
-  provider: fintocProvider,
   categorization: openaiCategorizationProvider,
   corrections: correctionRepository,
 }

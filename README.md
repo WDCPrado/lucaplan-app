@@ -21,6 +21,25 @@ gastos y cuadra tu presupuesto mensual — sin entregarle tus claves bancarias a
 
 ![Landing de Luca Plan](docs/images/landing-hero.png)
 
+## Punto de entrada
+
+Este README es la **fuente canónica** del proyecto: lo leen personas, agentes, OpenSpec y Linear
+antes de definir o implementar cualquier cambio. Desde aquí se abre la documentación
+especializada; nada de lo que está en `docs/` se duplica en otra parte.
+
+Jerarquía de fuentes, de mayor a menor autoridad:
+
+1. **El código** — el comportamiento real (`app/`, `arch/`, `prisma/schema.prisma`, `app/globals.css`).
+2. **Este README** — contexto vigente y mapa documental.
+3. **`docs/`** — el detalle de cada tema (ver [mapa documental](#mapa-documental)).
+4. **`openspec/specs/`** — contrato de comportamiento por capacidad; `openspec/changes/` es el
+   delta en curso y `openspec/changes/archive/` el historial (puede describir integraciones ya
+   retiradas: es historia, no contrato).
+5. **Linear** — planificación y seguimiento. No duplica documentación técnica; enlaza aquí.
+
+Si dos fuentes se contradicen, se corrige primero la fuente canónica y luego lo demás.
+`AGENTS.md` y `CLAUDE.md` solo apuntan aquí: no llevan reglas propias.
+
 ## ¿Qué es Luca Plan?
 
 Luca Plan es una app **open source** de planificación financiera personal, pensada para
@@ -365,19 +384,24 @@ docker compose up -d --build
 La app queda en el puerto `3005` y Postgres en `5433` (host). Los secretos se leen del
 `.env`.
 
-## Documentación adicional
+## Mapa documental
 
-- [arch/clean-architecture.md](arch/clean-architecture.md) — definición de la arquitectura y regla de dependencias.
-- [docs/email-connection-outlook.md](docs/email-connection-outlook.md) — referencia de la conexión Outlook / Microsoft Graph.
-- [docs/design/design-system.md](docs/design/design-system.md) — design system (tokens, glass, dark/light). La fuente de verdad visual es [app/globals.css](app/globals.css).
-- [docs/pre-launch-lock.md](docs/pre-launch-lock.md) — cómo cerrar/abrir el registro.
-- [PRODUCT.md](PRODUCT.md) — propósito de producto, personalidad de marca y principios de diseño.
+| Tema                        | Dónde                                                                 |
+| --------------------------- | --------------------------------------------------------------------- |
+| Producto y experiencia      | [docs/product.md](docs/product.md) — propósito, personalidad de marca, principios de diseño y accesibilidad. |
+| Arquitectura                | [arch/clean-architecture.md](arch/clean-architecture.md) — capas y regla de dependencias. |
+| Desarrollo y contribución   | [docs/development.md](docs/development.md) — flujo OpenSpec, Next 16, reglas de UI, mocks, convenciones y verificaciones. |
+| Design system               | [docs/design/design-system.md](docs/design/design-system.md) — tokens, glass, dark/light. La fuente de verdad visual es [app/globals.css](app/globals.css). |
+| Outlook / Microsoft Graph   | [docs/email-connection-outlook.md](docs/email-connection-outlook.md) — referencia de la conexión de correo con Banco de Chile. El paso a paso está [más arriba](#-conectar-outlook-banco-de-chile-paso-a-paso). |
+| Operación y despliegue      | [Scripts](#scripts) y [Deploy](#deploy) en este README; cerrar/abrir el registro en [docs/pre-launch-lock.md](docs/pre-launch-lock.md). |
+| Specs y cambios             | [openspec/README.md](openspec/README.md) — capacidades canónicas, cambios en curso y archivo histórico. |
 
 ## Contribuir
 
 1. Haz fork y crea una rama desde `master`.
-2. Las features nuevas siguen el flujo [OpenSpec](openspec/) del repo (propuesta →
-   implementación → verificación); para fixes pequeños basta el PR directo.
+2. Lee [docs/development.md](docs/development.md): las features nuevas siguen el flujo
+   [OpenSpec](openspec/) del repo (propuesta → implementación → verificación); para fixes
+   pequeños y documentación basta el PR directo.
 3. Antes de abrir el PR: `pnpm lint && pnpm typecheck && node --test "arch/**/*.test.ts"`.
 4. Respeta la regla de dependencias de `arch/` y los primitivos de UI (shadcn/ui — si
    falta un componente, se instala con `pnpm dlx shadcn@latest add <componente>`).

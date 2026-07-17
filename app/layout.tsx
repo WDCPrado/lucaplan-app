@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.BETTER_AUTH_URL ?? "http://localhost:3000"),
   title: "Luca Plan | Presupuestos mensuales",
   description:
-    "Planifica cada mes con presupuestos claros, pagos recurrentes y conexión bancaria con Fintoc.",
+    "Planifica cada mes con presupuestos claros, pagos recurrentes y conexión bancaria por correo.",
   openGraph: {
     title: "Luca Plan | Presupuestos mensuales",
     description: "Tu plan, mes a mes.",

@@ -26,7 +26,7 @@ const mov = (id: string, accountId = "a1"): Transaction => ({
   externalId: null,
 })
 
-const account = (id: string, provider: "manual" | "fintoc"): Account => ({
+const account = (id: string, provider: "manual" | "bancochile"): Account => ({
   id,
   userId: "u1",
   bankId: "b1",
@@ -71,9 +71,6 @@ function makeDeps(rows: Transaction[], accounts: Account[]) {
       throw new Error("no usado")
     },
     async delete() {},
-    async importMovements() {
-      return []
-    },
   }
   const accountsRepo: AccountRepository = {
     async listByUser() {
@@ -88,9 +85,6 @@ function makeDeps(rows: Transaction[], accounts: Account[]) {
     async listByBank() {
       return []
     },
-    async upsertConnected(): Promise<never> {
-      throw new Error("no usado")
-    },
     async setBalance() {},
   }
   return {
@@ -100,7 +94,7 @@ function makeDeps(rows: Transaction[], accounts: Account[]) {
 }
 
 test("listUncategorized: delega el criterio al filtro uncategorized y pide limit+1 (51)", async () => {
-  const { deps, filters } = makeDeps([mov("t1")], [account("a1", "fintoc")])
+  const { deps, filters } = makeDeps([mov("t1")], [account("a1", "bancochile")])
   await listUncategorized(deps, "u1")
   assert.equal(filters()?.uncategorized, true)
   assert.equal(filters()?.limit, 51)
@@ -108,7 +102,7 @@ test("listUncategorized: delega el criterio al filtro uncategorized y pide limit
 
 test("listUncategorized: con más filas que el tope devuelve 50 y hasMore", async () => {
   const rows = Array.from({ length: 60 }, (_, i) => mov(`t${i}`))
-  const { deps } = makeDeps(rows, [account("a1", "fintoc")])
+  const { deps } = makeDeps(rows, [account("a1", "bancochile")])
   const result = await listUncategorized(deps, "u1")
   assert.equal(result.transactions.length, 50)
   assert.equal(result.hasMore, true)
@@ -117,7 +111,7 @@ test("listUncategorized: con más filas que el tope devuelve 50 y hasMore", asyn
 test("listUncategorized: bajo el tope devuelve todas sin hasMore, con DTO mapeado", async () => {
   const { deps } = makeDeps(
     [mov("t1", "a1"), mov("t2", "a2")],
-    [account("a1", "manual"), account("a2", "fintoc")]
+    [account("a1", "manual"), account("a2", "bancochile")]
   )
   const result = await listUncategorized(deps, "u1")
   assert.equal(result.transactions.length, 2)

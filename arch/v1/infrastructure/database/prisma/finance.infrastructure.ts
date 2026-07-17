@@ -11,15 +11,11 @@ import type {
   Bank,
   BankRepository,
   BucketKind,
-  ConnectedBucketInput,
   Category,
   CategoryLimit,
   CategoryRepository,
   CategoryType,
-  ConnectedAccountInput,
-  ConnectedBankInput,
   Direction,
-  ImportMovement,
   MonthlyBudget,
   MonthlyBudgetRepository,
   MovementStatus,
@@ -101,8 +97,6 @@ const toBank = (r: any): Bank => ({
   isActive: r.isActive,
   provider: (r.provider ?? "manual") as Provider,
   connectionMethod: r.connectionMethod ?? null,
-  externalLinkId: r.externalLinkId ?? null,
-  linkToken: r.linkToken ?? null,
   lastSyncedAt: r.lastSyncedAt ?? null,
 })
 
@@ -120,26 +114,6 @@ export const bankRepository: BankRepository = {
   async findById(id) {
     const row = await prisma.bank.findUnique({ where: { id } })
     return row ? toBank(row) : null
-  },
-  async findByExternalLinkId(externalLinkId) {
-    const row = await prisma.bank.findFirst({ where: { externalLinkId } })
-    return row ? toBank(row) : null
-  },
-  async upsertConnected(input: ConnectedBankInput) {
-    const existing = await prisma.bank.findFirst({
-      where: { userId: input.userId, externalLinkId: input.externalLinkId },
-    })
-    const data = {
-      name: input.name,
-      provider: "fintoc",
-      externalLinkId: input.externalLinkId,
-      linkToken: input.linkToken,
-      lastSyncedAt: new Date(),
-    }
-    const row = existing
-      ? await prisma.bank.update({ where: { id: existing.id }, data })
-      : await prisma.bank.create({ data: { userId: input.userId, ...data } })
-    return toBank(row)
   },
   async delete(bankId) {
     // FK ON DELETE CASCADE: borrar el banco elimina sus cuentas y, con ellas, sus movimientos.
@@ -178,31 +152,6 @@ export const accountRepository: AccountRepository = {
       toAccount
     )
   },
-  async upsertConnected(input: ConnectedAccountInput) {
-    const existing = await prisma.financialAccount.findFirst({
-      where: { userId: input.userId, externalId: input.externalId },
-    })
-    const data = {
-      bankId: input.bankId,
-      name: input.name,
-      accountType: input.accountType,
-      currency: input.currency,
-      balance: input.balance.toDecimalString(), // saldo del proveedor (se sobrescribe cada sync)
-      overdraftLimit: input.overdraftLimit.toDecimalString(),
-      cardLast4: input.cardLast4,
-      provider: "fintoc",
-      lastSyncedAt: new Date(),
-    }
-    const row = existing
-      ? await prisma.financialAccount.update({
-          where: { id: existing.id },
-          data,
-        })
-      : await prisma.financialAccount.create({
-          data: { userId: input.userId, externalId: input.externalId, ...data },
-        })
-    return toAccount(row)
-  },
   async setBalance(accountId, balance) {
     await prisma.financialAccount.update({
       where: { id: accountId },
@@ -238,35 +187,6 @@ export const balanceBucketRepository: BalanceBucketRepository = {
     return (await prisma.balanceBucket.findMany({ where: { accountId } })).map(
       toBucket
     )
-  },
-  async upsertConnected(input: ConnectedBucketInput) {
-    const existing = await prisma.balanceBucket.findFirst({
-      where: {
-        accountId: input.accountId,
-        cardId: input.cardId,
-        kind: input.kind,
-        currency: input.currency,
-      },
-    })
-    const data = {
-      limitAmount: input.limitAmount.toDecimalString(),
-      used: input.used.toDecimalString(),
-      available: input.available.toDecimalString(),
-      asOf: input.asOf,
-    }
-    const row = existing
-      ? await prisma.balanceBucket.update({ where: { id: existing.id }, data })
-      : await prisma.balanceBucket.create({
-          data: {
-            userId: input.userId,
-            accountId: input.accountId,
-            cardId: input.cardId,
-            kind: input.kind,
-            currency: input.currency,
-            ...data,
-          },
-        })
-    return toBucket(row)
   },
   async updateAmounts(bucketId, amounts) {
     await prisma.balanceBucket.update({
@@ -493,7 +413,7 @@ export const transactionRepository: TransactionRepository = {
     })
     return toTransaction(row)
   },
-  // Asigna/cambia solo la categoría (no toca el saldo; sirve para movimientos fintoc).
+  // Asigna/cambia solo la categoría (no toca el saldo; sirve para movimientos conectados).
   async setCategory(transactionId: string, categoryId: string | null) {
     return toTransaction(
       await prisma.transaction.update({
@@ -536,67 +456,6 @@ export const transactionRepository: TransactionRepository = {
       await db.transaction.delete({ where: { id: transactionId } })
     })
   },
-  // Import idempotente de movimientos de Fintoc: upsert por (accountId, externalId), preserva
-  // categoryId (no se toca en update) y NO ajusta el saldo (lo fija el proveedor).
-  async importMovements(
-    userId: string,
-    accountId: string,
-    movements: ImportMovement[]
-  ) {
-    const CHUNK = 10 // ponytail: upsert en lotes acotados (evita saturar el pool de conexiones).
-    const rows: Transaction[] = []
-    for (let i = 0; i < movements.length; i += CHUNK) {
-      const upserted = await Promise.all(
-        movements.slice(i, i + CHUNK).map((m) => {
-          const fields = {
-            transactionDate: m.date,
-            description: m.description,
-            amount: m.amount.toDecimalString(),
-            currency: m.amount.currency,
-            direction: m.direction,
-            status: m.status,
-            pending: m.status === "pending",
-          }
-          return prisma.transaction.upsert({
-            where: {
-              accountId_externalId: { accountId, externalId: m.externalId },
-            },
-            create: { userId, accountId, externalId: m.externalId, ...fields },
-            update: fields, // categoryId intacto → categoría preservada
-          })
-        })
-      )
-      rows.push(...upserted.map(toTransaction))
-    }
-    // Devuelve las filas con su categoryId actual: el sync categoriza las que sigan en null.
-    return rows
-  },
-}
-
-// Estado de la sincronización de los bancos conectados de un usuario, para el loader de la primera
-// conexión. Read-only: proyección directa por Prisma (no es lógica de negocio, no pasa por un port).
-export async function getFintocSyncStatus(
-  userId: string
-): Promise<{
-  connected: boolean
-  accounts: number
-  movements: number
-  uncategorized: number
-}> {
-  const accts = await prisma.financialAccount.findMany({
-    where: { userId, provider: "fintoc" },
-    select: { id: true },
-  })
-  const ids = accts.map((a) => a.id)
-  if (ids.length === 0)
-    return { connected: false, accounts: 0, movements: 0, uncategorized: 0 }
-  const [movements, uncategorized] = await Promise.all([
-    prisma.transaction.count({ where: { accountId: { in: ids } } }),
-    prisma.transaction.count({
-      where: { accountId: { in: ids }, categoryId: null },
-    }),
-  ])
-  return { connected: true, accounts: ids.length, movements, uncategorized }
 }
 
 // Filtro [primer día del mes, primer día del mes siguiente) sobre transactionDate.

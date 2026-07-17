@@ -95,9 +95,6 @@ function fakeTransactions(byId: Record<string, Transaction>) {
       return true
     },
     async delete() {},
-    async importMovements() {
-      return []
-    },
   }
 }
 

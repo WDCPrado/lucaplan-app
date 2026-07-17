@@ -1,13 +1,10 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Fuente canónica del proyecto: README.md en la raíz del repo. Léelo (y openspec/README.md)
+  antes de proponer o aplicar cualquier cambio. El flujo y las convenciones están en
+  docs/development.md. Documenta solo el delta de cada cambio; no dupliques lo que ya está en el
+  README, docs/ o las specs canónicas.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.

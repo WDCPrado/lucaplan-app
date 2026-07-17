@@ -63,7 +63,7 @@ Alternativa descartada: cambiar el CTA principal de la landing. Eso alteraría c
 
 ### Headers limitados al service worker
 
-`next.config.ts` entregará `/sw.js` como JavaScript, sin caché HTTP y con CSP `default-src 'self'; script-src 'self'`. No se añadirán headers globales en este cambio para evitar efectos laterales sobre OAuth, Fintoc o assets externos.
+`next.config.ts` entregará `/sw.js` como JavaScript, sin caché HTTP y con CSP `default-src 'self'; script-src 'self'`. No se añadirán headers globales en este cambio para evitar efectos laterales sobre OAuth o assets externos.
 
 ## Risks / Trade-offs
 

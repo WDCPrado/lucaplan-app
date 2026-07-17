@@ -20,6 +20,7 @@ import { AccountCard } from "@/components/finance/account-card"
 import { MovementRow } from "@/components/finance/movement-row"
 import { ProgressRing } from "@/components/finance/progress-ring"
 import { CategoryIcon } from "@/components/finance/category-icons"
+import { formatCLP, quartileVar } from "@/lib/finance-format"
 import type {
   AccountDTO,
   TransactionDTO,
@@ -157,8 +158,8 @@ const cta = {
 
 const monthStats = [
   ["Lo que entra", "$1.480.000", "Tus ingresos del mes"],
-  ["Lo que reservaste", "$850.000", "Categorías con un límite real"],
-  ["Lo que queda", "$429.500", "Espacio para decidir hoy"],
+  ["Lo que reservaste", "$950.000", "Categorías con un límite real"],
+  ["Lo que queda", "$479.050", "Espacio para decidir hoy"],
 ] as const
 
 // Demo con los componentes REALES de la app (mismos que usa el dashboard).
@@ -282,32 +283,46 @@ const demoMovements: TransactionDTO[] = [
   },
 ]
 
+// Presupuestos demo: mismas cifras que la sección "Presupuestos" del dashboard real.
 const demoBudgets = [
   {
     name: "Supermercado",
     icon: "ShoppingCart",
     color: "#4f6ef7",
-    pct: 63,
     status: "bueno",
-    available: "$239.250",
+    limit: 630000,
+    used: 390750,
   },
   {
     name: "Transporte",
     icon: "Bus",
     color: "#0e9488",
-    pct: 34,
     status: "bueno",
-    available: "$64.800",
+    limit: 100000,
+    used: 35200,
   },
   {
     name: "Ocio",
     icon: "Film",
     color: "#e8618c",
-    pct: 86,
     status: "moderado",
-    available: "$16.800",
+    limit: 120000,
+    used: 103200,
+  },
+  {
+    name: "Restaurantes",
+    icon: "Utensils",
+    color: "#f97316",
+    status: "bueno",
+    limit: 100000,
+    used: 41800,
   },
 ] as const
+
+const demoBudgetLimit = 1050000
+const demoAllocated = demoBudgets.reduce((sum, b) => sum + b.limit, 0)
+const demoUsed = demoBudgets.reduce((sum, b) => sum + b.used, 0)
+const demoUsedPct = (demoUsed / demoBudgetLimit) * 100
 
 // Movimientos "crudos" del banco ya categorizados por la IA (descripciones bancarias reales).
 const demoCategorized: TransactionDTO[] = [
@@ -691,28 +706,63 @@ export default function Home() {
               style={delay(150)}
               className="z-10 mt-6 lg:absolute lg:-top-16 lg:-right-6 lg:mt-0 lg:rotate-2"
             >
-              <div className="landing-float-a rounded-3xl border border-border bg-card p-5 shadow-2xl">
-                <p className="pb-4 font-heading text-sm font-bold">
-                  Presupuestos
-                </p>
-                <div className="flex gap-5">
+              <div className="landing-float-a rounded-3xl border border-border bg-card p-4 shadow-2xl">
+                <div className="mb-3 flex items-center justify-between gap-2 px-1">
+                  <p className="font-heading text-lg font-bold">Presupuestos</p>
+                  <span className="text-sm text-muted-foreground">Julio</span>
+                </div>
+                {/* Cabecera del límite global: mismo bloque que el dashboard */}
+                <div className="rounded-xl bg-secondary/50 px-4 py-3">
+                  <span className="text-xs text-muted-foreground uppercase">
+                    Por presupuestar
+                  </span>
+                  <div className="tabular text-2xl font-bold">
+                    {formatCLP(demoBudgetLimit - demoAllocated)}
+                  </div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    Asignado {formatCLP(demoAllocated)} de{" "}
+                    {formatCLP(demoBudgetLimit)}
+                  </div>
+                  <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${demoUsedPct}%`,
+                        background: quartileVar(demoUsedPct),
+                      }}
+                    />
+                  </div>
+                  <div className="tabular mt-1.5 flex items-center justify-between gap-2 text-xs">
+                    <span
+                      className="font-medium"
+                      style={{ color: quartileVar(demoUsedPct) }}
+                    >
+                      Usado {formatCLP(demoUsed)} · {Math.round(demoUsedPct)}%
+                    </span>
+                    <span className="text-muted-foreground">
+                      Queda {formatCLP(demoBudgetLimit - demoUsed)}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-4">
                   {demoBudgets.map((b) => (
                     <div
                       key={b.name}
                       className="flex flex-col items-center gap-1.5"
                     >
                       <ProgressRing
-                        percent={b.pct}
+                        percent={(b.used / b.limit) * 100}
                         status={b.status}
-                        size={64}
-                        stroke={6}
+                        size={72}
                       >
-                        <CategoryIcon icon={b.icon} size={20} color={b.color} />
+                        <CategoryIcon icon={b.icon} size={22} color={b.color} />
                       </ProgressRing>
-                      <div className="text-center">
-                        <div className="text-xs font-medium">{b.name}</div>
+                      <div className="w-full text-center">
+                        <div className="truncate text-xs font-medium">
+                          {b.name}
+                        </div>
                         <div className="tabular text-xs text-muted-foreground">
-                          {b.available}
+                          {formatCLP(b.limit - b.used)}
                         </div>
                       </div>
                     </div>
@@ -883,7 +933,7 @@ export default function Home() {
             <div
               data-reveal
               style={delay(150 + banks.length * 120)}
-              className="landing-float-a flex items-center justify-center rounded-2xl border border-dashed border-border px-3 py-3 text-sm text-muted-foreground sm:px-5 sm:py-4"
+              className="flex landing-float-a items-center justify-center rounded-2xl border border-dashed border-border px-3 py-3 text-sm text-muted-foreground sm:px-5 sm:py-4"
             >
               y más
             </div>

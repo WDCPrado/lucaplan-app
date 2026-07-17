@@ -112,7 +112,7 @@ export function DatePicker({
   )
 }
 
-// Movimiento manual → editable (form tipo crear + eliminar). Movimiento de Fintoc → solo lectura.
+// Movimiento manual → editable (form tipo crear + eliminar). Movimiento conectado → solo lectura.
 export function TransactionModal({
   tx,
   categories,
@@ -328,7 +328,7 @@ function EditForm({
   )
 }
 
-// Movimiento del banco (fintoc): datos de solo lectura, pero SÍ se puede asignar/cambiar la categoría.
+// Movimiento del banco: datos de solo lectura, pero SÍ se puede asignar/cambiar la categoría.
 function ConnectedDetail({
   tx,
   account,

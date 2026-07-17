@@ -10,19 +10,22 @@ test("variante por tipo de cuenta", () => {
   assert.equal(variantForType("wallet"), null)
 })
 
-test("resuelve el arte de Banco de Chile", () => {
+test("resuelve el arte con monograma propio", () => {
   assert.deepEqual(resolveCardArt("Banco de Chile", "checking"), {
     variant: "debito",
-    icon: "/imagenes/bancos/banco-chile/bch.png",
+    monogram: "Ch",
   })
   assert.deepEqual(resolveCardArt("Banco de Chile", "credit_card"), {
     variant: "credito",
-    icon: "/imagenes/bancos/banco-chile/bch.png",
+    monogram: "Ch",
   })
 })
 
-test("banco sin arte cae a fallback (null)", () => {
-  assert.equal(resolveCardArt("Santander", "checking"), null)
+test("banco sin monograma mapeado cae a iniciales del nombre", () => {
+  assert.deepEqual(resolveCardArt("Falabella", "checking"), {
+    variant: "debito",
+    monogram: "Fa",
+  })
 })
 
 test("tipo sin tarjeta no tiene arte", () => {

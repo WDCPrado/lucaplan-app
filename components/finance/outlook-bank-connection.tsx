@@ -991,13 +991,13 @@ function CandidateCard({
       style={{ background: CARD_VARIANT_BG[variant] }}
     >
       {art && (
-        // eslint-disable-next-line @next/next/no-img-element -- decorativo de fondo, no LCP
-        <img
-          src={art.icon}
-          alt=""
+        // Monograma propio del banco como marca de agua (sin logo de terceros).
+        <span
           aria-hidden
-          className="pointer-events-none absolute top-1/2 -right-4 h-36 w-auto -translate-y-1/2 opacity-[0.16] filter-[brightness(0)_invert(1)]"
-        />
+          className="pointer-events-none absolute top-1/2 -right-3 -translate-y-1/2 text-8xl leading-none font-bold text-white/12 select-none"
+        >
+          {art.monogram}
+        </span>
       )}
       <div className="relative flex items-start justify-between gap-2">
         <div className="text-lg font-semibold tracking-tight [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">

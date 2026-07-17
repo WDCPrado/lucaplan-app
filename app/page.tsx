@@ -953,6 +953,16 @@ export default function Home() {
             </span>
             próximamente.
           </p>
+          <p
+            data-reveal
+            style={delay(550 + banks.length * 120)}
+            className="mt-6 max-w-xl text-xs leading-5 text-muted-foreground"
+          >
+            Luca Plan es un servicio independiente. No está afiliado,
+            patrocinado ni respaldado por las instituciones financieras
+            mencionadas; todas las marcas pertenecen a sus respectivos
+            titulares.
+          </p>
         </div>
         <div className="grid content-center gap-8 lg:border-l lg:border-border lg:pl-16">
           <div data-reveal style={delay(100)} className="flex gap-5">

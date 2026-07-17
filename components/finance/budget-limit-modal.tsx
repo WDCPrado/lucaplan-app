@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useMoneyInput } from "@/hooks/use-money-input"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { monthName } from "@/lib/finance-format"
 
 // Define/edita el límite global del presupuesto del mes (POST /api/budgets, upsert). Los meses
@@ -27,6 +28,8 @@ export function BudgetLimitModal({
   const router = useRouter()
   const limit = useMoneyInput("CLP", current ?? 0)
   const [saving, setSaving] = useState(false)
+  // En móvil no autoenfocamos: el teclado abriéndose mientras el drawer anima se ve saltón.
+  const isMobile = useIsMobile()
 
   async function save() {
     if (saving) return
@@ -68,7 +71,7 @@ export function BudgetLimitModal({
             onChange={(e) => limit.onChange(e.target.value)}
             placeholder="500.000"
             className="tabular h-11 text-base"
-            autoFocus
+            autoFocus={!isMobile}
           />
           <p className="mt-1 text-xs text-muted-foreground">
             Controla cuánto puedes repartir entre tus categorías. Los meses

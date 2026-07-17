@@ -62,8 +62,13 @@ export const metadata: Metadata = {
 
 // viewport-fit=cover extiende el lienzo bajo notch/home indicator (las safe areas se compensan
 // solo en modo standalone; ver globals.css). theme-color sigue el tema del sistema.
+// interactiveWidget=resizes-content: al abrir el teclado, el layout (y las unidades dvh) se
+// encoge al alto visible, así el drawer/modal se dimensiona sobre el teclado y el input no queda
+// tapado ni salta. Es el mecanismo estándar del navegador (Chrome/Android); en iOS Safari lo
+// cubre vaul reposicionando el input (repositionInputs).
 export const viewport: Viewport = {
   viewportFit: "cover",
+  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f9fafc" },
     { media: "(prefers-color-scheme: dark)", color: "#0f141d" },

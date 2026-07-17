@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { MovementRow } from "./movement-row"
 import { formatDateHeader } from "@/lib/finance-format"
 import type {
@@ -60,6 +61,8 @@ export function TransactionSearch({
   accounts: AccountDTO[]
   onOpenTransaction: (tx: TransactionDTO) => void
 }) {
+  // En móvil no autoenfocamos: el teclado abriéndose mientras el drawer anima se ve saltón.
+  const isMobile = useIsMobile()
   const [q, setQ] = useState("")
   const [direction, setDirection] = useState<Dir>("")
   const [categoryId, setCategoryId] = useState("all")
@@ -138,7 +141,7 @@ export function TransactionSearch({
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            autoFocus
+            autoFocus={!isMobile}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Buscar por descripción o categoría…"

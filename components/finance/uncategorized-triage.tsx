@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, CreditCard, Undo2, X } from "lucide-react"
+import { Check, CreditCard, Plus, Undo2, X } from "lucide-react"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -422,6 +422,10 @@ function TriageCard({
               {c.name}
             </Chip>
           ))}
+          {/* Crear una categoría nueva sin salir del triage (aparece siempre, al final de los chips). */}
+          <Chip active={false} disabled={busy} onClick={onCreateCategory}>
+            <Plus className="size-4" /> Nueva
+          </Chip>
         </div>
       )}
     </div>

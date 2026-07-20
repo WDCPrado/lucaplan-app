@@ -200,7 +200,7 @@ export function UncategorizedTriage({
         showCloseButton={false}
         className="top-0 left-0 flex h-dvh w-dvw max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none bg-background/85 p-0 text-base text-foreground ring-0 backdrop-blur-xl sm:max-w-none motion-reduce:data-open:zoom-in-100 motion-reduce:data-closed:zoom-out-100"
       >
-        <header className="mx-auto flex w-full max-w-md items-start justify-between gap-3 px-4 pt-5">
+        <header className="mx-auto flex w-full max-w-md items-start justify-between gap-3 px-4 pt-[max(env(safe-area-inset-top),1.25rem)]">
           <div className="min-w-0">
             <DialogTitle className="font-heading text-lg font-bold">
               Movimientos por categorizar

@@ -198,11 +198,14 @@ export async function getMonthlySummary(
   const txs = await deps.transactions.listByUserPeriod(userId, year, month)
   const withLimit = await categoriesWithLimit(deps, userId, year, month)
 
+  // Solo movimientos CON categoría: los totales del resumen usan el mismo criterio que el
+  // presupuesto (uso por categoría). Lo sin categoría no cuenta hasta clasificarse (triage).
   const sumClp = (dir: string) =>
     txs
       .filter(
         (t) =>
           t.direction === dir &&
+          t.categoryId !== null &&
           t.amount.currency === CLP &&
           t.status === "confirmed" &&
           !t.isInternal

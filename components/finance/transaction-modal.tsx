@@ -4,7 +4,7 @@ import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { es } from "date-fns/locale"
-import { CalendarIcon, CreditCard } from "lucide-react"
+import { CalendarIcon, CircleDashed, CreditCard } from "lucide-react"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -290,6 +290,12 @@ function EditForm({
           </p>
         ) : (
           <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
+            <Chip
+              active={categoryId === null}
+              onClick={() => setCategoryId(null)}
+            >
+              <CircleDashed size={16} /> Sin categoría
+            </Chip>
             {visibleCategories.map((c) => (
               <Chip
                 key={c.id}
@@ -457,6 +463,12 @@ function ConnectedDetail({
           </p>
         ) : (
           <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
+            <Chip
+              active={categoryId === null}
+              onClick={() => setCategoryId(null)}
+            >
+              <CircleDashed size={16} /> Sin categoría
+            </Chip>
             {visibleCategories.map((c) => (
               <Chip
                 key={c.id}

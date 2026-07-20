@@ -401,6 +401,17 @@ export async function getBudgetView(
       status: categoryStatus(used, limit),
     }
   })
+  // Orden (WDC-13): categoría con la transacción más reciente del mes primero. `txs` viene
+  // más-nuevo primero, así que el primer encuentro de cada categoría marca su recencia; las sin
+  // movimiento este mes quedan al final en su orden original (sort estable).
+  const recencyRank = new Map<string, number>()
+  txs.forEach((t, i) => {
+    if (t.categoryId && !recencyRank.has(t.categoryId)) recencyRank.set(t.categoryId, i)
+  })
+  categories.sort(
+    (a, b) =>
+      (recencyRank.get(a.id) ?? txs.length) - (recencyRank.get(b.id) ?? txs.length)
+  )
   const allocated = withLimit
     .filter((x) => x.category.type === "expense")
     .reduce((s, x) => s.add(x.limit), Money.zero(CLP))

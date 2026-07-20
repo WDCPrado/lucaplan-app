@@ -67,9 +67,10 @@ export function ResponsiveModal({
       >
         <DrawerContent
           className={cn(
-            // pt adaptativo: env(safe-area-inset-top) empuja el contenido bajo el notch en la PWA
-            // instalada; en navegador env()=0 y queda el 1rem del p-4 base.
-            "h-[96dvh] pt-[max(env(safe-area-inset-top),1rem)] data-[vaul-drawer-direction=bottom]:max-h-[96dvh]",
+            // Altura menos el safe-area del notch: como el drawer está anclado abajo, restar altura
+            // baja todo el borde superior de la tarjeta bajo el notch en la PWA instalada. En
+            // navegador env()=0 y queda 96dvh como antes.
+            "h-[calc(96dvh-env(safe-area-inset-top))] data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))]",
             className
           )}
         >

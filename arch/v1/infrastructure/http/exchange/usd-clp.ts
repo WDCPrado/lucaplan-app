@@ -1,20 +1,62 @@
 // Tipo de cambio USD→CLP (dólar observado) desde mindicador.cl — API pública chilena, gratis y sin
-// key. Se usa para convertir los movimientos internacionales de tarjeta (montoCompra en USD) a CLP.
-// Best-effort: si la API falla, cae a un valor aproximado para no perder el gasto.
+// key. Convierte los movimientos internacionales de tarjeta (montoCompra en USD) a CLP para que
+// entren en los cálculos. Se pide el rate de la FECHA del movimiento (el observado histórico no
+// cambia → el CLP estimado es estable). Best-effort: si la API falla, cae a un aproximado.
+import type { ExchangeRateProvider } from "../../../domain/finance/exchange.domain.ts"
+
 const FALLBACK_CLP_PER_USD = 950 // ponytail: aproximado de respaldo si mindicador no responde.
 
-export async function getUsdClpRate(): Promise<number> {
-  try {
-    const res = await fetch("https://mindicador.cl/api/dolar", {
-      signal: AbortSignal.timeout(8000),
-    })
-    if (res.ok) {
-      const data = (await res.json()) as { serie?: { valor?: number }[] }
-      const valor = data?.serie?.[0]?.valor
-      if (typeof valor === "number" && valor > 0) return valor
-    }
-  } catch {
-    /* red/timeout → fallback */
+type Series = { byDay: Map<string, number>; latest: number | null }
+
+// Cache por año (in-flight incluida): los valores históricos no cambian, así que una vez cargado
+// el año se reutiliza. Vive en el módulo (por proceso); en serverless se recalienta sin problema.
+const yearCache = new Map<number, Promise<Series>>()
+
+const dayKey = (d: Date) => d.toISOString().slice(0, 10) // yyyy-mm-dd (UTC)
+
+async function fetchYear(year: number): Promise<Series> {
+  const res = await fetch(`https://mindicador.cl/api/dolar/${year}`, {
+    signal: AbortSignal.timeout(8000),
+  })
+  if (!res.ok) throw new Error(`mindicador ${res.status}`)
+  const data = (await res.json()) as {
+    serie?: { fecha?: string; valor?: number }[]
   }
-  return FALLBACK_CLP_PER_USD
+  const byDay = new Map<string, number>()
+  let latest: number | null = null
+  for (const p of data.serie ?? []) {
+    if (!p.fecha || typeof p.valor !== "number" || p.valor <= 0) continue
+    byDay.set(dayKey(new Date(p.fecha)), p.valor)
+    if (latest === null) latest = p.valor // la serie viene de más reciente a más antiguo
+  }
+  return { byDay, latest }
+}
+
+function seriesForYear(year: number): Promise<Series> {
+  let s = yearCache.get(year)
+  if (!s) {
+    // Un fallo de red no se cachea como error permanente: se guarda una serie vacía y el próximo
+    // request reintenta (borrándola). El fallback cubre mientras tanto.
+    s = fetchYear(year).catch(() => {
+      yearCache.delete(year)
+      return { byDay: new Map(), latest: null } as Series
+    })
+    yearCache.set(year, s)
+  }
+  return s
+}
+
+export const exchangeRateProvider: ExchangeRateProvider = {
+  async clpPerUsdAt(date) {
+    const series = await seriesForYear(date.getUTCFullYear())
+    // Día exacto o el hábil anterior más cercano (finde/feriado no tienen observado).
+    for (let i = 0; i < 8; i++) {
+      const d = new Date(date)
+      d.setUTCDate(d.getUTCDate() - i)
+      const v = series.byDay.get(dayKey(d))
+      if (v) return v
+    }
+    // Sin match (fecha muy reciente sin publicar aún, o serie vacía): último conocido o fallback.
+    return series.latest ?? FALLBACK_CLP_PER_USD
+  },
 }

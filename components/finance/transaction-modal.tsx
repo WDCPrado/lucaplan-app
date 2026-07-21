@@ -20,7 +20,7 @@ import { haptic } from "@/lib/haptics"
 import { CorrectionLearnStep } from "./correction-learn-step"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
-import { formatCLP } from "@/lib/finance-format"
+import { formatCLP, formatMoney } from "@/lib/finance-format"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
   AccountDTO,
@@ -430,8 +430,15 @@ function ConnectedDetail({
           className={`tabular text-4xl font-bold ${income ? "text-success" : "text-foreground"}`}
         >
           {income ? "+" : "−"}
-          {formatCLP(Math.abs(tx.amount))}
+          {tx.currency === "CLP"
+            ? formatCLP(Math.abs(tx.amount))
+            : formatMoney(Math.abs(tx.amount), tx.currency as CurrencyCode)}
         </div>
+        {tx.amountClp != null && (
+          <div className="tabular text-sm text-muted-foreground">
+            ≈ {formatCLP(Math.abs(tx.amountClp))} · dólar del día
+          </div>
+        )}
         <div className="text-sm text-balance text-muted-foreground">
           {tx.description}
         </div>

@@ -1,5 +1,6 @@
 import type { TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
-import { formatCLP } from "@/lib/finance-format"
+import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
+import { formatCLP, formatMoney } from "@/lib/finance-format"
 import { CategoryIcon } from "./category-icons"
 import { ProgressRing } from "./progress-ring"
 
@@ -93,10 +94,20 @@ export function MovementRow({
         )}
       </div>
       <div
-        className={`tabular shrink-0 text-sm font-semibold ${income ? "text-success" : "text-foreground"}`}
+        className={`tabular shrink-0 text-right text-sm font-semibold ${income ? "text-success" : "text-foreground"}`}
       >
-        {income ? "+" : "−"}
-        {formatCLP(Math.abs(tx.amount))}
+        <div>
+          {income ? "+" : "−"}
+          {tx.currency === "CLP"
+            ? formatCLP(Math.abs(tx.amount))
+            : formatMoney(Math.abs(tx.amount), tx.currency as CurrencyCode)}
+        </div>
+        {/* Moneda extranjera: equivalente CLP estimado (dólar del día) usado en los cálculos. */}
+        {tx.amountClp != null && (
+          <div className="text-[10px] font-normal text-muted-foreground">
+            ≈ {formatCLP(Math.abs(tx.amountClp))}
+          </div>
+        )}
       </div>
     </button>
   )

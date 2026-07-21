@@ -36,6 +36,7 @@ import {
 import { correctionRepository } from "../../infrastructure/database/prisma/categorization-correction.infrastructure.ts"
 import { incomeRepository } from "../../infrastructure/database/prisma/income.infrastructure.ts"
 import { openaiCategorizationProvider } from "../../infrastructure/http/ai/openai-categorization.provider.ts"
+import { exchangeRateProvider } from "../../infrastructure/http/exchange/usd-clp.ts"
 
 // Todos los adapters, listos para inyectar en los use-cases.
 export const financeDeps = {
@@ -48,6 +49,7 @@ export const financeDeps = {
   incomes: incomeRepository,
   categorization: openaiCategorizationProvider,
   corrections: correctionRepository,
+  exchangeRates: exchangeRateProvider,
 }
 
 function errorStatus(e: unknown): number {

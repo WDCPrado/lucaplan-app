@@ -17,6 +17,8 @@ import {
   CategoryNotFoundError,
 } from "../../domain/finance/finance.domain.ts"
 import type { IncomeRepository } from "../../domain/finance/income.domain.ts"
+import type { ExchangeRateProvider } from "../../domain/finance/exchange.domain.ts"
+import { toClp } from "../../domain/finance/exchange.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
 import {
   computeActiveCash,
@@ -38,6 +40,7 @@ type ReadDeps = {
   categories: CategoryRepository
   transactions: TransactionRepository
   monthlyBudgets: MonthlyBudgetRepository
+  exchangeRates: ExchangeRateProvider
 }
 
 export type MonthlySummaryDTO = {
@@ -93,6 +96,7 @@ export type TransactionDTO = {
   categoryColor: string | null
   remaining: number | null // histórico: lo que quedaba de la categoría justo tras este movimiento
   categoryLimit: number | null // límite efectivo del mes de su categoría (para el arco); null si no aplica
+  amountClp?: number | null // equivalente CLP ESTIMADO si la moneda no es CLP (dólar del día); null si ya es CLP
 }
 
 export type CategoryDTO = {
@@ -120,7 +124,8 @@ function txToDTO(
   cat: Category | undefined,
   remaining: number | null,
   categoryLimit: number | null,
-  editable: boolean
+  editable: boolean,
+  amountClp: number | null = null
 ): TransactionDTO {
   return {
     id: t.id,
@@ -139,7 +144,32 @@ function txToDTO(
     categoryColor: cat?.color ?? null,
     remaining,
     categoryLimit,
+    amountClp,
   }
+}
+
+// Lleva a CLP los montos en otra moneda usando el dólar observado de la FECHA de cada movimiento
+// (el histórico no cambia → el CLP estimado es estable entre vistas). Devuelve, alineado a `txs`:
+// las tx con amount en CLP para las FÓRMULAS, y el CLP estimado por tx para el DTO (null si ya venía
+// en CLP). Los rates se cachean por año en el adapter: muchas fechas del mismo año pegan a la red una vez.
+async function clpView(
+  provider: ExchangeRateProvider,
+  txs: Transaction[]
+): Promise<{ clpTxs: Transaction[]; clpAmounts: (number | null)[] }> {
+  const rates = await Promise.all(
+    txs.map((t) =>
+      t.amount.currency === "CLP"
+        ? Promise.resolve(0)
+        : provider.clpPerUsdAt(t.date)
+    )
+  )
+  const clpTxs = txs.map((t, i) =>
+    t.amount.currency === "CLP" ? t : { ...t, amount: toClp(t.amount, rates[i]) }
+  )
+  const clpAmounts = txs.map((t, i) =>
+    t.amount.currency === "CLP" ? null : clpTxs[i].amount.toMajor()
+  )
+  return { clpTxs, clpAmounts }
 }
 
 // "Quedan" histórico: recorre los gastos (débito) de más antiguo a más nuevo acumulando por
@@ -197,11 +227,13 @@ export async function getMonthlySummary(
   const accounts = await deps.accounts.listByUser(userId)
   const txs = await deps.transactions.listByUserPeriod(userId, year, month)
   const withLimit = await categoriesWithLimit(deps, userId, year, month)
+  // Montos en otra moneda (USD) convertidos a CLP por el dólar de su fecha, para que cuenten.
+  const { clpTxs } = await clpView(deps.exchangeRates, txs)
 
   // Solo movimientos CON categoría: los totales del resumen usan el mismo criterio que el
   // presupuesto (uso por categoría). Lo sin categoría no cuenta hasta clasificarse (triage).
   const sumClp = (dir: string) =>
-    txs
+    clpTxs
       .filter(
         (t) =>
           t.direction === dir &&
@@ -287,22 +319,26 @@ export async function listTransactions(
   const txs = await deps.transactions.listByUserPeriod(userId, year, month)
   const withLimit = await categoriesWithLimit(deps, userId, year, month)
   const accounts = await deps.accounts.listByUser(userId)
+  const { clpTxs, clpAmounts } = await clpView(deps.exchangeRates, txs)
   const manual = new Set(
     accounts.filter((a) => a.provider === "manual").map((a) => a.id)
   )
   const catById = new Map(withLimit.map((x) => [x.category.id, x.category]))
   const limitById = new Map(withLimit.map((x) => [x.category.id, x.limit]))
-  const remaining = historicalRemaining(txs, (id) => limitById.get(id) ?? null)
+  // "Quedan" histórico en CLP (USD ya convertidos), indexado por id.
+  const remaining = historicalRemaining(clpTxs, (id) => limitById.get(id) ?? null)
   // La lista no muestra reversados ni duplicados (ruido); sí muestra confirmed y pending.
   return txs
-    .filter((t) => t.status !== "reversed" && t.status !== "duplicated")
-    .map((t) =>
+    .map((t, i) => ({ t, clp: clpAmounts[i] }))
+    .filter(({ t }) => t.status !== "reversed" && t.status !== "duplicated")
+    .map(({ t, clp }) =>
       txToDTO(
         t,
         t.categoryId ? catById.get(t.categoryId) : undefined,
         remaining.get(t.id) ?? null,
         t.categoryId ? (limitById.get(t.categoryId)?.toMajor() ?? null) : null,
-        manual.has(t.accountId)
+        manual.has(t.accountId),
+        clp
       )
     )
 }
@@ -356,17 +392,19 @@ export async function searchTransactions(
     deps.categories.listByUser(userId),
     deps.accounts.listByUser(userId),
   ])
+  const { clpAmounts } = await clpView(deps.exchangeRates, txs)
   const catById = new Map(cats.map((c) => [c.id, c]))
   const manual = new Set(
     accounts.filter((a) => a.provider === "manual").map((a) => a.id)
   )
-  return txs.map((t) =>
+  return txs.map((t, i) =>
     txToDTO(
       t,
       t.categoryId ? catById.get(t.categoryId) : undefined,
       null,
       null,
-      manual.has(t.accountId)
+      manual.has(t.accountId),
+      clpAmounts[i]
     )
   )
 }
@@ -394,11 +432,13 @@ export async function getBudgetView(
     deps.transactions.listByUserPeriod(userId, year, month),
     deps.monthlyBudgets.listByUser(userId),
   ])
+  // USD → CLP por fecha para que el uso por categoría cuente esos movimientos.
+  const { clpTxs } = await clpView(deps.exchangeRates, txs)
   const categories = withLimit.map(({ category, limit }): CategoryDTO => {
     const { used, available } = computeCategoryUsage(
       category.id,
       limit,
-      txs,
+      clpTxs,
       year,
       month,
       category.type === "income" ? "credit" : "debit"
@@ -516,18 +556,19 @@ export async function getCategoryDetail(
     month
   )
   const accounts = await deps.accounts.listByUser(userId)
+  const { clpTxs, clpAmounts } = await clpView(deps.exchangeRates, txs)
   const manual = new Set(
     accounts.filter((a) => a.provider === "manual").map((a) => a.id)
   )
   const { used, available } = computeCategoryUsage(
     categoryId,
     limit,
-    txs,
+    clpTxs,
     year,
     month,
     category.type === "income" ? "credit" : "debit"
   )
-  const remaining = historicalRemaining(txs, () => limit)
+  const remaining = historicalRemaining(clpTxs, () => limit)
   return {
     id: category.id,
     name: category.name,
@@ -540,14 +581,16 @@ export async function getCategoryDetail(
     available: available.toMajor(),
     status: categoryStatus(used, limit),
     transactions: txs
-      .filter((t) => t.status !== "reversed" && t.status !== "duplicated")
-      .map((t) =>
+      .map((t, i) => ({ t, clp: clpAmounts[i] }))
+      .filter(({ t }) => t.status !== "reversed" && t.status !== "duplicated")
+      .map(({ t, clp }) =>
         txToDTO(
           t,
           category,
           remaining.get(t.id) ?? null,
           limit.toMajor(),
-          manual.has(t.accountId)
+          manual.has(t.accountId),
+          clp
         )
       ),
   }

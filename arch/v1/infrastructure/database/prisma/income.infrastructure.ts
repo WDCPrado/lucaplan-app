@@ -125,4 +125,27 @@ export const incomeRepository: IncomeRepository = {
       return { transactionId: row.id, created: true }
     })
   },
+  async ungenerateMonthly(incomeId, year, month) {
+    return prisma.$transaction(async (db) => {
+      const tx = await db.transaction.findFirst({
+        where: { incomeId, ...periodWhere(year, month) },
+      })
+      if (!tx) return { deleted: false }
+
+      // Revierte el credit: resta del saldo el monto REAL del movimiento (la fuente pudo cambiar).
+      const account = await db.financialAccount.findUniqueOrThrow({
+        where: { id: tx.accountId },
+      })
+      const newBalance = Money.of(
+        account.balance.toString(),
+        account.currency as CurrencyCode
+      ).subtract(Money.of(tx.amount.toString(), tx.currency as CurrencyCode))
+      await db.financialAccount.update({
+        where: { id: tx.accountId },
+        data: { balance: newBalance.toDecimalString() },
+      })
+      await db.transaction.delete({ where: { id: tx.id } })
+      return { deleted: true }
+    })
+  },
 }

@@ -2,10 +2,21 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Loader2, Plus } from "lucide-react"
+import { Loader2, Plus, TriangleAlert, X } from "lucide-react"
 import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { haptic } from "@/lib/haptics"
-import { formatMoney } from "@/lib/finance-format"
+import { formatMoney, monthName } from "@/lib/finance-format"
+import { payDayState } from "@/lib/income-schedule"
 import { cn } from "@/lib/utils"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import { CategoryIcon } from "./category-icons"
@@ -37,7 +48,10 @@ export function MonthlyIncomes({
   const router = useRouter()
   const [modal, setModal] = useState<IncomeDTO | null | undefined>(undefined) // undefined=cerrado, null=crear
   const [generating, setGenerating] = useState<string | null>(null)
+  const [removing, setRemoving] = useState<string | null>(null)
+  const [confirm, setConfirm] = useState<IncomeDTO | null>(null) // aviso al generar antes de la fecha
   const [applying, setApplying] = useState(false)
+  const now = new Date()
 
   const activeTotal = incomes
     .filter((i) => i.isActive && i.currency === "CLP")
@@ -62,6 +76,23 @@ export function MonthlyIncomes({
     toast.success(
       data.created ? "Ingreso generado" : "Ese ingreso ya estaba generado"
     )
+    router.refresh()
+  }
+
+  // Deshace el movimiento generado del mes (revierte el saldo) — por si se generó por error.
+  async function remove(income: IncomeDTO) {
+    setRemoving(income.id)
+    const res = await fetch(
+      `/api/incomes/${income.id}/generate?year=${period.year}&month=${period.month}`,
+      { method: "DELETE" }
+    )
+    setRemoving(null)
+    if (!res.ok) {
+      haptic("error")
+      return toast.error("No se pudo eliminar el ingreso generado")
+    }
+    haptic("success")
+    toast.success("Ingreso eliminado")
     router.refresh()
   }
 
@@ -130,7 +161,12 @@ export function MonthlyIncomes({
           </button>
         ) : (
           <ul className="flex flex-col gap-2">
-            {incomes.map((income) => (
+            {incomes.map((income) => {
+              // Atrasado: sin generar y su día de pago del mes ya pasó → botón en color de aviso.
+              const late =
+                !income.generated &&
+                payDayState(period, income.dayOfMonth, now) === "past"
+              return (
               <li
                 key={income.id}
                 className={cn(
@@ -161,17 +197,41 @@ export function MonthlyIncomes({
                     +{formatMoney(income.amount, income.currency as CurrencyCode)}
                   </span>
                   {income.generated ? (
-                    <span className="flex items-center gap-1 text-xs font-medium text-success">
-                      <Check className="size-3.5" /> Generado
-                    </span>
+                    <button
+                      onClick={() => remove(income)}
+                      disabled={removing === income.id}
+                      className="flex items-center gap-1 rounded-full border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-60"
+                    >
+                      {removing === income.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <>
+                          <X className="size-3.5" /> Eliminar
+                        </>
+                      )}
+                    </button>
                   ) : (
                     <button
-                      onClick={() => generate(income)}
+                      // Antes de la fecha: pide confirmación. En la fecha o pasada: genera directo.
+                      onClick={() =>
+                        payDayState(period, income.dayOfMonth, now) === "future"
+                          ? setConfirm(income)
+                          : generate(income)
+                      }
                       disabled={generating === income.id}
-                      className="rounded-full border border-primary/40 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10 disabled:opacity-60"
+                      className={cn(
+                        "flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-60",
+                        late
+                          ? "border-warning bg-warning/10 text-warning hover:bg-warning/20"
+                          : "border-primary/40 text-primary hover:bg-primary/10"
+                      )}
                     >
                       {generating === income.id ? (
                         <Loader2 className="size-3.5 animate-spin" />
+                      ) : late ? (
+                        <>
+                          <TriangleAlert className="size-3.5" /> Generar
+                        </>
                       ) : (
                         "Generar"
                       )}
@@ -179,10 +239,37 @@ export function MonthlyIncomes({
                   )}
                 </div>
               </li>
-            ))}
+              )
+            })}
           </ul>
         )}
       </div>
+
+      <AlertDialog
+        open={confirm !== null}
+        onOpenChange={(o) => !o && setConfirm(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Aún no llega el día de pago</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirm &&
+                `"${confirm.name}" está programado para el día ${confirm.dayOfMonth} de ${monthName(period.month)}. ¿Generar el ingreso de todos modos?`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirm) generate(confirm)
+                setConfirm(null)
+              }}
+            >
+              Generar igual
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {modal !== undefined && (
         <IncomeModal

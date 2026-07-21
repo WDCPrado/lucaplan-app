@@ -342,6 +342,7 @@ model Transaction {
   status          String           @default("confirmed") // confirmed | pending | reversed | duplicated
   pending         Boolean          @default(false)
   isInternal      Boolean          @default(false) // transferencia/pago interno (traspaso, pago línea/tarjeta): NO cuenta en presupuesto
+  reviewed        Boolean          @default(false) // el usuario ya decidió la categorización (creó/editó/categorizó, aunque la deje vacía); excluye del triage y de la IA. La IA y el sync NO lo marcan.
   externalId      String? // id del movimiento en el banco; null si es manual o snapshot (no facturado)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt

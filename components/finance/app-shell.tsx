@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import {
   Home,
@@ -26,6 +28,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { haptic } from "@/lib/haptics"
@@ -41,10 +44,11 @@ import {
 
 // Solo rutas que existen. Movimientos/Presupuestos viven como secciones del
 // dashboard; cuando sean páginas propias, se agregan aquí.
-export type NavKey = "inicio"
+export type NavKey = "inicio" | "perfil"
 
-const NAV: { key: NavKey; label: string; Icon: typeof Home }[] = [
-  { key: "inicio", label: "Inicio", Icon: Home },
+const NAV: { key: NavKey; label: string; Icon: typeof Home; href: string }[] = [
+  { key: "inicio", label: "Inicio", Icon: Home, href: "/dashboard" },
+  { key: "perfil", label: "Mi perfil", Icon: UserRound, href: "/profile" },
 ]
 
 type AppShellProps = {
@@ -63,7 +67,7 @@ type AppShellProps = {
 // acciones, y el contenido en SidebarInset. El toggle de tema vive en el menú de usuario.
 export function AppShell({
   user,
-  active = "inicio",
+  active,
   onNavigate,
   onSignOut,
   onAdd,
@@ -89,20 +93,7 @@ export function AppShell({
 
           <SidebarContent>
             <SidebarGroup>
-              <SidebarMenu>
-                {NAV.map(({ key, label, Icon }) => (
-                  <SidebarMenuItem key={key}>
-                    <SidebarMenuButton
-                      isActive={active === key}
-                      tooltip={label}
-                      onClick={() => onNavigate?.(key)}
-                    >
-                      <Icon />
-                      <span>{label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
+              <NavMenu active={active} onNavigate={onNavigate} />
             </SidebarGroup>
           </SidebarContent>
 
@@ -122,49 +113,41 @@ export function AppShell({
             )}
             <div className="ml-auto flex items-center gap-2">{actions}</div>
           </header>
-          {/* Móvil: fila flotante a la altura del selector de mes — lupa | selector | usuario.
-              items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar. */}
-          {actions && (
-            <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center bg-linear-to-b from-background via-background/85 to-transparent px-4 pt-3 pb-6 md:hidden">
-              <div className="pointer-events-auto flex w-full items-start justify-between gap-2 drop-shadow-md">
-                {onSearch && (
+          {/* Móvil: fila flotante siempre visible — sidebar | (selector u otras acciones) | usuario.
+              items-start: el "Hoy" cuelga debajo del selector sin descentrar sidebar/avatar. */}
+          <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center bg-linear-to-b from-background via-background/85 to-transparent px-4 pt-3 pb-6 md:hidden">
+            <div className="pointer-events-auto flex w-full items-start justify-between gap-2 drop-shadow-md">
+              {/* Trigger del sidebar (drawer en móvil), donde antes vivía la lupa */}
+              <SidebarTrigger
+                onClick={() => haptic("light")}
+                aria-label="Abrir menú"
+                className="size-10 rounded-full bg-secondary transition-colors hover:bg-accent [&>svg]:size-4.5"
+              />
+              {actions}
+              <UserMenu
+                user={user}
+                onSignOut={onSignOut}
+                trigger={
                   <button
-                    onClick={() => {
-                      haptic("light")
-                      onSearch()
-                    }}
-                    aria-label="Buscar movimientos"
-                    className="grid size-10 place-items-center rounded-full bg-secondary transition-colors hover:bg-accent"
+                    className="grid size-10 place-items-center rounded-full"
+                    aria-label="Perfil"
+                    onClick={() => haptic("light")}
                   >
-                    <Search className="size-4.5" />
+                    <Avatar className="size-10 rounded-full">
+                      <AvatarFallback className="rounded-full bg-secondary text-sm font-medium text-foreground">
+                        {user.initial}
+                      </AvatarFallback>
+                    </Avatar>
                   </button>
-                )}
-                {actions}
-                <UserMenu
-                  user={user}
-                  onSignOut={onSignOut}
-                  trigger={
-                    <button
-                      className="grid size-10 place-items-center rounded-full"
-                      aria-label="Perfil"
-                      onClick={() => haptic("light")}
-                    >
-                      <Avatar className="size-10 rounded-full">
-                        <AvatarFallback className="rounded-full bg-secondary text-sm font-medium text-foreground">
-                          {user.initial}
-                        </AvatarFallback>
-                      </Avatar>
-                    </button>
-                  }
-                />
-              </div>
+                }
+              />
             </div>
-          )}
+          </div>
           {/* pb móvil: aire para que el FAB no tape el último movimiento */}
           <div className="min-w-0 flex-1 pb-20 md:pb-0">{children}</div>
         </SidebarInset>
 
-        {/* FABs flotantes abajo-derecha (en móvil solo el crear; la lupa vive arriba) */}
+        {/* FABs flotantes abajo-derecha: lupa + crear, juntos (misma fila en móvil y escritorio) */}
         {(onAdd || onSearch) && (
           <div className="fixed right-5 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-30 flex items-center gap-3 lg:right-8 lg:bottom-8">
             {onSearch && (
@@ -176,7 +159,7 @@ export function AppShell({
                 size="icon"
                 variant="secondary"
                 aria-label="Buscar movimientos"
-                className="hidden size-14 rounded-full shadow-lg md:inline-flex"
+                className="inline-flex size-14 rounded-full shadow-lg"
               >
                 <Search className="size-6" />
               </Button>
@@ -198,6 +181,44 @@ export function AppShell({
         )}
       </SidebarProvider>
     </TooltipProvider>
+  )
+}
+
+// Nav del sidebar: links a rutas reales. El item activo se deriva del pathname (el prop
+// `active` solo lo fuerza, para mocks). En móvil cierra el drawer al navegar.
+function NavMenu({
+  active,
+  onNavigate,
+}: {
+  active?: NavKey
+  onNavigate?: (key: NavKey) => void
+}) {
+  const pathname = usePathname()
+  const { isMobile, setOpenMobile } = useSidebar()
+  const activeKey =
+    active ?? NAV.find((n) => pathname === n.href || pathname.startsWith(n.href + "/"))?.key
+
+  return (
+    <SidebarMenu>
+      {NAV.map(({ key, label, Icon, href }) => (
+        <SidebarMenuItem key={key}>
+          <SidebarMenuButton asChild isActive={activeKey === key} tooltip={label}>
+            <Link
+              href={href}
+              onClick={() => {
+                haptic("light")
+                onNavigate?.(key)
+                if (isMobile) setOpenMobile(false)
+                if (pathname === href) window.scrollTo({ top: 0, behavior: "smooth" })
+              }}
+            >
+              <Icon />
+              <span>{label}</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      ))}
+    </SidebarMenu>
   )
 }
 
@@ -249,9 +270,11 @@ function UserMenu({
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <UserRound className="size-4" />
-          Mi perfil
+        <DropdownMenuItem asChild>
+          <Link href="/profile">
+            <UserRound className="size-4" />
+            Mi perfil
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={(e) => {

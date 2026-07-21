@@ -161,6 +161,19 @@ export async function generateMonthlyIncome(
   return deps.incomes.generateMonthly(income, input.year, input.month)
 }
 
+// Deshace el movimiento de ingreso de un mes (por si se generó por error). Idempotente en el repo.
+export async function ungenerateMonthlyIncome(
+  deps: { incomes: IncomeRepository },
+  userId: string,
+  input: { incomeId: string; year: number; month: number }
+): Promise<{ deleted: boolean }> {
+  validatePeriod(input.year, input.month)
+  const income = await deps.incomes.findById(input.incomeId)
+  if (!income) throw new IncomeNotFoundError(input.incomeId)
+  if (income.userId !== userId) throw new NotOwnerError()
+  return deps.incomes.ungenerateMonthly(input.incomeId, input.year, input.month)
+}
+
 // Suma (CLP) de las fuentes de ingreso activas del usuario. El límite global es CLP; solo los ingresos
 // CLP lo alimentan (la conversión multi-moneda se resolverá cuando exista).
 export async function sumActiveIncomesCLP(

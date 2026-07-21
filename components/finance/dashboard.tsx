@@ -7,7 +7,7 @@ import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useCardCarousel } from "@/hooks/use-card-carousel"
-import { AppShell, type NavKey } from "./app-shell"
+import { AppShell } from "./app-shell"
 import { MonthPicker } from "./month-picker"
 import { AccountCard } from "./account-card"
 import { MovementsList } from "./movements-list"
@@ -33,6 +33,7 @@ import {
 } from "@/lib/finance-format"
 import type {
   AccountDTO,
+  AmountBoundsDTO,
   BudgetViewDTO,
   CategoryDTO,
   IncomeDTO,
@@ -49,6 +50,7 @@ type Props = {
   transactions: TransactionDTO[]
   uncategorized: UncategorizedDTO
   incomes: IncomeDTO[]
+  amountBounds: AmountBoundsDTO
   user: { name: string; initial: string; email: string }
   outlookResult: string | null
   outlookReason: string | null
@@ -64,6 +66,7 @@ export function Dashboard({
   transactions,
   uncategorized,
   incomes,
+  amountBounds,
   user,
   outlookResult,
   outlookReason,
@@ -135,15 +138,9 @@ export function Dashboard({
     router.push("/login")
   }
 
-  // Nav de una sola página: Inicio → arriba.
-  function navigate(_key: NavKey) {
-    window.scrollTo({ top: 0, behavior: "smooth" })
-  }
-
   return (
     <AppShell
       user={user}
-      onNavigate={navigate}
       onSignOut={signOut}
       onAdd={() => setAddOpen(true)}
       onSearch={() => setSearchOpen(true)}
@@ -527,6 +524,7 @@ export function Dashboard({
         onOpenChange={setSearchOpen}
         categories={budget.categories}
         accounts={accounts}
+        amountBounds={amountBounds}
         onOpenTransaction={(tx) => {
           setSearchOpen(false)
           setDetailTx(tx)

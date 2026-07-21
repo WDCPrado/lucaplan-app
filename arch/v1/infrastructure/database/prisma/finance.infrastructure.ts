@@ -2,6 +2,10 @@
 // El dominio nunca ve tipos de Prisma. Los presupuestos/categorías se asumen en CLP (base).
 import { prisma } from "./client.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
+import {
+  amountDigits,
+  amountPrefixRanges,
+} from "../../../domain/finance/amount-search.ts"
 import type {
   Account,
   AccountRepository,
@@ -321,11 +325,23 @@ export const transactionRepository: TransactionRepository = {
         ...(f.from ? { gte: f.from } : {}),
         ...(f.to ? { lte: f.to } : {}),
       }
+    // Rango del slider: compara contra la magnitud (columna positiva). AND con el resto.
+    if (f.amountMin != null || f.amountMax != null)
+      where.amount = {
+        ...(f.amountMin != null ? { gte: f.amountMin } : {}),
+        ...(f.amountMax != null ? { lte: f.amountMax } : {}),
+      }
     if (f.query) {
-      where.OR = [
+      // Match textual O por monto: si la query tiene dígitos, además matchea montos cuyo entero
+      // EMPIEZA con esos dígitos (prefijo). Ambas alternativas conviven en el mismo campo.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const or: any[] = [
         { description: { contains: f.query, mode: "insensitive" } },
         { category: { name: { contains: f.query, mode: "insensitive" } } },
       ]
+      for (const r of amountPrefixRanges(amountDigits(f.query)))
+        or.push({ amount: { gte: r.gte, lt: r.lt } })
+      where.OR = or
     }
     // Triage: el flag mete el criterio de elegibilidad COMPLETO al where (no post-filtrado),
     // para que el `take` no se consuma con filas inelegibles.
@@ -333,6 +349,7 @@ export const transactionRepository: TransactionRepository = {
       where.categoryId = null
       where.status = { notIn: ["reversed", "duplicated"] }
       where.isInternal = false
+      where.reviewed = false // el usuario ya decidió (aunque sea dejarla vacía) no vuelve al triage
     }
     const rows = await prisma.transaction.findMany({
       where,
@@ -340,6 +357,15 @@ export const transactionRepository: TransactionRepository = {
       take: Math.min(Math.max(f.limit ?? 50, 1), 100),
     })
     return rows.map(toTransaction)
+  },
+  async amountBounds(userId) {
+    // Magnitudes (columna positiva) excluyendo ruido; {0,0} si el usuario no tiene movimientos.
+    const r = await prisma.transaction.aggregate({
+      where: { userId, status: { notIn: ["reversed", "duplicated"] } },
+      _min: { amount: true },
+      _max: { amount: true },
+    })
+    return { min: Number(r._min.amount ?? 0), max: Number(r._max.amount ?? 0) }
   },
   async findById(id) {
     const row = await prisma.transaction.findUnique({ where: { id } })
@@ -370,6 +396,7 @@ export const transactionRepository: TransactionRepository = {
           amount: tx.amount.toDecimalString(),
           currency: tx.amount.currency,
           direction: tx.direction,
+          reviewed: true, // creación manual: el usuario ya decidió la categoría (o su ausencia)
         },
       })
     })
@@ -408,6 +435,7 @@ export const transactionRepository: TransactionRepository = {
           amount: input.amount.toDecimalString(),
           currency: input.amount.currency,
           direction: input.direction,
+          reviewed: true, // edición del usuario: decidió la categoría (o su ausencia)
         },
       })
     })
@@ -418,7 +446,8 @@ export const transactionRepository: TransactionRepository = {
     return toTransaction(
       await prisma.transaction.update({
         where: { id: transactionId },
-        data: { categoryId },
+        // reviewed: el usuario decidió (incluye "Sin categoría" = categoryId null) → fuera del triage
+        data: { categoryId, reviewed: true },
       })
     )
   },

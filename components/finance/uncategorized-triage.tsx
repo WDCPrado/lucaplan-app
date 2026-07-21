@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, CreditCard, Plus, Undo2, X } from "lucide-react"
+import { Check, CircleDashed, CreditCard, Plus, Undo2, X } from "lucide-react"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -114,6 +114,41 @@ export function UncategorizedTriage({
     }
     haptic("light")
     setLearn({ categoryId, sameTextCount })
+  }
+
+  // "Sin categoría": el usuario decide dejar el movimiento sin clasificar. Persiste (categoryId null,
+  // que en el backend lo marca revisado → no reaparece en el triage) y vuela la card sin paso de
+  // aprendizaje (no hay categoría que aprender).
+  async function dismiss() {
+    if (!front || busy || exiting || learn) return
+    setBusy(true)
+    let ok = false
+    try {
+      const res = await fetch(`/api/transactions/${front.id}/category`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categoryId: null }),
+      })
+      ok = res.ok
+    } catch {
+      // red caída → mismo aviso que un error del servidor
+    }
+    if (!ok) {
+      setBusy(false)
+      haptic("error")
+      toast.error("No se pudo guardar")
+      return
+    }
+    haptic(pending.length === 1 ? "success" : "light") // el último cierra el triage
+    const doneTx = { ...front, categoryId: null }
+    setReturningId(null)
+    setExiting(true)
+    window.setTimeout(() => {
+      setPending((p) => p.slice(1))
+      setDone((d) => [...d, doneTx])
+      setExiting(false)
+      setBusy(false)
+    }, EXIT_MS)
   }
 
   // Cierre del paso de aprendizaje: guarda la nota y/o propaga a los parecidos (best-effort), y
@@ -326,6 +361,7 @@ export function UncategorizedTriage({
                           categories={categories}
                           busy={busy || exiting}
                           onPick={pick}
+                          onNone={dismiss}
                           onCreateCategory={createCategory}
                         />
                       ))}
@@ -348,6 +384,7 @@ function TriageCard({
   categories,
   busy,
   onPick,
+  onNone,
   onCreateCategory,
 }: {
   tx: TransactionDTO
@@ -355,6 +392,7 @@ function TriageCard({
   categories: CategoryDTO[]
   busy: boolean
   onPick: (categoryId: string) => void
+  onNone: () => void
   onCreateCategory: () => void
 }) {
   const income = tx.direction === "credit"
@@ -391,43 +429,36 @@ function TriageCard({
         <span>{formatDateHeader(tx.date)}</span>
       </div>
 
-      {visible.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl bg-secondary/50 p-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            Sin categorías de {income ? "ingreso" : "gasto"} para clasificar
-            este movimiento.
-          </p>
-          <Button
-            variant="outline"
-            className="h-11 rounded-full"
-            onClick={onCreateCategory}
-          >
-            Crear categoría
-          </Button>
-        </div>
-      ) : (
-        <div className="-mx-6 flex scrollbar-none gap-2 overflow-x-auto px-6 pb-1">
-          {visible.map((c) => (
-            <Chip
-              key={c.id}
-              active={c.id === tx.categoryId}
-              disabled={busy}
-              onClick={() => c.id !== tx.categoryId && onPick(c.id)}
-            >
-              <CategoryIcon
-                icon={c.icon}
-                size={16}
-                color={c.color ?? undefined}
-              />{" "}
-              {c.name}
-            </Chip>
-          ))}
-          {/* Crear una categoría nueva sin salir del triage (aparece siempre, al final de los chips). */}
-          <Chip active={false} disabled={busy} onClick={onCreateCategory}>
-            <Plus className="size-4" /> Nueva
-          </Chip>
-        </div>
+      {visible.length === 0 && (
+        <p className="text-center text-sm text-muted-foreground">
+          Sin categorías de {income ? "ingreso" : "gasto"}. Crea una o deja el
+          movimiento sin categoría.
+        </p>
       )}
+      {/* "Sin categoría" (dejar sin clasificar) y "Nueva" (crear al vuelo) siempre disponibles. */}
+      <div className="-mx-6 flex scrollbar-none gap-2 overflow-x-auto px-6 pb-1">
+        <Chip active={false} disabled={busy} onClick={onNone}>
+          <CircleDashed className="size-4" /> Sin categoría
+        </Chip>
+        {visible.map((c) => (
+          <Chip
+            key={c.id}
+            active={c.id === tx.categoryId}
+            disabled={busy}
+            onClick={() => c.id !== tx.categoryId && onPick(c.id)}
+          >
+            <CategoryIcon
+              icon={c.icon}
+              size={16}
+              color={c.color ?? undefined}
+            />{" "}
+            {c.name}
+          </Chip>
+        ))}
+        <Chip active={false} disabled={busy} onClick={onCreateCategory}>
+          <Plus className="size-4" /> Nueva
+        </Chip>
+      </div>
     </div>
   )
 }

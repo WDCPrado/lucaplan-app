@@ -18,7 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { AccountCard } from "./account-card"
-import { formatCLP } from "@/lib/finance-format"
+import { formatCLP, formatMoney } from "@/lib/finance-format"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 const TYPE_LABEL: Record<string, string> = {
@@ -42,6 +42,11 @@ export function AccountInfoModal({
   const router = useRouter()
   const [disconnecting, setDisconnecting] = useState(false)
   const connected = account?.provider === "bancochile"
+  const buckets = account?.buckets ?? []
+  const nat = buckets.find((b) => b.kind === "credit_national")
+  const intl = buckets.find((b) => b.kind === "credit_international")
+  // Tarjeta de crédito: el "saldo" útil es el CUPO DISPONIBLE, no la deuda (account.balance negativo).
+  const isCreditCupo = account?.accountType === "credit_card" && !!nat
 
   async function disconnect() {
     if (!account) return
@@ -74,7 +79,23 @@ export function AccountInfoModal({
               value={TYPE_LABEL[account.accountType] ?? account.accountType}
             />
             <Row label="Moneda" value={account.currency} />
-            <Row label="Saldo" value={formatCLP(account.balance)} />
+            {isCreditCupo && nat ? (
+              <>
+                {/* Crédito: cupo disponible de total (el usado ya se ve en la tarjeta de arriba). */}
+                <Row
+                  label="Cupo nacional"
+                  value={`${formatCLP(nat.available)} de ${formatCLP(nat.limit)}`}
+                />
+                {intl && (
+                  <Row
+                    label="Cupo internacional"
+                    value={`${formatMoney(intl.available, "USD")} de ${formatMoney(intl.limit, "USD")}`}
+                  />
+                )}
+              </>
+            ) : (
+              <Row label="Saldo" value={formatCLP(account.balance)} />
+            )}
             {account.cardLast4 && (
               <Row label="Tarjeta" value={`•••• ${account.cardLast4}`} />
             )}

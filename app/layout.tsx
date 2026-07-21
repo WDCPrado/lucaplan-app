@@ -101,7 +101,7 @@ export default function RootLayout({
           <div data-vaul-drawer-wrapper className="min-h-dvh">
             {children}
           </div>
-          <Toaster />
+          <Toaster  richColors={true} position="bottom-center"/>
           <ServiceWorkerRegistration />
           <PwaRefresh />
         </ThemeProvider>

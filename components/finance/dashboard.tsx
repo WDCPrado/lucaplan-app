@@ -459,6 +459,11 @@ export function Dashboard({
                 key={`${period.year}-${period.month}`}
                 transactions={transactions}
                 onOpen={setDetailTx}
+                // Tocar el arco del movimiento abre el detalle de SU categoría (no el movimiento).
+                onOpenCategory={(id) => {
+                  const cat = budget.categories.find((c) => c.id === id)
+                  if (cat) setDetail(cat)
+                }}
               />
             )}
           </section>

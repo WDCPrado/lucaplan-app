@@ -28,9 +28,11 @@ function groupByDate(
 export function MovementsList({
   transactions,
   onOpen,
+  onOpenCategory,
 }: {
   transactions: TransactionDTO[]
   onOpen: (tx: TransactionDTO) => void
+  onOpenCategory?: (categoryId: string) => void
 }) {
   const [page, setPage] = useState(1)
   const topRef = useRef<HTMLDivElement>(null)
@@ -56,7 +58,12 @@ export function MovementsList({
             </div>
             <div className="flex flex-col gap-0.5">
               {g.items.map((t) => (
-                <MovementRow key={t.id} tx={t} onOpen={onOpen} />
+                <MovementRow
+                  key={t.id}
+                  tx={t}
+                  onOpen={onOpen}
+                  onOpenCategory={onOpenCategory}
+                />
               ))}
             </div>
           </div>

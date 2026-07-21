@@ -262,23 +262,25 @@ export function Dashboard({
           </div>
         </section>
 
-        {/* Ingresos del mes: fuentes de ingreso del usuario (generar, CRUD, sugerir presupuesto) */}
-        <section className="mt-8">
-          <MonthlyIncomes
-            incomes={incomes}
-            accounts={accounts}
-            categories={budget.categories}
-            period={period}
-            globalLimit={budget.globalLimit}
-            onCreateCategory={() => setEditCat(null)}
-          />
-        </section>
+        {/* Escritorio: columna izquierda con Ingresos + Movimientos apilados y Presupuestos en la
+            derecha desde arriba (a la altura de Ingresos) vía row-span. Móvil: una columna en el
+            orden del DOM — Ingresos → Presupuestos → Movimientos, igual que antes. */}
+        <div className="mt-8 grid gap-x-6 gap-y-8 lg:grid-cols-3 lg:items-start">
+          {/* Ingresos del mes: fuentes de ingreso del usuario (generar, CRUD, sugerir presupuesto) */}
+          <section className="min-w-0 lg:col-span-2">
+            <MonthlyIncomes
+              incomes={incomes}
+              accounts={accounts}
+              categories={budget.categories}
+              period={period}
+              globalLimit={budget.globalLimit}
+              onCreateCategory={() => setEditCat(null)}
+            />
+          </section>
 
-        {/* Presupuestos + Movimientos */}
-        <div className="mt-8 grid gap-6 lg:grid-cols-3">
           <section
             id="presupuestos"
-            className="min-w-0 scroll-mt-20 lg:sticky lg:top-20 lg:order-2 lg:col-span-1 lg:self-start"
+            className="min-w-0 scroll-mt-20 lg:sticky lg:top-20 lg:col-span-1 lg:row-span-2 lg:self-start"
           >
             <div className="mb-3 flex items-center justify-between gap-2">
               {/* Mes junto al título; a la derecha "Agregar" (mismo patrón que Ingresos del mes). */}
@@ -458,7 +460,7 @@ export function Dashboard({
 
           <section
             id="movimientos"
-            className="min-w-0 scroll-mt-20 lg:order-1 lg:col-span-2"
+            className="min-w-0 scroll-mt-20 lg:col-span-2"
           >
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-heading text-lg font-bold">Movimientos</h2>

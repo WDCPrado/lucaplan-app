@@ -385,4 +385,12 @@ html:has(main[data-landing]) body {
   .pwa-safe-top {
     padding-top: max(env(safe-area-inset-top), 0.75rem);
   }
+  /* El sidebar es `fixed`, así que el padding del body no lo alcanza: sin esto el logo queda bajo
+     el notch/Dynamic Island y el menú de usuario bajo el home indicator (iOS instalado). Cubre el
+     drawer móvil y el panel de escritorio; el fondo sigue llegando a los bordes (padding interno). */
+  [data-slot="sidebar"][data-mobile="true"],
+  [data-slot="sidebar-container"] {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }

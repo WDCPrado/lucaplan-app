@@ -19,6 +19,7 @@ import type {
 import {
   createIncome,
   generateMonthlyIncome,
+  ungenerateMonthlyIncome,
   seedGlobalLimitFromIncomes,
 } from "./income-use-cases.ts"
 
@@ -113,6 +114,9 @@ function incomesRepo(seed: Income[] = []): IncomeRepository {
       generated.set(k, txId)
       return { transactionId: txId, created: true }
     },
+    ungenerateMonthly: async (id, y, m) => ({
+      deleted: generated.delete(key(id, y, m)),
+    }),
   }
 }
 
@@ -212,6 +216,25 @@ test("generateMonthlyIncome crea el movimiento y no duplica", async () => {
   })
   assert.equal(second.created, false)
   assert.equal(second.transactionId, first.transactionId)
+})
+
+test("ungenerateMonthlyIncome deshace la generación y permite regenerar", async () => {
+  const deps = baseDeps()
+  const income = await createIncome(deps, "u1", validInput)
+  const period = { incomeId: income.id, year: 2026, month: 7 }
+
+  await generateMonthlyIncome({ incomes: deps.incomes }, "u1", period)
+  const undo = await ungenerateMonthlyIncome({ incomes: deps.incomes }, "u1", period)
+  assert.equal(undo.deleted, true)
+
+  // Tras deshacer, ya no hay movimiento: se puede volver a generar (created=true).
+  const again = await generateMonthlyIncome({ incomes: deps.incomes }, "u1", period)
+  assert.equal(again.created, true)
+
+  // Deshacer cuando no hay nada generado: deleted=false.
+  await ungenerateMonthlyIncome({ incomes: deps.incomes }, "u1", period)
+  const noop = await ungenerateMonthlyIncome({ incomes: deps.incomes }, "u1", period)
+  assert.equal(noop.deleted, false)
 })
 
 // --- siembra del límite global ---

@@ -371,6 +371,18 @@ export async function searchTransactions(
   )
 }
 
+export type AmountBoundsDTO = { min: number; max: number }
+
+// Rango de montos (magnitudes) del usuario para acotar el slider del buscador. {0,0} si aún no
+// hay movimientos (o el repo no soporta el aggregate).
+export async function getAmountBounds(
+  deps: { transactions: TransactionRepository },
+  userId: string
+): Promise<AmountBoundsDTO> {
+  const b = await deps.transactions.amountBounds?.(userId)
+  return b ?? { min: 0, max: 0 }
+}
+
 export async function getBudgetView(
   deps: ReadDeps,
   userId: string,

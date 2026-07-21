@@ -73,6 +73,14 @@ export interface IncomeRepository {
     year: number,
     month: number
   ): Promise<{ transactionId: string; created: boolean }>
+  // Deshace la generación: borra el movimiento de (income, year, month) y revierte el saldo con el
+  // monto REAL del movimiento (no el de la fuente, que pudo cambiarse). Atómico. `deleted` = si había uno.
+  // Permitido aunque la cuenta destino sea conectada (es la inversa de generar, no una edición libre).
+  ungenerateMonthly(
+    incomeId: string,
+    year: number,
+    month: number
+  ): Promise<{ deleted: boolean }>
 }
 
 // --- Errores de negocio ---

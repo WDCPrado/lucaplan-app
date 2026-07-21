@@ -19,6 +19,8 @@ export async function GET(req: Request) {
       bankName: sp.get("bank") || undefined,
       from: parseDate(sp.get("from")),
       to: parseDate(sp.get("to")),
+      amountMin: parseNum(sp.get("amountMin")),
+      amountMax: parseNum(sp.get("amountMax")),
       // Solo movimientos sin categoría elegibles (para el triage del onboarding).
       uncategorized: sp.get("uncategorized") === "1" || undefined,
     })
@@ -29,4 +31,10 @@ function parseDate(s: string | null): Date | undefined {
   if (!s) return undefined
   const d = new Date(s)
   return Number.isNaN(d.getTime()) ? undefined : d
+}
+
+function parseNum(s: string | null): number | undefined {
+  if (!s) return undefined
+  const n = Number(s)
+  return Number.isFinite(n) ? n : undefined
 }

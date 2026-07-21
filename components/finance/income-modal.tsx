@@ -2,11 +2,18 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Trash2 } from "lucide-react"
+import { CalendarIcon, Trash2 } from "lucide-react"
+import { es } from "date-fns/locale"
 import { toast } from "sonner"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useMoneyInput } from "@/hooks/use-money-input"
@@ -52,7 +59,7 @@ export function IncomeModal({
   const [categoryId, setCategoryId] = useState<string | null>(
     income?.categoryId ?? incomeCategories[0]?.id ?? null
   )
-  const [dayOfMonth, setDayOfMonth] = useState(String(income?.dayOfMonth ?? 1))
+  const [day, setDay] = useState(income?.dayOfMonth ?? 1)
   const [saving, setSaving] = useState(false)
 
   const account = destinations.find((a) => a.id === accountId) ?? destinations[0]
@@ -60,13 +67,11 @@ export function IncomeModal({
     (account?.currency as CurrencyCode) ?? "CLP",
     income?.amount ?? 0
   )
-  const day = Number(dayOfMonth)
   const canSave =
     !!name.trim() &&
     !!account &&
     !!categoryId &&
     money.value > 0 &&
-    Number.isInteger(day) &&
     day >= 1 &&
     day <= 31 &&
     !saving
@@ -194,15 +199,10 @@ export function IncomeModal({
           </Field>
 
           <Field label="Día de ingreso del mes">
-            <Input
-              inputMode="numeric"
-              value={dayOfMonth}
-              onChange={(e) =>
-                setDayOfMonth(e.target.value.replace(/\D/g, "").slice(0, 2))
-              }
-              aria-label="Día de ingreso del mes"
-              className="tabular h-11 w-24"
-            />
+            <DayOfMonthPicker value={day} onChange={setDay} />
+            <span className="block text-xs text-muted-foreground">
+              Si el mes no tiene ese día (ej. 31 en febrero), se usa el último.
+            </span>
           </Field>
 
           <div className="flex gap-2">
@@ -228,6 +228,50 @@ export function IncomeModal({
         </div>
       )}
     </ResponsiveModal>
+  )
+}
+
+// Mes de referencia con 31 días (enero) para que el calendario ofrezca todos los días 1–31.
+// El ingreso es recurrente: guardamos solo el número de día, el mes/año no importan.
+const DAY_PICKER_MONTH = new Date(2001, 0, 1)
+
+function DayOfMonthPicker({
+  value,
+  onChange,
+}: {
+  value: number
+  onChange: (day: number) => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className="h-11 w-full justify-start rounded-lg text-base font-normal"
+        >
+          <CalendarIcon className="size-4 text-muted-foreground" />
+          Día {value}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          locale={es}
+          month={DAY_PICKER_MONTH}
+          disableNavigation
+          showOutsideDays={false}
+          selected={new Date(2001, 0, value)}
+          onSelect={(d) => {
+            if (!d) return
+            onChange(d.getDate())
+            setOpen(false)
+          }}
+          classNames={{ month_caption: "hidden", nav: "hidden" }}
+          autoFocus
+        />
+      </PopoverContent>
+    </Popover>
   )
 }
 

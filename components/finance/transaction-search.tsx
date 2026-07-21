@@ -19,12 +19,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MovementRow } from "./movement-row"
-import { formatDateHeader } from "@/lib/finance-format"
+import { formatDateHeader, formatCompact } from "@/lib/finance-format"
 import type {
   AccountDTO,
+  AmountBoundsDTO,
   CategoryDTO,
   TransactionDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
@@ -53,12 +55,14 @@ export function TransactionSearch({
   onOpenChange,
   categories,
   accounts,
+  amountBounds,
   onOpenTransaction,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   categories: CategoryDTO[]
   accounts: AccountDTO[]
+  amountBounds: AmountBoundsDTO
   onOpenTransaction: (tx: TransactionDTO) => void
 }) {
   // En móvil no autoenfocamos: el teclado abriéndose mientras el drawer anima se ve saltón.
@@ -68,6 +72,20 @@ export function TransactionSearch({
   const [categoryId, setCategoryId] = useState("all")
   const [bank, setBank] = useState("all")
   const [range, setRange] = useState<DateRange | undefined>()
+
+  // Slider de monto: solo si hay rango real (>1 monto distinto). El paso reparte el rango en ~100.
+  const showAmount = amountBounds.max > amountBounds.min
+  const amountStep = Math.max(
+    1,
+    Math.round((amountBounds.max - amountBounds.min) / 100)
+  )
+  const [amount, setAmount] = useState<[number, number]>([
+    amountBounds.min,
+    amountBounds.max,
+  ])
+  const amountNarrowed =
+    showAmount &&
+    (amount[0] > amountBounds.min || amount[1] < amountBounds.max)
 
   // Bancos únicos (deduplicados por nombre): si hay 2 "Banco de Chile", una sola opción.
   const banks = [...new Set(accounts.map((a) => a.bankName).filter(Boolean))]
@@ -84,6 +102,11 @@ export function TransactionSearch({
     if (bank !== "all") params.set("bank", bank)
     if (range?.from) params.set("from", ymd(range.from))
     if (range?.to) params.set("to", ymd(range.to))
+    // Solo enviamos los topes si el usuario acotó el rango (evita constreñir cuando está intacto).
+    if (amountNarrowed && amount[0] > amountBounds.min)
+      params.set("amountMin", String(amount[0]))
+    if (amountNarrowed && amount[1] < amountBounds.max)
+      params.set("amountMax", String(amount[1]))
 
     const ctrl = new AbortController()
     const t = setTimeout(() => {
@@ -101,20 +124,22 @@ export function TransactionSearch({
       clearTimeout(t)
       ctrl.abort()
     }
-  }, [open, q, direction, categoryId, bank, range])
+  }, [open, q, direction, categoryId, bank, range, amount, amountNarrowed])
 
   const hasFilters =
     !!q ||
     !!direction ||
     categoryId !== "all" ||
     bank !== "all" ||
-    !!range?.from
+    !!range?.from ||
+    amountNarrowed
   function clearAll() {
     setQ("")
     setDirection("")
     setCategoryId("all")
     setBank("all")
     setRange(undefined)
+    setAmount([amountBounds.min, amountBounds.max])
   }
 
   // Agrupa por fecha (resultados vienen más-nuevo primero).
@@ -248,6 +273,26 @@ export function TransactionSearch({
             </button>
           )}
         </div>
+
+        {/* Rango de monto */}
+        {showAmount && (
+          <div className="flex flex-col gap-2 pt-1">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Monto</span>
+              <span className="font-mono tabular-nums">
+                {formatCompact(amount[0])} – {formatCompact(amount[1])}
+              </span>
+            </div>
+            <Slider
+              min={amountBounds.min}
+              max={amountBounds.max}
+              step={amountStep}
+              value={amount}
+              onValueChange={(v) => setAmount([v[0], v[1]])}
+              aria-label="Rango de monto"
+            />
+          </div>
+        )}
 
         {/* Resultados */}
         <div className="min-h-40">

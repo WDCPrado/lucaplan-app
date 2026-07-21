@@ -266,6 +266,9 @@ export type TransactionSearchFilters = {
   bankName?: string // filtra por banco: incluye TODAS las cuentas de bancos con ese nombre
   from?: Date
   to?: Date
+  // Rango por monto (magnitud, la columna `amount` es positiva). Inclusive. Combinable con el resto.
+  amountMin?: number
+  amountMax?: number
   limit?: number
   // Triage: solo movimientos sin categoría ELEGIBLES (excluye reversed/duplicated e internos).
   // El repo mete el criterio completo al filtro, no post-filtra: el límite no se consume con
@@ -339,6 +342,10 @@ export interface TransactionRepository {
     userId: string,
     filters: TransactionSearchFilters
   ): Promise<Transaction[]>
+  // Rango [min, max] de las magnitudes de monto del usuario, para acotar el slider del buscador.
+  // ponytail: opcional para no obligar a los repos de test a implementarlo; hazlo requerido si
+  // otro caso además de la UI lo necesita.
+  amountBounds?(userId: string): Promise<{ min: number; max: number }>
   findById(id: string): Promise<Transaction | null>
   // Crea el movimiento y ajusta el saldo de la cuenta atómicamente (débito resta, crédito suma).
   create(tx: NewTransaction): Promise<Transaction>

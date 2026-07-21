@@ -10,6 +10,7 @@ import {
   listTransactions,
   listUncategorized,
   listIncomesView,
+  getAmountBounds,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { Dashboard } from "@/components/finance/dashboard"
 
@@ -32,15 +33,23 @@ export default async function DashboardPage({
   const month = Number(sp.month) || now.getUTCMonth() + 1
   const userId = session.user.id
 
-  const [summary, accounts, budget, transactions, uncategorized, incomes] =
-    await Promise.all([
-      getMonthlySummary(financeDeps, userId, year, month),
-      listAccounts(financeDeps, userId),
-      getBudgetView(financeDeps, userId, year, month),
-      listTransactions(financeDeps, userId, year, month),
-      listUncategorized(financeDeps, userId, year, month),
-      listIncomesView(financeDeps, userId, year, month),
-    ])
+  const [
+    summary,
+    accounts,
+    budget,
+    transactions,
+    uncategorized,
+    incomes,
+    amountBounds,
+  ] = await Promise.all([
+    getMonthlySummary(financeDeps, userId, year, month),
+    listAccounts(financeDeps, userId),
+    getBudgetView(financeDeps, userId, year, month),
+    listTransactions(financeDeps, userId, year, month),
+    listUncategorized(financeDeps, userId, year, month),
+    listIncomesView(financeDeps, userId, year, month),
+    getAmountBounds(financeDeps, userId),
+  ])
 
   const user = {
     name: session.user.name || session.user.email || "Usuario",
@@ -59,6 +68,7 @@ export default async function DashboardPage({
       transactions={transactions}
       uncategorized={uncategorized}
       incomes={incomes}
+      amountBounds={amountBounds}
       user={user}
       outlookResult={sp.outlook ?? null}
       outlookReason={sp.reason ?? null}

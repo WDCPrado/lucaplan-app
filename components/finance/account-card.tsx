@@ -1,8 +1,37 @@
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
+import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
 import { CARD_VARIANT_BG, resolveCardArt } from "@/lib/bank-cards"
 import { cn } from "@/lib/utils"
 import { SyncStatusLine } from "./sync-status-line"
+
+// Barra de cupo DISPONIBLE (cupo de crédito o línea de sobregiro): llena = cupo intacto, se vacía a
+// medida que se usa, como una batería. Así "completo" se ve verde y lleno; agotado, corto y rojo.
+// Color por los mismos 4 cortes de cuartil que `quartileVar` (el lenguaje de los presupuestos), pero
+// con tonos claros de Tailwind: sobre el arte de la tarjeta, var(--primary) desaparecería contra el
+// gradiente azul del banco y var(--success) contra el verde. Recibe el % USADO.
+function CapacityBar({ usedPct }: { usedPct: number }) {
+  const pct = Math.min(100, Math.max(0, usedPct))
+  const color =
+    pct < 25
+      ? "bg-emerald-300"
+      : pct < 50
+        ? "bg-sky-300"
+        : pct < 75
+          ? "bg-amber-300"
+          : "bg-red-300"
+  return (
+    <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/25">
+      <div
+        className={cn(
+          "h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none",
+          color
+        )}
+        style={{ width: `${100 - pct}%` }}
+      />
+    </div>
+  )
+}
 
 const TYPE_LABEL: Record<string, string> = {
   checking: "Débito",
@@ -33,9 +62,19 @@ export function AccountCard({
   const nat = buckets.find((b) => b.kind === "credit_national")
   const intl = buckets.find((b) => b.kind === "credit_international")
   const isCredit = account.accountType === "credit_card"
+  // Cupo protagonista: el nacional (CLP) si existe; si la tarjeta solo tiene internacional, ese.
+  // El otro queda como chip — es dato de consulta, no de decisión diaria.
+  const primary = nat ?? intl
+  const chip = nat && intl ? intl : null
+  const usedPct =
+    primary && primary.limit > 0 ? (primary.used / primary.limit) * 100 : 0
+  // El más antiguo acota de verdad desde cuándo se estima (los buckets sincronizan por separado).
   const estimatedSince =
     account.connectionMethod === "email"
-      ? buckets.find((b) => b.asOf)?.asOf
+      ? buckets
+          .map((b) => b.asOf)
+          .filter((d): d is string => !!d)
+          .sort()[0]
       : null
 
   return (
@@ -86,37 +125,48 @@ export function AccountCard({
         )}
       </div>
 
-      {isCredit && (nat || intl) ? (
-        // Tarjeta de crédito conectada: cupos nacional (CLP) e internacional (USD) por separado.
-        <div className="relative space-y-1">
-          {nat && (
-            <div>
-              <div className="text-xs text-white/75">Cupo nacional</div>
-              <div className="tabular text-2xl font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
-                {hidden ? "••••••" : formatCLP(nat.available)}{" "}
-                <span className="text-xs font-normal text-white/60">disp</span>
+      {isCredit && primary ? (
+        // Crédito: UN héroe (el cupo disponible principal) + el otro cupo como chip, y el uso como
+        // barra + frase. Misma gramática que la rama corriente: etiqueta → número grande → contexto.
+        <div className="relative">
+          <div className="text-xs text-white/75">Disponible</div>
+          <div className="flex items-baseline gap-2">
+            <div className="tabular text-3xl font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
+              {hidden
+                ? "••••••"
+                : formatMoney(
+                    primary.available,
+                    primary.currency as CurrencyCode
+                  )}
+            </div>
+            {chip && (
+              <span className="tabular shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-xs backdrop-blur">
+                {hidden
+                  ? "••••"
+                  : formatMoney(chip.available, chip.currency as CurrencyCode)}
+              </span>
+            )}
+          </div>
+          {primary.limit > 0 && (
+            <>
+              <CapacityBar usedPct={usedPct} />
+              <div className="tabular mt-1 text-xs text-white/70">
+                Usado{" "}
+                {hidden
+                  ? "••••"
+                  : formatMoney(
+                      primary.used,
+                      primary.currency as CurrencyCode
+                    )}{" "}
+                de{" "}
+                {hidden
+                  ? "••••"
+                  : formatMoney(
+                      primary.limit,
+                      primary.currency as CurrencyCode
+                    )}
               </div>
-              {nat.used > 0 && (
-                <div className="tabular text-xs text-red-300">
-                  Usado −{hidden ? "••••" : formatCLP(nat.used)}
-                </div>
-              )}
-            </div>
-          )}
-          {intl && (
-            <div className="text-xs text-white/85">
-              <span className="text-white/60">USD</span>{" "}
-              <span className="tabular">
-                {hidden ? "••" : formatMoney(intl.available, "USD")}
-              </span>{" "}
-              disp
-              {intl.used > 0 && (
-                <span className="tabular text-red-300">
-                  {" "}
-                  · usado {formatMoney(intl.used, "USD")}
-                </span>
-              )}
-            </div>
+            </>
           )}
         </div>
       ) : (
@@ -133,19 +183,25 @@ export function AccountCard({
               ? "••••••"
               : formatCLP(cash ? cash.available : account.balance)}
           </div>
+          {/* Solo si la cuenta TIENE línea de sobregiro (limit > 0): mismo lenguaje que el cupo. */}
           {overdraft && overdraft.limit > 0 && (
-            <div className="tabular mt-0.5 text-xs text-white/70">
-              Sobregiro:{" "}
-              {overdraft.used > 0 ? (
-                <span className="text-red-300">
-                  usado −{hidden ? "••••" : formatCLP(overdraft.used)}
-                </span>
-              ) : (
-                <span>
-                  {hidden ? "••••" : formatCLP(overdraft.available)} disp
-                </span>
-              )}
-            </div>
+            <>
+              <CapacityBar usedPct={(overdraft.used / overdraft.limit) * 100} />
+              <div className="tabular mt-1 text-xs text-white/70">
+                {overdraft.used > 0 ? (
+                  <>
+                    Sobregiro usado{" "}
+                    {hidden ? "••••" : formatCLP(overdraft.used)} de{" "}
+                    {hidden ? "••••" : formatCLP(overdraft.limit)}
+                  </>
+                ) : (
+                  <>
+                    Sobregiro {hidden ? "••••" : formatCLP(overdraft.limit)}{" "}
+                    disponible
+                  </>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}

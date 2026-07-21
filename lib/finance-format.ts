@@ -15,10 +15,14 @@ export function groupByCurrency(value: number, currency: CurrencyCode): string {
   return groupFmt(currency).format(value)
 }
 
-/** Monto con símbolo, decimales por moneda y signo. Ej. "$12.965", "-$19,10". Fuente única de formato. */
+// Símbolo por moneda: en Chile "$" es el peso, así que el dólar SIEMPRE va como "US$" — si no,
+// un monto USD se lee como CLP (mismo símbolo, solo cambian los decimales).
+const SYMBOL: Record<CurrencyCode, string> = { CLP: "$", USD: "US$" }
+
+/** Monto con símbolo, decimales por moneda y signo. Ej. "$12.965", "US$19,10". Fuente única de formato. */
 export function formatMoney(value: number, currency: CurrencyCode): string {
   const sign = value < 0 ? "-" : ""
-  return `${sign}$${groupByCurrency(Math.abs(value), currency)}`
+  return `${sign}${SYMBOL[currency]}${groupByCurrency(Math.abs(value), currency)}`
 }
 
 /** Atajo CLP (sin decimales). */

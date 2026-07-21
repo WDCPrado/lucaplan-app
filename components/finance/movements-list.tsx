@@ -4,10 +4,20 @@ import { useRef, useState } from "react"
 import { flushSync } from "react-dom"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { MovementRow } from "./movement-row"
-import { formatDateHeader } from "@/lib/finance-format"
+import { formatCLP, formatDateHeader } from "@/lib/finance-format"
 import type { TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 const PAGE_SIZE = 20
+
+// Total NETO del día (ingresos − gastos) en CLP, para el encabezado de fecha. Los ajustes de saldo
+// (internos) no cuentan, igual que en el presupuesto. En moneda extranjera usa el equivalente CLP.
+function dayTotal(items: TransactionDTO[]): number {
+  return items.reduce((sum, t) => {
+    if (t.isInternal) return sum
+    const clp = Math.abs(t.amountClp ?? t.amount)
+    return sum + (t.direction === "credit" ? clp : -clp)
+  }, 0)
+}
 
 // Agrupa por fecha (los movimientos ya vienen ordenados de más nuevo a más viejo).
 function groupByDate(
@@ -51,23 +61,33 @@ export function MovementsList({
   return (
     <>
       <div ref={topRef} className="flex scroll-mt-20 flex-col gap-5">
-        {groups.map((g) => (
-          <div key={g.date}>
-            <div className="mb-1.5 px-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              {formatDateHeader(`${g.date}T00:00:00.000Z`)}
+        {groups.map((g) => {
+          const total = dayTotal(g.items)
+          return (
+            <div key={g.date}>
+              {/* Fecha y total del día en la misma línea (justify-between). */}
+              <div className="mb-1.5 flex items-center justify-between gap-3 px-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                <span className="truncate">
+                  {formatDateHeader(`${g.date}T00:00:00.000Z`)}
+                </span>
+                <span className="tabular shrink-0">
+                  {total >= 0 ? "+" : "−"}
+                  {formatCLP(Math.abs(total))}
+                </span>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                {g.items.map((t) => (
+                  <MovementRow
+                    key={t.id}
+                    tx={t}
+                    onOpen={onOpen}
+                    onOpenCategory={onOpenCategory}
+                  />
+                ))}
+              </div>
             </div>
-            <div className="flex flex-col gap-0.5">
-              {g.items.map((t) => (
-                <MovementRow
-                  key={t.id}
-                  tx={t}
-                  onOpen={onOpen}
-                  onOpenCategory={onOpenCategory}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {totalPages > 1 && (

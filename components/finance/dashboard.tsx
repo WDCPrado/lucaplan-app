@@ -2,7 +2,14 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, ChevronRight, Eye, EyeOff, Pencil } from "lucide-react"
+import {
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Pencil,
+  Plus,
+} from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
@@ -274,10 +281,19 @@ export function Dashboard({
             className="min-w-0 scroll-mt-20 lg:sticky lg:top-20 lg:order-2 lg:col-span-1 lg:self-start"
           >
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="font-heading text-lg font-bold">Presupuestos</h2>
-              <span className="shrink-0 text-sm text-muted-foreground">
-                {monthName(period.month)}
-              </span>
+              {/* Mes junto al título; a la derecha "Agregar" (mismo patrón que Ingresos del mes). */}
+              <div className="flex min-w-0 items-baseline gap-2">
+                <h2 className="font-heading text-lg font-bold">Presupuestos</h2>
+                <span className="truncate text-sm text-muted-foreground">
+                  {monthName(period.month)}
+                </span>
+              </div>
+              <button
+                onClick={() => setEditCat(null)}
+                className="flex shrink-0 items-center gap-1.5 text-sm text-primary"
+              >
+                <Plus className="size-4" /> Agregar
+              </button>
             </div>
             <div className="glass rounded-2xl p-4">
               {/* Cabecera del límite global: restante por presupuestar (o CTA para definirlo) */}

@@ -16,6 +16,9 @@ export type Income = {
   currency: CurrencyCode
   dayOfMonth: number // 1–31
   isActive: boolean
+  // Mes desde el que la fuente dejó de existir (inclusive); null = sigue vigente.
+  endedYear: number | null
+  endedMonth: number | null
 }
 
 // Monto de una fuente para un mes concreto. El mes sin registro hereda el último previo
@@ -61,6 +64,22 @@ export function accountAcceptsIncome(type: AccountType): boolean {
   return type !== "credit_card" && type !== "credit_line"
 }
 
+/** Índice comparable de mes, para ordenar y comparar períodos. */
+const monthIndex = (year: number, month: number) => year * 12 + (month - 1)
+
+/** ¿La fuente ya no rige en (year, month)? Terminarla no borra los meses anteriores. */
+export function isIncomeEndedAt(
+  income: Pick<Income, "endedYear" | "endedMonth">,
+  year: number,
+  month: number
+): boolean {
+  if (income.endedYear === null || income.endedMonth === null) return false
+  return (
+    monthIndex(year, month) >=
+    monthIndex(income.endedYear, income.endedMonth)
+  )
+}
+
 export function isValidDayOfMonth(day: number): boolean {
   return Number.isInteger(day) && day >= 1 && day <= 31
 }
@@ -74,7 +93,10 @@ export interface IncomeRepository {
   findById(id: string): Promise<Income | null>
   create(input: NewIncome): Promise<Income>
   update(input: UpdateIncome): Promise<Income>
+  /** Borra la fuente por completo. Solo cuando no tiene historia que conservar. */
   delete(id: string): Promise<void>
+  /** Marca el fin de vigencia: deja de existir desde (year, month), sin tocar los meses previos. */
+  endFrom(id: string, year: number, month: number): Promise<void>
   // ¿Existe ya un movimiento generado desde esta fuente en (year, month)? (para la UI "no generadas").
   hasGeneratedFor(
     incomeId: string,

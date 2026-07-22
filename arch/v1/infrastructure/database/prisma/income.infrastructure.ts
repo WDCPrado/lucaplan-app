@@ -21,6 +21,8 @@ function toIncome(row: any): Income {
     currency,
     dayOfMonth: row.dayOfMonth,
     isActive: row.isActive,
+    endedYear: row.endedYear ?? null,
+    endedMonth: row.endedMonth ?? null,
   }
 }
 
@@ -125,6 +127,12 @@ export const incomeRepository: IncomeRepository = {
   },
   async delete(id) {
     await prisma.income.delete({ where: { id } })
+  },
+  async endFrom(id, year, month) {
+    await prisma.income.update({
+      where: { id },
+      data: { endedYear: year, endedMonth: month },
+    })
   },
   async hasGeneratedFor(incomeId, year, month) {
     const count = await prisma.transaction.count({

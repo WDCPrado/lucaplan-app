@@ -16,9 +16,10 @@ import {
   NotOwnerError,
   CategoryNotFoundError,
 } from "../../domain/finance/finance.domain.ts"
-import type {
-  Income,
-  IncomeRepository,
+import {
+  isIncomeEndedAt,
+  type Income,
+  type IncomeRepository,
 } from "../../domain/finance/income.domain.ts"
 import { effectiveIncomeAmount } from "./income-use-cases.ts"
 import {
@@ -567,6 +568,7 @@ export async function listIncomesView(
   // Monto vigente en ESE mes (carry-forward). Sin monto = la fuente no existía aún: no se lista,
   // igual que un límite de categoría no aparece antes de haberse definido.
   const visible = incomes
+    .filter((i) => !isIncomeEndedAt(i, year, month))
     .map((i) => ({
       income: i,
       amount: effectiveIncomeAmount(amounts, i.id, year, month),

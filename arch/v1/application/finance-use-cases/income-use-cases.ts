@@ -17,6 +17,7 @@ import {
   InvalidIncomeError,
   IncomeNotFoundError,
   accountAcceptsIncome,
+  isIncomeEndedAt,
   isValidDayOfMonth,
 } from "../../domain/finance/income.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
@@ -166,16 +167,35 @@ export async function updateIncome(
   })
 }
 
+/**
+ * Eliminar una fuente desde el mes (year, month): deja de existir de ahí en adelante y los meses
+ * anteriores conservan su monto y sus movimientos — el mismo criterio que editar, que solo escribe
+ * en el mes en curso. Solo se borra de verdad cuando no hay historia previa que conservar (se creó
+ * y se elimina dentro del mismo mes).
+ */
 export async function deleteIncome(
   deps: { incomes: IncomeRepository },
   userId: string,
-  id: string
-): Promise<{ ok: true }> {
+  id: string,
+  period: { year: number; month: number }
+): Promise<{ ok: true; ended: boolean }> {
+  validatePeriod(period.year, period.month)
   const existing = await deps.incomes.findById(id)
   if (!existing) throw new IncomeNotFoundError(id)
   if (existing.userId !== userId) throw new NotOwnerError()
-  await deps.incomes.delete(id)
-  return { ok: true }
+
+  const amounts = await deps.incomes.listAmountsByUser(userId)
+  const hasHistory = amounts.some(
+    (a) =>
+      a.incomeId === id &&
+      a.year * 12 + a.month < period.year * 12 + period.month
+  )
+  if (!hasHistory) {
+    await deps.incomes.delete(id)
+    return { ok: true, ended: false }
+  }
+  await deps.incomes.endFrom(id, period.year, period.month)
+  return { ok: true, ended: true }
 }
 
 // Genera el movimiento de ingreso de un mes desde una fuente (idempotente en el repo).
@@ -217,7 +237,9 @@ export async function sumActiveIncomesCLP(
     deps.incomes.listAmountsByUser(userId),
   ])
   return incomes
-    .filter((i) => i.isActive && i.currency === CLP)
+    .filter(
+      (i) => i.isActive && i.currency === CLP && !isIncomeEndedAt(i, year, month)
+    )
     .reduce((acc, i) => {
       const amount = effectiveIncomeAmount(amounts, i.id, year, month)
       return amount ? acc.add(amount) : acc

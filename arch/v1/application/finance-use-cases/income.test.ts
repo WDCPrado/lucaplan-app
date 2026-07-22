@@ -12,10 +12,11 @@ import type {
   MonthlyBudget,
   MonthlyBudgetRepository,
 } from "../../domain/finance/finance.domain.ts"
-import type {
-  Income,
-  IncomeAmount,
-  IncomeRepository,
+import {
+  isIncomeEndedAt,
+  type Income,
+  type IncomeAmount,
+  type IncomeRepository,
 } from "../../domain/finance/income.domain.ts"
 import {
   createIncome,
@@ -25,6 +26,7 @@ import {
   effectiveIncomeAmount,
   sumActiveIncomesCLP,
   updateIncome,
+  deleteIncome,
 } from "./income-use-cases.ts"
 
 // --- fakes ---
@@ -99,6 +101,8 @@ function incomesRepo(
         currency: input.amount.currency,
         dayOfMonth: input.dayOfMonth,
         isActive: true,
+        endedYear: null,
+        endedMonth: null,
       }
       store.set(income.id, income)
       putAmount({
@@ -131,6 +135,10 @@ function incomesRepo(
     },
     delete: async (id) => {
       store.delete(id)
+    },
+    endFrom: async (id, year, month) => {
+      const prev = store.get(id)!
+      store.set(id, { ...prev, endedYear: year, endedMonth: month })
     },
     hasGeneratedFor: async (id, y, m) => generated.has(key(id, y, m)),
     generateMonthly: async (income, y, m) => {
@@ -368,4 +376,44 @@ test("la siembra del presupuesto usa el monto vigente de ese mes", async () => {
   assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 7)).toMajor(), 900_000)
   assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 8)).toMajor(), 1_200_000)
   assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 6)).toMajor(), 0)
+})
+
+// --- eliminar conserva la historia (WDC-30) ---
+
+test("eliminar desde un mes posterior conserva los meses anteriores", async () => {
+  const deps = baseDeps()
+  const income = await createIncome(deps, "u1", { ...validInput, year: 2026, month: 7 })
+
+  const out = await deleteIncome(deps, "u1", income.id, { year: 2026, month: 9 })
+
+  assert.equal(out.ended, true)
+  const still = await deps.incomes.findById(income.id)
+  assert.ok(still, "la fuente se conserva para la historia")
+  assert.equal(isIncomeEndedAt(still, 2026, 8), false) // agosto seguía vigente
+  assert.equal(isIncomeEndedAt(still, 2026, 9), true) // desde septiembre ya no
+  assert.equal(isIncomeEndedAt(still, 2026, 10), true)
+  const amounts = await deps.incomes.listAmountsByUser("u1")
+  assert.equal(
+    effectiveIncomeAmount(amounts, income.id, 2026, 7)?.toMajor(),
+    900_000
+  )
+})
+
+test("eliminar en el mismo mes en que se creó la borra de verdad", async () => {
+  const deps = baseDeps()
+  const income = await createIncome(deps, "u1", { ...validInput, year: 2026, month: 7 })
+
+  const out = await deleteIncome(deps, "u1", income.id, { year: 2026, month: 7 })
+
+  assert.equal(out.ended, false)
+  assert.equal(await deps.incomes.findById(income.id), null)
+})
+
+test("una fuente terminada deja de sumar en el presupuesto desde su mes de fin", async () => {
+  const deps = baseDeps()
+  const income = await createIncome(deps, "u1", { ...validInput, year: 2026, month: 7 })
+  await deleteIncome(deps, "u1", income.id, { year: 2026, month: 9 })
+
+  assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 8)).toMajor(), 900_000)
+  assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 9)).toMajor(), 0)
 })

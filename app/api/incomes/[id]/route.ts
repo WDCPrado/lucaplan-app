@@ -42,5 +42,8 @@ export async function DELETE(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params
-  return withUser(req, (userId) => deleteIncome(financeDeps, userId, id))
+  const { year, month } = periodOf(req)
+  return withUser(req, (userId) =>
+    deleteIncome(financeDeps, userId, id, { year, month })
+  )
 }

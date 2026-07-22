@@ -261,6 +261,10 @@ model Income {
   currency     String // ISO 4217: coincide con la moneda de la cuenta destino
   dayOfMonth   Int // día de ingreso esperado (1–31)
   isActive     Boolean          @default(true)
+  // Fin de vigencia: la fuente deja de existir DESDE este mes (inclusive). Eliminarla desde un mes
+  // no borra su historia: los meses anteriores conservan sus montos y movimientos.
+  endedYear    Int?
+  endedMonth   Int?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   transactions Transaction[]

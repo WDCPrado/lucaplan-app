@@ -50,6 +50,26 @@ crear registros.
 - **WHEN** el usuario crea el sueldo en agosto y navega a julio
 - **THEN** el sueldo no se lista en julio ni suma en los cálculos de ese mes
 
+### Requirement: Eliminar una fuente termina su vigencia, no borra su historia
+
+Eliminar una fuente de ingreso desde un mes SHALL significar que **deja de existir a partir de
+ese mes** (inclusive): los meses anteriores SHALL conservar su monto, su listado y los
+movimientos ya generados, con el mismo criterio que editar (que solo escribe en el mes en
+curso). Desde el mes de fin en adelante, la fuente NO SHALL listarse ni sumarse en los
+cálculos.
+
+Cuando la fuente no tiene historia previa al mes desde el que se elimina (se creó y se
+elimina dentro del mismo mes), el sistema SHALL borrarla por completo: no hay nada que
+conservar.
+
+#### Scenario: Eliminar en un mes posterior conserva el pasado
+- **WHEN** el sueldo existe desde julio y el usuario lo elimina estando en septiembre
+- **THEN** julio y agosto siguen mostrándolo con su monto, y desde septiembre deja de aparecer y de sumar
+
+#### Scenario: Eliminar recién creada la borra del todo
+- **WHEN** el usuario crea una fuente en julio y la elimina el mismo julio
+- **THEN** la fuente se borra por completo, sin dejar registro
+
 ### Requirement: Categoría de ingreso asociada
 
 Cada `Income` SHALL asociarse a una categoría existente del usuario con `type='income'`

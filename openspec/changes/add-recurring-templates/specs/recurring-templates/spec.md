@@ -227,6 +227,10 @@ ya cobrados se conservan intactos.
 - **WHEN** el usuario mira la lista de movimientos y uno proviene de una plantilla
 - **THEN** ese movimiento aparece marcado como recurrente junto a su icono de categoría
 
+#### Scenario: El movimiento recurrente muestra la vigencia de su plantilla
+- **WHEN** el usuario abre un movimiento vinculado a una plantilla con fecha de término
+- **THEN** el detalle indica hasta cuándo se cobra, o que no tiene fecha de término
+
 #### Scenario: Un movimiento recurrente no genera otra plantilla
 - **WHEN** el usuario abre un movimiento que ya está vinculado a una plantilla
 - **THEN** no se ofrece "Hacer recurrente"; se ofrece pausar/reanudar y eliminar la recurrencia

@@ -104,12 +104,18 @@ export const toISODate = (d: Date) =>
 export function DatePicker({
   value,
   onChange,
+  placeholder = "Elegir fecha",
+  fromDate,
 }: {
-  value: string
+  value: string // "" = sin fecha elegida todavía
   onChange: (v: string) => void
+  placeholder?: string
+  fromDate?: string // YYYY-MM-DD: días anteriores deshabilitados
 }) {
   const [open, setOpen] = useState(false)
-  const selected = parseISODate(value)
+  // Sin valor no hay día seleccionado: el calendario abre en el mes actual y el botón muestra
+  // el placeholder, en vez de fingir una fecha que el usuario no eligió.
+  const selected = value ? parseISODate(value) : undefined
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -118,11 +124,17 @@ export function DatePicker({
           className="h-11 w-full justify-start rounded-lg text-base font-normal"
         >
           <CalendarIcon className="size-4 text-muted-foreground" />
-          {selected.toLocaleDateString("es-CL", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
+          {selected ? (
+            // Mes completo y año: en una fecha de vigencia, "25/08" oculta justo el dato que
+            // más se equivoca.
+            selected.toLocaleDateString("es-CL", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })
+          ) : (
+            <span className="text-muted-foreground">{placeholder}</span>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -131,6 +143,7 @@ export function DatePicker({
           locale={es}
           selected={selected}
           defaultMonth={selected}
+          disabled={fromDate ? { before: parseISODate(fromDate) } : undefined}
           onSelect={(d) => {
             if (!d) return
             onChange(toISODate(d))
@@ -584,6 +597,18 @@ function ConnectedDetail({
                 />
                 {recurringActive ? "Activa" : "Pausada"}
               </span>
+            }
+          />
+        )}
+        {/* Hasta cuándo sigue cobrándose: se decide una vez y después se olvida, así que se
+            muestra donde el movimiento se consulta. */}
+        {tx.recurringTemplateId && (
+          <Row
+            label="Vigencia"
+            value={
+              tx.recurringEndDate
+                ? `Hasta el ${fullDate(tx.recurringEndDate)}`
+                : "Sin fecha de término"
             }
           />
         )}

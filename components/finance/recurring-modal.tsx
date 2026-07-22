@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
-import { savedFirst } from "./transaction-modal"
+import { DatePicker, savedFirst } from "./transaction-modal"
 import { DayOfMonthPicker } from "./income-modal"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
@@ -305,17 +305,16 @@ export function RecurringModal({
               </span>
               {withEnd ? (
                 <div className="flex items-center gap-2">
-                  <Input
-                    type="date"
-                    value={endDate}
-                    min={(template?.startDate ?? new Date().toISOString()).slice(
-                      0,
-                      10
-                    )}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    aria-label="Fecha de término"
-                    className="h-11 flex-1 rounded-lg"
-                  />
+                  <span className="flex-1">
+                    <DatePicker
+                      value={endDate}
+                      onChange={setEndDate}
+                      placeholder="Elegir fecha de término"
+                      fromDate={(
+                        template?.startDate ?? new Date().toISOString()
+                      ).slice(0, 10)}
+                    />
+                  </span>
                   <Button
                     variant="ghost"
                     onClick={() => {

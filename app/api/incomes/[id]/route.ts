@@ -26,6 +26,8 @@ export async function PATCH(
       amount: Number(body.amount),
       dayOfMonth: Number(body.dayOfMonth),
       isActive: body.isActive ?? true,
+      year,
+      month,
     })
     const seed = await seedGlobalLimitFromIncomes(financeDeps, userId, {
       year,
@@ -40,5 +42,8 @@ export async function DELETE(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params
-  return withUser(req, (userId) => deleteIncome(financeDeps, userId, id))
+  const { year, month } = periodOf(req)
+  return withUser(req, (userId) =>
+    deleteIncome(financeDeps, userId, id, { year, month })
+  )
 }

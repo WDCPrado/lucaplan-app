@@ -113,7 +113,12 @@ export function IncomeModal({
   async function remove() {
     if (!income || saving) return
     setSaving(true)
-    const res = await fetch(`/api/incomes/${income.id}`, { method: "DELETE" })
+    // El período viaja también al eliminar: la fuente deja de existir DESDE ese mes y los
+    // anteriores conservan su historia.
+    const res = await fetch(
+      `/api/incomes/${income.id}?year=${period.year}&month=${period.month}`,
+      { method: "DELETE" }
+    )
     setSaving(false)
     if (!res.ok) {
       haptic("error")

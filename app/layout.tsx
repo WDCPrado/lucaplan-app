@@ -85,6 +85,7 @@ export default function RootLayout({
     <html
       lang="es"
       suppressHydrationWarning
+      data-env={process.env.NODE_ENV === "production" ? undefined : "dev"}
       // globals.css pone scroll-behavior: smooth; este atributo deja que Next lo
       // suspenda durante transiciones de ruta (evita el scroll animado al navegar).
       data-scroll-behavior="smooth"

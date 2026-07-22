@@ -203,6 +203,15 @@ html:has(main[data-landing]) body {
     --glass-control-active: oklch(1 0 0 / 0.16);
 }
 
+/* Fondo naranja claro fuera de producción: señal visual de que no estás en prod.
+   El atributo lo pone app/layout.tsx según NODE_ENV. */
+html[data-env="dev"] {
+    --background: oklch(0.95 0.06 70);
+}
+html[data-env="dev"].dark {
+    --background: oklch(0.25 0.05 70);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

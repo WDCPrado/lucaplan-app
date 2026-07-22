@@ -128,6 +128,7 @@ model FinancialAccount {
   buckets        BalanceBucket[]
   incomes        Income[]
   recurring      RecurringTemplate[]
+  installments   InstallmentPlan[]
 
   @@unique([userId, externalId])
   @@index([userId, bankId])
@@ -239,6 +240,7 @@ model Category {
   corrections  CategorizationCorrection[]
   incomes      Income[]
   recurring    RecurringTemplate[]
+  installments InstallmentPlan[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -382,33 +384,91 @@ model RecurringTemplate {
   @@map("recurring_template")
 }
 
-model Transaction {
-  id                  String             @id @default(uuid())
+// Deuda repartida en N cuotas. `kind` elige CÓMO se entera el sistema de que una cuota se pagó,
+// y de ahí sale toda la asimetría: en `card` (compra con tarjeta) el plan CREA el movimiento de
+// cada cuota, porque la compra ya entró completa el día que ocurrió (queda neutralizada) y el
+// correo del pago trae el total de la factura; en `loan` (crédito de consumo) el correo de la
+// cuota ya genera el gasto real, así que el plan solo lo ADOPTA — crearlo también lo duplicaría.
+model InstallmentPlan {
+  id                  String            @id @default(uuid())
   userId              String
-  accountId           String
-  account             FinancialAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  categoryId          String?
-  category            Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  bucketId            String? // bucket/cupo al que corresponde (solo si el banco lo identifica sin ambigüedad)
-  bucket              BalanceBucket?     @relation(fields: [bucketId], references: [id], onDelete: SetNull)
-  incomeId            String? // fuente de ingreso que generó este movimiento (gancho para recurrencia); null en el resto
-  income              Income?            @relation(fields: [incomeId], references: [id], onDelete: SetNull)
-  // plantilla recurrente que materializó este movimiento; borrar la plantilla conserva lo confirmado
-  recurringTemplateId String?
-  recurringTemplate   RecurringTemplate? @relation(fields: [recurringTemplateId], references: [id], onDelete: SetNull)
-  periodKey           String? // período de la plantilla (YYYY-MM | YYYY | YYYY-Qnn): impone idempotencia por BD
-  transactionDate     DateTime           @db.Date
+  kind                String // card | loan — elige el disparador; inmutable tras crear
+  accountId           String // card: la cuenta de crédito; loan: la cuenta desde la que se paga
+  account             FinancialAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  categoryId          String // toda cuota usa ESTA categoría, nunca la IA
+  category            Category          @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  // Solo en `card`: la compra original, neutralizada (isInternal) y conservada para trazabilidad.
+  sourceTransactionId String?           @unique
+  sourceTransaction   Transaction?      @relation("InstallmentSource", fields: [sourceTransactionId], references: [id], onDelete: SetNull)
   description         String
-  amount              Decimal            @db.Decimal(18, 2)
+  totalAmount         Decimal           @db.Decimal(18, 2) // capital, sin intereses del banco
   currency            String
-  direction           String // debit | credit
-  status              String             @default("confirmed") // confirmed | pending | reversed | duplicated
-  pending             Boolean            @default(false)
-  isInternal          Boolean            @default(false) // transferencia/pago interno (traspaso, pago línea/tarjeta): NO cuenta en presupuesto
-  reviewed            Boolean            @default(false) // el usuario ya decidió la categorización (creó/editó/categorizó, aunque la deje vacía); excluye del triage y de la IA. La IA y el sync NO lo marcan.
-  externalId          String? // id del movimiento en el banco; null si es manual o snapshot (no facturado)
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  installmentsCount   Int
+  startDate           DateTime          @db.Date // vencimiento de la cuota 1
+  dayOfMonth          Int
+  tolerancePct        Int               @default(10) // SOLO desempata entre planes loan; nunca rechaza
+  completedAt         DateTime? // se cierra al saldarse la última cuota
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  items               InstallmentItem[]
+
+  @@index([userId])
+  @@index([accountId, kind, completedAt])
+  @@index([categoryId])
+  @@map("installment_plan")
+}
+
+model InstallmentItem {
+  id             String          @id @default(uuid())
+  planId         String
+  plan           InstallmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  index          Int // 1..N
+  dueDate        DateTime        @db.Date
+  amount         Decimal         @db.Decimal(18, 2) // card: definitivo; loan: estimación (el correo manda)
+  // Cuota anterior a la conexión de correo: cuenta para el avance, pero no generó gasto en la app.
+  // Inventarle un movimiento falsearía meses que el usuario ya dio por cerrados.
+  paidOutsideApp Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  transaction    Transaction?
+
+  @@unique([planId, index])
+  @@index([planId])
+  @@map("installment_item")
+}
+
+model Transaction {
+  id                      String             @id @default(uuid())
+  userId                  String
+  accountId               String
+  account                 FinancialAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  categoryId              String?
+  category                Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  bucketId                String? // bucket/cupo al que corresponde (solo si el banco lo identifica sin ambigüedad)
+  bucket                  BalanceBucket?     @relation(fields: [bucketId], references: [id], onDelete: SetNull)
+  incomeId                String? // fuente de ingreso que generó este movimiento (gancho para recurrencia); null en el resto
+  income                  Income?            @relation(fields: [incomeId], references: [id], onDelete: SetNull)
+  // plantilla recurrente que materializó este movimiento; borrar la plantilla conserva lo confirmado
+  recurringTemplateId     String?
+  recurringTemplate       RecurringTemplate? @relation(fields: [recurringTemplateId], references: [id], onDelete: SetNull)
+  periodKey               String? // período de la plantilla (YYYY-MM | YYYY | YYYY-Qnn): impone idempotencia por BD
+  // Cuota de un plan que este movimiento salda. Único: es LA garantía de idempotencia del sistema
+  // de cuotas — reprocesar un correo no puede producir un segundo movimiento para el mismo ítem.
+  installmentItemId       String?            @unique
+  installmentItem         InstallmentItem?   @relation(fields: [installmentItemId], references: [id], onDelete: SetNull)
+  installmentPlanAsSource InstallmentPlan?   @relation("InstallmentSource")
+  transactionDate         DateTime           @db.Date
+  description             String
+  amount                  Decimal            @db.Decimal(18, 2)
+  currency                String
+  direction               String // debit | credit
+  status                  String             @default("confirmed") // confirmed | pending | reversed | duplicated
+  pending                 Boolean            @default(false)
+  isInternal              Boolean            @default(false) // transferencia/pago interno (traspaso, pago línea/tarjeta): NO cuenta en presupuesto
+  reviewed                Boolean            @default(false) // el usuario ya decidió la categorización (creó/editó/categorizó, aunque la deje vacía); excluye del triage y de la IA. La IA y el sync NO lo marcan.
+  externalId              String? // id del movimiento en el banco; null si es manual o snapshot (no facturado)
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
 
   @@unique([accountId, externalId])
   @@unique([recurringTemplateId, periodKey]) // un movimiento por plantilla y período

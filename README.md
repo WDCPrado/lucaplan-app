@@ -393,6 +393,7 @@ La app queda en el puerto `3005` y Postgres en `5433` (host). Los secretos se le
 | Desarrollo y contribución   | [docs/development.md](docs/development.md) — flujo OpenSpec, Next 16, reglas de UI, mocks, convenciones y verificaciones. |
 | Design system               | [docs/design/design-system.md](docs/design/design-system.md) — tokens, glass, dark/light. La fuente de verdad visual es [app/globals.css](app/globals.css). |
 | Outlook / Microsoft Graph   | [docs/email-connection-outlook.md](docs/email-connection-outlook.md) — referencia de la conexión de correo con Banco de Chile. El paso a paso está [más arriba](#-conectar-outlook-banco-de-chile-paso-a-paso). |
+| Correos bancarios           | [docs/bank-email-contract.md](docs/bank-email-contract.md) — catálogo de correos soportados y qué debe aportar un banco nuevo. |
 | Operación y despliegue      | [Scripts](#scripts) y [Deploy](#deploy) en este README; cerrar/abrir el registro en [docs/pre-launch-lock.md](docs/pre-launch-lock.md). |
 | Specs y cambios             | [openspec/README.md](openspec/README.md) — capacidades canónicas, cambios en curso y archivo histórico. |
 

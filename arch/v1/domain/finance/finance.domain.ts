@@ -194,6 +194,8 @@ export type Transaction = {
   status: MovementStatus // manual = "confirmed"; conectado según el banco
   isInternal: boolean // transferencia/pago interno: NO cuenta en presupuesto ni en el resumen
   externalId: string | null // id del movimiento en el banco; null si es manual
+  // ponytail: opcional para no obligar a cada fixture/repo a declararlo; ausente = no recurrente
+  recurringTemplateId?: string | null
 }
 
 // --- Inputs de escritura ---

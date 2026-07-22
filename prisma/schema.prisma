@@ -106,27 +106,28 @@ model Bank {
 }
 
 model FinancialAccount {
-  id             String          @id @default(uuid())
+  id             String              @id @default(uuid())
   userId         String
   bankId         String
-  bank           Bank            @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  bank           Bank                @relation(fields: [bankId], references: [id], onDelete: Cascade)
   name           String
   accountType    String // checking | savings | credit_card | credit_line | wallet | investment
   currency       String // ISO 4217: CLP, USD
-  balance        Decimal         @default(0) @db.Decimal(18, 2) // permite negativo (sobregiro) en checking
-  overdraftLimit Decimal         @default(0) @db.Decimal(18, 2)
+  balance        Decimal             @default(0) @db.Decimal(18, 2) // permite negativo (sobregiro) en checking
+  overdraftLimit Decimal             @default(0) @db.Decimal(18, 2)
   color          String? // presentación: color de la tarjeta (opcional)
   cardLast4      String? // últimos 4 dígitos de la tarjeta; obligatorio en app para checking/credit_card
-  status         String          @default("active")
-  provider       String          @default("manual") // manual | bancochile (solo lectura)
+  status         String              @default("active")
+  provider       String              @default("manual") // manual | bancochile (solo lectura)
   externalId     String? // id de la cuenta en el banco (número de cuenta / últimos 4)
   lastSyncedAt   DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
   transactions   Transaction[]
   cards          Card[]
   buckets        BalanceBucket[]
   incomes        Income[]
+  recurring      RecurringTemplate[]
 
   @@unique([userId, externalId])
   @@index([userId, bankId])
@@ -237,6 +238,7 @@ model Category {
   transactions Transaction[]
   corrections  CategorizationCorrection[]
   incomes      Income[]
+  recurring    RecurringTemplate[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -323,34 +325,72 @@ model MonthlyBudget {
   @@map("monthly_budget")
 }
 
+// Plantilla de gasto recurrente: ejecuta 0..N movimientos reales. Al abrirse un período materializa
+// su Transaction como `pending` (gasto comprometido, no cuenta como gastado) y el cobro real la
+// confirma: por detección en el correo (descripción normalizada + monto dentro de ±tolerancePct del
+// baseAmount) o por cron el día de ejecución. La categoría es obligatoria y manda: un movimiento
+// vinculado a una plantilla nunca pasa por la IA. Mismo patrón que Income, pero para gastos.
+model RecurringTemplate {
+  id            String           @id @default(uuid())
+  userId        String
+  accountId     String // cuenta del cargo: el comprometido del período se materializa ahí
+  account       FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  categoryId    String // obligatoria: toda ejecución usa ESTA categoría, nunca la IA
+  category      Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  description   String // clave de match: se compara normalizada (normalizeMovementText)
+  direction     String // debit | credit
+  baseAmount    Decimal          @db.Decimal(18, 2) // monto esperado; el real puede variar dentro del rango
+  currency      String // coincide con la moneda de la cuenta cuando hay cuenta
+  tolerancePct  Int              @default(10) // ± % sobre baseAmount que define el rango de match
+  periodicity   String           @default("monthly") // monthly | biweekly | yearly
+  executionMode String           @default("email_detection") // email_detection | cron
+  dayOfMonth    Int? // día de ejecución (monthly/yearly); en meses cortos cae al último día
+  startDate     DateTime         @db.Date // ancla de los períodos (imprescindible en biweekly)
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  transactions  Transaction[]
+
+  @@index([userId, isActive])
+  @@index([accountId])
+  @@index([categoryId])
+  @@map("recurring_template")
+}
+
 model Transaction {
-  id              String           @id @default(uuid())
-  userId          String
-  accountId       String
-  account         FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  categoryId      String?
-  category        Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  bucketId        String? // bucket/cupo al que corresponde (solo si el banco lo identifica sin ambigüedad)
-  bucket          BalanceBucket?   @relation(fields: [bucketId], references: [id], onDelete: SetNull)
-  incomeId        String? // fuente de ingreso que generó este movimiento (gancho para recurrencia); null en el resto
-  income          Income?          @relation(fields: [incomeId], references: [id], onDelete: SetNull)
-  transactionDate DateTime         @db.Date
-  description     String
-  amount          Decimal          @db.Decimal(18, 2)
-  currency        String
-  direction       String // debit | credit
-  status          String           @default("confirmed") // confirmed | pending | reversed | duplicated
-  pending         Boolean          @default(false)
-  isInternal      Boolean          @default(false) // transferencia/pago interno (traspaso, pago línea/tarjeta): NO cuenta en presupuesto
-  reviewed        Boolean          @default(false) // el usuario ya decidió la categorización (creó/editó/categorizó, aunque la deje vacía); excluye del triage y de la IA. La IA y el sync NO lo marcan.
-  externalId      String? // id del movimiento en el banco; null si es manual o snapshot (no facturado)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id                  String             @id @default(uuid())
+  userId              String
+  accountId           String
+  account             FinancialAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  categoryId          String?
+  category            Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  bucketId            String? // bucket/cupo al que corresponde (solo si el banco lo identifica sin ambigüedad)
+  bucket              BalanceBucket?     @relation(fields: [bucketId], references: [id], onDelete: SetNull)
+  incomeId            String? // fuente de ingreso que generó este movimiento (gancho para recurrencia); null en el resto
+  income              Income?            @relation(fields: [incomeId], references: [id], onDelete: SetNull)
+  // plantilla recurrente que materializó este movimiento; borrar la plantilla conserva lo confirmado
+  recurringTemplateId String?
+  recurringTemplate   RecurringTemplate? @relation(fields: [recurringTemplateId], references: [id], onDelete: SetNull)
+  periodKey           String? // período de la plantilla (YYYY-MM | YYYY | YYYY-Qnn): impone idempotencia por BD
+  transactionDate     DateTime           @db.Date
+  description         String
+  amount              Decimal            @db.Decimal(18, 2)
+  currency            String
+  direction           String // debit | credit
+  status              String             @default("confirmed") // confirmed | pending | reversed | duplicated
+  pending             Boolean            @default(false)
+  isInternal          Boolean            @default(false) // transferencia/pago interno (traspaso, pago línea/tarjeta): NO cuenta en presupuesto
+  reviewed            Boolean            @default(false) // el usuario ya decidió la categorización (creó/editó/categorizó, aunque la deje vacía); excluye del triage y de la IA. La IA y el sync NO lo marcan.
+  externalId          String? // id del movimiento en el banco; null si es manual o snapshot (no facturado)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
 
   @@unique([accountId, externalId])
+  @@unique([recurringTemplateId, periodKey]) // un movimiento por plantilla y período
   @@index([accountId, transactionDate])
   @@index([categoryId])
   @@index([bucketId])
   @@index([incomeId])
+  @@index([recurringTemplateId])
   @@map("transaction")
 }

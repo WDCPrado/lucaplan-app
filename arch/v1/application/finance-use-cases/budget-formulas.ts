@@ -100,6 +100,33 @@ export function computeCategoryUsage(
   return { used, available: limit.subtract(used) }
 }
 
+/**
+ * Comprometido de una categoría en un mes: Σ movimientos `pending` no internos (los que una
+ * plantilla recurrente ya materializó pero el banco aún no cobra). NO se suma al usado: son dos
+ * capas distintas. Un movimiento sin categoría no compromete nada, igual que no gasta nada.
+ */
+export function computeCategoryCommitted(
+  categoryId: string,
+  currency: CurrencyCode,
+  transactions: Transaction[],
+  year: number,
+  month: number,
+  direction: "debit" | "credit" = "debit"
+): Money {
+  return transactions
+    .filter(
+      (t) =>
+        t.categoryId === categoryId &&
+        t.direction === direction &&
+        t.status === "pending" &&
+        !t.isInternal &&
+        t.amount.currency === currency &&
+        t.date.getFullYear() === year &&
+        t.date.getMonth() + 1 === month
+    )
+    .reduce((sum, t) => sum.add(t.amount), Money.zero(currency))
+}
+
 /** Estado por % usado: bueno ≤50%, moderado >50% y <100%, completado =100%, excedido >100%. */
 export function categoryStatus(used: Money, limit: Money): CategoryStatus {
   if (limit.isZero) return used.isPositive ? "excedido" : "bueno"

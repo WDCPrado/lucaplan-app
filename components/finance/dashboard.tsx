@@ -384,7 +384,14 @@ export function Dashboard({
                         onClick={() => setDetail(c)}
                         className="flex w-20 shrink-0 flex-col items-center gap-1.5 lg:w-auto"
                       >
-                        <ProgressRing percent={pct} status={c.status} size={72}>
+                        <ProgressRing
+                          percent={pct}
+                          committedPercent={
+                            c.limit > 0 ? (c.committed / c.limit) * 100 : 0
+                          }
+                          status={c.status}
+                          size={72}
+                        >
                           <CategoryIcon
                             icon={c.icon}
                             size={22}

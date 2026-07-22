@@ -12,6 +12,7 @@ import {
   listIncomesView,
   getAmountBounds,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
+import { materializeUserPeriods } from "@/arch/v1/application/finance-use-cases/recurring-use-cases"
 import { Dashboard } from "@/components/finance/dashboard"
 
 export default async function DashboardPage({
@@ -32,6 +33,10 @@ export default async function DashboardPage({
   const year = Number(sp.year) || now.getUTCFullYear()
   const month = Number(sp.month) || now.getUTCMonth() + 1
   const userId = session.user.id
+
+  // Abre los períodos de las recurrentes activas antes de leer: el comprometido del mes debe verse
+  // aunque el cron no haya corrido todavía. Idempotente y solo mes actual/futuro.
+  await materializeUserPeriods(financeDeps, userId, year, month).catch(() => {})
 
   const [
     summary,

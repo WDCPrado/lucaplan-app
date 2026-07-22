@@ -189,6 +189,7 @@ cp .env.example .env
 | `OUTLOOK_REDIRECT_URI`     | opcional  | `http://localhost:3005/api/email-connection/callback` en desarrollo          |
 | `OUTLOOK_WEBHOOK_URL`      | opcional  | Solo producción: URL HTTPS pública del webhook                               |
 | `OUTLOOK_RENEW_SECRET`     | opcional  | Solo producción: bearer para renovar la suscripción del webhook              |
+| `CRON_KEY`                 | opcional  | Secreto del runner de recurrentes (`POST /api/cron/recurring/run`, header `x-cron-key`). Sin ella el endpoint no ejecuta nada. Ver [recurrentes](#recurrentes-y-cron). |
 | `BANCOCHILE_ENC_KEY`       | opcional  | Llave maestra de cifrado de secretos. Si falta, se autogenera en `.bancochile-key` (gitignored). En producción defínela (≥32 chars de alta entropía) y **respáldala**. |
 
 ### 3. Levanta la base de datos
@@ -383,6 +384,23 @@ docker compose up -d --build
 
 La app queda en el puerto `3005` y Postgres en `5433` (host). Los secretos se leen del
 `.env`.
+
+### Recurrentes y cron
+
+Las plantillas recurrentes en modo `cron` (y, más adelante, las cuotas) se ejecutan con una
+corrida diaria: `POST /api/cron/recurring/run`. Es idempotente por (plantilla, período), así
+que reejecutarla el mismo día no duplica nada; acepta `{ "date": "YYYY-MM-DD" }` para
+reprocesar un día concreto.
+
+El endpoint **no usa sesión**. Su aislamiento lo da la red privada del proyecto en Railway,
+que está namespaced por proyecto+entorno: la función de cron lo llama por la interfaz
+privada y el handler rechaza (404) toda request que traiga cabeceras del edge público
+(`x-forwarded-*`, `x-real-ip`, …). No se confía en el hostname `*.railway.internal` ni en
+IPs "locales": son falsificables. Como segunda barrera, la request debe traer `CRON_KEY` en
+el header `x-cron-key`; sin esa variable el endpoint no ejecuta nada.
+
+Para recibir tráfico privado, la app debe escuchar en `::` (IPv6). En Railway, la función de
+cron vive en el mismo proyecto y llama al servicio por su nombre interno.
 
 ## Mapa documental
 

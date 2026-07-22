@@ -6,7 +6,6 @@ import { prisma } from "./client.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import type { Direction } from "../../../domain/finance/finance.domain.ts"
 import type {
-  ExecutionMode,
   Periodicity,
   RecurringTemplate,
   RecurringTemplateRepository,
@@ -26,7 +25,6 @@ function toTemplate(row: any): RecurringTemplate {
     currency,
     tolerancePct: row.tolerancePct,
     periodicity: row.periodicity as Periodicity,
-    executionMode: row.executionMode as ExecutionMode,
     dayOfMonth: row.dayOfMonth,
     startDate: row.startDate,
     isActive: row.isActive,
@@ -75,7 +73,6 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
           currency: input.baseAmount.currency,
           tolerancePct: input.tolerancePct,
           periodicity: input.periodicity,
-          executionMode: input.executionMode,
           dayOfMonth: input.dayOfMonth,
           startDate: input.startDate,
         },
@@ -95,7 +92,6 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
           currency: input.baseAmount.currency,
           tolerancePct: input.tolerancePct,
           periodicity: input.periodicity,
-          executionMode: input.executionMode,
           dayOfMonth: input.dayOfMonth,
           startDate: input.startDate,
           isActive: input.isActive,
@@ -166,19 +162,6 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
       select: { id: true, status: true },
     })
     return row ?? null
-  },
-  async confirmPeriod(transactionId, amount, date) {
-    // Condicional en el WHERE: si otro proceso ya confirmó, updateMany afecta 0 filas.
-    const { count } = await prisma.transaction.updateMany({
-      where: { id: transactionId, status: "pending" },
-      data: {
-        status: "confirmed",
-        amount: amount.toDecimalString(),
-        transactionDate: date,
-        reviewed: true,
-      },
-    })
-    return count > 0
   },
   async attachImportedMovement(transactionId, template, periodKey) {
     return prisma.$transaction(async (db) => {

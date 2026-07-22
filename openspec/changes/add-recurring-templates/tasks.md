@@ -28,9 +28,9 @@
 ## 5. Infraestructura y cron
 
 - [x] 5.1 Repo Prisma de `RecurringTemplate`
-- [x] 5.2 Guard `requireInternal(req)` reutilizable para `/api/cron/*` + test (rechaza tráfico de edge, exige `CRON_KEY`)
-- [x] 5.3 `POST /api/cron/recurring/run` (fecha opcional, respuesta con conteos) + rutas CRUD `/api/recurring`
-- [x] 5.4 App escuchando en `::`, `CRON_KEY` en env y función de cron en Railway documentadas en el README
+- [x] 5.2 Rutas CRUD `/api/recurring`
+- [x] 5.3 Materializar los períodos del mes al cargar el dashboard (sin proceso de fondo)
+- [x] 5.4 Retirado el cron (endpoint, guard y `CRON_KEY`): sin usuarios tras mover las cuotas al pago de la tarjeta
 
 ## 6. UI
 

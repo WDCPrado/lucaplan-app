@@ -1,100 +1,97 @@
 ## Context
 
-Depende de `add-recurring-templates`: ahí queda el motor `cron` (materialización +
-confirmación idempotente por período) y el endpoint `POST /api/cron/recurring/run`. Una
-compra en cuotas es un caso de ese motor donde, en vez de confirmar un monto base fijo, se
-confirma el monto del ítem de cuota del período.
-
-El correo del banco cobra la compra una sola vez por el total; luego cada mes llega el pago
-de la tarjeta, que `email-projection.applyPayment` ya usa para liberar cupo. Por eso el cupo
-no es responsabilidad del plan (ver decisión).
+Una compra en cuotas llega al correo una sola vez, por el total, el día de la compra. El
+gasto real, en cambio, ocurre repartido: una cuota por factura. El sistema ya tiene la pieza
+que faltaba para modelar eso sin inventar nada — el parser de Banco de Chile reconoce el
+**pago de tarjeta de crédito** (`internal_payment` / `pago_tarjeta`) con la tarjeta
+identificada por sus últimos 4 y la fecha del pago.
 
 ## Goals / Non-Goals
 
 **Goals:**
 - Que el gasto de una compra en cuotas aparezca mes a mes, solo la cuota del mes.
-- Reusar el cron de WDC-5 sin duplicar runner ni endpoint.
-- Conservar la compra original para ver el cargo real y la info del plan.
+- Que un plan creado tarde pueda declarar lo ya pagado y dejar el historial correcto.
+- Cero infraestructura nueva.
 
 **Non-Goals:**
 - Intereses del banco (solo capital).
 - Tocar el cupo de la tarjeta desde el plan.
+- Registrar una cuota a mano cuando el pago no llega por correo.
 - Cuotas fuera de cuentas de crédito, prepago o refinanciamiento.
 
 ## Decisions
 
+### El disparador es el pago de la tarjeta, no un cron
+
+**Decisión:** la cuota se registra cuando el import reconoce el pago de esa tarjeta.
+
+**Por qué:** un cron *afirma* que hoy te cobraron; el correo del pago **es** el hecho. Si el
+banco factura el 25 y el usuario paga el 3, un cron habría registrado el gasto el 25, cuando
+el dinero todavía no salía. Además elimina el runner, el endpoint y su guard de red: no
+queda nada que desplegar ni monitorear. Coste: si el usuario paga desde otro banco y no
+llega correo, la cuota no se registra — aceptado, el proyecto ya asume banco conectado.
+
+**Consecuencia de diseño:** el plan **no necesita** `RecurringTemplate`. La relación 1:1 con
+una plantilla `cron` que tenía el diseño anterior desaparece, y con ella el modo `cron` de
+las plantillas recurrentes (retirado en `add-recurring-templates`).
+
+### Una cuota por plan por pago, la más antigua
+
+Cada factura trae una cuota de cada plan, así que cada pago ejecuta exactamente una por
+plan. Si hay atraso (dos cuotas vencidas), se salda la más antigua y la otra espera el pago
+siguiente.
+
+**Alternativa descartada:** ejecutar todas las vencidas de una vez. Pondría el plan al día
+con el banco, pero concentraría tres o cuatro cuotas en un mes y destrozaría el presupuesto
+de esa categoría justo en el mes en que el usuario está mirando.
+
+### Las cuotas ya pagadas se declaran al crear, y escriben en su mes
+
+Un plan creado tarde (la compra fue en mayo, el plan se crea en agosto) tiene cuotas que ya
+se pagaron. En vez de que el sistema adivine, el formulario las lista **premarcadas** y el
+usuario desmarca las que quedaron debiendo.
+
+Cada marcada crea su `Transaction` con la **fecha de vencimiento de esa cuota**, no la de
+creación: si se usara la fecha de hoy, agosto acumularía cuatro cuotas y mayo, junio y julio
+quedarían vacíos. Escribir en meses cerrados es deliberado: la compra original se neutraliza,
+así que sin esto esos meses perderían el gasto y nadie lo recuperaría.
+
 ### El plan no toca el cupo; lo maneja el correo
 
-**Decisión:** `InstallmentPlan` no ajusta el bucket de crédito. La liberación de cupo la
-sigue haciendo `applyPayment` cuando llega el pago de la tarjeta por correo.
+`InstallmentPlan` no ajusta el bucket de crédito. El pago mensual real ya llega por correo y
+ya libera cupo vía `applyPayment`; si además cada cuota liberara capital, se liberaría dos
+veces. El banco es la fuente del saldo; el plan solo modela el gasto por mes.
 
-**Por qué:** el pago mensual real de la tarjeta ya llega por correo y ya libera cupo. Si
-además cada cuota liberara capital, el cupo se liberaría dos veces. Reconciliar ambas
-fuentes (cuota vs. pago) es complejidad sin dueño claro. El banco es la fuente real del
-saldo; el plan solo modela el gasto por mes. Coste: si el usuario no tiene el correo
-conectado, el cupo no se mueve — aceptable, el proyecto ya asume banco conectado.
+### Neutralizar la compra origen, no eliminarla
 
-### El plan reutiliza el motor `cron`, no crea uno nuevo
-
-Una plantilla recurrente `cron` 1:1 con el plan es el disparador. El use-case de cron de
-WDC-5, al confirmar el período de una plantilla que pertenece a un plan, delega en
-`installment-use-cases` para elegir el ítem del período y su monto en vez del monto base.
-La idempotencia es la misma del período (único de BD) más el vínculo 1:1 ítem→movimiento.
-
-**Alternativa descartada:** un cron propio de cuotas. Duplicaría runner, endpoint y guard de
-red privada; el issue explícitamente pide reutilizar el de recurrentes.
-
-### Neutralizar la compra origen (no eliminar)
-
-**Decisión:** al transformar, la compra por el total se marca `isInternal=true` y se
-referencia desde el plan (`sourceTransactionId`).
-
-**Por qué:** `isInternal` ya existe y ya excluye del presupuesto y de la caja
-(`budget-formulas`), así que no se doble-cuenta el total. Conservarla (vs. borrarla) permite
-ver cuánto cobró el banco realmente y enlazar la info del plan, que es justo lo que el
-usuario pidió. Coste: una fila "muerta" por plan, invisible en los cálculos.
-
-### Σ cuotas = total, con override por cuota
-
-Regla de dominio pura: los montos por defecto son `total / N` (con el resto en la última
-cuota para cerrar el redondeo); cualquier edición debe mantener Σ = total o el guardado se
-rechaza. Testeable sin IO.
-
-### El plan termina solo; la plantilla no queda viva
-
-Una plantilla de WDC-5 es perpetua: mientras esté activa, el cron le abre período tras período.
-Un plan de cuotas **no** puede comportarse así, o seguiría cobrando después de la cuota N. Dos
-frenos, no uno:
-
-1. El ejecutor de cuotas busca el `InstallmentItem` del período; sin ítem pendiente no crea nada
-   (freno pasivo, sobrevive a cualquier reproceso del cron).
-2. Al ejecutar la última cuota, el plan queda completado y su plantilla se desactiva (freno
-   activo: el cron deja de recorrerla, sin trabajo inútil cada día).
-
-La fecha de fin se **deriva** del cronograma (vencimiento de la cuota N) en vez de guardarse:
-un campo `endDate` editable podría contradecir a los ítems, que son la fuente real.
+`isInternal` ya existe y ya excluye del presupuesto y de la caja, así que el total deja de
+contar sin lógica nueva. Conservarla (vs. borrarla) permite ver cuánto cobró el banco y
+enlazar el plan. Coste: una fila invisible en los cálculos por cada plan.
 
 ## Risks / Trade-offs
 
 - **Doble conteo del gasto** si la compra origen no se neutraliza → la neutralización es
-  parte atómica de la transformación; test que verifica que la origen queda interna.
-- **Cupo desalineado sin correo conectado** → aceptado; el proyecto asume banco conectado y
-  el correo es la fuente del saldo real.
-- **Redondeo de cuotas** (`total/N` no exacto) → el resto va a la última cuota; la regla Σ =
-  total lo cubre con test.
-- **Editar una cuota ya ejecutada** rompería la coherencia con su `Transaction` → prohibido
-  por requisito; solo se editan cuotas pendientes.
+  parte atómica de la transformación, con test que lo verifica.
+- **El pago no llega por correo** (pagas desde otro banco) → el plan se queda sin avanzar.
+  Sin salida manual en este alcance; si aparece el caso, se agrega "marcar cuota como
+  pagada" en la vista del plan.
+- **Reproceso del correo** (resync, webhook duplicado) → la idempotencia es por ítem:
+  `Transaction.installmentItemId` único.
+- **Un plan que arrastra atraso se "corre"** respecto del banco: la última cuota se ejecuta
+  meses después del cronograma. Es fiel a lo que pasó (se pagó tarde), y la vista distingue
+  las cuotas vencidas.
+- **Escribir en meses cerrados** al declarar cuotas pagadas → solo ocurre en la creación del
+  plan, por acción explícita del usuario y sobre casillas que él revisó.
 
 ## Migration Plan
 
-1. Requiere la migración de `add-recurring-templates` aplicada.
-2. Migración: `InstallmentPlan`, `InstallmentItem`, `Transaction.installmentItemId` (único)
+1. Migración: `InstallmentPlan`, `InstallmentItem`, `Transaction.installmentItemId` (único)
    y `InstallmentPlan.sourceTransactionId`.
-3. Deploy: sin planes creados, comportamiento idéntico al actual.
+2. Deploy: sin planes creados, comportamiento idéntico al actual.
 
-Rollback: eliminar planes y sus plantillas `cron`; des-neutralizar la compra origen (quitar
-`isInternal`) si se quiere revertir la transformación.
+Sin variables ni servicios nuevos. Rollback: eliminar los planes y des-neutralizar la compra
+origen (quitar `isInternal`) si se quiere revertir la transformación.
 
 ## Open Questions
 
-- Ninguna pendiente: la fecha de fin queda derivada del cronograma (ver decisión de vigencia).
+- Ninguna pendiente.

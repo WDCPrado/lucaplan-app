@@ -1,5 +1,5 @@
 // Casos de uso de gastos recurrentes: CRUD de plantillas, materialización del comprometido del
-// período, confirmación desde el correo y ejecución por cron. Depende solo de domain (+ ports).
+// período y su confirmación cuando el cargo llega por correo. Depende solo de domain (+ ports).
 import {
   type Account,
   type AccountRepository,
@@ -39,7 +39,6 @@ export type RecurringInput = {
   baseAmount: number
   tolerancePct: number
   periodicity: Periodicity
-  executionMode: "email_detection" | "cron"
   dayOfMonth: number | null
   startDate: Date
 }
@@ -112,7 +111,6 @@ export async function createRecurringTemplate(
     baseAmount: money,
     tolerancePct: input.tolerancePct,
     periodicity: input.periodicity,
-    executionMode: input.executionMode,
     dayOfMonth: input.dayOfMonth,
     startDate: input.startDate,
   })
@@ -147,7 +145,6 @@ export async function updateRecurringTemplate(
     baseAmount: money,
     tolerancePct: input.tolerancePct,
     periodicity: input.periodicity,
-    executionMode: input.executionMode,
     dayOfMonth: input.dayOfMonth,
     startDate: input.startDate,
     isActive: input.isActive,
@@ -251,50 +248,4 @@ export async function materializeUserPeriods(
     if (created) materialized++
   }
   return materialized
-}
-
-export type CronResult = {
-  materialized: number
-  confirmed: number
-  skipped: number
-}
-
-/**
- * Corrida diaria: abre el período de cada plantilla activa (materializa su `pending`) y confirma
- * las plantillas `cron` cuyo día de ejecución ya llegó. Idempotente por (plantilla, período).
- */
-export async function runRecurringCron(
-  deps: { recurring: RecurringTemplateRepository },
-  date: Date
-): Promise<CronResult> {
-  const templates = await deps.recurring.listAllActive()
-  const result: CronResult = { materialized: 0, confirmed: 0, skipped: 0 }
-
-  for (const template of templates) {
-    if (template.startDate > date) {
-      result.skipped++
-      continue
-    }
-    const periodKey = periodKeyFor(template, date)
-    const executionDate = executionDateFor(template, periodKey)
-    const { transactionId, created } = await deps.recurring.materializePeriod(
-      template,
-      periodKey,
-      executionDate
-    )
-    if (created) result.materialized++
-
-    if (template.executionMode !== "cron" || executionDate > date) {
-      result.skipped++
-      continue
-    }
-    const confirmed = await deps.recurring.confirmPeriod(
-      transactionId,
-      template.baseAmount,
-      executionDate
-    )
-    if (confirmed) result.confirmed++
-    else result.skipped++
-  }
-  return result
 }

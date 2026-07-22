@@ -11,7 +11,7 @@ Una compra transformada en cuotas SHALL poder quedar **neutralizada**: marcada c
 origen, conservándose para trazabilidad en vez de eliminarse.
 
 #### Scenario: Cuota enganchada a su ítem
-- **WHEN** el cron ejecuta la cuota 3 de un plan
+- **WHEN** el pago de la tarjeta ejecuta la cuota 3 de un plan
 - **THEN** la `Transaction` creada queda vinculada al ítem 3 y con la categoría del plan
 
 #### Scenario: Compra origen neutralizada y trazable

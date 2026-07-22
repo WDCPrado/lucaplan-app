@@ -49,19 +49,17 @@ en `[base·(1−tol), base·(1+tol)]` **y** misma moneda y dirección. Testeable
 use-case de import la aplica sobre los movimientos nuevos **antes** de `deps.categorize`.
 Empate entre plantillas → gana el rango más estrecho (la más específica).
 
-### Un solo endpoint de cron para todo
+### Sin proceso de fondo: los períodos se abren al mirarlos
 
-`POST /api/cron/recurring/run` hace las dos cosas del día: abrir períodos (materializar
-`pending`) y confirmar las plantillas `cron` que vencen. Idempotente por (plantilla,
-período), que se implementa con un índice único `(recurringTemplateId, periodKey)` sobre la
-transacción generada — la idempotencia la impone la base, no una comprobación previa
-sujeta a carrera.
+El diseño original tenía un cron (`POST /api/cron/recurring/run`) con guard de red privada.
+Se retiró: **nadie lo necesitaba**. El comprometido se materializa al consultarse el mes
+(idempotente por el único de BD), el cargo real lo reconoce el import de correo, y las
+cuotas de WDC-25 se ejecutan cuando llega el pago de la tarjeta — un hecho del banco, no una
+fecha de calendario. Un runner desplegado que no cambia ningún resultado es infraestructura
+que hay que monitorear a cambio de nada.
 
-**Acceso:** el aislamiento real lo da la red privada de Railway (namespaced por
-proyecto+entorno); un hostname `*.railway.internal` o una IP "local" son falsificables y
-por eso no son criterio. El guard `requireInternal(req)` rechaza toda request con señales
-de haber entrado por el edge público (cabeceras que inyecta el proxy) y exige `CRON_KEY`
-como segunda capa. La app debe escuchar en `::` para recibir el tráfico privado.
+La idempotencia sigue siendo del índice único `(recurringTemplateId, periodKey)`: la impone
+la base, no una comprobación previa sujeta a carrera.
 
 ### Periodicidad con `periodKey` derivado
 
@@ -78,9 +76,9 @@ día 31 en meses cortos (se ancla al último día del mes).
   descripción) → quedan `pending` acumulados inflando el comprometido; la vista de
   recurrentes muestra "última confirmada" para detectarlas, y el usuario desactiva o
   elimina la plantilla. No se auto-limpian en esta versión.
-- **La señal exacta de "vino del edge público" en Railway** depende del proxy → se aísla en
-  `requireInternal` con test propio; si la señal cambia, se corrige en un solo lugar y
-  `CRON_KEY` sostiene mientras tanto.
+- **Si nadie abre la app en todo el mes, el comprometido no se crea** → tampoco hay quien lo
+  mire; al entrar se materializa al instante, y el reconocimiento del cargo real no depende
+  de que exista previamente.
 - **Doble semántica de `pending`** (proveedor vs. plantilla) → se distingue por
   `recurringTemplateId`, y ningún cálculo actual necesita distinguirlas.
 
@@ -89,11 +87,9 @@ día 31 en meses cortos (se ancla al último día del mes).
 1. Migración: tabla `RecurringTemplate`, columna `recurringTemplateId` + índice en
    `Transaction`, índice único `(recurringTemplateId, periodKey)`.
 2. Deploy de la app (sin plantillas creadas el comportamiento es idéntico al actual).
-3. Variables: `CRON_KEY`; app escuchando en `::`.
-4. Función de cron en Railway apuntando al endpoint por la red privada.
 
-Rollback: desactivar la función de cron y las plantillas; los movimientos `pending`
-quedan sin efecto sobre los cálculos existentes.
+Sin variables ni servicios nuevos. Rollback: desactivar las plantillas; los movimientos
+`pending` quedan sin efecto sobre los cálculos existentes.
 
 ## Open Questions
 

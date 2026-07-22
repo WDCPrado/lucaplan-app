@@ -6,8 +6,7 @@ El sistema SHALL modelar el gasto recurrente como una entidad `RecurringTemplate
 usuario: una plantilla que ejecuta 0..N movimientos reales. Cada plantilla SHALL tener
 descripción (clave de match), una **categoría obligatoria**, monto base (`Money`), moneda,
 dirección (`debit` | `credit`), tolerancia en porcentaje entero (default 10), periodicidad
-(`monthly` | `biweekly` | `yearly`), día de ejecución, modo de ejecución
-(`email_detection` | `cron`) e `isActive`. La **cuenta es obligatoria**: es donde se
+(`monthly` | `biweekly` | `yearly`), día de ejecución, e `isActive`. La **cuenta es obligatoria**: es donde se
 materializa el movimiento comprometido de cada período.
 
 Todas las ejecuciones de una plantilla SHALL usar la categoría de la plantilla; el sistema
@@ -64,7 +63,7 @@ categoría, su cuenta, fecha en el día de ejecución del período y el vínculo
 `recurringTemplateId`. Esa materialización SHALL ser **idempotente por (plantilla,
 período)**: reprocesar el mismo período NO SHALL crear un segundo movimiento.
 
-La materialización NO SHALL depender exclusivamente del proceso de cron: al consultarse el mes
+La materialización SHALL ocurrir sin proceso de fondo: al consultarse el mes
 en curso o un mes futuro, el sistema SHALL abrir los períodos pendientes de las plantillas
 activas del usuario. Los meses **pasados** NO SHALL materializarse (no se inventa historia hacia
 atrás). El movimiento comprometido SHALL mostrarse en las listas de movimientos —del mes y de la
@@ -81,7 +80,7 @@ SHALL borrar los movimientos ya confirmados.
 - **WHEN** el proceso de materialización corre dos veces sobre el mismo período de la misma plantilla
 - **THEN** sigue existiendo exactamente un movimiento del período
 
-#### Scenario: El comprometido aparece sin haber corrido el cron
+#### Scenario: El comprometido aparece al abrir el mes
 - **WHEN** el usuario abre el mes en curso y su plantilla activa aún no tiene movimiento del período
 - **THEN** el período se materializa en ese momento y el comprometido aparece en el presupuesto y en la lista de movimientos
 
@@ -99,7 +98,7 @@ SHALL borrar los movimientos ya confirmados.
 
 ### Requirement: Confirmación por detección en el correo
 
-En modo `email_detection`, durante la importación de movimientos el sistema SHALL comparar
+Durante la importación de movimientos el sistema SHALL comparar
 cada movimiento nuevo contra las plantillas activas del usuario **antes** de la
 categorización por IA. Un movimiento SHALL considerarse match de una plantilla cuando su
 descripción normalizada (misma normalización que usa la memoria de correcciones) coincide
@@ -130,24 +129,6 @@ normal (IA/triage) sin vincularse a la plantilla.
 #### Scenario: Segundo cargo del mismo período no se vincula
 - **WHEN** el comprometido del período ya fue confirmado y llega otro cargo que también cae en el rango
 - **THEN** el movimiento nuevo no se vincula a la plantilla y pasa por el flujo normal de categorización
-
-### Requirement: Confirmación por cron
-
-En modo `cron` el sistema SHALL confirmar el movimiento comprometido del período cuando
-llegue su día de ejecución, sin intervención del correo ni de la IA, conservando el monto
-de la plantilla. La confirmación SHALL ser idempotente por (plantilla, período).
-
-#### Scenario: Llega el día y se confirma
-- **WHEN** el proceso de cron corre el día de ejecución de una plantilla `cron` con el período abierto
-- **THEN** el movimiento del período pasa a `confirmed` con la categoría de la plantilla y sin pasar por IA
-
-#### Scenario: Correr el cron dos veces el mismo día no duplica
-- **WHEN** el proceso de cron corre otra vez el mismo día sobre la misma plantilla
-- **THEN** no se crea ni confirma un segundo movimiento
-
-#### Scenario: Antes del día de ejecución no se confirma
-- **WHEN** el cron corre un día anterior al día de ejecución del período
-- **THEN** el movimiento del período sigue `pending`
 
 ### Requirement: Periodicidad de la plantilla
 

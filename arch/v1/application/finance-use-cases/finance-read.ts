@@ -597,7 +597,6 @@ export type RecurringDTO = {
   currency: string
   tolerancePct: number
   periodicity: string
-  executionMode: string
   dayOfMonth: number | null
   startDate: string // ISO: el cliente no recibe Date de un server component
   isActive: boolean
@@ -647,7 +646,6 @@ export async function listRecurringView(
       currency: t.currency,
       tolerancePct: t.tolerancePct,
       periodicity: t.periodicity,
-      executionMode: t.executionMode,
       dayOfMonth: t.dayOfMonth,
       startDate: t.startDate.toISOString(),
       isActive: t.isActive,

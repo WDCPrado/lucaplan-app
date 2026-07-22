@@ -22,7 +22,6 @@ const template = (over: Partial<RecurringTemplate> = {}): RecurringTemplate => (
   currency: "CLP",
   tolerancePct: 10,
   periodicity: "monthly",
-  executionMode: "email_detection",
   dayOfMonth: 5,
   startDate: new Date(2026, 6, 5),
   isActive: true,

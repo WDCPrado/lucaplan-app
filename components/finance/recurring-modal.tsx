@@ -118,7 +118,6 @@ export function RecurringModal({
           baseAmount: money.value,
           tolerancePct,
           periodicity,
-          executionMode: template?.executionMode ?? "email_detection",
           dayOfMonth: needsDay ? day : null,
           startDate: template?.startDate ?? new Date().toISOString(),
           isActive: template?.isActive ?? true,

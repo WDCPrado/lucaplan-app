@@ -27,13 +27,9 @@ base de ejecución que necesita el plan de cuotas (WDC-25).
   pasa a ser **la ejecución confirmada del período** (categoría de la plantilla, vinculado,
   `reviewed`) y el comprometido `pending` se consume: el período queda con un solo
   movimiento. **Prioridad: plantilla > corrección aprendida > IA.**
-- **Confirmación por cron (`cron`)**: para plantillas sin contraparte en el correo (el modo
-  que usará el plan de cuotas), llegado el día de ejecución la `pending` del período pasa a
-  `confirmed` con el monto base, sin IA.
-- **Runner de cron**: `POST /api/cron/recurring/run`, idempotente por (plantilla, período),
-  invocado desde una función en la red privada del proyecto en Railway. El acceso se
-  restringe rechazando toda request que haya entrado por el edge público, más un secreto
-  compartido en header como defensa en profundidad.
+- **Sin proceso de fondo**: los períodos se abren al consultarse el mes (idempotente). No hay
+  cron: el banco es quien avisa, y las cuotas (WDC-25) se ejecutan al llegar el pago de la
+  tarjeta, no en una fecha de calendario.
 - **Presupuesto con capa "comprometido"**: el uso de categoría sigue sumando solo
   `confirmed`; se agrega el comprometido del mes (Σ `pending` no internos), que la vista de
   presupuesto muestra como capa distinta del gastado real.
@@ -55,8 +51,7 @@ base de ejecución que necesita el plan de cuotas (WDC-25).
   adquiere semántica de negocio (gasto comprometido aún no cobrado).
 - `budget-planning`: el presupuesto del mes distingue gastado (confirmado) de comprometido
   (pendiente).
-- `finance-api`: nuevos contratos para el CRUD de plantillas y el endpoint de cron con
-  acceso restringido a la red privada.
+- `finance-api`: nuevos contratos para el CRUD de plantillas.
 
 La categorización por IA no cambia de requisito: como el match asigna categoría antes del
 paso de IA, la regla vigente de "un movimiento que ya tiene categoría no se re-categoriza"
@@ -69,10 +64,9 @@ ya produce la precedencia buscada. El shell tampoco: su requisito no enumera des
 - **Código**: `arch/v1/domain/finance/recurring.domain.ts` (entidad, port, regla de match
   pura); `recurring-use-cases.ts`; integración en
   `finance-use-cases/email-connection-use-cases.ts` (paso previo a `categorize`);
-  `budget-formulas.ts` (comprometido); repo Prisma; guard de red privada reutilizable para
-  `/api/cron/*`; vista `/recurrentes` y modal de transacción.
-- **Infra**: la app debe escuchar en `::` para recibir tráfico privado de Railway; env
-  `CRON_KEY`; función cron en el proyecto de Railway.
+  `budget-formulas.ts` (comprometido); repo Prisma; vista `/recurrentes` y modal de
+  transacción.
+- **Infra**: ninguna. No hay runner ni variables nuevas.
 - **Riesgo**: un match errado confirma una `pending` con el movimiento equivocado. Se
   acota con tolerancia por plantilla y con que el usuario puede desvincular/editar el
   movimiento.

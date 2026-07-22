@@ -13,7 +13,6 @@ import {
   createRecurringTemplate,
   materializePeriod,
   materializeUserPeriods,
-  runRecurringCron,
 } from "./recurring-use-cases.ts"
 
 type Row = {
@@ -71,15 +70,6 @@ function makeRepo(templates: RecurringTemplate[]) {
       )
       return row ? { id: row.id, status: row.status } : null
     },
-    confirmPeriod: async (transactionId, amount, date) => {
-      const row = rows.find((r) => r.id === transactionId)
-      if (!row || row.status === "confirmed") return false
-      row.status = "confirmed"
-      row.amount = amount
-      row.date = date
-      row.reviewed = true
-      return true
-    },
     attachImportedMovement: async (transactionId, template, periodKey) => {
       const committed = rows.find(
         (r) => r.templateId === template.id && r.periodKey === periodKey
@@ -100,7 +90,17 @@ function makeRepo(templates: RecurringTemplate[]) {
       return true
     },
   }
-  return { repo, rows }
+  // Simula el cargo real del banco confirmando el comprometido (lo hace el import, no el port).
+  const confirm = (transactionId: string, amount: Money, date: Date) => {
+    const row = rows.find((r) => r.id === transactionId)
+    if (!row || row.status === "confirmed") return false
+    row.status = "confirmed"
+    row.amount = amount
+    row.date = date
+    row.reviewed = true
+    return true
+  }
+  return { repo, rows, confirm }
 }
 
 const arriendo: RecurringTemplate = {
@@ -114,7 +114,6 @@ const arriendo: RecurringTemplate = {
   currency: "CLP",
   tolerancePct: 10,
   periodicity: "monthly",
-  executionMode: "email_detection",
   dayOfMonth: 5,
   startDate: new Date(2026, 0, 5),
   isActive: true,
@@ -179,53 +178,6 @@ test("cargo fuera del rango no lo reclama ninguna plantilla", async () => {
   assert.equal(rows.length, 0)
 })
 
-test("cron: materializa y confirma solo cuando llegó el día", async () => {
-  const cuota = { ...arriendo, id: "cuota", executionMode: "cron" as const, dayOfMonth: 10 }
-  const { repo, rows } = makeRepo([cuota])
-
-  const antes = await runRecurringCron({ recurring: repo }, new Date(2026, 6, 3))
-  assert.equal(antes.materialized, 1)
-  assert.equal(antes.confirmed, 0)
-  assert.equal(rows[0].status, "pending")
-
-  const elDia = await runRecurringCron({ recurring: repo }, new Date(2026, 6, 10))
-  assert.equal(elDia.materialized, 0)
-  assert.equal(elDia.confirmed, 1)
-  assert.equal(rows[0].status, "confirmed")
-
-  const otraVez = await runRecurringCron({ recurring: repo }, new Date(2026, 6, 10))
-  assert.equal(otraVez.confirmed, 0)
-  assert.equal(otraVez.skipped, 1)
-  assert.equal(rows.length, 1)
-})
-
-test("cron: la plantilla de correo se materializa pero no se confirma sola", async () => {
-  const { repo, rows } = makeRepo([arriendo])
-  const result = await runRecurringCron({ recurring: repo }, new Date(2026, 6, 20))
-  assert.equal(result.materialized, 1)
-  assert.equal(result.confirmed, 0)
-  assert.equal(rows[0].status, "pending")
-})
-
-test("cron: plantilla inactiva no compromete nada", async () => {
-  const { repo, rows } = makeRepo([{ ...arriendo, isActive: false }])
-  const result = await runRecurringCron({ recurring: repo }, new Date(2026, 6, 20))
-  assert.equal(result.materialized, 0)
-  assert.equal(rows.length, 0)
-})
-
-test("cron: plantilla que aún no empieza se omite", async () => {
-  const futura = { ...arriendo, startDate: new Date(2027, 0, 5) }
-  const { repo, rows } = makeRepo([futura])
-  const result = await runRecurringCron({ recurring: repo }, new Date(2026, 6, 20))
-  assert.equal(result.materialized, 0)
-  assert.equal(result.skipped, 1)
-  assert.equal(rows.length, 0)
-})
-
-// El movimiento desde el que se crea la plantilla debe quedar vinculado como la ejecución de su
-// período: sin esto queda huérfano (sin sello ni acciones en la UI) y el mes volvería a
-// materializar un comprometido por un gasto que ya se cobró.
 test("crear desde un movimiento lo vincula como ejecución de su período", async () => {
   const { repo, rows } = makeRepo([])
   const created: RecurringTemplate[] = []
@@ -282,8 +234,7 @@ test("crear desde un movimiento lo vincula como ejecución de su período", asyn
       baseAmount: 17_450,
       tolerancePct: 10,
       periodicity: "monthly",
-      executionMode: "email_detection",
-      dayOfMonth: 20,
+          dayOfMonth: 20,
       startDate: source.date,
       sourceTransactionId: source.id,
     }
@@ -341,9 +292,9 @@ test("recategorizar el movimiento arrastra plantilla y comprometidos", async () 
 })
 
 test("lo ya cobrado no cambia de categoría al reencauzar la plantilla", async () => {
-  const { repo, rows } = makeRepo([arriendo])
+  const { repo, rows, confirm } = makeRepo([arriendo])
   await materializePeriod({ recurring: repo }, arriendo, new Date(2026, 6, 1))
-  await repo.confirmPeriod(rows[0].id, Money.of(360_000, "CLP"), new Date(2026, 6, 5))
+  confirm(rows[0].id, Money.of(360_000, "CLP"), new Date(2026, 6, 5))
 
   await repo.setCategory("arriendo", "servicios")
   assert.equal(rows[0].status, "confirmed")

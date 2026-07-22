@@ -30,7 +30,6 @@ export async function PATCH(
       baseAmount: Number(body.baseAmount),
       tolerancePct: Number(body.tolerancePct ?? 10),
       periodicity: (body.periodicity ?? "monthly") as Periodicity,
-      executionMode: body.executionMode === "cron" ? "cron" : "email_detection",
       dayOfMonth:
         body.dayOfMonth === null || body.dayOfMonth === undefined
           ? null

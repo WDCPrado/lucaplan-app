@@ -1,20 +1,18 @@
 // Dominio de gastos recurrentes. Puro: sin Prisma, sin DB. Una plantilla ejecuta 0..N movimientos
 // reales: al abrirse un período materializa su Transaction como `pending` (gasto COMPROMETIDO, que
-// no cuenta como gastado) y el cobro real la confirma — por detección en el correo (texto
-// normalizado + monto dentro del rango de tolerancia) o por cron el día de ejecución. La categoría
-// de la plantilla manda siempre: un movimiento vinculado nunca pasa por la IA.
+// no cuenta como gastado) y el cargo real del banco la confirma, reconocido por texto normalizado +
+// monto dentro del rango de tolerancia. La categoría de la plantilla manda siempre: un movimiento
+// vinculado nunca pasa por la IA.
 
 import type { Direction } from "./finance.domain.ts"
 import { normalizeMovementText } from "./categorization-learning.domain.ts"
-import { Money, type CurrencyCode } from "./money.ts"
+import { type CurrencyCode } from "./money.ts"
+import { Money } from "./money.ts"
 
 // --- Entidad ---
 
 export const PERIODICITIES = ["monthly", "biweekly", "yearly"] as const
 export type Periodicity = (typeof PERIODICITIES)[number]
-
-export const EXECUTION_MODES = ["email_detection", "cron"] as const
-export type ExecutionMode = (typeof EXECUTION_MODES)[number]
 
 export type RecurringTemplate = {
   id: string
@@ -27,7 +25,6 @@ export type RecurringTemplate = {
   currency: CurrencyCode
   tolerancePct: number // ± % sobre baseAmount
   periodicity: Periodicity
-  executionMode: ExecutionMode
   dayOfMonth: number | null // monthly/yearly; en meses cortos cae al último día
   startDate: Date // ancla de los períodos
   isActive: boolean
@@ -44,7 +41,6 @@ export type NewRecurringTemplate = {
   baseAmount: Money
   tolerancePct: number
   periodicity: Periodicity
-  executionMode: ExecutionMode
   dayOfMonth: number | null
   startDate: Date
 }
@@ -223,16 +219,7 @@ export interface RecurringTemplateRepository {
     periodKey: string
   ): Promise<{ id: string; status: string } | null>
   /**
-   * Confirma el movimiento del período (modo cron): el MISMO movimiento pasa a `confirmed`.
-   * `false` si ya estaba confirmado (no pisa una ejecución previa).
-   */
-  confirmPeriod(
-    transactionId: string,
-    amount: Money,
-    date: Date
-  ): Promise<boolean>
-  /**
-   * Modo correo: el cargo real ya se importó (trae su `externalId` y ya movió los buckets), así que
+   * El cargo real ya se importó (trae su `externalId` y ya movió los buckets), así que
    * es ÉL quien queda como ejecución del período — toma la categoría de la plantilla, el vínculo y
    * el `periodKey`, queda `confirmed` + `reviewed`, y el comprometido `pending` del período se
    * consume (se borra). Atómico. `false` si el período ya tenía una ejecución confirmada.

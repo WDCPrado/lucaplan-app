@@ -326,10 +326,10 @@ model MonthlyBudget {
 }
 
 // Plantilla de gasto recurrente: ejecuta 0..N movimientos reales. Al abrirse un período materializa
-// su Transaction como `pending` (gasto comprometido, no cuenta como gastado) y el cobro real la
-// confirma: por detección en el correo (descripción normalizada + monto dentro de ±tolerancePct del
-// baseAmount) o por cron el día de ejecución. La categoría es obligatoria y manda: un movimiento
-// vinculado a una plantilla nunca pasa por la IA. Mismo patrón que Income, pero para gastos.
+// su Transaction como `pending` (gasto comprometido, no cuenta como gastado) y el cargo real del
+// banco la confirma, reconocido por descripción normalizada + monto dentro de ±tolerancePct del
+// baseAmount. La categoría es obligatoria y manda: un movimiento vinculado a una plantilla nunca
+// pasa por la IA. Mismo patrón que Income, pero para gastos.
 model RecurringTemplate {
   id            String           @id @default(uuid())
   userId        String

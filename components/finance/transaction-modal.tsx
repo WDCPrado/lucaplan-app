@@ -46,6 +46,7 @@ import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { CorrectionLearnStep } from "./correction-learn-step"
 import { RecurringModal } from "./recurring-modal"
+import { InstallmentModal } from "./installment-modal"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
@@ -428,8 +429,10 @@ function ConnectedDetail({
   // Crear recurrente abre el formulario precargado: el usuario ajusta título, rango y periodicidad
   // antes de confirmar. Nunca se crea directo desde el movimiento.
   const [makeRecurring, setMakeRecurring] = useState(false)
+  const [makeInstallments, setMakeInstallments] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const changed = categoryId !== tx.categoryId
+  const isCreditCard = account?.accountType === "credit_card"
   // Solo categorías del mismo lado del movimiento (ingreso ↔ credit, gasto ↔ debit).
   const visibleCategories = savedFirst(
     categories.filter((c) => c.type === (income ? "income" : "expense")),
@@ -705,19 +708,38 @@ function ConnectedDetail({
         ) : (
           // Descubrimiento: crear la recurrente se queda a la vista, no escondido en el menú.
           !income &&
-          tx.categoryId && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                haptic("light")
-                setMakeRecurring(true)
-              }}
-              disabled={saving}
-              className="h-12 shrink-0 rounded-full"
-            >
-              <Repeat className="size-4" />
-              <span className="hidden sm:inline">Hacer recurrente</span>
-            </Button>
+          tx.categoryId &&
+          !tx.installmentItemId && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  haptic("light")
+                  setMakeRecurring(true)
+                }}
+                disabled={saving}
+                className="h-12 shrink-0 rounded-full"
+              >
+                <Repeat className="size-4" />
+                <span className="hidden sm:inline">Hacer recurrente</span>
+              </Button>
+              {/* Solo en crédito: el plan se dispara con el pago de ESA tarjeta, así que sobre otra
+                  cuenta no se ejecutaría nunca. */}
+              {isCreditCard && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    haptic("light")
+                    setMakeInstallments(true)
+                  }}
+                  disabled={saving}
+                  className="h-12 shrink-0 rounded-full"
+                >
+                  <CreditCard className="size-4" />
+                  <span className="hidden sm:inline">Pasar a cuotas</span>
+                </Button>
+              )}
+            </>
           )
         )}
         <Button
@@ -750,6 +772,28 @@ function ConnectedDetail({
         </AlertDialogContent>
       </AlertDialog>
 
+
+      {/* Cronograma precargado con esta compra. Al confirmarlo, la compra queda neutralizada (deja
+          de contar como gasto) y el plan la reemplaza por una cuota al mes. */}
+      {makeInstallments && (
+        <InstallmentModal
+          open
+          onOpenChange={(o) => {
+            setMakeInstallments(o)
+            if (!o) onClose()
+          }}
+          accounts={accounts}
+          categories={categories}
+          kind="card"
+          preset={{
+            description: tx.description,
+            accountId: tx.accountId,
+            categoryId: tx.categoryId,
+            totalAmount: Math.abs(tx.amount),
+            sourceTransactionId: tx.id,
+          }}
+        />
+      )}
 
       {/* Formulario de la nueva plantilla, precargado con este movimiento. Al guardarse cierra
           también el detalle: la lista de abajo ya se refrescó. */}

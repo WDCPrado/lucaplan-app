@@ -77,8 +77,6 @@ export function isSettled(item: InstallmentItem): boolean {
 
 // --- Cronograma ---
 
-const MS_PER_DAY = 86_400_000
-
 /** Último día del mes (year, month 1–12). */
 export function lastDayOfMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate()

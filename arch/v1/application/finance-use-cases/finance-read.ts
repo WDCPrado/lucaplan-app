@@ -29,6 +29,13 @@ import {
   toleranceRange,
   type RecurringTemplateRepository,
 } from "../../domain/finance/recurring.domain.ts"
+import {
+  itemStatus,
+  outstanding,
+  progress,
+  type InstallmentPlanRepository,
+  type ItemStatus,
+} from "../../domain/finance/installment.domain.ts"
 import type { ExchangeRateProvider } from "../../domain/finance/exchange.domain.ts"
 import { toClp } from "../../domain/finance/exchange.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
@@ -115,6 +122,7 @@ export type TransactionDTO = {
   recurringTemplateId?: string | null // plantilla que lo generó; la UI marca el movimiento y ofrece pausar/eliminar
   recurringIsActive?: boolean | null // ¿esa plantilla está activa o pausada? null si no es recurrente
   recurringEndDate?: string | null // ISO del término de esa plantilla; null = indefinido
+  installmentItemId?: string | null // cuota de un plan que este movimiento salda; null si no lo es
 }
 
 export type CategoryDTO = {
@@ -165,6 +173,7 @@ function txToDTO(
     categoryLimit,
     amountClp,
     recurringTemplateId: t.recurringTemplateId ?? null,
+    installmentItemId: t.installmentItemId ?? null,
   }
 }
 
@@ -758,4 +767,116 @@ export async function getCategoryDetail(
         )
       ),
   }
+}
+
+// --- Planes de cuotas ---
+
+export type InstallmentItemDTO = {
+  id: string
+  index: number
+  dueDate: string // ISO
+  amount: number // card: definitivo; loan: estimación (el correo manda)
+  paidAmount: number | null // lo efectivamente registrado; null si aún no se registró
+  status: ItemStatus
+}
+
+export type InstallmentPlanDTO = {
+  id: string
+  kind: string // card | loan
+  description: string
+  accountId: string
+  accountName: string
+  categoryId: string
+  categoryName: string
+  categoryIcon: string | null
+  categoryColor: string | null
+  totalAmount: number
+  currency: string
+  installmentsCount: number
+  startDate: string // ISO
+  dayOfMonth: number
+  completedAt: string | null
+  settledCount: number // avance: cuotas saldadas por cualquier vía
+  outstanding: number // saldo sobre lo REGISTRADO, no sobre el cronograma
+  nextDueDate: string | null // ISO del próximo vencimiento pendiente
+  sourceTransactionId: string | null
+  items: InstallmentItemDTO[]
+}
+
+/**
+ * Planes del usuario con nombres resueltos, estado por cuota y saldo real.
+ *
+ * El saldo se calcula sobre los montos EFECTIVAMENTE registrados, no sobre el cronograma: en un
+ * plan `loan` las cuotas varían (intereses, seguros, la última difiere), así que el cronograma es
+ * una estimación y mostrar su resta como deuda mentiría.
+ */
+export async function listInstallmentsView(
+  deps: {
+    installments: InstallmentPlanRepository
+    accounts: AccountRepository
+    categories: CategoryRepository
+    transactions: TransactionRepository
+  },
+  userId: string,
+  today = new Date()
+): Promise<InstallmentPlanDTO[]> {
+  const [plans, accounts, categories] = await Promise.all([
+    deps.installments.listByUser(userId),
+    deps.accounts.listByUser(userId),
+    deps.categories.listByUser(userId),
+  ])
+  if (plans.length === 0) return []
+
+  const accById = new Map(accounts.map((a) => [a.id, a]))
+  const catById = new Map(categories.map((c) => [c.id, c]))
+  // Montos reales de las cuotas ya registradas: una sola consulta para todos los planes.
+  const txIds = plans.flatMap((p) =>
+    p.items.map((i) => i.transactionId).filter((id): id is string => id !== null)
+  )
+  const paidById = new Map<string, Money>()
+  for (const id of txIds) {
+    const tx = await deps.transactions.findById(id)
+    if (tx) paidById.set(id, tx.amount)
+  }
+
+  return plans.map((plan): InstallmentPlanDTO => {
+    const cat = catById.get(plan.categoryId)
+    const paid = plan.items
+      .map((i) => (i.transactionId ? paidById.get(i.transactionId) : null))
+      .filter((m): m is Money => m != null)
+    const pending = plan.items.find(
+      (i) => !i.transactionId && !i.paidOutsideApp
+    )
+    return {
+      id: plan.id,
+      kind: plan.kind,
+      description: plan.description,
+      accountId: plan.accountId,
+      accountName: accById.get(plan.accountId)?.name ?? "",
+      categoryId: plan.categoryId,
+      categoryName: cat?.name ?? "",
+      categoryIcon: cat?.icon ?? null,
+      categoryColor: cat?.color ?? null,
+      totalAmount: plan.totalAmount.toMajor(),
+      currency: plan.currency,
+      installmentsCount: plan.installmentsCount,
+      startDate: plan.startDate.toISOString(),
+      dayOfMonth: plan.dayOfMonth,
+      completedAt: plan.completedAt ? plan.completedAt.toISOString() : null,
+      settledCount: progress(plan).settled,
+      outstanding: outstanding(plan, paid).toMajor(),
+      nextDueDate: pending ? pending.dueDate.toISOString() : null,
+      sourceTransactionId: plan.sourceTransactionId,
+      items: plan.items.map((i) => ({
+        id: i.id,
+        index: i.index,
+        dueDate: i.dueDate.toISOString(),
+        amount: i.amount.toMajor(),
+        paidAmount: i.transactionId
+          ? (paidById.get(i.transactionId)?.toMajor() ?? null)
+          : null,
+        status: itemStatus(i, today),
+      })),
+    }
+  })
 }

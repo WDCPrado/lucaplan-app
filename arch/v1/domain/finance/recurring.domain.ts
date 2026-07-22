@@ -246,6 +246,11 @@ export interface RecurringTemplateRepository {
   /** Borra la plantilla; conserva los movimientos confirmados (sin vínculo) y borra el pendiente. */
   delete(id: string): Promise<void>
   /**
+   * Borra los comprometidos (`pending`) que quedaron FUERA de la vigencia de la plantilla, tras
+   * cambiar su inicio o su fin. Lo confirmado no se toca: ya ocurrió. Devuelve cuántos borró.
+   */
+  dropCommittedOutsideValidity(template: RecurringTemplate): Promise<number>
+  /**
    * Cambia la categoría de la plantilla y la propaga a sus movimientos aún NO cobrados
    * (`pending`). Lo confirmado no se toca: es historia, y cada movimiento ya vivió su mes.
    */

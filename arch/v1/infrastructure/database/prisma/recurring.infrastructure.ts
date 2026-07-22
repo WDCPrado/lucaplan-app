@@ -102,6 +102,22 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
       })
     )
   },
+  async dropCommittedOutsideValidity(template) {
+    // Solo lo comprometido: un movimiento confirmado es un cobro real, aunque hoy caiga fuera.
+    const { count } = await prisma.transaction.deleteMany({
+      where: {
+        recurringTemplateId: template.id,
+        status: "pending",
+        OR: [
+          { transactionDate: { lt: template.startDate } },
+          ...(template.endDate
+            ? [{ transactionDate: { gt: template.endDate } }]
+            : []),
+        ],
+      },
+    })
+    return count
+  },
   async delete(id) {
     await prisma.$transaction(async (db) => {
       // Lo confirmado se conserva sin vínculo (es historia real); lo comprometido se va con ella.

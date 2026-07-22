@@ -142,6 +142,19 @@ de las activas y las pausadas, y NO SHALL poder reactivarse mientras esa fecha s
 pasado. Para volver a usarla, el usuario SHALL correr primero su fecha de término. La fecha de
 término NO SHALL ser anterior a la de inicio.
 
+Al acortar la vigencia (definir o adelantar la fecha de término, o retrasar la de inicio), los
+movimientos **comprometidos** de períodos que quedaron fuera SHALL retirarse: dejarían de
+corresponder a un cobro futuro y seguirían sumando al comprometido del mes. Los movimientos ya
+**confirmados** NO SHALL tocarse: son cobros reales ocurridos.
+
+#### Scenario: Acortar la vigencia retira los comprometidos que sobran
+- **WHEN** una plantilla ya tiene comprometidos de septiembre y octubre y el usuario le pone término en septiembre
+- **THEN** el comprometido de octubre se retira y el de septiembre se conserva
+
+#### Scenario: Acortar la vigencia no borra cobros reales
+- **WHEN** el período de octubre ya estaba confirmado por un cargo del banco y el usuario pone término en septiembre
+- **THEN** ese movimiento se conserva intacto
+
 #### Scenario: Sin fecha de término no termina nunca
 - **WHEN** el usuario crea una recurrente sin fecha de término
 - **THEN** sigue abriendo períodos indefinidamente

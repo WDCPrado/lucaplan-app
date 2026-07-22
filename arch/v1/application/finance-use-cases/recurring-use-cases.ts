@@ -145,7 +145,7 @@ export async function updateRecurringTemplate(
   if (!existing) throw new RecurringTemplateNotFoundError(input.id)
   if (existing.userId !== userId) throw new NotOwnerError()
   const { money } = await validateInput(deps, userId, input)
-  return deps.recurring.update({
+  const updated = await deps.recurring.update({
     id: input.id,
     accountId: input.accountId,
     categoryId: input.categoryId,
@@ -159,6 +159,10 @@ export async function updateRecurringTemplate(
     endDate: input.endDate,
     isActive: input.isActive,
   })
+  // Acortar la vigencia deja comprometidos de períodos que ya no existen: se retiran aquí, o
+  // seguirían apareciendo como "Por cobrar" y sumando al comprometido del mes.
+  await deps.recurring.dropCommittedOutsideValidity(updated)
+  return updated
 }
 
 // Pausar/reanudar: no toca el resto de la plantilla. Pausada NO materializa ni confirma períodos

@@ -270,6 +270,37 @@ export function progress(plan: InstallmentPlan): {
   }
 }
 
+/**
+ * Comprometido que aportan las cuotas de un plan a una categoría en un mes: las cuotas AÚN NO
+ * saldadas cuyo vencimiento cae en ese mes. Es el análogo del comprometido de una recurrente —la
+ * cuota se anticipa en el mes que toca cobrarla— pero DERIVADO, sin crear filas: al pagarse, la
+ * cuota pasa a ser gasto real y deja de estar aquí, así que nunca cuenta dos veces. El total de la
+ * compra no participa: eso lo lleva la compra origen, ya neutralizada.
+ */
+export function dueUnsettledItems(
+  plan: InstallmentPlan,
+  year: number,
+  month: number
+): InstallmentItem[] {
+  return plan.items.filter(
+    (i) =>
+      !isSettled(i) &&
+      i.dueDate.getFullYear() === year &&
+      i.dueDate.getMonth() + 1 === month
+  )
+}
+
+export function committedForMonth(
+  plan: InstallmentPlan,
+  year: number,
+  month: number
+): Money {
+  return dueUnsettledItems(plan, year, month).reduce(
+    (sum, i) => sum.add(i.amount),
+    Money.zero(plan.currency)
+  )
+}
+
 /** ¿Quedó saldada la última cuota? Entonces el plan se cierra y deja de esperar pagos. */
 export function isComplete(plan: InstallmentPlan): boolean {
   return (

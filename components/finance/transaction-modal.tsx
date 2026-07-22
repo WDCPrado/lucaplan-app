@@ -635,6 +635,22 @@ function ConnectedDetail({
             }
           />
         )}
+        {/* Esta compra se repartió en cuotas: por eso ya no cuenta como gasto (cada cuota lo hace en
+            su mes). Sin el sello se vería como un movimiento interno sin explicación. */}
+        {tx.installmentSourceCount && (
+          <Row
+            label="Cuotas"
+            value={
+              <Link
+                href="/installments"
+                className="inline-flex items-center gap-1.5 underline underline-offset-2"
+              >
+                <CreditCard className="size-3.5 text-primary" />
+                Compra en {tx.installmentSourceCount} cuotas
+              </Link>
+            }
+          />
+        )}
       </dl>
 
       <div>
@@ -727,9 +743,11 @@ function ConnectedDetail({
           </DropdownMenu>
         ) : (
           // Descubrimiento: crear la recurrente se queda a la vista, no escondido en el menú.
+          // Una compra ya repartida en cuotas no admite recurrente ni volver a pasarse a cuotas.
           !income &&
           tx.categoryId &&
-          !tx.installmentItemId && (
+          !tx.installmentItemId &&
+          !tx.installmentSourceCount && (
             <>
               <Button
                 variant="outline"

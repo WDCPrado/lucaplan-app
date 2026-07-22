@@ -83,8 +83,8 @@ export function CategoryDetailSheet({
             </div>
             {category.committed > 0 && (
               <div className="tabular text-xs text-muted-foreground">
-                {formatCLP(category.committed)} comprometido (recurrentes por
-                cobrar)
+                {formatCLP(category.committed)} comprometido (recurrentes y
+                cuotas por cobrar)
               </div>
             )}
             <Button

@@ -1,4 +1,4 @@
-import { Repeat } from "lucide-react"
+import { CreditCard, Repeat } from "lucide-react"
 import type { TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
@@ -35,9 +35,10 @@ export function MovementRow({
   const color = tx.categoryColor ?? "var(--muted-foreground)"
   const bg = tx.categoryColor ? tx.categoryColor + "26" : "var(--muted)"
   const pending = tx.status === "pending"
-  // Un `pending` de una plantilla es un gasto COMPROMETIDO (aún no lo cobra el banco); un `pending`
-  // sin plantilla es un cargo que el banco todavía no confirma. No son lo mismo: se nombran distinto.
-  const committed = pending && !!tx.recurringTemplateId
+  // Un `pending` de una plantilla o de una cuota es un gasto COMPROMETIDO (aún no lo cobra el
+  // banco); un `pending` suelto es un cargo que el banco todavía no confirma. Se nombran distinto.
+  const committed =
+    pending && (!!tx.recurringTemplateId || !!tx.installmentForecast)
 
   const hasArc =
     tx.remaining !== null &&
@@ -60,6 +61,14 @@ export function MovementRow({
       aria-label="Gasto recurrente"
     >
       <Repeat className="size-3 text-primary" strokeWidth={3} />
+    </span>
+  ) : tx.installmentForecast ? (
+    <span
+      className="absolute -right-0.5 -bottom-0.5 grid size-4 place-items-center rounded-full bg-background ring-2 ring-background"
+      title="Cuota por cobrar"
+      aria-label="Cuota por cobrar"
+    >
+      <CreditCard className="size-3 text-primary" strokeWidth={3} />
     </span>
   ) : null
 

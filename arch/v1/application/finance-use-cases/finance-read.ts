@@ -17,6 +17,12 @@ import {
   CategoryNotFoundError,
 } from "../../domain/finance/finance.domain.ts"
 import type { IncomeRepository } from "../../domain/finance/income.domain.ts"
+import {
+  executionDateFor,
+  periodKeyFor,
+  toleranceRange,
+  type RecurringTemplateRepository,
+} from "../../domain/finance/recurring.domain.ts"
 import type { ExchangeRateProvider } from "../../domain/finance/exchange.domain.ts"
 import { toClp } from "../../domain/finance/exchange.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
@@ -26,6 +32,7 @@ import {
   computeOverdraftDebt,
   creditCardDebts,
   computeCategoryUsage,
+  computeCategoryCommitted,
   categoryStatus,
   effectiveLimit,
   effectiveGlobalLimit,
@@ -35,6 +42,8 @@ import {
 const CLP = "CLP" as const
 
 type ReadDeps = {
+  // Opcional: solo las vistas que muestran movimientos marcan su estado de recurrencia.
+  recurring?: RecurringTemplateRepository
   accounts: AccountRepository
   banks: BankRepository
   categories: CategoryRepository
@@ -97,6 +106,8 @@ export type TransactionDTO = {
   remaining: number | null // histórico: lo que quedaba de la categoría justo tras este movimiento
   categoryLimit: number | null // límite efectivo del mes de su categoría (para el arco); null si no aplica
   amountClp?: number | null // equivalente CLP ESTIMADO si la moneda no es CLP (dólar del día); null si ya es CLP
+  recurringTemplateId?: string | null // plantilla que lo generó; la UI marca el movimiento y ofrece pausar/eliminar
+  recurringIsActive?: boolean | null // ¿esa plantilla está activa o pausada? null si no es recurrente
 }
 
 export type CategoryDTO = {
@@ -108,6 +119,7 @@ export type CategoryDTO = {
   description: string | null // contexto para la IA; se edita en el modal
   limit: number
   used: number
+  committed: number // comprometido: Σ pending del mes (recurrentes aún no cobradas); capa aparte del usado
   available: number
   status: string
 }
@@ -145,6 +157,7 @@ function txToDTO(
     remaining,
     categoryLimit,
     amountClp,
+    recurringTemplateId: t.recurringTemplateId ?? null,
   }
 }
 
@@ -328,7 +341,7 @@ export async function listTransactions(
   // "Quedan" histórico en CLP (USD ya convertidos), indexado por id.
   const remaining = historicalRemaining(clpTxs, (id) => limitById.get(id) ?? null)
   // La lista no muestra reversados ni duplicados (ruido); sí muestra confirmed y pending.
-  return txs
+  const dtos = txs
     .map((t, i) => ({ t, clp: clpAmounts[i] }))
     .filter(({ t }) => t.status !== "reversed" && t.status !== "duplicated")
     .map(({ t, clp }) =>
@@ -341,6 +354,26 @@ export async function listTransactions(
         clp
       )
     )
+  return withRecurringState(deps, userId, dtos)
+}
+
+// Marca en cada DTO si su plantilla recurrente está activa o pausada. Se resuelve en el servidor
+// (una consulta por vista) para que el modal no tenga que ir a buscarlo al montarse.
+async function withRecurringState(
+  deps: { recurring?: RecurringTemplateRepository },
+  userId: string,
+  dtos: TransactionDTO[]
+): Promise<TransactionDTO[]> {
+  if (!deps.recurring || !dtos.some((d) => d.recurringTemplateId)) return dtos
+  const activeById = new Map(
+    (await deps.recurring.listByUser(userId)).map((t) => [t.id, t.isActive])
+  )
+  return dtos.map((d) => ({
+    ...d,
+    recurringIsActive: d.recurringTemplateId
+      ? (activeById.get(d.recurringTemplateId) ?? null)
+      : null,
+  }))
 }
 
 // Tope del triage: se piden TRIAGE_LIMIT+1 filas para señalar "hay más" sin count.
@@ -397,7 +430,7 @@ export async function searchTransactions(
   const manual = new Set(
     accounts.filter((a) => a.provider === "manual").map((a) => a.id)
   )
-  return txs.map((t, i) =>
+  const dtos = txs.map((t, i) =>
     txToDTO(
       t,
       t.categoryId ? catById.get(t.categoryId) : undefined,
@@ -407,6 +440,7 @@ export async function searchTransactions(
       clpAmounts[i]
     )
   )
+  return withRecurringState(deps, userId, dtos)
 }
 
 export type AmountBoundsDTO = { min: number; max: number }
@@ -435,13 +469,22 @@ export async function getBudgetView(
   // USD → CLP por fecha para que el uso por categoría cuente esos movimientos.
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
   const categories = withLimit.map(({ category, limit }): CategoryDTO => {
+    const direction = category.type === "income" ? "credit" : "debit"
     const { used, available } = computeCategoryUsage(
       category.id,
       limit,
       clpTxs,
       year,
       month,
-      category.type === "income" ? "credit" : "debit"
+      direction
+    )
+    const committed = computeCategoryCommitted(
+      category.id,
+      limit.currency,
+      clpTxs,
+      year,
+      month,
+      direction
     )
     return {
       id: category.id,
@@ -452,6 +495,7 @@ export async function getBudgetView(
       description: category.description,
       limit: limit.toMajor(),
       used: used.toMajor(),
+      committed: committed.toMajor(),
       available: available.toMajor(),
       status: categoryStatus(used, limit),
     }
@@ -537,6 +581,93 @@ export async function listIncomesView(
   )
 }
 
+export type RecurringDTO = {
+  id: string
+  description: string
+  accountId: string
+  accountName: string
+  categoryId: string
+  categoryName: string
+  categoryIcon: string | null
+  categoryColor: string | null
+  direction: string
+  baseAmount: number
+  minAmount: number // extremos del rango de match, ya calculados para mostrarlos
+  maxAmount: number
+  currency: string
+  tolerancePct: number
+  periodicity: string
+  executionMode: string
+  dayOfMonth: number | null
+  startDate: string // ISO: el cliente no recibe Date de un server component
+  isActive: boolean
+  nextExecution: string // ISO del próximo cobro esperado: lo que el usuario viene a mirar
+}
+
+// Plantillas recurrentes del usuario con nombres resueltos y el rango de tolerancia ya derivado,
+// para la vista /recurring.
+export async function listRecurringView(
+  deps: {
+    recurring: RecurringTemplateRepository
+    accounts: AccountRepository
+    categories: CategoryRepository
+  },
+  userId: string,
+  today = new Date()
+): Promise<RecurringDTO[]> {
+  const [templates, accounts, categories] = await Promise.all([
+    deps.recurring.listByUser(userId),
+    deps.accounts.listByUser(userId),
+    deps.categories.listByUser(userId),
+  ])
+  const accById = new Map(accounts.map((a) => [a.id, a]))
+  const catById = new Map(categories.map((c) => [c.id, c]))
+  return templates.map((t): RecurringDTO => {
+    const cat = catById.get(t.categoryId)
+    const { min, max } = toleranceRange(t)
+    // Próximo cobro: la ejecución del período en curso si aún no pasó; si ya pasó, la del siguiente.
+    const thisPeriod = executionDateFor(t, periodKeyFor(t, today))
+    const next =
+      thisPeriod >= today
+        ? thisPeriod
+        : executionDateFor(t, periodKeyFor(t, nextPeriodDate(t, today)))
+    return {
+      id: t.id,
+      description: t.description,
+      accountId: t.accountId,
+      accountName: accById.get(t.accountId)?.name ?? "",
+      categoryId: t.categoryId,
+      categoryName: cat?.name ?? "",
+      categoryIcon: cat?.icon ?? null,
+      categoryColor: cat?.color ?? null,
+      direction: t.direction,
+      baseAmount: t.baseAmount.toMajor(),
+      minAmount: min.toMajor(),
+      maxAmount: max.toMajor(),
+      currency: t.currency,
+      tolerancePct: t.tolerancePct,
+      periodicity: t.periodicity,
+      executionMode: t.executionMode,
+      dayOfMonth: t.dayOfMonth,
+      startDate: t.startDate.toISOString(),
+      isActive: t.isActive,
+      nextExecution: next.toISOString(),
+    }
+  })
+}
+
+// Un día dentro del período siguiente al que contiene a `from` (basta para derivar su clave).
+function nextPeriodDate(
+  template: { periodicity: string },
+  from: Date
+): Date {
+  const d = new Date(from)
+  if (template.periodicity === "biweekly") d.setDate(d.getDate() + 14)
+  else if (template.periodicity === "yearly") d.setFullYear(d.getFullYear() + 1)
+  else d.setMonth(d.getMonth() + 1, 1)
+  return d
+}
+
 export async function getCategoryDetail(
   deps: ReadDeps,
   userId: string,
@@ -578,6 +709,14 @@ export async function getCategoryDetail(
     description: category.description,
     limit: limit.toMajor(),
     used: used.toMajor(),
+    committed: computeCategoryCommitted(
+      categoryId,
+      limit.currency,
+      clpTxs,
+      year,
+      month,
+      category.type === "income" ? "credit" : "debit"
+    ).toMajor(),
     available: available.toMajor(),
     status: categoryStatus(used, limit),
     transactions: txs

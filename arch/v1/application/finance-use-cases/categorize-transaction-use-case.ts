@@ -18,12 +18,17 @@ import {
   normalizeMovementText,
   type CorrectionRepository,
 } from "../../domain/finance/categorization-learning.domain.ts"
+import {
+  RecurringCategoryRequiredError,
+  type RecurringTemplateRepository,
+} from "../../domain/finance/recurring.domain.ts"
 
 export async function categorizeTransaction(
   deps: {
     transactions: TransactionRepository
     categories: CategoryRepository
     corrections?: CorrectionRepository // opcional: sin repo no hay aprendizaje
+    recurring?: RecurringTemplateRepository // opcional: propaga la categoría a la plantilla
   },
   userId: string,
   transactionId: string,
@@ -32,6 +37,9 @@ export async function categorizeTransaction(
   const tx = await deps.transactions.findById(transactionId)
   if (!tx) throw new AccountNotFoundError(transactionId)
   if (tx.userId !== userId) throw new NotOwnerError()
+  // Un movimiento recurrente no puede quedar sin categoría: la plantilla la exige.
+  if (!categoryId && tx.recurringTemplateId)
+    throw new RecurringCategoryRequiredError()
   if (categoryId) {
     const cat = await deps.categories.findById(categoryId)
     if (!cat) throw new CategoryNotFoundError(categoryId)
@@ -41,6 +49,13 @@ export async function categorizeTransaction(
     transactionId,
     categoryId
   )
+
+  // La categoría de una recurrente NO se edita en la plantilla: la manda el movimiento. Recategorizar
+  // un movimiento vinculado reencauza la plantilla y sus comprometidos aún no cobrados, para que no
+  // queden dos verdades. Quitar la categoría (null) no arrastra a la plantilla: seguiría necesitando
+  // una, y dejarla sin categoría rompería su invariante.
+  if (categoryId && tx.recurringTemplateId && deps.recurring)
+    await deps.recurring.setCategory(tx.recurringTemplateId, categoryId)
 
   let sameTextCount = 0
   if (categoryId && deps.corrections) {

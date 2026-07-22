@@ -24,6 +24,11 @@ import {
   InvalidIncomeError,
   IncomeNotFoundError,
 } from "../../domain/finance/income.domain.ts"
+import {
+  InvalidRecurringTemplateError,
+  RecurringCategoryRequiredError,
+  RecurringTemplateNotFoundError,
+} from "../../domain/finance/recurring.domain.ts"
 import { LockBusyError } from "../../../shared/mutex.ts"
 import {
   accountRepository,
@@ -35,6 +40,7 @@ import {
 } from "../../infrastructure/database/prisma/finance.infrastructure.ts"
 import { correctionRepository } from "../../infrastructure/database/prisma/categorization-correction.infrastructure.ts"
 import { incomeRepository } from "../../infrastructure/database/prisma/income.infrastructure.ts"
+import { recurringTemplateRepository } from "../../infrastructure/database/prisma/recurring.infrastructure.ts"
 import { openaiCategorizationProvider } from "../../infrastructure/http/ai/openai-categorization.provider.ts"
 import { exchangeRateProvider } from "../../infrastructure/http/exchange/usd-clp.ts"
 
@@ -47,6 +53,7 @@ export const financeDeps = {
   transactions: transactionRepository,
   monthlyBudgets: monthlyBudgetRepository,
   incomes: incomeRepository,
+  recurring: recurringTemplateRepository,
   categorization: openaiCategorizationProvider,
   corrections: correctionRepository,
   exchangeRates: exchangeRateProvider,
@@ -64,6 +71,8 @@ function errorStatus(e: unknown): number {
     e instanceof BankConnectionError ||
     e instanceof InvalidMonthlyBudgetError ||
     e instanceof InvalidIncomeError ||
+    e instanceof InvalidRecurringTemplateError ||
+    e instanceof RecurringCategoryRequiredError ||
     e instanceof EmailReauthRequiredError ||
     e instanceof EmailSetupStateError
   )
@@ -73,6 +82,7 @@ function errorStatus(e: unknown): number {
     e instanceof AccountNotFoundError ||
     e instanceof CategoryNotFoundError ||
     e instanceof IncomeNotFoundError ||
+    e instanceof RecurringTemplateNotFoundError ||
     e instanceof EmailConnectionNotFoundError
   )
     return 404

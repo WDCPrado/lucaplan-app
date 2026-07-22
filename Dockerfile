@@ -20,4 +20,6 @@ RUN DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public" p
 EXPOSE 3005
 # Arranque: aplica migraciones pendientes (incremental, NUNCA borra datos) y levanta Next en 0.0.0.0
 # para que la IP de Tailscale del host lo alcance.
-CMD ["sh", "-c", "pnpm exec prisma migrate deploy && pnpm exec next start -p 3005 -H 0.0.0.0"]
+# Escucha en `::` (dual-stack: cubre IPv4 también). La red privada de Railway es IPv6: sin esto,
+# la función de cron no alcanza /api/cron/*.
+CMD ["sh", "-c", "pnpm exec prisma migrate deploy && pnpm exec next start -p 3005 -H ::"]

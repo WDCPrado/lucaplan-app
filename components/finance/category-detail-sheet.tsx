@@ -54,6 +54,11 @@ export function CategoryDetailSheet({
           <div className="flex flex-col items-center gap-1 px-4">
             <ProgressRing
               percent={pct}
+              committedPercent={
+                category.limit > 0
+                  ? (category.committed / category.limit) * 100
+                  : 0
+              }
               status={category.status}
               size={150}
               stroke={11}
@@ -76,6 +81,12 @@ export function CategoryDetailSheet({
             >
               {formatCLP(category.available)} disponible
             </div>
+            {category.committed > 0 && (
+              <div className="tabular text-xs text-muted-foreground">
+                {formatCLP(category.committed)} comprometido (recurrentes por
+                cobrar)
+              </div>
+            )}
             <Button
               variant="secondary"
               className="mt-3 rounded-full"

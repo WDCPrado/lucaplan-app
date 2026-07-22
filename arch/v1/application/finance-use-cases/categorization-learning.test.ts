@@ -389,3 +389,58 @@ test("annotateCorrection: sin categoría no anota ni propaga", async () => {
   assert.equal(calls.notes.length, 0)
   assert.equal(calls.applies.length, 0)
 })
+
+// --- la categoría de un recurrente no se puede vaciar ---
+
+test("categorizeTransaction: un movimiento recurrente no puede quedar sin categoría", async () => {
+  const tx = { ...mov("t1", "debit"), recurringTemplateId: "plantilla1" }
+  await assert.rejects(
+    categorizeTransaction(
+      {
+        transactions: fakeTransactions({ t1: tx }),
+        categories: fakeCategories([cat("gasto1", "expense")]),
+      },
+      "u1",
+      "t1",
+      null
+    ),
+    /elimina la recurrencia/
+  )
+})
+
+test("categorizeTransaction: sí puede cambiar de categoría, y arrastra la plantilla", async () => {
+  const tx = { ...mov("t1", "debit"), recurringTemplateId: "plantilla1" }
+  const propagated: { templateId: string; categoryId: string }[] = []
+  const out = await categorizeTransaction(
+    {
+      transactions: fakeTransactions({ t1: tx }),
+      categories: fakeCategories([cat("gasto1", "expense")]),
+      recurring: {
+        setCategory: async (templateId: string, categoryId: string) => {
+          propagated.push({ templateId, categoryId })
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    },
+    "u1",
+    "t1",
+    "gasto1"
+  )
+  assert.equal(out.transaction.categoryId, "gasto1")
+  assert.deepEqual(propagated, [
+    { templateId: "plantilla1", categoryId: "gasto1" },
+  ])
+})
+
+test("categorizeTransaction: un movimiento normal sí puede quedar sin categoría", async () => {
+  const out = await categorizeTransaction(
+    {
+      transactions: fakeTransactions({ t1: mov("t1", "debit") }),
+      categories: fakeCategories([cat("gasto1", "expense")]),
+    },
+    "u1",
+    "t1",
+    null
+  )
+  assert.equal(out.transaction.categoryId, null)
+})

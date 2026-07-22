@@ -88,6 +88,7 @@ function toTransaction(row: any): Transaction {
     amount: Money.of(row.amount.toString(), currency),
     direction: row.direction as Direction,
     status: (row.status ?? "confirmed") as MovementStatus,
+    recurringTemplateId: row.recurringTemplateId ?? null,
     isInternal: row.isInternal ?? false,
     externalId: row.externalId ?? null,
   }

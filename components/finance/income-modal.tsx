@@ -235,7 +235,8 @@ export function IncomeModal({
 // El ingreso es recurrente: guardamos solo el número de día, el mes/año no importan.
 const DAY_PICKER_MONTH = new Date(2001, 0, 1)
 
-function DayOfMonthPicker({
+// Exportado: lo reutiliza el modal de recurrentes (misma regla de día del mes).
+export function DayOfMonthPicker({
   value,
   onChange,
 }: {

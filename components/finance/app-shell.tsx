@@ -10,6 +10,7 @@ import {
   Moon,
   LogOut,
   UserRound,
+  Repeat,
   ChevronsUpDown,
   Plus,
   Search,
@@ -44,10 +45,11 @@ import {
 
 // Solo rutas que existen. Movimientos/Presupuestos viven como secciones del
 // dashboard; cuando sean páginas propias, se agregan aquí.
-export type NavKey = "inicio" | "perfil"
+export type NavKey = "inicio" | "recurrentes" | "perfil"
 
 const NAV: { key: NavKey; label: string; Icon: typeof Home; href: string }[] = [
   { key: "inicio", label: "Inicio", Icon: Home, href: "/dashboard" },
+  { key: "recurrentes", label: "Recurrentes", Icon: Repeat, href: "/recurring" },
   { key: "perfil", label: "Mi perfil", Icon: UserRound, href: "/profile" },
 ]
 

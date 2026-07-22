@@ -150,6 +150,9 @@ export type EmailConnectionDeps = {
   methods: ConnectionMethodRepository
   mail: BankMailProvider
   store: EmailSetupStore
+  // Match contra plantillas recurrentes de los movimientos recién importados. Corre ANTES de la
+  // IA: lo que reclama una plantilla ya queda categorizado y revisado, así que la IA no lo ve.
+  matchRecurring?: (userId: string, externalIds: string[]) => Promise<number>
   // Categorización IA best-effort de lo importado no interno (una falla no revierte nada).
   categorize?: (userId: string) => Promise<number>
 }
@@ -879,8 +882,12 @@ export async function syncEmailConnection(
   })
   await deps.store.markBankSynced(conn.bankId)
 
-  if (deps.categorize && createdExternalIds.length > 0)
-    await deps.categorize(userId).catch(() => {})
+  if (createdExternalIds.length > 0) {
+    // Plantilla > IA: el match corre primero y deja categorizado y revisado lo que reclama.
+    if (deps.matchRecurring)
+      await deps.matchRecurring(userId, createdExternalIds).catch(() => {})
+    if (deps.categorize) await deps.categorize(userId).catch(() => {})
+  }
 
   return {
     imported: resolved.length,

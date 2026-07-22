@@ -17,6 +17,31 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 
+/**
+ * Barra de acciones anclada al borde inferior del modal: la acción principal no se pierde al hacer
+ * scroll. Va DENTRO del contenido (el modal es el contenedor scrollable en ambas variantes), por
+ * eso `sticky` y no `fixed`. Fondo opaco, no translúcido: lo que pasa por debajo no debe leerse a
+ * través de los botones. `pb` con safe-area para no chocar con el gesto de inicio en la PWA.
+ */
+export function ModalFooter({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "sticky bottom-0 z-10 -mx-4 mt-2 flex items-center gap-2 border-t border-border/60 bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+        className
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
 // Superficie contextual adaptativa: diálogo centrado en escritorio, drawer inferior estilo iOS
 // en móvil (vaul: full-height, arrastrable, con el fondo escalado vía data-vaul-drawer-wrapper
 // en el layout). Mismo contenido y comportamiento; solo cambia el envoltorio (useIsMobile, 768px).

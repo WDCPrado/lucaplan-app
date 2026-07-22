@@ -4,8 +4,35 @@ import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { es } from "date-fns/locale"
-import { CalendarIcon, CircleDashed, CreditCard } from "lucide-react"
-import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import {
+  CalendarIcon,
+  CircleDashed,
+  CreditCard,
+  MoreHorizontal,
+  PauseCircle,
+  PlayCircle,
+  Repeat,
+  Trash2,
+} from "lucide-react"
+import { toast } from "sonner"
+import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Input } from "@/components/ui/input"
@@ -18,6 +45,7 @@ import {
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { CorrectionLearnStep } from "./correction-learn-step"
+import { RecurringModal } from "./recurring-modal"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
@@ -40,6 +68,8 @@ export function accountLabel(account: AccountDTO | undefined): string | null {
 const STATUS_LABEL: Record<string, string> = {
   confirmed: "Confirmado",
   pending: "Pendiente",
+  // `committed` no es un estado del banco: es cómo se muestra un `pending` que creó una plantilla.
+  committed: "Por cobrar",
   reversed: "Reversado",
   duplicated: "Duplicado",
 }
@@ -146,6 +176,7 @@ export function TransactionModal({
             key={tx.id}
             tx={tx}
             account={account}
+            accounts={accounts}
             categories={categories}
             onClose={() => onOpenChange(false)}
           />
@@ -228,7 +259,7 @@ function EditForm({
   }
 
   return (
-    <div className="flex flex-col gap-5 px-4 pb-6">
+    <div className="flex flex-col gap-5 px-4">
       <Input
         placeholder="Descripción"
         value={description}
@@ -289,32 +320,52 @@ function EditForm({
             Sin categorías de {direction === "credit" ? "ingreso" : "gasto"}.
           </p>
         ) : (
-          <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
-            <Chip
-              active={categoryId === null}
-              onClick={() => setCategoryId(null)}
-            >
-              <CircleDashed size={16} /> Sin categoría
-            </Chip>
-            {visibleCategories.map((c) => (
-              <Chip
-                key={c.id}
-                active={c.id === categoryId}
-                onClick={() => setCategoryId(c.id === categoryId ? null : c.id)}
-              >
-                <CategoryIcon
-                  icon={c.icon}
-                  size={16}
-                  color={c.color ?? undefined}
-                />{" "}
-                {c.name}
-              </Chip>
-            ))}
-          </div>
+          <>
+            <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
+              {/* Sin categoría solo si NO es recurrente: la plantilla exige una, y quitarla aquí
+                  la dejaría sin la suya. Se libera al eliminar la recurrencia. */}
+              {!tx.recurringTemplateId && (
+                <Chip
+                  active={categoryId === null}
+                  onClick={() => setCategoryId(null)}
+                >
+                  <CircleDashed size={16} /> Sin categoría
+                </Chip>
+              )}
+              {visibleCategories.map((c) => (
+                <Chip
+                  key={c.id}
+                  active={c.id === categoryId}
+                  // Tocar la activa la deselecciona… salvo en un recurrente, que no puede quedarse
+                  // sin categoría.
+                  onClick={() =>
+                    setCategoryId(
+                      c.id === categoryId && !tx.recurringTemplateId
+                        ? null
+                        : c.id
+                    )
+                  }
+                >
+                  <CategoryIcon
+                    icon={c.icon}
+                    size={16}
+                    color={c.color ?? undefined}
+                  />{" "}
+                  {c.name}
+                </Chip>
+              ))}
+            </div>
+            {tx.recurringTemplateId && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Cambiarla también recategoriza la recurrencia. Para dejarlo sin
+                categoría, elimina antes la recurrencia.
+              </p>
+            )}
+          </>
         )}
       </div>
 
-      <div className="flex gap-2">
+      <ModalFooter>
         <Button
           variant="outline"
           onClick={remove}
@@ -330,7 +381,7 @@ function EditForm({
         >
           {busy === "save" ? "Guardando…" : "Guardar"}
         </Button>
-      </div>
+      </ModalFooter>
     </div>
   )
 }
@@ -339,11 +390,13 @@ function EditForm({
 function ConnectedDetail({
   tx,
   account,
+  accounts,
   categories,
   onClose,
 }: {
   tx: TransactionDTO
   account: AccountDTO | undefined
+  accounts: AccountDTO[]
   categories: CategoryDTO[]
   onClose: () => void
 }) {
@@ -354,6 +407,15 @@ function ConnectedDetail({
   // Paso de aprendizaje tras guardar: pregunta el "porqué" (opcional) y ofrece propagar la
   // categoría a los N movimientos con la misma descripción. La categoría ya quedó persistida.
   const [learn, setLearn] = useState<{ sameTextCount: number } | null>(null)
+  // Estado de la plantilla que generó este movimiento: llega resuelto en el DTO desde el servidor.
+  // Optimista tras pausar/reanudar; `router.refresh()` trae el valor real.
+  const [recurringActive, setRecurringActive] = useState(
+    tx.recurringIsActive !== false
+  )
+  // Crear recurrente abre el formulario precargado: el usuario ajusta título, rango y periodicidad
+  // antes de confirmar. Nunca se crea directo desde el movimiento.
+  const [makeRecurring, setMakeRecurring] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const changed = categoryId !== tx.categoryId
   // Solo categorías del mismo lado del movimiento (ingreso ↔ credit, gasto ↔ debit).
   const visibleCategories = savedFirst(
@@ -382,6 +444,47 @@ function ConnectedDetail({
     }
     const data = await res.json().catch(() => ({}))
     setLearn({ sameTextCount: Number(data.sameTextCount) || 0 })
+  }
+
+  // Pausa/reanuda la plantilla que generó este movimiento. Pausada no ejecuta los períodos
+  // siguientes; lo ya cobrado queda intacto.
+  async function toggleRecurring() {
+    if (!tx.recurringTemplateId) return
+    setSaving(true)
+    const res = await fetch(`/api/recurring/${tx.recurringTemplateId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: !recurringActive }),
+    })
+    setSaving(false)
+    if (!res.ok) {
+      haptic("error")
+      return toast.error("No se pudo cambiar la recurrencia")
+    }
+    haptic("success")
+    setRecurringActive(!recurringActive)
+    toast.success(recurringActive ? "Recurrencia pausada" : "Recurrencia reanudada")
+    router.refresh()
+  }
+
+  // Elimina la plantilla. Los movimientos ya cobrados se conservan (solo pierden el vínculo);
+  // el comprometido del período en curso, que no ocurrió, se va con ella.
+  async function deleteRecurring() {
+    if (!tx.recurringTemplateId) return
+    setSaving(true)
+    haptic("heavy") // destructiva: borra la plantilla
+    const res = await fetch(`/api/recurring/${tx.recurringTemplateId}`, {
+      method: "DELETE",
+    })
+    setSaving(false)
+    if (!res.ok) {
+      haptic("error")
+      return toast.error("No se pudo eliminar la recurrencia")
+    }
+    haptic("success")
+    toast.success("Recurrencia eliminada; los movimientos cobrados se conservan")
+    onClose()
+    router.refresh()
   }
 
   async function finishLearn({
@@ -424,7 +527,7 @@ function ConnectedDetail({
   }
 
   return (
-    <div className="flex flex-col gap-6 px-4 pb-6">
+    <div className="flex flex-col gap-6 px-4">
       <div className="flex flex-col items-center gap-1 pt-2 text-center">
         <div
           className={`tabular text-4xl font-bold ${income ? "text-success" : "text-foreground"}`}
@@ -458,7 +561,32 @@ function ConnectedDetail({
         )}
         <Row label="Fecha" value={fullDate(tx.date)} />
         <Row label="Tipo" value={income ? "Ingreso" : "Gasto"} />
-        <Row label="Estado" value={STATUS_LABEL[tx.status] ?? tx.status} />
+        <Row
+          label="Estado"
+          value={
+            STATUS_LABEL[
+              tx.status === "pending" && tx.recurringTemplateId
+                ? "committed"
+                : tx.status
+            ] ?? tx.status
+          }
+        />
+        {tx.recurringTemplateId && (
+          <Row
+            label="Recurrencia"
+            value={
+              <span className="inline-flex items-center gap-1.5">
+                <Repeat
+                  className={cn(
+                    "size-3.5",
+                    recurringActive ? "text-primary" : "text-muted-foreground"
+                  )}
+                />
+                {recurringActive ? "Activa" : "Pausada"}
+              </span>
+            }
+          />
+        )}
       </dl>
 
       <div>
@@ -469,42 +597,156 @@ function ConnectedDetail({
             clasificar este movimiento.
           </p>
         ) : (
-          <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
-            <Chip
-              active={categoryId === null}
-              onClick={() => setCategoryId(null)}
-            >
-              <CircleDashed size={16} /> Sin categoría
-            </Chip>
-            {visibleCategories.map((c) => (
-              <Chip
-                key={c.id}
-                active={c.id === categoryId}
-                onClick={() => setCategoryId(c.id === categoryId ? null : c.id)}
-              >
-                <CategoryIcon
-                  icon={c.icon}
-                  size={16}
-                  color={c.color ?? undefined}
-                />{" "}
-                {c.name}
-              </Chip>
-            ))}
-          </div>
+          <>
+            <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
+              {/* Sin categoría solo si NO es recurrente: la plantilla exige una, y quitarla aquí
+                  la dejaría sin la suya. Se libera al eliminar la recurrencia. */}
+              {!tx.recurringTemplateId && (
+                <Chip
+                  active={categoryId === null}
+                  onClick={() => setCategoryId(null)}
+                >
+                  <CircleDashed size={16} /> Sin categoría
+                </Chip>
+              )}
+              {visibleCategories.map((c) => (
+                <Chip
+                  key={c.id}
+                  active={c.id === categoryId}
+                  // Tocar la activa la deselecciona… salvo en un recurrente, que no puede quedarse
+                  // sin categoría.
+                  onClick={() =>
+                    setCategoryId(
+                      c.id === categoryId && !tx.recurringTemplateId
+                        ? null
+                        : c.id
+                    )
+                  }
+                >
+                  <CategoryIcon
+                    icon={c.icon}
+                    size={16}
+                    color={c.color ?? undefined}
+                  />{" "}
+                  {c.name}
+                </Chip>
+              ))}
+            </div>
+            {tx.recurringTemplateId && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Cambiarla también recategoriza la recurrencia. Para dejarlo sin
+                categoría, elimina antes la recurrencia.
+              </p>
+            )}
+          </>
         )}
       </div>
 
-      <Button
-        onClick={saveCategory}
-        disabled={!changed || saving}
-        className="h-12 rounded-full text-base"
-      >
-        {saving ? "Guardando…" : "Guardar categoría"}
-      </Button>
+      <ModalFooter>
+        {tx.recurringTemplateId ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={saving}
+                aria-label="Acciones de la recurrencia"
+                className="size-12 shrink-0 rounded-full"
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top">
+              <DropdownMenuItem onSelect={toggleRecurring}>
+                {recurringActive ? (
+                  <>
+                    <PauseCircle className="size-4" /> Pausar recurrencia
+                  </>
+                ) : (
+                  <>
+                    <PlayCircle className="size-4" /> Reanudar recurrencia
+                  </>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => setConfirmDelete(true)}
+              >
+                <Trash2 className="size-4" /> Eliminar recurrencia
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          // Descubrimiento: crear la recurrente se queda a la vista, no escondido en el menú.
+          !income &&
+          tx.categoryId && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                haptic("light")
+                setMakeRecurring(true)
+              }}
+              disabled={saving}
+              className="h-12 shrink-0 rounded-full"
+            >
+              <Repeat className="size-4" />
+              <span className="hidden sm:inline">Hacer recurrente</span>
+            </Button>
+          )
+        )}
+        <Button
+          onClick={saveCategory}
+          disabled={!changed || saving}
+          className="h-12 flex-1 rounded-full text-base"
+        >
+          {saving ? "Guardando…" : changed ? "Guardar categoría" : "Guardado"}
+        </Button>
+      </ModalFooter>
 
-      <p className="text-center text-xs text-muted-foreground">
-        Movimiento del banco · solo se puede categorizar
-      </p>
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar la recurrencia?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se borra la plantilla y deja de cobrarse. Los movimientos ya
+              cobrados se conservan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteRecurring}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+
+      {/* Formulario de la nueva plantilla, precargado con este movimiento. Al guardarse cierra
+          también el detalle: la lista de abajo ya se refrescó. */}
+      {makeRecurring && (
+        <RecurringModal
+          open
+          onOpenChange={(o) => {
+            setMakeRecurring(o)
+            if (!o) onClose()
+          }}
+          accounts={accounts}
+          categories={categories}
+          preset={{
+            description: tx.description,
+            accountId: tx.accountId,
+            categoryId: tx.categoryId,
+            baseAmount: Math.abs(tx.amount),
+            dayOfMonth: new Date(tx.date).getUTCDate(),
+            sourceTransactionId: tx.id,
+          }}
+        />
+      )}
     </div>
   )
 }

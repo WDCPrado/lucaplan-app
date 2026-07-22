@@ -10,6 +10,7 @@ import {
   ConnectedAccountReadOnlyError,
 } from "../../domain/finance/finance.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
+import { RecurringCategoryRequiredError } from "../../domain/finance/recurring.domain.ts"
 
 export type UpdateTransactionInput = {
   transactionId: string
@@ -41,7 +42,9 @@ export async function updateTransaction(
   userId: string,
   input: UpdateTransactionInput
 ): Promise<Transaction> {
-  const { account } = await loadEditable(deps, userId, input.transactionId)
+  const { tx, account } = await loadEditable(deps, userId, input.transactionId)
+  if (!input.categoryId && tx.recurringTemplateId)
+    throw new RecurringCategoryRequiredError()
   return deps.transactions.update({
     id: input.transactionId,
     description: input.description,

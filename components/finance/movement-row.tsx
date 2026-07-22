@@ -1,3 +1,4 @@
+import { Repeat } from "lucide-react"
 import type { TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
@@ -34,6 +35,9 @@ export function MovementRow({
   const color = tx.categoryColor ?? "var(--muted-foreground)"
   const bg = tx.categoryColor ? tx.categoryColor + "26" : "var(--muted)"
   const pending = tx.status === "pending"
+  // Un `pending` de una plantilla es un gasto COMPROMETIDO (aún no lo cobra el banco); un `pending`
+  // sin plantilla es un cargo que el banco todavía no confirma. No son lo mismo: se nombran distinto.
+  const committed = pending && !!tx.recurringTemplateId
 
   const hasArc =
     tx.remaining !== null &&
@@ -48,21 +52,42 @@ export function MovementRow({
         ? 101
         : 0
 
-  const icon = hasArc ? (
-    <ProgressRing percent={pct} status={arcStatus(pct)} size={44} stroke={3.5}>
-      <div
-        className="grid size-8 place-items-center rounded-full"
-        style={{ background: bg }}
-      >
-        <CategoryIcon icon={tx.categoryIcon} size={17} color={color} />
-      </div>
-    </ProgressRing>
-  ) : (
-    <div
-      className="grid size-11 place-items-center rounded-full"
-      style={{ background: bg }}
+  // Sello de recurrente: va sobre la esquina inferior derecha del arco, sin desplazar la fila.
+  const recurringBadge = tx.recurringTemplateId ? (
+    <span
+      className="absolute -right-0.5 -bottom-0.5 grid size-4 place-items-center rounded-full bg-background ring-2 ring-background"
+      title="Gasto recurrente"
+      aria-label="Gasto recurrente"
     >
-      <CategoryIcon icon={tx.categoryIcon} size={20} color={color} />
+      <Repeat className="size-3 text-primary" strokeWidth={3} />
+    </span>
+  ) : null
+
+  const icon = (
+    <div className="relative">
+      {hasArc ? (
+        <ProgressRing
+          percent={pct}
+          status={arcStatus(pct)}
+          size={44}
+          stroke={3.5}
+        >
+          <div
+            className="grid size-8 place-items-center rounded-full"
+            style={{ background: bg }}
+          >
+            <CategoryIcon icon={tx.categoryIcon} size={17} color={color} />
+          </div>
+        </ProgressRing>
+      ) : (
+        <div
+          className="grid size-11 place-items-center rounded-full"
+          style={{ background: bg }}
+        >
+          <CategoryIcon icon={tx.categoryIcon} size={20} color={color} />
+        </div>
+      )}
+      {recurringBadge}
     </div>
   )
 
@@ -93,7 +118,7 @@ export function MovementRow({
             </span>
             {pending && (
               <span className="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
-                Pendiente
+                {committed ? "Por cobrar" : "Pendiente"}
               </span>
             )}
             {tx.isInternal && (

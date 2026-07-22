@@ -2,15 +2,14 @@ import {
   withUser,
   financeDeps,
 } from "@/arch/v1/presentation/finance/finance-http"
-import {
-  createInstallmentPlan,
-  listInstallmentPlans,
-} from "@/arch/v1/application/finance-use-cases/installment-use-cases"
+import { createInstallmentPlan } from "@/arch/v1/application/finance-use-cases/installment-use-cases"
+import { listInstallmentsView } from "@/arch/v1/application/finance-use-cases/finance-read"
 import type { InstallmentKind } from "@/arch/v1/domain/finance/installment.domain"
 
-// Planes de cuotas del usuario (compras con tarjeta y créditos de consumo).
+// Planes de cuotas del usuario (compras con tarjeta y créditos de consumo), ya en DTO: es lo que
+// consume el modal de movimiento para ofrecer a qué cuota asignarlo.
 export async function GET(req: Request) {
-  return withUser(req, (userId) => listInstallmentPlans(financeDeps, userId))
+  return withUser(req, (userId) => listInstallmentsView(financeDeps, userId))
 }
 
 // Crea un plan. `card` viene de transformar una compra (manda `sourceTransactionId`); `loan` se da

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { es } from "date-fns/locale"
 import {
@@ -47,6 +48,7 @@ import { haptic } from "@/lib/haptics"
 import { CorrectionLearnStep } from "./correction-learn-step"
 import { RecurringModal } from "./recurring-modal"
 import { InstallmentModal } from "./installment-modal"
+import { AssignToInstallmentModal } from "./assign-to-installment-modal"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
@@ -430,6 +432,7 @@ function ConnectedDetail({
   // antes de confirmar. Nunca se crea directo desde el movimiento.
   const [makeRecurring, setMakeRecurring] = useState(false)
   const [makeInstallments, setMakeInstallments] = useState(false)
+  const [assignInstallment, setAssignInstallment] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const changed = categoryId !== tx.categoryId
   const isCreditCard = account?.accountType === "credit_card"
@@ -615,6 +618,23 @@ function ConnectedDetail({
             }
           />
         )}
+        {/* ponytail: solo el hecho de que está asignado, sin el nombre del plan ni el número de
+            cuota — traerlos obligaría a unir plan e ítem en todas las consultas de movimientos.
+            El detalle y el "soltar" viven en la vista del plan, a un toque. */}
+        {tx.installmentItemId && (
+          <Row
+            label="Cuotas"
+            value={
+              <Link
+                href="/installments"
+                className="inline-flex items-center gap-1.5 underline underline-offset-2"
+              >
+                <CreditCard className="size-3.5 text-primary" />
+                Es la cuota de un plan
+              </Link>
+            }
+          />
+        )}
       </dl>
 
       <div>
@@ -723,9 +743,10 @@ function ConnectedDetail({
                 <Repeat className="size-4" />
                 <span className="hidden sm:inline">Hacer recurrente</span>
               </Button>
-              {/* Solo en crédito: el plan se dispara con el pago de ESA tarjeta, así que sobre otra
-                  cuenta no se ejecutaría nunca. */}
-              {isCreditCard && (
+              {/* En crédito, el movimiento es la COMPRA y se reparte en cuotas: el plan la
+                  reemplaza. En cualquier otra cuenta, el movimiento ES una cuota de una deuda que
+                  ya existe, y lo que corresponde es asignarlo — no crear nada. */}
+              {isCreditCard ? (
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -737,6 +758,19 @@ function ConnectedDetail({
                 >
                   <CreditCard className="size-4" />
                   <span className="hidden sm:inline">Pasar a cuotas</span>
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    haptic("light")
+                    setAssignInstallment(true)
+                  }}
+                  disabled={saving}
+                  className="h-12 shrink-0 rounded-full"
+                >
+                  <CreditCard className="size-4" />
+                  <span className="hidden sm:inline">Es una cuota</span>
                 </Button>
               )}
             </>
@@ -772,6 +806,18 @@ function ConnectedDetail({
         </AlertDialogContent>
       </AlertDialog>
 
+
+      {/* Este movimiento pasa a SER la cuota de un plan existente: no se crea nada. Cubre lo que
+          el enganche automático no alcanza (plan creado después del cargo, pago ambiguo entre dos
+          créditos, descripción distinta a la esperada). */}
+      {assignInstallment && (
+        <AssignToInstallmentModal
+          open
+          onOpenChange={setAssignInstallment}
+          transactionId={tx.id}
+          onAssigned={onClose}
+        />
+      )}
 
       {/* Cronograma precargado con esta compra. Al confirmarlo, la compra queda neutralizada (deja
           de contar como gasto) y el plan la reemplaza por una cuota al mes. */}

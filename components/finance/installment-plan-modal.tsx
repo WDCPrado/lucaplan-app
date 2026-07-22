@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { formatCLP } from "@/lib/finance-format"
+import { InstallmentLinkPicker } from "./installment-link-picker"
 import type { InstallmentPlanDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 // Edición en línea de una cuota aún no registrada: monto y vencimiento. Reemplaza la fila en vez
@@ -104,53 +105,51 @@ export function InstallmentPlanModal({
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [linking, setLinking] = useState<
+    InstallmentPlanDTO["items"][number] | null
+  >(null)
 
-  async function saveItem(itemId: string, dueDate: string, amount: number) {
-    if (busy) return
+  async function patch(body: object, ok: string, fail: string) {
+    if (busy) return false
     setBusy(true)
     const res = await fetch(`/api/installments/${plan.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemId, dueDate, amount }),
+      body: JSON.stringify(body),
     })
     const data = await res.json().catch(() => ({}))
     setBusy(false)
     if (!res.ok) {
       haptic("error")
-      return toast.error(data.error ?? "No se pudo guardar la cuota")
+      toast.error(data.error ?? fail)
+      return false
     }
     haptic("success")
-    setEditingId(null)
+    toast.success(ok)
     router.refresh()
+    return true
+  }
+
+  async function saveItem(itemId: string, dueDate: string, amount: number) {
+    const ok = await patch(
+      { itemId, dueDate, amount },
+      "Cuota actualizada",
+      "No se pudo guardar la cuota"
+    )
+    if (ok) setEditingId(null)
   }
 
   const paidTotal = plan.totalAmount - plan.outstanding
   const pct = Math.round((plan.settledCount / plan.installmentsCount) * 100)
 
-  // Salida para cuando el pago no llega por correo (pagaste desde otro banco, se perdió el aviso).
-  // Sin ella un único pago no notificado dejaría el plan congelado para siempre.
+  // Último recurso: CREA el movimiento, para un pago que no dejó rastro en la app (pagaste desde
+  // otro banco, el aviso nunca llegó). Si el movimiento existe hay que asignarlo, no crear otro.
   async function payManually(itemId: string, amount: number) {
-    if (busy) return
-    setBusy(true)
-    const res = await fetch(`/api/installments/${plan.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        itemId,
-        paid: true,
-        amount,
-        date: new Date().toISOString(),
-      }),
-    })
-    const data = await res.json().catch(() => ({}))
-    setBusy(false)
-    if (!res.ok) {
-      haptic("error")
-      return toast.error(data.error ?? "No se pudo registrar la cuota")
-    }
-    haptic("success")
-    toast.success("Cuota registrada")
-    router.refresh()
+    await patch(
+      { itemId, paid: true, amount, date: new Date().toISOString() },
+      "Movimiento creado y cuota registrada",
+      "No se pudo registrar la cuota"
+    )
   }
 
   async function remove() {
@@ -265,7 +264,8 @@ export function InstallmentPlanModal({
                   <span className="tabular shrink-0 text-sm font-medium">
                     {formatCLP(item.paidAmount ?? item.amount)}
                   </span>
-                  {/* Una cuota registrada es historia: no se edita ni se vuelve a marcar. */}
+                  {/* Asignar va primero: el caso normal es que el gasto YA esté en la app y haya
+                      que reconocerlo, no fabricar uno nuevo. */}
                   {!settled && (
                     <>
                       <button
@@ -278,19 +278,60 @@ export function InstallmentPlanModal({
                       </button>
                       <button
                         type="button"
-                        onClick={() => payManually(item.id, item.amount)}
+                        onClick={() => setLinking(item)}
                         disabled={busy}
-                        className="shrink-0 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                        className="shrink-0 rounded-full border border-primary px-2.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
                       >
-                        Pagada
+                        Asignar
                       </button>
                     </>
+                  )}
+                  {/* Deshacer una asignación equivocada; si no, la única salida sería borrar el plan. */}
+                  {item.status === "paid" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        patch(
+                          { itemId: item.id, unlink: true },
+                          "Movimiento soltado",
+                          "No se pudo soltar el movimiento"
+                        )
+                      }
+                      disabled={busy}
+                      className="shrink-0 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                    >
+                      Soltar
+                    </button>
                   )}
                 </li>
               )
             })}
           </ul>
         </section>
+
+        {/* Selector de movimiento existente para la cuota elegida. La opción de crear uno queda
+            explícitamente como salida de último recurso: crear cuando el gasto ya existe lo
+            contaría dos veces. */}
+        {linking && (
+          <InstallmentLinkPicker
+            open
+            onOpenChange={(o) => !o && setLinking(null)}
+            around={linking.dueDate}
+            accountId={plan.accountId}
+            onPick={async (transactionId) => {
+              const ok = await patch(
+                { itemId: linking.id, transactionId },
+                "Movimiento asignado a la cuota",
+                "No se pudo asignar el movimiento"
+              )
+              if (ok) setLinking(null)
+            }}
+            onCreate={async () => {
+              await payManually(linking.id, linking.amount)
+              setLinking(null)
+            }}
+          />
+        )}
 
         {/* La compra que dio origen al plan quedó neutralizada: dejó de contar como gasto, pero se
             conserva para poder ver cuánto cobró el banco de una vez. */}

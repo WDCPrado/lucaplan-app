@@ -233,6 +233,15 @@ export function pickLoanPlanFor(
   return withinTolerance.length === 1 ? withinTolerance[0] : null
 }
 
+/** Movimiento existente que el usuario puede asignar a una cuota. */
+export type LinkCandidate = {
+  transactionId: string
+  description: string
+  amount: Money
+  date: Date
+  accountName: string
+}
+
 // --- Avance y saldo ---
 
 /**
@@ -335,6 +344,8 @@ export interface InstallmentPlanRepository {
   updateItem(itemId: string, dueDate: Date, amount: Money): Promise<void>
   /** Cierra el plan cuando su última cuota queda saldada. */
   markCompleted(planId: string, at: Date): Promise<void>
+  /** Reabre un plan cerrado: al soltar una cuota vuelve a tener algo pendiente. */
+  reopen(planId: string): Promise<void>
   /** Marca la compra origen como interna y la vincula al plan. */
   neutralizeSourceTransaction(
     planId: string,
@@ -345,6 +356,18 @@ export interface InstallmentPlanRepository {
     userId: string,
     accountId: string
   ): Promise<(LoanPayment & { transactionId: string })[]>
+  /**
+   * Movimientos que el usuario podría asignar a una cuota: gastos suyos, no internos y todavía sin
+   * plan. Se acotan a una ventana alrededor del vencimiento porque un pago se busca por cercanía,
+   * no revisando el año entero.
+   */
+  listLinkCandidates(
+    userId: string,
+    around: Date,
+    accountId?: string
+  ): Promise<LinkCandidate[]>
+  /** Suelta el movimiento de su cuota (deshacer una asignación equivocada). */
+  unlinkTransaction(transactionId: string): Promise<void>
 }
 
 // --- Errores de negocio ---

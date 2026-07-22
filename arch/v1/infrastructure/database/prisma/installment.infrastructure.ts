@@ -171,6 +171,12 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
       data: { completedAt: at },
     })
   },
+  async reopen(planId) {
+    await prisma.installmentPlan.update({
+      where: { id: planId },
+      data: { completedAt: null },
+    })
+  },
   async neutralizeSourceTransaction(planId, transactionId) {
     await prisma.$transaction(async (db) => {
       // isInternal ya excluye del presupuesto y de la caja: el total deja de contar sin lógica
@@ -183,6 +189,53 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
         where: { id: planId },
         data: { sourceTransactionId: transactionId },
       })
+    })
+  },
+  async listLinkCandidates(userId, around, accountId) {
+    // Ventana de ±45 días: un pago se busca por cercanía al vencimiento, no revisando el año.
+    const window = 45 * 86_400_000
+    const rows = await prisma.transaction.findMany({
+      where: {
+        userId,
+        ...(accountId ? { accountId } : {}),
+        installmentItemId: null,
+        isInternal: false,
+        direction: "debit",
+        status: "confirmed",
+        transactionDate: {
+          gte: new Date(around.getTime() - window),
+          lte: new Date(around.getTime() + window),
+        },
+      },
+      select: {
+        id: true,
+        description: true,
+        amount: true,
+        currency: true,
+        transactionDate: true,
+        account: { select: { name: true } },
+      },
+      take: 50,
+    })
+    return rows
+      .map((r) => ({
+        transactionId: r.id,
+        description: r.description,
+        amount: Money.of(r.amount.toString(), r.currency as CurrencyCode),
+        date: r.transactionDate,
+        accountName: r.account.name,
+      }))
+      .sort(
+        (a, b) =>
+          Math.abs(a.date.getTime() - around.getTime()) -
+          Math.abs(b.date.getTime() - around.getTime())
+      )
+  },
+  async unlinkTransaction(transactionId) {
+    // Solo se suelta el vínculo: el movimiento es un gasto real y se conserva tal cual.
+    await prisma.transaction.update({
+      where: { id: transactionId },
+      data: { installmentItemId: null },
     })
   },
   async listUnclaimedLoanPayments(userId, accountId) {

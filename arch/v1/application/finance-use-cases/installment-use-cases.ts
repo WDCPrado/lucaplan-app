@@ -22,6 +22,7 @@ import {
   type InstallmentKind,
   type InstallmentPlan,
   type InstallmentPlanRepository,
+  type LinkCandidate,
   type LoanPayment,
   InstallmentAccountMismatchError,
   InstallmentItemAlreadySettledError,
@@ -273,11 +274,85 @@ export async function adoptLoanInstallment(
   return plan
 }
 
+// --- Asignación manual de un movimiento existente ---
+
+/**
+ * Asigna a una cuota un movimiento que YA existe. Es la contraparte manual de `adoptLoanInstallment`
+ * para cuando el enganche automático no ocurrió: el pago quedó ambiguo entre dos planes, el plan se
+ * creó después de que llegara el cargo, o la descripción del banco no encajó.
+ *
+ * Nunca crea un movimiento: por eso es la acción correcta en un plan `loan`, donde el gasto real ya
+ * está registrado y fabricar otro lo contaría dos veces.
+ *
+ * No se exige que el movimiento sea de la misma cuenta del plan: una cuota puede pagarse desde otra
+ * cuenta, y aquí el usuario está afirmando la relación explícitamente.
+ */
+export async function linkTransactionToItem(
+  deps: { installments: InstallmentPlanRepository; transactions: TransactionRepository },
+  userId: string,
+  input: { planId: string; itemId: string; transactionId: string }
+): Promise<InstallmentPlan> {
+  const plan = await deps.installments.findById(input.planId)
+  if (!plan) throw new InstallmentPlanNotFoundError(input.planId)
+  if (plan.userId !== userId) throw new NotOwnerError()
+  const item = plan.items.find((i) => i.id === input.itemId)
+  if (!item) throw new InstallmentPlanNotFoundError(input.itemId)
+  if (isSettled(item)) throw new InstallmentItemAlreadySettledError()
+
+  const tx = await deps.transactions.findById(input.transactionId)
+  if (!tx) throw new InstallmentPlanNotFoundError(input.transactionId)
+  if (tx.userId !== userId) throw new NotOwnerError()
+  if (tx.installmentItemId)
+    throw new InvalidInstallmentPlanError(
+      "Ese movimiento ya está asignado a otra cuota"
+    )
+  if (tx.direction !== "debit")
+    throw new InvalidInstallmentPlanError("Una cuota es un gasto, no un ingreso")
+
+  await deps.installments.adoptTransaction(plan, item.id, tx.id)
+  await closeIfComplete(deps, plan, item, tx.date)
+  return (await deps.installments.findById(plan.id)) ?? plan
+}
+
+/**
+ * Suelta el movimiento de una cuota: vuelve a ser un gasto normal y la cuota, pendiente. Sin esta
+ * vuelta atrás una asignación equivocada sería definitiva, y la única salida borrar el plan entero.
+ */
+export async function unlinkTransactionFromItem(
+  deps: { installments: InstallmentPlanRepository },
+  userId: string,
+  input: { planId: string; itemId: string }
+): Promise<InstallmentPlan> {
+  const plan = await deps.installments.findById(input.planId)
+  if (!plan) throw new InstallmentPlanNotFoundError(input.planId)
+  if (plan.userId !== userId) throw new NotOwnerError()
+  const item = plan.items.find((i) => i.id === input.itemId)
+  if (!item) throw new InstallmentPlanNotFoundError(input.itemId)
+  if (item.transactionId)
+    await deps.installments.unlinkTransaction(item.transactionId)
+  // Reabrir una cuota reabre el plan: si estaba cerrado, vuelve a esperar pagos.
+  if (plan.completedAt) await deps.installments.reopen(plan.id)
+  return (await deps.installments.findById(plan.id)) ?? plan
+}
+
+/** Movimientos que el usuario puede asignar a una cuota, ordenados por cercanía al vencimiento. */
+export async function listLinkCandidates(
+  deps: { installments: InstallmentPlanRepository },
+  userId: string,
+  around: Date,
+  accountId?: string
+): Promise<LinkCandidate[]> {
+  return deps.installments.listLinkCandidates(userId, around, accountId)
+}
+
 // --- Marca manual ---
 
 /**
- * Registra a mano una cuota cuyo pago no llegó por correo (pagaste desde otro banco, se perdió el
- * aviso). Sin esta salida un único pago no notificado bloquearía el plan para siempre.
+ * CREA el movimiento de una cuota cuyo pago no dejó rastro en la app: pagaste desde otro banco o el
+ * aviso nunca llegó. Sin esta salida un único pago no notificado bloquearía el plan para siempre.
+ *
+ * Ojo: si el movimiento SÍ existe, lo correcto es `linkTransactionToItem`. Crear uno aquí sumaría
+ * un gasto que ya estaba contado.
  */
 export async function payInstallmentManually(
   deps: { installments: InstallmentPlanRepository },

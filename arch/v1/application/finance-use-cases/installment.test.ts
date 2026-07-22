@@ -10,21 +10,27 @@ import type {
   AccountRepository,
   Category,
   CategoryRepository,
+  Transaction,
+  TransactionRepository,
 } from "../../domain/finance/finance.domain.ts"
 import {
   type InstallmentPlan,
   type InstallmentPlanRepository,
+  type LinkCandidate,
   type LoanPayment,
   type NewInstallmentPlan,
   InstallmentAccountMismatchError,
   InstallmentItemAlreadySettledError,
   InstallmentSplitMismatchError,
+  InvalidInstallmentPlanError,
 } from "../../domain/finance/installment.domain.ts"
 import {
   adoptLoanInstallment,
   createInstallmentPlan,
   executeCardInstallments,
+  linkTransactionToItem,
   payInstallmentManually,
+  unlinkTransactionFromItem,
   updateInstallmentItem,
 } from "./installment-use-cases.ts"
 
@@ -60,6 +66,7 @@ function makeRepo() {
   const adopted: { itemId: string; transactionId: string }[] = []
   const neutralized: string[] = []
   let unclaimed: (LoanPayment & { transactionId: string })[] = []
+  const candidates: LinkCandidate[] = []
   let seq = 0
 
   const settle = (planId: string, itemId: string, transactionId: string) => {
@@ -119,6 +126,15 @@ function makeRepo() {
     },
     markCompleted: async (planId, at) => {
       plans.get(planId)!.completedAt = at
+    },
+    reopen: async (planId) => {
+      plans.get(planId)!.completedAt = null
+    },
+    listLinkCandidates: async () => candidates,
+    unlinkTransaction: async (transactionId) => {
+      for (const plan of plans.values())
+        for (const item of plan.items)
+          if (item.transactionId === transactionId) item.transactionId = null
     },
     neutralizeSourceTransaction: async (planId, transactionId) => {
       neutralized.push(transactionId)
@@ -468,6 +484,129 @@ test("si el correo llega después de la marca manual, el ítem no se registra do
   assert.equal(registered.length, 1)
   assert.equal(adopted.length, 0, "no se engancha a ninguna cuota")
   assert.equal(claimed, null, "el movimiento queda como gasto suelto")
+})
+
+// --- Asignar un movimiento existente ---
+
+// Doble de TransactionRepository con lo que usa el caso de uso.
+function makeTransactions(
+  rows: Record<string, Partial<Transaction>> = {}
+): TransactionRepository {
+  return {
+    findById: async (id: string) =>
+      rows[id]
+        ? ({
+            id,
+            userId: "u1",
+            direction: "debit",
+            date: day(2026, 8, 7),
+            amount: clp(100_000),
+            installmentItemId: null,
+            ...rows[id],
+          } as Transaction)
+        : null,
+  } as TransactionRepository
+}
+
+test("asignar un movimiento existente NO crea otro", async () => {
+  const { repo, adopted, registered } = makeRepo()
+  const deps = {
+    installments: repo,
+    accounts: makeAccounts("checking"),
+    categories,
+  }
+  const plan = await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    kind: "loan",
+  })
+  const after = await linkTransactionToItem(
+    { installments: repo, transactions: makeTransactions({ tx1: {} }) },
+    "u1",
+    { planId: plan.id, itemId: plan.items[0].id, transactionId: "tx1" }
+  )
+  assert.equal(registered.length, 0, "asignar nunca fabrica un gasto")
+  assert.deepEqual(adopted, [{ itemId: plan.items[0].id, transactionId: "tx1" }])
+  assert.equal(after.items[0].transactionId, "tx1")
+})
+
+test("no se puede asignar un movimiento que ya es cuota de otro plan", async () => {
+  const { repo } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", baseInput)
+  await assert.rejects(
+    () =>
+      linkTransactionToItem(
+        {
+          installments: repo,
+          transactions: makeTransactions({ tx1: { installmentItemId: "otro" } }),
+        },
+        "u1",
+        { planId: plan.id, itemId: plan.items[0].id, transactionId: "tx1" }
+      ),
+    InvalidInstallmentPlanError
+  )
+})
+
+test("un ingreso no puede asignarse como cuota", async () => {
+  const { repo } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", baseInput)
+  await assert.rejects(
+    () =>
+      linkTransactionToItem(
+        {
+          installments: repo,
+          transactions: makeTransactions({ tx1: { direction: "credit" } }),
+        },
+        "u1",
+        { planId: plan.id, itemId: plan.items[0].id, transactionId: "tx1" }
+      ),
+    InvalidInstallmentPlanError
+  )
+})
+
+test("una cuota ya registrada no admite otra asignación", async () => {
+  const { repo } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", baseInput)
+  await executeCardInstallments({ installments: repo }, "acc1", day(2026, 9, 3))
+  await assert.rejects(
+    () =>
+      linkTransactionToItem(
+        { installments: repo, transactions: makeTransactions({ tx1: {} }) },
+        "u1",
+        { planId: plan.id, itemId: plan.items[0].id, transactionId: "tx1" }
+      ),
+    InstallmentItemAlreadySettledError
+  )
+})
+
+test("soltar la cuota la deja pendiente y reabre el plan cerrado", async () => {
+  const { repo } = makeRepo()
+  const deps = {
+    installments: repo,
+    accounts: makeAccounts("checking"),
+    categories,
+  }
+  const plan = await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    kind: "loan",
+    installmentsCount: 1,
+    totalAmount: 100_000,
+  })
+  await linkTransactionToItem(
+    { installments: repo, transactions: makeTransactions({ tx1: {} }) },
+    "u1",
+    { planId: plan.id, itemId: plan.items[0].id, transactionId: "tx1" }
+  )
+  assert.notEqual((await repo.findById(plan.id))!.completedAt, null)
+
+  const after = await unlinkTransactionFromItem({ installments: repo }, "u1", {
+    planId: plan.id,
+    itemId: plan.items[0].id,
+  })
+  assert.equal(after.items[0].transactionId, null)
+  assert.equal(after.completedAt, null, "vuelve a esperar pagos")
 })
 
 test("una cuota ya registrada no se puede editar", async () => {

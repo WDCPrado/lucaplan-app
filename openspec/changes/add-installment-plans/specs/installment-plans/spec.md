@@ -233,15 +233,48 @@ proyección de pagos por correo, única fuente de esa medición.
 - **WHEN** se crea un plan de cuotas
 - **THEN** el cupo de la tarjeta no cambia por el plan; solo lo ajusta el pago proyectado desde el correo
 
+### Requirement: Asignar un movimiento existente a una cuota
+
+El sistema SHALL permitir asignar a una cuota pendiente un movimiento que ya existe, tanto
+desde la vista del plan (eligiendo el movimiento) como desde el propio movimiento (eligiendo
+el plan y la cuota). La asignación NO SHALL crear ningún movimiento: el existente **pasa a
+ser** la cuota, conservando su monto y su fecha, y adoptando la categoría del plan.
+
+Esta es la vía correcta cuando el enganche automático no ocurrió —el plan se creó después de
+que llegara el cargo, el pago quedó ambiguo entre dos planes, o el banco lo describió
+distinto—. Crear un movimiento en esos casos contaría dos veces el mismo gasto.
+
+Un movimiento ya asignado a otra cuota, un ingreso, o una cuota ya registrada SHALL
+rechazarse. El sistema SHALL permitir **soltar** el movimiento de una cuota, devolviéndolo a
+gasto normal y dejando la cuota pendiente; si el plan estaba completado, SHALL reabrirse.
+
+#### Scenario: Asignar desde el plan
+- **WHEN** el usuario elige un gasto existente para la cuota 4
+- **THEN** ese movimiento queda como la cuota 4, con su monto y fecha originales, sin crearse ninguno nuevo
+
+#### Scenario: Marcar un movimiento como cuota desde el movimiento
+- **WHEN** el usuario abre un gasto y elige el plan y la cuota a la que corresponde
+- **THEN** el movimiento queda asignado a esa cuota y el plan avanza
+
+#### Scenario: Movimiento ya asignado no se reasigna
+- **WHEN** el usuario intenta asignar un movimiento que ya es cuota de otro plan
+- **THEN** el sistema lo rechaza
+
+#### Scenario: Soltar reabre la cuota y el plan
+- **WHEN** el usuario suelta el movimiento de la última cuota de un plan completado
+- **THEN** la cuota vuelve a estar pendiente, el movimiento vuelve a ser un gasto normal y el plan deja de estar completado
+
 ### Requirement: Registrar una cuota a mano
 
-El sistema SHALL permitir marcar una cuota pendiente como pagada desde la vista del plan,
-indicando fecha y monto, para los casos en que el pago no llega por correo (pago desde otro
-banco, correo perdido, cuota anterior a la conexión). La cuota así registrada SHALL generar su
-`Transaction` con la fecha indicada y la categoría del plan, y SHALL ser indistinguible de una
-registrada automáticamente.
+El sistema SHALL permitir crear el movimiento de una cuota pendiente cuando el pago **no dejó
+rastro en la app** (se pagó desde otro banco, el aviso nunca llegó). La cuota así registrada
+SHALL generar su `Transaction` con la fecha indicada y la categoría del plan, y SHALL ser
+indistinguible de una registrada automáticamente.
 
-Sin esta salida un plan quedaría bloqueado para siempre por un único pago no notificado.
+Sin esta salida un plan quedaría bloqueado para siempre por un único pago no notificado. Por
+la misma razón que la justifica, SHALL ofrecerse **después** de la asignación de un movimiento
+existente y presentarse como último recurso: crear cuando el gasto ya está registrado lo
+contaría dos veces.
 
 Si más tarde llega el correo de esa misma cuota, el ítem ya registrado NO SHALL volver a
 registrarse: el vínculo único con el ítem lo impide, y el movimiento del correo queda como

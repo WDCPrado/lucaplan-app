@@ -24,6 +24,7 @@ import {
 import { effectiveIncomeAmount } from "./income-use-cases.ts"
 import {
   executionDateFor,
+  hasEnded,
   periodKeyFor,
   toleranceRange,
   type RecurringTemplateRepository,
@@ -113,6 +114,7 @@ export type TransactionDTO = {
   amountClp?: number | null // equivalente CLP ESTIMADO si la moneda no es CLP (dólar del día); null si ya es CLP
   recurringTemplateId?: string | null // plantilla que lo generó; la UI marca el movimiento y ofrece pausar/eliminar
   recurringIsActive?: boolean | null // ¿esa plantilla está activa o pausada? null si no es recurrente
+  recurringEndDate?: string | null // ISO del término de esa plantilla; null = indefinido
 }
 
 export type CategoryDTO = {
@@ -370,15 +372,21 @@ async function withRecurringState(
   dtos: TransactionDTO[]
 ): Promise<TransactionDTO[]> {
   if (!deps.recurring || !dtos.some((d) => d.recurringTemplateId)) return dtos
-  const activeById = new Map(
-    (await deps.recurring.listByUser(userId)).map((t) => [t.id, t.isActive])
+  const byId = new Map(
+    (await deps.recurring.listByUser(userId)).map((t) => [t.id, t])
   )
-  return dtos.map((d) => ({
-    ...d,
-    recurringIsActive: d.recurringTemplateId
-      ? (activeById.get(d.recurringTemplateId) ?? null)
-      : null,
-  }))
+  return dtos.map((d) => {
+    const template = d.recurringTemplateId
+      ? byId.get(d.recurringTemplateId)
+      : undefined
+    return {
+      ...d,
+      recurringIsActive: template ? template.isActive : null,
+      recurringEndDate: template?.endDate
+        ? template.endDate.toISOString()
+        : null,
+    }
+  })
 }
 
 // Tope del triage: se piden TRIAGE_LIMIT+1 filas para señalar "hay más" sin count.
@@ -614,6 +622,8 @@ export type RecurringDTO = {
   periodicity: string
   dayOfMonth: number | null
   startDate: string // ISO: el cliente no recibe Date de un server component
+  endDate: string | null // ISO; null = indefinida
+  hasEnded: boolean // su fecha de fin ya pasó: no ejecuta más ni puede reactivarse
   isActive: boolean
   nextExecution: string // ISO del próximo cobro esperado: lo que el usuario viene a mirar
 }
@@ -663,6 +673,8 @@ export async function listRecurringView(
       periodicity: t.periodicity,
       dayOfMonth: t.dayOfMonth,
       startDate: t.startDate.toISOString(),
+      endDate: t.endDate ? t.endDate.toISOString() : null,
+      hasEnded: hasEnded(t, today),
       isActive: t.isActive,
       nextExecution: next.toISOString(),
     }

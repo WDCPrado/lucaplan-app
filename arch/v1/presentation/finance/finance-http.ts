@@ -27,6 +27,7 @@ import {
 import {
   InvalidRecurringTemplateError,
   RecurringCategoryRequiredError,
+  RecurringTemplateEndedError,
   RecurringTemplateNotFoundError,
 } from "../../domain/finance/recurring.domain.ts"
 import { LockBusyError } from "../../../shared/mutex.ts"
@@ -73,6 +74,7 @@ function errorStatus(e: unknown): number {
     e instanceof InvalidIncomeError ||
     e instanceof InvalidRecurringTemplateError ||
     e instanceof RecurringCategoryRequiredError ||
+    e instanceof RecurringTemplateEndedError ||
     e instanceof EmailReauthRequiredError ||
     e instanceof EmailSetupStateError
   )

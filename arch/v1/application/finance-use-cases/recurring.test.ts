@@ -13,6 +13,7 @@ import {
   createRecurringTemplate,
   materializePeriod,
   materializeUserPeriods,
+  setRecurringActive,
 } from "./recurring-use-cases.ts"
 
 type Row = {
@@ -41,6 +42,17 @@ function makeRepo(templates: RecurringTemplate[]) {
       throw new Error("no usado")
     },
     delete: async () => {},
+    dropCommittedOutsideValidity: async (template) => {
+      const outside = rows.filter(
+        (r) =>
+          r.templateId === template.id &&
+          r.status === "pending" &&
+          (r.date < template.startDate ||
+            (template.endDate !== null && r.date > template.endDate))
+      )
+      for (const row of outside) rows.splice(rows.indexOf(row), 1)
+      return outside.length
+    },
     setCategory: async (templateId, categoryId) => {
       for (const r of rows)
         if (r.templateId === templateId && r.status === "pending")
@@ -116,6 +128,7 @@ const arriendo: RecurringTemplate = {
   periodicity: "monthly",
   dayOfMonth: 5,
   startDate: new Date(2026, 0, 5),
+  endDate: null,
   isActive: true,
 }
 
@@ -236,6 +249,7 @@ test("crear desde un movimiento lo vincula como ejecución de su período", asyn
       periodicity: "monthly",
           dayOfMonth: 20,
       startDate: source.date,
+      endDate: null,
       sourceTransactionId: source.id,
     }
   )
@@ -299,4 +313,100 @@ test("lo ya cobrado no cambia de categoría al reencauzar la plantilla", async (
   await repo.setCategory("arriendo", "servicios")
   assert.equal(rows[0].status, "confirmed")
   assert.equal(rows[0].categoryId, "vivienda")
+})
+
+// --- fecha de fin (WDC-31) ---
+
+test("no se materializa el período posterior a la fecha de fin", async () => {
+  const conFin = { ...arriendo, endDate: new Date(2026, 7, 31) } // termina en agosto
+  const { repo, rows } = makeRepo([conFin])
+
+  await materializeUserPeriods({ recurring: repo }, "u1", 2026, 8, new Date(2026, 7, 1))
+  assert.equal(rows.length, 1, "agosto sí se abre")
+
+  await materializeUserPeriods({ recurring: repo }, "u1", 2026, 9, new Date(2026, 7, 1))
+  assert.equal(rows.length, 1, "septiembre ya no")
+})
+
+test("una plantilla terminada no reclama cargos posteriores", async () => {
+  const conFin = { ...arriendo, endDate: new Date(2026, 6, 31) }
+  const { repo, rows } = makeRepo([conFin])
+  const matched = await confirmFromMovement({ recurring: repo }, [conFin], {
+    id: "tx-agosto",
+    description: "Arriendo Depto 08/26",
+    amount: Money.of(355_000, "CLP"),
+    direction: "debit",
+    date: new Date(2026, 7, 5), // agosto, ya terminada
+  })
+  assert.equal(matched, null)
+  assert.equal(rows.length, 0)
+})
+
+test("el cargo del último período sí lo reclama", async () => {
+  const conFin = { ...arriendo, endDate: new Date(2026, 6, 31) }
+  const { repo } = makeRepo([conFin])
+  const matched = await confirmFromMovement({ recurring: repo }, [conFin], {
+    id: "tx-julio",
+    description: "Arriendo Depto 07/26",
+    amount: Money.of(355_000, "CLP"),
+    direction: "debit",
+    date: new Date(2026, 6, 5),
+  })
+  assert.equal(matched?.id, "arriendo")
+})
+
+test("reactivar una terminada se rechaza hasta correr su fecha de fin", async () => {
+  const conFin = {
+    ...arriendo,
+    isActive: false,
+    endDate: new Date(2026, 6, 31),
+  }
+  const { repo } = makeRepo([conFin])
+  repo.update = async (input) => ({ ...conFin, ...input, baseAmount: conFin.baseAmount })
+
+  await assert.rejects(
+    setRecurringActive(
+      { recurring: repo },
+      "u1",
+      { id: "arriendo", isActive: true },
+      new Date(2026, 7, 10)
+    ),
+    /corre su fecha de fin/
+  )
+
+  // Pausarla siempre se puede, aunque haya terminado.
+  await setRecurringActive(
+    { recurring: repo },
+    "u1",
+    { id: "arriendo", isActive: false },
+    new Date(2026, 7, 10)
+  )
+})
+
+test("acortar la vigencia retira los comprometidos que quedaron fuera", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  // Comprometidos de septiembre y octubre ya materializados.
+  await materializePeriod({ recurring: repo }, arriendo, new Date(2026, 8, 1))
+  await materializePeriod({ recurring: repo }, arriendo, new Date(2026, 9, 1))
+  assert.equal(rows.length, 2)
+
+  // Ahora la plantilla termina en septiembre: el de octubre ya no corresponde.
+  const conFin = { ...arriendo, endDate: new Date(2026, 8, 30) }
+  const dropped = await repo.dropCommittedOutsideValidity(conFin)
+
+  assert.equal(dropped, 1)
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].periodKey, "2026-09")
+})
+
+test("acortar la vigencia no toca los cobros ya confirmados", async () => {
+  const { repo, rows, confirm } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, new Date(2026, 9, 1))
+  confirm(rows[0].id, Money.of(360_000, "CLP"), new Date(2026, 9, 5))
+
+  const conFin = { ...arriendo, endDate: new Date(2026, 8, 30) }
+  const dropped = await repo.dropCommittedOutsideValidity(conFin)
+
+  assert.equal(dropped, 0, "un cobro real se conserva aunque hoy caiga fuera")
+  assert.equal(rows.length, 1)
 })

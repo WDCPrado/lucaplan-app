@@ -41,6 +41,16 @@ function nextChargeLabel(iso: string, today = new Date()): string {
   })}`
 }
 
+// "25 ago 2027": el año va SIEMPRE, porque el error típico al fijar el término es equivocarse de
+// año y con "25 ago" no hay forma de notarlo.
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("es-CL", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
+}
+
 export function RecurringView({
   user,
   templates,
@@ -56,8 +66,9 @@ export function RecurringView({
   const [editing, setEditing] = useState<RecurringDTO | null>(null)
   const [open, setOpen] = useState(false)
 
-  const active = templates.filter((t) => t.isActive)
-  const paused = templates.filter((t) => !t.isActive)
+  const ended = templates.filter((t) => t.hasEnded)
+  const active = templates.filter((t) => t.isActive && !t.hasEnded)
+  const paused = templates.filter((t) => !t.isActive && !t.hasEnded)
   // Lo que estas plantillas comprometen en un período completo: responde "¿cuánto de mi
   // presupuesto ya está tomado antes de gastar nada?".
   const committed = active.reduce((sum, t) => sum + t.baseAmount, 0)
@@ -84,7 +95,10 @@ export function RecurringView({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isActive }),
     })
-    if (!res.ok) return toast.error("No se pudo cambiar el estado")
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      return toast.error(data.error ?? "No se pudo cambiar el estado")
+    }
     router.refresh()
   }
 
@@ -162,6 +176,24 @@ export function RecurringView({
                 </ul>
               </section>
             )}
+
+            {ended.length > 0 && (
+              <section>
+                <h3 className="mb-2 text-xs font-medium text-muted-foreground">
+                  Finalizadas
+                </h3>
+                <ul className="flex flex-col gap-2">
+                  {ended.map((t) => (
+                    <RecurringRow
+                      key={t.id}
+                      template={t}
+                      onEdit={() => edit(t)}
+                      onToggle={() => toggleActive(t, true)}
+                    />
+                  ))}
+                </ul>
+              </section>
+            )}
           </div>
         )}
       </div>
@@ -195,7 +227,7 @@ function RecurringRow({
     <li
       className={cn(
         "glass flex items-center gap-3 rounded-2xl py-3 pr-4 pl-3 transition-opacity",
-        !t.isActive && "opacity-60"
+        (!t.isActive || t.hasEnded) && "opacity-60"
       )}
     >
       <button
@@ -218,6 +250,8 @@ function RecurringRow({
           <span className="block truncate text-xs text-muted-foreground">
             {t.categoryName} ·{" "}
             {PERIODICITY_LABEL[t.periodicity] ?? t.periodicity}
+            {/* La vigencia se ve sin abrir el modal: es lo que uno olvida haber fijado. */}
+            {t.endDate && !t.hasEnded && ` · hasta ${shortDate(t.endDate)}`}
           </span>
         </span>
         <span className="shrink-0 text-right">
@@ -225,14 +259,21 @@ function RecurringRow({
             {formatCLP(t.baseAmount)}
           </span>
           <span className="tabular block text-xs text-muted-foreground">
-            {t.isActive ? nextChargeLabel(t.nextExecution) : "Sin cobros"}
+            {t.hasEnded
+              ? `Terminó el ${shortDate(t.endDate!)}`
+              : t.isActive
+                ? nextChargeLabel(t.nextExecution)
+                : "Sin cobros"}
           </span>
         </span>
       </button>
       {/* Separado del bloque de datos: es un control, no información. El label describe la acción
           para el lector de pantalla; el estado lo anuncia el propio switch. */}
+      {/* Terminada: el switch queda inerte. Reactivarla exige correr su fecha de fin (se edita
+          tocando la fila), y el backend rechaza el intento de todos modos. */}
       <Switch
-        checked={t.isActive}
+        checked={t.isActive && !t.hasEnded}
+        disabled={t.hasEnded}
         onCheckedChange={onToggle}
         aria-label={`Recurrencia de ${t.description}`}
         className="ml-1 shrink-0"

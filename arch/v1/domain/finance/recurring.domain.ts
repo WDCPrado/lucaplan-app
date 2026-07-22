@@ -27,6 +27,7 @@ export type RecurringTemplate = {
   periodicity: Periodicity
   dayOfMonth: number | null // monthly/yearly; en meses cortos cae al último día
   startDate: Date // ancla de los períodos
+  endDate: Date | null // null = indefinida; el último cobro es el que cae en esta fecha o antes
   isActive: boolean
 }
 
@@ -43,6 +44,7 @@ export type NewRecurringTemplate = {
   periodicity: Periodicity
   dayOfMonth: number | null
   startDate: Date
+  endDate: Date | null
 }
 
 export type UpdateRecurringTemplate = Omit<NewRecurringTemplate, "userId"> & {
@@ -107,6 +109,50 @@ export function executionDateFor(
     : template.startDate.getMonth() + 1
   const day = template.dayOfMonth ?? template.startDate.getDate()
   return new Date(year, month - 1, Math.min(day, lastDayOfMonth(year, month)))
+}
+
+// --- Vigencia ---
+
+// Compara solo el día calendario: la hora de `endDate` (medianoche UTC) no debe excluir cobros
+// del mismo día.
+function isAfterDay(a: Date, b: Date): boolean {
+  return (
+    Date.UTC(a.getFullYear(), a.getMonth(), a.getDate()) >
+    Date.UTC(b.getFullYear(), b.getMonth(), b.getDate())
+  )
+}
+
+/**
+ * ¿La plantilla ya terminó a la fecha dada? Con `endDate` null nunca termina. El día de fin
+ * SIGUE siendo vigente: su período es el del último cobro, no el primero que se omite.
+ */
+export function hasEnded(
+  template: Pick<RecurringTemplate, "endDate">,
+  date: Date
+): boolean {
+  return template.endDate !== null && isAfterDay(date, template.endDate)
+}
+
+/**
+ * ¿Corresponde ejecutar este período? Se mira la FECHA DE EJECUCIÓN del período, no el día en que
+ * se pregunta: un período cuyo cobro cae después del fin no se abre, aunque el mes ya empezó.
+ */
+export function periodIsWithinValidity(
+  template: RecurringTemplate,
+  executionDate: Date
+): boolean {
+  return (
+    !isAfterDay(template.startDate, executionDate) &&
+    !hasEnded(template, executionDate)
+  )
+}
+
+/** Una plantilla terminada no vuelve sola: reactivarla exige correr antes su fecha de fin. */
+export function canReactivate(
+  template: Pick<RecurringTemplate, "endDate">,
+  today: Date
+): boolean {
+  return !hasEnded(template, today)
 }
 
 // --- Regla de match ---
@@ -200,6 +246,11 @@ export interface RecurringTemplateRepository {
   /** Borra la plantilla; conserva los movimientos confirmados (sin vínculo) y borra el pendiente. */
   delete(id: string): Promise<void>
   /**
+   * Borra los comprometidos (`pending`) que quedaron FUERA de la vigencia de la plantilla, tras
+   * cambiar su inicio o su fin. Lo confirmado no se toca: ya ocurrió. Devuelve cuántos borró.
+   */
+  dropCommittedOutsideValidity(template: RecurringTemplate): Promise<number>
+  /**
    * Cambia la categoría de la plantilla y la propaga a sus movimientos aún NO cobrados
    * (`pending`). Lo confirmado no se toca: es historia, y cada movimiento ya vivió su mes.
    */
@@ -253,6 +304,16 @@ export class RecurringCategoryRequiredError extends Error {
       "Este movimiento es recurrente: elimina la recurrencia antes de dejarlo sin categoría"
     )
     this.name = "RecurringCategoryRequiredError"
+  }
+}
+
+/** Reactivar una plantilla cuya fecha de fin ya pasó (→ 422): primero hay que correr esa fecha. */
+export class RecurringTemplateEndedError extends Error {
+  constructor() {
+    super(
+      "La recurrente terminó: corre su fecha de fin antes de volver a activarla"
+    )
+    this.name = "RecurringTemplateEndedError"
   }
 }
 

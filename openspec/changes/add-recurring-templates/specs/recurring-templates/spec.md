@@ -130,6 +130,51 @@ normal (IA/triage) sin vincularse a la plantilla.
 - **WHEN** el comprometido del período ya fue confirmado y llega otro cargo que también cae en el rango
 - **THEN** el movimiento nuevo no se vincula a la plantilla y pasa por el flujo normal de categorización
 
+### Requirement: Fecha de término de la plantilla
+
+Una plantilla SHALL tener una **fecha de término opcional**, por defecto **indefinida**: sin
+ella la plantilla nunca termina. Con fecha de término, el período cuyo día de ejecución cae en
+esa fecha SHALL ser el **último cobro**; los períodos cuya ejecución caería después NO SHALL
+materializarse ni reconocerse desde el correo.
+
+Pasada la fecha de término, la plantilla SHALL considerarse **finalizada**: se muestra aparte
+de las activas y las pausadas, y NO SHALL poder reactivarse mientras esa fecha siga en el
+pasado. Para volver a usarla, el usuario SHALL correr primero su fecha de término. La fecha de
+término NO SHALL ser anterior a la de inicio.
+
+Al acortar la vigencia (definir o adelantar la fecha de término, o retrasar la de inicio), los
+movimientos **comprometidos** de períodos que quedaron fuera SHALL retirarse: dejarían de
+corresponder a un cobro futuro y seguirían sumando al comprometido del mes. Los movimientos ya
+**confirmados** NO SHALL tocarse: son cobros reales ocurridos.
+
+#### Scenario: Acortar la vigencia retira los comprometidos que sobran
+- **WHEN** una plantilla ya tiene comprometidos de septiembre y octubre y el usuario le pone término en septiembre
+- **THEN** el comprometido de octubre se retira y el de septiembre se conserva
+
+#### Scenario: Acortar la vigencia no borra cobros reales
+- **WHEN** el período de octubre ya estaba confirmado por un cargo del banco y el usuario pone término en septiembre
+- **THEN** ese movimiento se conserva intacto
+
+#### Scenario: Sin fecha de término no termina nunca
+- **WHEN** el usuario crea una recurrente sin fecha de término
+- **THEN** sigue abriendo períodos indefinidamente
+
+#### Scenario: El día de término es el último cobro
+- **WHEN** una plantilla mensual que cobra el día 5 tiene término el 5 de septiembre
+- **THEN** el período de septiembre se ejecuta y el de octubre ya no
+
+#### Scenario: Un cargo posterior al término no se reconoce
+- **WHEN** llega por correo un cargo que calza con una plantilla ya finalizada
+- **THEN** no se vincula a ella y sigue el flujo normal de categorización
+
+#### Scenario: Una finalizada no se reactiva
+- **WHEN** el usuario intenta activar una plantilla cuya fecha de término ya pasó
+- **THEN** el sistema lo rechaza e indica que primero debe correr esa fecha
+
+#### Scenario: Correr el término la habilita otra vez
+- **WHEN** el usuario cambia la fecha de término de una finalizada a una futura
+- **THEN** vuelve a poder activarse y a abrir períodos
+
 ### Requirement: Periodicidad de la plantilla
 
 El sistema SHALL soportar periodicidad `monthly`, `biweekly` y `yearly`. Para `monthly` y
@@ -181,6 +226,10 @@ ya cobrados se conservan intactos.
 #### Scenario: El movimiento recurrente se distingue en la lista
 - **WHEN** el usuario mira la lista de movimientos y uno proviene de una plantilla
 - **THEN** ese movimiento aparece marcado como recurrente junto a su icono de categoría
+
+#### Scenario: El movimiento recurrente muestra la vigencia de su plantilla
+- **WHEN** el usuario abre un movimiento vinculado a una plantilla con fecha de término
+- **THEN** el detalle indica hasta cuándo se cobra, o que no tiene fecha de término
 
 #### Scenario: Un movimiento recurrente no genera otra plantilla
 - **WHEN** el usuario abre un movimiento que ya está vinculado a una plantilla

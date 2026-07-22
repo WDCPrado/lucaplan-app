@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
-import { savedFirst } from "./transaction-modal"
+import { DatePicker, savedFirst } from "./transaction-modal"
 import { DayOfMonthPicker } from "./income-modal"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
@@ -20,6 +20,17 @@ import type {
   CategoryDTO,
   RecurringDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
+
+// Fecha de término escrita completa, para revisar el año de un vistazo.
+function readableEnd(iso: string): string | null {
+  const d = new Date(`${iso}T12:00:00`)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleDateString("es-CL", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  })
+}
 
 const PERIODICITIES = [
   { value: "monthly", label: "Mensual" },
@@ -79,6 +90,11 @@ export function RecurringModal({
     template?.periodicity ?? "monthly"
   )
   const [day, setDay] = useState(template?.dayOfMonth ?? preset?.dayOfMonth ?? 1)
+  // Fin de vigencia: vacío = indefinida (nunca termina), que es el caso normal.
+  const [endDate, setEndDate] = useState(
+    template?.endDate ? template.endDate.slice(0, 10) : ""
+  )
+  const [withEnd, setWithEnd] = useState(!!template?.endDate)
   const [saving, setSaving] = useState(false)
 
   // Heredada = la plantilla nació de un movimiento (edición, o creación con preset).
@@ -120,6 +136,7 @@ export function RecurringModal({
           periodicity,
           dayOfMonth: needsDay ? day : null,
           startDate: template?.startDate ?? new Date().toISOString(),
+          endDate: endDate || null,
           isActive: template?.isActive ?? true,
           sourceTransactionId: template ? undefined : preset?.sourceTransactionId,
         }),
@@ -282,6 +299,55 @@ export function RecurringModal({
                 </span>
               </div>
             )}
+            <div className="space-y-1.5">
+              <span className="block text-xs font-medium text-muted-foreground">
+                Hasta cuándo
+              </span>
+              {withEnd ? (
+                <div className="flex items-center gap-2">
+                  <span className="flex-1">
+                    <DatePicker
+                      value={endDate}
+                      onChange={setEndDate}
+                      placeholder="Elegir fecha de término"
+                      fromDate={(
+                        template?.startDate ?? new Date().toISOString()
+                      ).slice(0, 10)}
+                    />
+                  </span>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setWithEnd(false)
+                      setEndDate("")
+                    }}
+                    className="h-11 shrink-0 rounded-lg text-xs text-muted-foreground"
+                  >
+                    Sin término
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  // El campo se abre VACÍO a propósito: una fecha propuesta (p. ej. "+1 año") se
+                  // acepta sin mirar el año y termina guardando una vigencia que nadie eligió.
+                  onClick={() => setWithEnd(true)}
+                  className="text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+                >
+                  No termina · poner fecha de término
+                </button>
+              )}
+              {/* La fecha en palabras: el input muestra 25/08/2027 y el año se lee de reojo.
+                  Escrito completo, un error de año salta a la vista antes de guardar. */}
+              {endDate && (
+                <span className="block text-xs text-muted-foreground">
+                  {readableEnd(endDate)
+                    ? `Se cobra hasta el ${readableEnd(endDate)}; después queda finalizada.`
+                    : "El último cobro es el de esa fecha; después queda finalizada."}
+                </span>
+              )}
+            </div>
+
             <div className="space-y-1.5">
               <span className="block text-xs font-medium text-muted-foreground">
                 Cuenta del cargo

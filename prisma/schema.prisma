@@ -350,25 +350,24 @@ model MonthlyBudget {
 // baseAmount. La categoría es obligatoria y manda: un movimiento vinculado a una plantilla nunca
 // pasa por la IA. Mismo patrón que Income, pero para gastos.
 model RecurringTemplate {
-  id            String           @id @default(uuid())
-  userId        String
-  accountId     String // cuenta del cargo: el comprometido del período se materializa ahí
-  account       FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  categoryId    String // obligatoria: toda ejecución usa ESTA categoría, nunca la IA
-  category      Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  description   String // clave de match: se compara normalizada (normalizeMovementText)
-  direction     String // debit | credit
-  baseAmount    Decimal          @db.Decimal(18, 2) // monto esperado; el real puede variar dentro del rango
-  currency      String // coincide con la moneda de la cuenta cuando hay cuenta
-  tolerancePct  Int              @default(10) // ± % sobre baseAmount que define el rango de match
-  periodicity   String           @default("monthly") // monthly | biweekly | yearly
-  executionMode String           @default("email_detection") // email_detection | cron
-  dayOfMonth    Int? // día de ejecución (monthly/yearly); en meses cortos cae al último día
-  startDate     DateTime         @db.Date // ancla de los períodos (imprescindible en biweekly)
-  isActive      Boolean          @default(true)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  transactions  Transaction[]
+  id           String           @id @default(uuid())
+  userId       String
+  accountId    String // cuenta del cargo: el comprometido del período se materializa ahí
+  account      FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  categoryId   String // obligatoria: toda ejecución usa ESTA categoría, nunca la IA
+  category     Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  description  String // clave de match: se compara normalizada (normalizeMovementText)
+  direction    String // debit | credit
+  baseAmount   Decimal          @db.Decimal(18, 2) // monto esperado; el real puede variar dentro del rango
+  currency     String // coincide con la moneda de la cuenta
+  tolerancePct Int              @default(10) // ± % sobre baseAmount que define el rango de match
+  periodicity  String           @default("monthly") // monthly | biweekly | yearly
+  dayOfMonth   Int? // día de ejecución (monthly/yearly); en meses cortos cae al último día
+  startDate    DateTime         @db.Date // ancla de los períodos (imprescindible en biweekly)
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  transactions Transaction[]
 
   @@index([userId, isActive])
   @@index([accountId])

@@ -302,6 +302,42 @@ export function InstallmentModal({
                 </span>
               </label>
             )}
+            {/* Contraste con el banco: "Plazo Pendiente" y el valor de la cuota son dos cifras que
+                el usuario tiene a la vista, y equivocarse en el desfase o en el total las descuadra.
+                Verlas derivadas aquí caza el error antes de crear el plan, no meses después cuando
+                un correo no engancha. */}
+            {total > 0 && (
+              <div className="rounded-xl bg-secondary/40 px-3 py-2.5 text-xs">
+                <p className="text-muted-foreground">
+                  Quedan{" "}
+                  <strong className="tabular text-foreground">
+                    {pendingCount}
+                  </strong>{" "}
+                  cuotas de{" "}
+                  <strong className="tabular text-foreground">
+                    {formatCLP(values[0] ?? 0)}
+                  </strong>
+                  {values.length > 1 &&
+                    values[values.length - 1] !== values[0] && (
+                      <>
+                        {" "}
+                        y una última de{" "}
+                        <strong className="tabular text-foreground">
+                          {formatCLP(values[values.length - 1])}
+                        </strong>
+                      </>
+                    )}
+                  .
+                </p>
+                {kind === "loan" && (
+                  <p className="mt-1 text-muted-foreground">
+                    Compáralo con el plazo pendiente y el valor de cuota que te
+                    muestra el banco: si no calzan, revisa el total de cuotas o
+                    la próxima a pagar.
+                  </p>
+                )}
+              </div>
+            )}
             {startIndex > 1 && (
               <span className="block text-xs text-muted-foreground">
                 Las cuotas 1 a {startIndex - 1} se dan por pagadas: cuentan para
@@ -390,7 +426,7 @@ export function InstallmentModal({
                         {paid ? "Pagada" : "Debiendo"}
                       </button>
                     ) : (
-                      <span className="w-[68px] shrink-0" aria-hidden />
+                      <span className="w-17 shrink-0" aria-hidden />
                     )}
                   </li>
                 )

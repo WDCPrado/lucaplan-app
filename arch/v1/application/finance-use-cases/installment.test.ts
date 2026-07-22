@@ -315,9 +315,19 @@ test("las cuotas previas a la conexión quedan pagadas fuera de la app, sin gast
   )
 })
 
+// Caso real, tomado del cronograma en PDF de Banco de Chile (22/07/2026): lista las cuotas 4 a 48
+// —45 filas—, de 265.708 y la última de 265.737, con la 4 venciendo el 05/08/2026. Las tres cifras
+// del panel del banco confirman esa lectura: plazo pendiente 45, saldo 11.956.889 (= la suma de
+// esas 45) y próximo pago 05/08/2026.
+const CREDITO_REAL = {
+  installmentsCount: 48,
+  startIndex: 4,
+  totalAmount: 11_956_889,
+  startDate: day(2026, 8, 5),
+  dayOfMonth: 5,
+}
+
 test("un crédito dado de alta a mitad conserva la numeración del banco", async () => {
-  // Caso real: Banco de Chile informa "cuota 5 de 49", saldo 11.956.889, próximo pago 05/08/2026,
-  // cuotas de 265.708 y última de 265.737. El plan debe reproducir ese cronograma exacto.
   const { repo } = makeRepo()
   const deps = {
     installments: repo,
@@ -326,37 +336,37 @@ test("un crédito dado de alta a mitad conserva la numeración del banco", async
   }
   const plan = await createInstallmentPlan(deps, "u1", {
     ...baseInput,
+    ...CREDITO_REAL,
     kind: "loan",
     description: "Crédito de consumo",
-    installmentsCount: 49,
-    startIndex: 5,
-    totalAmount: 11_956_889,
-    startDate: day(2026, 8, 5),
-    dayOfMonth: 5,
   })
 
-  // Las cuotas 1–4 ya se pagaron antes de que existiera el plan.
+  // Las cuotas 1–3 ya se pagaron antes de que existiera el plan.
   assert.deepEqual(
-    plan.items.slice(0, 4).map((i) => i.paidOutsideApp),
-    [true, true, true, true]
+    plan.items.slice(0, 3).map((i) => i.paidOutsideApp),
+    [true, true, true]
   )
-  assert.deepEqual(progressOf(plan), { settled: 4, total: 49 })
+  assert.deepEqual(progressOf(plan), { settled: 3, total: 48 })
 
-  // La cuota 5 vence el 05/08/2026 y vale lo que dice el banco.
-  const quinta = plan.items[4]
-  assert.equal(quinta.index, 5)
-  assert.equal(quinta.dueDate.getMonth() + 1, 8)
-  assert.equal(quinta.dueDate.getFullYear(), 2026)
-  assert.equal(quinta.amount.toMajor(), 265_708)
+  // La cuota 4 vence el 05/08/2026 y vale lo que dice el banco.
+  const cuarta = plan.items[3]
+  assert.equal(cuarta.index, 4)
+  assert.equal(cuarta.dueDate.getMonth() + 1, 8)
+  assert.equal(cuarta.dueDate.getFullYear(), 2026)
+  assert.equal(cuarta.amount.toMajor(), 265_708)
 
-  // La última es la 49 y absorbe el resto: 265.737, los 29 pesos del banco.
-  const ultima = plan.items[48]
-  assert.equal(ultima.index, 49)
+  // La última es la 48, vence en abril de 2030 y absorbe el resto: 265.737.
+  const ultima = plan.items[47]
+  assert.equal(ultima.index, 48)
+  assert.equal(ultima.dueDate.getMonth() + 1, 4)
+  assert.equal(ultima.dueDate.getFullYear(), 2030)
   assert.equal(ultima.amount.toMajor(), 265_737)
 
-  // Y el saldo por pagar es exactamente el que informa el banco.
+  // 45 cuotas pendientes que suman exactamente el saldo informado.
+  const pendientes = plan.items.slice(3)
+  assert.equal(pendientes.length, 45)
   assert.equal(
-    plan.items.slice(4).reduce((s, i) => s + i.amount.toMajor(), 0),
+    pendientes.reduce((s, i) => s + i.amount.toMajor(), 0),
     11_956_889
   )
 })
@@ -370,25 +380,51 @@ test("un correo que informa el N° de cuota del banco cae en el ítem correcto",
   }
   const plan = await createInstallmentPlan(deps, "u1", {
     ...baseInput,
+    ...CREDITO_REAL,
+    kind: "loan",
+  })
+  await adoptLoanInstallment(
+    { installments: repo },
+    {
+      transactionId: "tx5",
+      accountId: "acc1",
+      amount: clp(265_708),
+      date: day(2026, 9, 7),
+      installmentNumber: 5, // el banco numera 5, no "la segunda del plan"
+    }
+  )
+  assert.deepEqual(adopted, [{ itemId: `${plan.id}-i5`, transactionId: "tx5" }])
+})
+
+test("un desfase mal puesto deja el pago sin enganchar, no lo mete en la cuota vecina", async () => {
+  // Registrar el crédito como "5 de 49" (lo que dice el panel) en vez de "4 de 48" (lo que dice el
+  // cronograma): el correo de la cuota 4 no encuentra dónde ir, porque la 4 quedó dada por pagada.
+  const { repo, adopted } = makeRepo()
+  const deps = {
+    installments: repo,
+    accounts: makeAccounts("checking"),
+    categories,
+  }
+  await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
     kind: "loan",
     installmentsCount: 49,
     startIndex: 5,
     totalAmount: 11_956_889,
     startDate: day(2026, 8, 5),
   })
-  await adoptLoanInstallment(
+  const claimed = await adoptLoanInstallment(
     { installments: repo },
     {
-      transactionId: "tx6",
+      transactionId: "tx4",
       accountId: "acc1",
       amount: clp(265_708),
-      date: day(2026, 9, 7),
-      installmentNumber: 6, // el banco numera 6, no "la segunda del plan"
+      date: day(2026, 8, 5),
+      installmentNumber: 4,
     }
   )
-  assert.deepEqual(adopted, [
-    { itemId: `${plan.id}-i6`, transactionId: "tx6" },
-  ])
+  assert.equal(claimed, null)
+  assert.equal(adopted.length, 0, "no se inventa un enganche en la cuota 5")
 })
 
 // --- Disparador de tarjeta ---

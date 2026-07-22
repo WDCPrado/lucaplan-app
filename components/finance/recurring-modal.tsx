@@ -79,6 +79,10 @@ export function RecurringModal({
     template?.periodicity ?? "monthly"
   )
   const [day, setDay] = useState(template?.dayOfMonth ?? preset?.dayOfMonth ?? 1)
+  // Fin de vigencia: vacío = indefinida (nunca termina), que es el caso normal.
+  const [endDate, setEndDate] = useState(
+    template?.endDate ? template.endDate.slice(0, 10) : ""
+  )
   const [saving, setSaving] = useState(false)
 
   // Heredada = la plantilla nació de un movimiento (edición, o creación con preset).
@@ -120,6 +124,7 @@ export function RecurringModal({
           periodicity,
           dayOfMonth: needsDay ? day : null,
           startDate: template?.startDate ?? new Date().toISOString(),
+          endDate: endDate || null,
           isActive: template?.isActive ?? true,
           sourceTransactionId: template ? undefined : preset?.sourceTransactionId,
         }),
@@ -282,6 +287,52 @@ export function RecurringModal({
                 </span>
               </div>
             )}
+            <div className="space-y-1.5">
+              <span className="block text-xs font-medium text-muted-foreground">
+                Hasta cuándo
+              </span>
+              {endDate ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="date"
+                    value={endDate}
+                    min={(template?.startDate ?? new Date().toISOString()).slice(
+                      0,
+                      10
+                    )}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    aria-label="Fecha de término"
+                    className="h-11 flex-1 rounded-lg"
+                  />
+                  <Button
+                    variant="ghost"
+                    onClick={() => setEndDate("")}
+                    className="h-11 shrink-0 rounded-lg text-xs text-muted-foreground"
+                  >
+                    Sin término
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Propone un año por delante: casi nadie quiere que termine mañana.
+                    const d = new Date()
+                    d.setFullYear(d.getFullYear() + 1)
+                    setEndDate(d.toISOString().slice(0, 10))
+                  }}
+                  className="text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+                >
+                  No termina · poner fecha de término
+                </button>
+              )}
+              {endDate && (
+                <span className="block text-xs text-muted-foreground">
+                  El último cobro es el de esa fecha; después queda finalizada.
+                </span>
+              )}
+            </div>
+
             <div className="space-y-1.5">
               <span className="block text-xs font-medium text-muted-foreground">
                 Cuenta del cargo

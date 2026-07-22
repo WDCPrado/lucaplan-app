@@ -24,6 +24,7 @@ import {
 import { effectiveIncomeAmount } from "./income-use-cases.ts"
 import {
   executionDateFor,
+  hasEnded,
   periodKeyFor,
   toleranceRange,
   type RecurringTemplateRepository,
@@ -614,6 +615,8 @@ export type RecurringDTO = {
   periodicity: string
   dayOfMonth: number | null
   startDate: string // ISO: el cliente no recibe Date de un server component
+  endDate: string | null // ISO; null = indefinida
+  hasEnded: boolean // su fecha de fin ya pasó: no ejecuta más ni puede reactivarse
   isActive: boolean
   nextExecution: string // ISO del próximo cobro esperado: lo que el usuario viene a mirar
 }
@@ -663,6 +666,8 @@ export async function listRecurringView(
       periodicity: t.periodicity,
       dayOfMonth: t.dayOfMonth,
       startDate: t.startDate.toISOString(),
+      endDate: t.endDate ? t.endDate.toISOString() : null,
+      hasEnded: hasEnded(t, today),
       isActive: t.isActive,
       nextExecution: next.toISOString(),
     }

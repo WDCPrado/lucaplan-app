@@ -16,9 +16,12 @@ import {
   type RecurringTemplate,
   type RecurringTemplateRepository,
   InvalidRecurringTemplateError,
+  RecurringTemplateEndedError,
   RecurringTemplateNotFoundError,
   executionDateFor,
+  hasEnded,
   isValidTolerance,
+  periodIsWithinValidity,
   periodKeyFor,
   pickTemplateFor,
   requiresDayOfMonth,
@@ -41,6 +44,7 @@ export type RecurringInput = {
   periodicity: Periodicity
   dayOfMonth: number | null
   startDate: Date
+  endDate: Date | null // null = indefinida
 }
 
 // Valida cuenta (si viene: existe, del usuario), categoría (existe, del usuario, del mismo lado que
@@ -78,6 +82,10 @@ async function validateInput(
       input.dayOfMonth > 31)
   )
     throw new InvalidRecurringTemplateError("El día debe estar entre 1 y 31")
+  if (input.endDate && input.endDate < input.startDate)
+    throw new InvalidRecurringTemplateError(
+      "La fecha de término no puede ser anterior al inicio"
+    )
 
   return {
     account,
@@ -113,6 +121,7 @@ export async function createRecurringTemplate(
     periodicity: input.periodicity,
     dayOfMonth: input.dayOfMonth,
     startDate: input.startDate,
+    endDate: input.endDate,
   })
 
   if (input.sourceTransactionId && deps.transactions) {
@@ -147,6 +156,7 @@ export async function updateRecurringTemplate(
     periodicity: input.periodicity,
     dayOfMonth: input.dayOfMonth,
     startDate: input.startDate,
+    endDate: input.endDate,
     isActive: input.isActive,
   })
 }
@@ -156,11 +166,15 @@ export async function updateRecurringTemplate(
 export async function setRecurringActive(
   deps: { recurring: RecurringTemplateRepository },
   userId: string,
-  input: { id: string; isActive: boolean }
+  input: { id: string; isActive: boolean },
+  today = new Date()
 ): Promise<RecurringTemplate> {
   const existing = await deps.recurring.findById(input.id)
   if (!existing) throw new RecurringTemplateNotFoundError(input.id)
   if (existing.userId !== userId) throw new NotOwnerError()
+  // Terminada = no se reactiva sola; hay que correr su fecha de fin primero.
+  if (input.isActive && hasEnded(existing, today))
+    throw new RecurringTemplateEndedError()
   return deps.recurring.update({ ...existing, isActive: input.isActive })
 }
 
@@ -183,13 +197,13 @@ export async function materializePeriod(
   deps: { recurring: RecurringTemplateRepository },
   template: RecurringTemplate,
   date: Date
-): Promise<{ transactionId: string; created: boolean }> {
+): Promise<{ transactionId: string | null; created: boolean }> {
   const periodKey = periodKeyFor(template, date)
-  return deps.recurring.materializePeriod(
-    template,
-    periodKey,
-    executionDateFor(template, periodKey)
-  )
+  const executionDate = executionDateFor(template, periodKey)
+  // Fuera de vigencia (antes del inicio o pasado el fin): no se abre el período.
+  if (!periodIsWithinValidity(template, executionDate))
+    return { transactionId: null, created: false }
+  return deps.recurring.materializePeriod(template, periodKey, executionDate)
 }
 
 /**
@@ -203,7 +217,9 @@ export async function confirmFromMovement(
   templates: RecurringTemplate[],
   movement: MovementForMatch & { id: string; date: Date }
 ): Promise<RecurringTemplate | null> {
-  const template = pickTemplateFor(movement, templates)
+  // Una plantilla terminada ya no reclama cargos posteriores a su fin.
+  const vigentes = templates.filter((t) => !hasEnded(t, movement.date))
+  const template = pickTemplateFor(movement, vigentes)
   if (!template) return null
   const periodKey = periodKeyFor(template, movement.date)
   const attached = await deps.recurring.attachImportedMovement(
@@ -243,7 +259,6 @@ export async function materializeUserPeriods(
   const templates = await deps.recurring.listActiveByUser(userId)
   let materialized = 0
   for (const template of templates) {
-    if (template.startDate > reference) continue
     const { created } = await materializePeriod(deps, template, reference)
     if (created) materialized++
   }

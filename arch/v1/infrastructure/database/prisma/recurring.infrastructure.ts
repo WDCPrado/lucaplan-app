@@ -27,6 +27,7 @@ function toTemplate(row: any): RecurringTemplate {
     periodicity: row.periodicity as Periodicity,
     dayOfMonth: row.dayOfMonth,
     startDate: row.startDate,
+    endDate: row.endDate ?? null,
     isActive: row.isActive,
   }
 }
@@ -75,6 +76,7 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
           periodicity: input.periodicity,
           dayOfMonth: input.dayOfMonth,
           startDate: input.startDate,
+          endDate: input.endDate,
         },
       })
     )
@@ -94,6 +96,7 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
           periodicity: input.periodicity,
           dayOfMonth: input.dayOfMonth,
           startDate: input.startDate,
+          endDate: input.endDate,
           isActive: input.isActive,
         },
       })

@@ -9,6 +9,9 @@ import {
   pickTemplateFor,
   toleranceRange,
   type RecurringTemplate,
+  canReactivate,
+  hasEnded,
+  periodIsWithinValidity,
 } from "./recurring.domain.ts"
 
 const template = (over: Partial<RecurringTemplate> = {}): RecurringTemplate => ({
@@ -24,6 +27,7 @@ const template = (over: Partial<RecurringTemplate> = {}): RecurringTemplate => (
   periodicity: "monthly",
   dayOfMonth: 5,
   startDate: new Date(2026, 6, 5),
+  endDate: null,
   isActive: true,
   ...over,
 })
@@ -125,4 +129,46 @@ test("fecha de ejecución quincenal avanza de a 14 días", () => {
     startDate: new Date(2026, 6, 1),
   })
   assert.equal(executionDateFor(quincenal, "2026-Q02").getDate(), 29)
+})
+
+// --- fecha de fin (WDC-31) ---
+
+test("sin fecha de fin la plantilla nunca termina", () => {
+  const t = template({ endDate: null })
+  assert.equal(hasEnded(t, new Date(2099, 0, 1)), false)
+})
+
+test("el día de fin sigue siendo vigente: ese período es el último cobro", () => {
+  const t = template({ endDate: new Date(2026, 8, 5) }) // 5 de septiembre
+  assert.equal(hasEnded(t, new Date(2026, 8, 5)), false)
+  assert.equal(hasEnded(t, new Date(2026, 8, 6)), true)
+})
+
+test("el período cuyo cobro cae después del fin no se abre", () => {
+  const t = template({ dayOfMonth: 5, endDate: new Date(2026, 8, 5) })
+  // Septiembre cobra el día 5: entra justo. Octubre cobraría el 5/10: fuera.
+  assert.equal(
+    periodIsWithinValidity(t, executionDateFor(t, "2026-09")),
+    true
+  )
+  assert.equal(
+    periodIsWithinValidity(t, executionDateFor(t, "2026-10")),
+    false
+  )
+})
+
+test("un período anterior al inicio tampoco se abre", () => {
+  const t = template({ startDate: new Date(2026, 6, 5), dayOfMonth: 5 })
+  assert.equal(periodIsWithinValidity(t, executionDateFor(t, "2026-06")), false)
+  assert.equal(periodIsWithinValidity(t, executionDateFor(t, "2026-07")), true)
+})
+
+test("terminada no puede reactivarse hasta correr la fecha de fin", () => {
+  const t = template({ endDate: new Date(2026, 8, 5) })
+  assert.equal(canReactivate(t, new Date(2026, 8, 20)), false)
+  // El usuario corre el fin a diciembre: vuelve a poder activarse.
+  assert.equal(
+    canReactivate({ ...t, endDate: new Date(2026, 11, 5) }, new Date(2026, 8, 20)),
+    true
+  )
 })

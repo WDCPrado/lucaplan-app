@@ -368,6 +368,9 @@ model RecurringTemplate {
   periodicity  String           @default("monthly") // monthly | biweekly | yearly
   dayOfMonth   Int? // día de ejecución (monthly/yearly); en meses cortos cae al último día
   startDate    DateTime         @db.Date // ancla de los períodos (imprescindible en biweekly)
+  // Fin de vigencia; null = indefinida (nunca termina). El último cobro es el del período que cae
+  // en esta fecha o antes; después la plantilla queda finalizada y no puede reactivarse sin correrla.
+  endDate      DateTime?        @db.Date
   isActive     Boolean          @default(true)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt

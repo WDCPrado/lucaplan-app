@@ -35,6 +35,7 @@ export async function PATCH(
           ? null
           : Number(body.dayOfMonth),
       startDate: body.startDate ? new Date(body.startDate) : new Date(),
+      endDate: body.endDate ? new Date(body.endDate) : null,
       isActive: body.isActive ?? true,
     })
   )

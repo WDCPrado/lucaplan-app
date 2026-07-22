@@ -33,6 +33,7 @@ export async function POST(req: Request) {
             ? null
             : Number(body.dayOfMonth),
         startDate: body.startDate ? new Date(body.startDate) : new Date(),
+        endDate: body.endDate ? new Date(body.endDate) : null,
         sourceTransactionId: body.sourceTransactionId
           ? String(body.sourceTransactionId)
           : null,

@@ -13,6 +13,7 @@ import {
   createRecurringTemplate,
   materializePeriod,
   materializeUserPeriods,
+  setRecurringActive,
 } from "./recurring-use-cases.ts"
 
 type Row = {
@@ -116,6 +117,7 @@ const arriendo: RecurringTemplate = {
   periodicity: "monthly",
   dayOfMonth: 5,
   startDate: new Date(2026, 0, 5),
+  endDate: null,
   isActive: true,
 }
 
@@ -236,6 +238,7 @@ test("crear desde un movimiento lo vincula como ejecución de su período", asyn
       periodicity: "monthly",
           dayOfMonth: 20,
       startDate: source.date,
+      endDate: null,
       sourceTransactionId: source.id,
     }
   )
@@ -299,4 +302,72 @@ test("lo ya cobrado no cambia de categoría al reencauzar la plantilla", async (
   await repo.setCategory("arriendo", "servicios")
   assert.equal(rows[0].status, "confirmed")
   assert.equal(rows[0].categoryId, "vivienda")
+})
+
+// --- fecha de fin (WDC-31) ---
+
+test("no se materializa el período posterior a la fecha de fin", async () => {
+  const conFin = { ...arriendo, endDate: new Date(2026, 7, 31) } // termina en agosto
+  const { repo, rows } = makeRepo([conFin])
+
+  await materializeUserPeriods({ recurring: repo }, "u1", 2026, 8, new Date(2026, 7, 1))
+  assert.equal(rows.length, 1, "agosto sí se abre")
+
+  await materializeUserPeriods({ recurring: repo }, "u1", 2026, 9, new Date(2026, 7, 1))
+  assert.equal(rows.length, 1, "septiembre ya no")
+})
+
+test("una plantilla terminada no reclama cargos posteriores", async () => {
+  const conFin = { ...arriendo, endDate: new Date(2026, 6, 31) }
+  const { repo, rows } = makeRepo([conFin])
+  const matched = await confirmFromMovement({ recurring: repo }, [conFin], {
+    id: "tx-agosto",
+    description: "Arriendo Depto 08/26",
+    amount: Money.of(355_000, "CLP"),
+    direction: "debit",
+    date: new Date(2026, 7, 5), // agosto, ya terminada
+  })
+  assert.equal(matched, null)
+  assert.equal(rows.length, 0)
+})
+
+test("el cargo del último período sí lo reclama", async () => {
+  const conFin = { ...arriendo, endDate: new Date(2026, 6, 31) }
+  const { repo } = makeRepo([conFin])
+  const matched = await confirmFromMovement({ recurring: repo }, [conFin], {
+    id: "tx-julio",
+    description: "Arriendo Depto 07/26",
+    amount: Money.of(355_000, "CLP"),
+    direction: "debit",
+    date: new Date(2026, 6, 5),
+  })
+  assert.equal(matched?.id, "arriendo")
+})
+
+test("reactivar una terminada se rechaza hasta correr su fecha de fin", async () => {
+  const conFin = {
+    ...arriendo,
+    isActive: false,
+    endDate: new Date(2026, 6, 31),
+  }
+  const { repo } = makeRepo([conFin])
+  repo.update = async (input) => ({ ...conFin, ...input, baseAmount: conFin.baseAmount })
+
+  await assert.rejects(
+    setRecurringActive(
+      { recurring: repo },
+      "u1",
+      { id: "arriendo", isActive: true },
+      new Date(2026, 7, 10)
+    ),
+    /corre su fecha de fin/
+  )
+
+  // Pausarla siempre se puede, aunque haya terminado.
+  await setRecurringActive(
+    { recurring: repo },
+    "u1",
+    { id: "arriendo", isActive: false },
+    new Date(2026, 7, 10)
+  )
 })

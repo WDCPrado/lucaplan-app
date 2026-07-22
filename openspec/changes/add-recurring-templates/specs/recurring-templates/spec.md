@@ -130,6 +130,38 @@ normal (IA/triage) sin vincularse a la plantilla.
 - **WHEN** el comprometido del período ya fue confirmado y llega otro cargo que también cae en el rango
 - **THEN** el movimiento nuevo no se vincula a la plantilla y pasa por el flujo normal de categorización
 
+### Requirement: Fecha de término de la plantilla
+
+Una plantilla SHALL tener una **fecha de término opcional**, por defecto **indefinida**: sin
+ella la plantilla nunca termina. Con fecha de término, el período cuyo día de ejecución cae en
+esa fecha SHALL ser el **último cobro**; los períodos cuya ejecución caería después NO SHALL
+materializarse ni reconocerse desde el correo.
+
+Pasada la fecha de término, la plantilla SHALL considerarse **finalizada**: se muestra aparte
+de las activas y las pausadas, y NO SHALL poder reactivarse mientras esa fecha siga en el
+pasado. Para volver a usarla, el usuario SHALL correr primero su fecha de término. La fecha de
+término NO SHALL ser anterior a la de inicio.
+
+#### Scenario: Sin fecha de término no termina nunca
+- **WHEN** el usuario crea una recurrente sin fecha de término
+- **THEN** sigue abriendo períodos indefinidamente
+
+#### Scenario: El día de término es el último cobro
+- **WHEN** una plantilla mensual que cobra el día 5 tiene término el 5 de septiembre
+- **THEN** el período de septiembre se ejecuta y el de octubre ya no
+
+#### Scenario: Un cargo posterior al término no se reconoce
+- **WHEN** llega por correo un cargo que calza con una plantilla ya finalizada
+- **THEN** no se vincula a ella y sigue el flujo normal de categorización
+
+#### Scenario: Una finalizada no se reactiva
+- **WHEN** el usuario intenta activar una plantilla cuya fecha de término ya pasó
+- **THEN** el sistema lo rechaza e indica que primero debe correr esa fecha
+
+#### Scenario: Correr el término la habilita otra vez
+- **WHEN** el usuario cambia la fecha de término de una finalizada a una futura
+- **THEN** vuelve a poder activarse y a abrir períodos
+
 ### Requirement: Periodicidad de la plantilla
 
 El sistema SHALL soportar periodicidad `monthly`, `biweekly` y `yearly`. Para `monthly` y

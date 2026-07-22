@@ -258,18 +258,37 @@ model Income {
   categoryId   String // categoría type=income
   category     Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   name         String
-  amount       Decimal          @db.Decimal(18, 2)
   currency     String // ISO 4217: coincide con la moneda de la cuenta destino
   dayOfMonth   Int // día de ingreso esperado (1–31)
   isActive     Boolean          @default(true)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   transactions Transaction[]
+  amounts      IncomeAmount[]
 
   @@index([userId])
   @@index([accountId])
   @@index([categoryId])
   @@map("income")
+}
+
+// Monto de una fuente de ingreso para un mes concreto. Mismo patrón (y mismas reglas) que
+// CategoryLimit: el mes sin registro hereda el último previo (carry-forward), y un mes anterior al
+// primer registro significa que la fuente aún no existía. Así editar el sueldo de agosto no
+// reescribe julio.
+model IncomeAmount {
+  id        String   @id @default(uuid())
+  incomeId  String
+  income    Income   @relation(fields: [incomeId], references: [id], onDelete: Cascade)
+  year      Int
+  month     Int
+  amount    Decimal  @db.Decimal(18, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([incomeId, year, month])
+  @@index([incomeId, year, month])
+  @@map("income_amount")
 }
 
 // Corrección de categorización: memoria por usuario (texto normalizado del movimiento → categoría

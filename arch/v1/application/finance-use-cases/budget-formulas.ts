@@ -141,7 +141,8 @@ export function categoryStatus(used: Money, limit: Money): CategoryStatus {
 const monthIndex = (year: number, month: number) => year * 12 + (month - 1)
 
 // Registro más reciente con (year, month) ≤ objetivo — la base del carry-forward.
-function latestUpTo<T extends { year: number; month: number }>(
+// Exportado: lo comparten los límites de categoría, el presupuesto global y los ingresos.
+export function latestUpTo<T extends { year: number; month: number }>(
   records: T[],
   year: number,
   month: number

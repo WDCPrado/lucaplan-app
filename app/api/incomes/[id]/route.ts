@@ -26,6 +26,8 @@ export async function PATCH(
       amount: Number(body.amount),
       dayOfMonth: Number(body.dayOfMonth),
       isActive: body.isActive ?? true,
+      year,
+      month,
     })
     const seed = await seedGlobalLimitFromIncomes(financeDeps, userId, {
       year,

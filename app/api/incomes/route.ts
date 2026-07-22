@@ -31,6 +31,8 @@ export async function POST(req: Request) {
         name: String(body.name ?? ""),
         amount: Number(body.amount),
         dayOfMonth: Number(body.dayOfMonth),
+        year,
+        month,
       })
       const seed = await seedGlobalLimitFromIncomes(financeDeps, userId, {
         year,

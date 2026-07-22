@@ -14,6 +14,7 @@ import type {
 } from "../../domain/finance/finance.domain.ts"
 import type {
   Income,
+  IncomeAmount,
   IncomeRepository,
 } from "../../domain/finance/income.domain.ts"
 import {
@@ -21,6 +22,9 @@ import {
   generateMonthlyIncome,
   ungenerateMonthlyIncome,
   seedGlobalLimitFromIncomes,
+  effectiveIncomeAmount,
+  sumActiveIncomesCLP,
+  updateIncome,
 } from "./income-use-cases.ts"
 
 // --- fakes ---
@@ -63,12 +67,25 @@ const categoriesRepo = (c: Category): CategoryRepository =>
   }) as CategoryRepository
 
 // Repo de ingresos in-memory con generación idempotente por (incomeId, year, month).
-function incomesRepo(seed: Income[] = []): IncomeRepository {
+function incomesRepo(
+  seed: Income[] = [],
+  seedAmounts: IncomeAmount[] = []
+): IncomeRepository {
   const store = new Map(seed.map((i) => [i.id, i]))
+  const amounts = [...seedAmounts]
   const generated = new Map<string, string>() // `${incomeId}:${year}-${month}` -> txId
   let n = 0
   const key = (id: string, y: number, m: number) => `${id}:${y}-${m}`
+  // Upsert por (fuente, mes), igual que el repo real: editar un mes no toca los otros.
+  const putAmount = (a: IncomeAmount) => {
+    const i = amounts.findIndex(
+      (x) => x.incomeId === a.incomeId && x.year === a.year && x.month === a.month
+    )
+    if (i === -1) amounts.push(a)
+    else amounts[i] = a
+  }
   return {
+    listAmountsByUser: async () => amounts,
     listByUser: async (userId) =>
       [...store.values()].filter((i) => i.userId === userId),
     findById: async (id) => store.get(id) ?? null,
@@ -79,12 +96,17 @@ function incomesRepo(seed: Income[] = []): IncomeRepository {
         accountId: input.accountId,
         categoryId: input.categoryId,
         name: input.name,
-        amount: input.amount,
         currency: input.amount.currency,
         dayOfMonth: input.dayOfMonth,
         isActive: true,
       }
       store.set(income.id, income)
+      putAmount({
+        incomeId: income.id,
+        year: input.year,
+        month: input.month,
+        amount: input.amount,
+      })
       return income
     },
     update: async (input) => {
@@ -94,12 +116,17 @@ function incomesRepo(seed: Income[] = []): IncomeRepository {
         accountId: input.accountId,
         categoryId: input.categoryId,
         name: input.name,
-        amount: input.amount,
         currency: input.amount.currency,
         dayOfMonth: input.dayOfMonth,
         isActive: input.isActive,
       }
       store.set(next.id, next)
+      putAmount({
+        incomeId: next.id,
+        year: input.year,
+        month: input.month,
+        amount: input.amount,
+      })
       return next
     },
     delete: async (id) => {
@@ -157,6 +184,8 @@ const validInput = {
   name: "Sueldo",
   amount: 900000,
   dayOfMonth: 5,
+  year: 2026,
+  month: 7,
 }
 
 // --- validación ---
@@ -164,7 +193,6 @@ const validInput = {
 test("createIncome crea una fuente válida", async () => {
   const income = await createIncome(baseDeps(), "u1", validInput)
   assert.equal(income.name, "Sueldo")
-  assert.equal(income.amount.toMajor(), 900000)
   assert.equal(income.currency, "CLP")
 })
 
@@ -278,4 +306,66 @@ test("seed NO pisa un límite global ya definido", async () => {
   assert.equal(res.total, 900000) // total sugerido para la UI
   const stored = await budgets.listByUser("u1")
   assert.equal(stored[0].globalLimit.toMajor(), 700000) // intacto
+})
+
+// --- monto por mes con carry-forward (WDC-30) ---
+// El monto de una fuente vive por mes, igual que el límite de una categoría: editar agosto no
+// reescribe julio, y una fuente creada en agosto no existe en julio.
+
+test("editar el ingreso de un mes no cambia los meses anteriores", async () => {
+  const deps = baseDeps()
+  const income = await createIncome(deps, "u1", { ...validInput, year: 2026, month: 7 })
+
+  await updateIncome(deps, "u1", {
+    ...validInput,
+    id: income.id,
+    amount: 1_200_000,
+    isActive: true,
+    year: 2026,
+    month: 8,
+  })
+
+  const amounts = await deps.incomes.listAmountsByUser("u1")
+  assert.equal(
+    effectiveIncomeAmount(amounts, income.id, 2026, 7)?.toMajor(),
+    900_000
+  )
+  assert.equal(
+    effectiveIncomeAmount(amounts, income.id, 2026, 8)?.toMajor(),
+    1_200_000
+  )
+})
+
+test("un mes sin registro hereda el último previo (carry-forward)", async () => {
+  const deps = baseDeps()
+  const income = await createIncome(deps, "u1", { ...validInput, year: 2026, month: 7 })
+  const amounts = await deps.incomes.listAmountsByUser("u1")
+  assert.equal(
+    effectiveIncomeAmount(amounts, income.id, 2026, 11)?.toMajor(),
+    900_000
+  )
+})
+
+test("antes del primer registro la fuente no existía", async () => {
+  const deps = baseDeps()
+  const income = await createIncome(deps, "u1", { ...validInput, year: 2026, month: 7 })
+  const amounts = await deps.incomes.listAmountsByUser("u1")
+  assert.equal(effectiveIncomeAmount(amounts, income.id, 2026, 6), null)
+})
+
+test("la siembra del presupuesto usa el monto vigente de ese mes", async () => {
+  const deps = baseDeps()
+  const income = await createIncome(deps, "u1", { ...validInput, year: 2026, month: 7 })
+  await updateIncome(deps, "u1", {
+    ...validInput,
+    id: income.id,
+    amount: 1_200_000,
+    isActive: true,
+    year: 2026,
+    month: 8,
+  })
+
+  assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 7)).toMajor(), 900_000)
+  assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 8)).toMajor(), 1_200_000)
+  assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 6)).toMajor(), 0)
 })

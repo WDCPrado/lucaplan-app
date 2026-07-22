@@ -12,6 +12,7 @@ import {
 } from "../../domain/finance/finance.domain.ts"
 import {
   type Income,
+  type IncomeAmount,
   type IncomeRepository,
   InvalidIncomeError,
   IncomeNotFoundError,
@@ -19,7 +20,7 @@ import {
   isValidDayOfMonth,
 } from "../../domain/finance/income.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
-import { effectiveGlobalLimit } from "./budget-formulas.ts"
+import { effectiveGlobalLimit, latestUpTo } from "./budget-formulas.ts"
 
 const CLP = "CLP" as const
 
@@ -35,6 +36,29 @@ type IncomeInput = {
   name: string
   amount: number
   dayOfMonth: number
+  // Mes que el usuario está viendo: define desde cuándo rige el monto.
+  year: number
+  month: number
+}
+
+/**
+ * Monto EFECTIVO de una fuente para (year, month): el registro de ese mes si existe; si no, el del
+ * mes anterior más reciente (carry-forward). `null` si la fuente aún no existía ese mes — así
+ * navegar hacia atrás no muestra ingresos que se crearon después.
+ */
+export function effectiveIncomeAmount(
+  amounts: IncomeAmount[],
+  incomeId: string,
+  year: number,
+  month: number
+): Money | null {
+  return (
+    latestUpTo(
+      amounts.filter((a) => a.incomeId === incomeId),
+      year,
+      month
+    )?.amount ?? null
+  )
 }
 
 function validatePeriod(year: number, month: number): void {
@@ -106,6 +130,7 @@ export async function createIncome(
   input: IncomeInput
 ): Promise<Income> {
   const { money } = await validateInput(deps, userId, input)
+  validatePeriod(input.year, input.month)
   return deps.incomes.create({
     userId,
     accountId: input.accountId,
@@ -113,6 +138,8 @@ export async function createIncome(
     name: input.name.trim(),
     amount: money,
     dayOfMonth: input.dayOfMonth,
+    year: input.year,
+    month: input.month,
   })
 }
 
@@ -121,6 +148,7 @@ export async function updateIncome(
   userId: string,
   input: IncomeInput & { id: string; isActive: boolean }
 ): Promise<Income> {
+  validatePeriod(input.year, input.month)
   const existing = await deps.incomes.findById(input.id)
   if (!existing) throw new IncomeNotFoundError(input.id)
   if (existing.userId !== userId) throw new NotOwnerError()
@@ -133,6 +161,8 @@ export async function updateIncome(
     amount: money,
     dayOfMonth: input.dayOfMonth,
     isActive: input.isActive,
+    year: input.year,
+    month: input.month,
   })
 }
 
@@ -178,12 +208,20 @@ export async function ungenerateMonthlyIncome(
 // CLP lo alimentan (la conversión multi-moneda se resolverá cuando exista).
 export async function sumActiveIncomesCLP(
   deps: { incomes: IncomeRepository },
-  userId: string
+  userId: string,
+  year: number,
+  month: number
 ): Promise<Money> {
-  const incomes = await deps.incomes.listByUser(userId)
+  const [incomes, amounts] = await Promise.all([
+    deps.incomes.listByUser(userId),
+    deps.incomes.listAmountsByUser(userId),
+  ])
   return incomes
     .filter((i) => i.isActive && i.currency === CLP)
-    .reduce((acc, i) => acc.add(i.amount), Money.zero(CLP))
+    .reduce((acc, i) => {
+      const amount = effectiveIncomeAmount(amounts, i.id, year, month)
+      return amount ? acc.add(amount) : acc
+    }, Money.zero(CLP))
 }
 
 // Siembra el límite global del mes con la suma de ingresos activos SOLO si aún no está definido (ni
@@ -195,7 +233,7 @@ export async function seedGlobalLimitFromIncomes(
   input: { year: number; month: number }
 ): Promise<{ seeded: boolean; total: number; alreadyDefined: boolean }> {
   validatePeriod(input.year, input.month)
-  const total = await sumActiveIncomesCLP(deps, userId)
+  const total = await sumActiveIncomesCLP(deps, userId, input.year, input.month)
   const budgets = await deps.monthlyBudgets.listByUser(userId)
   const defined =
     effectiveGlobalLimit(budgets, input.year, input.month) !== null

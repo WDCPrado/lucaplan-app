@@ -16,7 +16,11 @@ import {
   NotOwnerError,
   CategoryNotFoundError,
 } from "../../domain/finance/finance.domain.ts"
-import type { IncomeRepository } from "../../domain/finance/income.domain.ts"
+import type {
+  Income,
+  IncomeRepository,
+} from "../../domain/finance/income.domain.ts"
+import { effectiveIncomeAmount } from "./income-use-cases.ts"
 import {
   executionDateFor,
   periodKeyFor,
@@ -552,15 +556,24 @@ export async function listIncomesView(
   year: number,
   month: number
 ): Promise<IncomeDTO[]> {
-  const [incomes, accounts, categories] = await Promise.all([
+  const [incomes, amounts, accounts, categories] = await Promise.all([
     deps.incomes.listByUser(userId),
+    deps.incomes.listAmountsByUser(userId),
     deps.accounts.listByUser(userId),
     deps.categories.listByUser(userId),
   ])
   const accById = new Map(accounts.map((a) => [a.id, a]))
   const catById = new Map(categories.map((c) => [c.id, c]))
+  // Monto vigente en ESE mes (carry-forward). Sin monto = la fuente no existía aún: no se lista,
+  // igual que un límite de categoría no aparece antes de haberse definido.
+  const visible = incomes
+    .map((i) => ({
+      income: i,
+      amount: effectiveIncomeAmount(amounts, i.id, year, month),
+    }))
+    .filter((x): x is { income: Income; amount: Money } => x.amount !== null)
   return Promise.all(
-    incomes.map(async (i): Promise<IncomeDTO> => {
+    visible.map(async ({ income: i, amount }): Promise<IncomeDTO> => {
       const cat = catById.get(i.categoryId)
       return {
         id: i.id,
@@ -571,7 +584,7 @@ export async function listIncomesView(
         categoryName: cat?.name ?? "",
         categoryIcon: cat?.icon ?? null,
         categoryColor: cat?.color ?? null,
-        amount: i.amount.toMajor(),
+        amount: amount.toMajor(),
         currency: i.currency,
         dayOfMonth: i.dayOfMonth,
         isActive: i.isActive,

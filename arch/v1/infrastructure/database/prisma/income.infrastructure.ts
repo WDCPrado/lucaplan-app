@@ -3,9 +3,10 @@
 // vía check-then-insert dentro de una $transaction, ajustando el saldo de la cuenta destino.
 import { prisma } from "./client.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
-import type {
-  Income,
-  IncomeRepository,
+import {
+  IncomeNotFoundError,
+  type Income,
+  type IncomeRepository,
 } from "../../../domain/finance/income.domain.ts"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -17,7 +18,6 @@ function toIncome(row: any): Income {
     accountId: row.accountId,
     categoryId: row.categoryId,
     name: row.name,
-    amount: Money.of(row.amount.toString(), currency),
     currency,
     dayOfMonth: row.dayOfMonth,
     isActive: row.isActive,
@@ -38,7 +38,44 @@ function incomeDate(year: number, month: number, dayOfMonth: number): Date {
   return new Date(Date.UTC(year, month - 1, Math.min(dayOfMonth, lastDay)))
 }
 
+// El monto vive por mes (income_amount): un upsert por (fuente, año, mes). Editar el ingreso de
+// agosto no toca los registros de meses anteriores.
+async function upsertAmount(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  incomeId: string,
+  year: number,
+  month: number,
+  amount: Money
+) {
+  await db.incomeAmount.upsert({
+    where: { incomeId_year_month: { incomeId, year, month } },
+    create: {
+      incomeId,
+      year,
+      month,
+      amount: amount.toDecimalString(),
+    },
+    update: { amount: amount.toDecimalString() },
+  })
+}
+
 export const incomeRepository: IncomeRepository = {
+  async listAmountsByUser(userId) {
+    const rows = await prisma.incomeAmount.findMany({
+      where: { income: { userId } },
+      include: { income: { select: { currency: true } } },
+    })
+    return rows.map((r) => ({
+      incomeId: r.incomeId,
+      year: r.year,
+      month: r.month,
+      amount: Money.of(
+        r.amount.toString(),
+        r.income.currency as CurrencyCode
+      ),
+    }))
+  },
   async listByUser(userId) {
     return (
       await prisma.income.findMany({
@@ -52,33 +89,39 @@ export const incomeRepository: IncomeRepository = {
     return row ? toIncome(row) : null
   },
   async create(input) {
-    const row = await prisma.income.create({
-      data: {
-        userId: input.userId,
-        accountId: input.accountId,
-        categoryId: input.categoryId,
-        name: input.name,
-        amount: input.amount.toDecimalString(),
-        currency: input.amount.currency,
-        dayOfMonth: input.dayOfMonth,
-      },
+    return prisma.$transaction(async (db) => {
+      const row = await db.income.create({
+        data: {
+          userId: input.userId,
+          accountId: input.accountId,
+          categoryId: input.categoryId,
+          name: input.name,
+          currency: input.amount.currency,
+          dayOfMonth: input.dayOfMonth,
+        },
+      })
+      // El monto rige desde el mes en que se creó: hacia atrás la fuente no existía.
+      await upsertAmount(db, row.id, input.year, input.month, input.amount)
+      return toIncome(row)
     })
-    return toIncome(row)
   },
   async update(input) {
-    const row = await prisma.income.update({
-      where: { id: input.id },
-      data: {
-        accountId: input.accountId,
-        categoryId: input.categoryId,
-        name: input.name,
-        amount: input.amount.toDecimalString(),
-        currency: input.amount.currency,
-        dayOfMonth: input.dayOfMonth,
-        isActive: input.isActive,
-      },
+    return prisma.$transaction(async (db) => {
+      const row = await db.income.update({
+        where: { id: input.id },
+        data: {
+          accountId: input.accountId,
+          categoryId: input.categoryId,
+          name: input.name,
+          currency: input.amount.currency,
+          dayOfMonth: input.dayOfMonth,
+          isActive: input.isActive,
+        },
+      })
+      // Solo el mes que se está editando; los anteriores conservan su monto.
+      await upsertAmount(db, row.id, input.year, input.month, input.amount)
+      return toIncome(row)
     })
-    return toIncome(row)
   },
   async delete(id) {
     await prisma.income.delete({ where: { id } })
@@ -96,6 +139,20 @@ export const incomeRepository: IncomeRepository = {
       })
       if (existing) return { transactionId: existing.id, created: false }
 
+      // Monto vigente en ESE mes (carry-forward): el registro del mes o el último previo.
+      const amountRow = await db.incomeAmount.findFirst({
+        where: {
+          incomeId: income.id,
+          OR: [{ year: { lt: year } }, { year, month: { lte: month } }],
+        },
+        orderBy: [{ year: "desc" }, { month: "desc" }],
+      })
+      if (!amountRow) throw new IncomeNotFoundError(income.id)
+      const monthAmount = Money.of(
+        amountRow.amount.toString(),
+        income.currency as CurrencyCode
+      )
+
       // Ingreso = credit: suma al saldo de la cuenta destino.
       const account = await db.financialAccount.findUniqueOrThrow({
         where: { id: income.accountId },
@@ -103,7 +160,7 @@ export const incomeRepository: IncomeRepository = {
       const newBalance = Money.of(
         account.balance.toString(),
         account.currency as CurrencyCode
-      ).add(income.amount)
+      ).add(monthAmount)
       await db.financialAccount.update({
         where: { id: income.accountId },
         data: { balance: newBalance.toDecimalString() },
@@ -117,8 +174,8 @@ export const incomeRepository: IncomeRepository = {
           incomeId: income.id,
           transactionDate: incomeDate(year, month, income.dayOfMonth),
           description: income.name,
-          amount: income.amount.toDecimalString(),
-          currency: income.amount.currency,
+          amount: monthAmount.toDecimalString(),
+          currency: income.currency,
           direction: "credit",
         },
       })

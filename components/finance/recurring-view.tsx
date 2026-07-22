@@ -41,6 +41,16 @@ function nextChargeLabel(iso: string, today = new Date()): string {
   })}`
 }
 
+// "25 ago 2027": el año va SIEMPRE, porque el error típico al fijar el término es equivocarse de
+// año y con "25 ago" no hay forma de notarlo.
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("es-CL", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
+}
+
 export function RecurringView({
   user,
   templates,
@@ -240,6 +250,8 @@ function RecurringRow({
           <span className="block truncate text-xs text-muted-foreground">
             {t.categoryName} ·{" "}
             {PERIODICITY_LABEL[t.periodicity] ?? t.periodicity}
+            {/* La vigencia se ve sin abrir el modal: es lo que uno olvida haber fijado. */}
+            {t.endDate && !t.hasEnded && ` · hasta ${shortDate(t.endDate)}`}
           </span>
         </span>
         <span className="shrink-0 text-right">
@@ -248,10 +260,7 @@ function RecurringRow({
           </span>
           <span className="tabular block text-xs text-muted-foreground">
             {t.hasEnded
-              ? `Terminó el ${new Date(t.endDate!).toLocaleDateString("es-CL", {
-                  day: "numeric",
-                  month: "short",
-                })}`
+              ? `Terminó el ${shortDate(t.endDate!)}`
               : t.isActive
                 ? nextChargeLabel(t.nextExecution)
                 : "Sin cobros"}

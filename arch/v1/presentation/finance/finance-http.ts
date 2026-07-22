@@ -30,6 +30,13 @@ import {
   RecurringTemplateEndedError,
   RecurringTemplateNotFoundError,
 } from "../../domain/finance/recurring.domain.ts"
+import {
+  InstallmentAccountMismatchError,
+  InstallmentItemAlreadySettledError,
+  InstallmentPlanNotFoundError,
+  InstallmentSplitMismatchError,
+  InvalidInstallmentPlanError,
+} from "../../domain/finance/installment.domain.ts"
 import { LockBusyError } from "../../../shared/mutex.ts"
 import {
   accountRepository,
@@ -42,6 +49,7 @@ import {
 import { correctionRepository } from "../../infrastructure/database/prisma/categorization-correction.infrastructure.ts"
 import { incomeRepository } from "../../infrastructure/database/prisma/income.infrastructure.ts"
 import { recurringTemplateRepository } from "../../infrastructure/database/prisma/recurring.infrastructure.ts"
+import { installmentPlanRepository } from "../../infrastructure/database/prisma/installment.infrastructure.ts"
 import { openaiCategorizationProvider } from "../../infrastructure/http/ai/openai-categorization.provider.ts"
 import { exchangeRateProvider } from "../../infrastructure/http/exchange/usd-clp.ts"
 
@@ -55,6 +63,7 @@ export const financeDeps = {
   monthlyBudgets: monthlyBudgetRepository,
   incomes: incomeRepository,
   recurring: recurringTemplateRepository,
+  installments: installmentPlanRepository,
   categorization: openaiCategorizationProvider,
   corrections: correctionRepository,
   exchangeRates: exchangeRateProvider,
@@ -75,6 +84,10 @@ function errorStatus(e: unknown): number {
     e instanceof InvalidRecurringTemplateError ||
     e instanceof RecurringCategoryRequiredError ||
     e instanceof RecurringTemplateEndedError ||
+    e instanceof InvalidInstallmentPlanError ||
+    e instanceof InstallmentAccountMismatchError ||
+    e instanceof InstallmentSplitMismatchError ||
+    e instanceof InstallmentItemAlreadySettledError ||
     e instanceof EmailReauthRequiredError ||
     e instanceof EmailSetupStateError
   )
@@ -85,6 +98,7 @@ function errorStatus(e: unknown): number {
     e instanceof CategoryNotFoundError ||
     e instanceof IncomeNotFoundError ||
     e instanceof RecurringTemplateNotFoundError ||
+    e instanceof InstallmentPlanNotFoundError ||
     e instanceof EmailConnectionNotFoundError
   )
     return 404

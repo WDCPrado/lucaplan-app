@@ -26,6 +26,7 @@ import { encryptSecret, EMAIL_PURPOSE } from "../../crypto/secret-crypto.ts"
 import { msgraphMailProvider } from "../../http/outlook/msgraph.provider.ts"
 import { categorizePendingMovements } from "./categorize-pending.infrastructure.ts"
 import { matchRecurringForImported } from "./match-recurring.ts"
+import { runInstallmentsForImported } from "./run-installments.ts"
 
 const CHUNK = 10 // upsert en lotes acotados (no satura el pool de conexiones)
 
@@ -379,6 +380,7 @@ export function makeEmailConnectionDeps(): EmailConnectionDeps {
     mail: msgraphMailProvider,
     store: emailSetupStore,
     matchRecurring: matchRecurringForImported,
+    runInstallments: runInstallmentsForImported,
     categorize: categorizePendingMovements,
   }
 }

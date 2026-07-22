@@ -196,6 +196,8 @@ export type Transaction = {
   externalId: string | null // id del movimiento en el banco; null si es manual
   // ponytail: opcional para no obligar a cada fixture/repo a declararlo; ausente = no recurrente
   recurringTemplateId?: string | null
+  // Cuota de un plan que este movimiento salda; ausente = no pertenece a ningún plan.
+  installmentItemId?: string | null
 }
 
 // --- Inputs de escritura ---

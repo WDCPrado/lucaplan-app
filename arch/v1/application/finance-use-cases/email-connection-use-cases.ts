@@ -153,6 +153,10 @@ export type EmailConnectionDeps = {
   // Match contra plantillas recurrentes de los movimientos recién importados. Corre ANTES de la
   // IA: lo que reclama una plantilla ya queda categorizado y revisado, así que la IA no lo ve.
   matchRecurring?: (userId: string, externalIds: string[]) => Promise<number>
+  // Cuotas de los planes que disparan estos movimientos: el pago de la tarjeta ejecuta las de sus
+  // planes `card`, y el pago de una cuota de crédito lo adopta su plan `loan`. Corre ANTES de la
+  // IA por lo mismo que el match: lo que un plan reclama ya queda categorizado y revisado.
+  runInstallments?: (userId: string, externalIds: string[]) => Promise<number>
   // Categorización IA best-effort de lo importado no interno (una falla no revierte nada).
   categorize?: (userId: string) => Promise<number>
 }
@@ -886,6 +890,8 @@ export async function syncEmailConnection(
     // Plantilla > IA: el match corre primero y deja categorizado y revisado lo que reclama.
     if (deps.matchRecurring)
       await deps.matchRecurring(userId, createdExternalIds).catch(() => {})
+    if (deps.runInstallments)
+      await deps.runInstallments(userId, createdExternalIds).catch(() => {})
     if (deps.categorize) await deps.categorize(userId).catch(() => {})
   }
 

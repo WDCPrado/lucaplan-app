@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { es } from "date-fns/locale"
 import {
@@ -46,6 +47,8 @@ import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { CorrectionLearnStep } from "./correction-learn-step"
 import { RecurringModal } from "./recurring-modal"
+import { InstallmentModal } from "./installment-modal"
+import { AssignToInstallmentModal } from "./assign-to-installment-modal"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
@@ -428,8 +431,11 @@ function ConnectedDetail({
   // Crear recurrente abre el formulario precargado: el usuario ajusta título, rango y periodicidad
   // antes de confirmar. Nunca se crea directo desde el movimiento.
   const [makeRecurring, setMakeRecurring] = useState(false)
+  const [makeInstallments, setMakeInstallments] = useState(false)
+  const [assignInstallment, setAssignInstallment] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const changed = categoryId !== tx.categoryId
+  const isCreditCard = account?.accountType === "credit_card"
   // Solo categorías del mismo lado del movimiento (ingreso ↔ credit, gasto ↔ debit).
   const visibleCategories = savedFirst(
     categories.filter((c) => c.type === (income ? "income" : "expense")),
@@ -612,6 +618,39 @@ function ConnectedDetail({
             }
           />
         )}
+        {/* ponytail: solo el hecho de que está asignado, sin el nombre del plan ni el número de
+            cuota — traerlos obligaría a unir plan e ítem en todas las consultas de movimientos.
+            El detalle y el "soltar" viven en la vista del plan, a un toque. */}
+        {tx.installmentItemId && (
+          <Row
+            label="Cuotas"
+            value={
+              <Link
+                href="/installments"
+                className="inline-flex items-center gap-1.5 underline underline-offset-2"
+              >
+                <CreditCard className="size-3.5 text-primary" />
+                Es la cuota de un plan
+              </Link>
+            }
+          />
+        )}
+        {/* Esta compra se repartió en cuotas: por eso ya no cuenta como gasto (cada cuota lo hace en
+            su mes). Sin el sello se vería como un movimiento interno sin explicación. */}
+        {tx.installmentSourceCount && (
+          <Row
+            label="Cuotas"
+            value={
+              <Link
+                href="/installments"
+                className="inline-flex items-center gap-1.5 underline underline-offset-2"
+              >
+                <CreditCard className="size-3.5 text-primary" />
+                Compra en {tx.installmentSourceCount} cuotas
+              </Link>
+            }
+          />
+        )}
       </dl>
 
       <div>
@@ -704,20 +743,55 @@ function ConnectedDetail({
           </DropdownMenu>
         ) : (
           // Descubrimiento: crear la recurrente se queda a la vista, no escondido en el menú.
+          // Una compra ya repartida en cuotas no admite recurrente ni volver a pasarse a cuotas.
           !income &&
-          tx.categoryId && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                haptic("light")
-                setMakeRecurring(true)
-              }}
-              disabled={saving}
-              className="h-12 shrink-0 rounded-full"
-            >
-              <Repeat className="size-4" />
-              <span className="hidden sm:inline">Hacer recurrente</span>
-            </Button>
+          tx.categoryId &&
+          !tx.installmentItemId &&
+          !tx.installmentSourceCount && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  haptic("light")
+                  setMakeRecurring(true)
+                }}
+                disabled={saving}
+                className="h-12 shrink-0 rounded-full"
+              >
+                <Repeat className="size-4" />
+                <span className="hidden sm:inline">Hacer recurrente</span>
+              </Button>
+              {/* En crédito, el movimiento es la COMPRA y se reparte en cuotas: el plan la
+                  reemplaza. En cualquier otra cuenta, el movimiento ES una cuota de una deuda que
+                  ya existe, y lo que corresponde es asignarlo — no crear nada. */}
+              {isCreditCard ? (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    haptic("light")
+                    setMakeInstallments(true)
+                  }}
+                  disabled={saving}
+                  className="h-12 shrink-0 rounded-full"
+                >
+                  <CreditCard className="size-4" />
+                  <span className="hidden sm:inline">Pasar a cuotas</span>
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    haptic("light")
+                    setAssignInstallment(true)
+                  }}
+                  disabled={saving}
+                  className="h-12 shrink-0 rounded-full"
+                >
+                  <CreditCard className="size-4" />
+                  <span className="hidden sm:inline">Es una cuota</span>
+                </Button>
+              )}
+            </>
           )
         )}
         <Button
@@ -750,6 +824,40 @@ function ConnectedDetail({
         </AlertDialogContent>
       </AlertDialog>
 
+
+      {/* Este movimiento pasa a SER la cuota de un plan existente: no se crea nada. Cubre lo que
+          el enganche automático no alcanza (plan creado después del cargo, pago ambiguo entre dos
+          créditos, descripción distinta a la esperada). */}
+      {assignInstallment && (
+        <AssignToInstallmentModal
+          open
+          onOpenChange={setAssignInstallment}
+          transactionId={tx.id}
+          onAssigned={onClose}
+        />
+      )}
+
+      {/* Cronograma precargado con esta compra. Al confirmarlo, la compra queda neutralizada (deja
+          de contar como gasto) y el plan la reemplaza por una cuota al mes. */}
+      {makeInstallments && (
+        <InstallmentModal
+          open
+          onOpenChange={(o) => {
+            setMakeInstallments(o)
+            if (!o) onClose()
+          }}
+          accounts={accounts}
+          categories={categories}
+          kind="card"
+          preset={{
+            description: tx.description,
+            accountId: tx.accountId,
+            categoryId: tx.categoryId,
+            totalAmount: Math.abs(tx.amount),
+            sourceTransactionId: tx.id,
+          }}
+        />
+      )}
 
       {/* Formulario de la nueva plantilla, precargado con este movimiento. Al guardarse cierra
           también el detalle: la lista de abajo ya se refrescó. */}

@@ -29,6 +29,15 @@ import {
   toleranceRange,
   type RecurringTemplateRepository,
 } from "../../domain/finance/recurring.domain.ts"
+import {
+  committedForMonth,
+  dueUnsettledItems,
+  itemStatus,
+  outstanding,
+  progress,
+  type InstallmentPlanRepository,
+  type ItemStatus,
+} from "../../domain/finance/installment.domain.ts"
 import type { ExchangeRateProvider } from "../../domain/finance/exchange.domain.ts"
 import { toClp } from "../../domain/finance/exchange.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
@@ -50,6 +59,8 @@ const CLP = "CLP" as const
 type ReadDeps = {
   // Opcional: solo las vistas que muestran movimientos marcan su estado de recurrencia.
   recurring?: RecurringTemplateRepository
+  // Opcional: el presupuesto suma las cuotas del mes al comprometido de su categoría.
+  installments?: InstallmentPlanRepository
   accounts: AccountRepository
   banks: BankRepository
   categories: CategoryRepository
@@ -115,6 +126,11 @@ export type TransactionDTO = {
   recurringTemplateId?: string | null // plantilla que lo generó; la UI marca el movimiento y ofrece pausar/eliminar
   recurringIsActive?: boolean | null // ¿esa plantilla está activa o pausada? null si no es recurrente
   recurringEndDate?: string | null // ISO del término de esa plantilla; null = indefinido
+  installmentItemId?: string | null // cuota de un plan que este movimiento salda; null si no lo es
+  installmentSourceCount?: number | null // esta compra se transformó en un plan de N cuotas; null si no
+  // Fila DERIVADA (no es una transacción real): la cuota que vence este mes y aún no se paga, para
+  // mostrarla como "Por cobrar" igual que una recurrente. Al abrirla se va al plan, no al modal.
+  installmentForecast?: boolean
 }
 
 export type CategoryDTO = {
@@ -165,6 +181,7 @@ function txToDTO(
     categoryLimit,
     amountClp,
     recurringTemplateId: t.recurringTemplateId ?? null,
+    installmentItemId: t.installmentItemId ?? null,
   }
 }
 
@@ -361,20 +378,80 @@ export async function listTransactions(
         clp
       )
     )
-  return withRecurringState(deps, userId, dtos)
+  const withState = await withRecurringState(deps, userId, dtos)
+  // Cuotas por cobrar del mes: filas DERIVADAS, no transacciones. Se anticipan como "Por cobrar"
+  // igual que una recurrente y desaparecen solas al pagarse (ahí nace la transacción real). No se
+  // persiste nada: por eso el disparo por correo sigue intacto y no hay doble conteo.
+  const forecast = await installmentForecastRows(deps, userId, year, month, catById)
+  return [...forecast, ...withState]
+}
+
+// Construye las filas de pronóstico de las cuotas que vencen en (year, month) y aún no se pagan.
+async function installmentForecastRows(
+  deps: { installments?: InstallmentPlanRepository },
+  userId: string,
+  year: number,
+  month: number,
+  catById: Map<string, Category>
+): Promise<TransactionDTO[]> {
+  if (!deps.installments) return []
+  const plans = await deps.installments.listByUser(userId)
+  const rows: TransactionDTO[] = []
+  for (const plan of plans) {
+    const cat = catById.get(plan.categoryId)
+    for (const item of dueUnsettledItems(plan, year, month)) {
+      rows.push({
+        id: `forecast:${item.id}`,
+        accountId: plan.accountId,
+        currency: plan.currency,
+        editable: false,
+        description: `${plan.description} · cuota ${item.index}/${plan.installmentsCount}`,
+        amount: item.amount.toMajor(),
+        direction: "debit",
+        date: item.dueDate.toISOString(),
+        status: "pending",
+        isInternal: false,
+        categoryId: plan.categoryId,
+        categoryName: cat?.name ?? null,
+        categoryIcon: cat?.icon ?? null,
+        categoryColor: cat?.color ?? null,
+        remaining: null,
+        categoryLimit: null,
+        installmentForecast: true,
+      })
+    }
+  }
+  return rows
 }
 
 // Marca en cada DTO si su plantilla recurrente está activa o pausada. Se resuelve en el servidor
 // (una consulta por vista) para que el modal no tenga que ir a buscarlo al montarse.
 async function withRecurringState(
-  deps: { recurring?: RecurringTemplateRepository },
+  deps: {
+    recurring?: RecurringTemplateRepository
+    installments?: InstallmentPlanRepository
+  },
   userId: string,
   dtos: TransactionDTO[]
 ): Promise<TransactionDTO[]> {
-  if (!deps.recurring || !dtos.some((d) => d.recurringTemplateId)) return dtos
-  const byId = new Map(
-    (await deps.recurring.listByUser(userId)).map((t) => [t.id, t])
-  )
+  const hasRecurring =
+    deps.recurring && dtos.some((d) => d.recurringTemplateId)
+  // Una compra transformada en cuotas queda neutralizada: sin este sello se vería como un gasto
+  // interno cualquiera, sin explicar por qué no cuenta. La cuota en sí ya se marca por su ítem.
+  const hasInstallments = deps.installments && dtos.length > 0
+  if (!hasRecurring && !hasInstallments) return dtos
+
+  const [templates, plans] = await Promise.all([
+    hasRecurring ? deps.recurring!.listByUser(userId) : Promise.resolve([]),
+    hasInstallments ? deps.installments!.listByUser(userId) : Promise.resolve([]),
+  ])
+  const byId = new Map(templates.map((t) => [t.id, t]))
+  // Compra origen → cuántas cuotas, para el sello "Compra en N cuotas" en el movimiento.
+  const sourceCount = new Map<string, number>()
+  for (const p of plans)
+    if (p.sourceTransactionId)
+      sourceCount.set(p.sourceTransactionId, p.installmentsCount)
+
   return dtos.map((d) => {
     const template = d.recurringTemplateId
       ? byId.get(d.recurringTemplateId)
@@ -385,6 +462,7 @@ async function withRecurringState(
       recurringEndDate: template?.endDate
         ? template.endDate.toISOString()
         : null,
+      installmentSourceCount: sourceCount.get(d.id) ?? null,
     }
   })
 }
@@ -474,13 +552,27 @@ export async function getBudgetView(
   year: number,
   month: number
 ): Promise<BudgetViewDTO> {
-  const [withLimit, txs, budgets] = await Promise.all([
+  const [withLimit, txs, budgets, plans] = await Promise.all([
     categoriesWithLimit(deps, userId, year, month),
     deps.transactions.listByUserPeriod(userId, year, month),
     deps.monthlyBudgets.listByUser(userId),
+    deps.installments?.listByUser(userId) ?? Promise.resolve([]),
   ])
   // USD → CLP por fecha para que el uso por categoría cuente esos movimientos.
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
+  // Comprometido de cuotas por categoría: la cuota que vence este mes y aún no se paga se anticipa
+  // como comprometida, igual que una recurrente. Derivado, no filas: al pagarse pasa a `used` y
+  // desaparece de aquí, sin doble conteo.
+  const installmentCommitted = new Map<string, Money>()
+  for (const plan of plans) {
+    const amount = committedForMonth(plan, year, month)
+    if (amount.isZero) continue
+    const prev = installmentCommitted.get(plan.categoryId)
+    installmentCommitted.set(
+      plan.categoryId,
+      prev ? prev.add(amount) : amount
+    )
+  }
   const categories = withLimit.map(({ category, limit }): CategoryDTO => {
     const direction = category.type === "income" ? "credit" : "debit"
     const { used, available } = computeCategoryUsage(
@@ -491,6 +583,7 @@ export async function getBudgetView(
       month,
       direction
     )
+    const fromInstallments = installmentCommitted.get(category.id)
     const committed = computeCategoryCommitted(
       category.id,
       limit.currency,
@@ -498,6 +591,11 @@ export async function getBudgetView(
       year,
       month,
       direction
+    ).add(
+      // Solo si coinciden la moneda de la categoría y la del plan (el comprometido es por moneda).
+      fromInstallments && fromInstallments.currency === limit.currency
+        ? fromInstallments
+        : Money.zero(limit.currency)
     )
     return {
       id: category.id,
@@ -758,4 +856,116 @@ export async function getCategoryDetail(
         )
       ),
   }
+}
+
+// --- Planes de cuotas ---
+
+export type InstallmentItemDTO = {
+  id: string
+  index: number
+  dueDate: string // ISO
+  amount: number // card: definitivo; loan: estimación (el correo manda)
+  paidAmount: number | null // lo efectivamente registrado; null si aún no se registró
+  status: ItemStatus
+}
+
+export type InstallmentPlanDTO = {
+  id: string
+  kind: string // card | loan
+  description: string
+  accountId: string
+  accountName: string
+  categoryId: string
+  categoryName: string
+  categoryIcon: string | null
+  categoryColor: string | null
+  totalAmount: number
+  currency: string
+  installmentsCount: number
+  startDate: string // ISO
+  dayOfMonth: number
+  completedAt: string | null
+  settledCount: number // avance: cuotas saldadas por cualquier vía
+  outstanding: number // saldo sobre lo REGISTRADO, no sobre el cronograma
+  nextDueDate: string | null // ISO del próximo vencimiento pendiente
+  sourceTransactionId: string | null
+  items: InstallmentItemDTO[]
+}
+
+/**
+ * Planes del usuario con nombres resueltos, estado por cuota y saldo real.
+ *
+ * El saldo se calcula sobre los montos EFECTIVAMENTE registrados, no sobre el cronograma: en un
+ * plan `loan` las cuotas varían (intereses, seguros, la última difiere), así que el cronograma es
+ * una estimación y mostrar su resta como deuda mentiría.
+ */
+export async function listInstallmentsView(
+  deps: {
+    installments: InstallmentPlanRepository
+    accounts: AccountRepository
+    categories: CategoryRepository
+    transactions: TransactionRepository
+  },
+  userId: string,
+  today = new Date()
+): Promise<InstallmentPlanDTO[]> {
+  const [plans, accounts, categories] = await Promise.all([
+    deps.installments.listByUser(userId),
+    deps.accounts.listByUser(userId),
+    deps.categories.listByUser(userId),
+  ])
+  if (plans.length === 0) return []
+
+  const accById = new Map(accounts.map((a) => [a.id, a]))
+  const catById = new Map(categories.map((c) => [c.id, c]))
+  // Montos reales de las cuotas ya registradas: una sola consulta para todos los planes.
+  const txIds = plans.flatMap((p) =>
+    p.items.map((i) => i.transactionId).filter((id): id is string => id !== null)
+  )
+  const paidById = new Map<string, Money>()
+  for (const id of txIds) {
+    const tx = await deps.transactions.findById(id)
+    if (tx) paidById.set(id, tx.amount)
+  }
+
+  return plans.map((plan): InstallmentPlanDTO => {
+    const cat = catById.get(plan.categoryId)
+    const paid = plan.items
+      .map((i) => (i.transactionId ? paidById.get(i.transactionId) : null))
+      .filter((m): m is Money => m != null)
+    const pending = plan.items.find(
+      (i) => !i.transactionId && !i.paidOutsideApp
+    )
+    return {
+      id: plan.id,
+      kind: plan.kind,
+      description: plan.description,
+      accountId: plan.accountId,
+      accountName: accById.get(plan.accountId)?.name ?? "",
+      categoryId: plan.categoryId,
+      categoryName: cat?.name ?? "",
+      categoryIcon: cat?.icon ?? null,
+      categoryColor: cat?.color ?? null,
+      totalAmount: plan.totalAmount.toMajor(),
+      currency: plan.currency,
+      installmentsCount: plan.installmentsCount,
+      startDate: plan.startDate.toISOString(),
+      dayOfMonth: plan.dayOfMonth,
+      completedAt: plan.completedAt ? plan.completedAt.toISOString() : null,
+      settledCount: progress(plan).settled,
+      outstanding: outstanding(plan, paid).toMajor(),
+      nextDueDate: pending ? pending.dueDate.toISOString() : null,
+      sourceTransactionId: plan.sourceTransactionId,
+      items: plan.items.map((i) => ({
+        id: i.id,
+        index: i.index,
+        dueDate: i.dueDate.toISOString(),
+        amount: i.amount.toMajor(),
+        paidAmount: i.transactionId
+          ? (paidById.get(i.transactionId)?.toMajor() ?? null)
+          : null,
+        status: itemStatus(i, today),
+      })),
+    }
+  })
 }

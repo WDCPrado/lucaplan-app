@@ -23,6 +23,7 @@ import {
   InstallmentItemAlreadySettledError,
   InstallmentSplitMismatchError,
   InvalidInstallmentPlanError,
+  progress as progressOf,
 } from "../../domain/finance/installment.domain.ts"
 import {
   adoptLoanInstallment,
@@ -312,6 +313,82 @@ test("las cuotas previas a la conexión quedan pagadas fuera de la app, sin gast
     plan.items.slice(0, 2).map((i) => i.paidOutsideApp),
     [true, true]
   )
+})
+
+test("un crédito dado de alta a mitad conserva la numeración del banco", async () => {
+  // Caso real: Banco de Chile informa "cuota 5 de 49", saldo 11.956.889, próximo pago 05/08/2026,
+  // cuotas de 265.708 y última de 265.737. El plan debe reproducir ese cronograma exacto.
+  const { repo } = makeRepo()
+  const deps = {
+    installments: repo,
+    accounts: makeAccounts("checking"),
+    categories,
+  }
+  const plan = await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    kind: "loan",
+    description: "Crédito de consumo",
+    installmentsCount: 49,
+    startIndex: 5,
+    totalAmount: 11_956_889,
+    startDate: day(2026, 8, 5),
+    dayOfMonth: 5,
+  })
+
+  // Las cuotas 1–4 ya se pagaron antes de que existiera el plan.
+  assert.deepEqual(
+    plan.items.slice(0, 4).map((i) => i.paidOutsideApp),
+    [true, true, true, true]
+  )
+  assert.deepEqual(progressOf(plan), { settled: 4, total: 49 })
+
+  // La cuota 5 vence el 05/08/2026 y vale lo que dice el banco.
+  const quinta = plan.items[4]
+  assert.equal(quinta.index, 5)
+  assert.equal(quinta.dueDate.getMonth() + 1, 8)
+  assert.equal(quinta.dueDate.getFullYear(), 2026)
+  assert.equal(quinta.amount.toMajor(), 265_708)
+
+  // La última es la 49 y absorbe el resto: 265.737, los 29 pesos del banco.
+  const ultima = plan.items[48]
+  assert.equal(ultima.index, 49)
+  assert.equal(ultima.amount.toMajor(), 265_737)
+
+  // Y el saldo por pagar es exactamente el que informa el banco.
+  assert.equal(
+    plan.items.slice(4).reduce((s, i) => s + i.amount.toMajor(), 0),
+    11_956_889
+  )
+})
+
+test("un correo que informa el N° de cuota del banco cae en el ítem correcto", async () => {
+  const { repo, adopted } = makeRepo()
+  const deps = {
+    installments: repo,
+    accounts: makeAccounts("checking"),
+    categories,
+  }
+  const plan = await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    kind: "loan",
+    installmentsCount: 49,
+    startIndex: 5,
+    totalAmount: 11_956_889,
+    startDate: day(2026, 8, 5),
+  })
+  await adoptLoanInstallment(
+    { installments: repo },
+    {
+      transactionId: "tx6",
+      accountId: "acc1",
+      amount: clp(265_708),
+      date: day(2026, 9, 7),
+      installmentNumber: 6, // el banco numera 6, no "la segunda del plan"
+    }
+  )
+  assert.deepEqual(adopted, [
+    { itemId: `${plan.id}-i6`, transactionId: "tx6" },
+  ])
 })
 
 // --- Disparador de tarjeta ---

@@ -59,6 +59,13 @@ export type InstallmentPlanInput = {
   startDate: Date
   dayOfMonth: number
   tolerancePct: number
+  /**
+   * Número que el BANCO le da a la primera cuota que este plan va a seguir. 1 = desde el principio.
+   * En un crédito dado de alta a mitad ("vas en la 5 de 49") es 5: las cuotas 1–4 se crean ya
+   * saldadas fuera de la app, y `totalAmount` es el SALDO —lo que falta pagar—, no el crédito
+   * original.
+   */
+  startIndex?: number
   /** Montos por cuota ya editados por el usuario; vacío ⇒ reparto por defecto. */
   amounts?: number[]
   /** Índices (1..N) que el usuario dejó marcados como ya pagados al crear. */
@@ -129,13 +136,36 @@ export async function createInstallmentPlan(
 ): Promise<InstallmentPlan> {
   const { total } = await validateInput(deps, userId, input)
 
-  const dates = schedule(input.startDate, input.dayOfMonth, input.installmentsCount)
-  const amounts =
-    input.amounts && input.amounts.length === input.installmentsCount
+  const startIndex = input.startIndex ?? 1
+  if (
+    !Number.isInteger(startIndex) ||
+    startIndex < 1 ||
+    startIndex > input.installmentsCount
+  )
+    throw new InvalidInstallmentPlanError(
+      "La cuota inicial debe estar dentro del plan"
+    )
+
+  const dates = schedule(
+    input.startDate,
+    input.dayOfMonth,
+    input.installmentsCount,
+    startIndex
+  )
+  // El total es el SALDO: cubre solo las cuotas que este plan va a seguir. Las anteriores ya se
+  // pagaron fuera de la app y no participan del reparto ni del saldo pendiente.
+  const pendingCount = input.installmentsCount - startIndex + 1
+  const pendingAmounts =
+    input.amounts && input.amounts.length === pendingCount
       ? input.amounts.map((a) => Money.of(a, total.currency))
-      : splitAmount(total, input.installmentsCount)
-  if (requiresExactSplit(input.kind) && !splitMatchesTotal(total, amounts))
+      : splitAmount(total, pendingCount)
+  if (requiresExactSplit(input.kind) && !splitMatchesTotal(total, pendingAmounts))
     throw new InstallmentSplitMismatchError()
+
+  const zero = Money.zero(total.currency)
+  const amounts = dates.map((_, i) =>
+    i + 1 < startIndex ? zero : pendingAmounts[i + 1 - startIndex]
+  )
 
   const plan = await deps.installments.create(
     {
@@ -161,6 +191,11 @@ export async function createInstallmentPlan(
       input.sourceTransactionId
     )
   }
+
+  // Las cuotas anteriores al desfase ocurrieron antes de que el plan existiera: cuentan para el
+  // avance ("vas en la 5 de 49") pero no generan gasto en meses que el usuario nunca vio.
+  const before = plan.items.filter((i) => i.index < startIndex).map((i) => i.id)
+  if (before.length > 0) await deps.installments.markPaidOutsideApp(before)
 
   const paid = new Set(input.paidIndexes ?? [])
   if (paid.size > 0) {

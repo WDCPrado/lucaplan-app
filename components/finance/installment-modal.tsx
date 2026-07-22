@@ -86,7 +86,9 @@ export function InstallmentModal({
     preset?.categoryId ?? expenseCategories[0]?.id ?? null
   )
   const [total, setTotal] = useState(preset?.totalAmount ?? 0)
-  const [count, setCount] = useState(12)
+  const [count, setCount] = useState(kind === "loan" ? 48 : 12)
+  // Un crédito se registra casi siempre a mitad de camino: el banco dice "vas en la 5 de 49".
+  const [startIndex, setStartIndex] = useState(1)
   const [day, setDay] = useState(today.getDate())
   const [startMonth, setStartMonth] = useState(monthValue(nextMonth(today)))
   const [amounts, setAmounts] = useState<number[] | null>(null)
@@ -95,8 +97,10 @@ export function InstallmentModal({
 
   const account = eligible.find((a) => a.id === accountId) ?? eligible[0]
   const startDate = startOfMonth(startMonth)
-  const dates = schedule(startDate, day, count)
-  const values = amounts ?? defaultAmounts(total, count)
+  const dates = schedule(startDate, day, count, startIndex)
+  // El total cubre solo las cuotas que este plan va a seguir; las anteriores ya se pagaron.
+  const pendingCount = Math.max(1, count - startIndex + 1)
+  const values = amounts ?? defaultAmounts(total, pendingCount)
   const sum = values.reduce((a, b) => a + b, 0)
   // El cronograma de un crédito es estimación: el monto real lo fija el correo de cada cuota, así
   // que exigir que cuadre rechazaría planes correctos.
@@ -104,10 +108,10 @@ export function InstallmentModal({
   const sumOk = !mustMatchTotal || sum === total
 
   // Cuotas cuyo vencimiento ya pasó: se ofrecen premarcadas como pagadas, y el usuario desmarca
-  // las que quedó debiendo.
+  // las que quedó debiendo. Las anteriores al desfase no entran: ya se dan por pagadas.
   const overdue = dates
     .map((d, i) => ({ index: i + 1, date: d }))
-    .filter(({ date }) => date <= today)
+    .filter(({ index, date }) => index >= startIndex && date <= today)
   const paidIndexes = overdue
     .map((o) => o.index)
     .filter((i) => !unpaid.has(i))
@@ -121,9 +125,10 @@ export function InstallmentModal({
     sumOk &&
     !saving
 
-  function setAmountAt(i: number, value: number) {
+  // `values` está indexado por cuota PENDIENTE, no por índice del banco.
+  function setAmountAt(pos: number, value: number) {
     const next = [...values]
-    next[i] = value
+    next[pos] = value
     setAmounts(next)
   }
 
@@ -146,6 +151,7 @@ export function InstallmentModal({
         description: description.trim(),
         totalAmount: total,
         installmentsCount: count,
+        startIndex,
         startDate: startDate.toISOString(),
         dayOfMonth: day,
         amounts: values,
@@ -240,10 +246,15 @@ export function InstallmentModal({
               />
             </div>
             <span className="block text-xs text-muted-foreground">
-              El capital de la compra, sin los intereses del banco.
+              {kind === "card"
+                ? "El precio de la compra, sin los intereses del banco."
+                : "El saldo del crédito: lo que falta pagar, tal como lo muestra el banco. Ya incluye los intereses."}
             </span>
             <ChipRow>
-              {[3, 6, 12, 18, 24, 36, 48].map((n) => (
+              {(kind === "loan"
+                ? [12, 24, 36, 48, 60]
+                : [3, 6, 12, 18, 24, 36, 48]
+              ).map((n) => (
                 <Chip
                   key={n}
                   active={n === count}
@@ -253,12 +264,58 @@ export function InstallmentModal({
                 </Chip>
               ))}
             </ChipRow>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-muted-foreground">
+                {kind === "loan" ? "Total del crédito" : "Total de cuotas"}
+              </span>
+              <input
+                inputMode="numeric"
+                value={count}
+                onChange={(e) => {
+                  const n = Number(e.target.value.replace(/\D/g, "")) || 1
+                  setCountAndReset(Math.min(n, 240))
+                }}
+                aria-label="Número total de cuotas"
+                className="tabular h-10 w-20 rounded-xl border border-border bg-transparent px-3 text-right text-sm"
+              />
+            </label>
+            {/* Un crédito rara vez se registra desde la cuota 1: el banco dice "vas en la 5 de 49",
+                y respetar esa numeración es lo que hace que sus correos caigan en la cuota correcta. */}
+            {kind === "loan" && (
+              <label className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">
+                  Próxima cuota a pagar
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <input
+                    inputMode="numeric"
+                    value={startIndex}
+                    onChange={(e) => {
+                      const n = Number(e.target.value.replace(/\D/g, "")) || 1
+                      setStartIndex(Math.min(Math.max(n, 1), count))
+                      setAmounts(null)
+                    }}
+                    aria-label="Número de la próxima cuota"
+                    className="tabular h-10 w-16 rounded-xl border border-border bg-transparent px-3 text-right text-sm"
+                  />
+                  <span className="text-muted-foreground">de {count}</span>
+                </span>
+              </label>
+            )}
+            {startIndex > 1 && (
+              <span className="block text-xs text-muted-foreground">
+                Las cuotas 1 a {startIndex - 1} se dan por pagadas: cuentan para
+                el avance, pero no generan gasto en meses anteriores.
+              </span>
+            )}
           </Section>
 
           {/* 3 · Cuándo ------------------------------------------------------- */}
           <Section title="Cuándo se paga">
             <label className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-muted-foreground">Primera cuota</span>
+              <span className="text-muted-foreground">
+                {kind === "loan" ? `Mes de la cuota ${startIndex}` : "Primera cuota"}
+              </span>
               <input
                 type="month"
                 value={startMonth}
@@ -269,7 +326,9 @@ export function InstallmentModal({
             </label>
             <DayOfMonthPicker value={day} onChange={setDay} />
             <span className="block text-xs text-muted-foreground">
-              Termina el {shortDate(dates[dates.length - 1])}.
+              {kind === "loan"
+                ? `La cuota ${startIndex} vence el ${shortDate(dates[startIndex - 1])} y la última el ${shortDate(dates[dates.length - 1])}.`
+                : `Termina el ${shortDate(dates[dates.length - 1])}.`}
             </span>
           </Section>
 
@@ -282,8 +341,10 @@ export function InstallmentModal({
               </p>
             )}
             <ul className="flex flex-col gap-1">
-              {dates.map((date, i) => {
-                const index = i + 1
+              {/* Solo las cuotas que este plan va a seguir: las anteriores al desfase ya están
+                  pagadas y listarlas sería ruido. El número mostrado es el DEL BANCO. */}
+              {dates.slice(startIndex - 1).map((date, pos) => {
+                const index = pos + startIndex
                 const isOverdue = date <= today
                 const paid = isOverdue && !unpaid.has(index)
                 return (
@@ -299,10 +360,10 @@ export function InstallmentModal({
                     </span>
                     <input
                       inputMode="numeric"
-                      value={values[i]?.toLocaleString("es-CL") ?? ""}
+                      value={values[pos]?.toLocaleString("es-CL") ?? ""}
                       onChange={(e) =>
                         setAmountAt(
-                          i,
+                          pos,
                           Number(e.target.value.replace(/\D/g, "")) || 0
                         )
                       }

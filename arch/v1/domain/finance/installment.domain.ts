@@ -94,16 +94,22 @@ function isAfterDay(a: Date, b: Date): boolean {
 /**
  * Vencimientos de las N cuotas: el `dayOfMonth` de cada mes a partir del mes de `startDate`,
  * recortado al último día cuando el mes es más corto (31 en un mes de 30 → 30).
+ *
+ * `startIndex` es el número que el BANCO le da a la cuota que vence en `startDate`. En un crédito
+ * dado de alta a mitad de camino ("vas en la 5 de 49") las anteriores se fechan hacia atrás, para
+ * que el índice de cada ítem coincida con la numeración del banco: un correo que informa
+ * "N° Cuota: 6" tiene que caer en el ítem 6, no en el sexto de los que quedaban.
  */
 export function schedule(
   startDate: Date,
   dayOfMonth: number,
-  count: number
+  count: number,
+  startIndex = 1
 ): Date[] {
   const dates: Date[] = []
-  for (let i = 0; i < count; i++) {
+  for (let i = 1; i <= count; i++) {
     const year = startDate.getFullYear()
-    const month = startDate.getMonth() + i // Date normaliza el desborde de mes
+    const month = startDate.getMonth() + (i - startIndex) // Date normaliza el desborde
     const d = new Date(year, month, 1)
     const y = d.getFullYear()
     const m = d.getMonth() + 1

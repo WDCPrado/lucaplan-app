@@ -31,6 +31,31 @@ mecanismo de ejecución, no un atributo.
 - **WHEN** el usuario crea un plan `loan` de 48 cuotas que se paga desde su cuenta corriente
 - **THEN** el plan se acepta: la cuenta es la de cargo, no una cuenta de crédito
 
+### Requirement: Un crédito puede registrarse a mitad de camino
+
+El sistema SHALL permitir dar de alta un plan `loan` indicando el **número que el banco le da a
+la próxima cuota** y el total de cuotas del crédito ("vas en la 5 de 49"). Los ítems SHALL
+numerarse con la numeración del banco, y las cuotas anteriores SHALL crearse como pagadas
+fuera de la app: cuentan para el avance y NO SHALL generar gasto en meses anteriores al plan.
+
+Respetar esa numeración NO es cosmético: el correo de cada cuota informa su número, y si los
+ítems se numeraran desde 1 el pago caería en la cuota equivocada.
+
+En ese caso el monto total del plan SHALL ser el **saldo** —la suma de las cuotas que quedan,
+intereses incluidos— y no el crédito original, que ya no es la deuda.
+
+#### Scenario: Crédito registrado en la cuota 5 de 49
+- **WHEN** el usuario registra un crédito con 49 cuotas, próxima la 5, saldo 11.956.889 y vencimiento el 5 de agosto
+- **THEN** el plan tiene 49 cuotas, las 1 a 4 quedan pagadas fuera de la app, la 5 vence el 5 de agosto y las 45 restantes reparten el saldo
+
+#### Scenario: El correo usa la numeración del banco
+- **WHEN** llega el pago de la cuota que el banco numera como 6
+- **THEN** se engancha al ítem 6 del plan, no al sexto de las cuotas que quedaban
+
+#### Scenario: Las cuotas previas no inventan gasto
+- **WHEN** un plan arranca en la cuota 5
+- **THEN** las cuotas 1 a 4 cuentan para el avance y no generan movimiento en ningún mes
+
 ### Requirement: Cronograma con montos por defecto
 
 Un plan SHALL generar N ítems (`InstallmentItem`), uno por cuota (índice 1..N), cada uno con

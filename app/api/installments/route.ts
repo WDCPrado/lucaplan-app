@@ -26,6 +26,7 @@ export async function POST(req: Request) {
         description: String(body.description ?? ""),
         totalAmount: Number(body.totalAmount),
         installmentsCount: Number(body.installmentsCount),
+        startIndex: body.startIndex ? Number(body.startIndex) : 1,
         startDate: body.startDate ? new Date(body.startDate) : new Date(),
         dayOfMonth: Number(body.dayOfMonth),
         tolerancePct: Number(body.tolerancePct ?? 10),

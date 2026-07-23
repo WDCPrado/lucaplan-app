@@ -3,8 +3,8 @@ import { getSessionCookie } from "better-auth/cookies"
 
 // Gating de auth server-side (Next 16: convención `proxy`, antes `middleware`).
 // Chequeo optimista de cookie en el edge; la validación real de sesión la hace cada
-// server component / use-case. Rutas públicas: solo /login.
-const PUBLIC_ROUTES = ["/", "/login"]
+// server component / use-case. Rutas públicas: /login y el aterrizaje del reset.
+const PUBLIC_ROUTES = ["/", "/login", "/reset-password"]
 
 // Deploy landing-only (ej. Railway como vitrina del proyecto open source):
 // con NEXT_PUBLIC_LANDING_ONLY=true existen la landing y /login (sin registro —

@@ -63,16 +63,17 @@ fecha de vencimiento y monto. El monto por defecto de cada cuota SHALL ser `tota
 el resto del redondeo en la última.
 
 En un plan `card` los montos SHALL ser editables por cuota y su suma SHALL igualar el total
-del plan; si un ajuste manual rompe esa igualdad, el sistema SHALL rechazar el guardado. En
-un plan `loan` los montos del cronograma SHALL tratarse como **estimación**: el monto real de
-cada cuota lo fija el correo del pago, de modo que la igualdad con el total NO SHALL exigirse.
+del plan; si al **crear** el ajuste manual rompe esa igualdad, el sistema SHALL rechazar el
+guardado. En un plan `loan` los montos del cronograma SHALL tratarse como **estimación**: el
+monto real de cada cuota lo fija el correo del pago, de modo que la igualdad con el total NO
+SHALL exigirse.
 
 #### Scenario: Reparto por defecto
 - **WHEN** se crea un plan de 300.000 en 3 cuotas sin editar montos
 - **THEN** se generan 3 cuotas de 100.000 cada una
 
-#### Scenario: Editar una cuota de tarjeta
-- **WHEN** el usuario cambia la primera cuota de un plan `card` de 300.000/3 a 120.000
+#### Scenario: Editar una cuota de tarjeta al crear
+- **WHEN** el usuario cambia la primera cuota de un plan `card` de 300.000/3 a 120.000 en el formulario de creación
 - **THEN** el sistema exige que las otras dos sumen 180.000 para conservar el total
 
 #### Scenario: El cronograma de un crédito de consumo es estimación
@@ -203,6 +204,71 @@ siguientes.
 - **WHEN** el usuario crea un plan cuya primera cuota vence el mes que viene
 - **THEN** no se ofrece marcar ninguna cuota como pagada
 
+### Requirement: La categoría es del plan y se propaga completa
+
+La categoría de una deuda en cuotas SHALL ser **una sola: la del plan**. Cambiarla desde el
+plan, desde la compra origen, desde cualquier cuota registrada o desde una cuota proyectada
+SHALL recategorizar el plan y **todos** sus movimientos (cuotas registradas y compra origen)
+en una sola operación, para que no queden dos verdades.
+
+Un movimiento vinculado a un plan NO SHALL poder quedar sin categoría: el plan la exige.
+
+Un plan creado desde un movimiento (compra en `card`, cuota en `loan`) SHALL heredar la
+categoría de ese movimiento, fija en el formulario: se cambia después desde el plan, no al
+crear.
+
+#### Scenario: Recategorizar una cuota recategoriza el plan completo
+- **WHEN** el usuario cambia la categoría del movimiento de la cuota 3
+- **THEN** el plan, sus demás cuotas registradas y la compra origen quedan en la nueva categoría
+
+#### Scenario: Recategorizar la compra origen también propaga
+- **WHEN** el usuario cambia la categoría de la compra neutralizada
+- **THEN** el plan y todas sus cuotas registradas cambian con ella
+
+#### Scenario: Quitar la categoría se rechaza
+- **WHEN** el usuario intenta dejar sin categoría el movimiento de una cuota
+- **THEN** el sistema lo rechaza
+
+### Requirement: La cuota del mes se anticipa como "Por cobrar"
+
+El sistema SHALL mostrar en el mes las cuotas que vencen y aún no se pagan como filas
+**derivadas** "Por cobrar" —igual que el comprometido de una recurrente— sin persistir nada:
+al pagarse nace la transacción real y la fila desaparece sola, de modo que nunca cuenta dos
+veces. Esas cuotas SHALL sumar al comprometido de su categoría en el mes.
+
+La fila SHALL intercalarse por fecha con el resto de los movimientos del mes, SHALL abrir el
+modal de detalle del movimiento al tocarla (no navegar a otra vista), y SHALL permitir
+recategorizar el plan desde ahí.
+
+#### Scenario: La cuota pendiente del mes aparece por cobrar
+- **WHEN** un plan tiene una cuota que vence este mes y aún no se paga
+- **THEN** la lista del mes la muestra como "Por cobrar" en su fecha y suma al comprometido de su categoría
+
+#### Scenario: Al pagarse desaparece la fila derivada
+- **WHEN** el pago de la tarjeta ejecuta esa cuota
+- **THEN** la fila "Por cobrar" desaparece y queda solo la transacción real
+
+#### Scenario: Tocarla abre el detalle
+- **WHEN** el usuario toca la fila "Por cobrar"
+- **THEN** se abre el modal del movimiento con su detalle y su plan, no una navegación a otra vista
+
+### Requirement: Borrar un plan no pierde gasto real
+
+Al borrar un plan, los movimientos de las cuotas ya registradas SHALL conservarse: son gastos
+que ocurrieron y solo pierden el vínculo. En un plan `card` **sin cuotas registradas**, el
+borrado SHALL des-neutralizar la compra origen, que vuelve a contar como gasto en su mes —sin
+plan que la reparta, ese gasto no puede desaparecer—. Con cuotas ya registradas, la compra
+origen SHALL seguir neutralizada: parte del gasto ya vive repartido y des-neutralizar lo
+contaría dos veces.
+
+#### Scenario: Borrar un plan card sin cuotas devuelve el gasto
+- **WHEN** el usuario borra un plan `card` que aún no registró ninguna cuota
+- **THEN** la compra origen deja de ser interna y vuelve a contar como gasto en su mes
+
+#### Scenario: Borrar un plan con cuotas conserva todo
+- **WHEN** el usuario borra un plan `card` con dos cuotas ya registradas
+- **THEN** esos dos movimientos se conservan y la compra origen sigue neutralizada
+
 ### Requirement: Solo la cuota del mes cuenta como gasto
 
 Como cada cuota es una `Transaction` real de su mes, el gasto de la categoría SHALL contar
@@ -273,6 +339,11 @@ Un movimiento ya asignado a otra cuota, un ingreso, o una cuota ya registrada SH
 rechazarse. El sistema SHALL permitir **soltar** el movimiento de una cuota, devolviéndolo a
 gasto normal y dejando la cuota pendiente; si el plan estaba completado, SHALL reabrirse.
 
+La lista de candidatos SHALL filtrarse por defecto por lo que se sabe de la cuota: la
+**categoría del plan** (desactivable) y el **monto cercano al esperado** con un umbral
+ajustable por el usuario. Buscar por texto SHALL mostrar todo lo que calce con el texto, sin
+esos filtros: quien escribe está buscando explícitamente.
+
 #### Scenario: Asignar desde el plan
 - **WHEN** el usuario elige un gasto existente para la cuota 4
 - **THEN** ese movimiento queda como la cuota 4, con su monto y fecha originales, sin crearse ninguno nuevo
@@ -288,6 +359,23 @@ gasto normal y dejando la cuota pendiente; si el plan estaba completado, SHALL r
 #### Scenario: Soltar reabre la cuota y el plan
 - **WHEN** el usuario suelta el movimiento de la última cuota de un plan completado
 - **THEN** la cuota vuelve a estar pendiente, el movimiento vuelve a ser un gasto normal y el plan deja de estar completado
+
+#### Scenario: Los candidatos vienen filtrados por cercanía
+- **WHEN** el usuario abre el selector para una cuota de 265.708 en la categoría Cuentas
+- **THEN** la lista muestra los gastos de esa categoría con monto dentro del umbral, y el usuario puede ampliar el umbral o quitar el filtro de categoría
+
+### Requirement: Registrar el crédito desde el movimiento de su cuota
+
+El sistema SHALL ofrecer registrar el crédito directamente cuando el usuario marca un
+movimiento como cuota y la deuda aún no existe como plan, con el formulario precargado con
+lo que el movimiento ya sabe: la cuenta de cargo, la categoría (fija, es la del plan), el
+número de cuota informado por el correo —preguntando explícitamente qué cuota es ese pago— y
+el mes y día del pago. Al crear el plan, el enganche automático SHALL adoptar ese movimiento
+como su cuota, sin crear gasto nuevo.
+
+#### Scenario: Registrar el crédito desde el pago de una cuota
+- **WHEN** el usuario abre "Pago cuota 3 de crédito de consumo" y registra desde ahí un crédito de 24 cuotas
+- **THEN** el formulario viene precargado con la cuenta, la categoría y la cuota 3 en el mes del pago, y al crear el plan ese movimiento queda enganchado como la cuota 3
 
 ### Requirement: Registrar una cuota a mano
 
@@ -316,21 +404,51 @@ gasto suelto para que el usuario resuelva el duplicado.
 ### Requirement: Revisar y editar el plan
 
 El sistema SHALL ofrecer una vista del plan que liste sus cuotas (índice, vencimiento, monto,
-estado pagada/pendiente/vencida), permita editar montos y fechas de cuotas aún no registradas,
-y muestre la compra origen cuando exista. Editar una cuota ya registrada NO SHALL estar
-permitido.
+estado pagada/pendiente/vencida/fuera de la app), permita editar montos y fechas, y muestre
+la compra origen cuando exista.
+
+El **monto de una cuota SHALL editarse solo desde el plan**: el modal del movimiento de una
+cuota NO SHALL permitir cambiarlo, porque en `card` el movimiento es un espejo del
+cronograma y editarlo por fuera dejaría dos verdades.
+
+En un plan `card` el total no se negocia: al cambiar el monto de una cuota, la diferencia
+SHALL redistribuirse entre las cuotas **pendientes** restantes (partes iguales, con el resto
+en la última, igual que al crear); las ya saldadas NO SHALL moverse. Si el monto no deja
+saldo suficiente para las pendientes, el sistema SHALL rechazarlo; si no queda ninguna
+pendiente que absorba la diferencia, el monto SHALL cuadrar exactamente lo que falta del
+total. Cambiar solo la fecha NO SHALL redistribuir montos.
+
+En un plan `card` una cuota **ya registrada** SHALL poder editarse, y la edición SHALL
+actualizar también su `Transaction` (monto y fecha) en la misma operación. En un plan `loan`
+una cuota registrada NO SHALL editarse: su monto y fecha reales los fijó el correo.
 
 La vista SHALL mostrar el **avance** del plan (cuotas registradas sobre el total) y el
 **saldo pendiente**, calculado como el total menos lo efectivamente registrado, de modo que
 un plan `loan` con cuotas variables muestre la deuda real y no la estimada.
 
-#### Scenario: Editar cuota pendiente
-- **WHEN** el usuario cambia el monto de una cuota aún no registrada respetando el total
-- **THEN** el cambio se guarda y se refleja en el cronograma
+#### Scenario: Editar el monto redistribuye las pendientes
+- **WHEN** el usuario cambia una cuota de un plan `card` de 6×100.000 a 120.000
+- **THEN** las cinco pendientes restantes quedan en 96.000 y el plan sigue sumando 600.000
 
-#### Scenario: Cuota registrada es inmutable
-- **WHEN** el usuario intenta editar una cuota que ya tiene su `Transaction`
+#### Scenario: La redistribución no toca las cuotas saldadas
+- **WHEN** un plan `card` tiene la cuota 1 registrada y el usuario cambia el monto de la cuota 3
+- **THEN** la cuota 1 conserva su monto y solo las pendientes absorben la diferencia
+
+#### Scenario: Cuota card registrada se edita y sincroniza su movimiento
+- **WHEN** el usuario edita la fecha o el monto de una cuota `card` que ya tiene `Transaction`
+- **THEN** la cuota y su movimiento quedan con los nuevos valores, en la misma operación
+
+#### Scenario: Cuota loan registrada es inmutable
+- **WHEN** el usuario intenta editar una cuota `loan` que ya tiene su `Transaction`
 - **THEN** el sistema no permite el cambio
+
+#### Scenario: Monto sin saldo para las pendientes se rechaza
+- **WHEN** el usuario pone en una cuota un monto que no deja saldo para las demás pendientes
+- **THEN** el sistema lo rechaza, en el formulario y en el servidor
+
+#### Scenario: El monto no se edita desde el movimiento
+- **WHEN** el usuario abre el movimiento de una cuota e intenta cambiar el monto
+- **THEN** el campo está bloqueado y el servidor rechaza el cambio
 
 #### Scenario: Cuota vencida sin pagar se distingue
 - **WHEN** el plan tiene una cuota cuyo vencimiento ya pasó y que aún no se registró

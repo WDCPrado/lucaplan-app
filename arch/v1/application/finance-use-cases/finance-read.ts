@@ -386,7 +386,10 @@ export async function listTransactions(
   // igual que una recurrente y desaparecen solas al pagarse (ahí nace la transacción real). No se
   // persiste nada: por eso el disparo por correo sigue intacto y no hay doble conteo.
   const forecast = await installmentForecastRows(deps, userId, year, month, catById)
-  return [...forecast, ...withState]
+  // Orden por fecha desc para TODO el conjunto: la lista agrupa por día filas CONTIGUAS, así que
+  // un forecast fuera de orden partiría un día en dos grupos (keys duplicadas en React) y además
+  // mostraría la cuota lejos de su fecha. El sort es estable: dentro del día, forecast primero.
+  return [...forecast, ...withState].sort((a, b) => b.date.localeCompare(a.date))
 }
 
 // Construye las filas de pronóstico de las cuotas que vencen en (year, month) y aún no se pagan.

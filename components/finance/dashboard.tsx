@@ -483,12 +483,7 @@ export function Dashboard({
               <MovementsList
                 key={`${period.year}-${period.month}`}
                 transactions={transactions}
-                // Una fila de pronóstico no es una transacción real: no abre el modal, lleva al plan.
-                onOpen={(tx) =>
-                  tx.installmentForecast
-                    ? router.push("/installments")
-                    : setDetailTx(tx)
-                }
+                onOpen={setDetailTx}
                 // Tocar el arco del movimiento abre el detalle de SU categoría (no el movimiento).
                 onOpenCategory={(id) => {
                   const cat = budget.categories.find((c) => c.id === id)

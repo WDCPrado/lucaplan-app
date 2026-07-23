@@ -349,12 +349,18 @@ export interface InstallmentPlanRepository {
     kind: InstallmentKind
   ): Promise<InstallmentPlan[]>
   findById(id: string): Promise<InstallmentPlan | null>
+  /** Plan al que pertenece un movimiento: la cuota que lo salda o la compra origen neutralizada. */
+  findByTransaction(transactionId: string): Promise<InstallmentPlan | null>
   /** Crea el plan con sus N ítems. Atómico con la neutralización de la compra origen. */
   create(
     input: NewInstallmentPlan,
     items: { index: number; dueDate: Date; amount: Money }[]
   ): Promise<InstallmentPlan>
-  delete(id: string): Promise<void>
+  /**
+   * Borra el plan. Si viene `restoreSourceTransactionId`, des-neutraliza esa compra origen en la
+   * misma operación: sin plan que la reparta, el gasto vuelve a contar entero en su mes.
+   */
+  delete(id: string, restoreSourceTransactionId?: string | null): Promise<void>
   /**
    * Crea el movimiento de una cuota (`card` y marca manual) y lo vincula al ítem. Idempotente por
    * el único `Transaction.installmentItemId` de la BD: si el ítem ya tiene movimiento, devuelve
@@ -377,8 +383,19 @@ export interface InstallmentPlanRepository {
   ): Promise<boolean>
   /** Marca cuotas como pagadas fuera de la app (anteriores a la conexión de correo). */
   markPaidOutsideApp(itemIds: string[]): Promise<void>
-  /** Edita monto y vencimiento de una cuota aún sin registrar. */
-  updateItem(itemId: string, dueDate: Date, amount: Money): Promise<void>
+  /**
+   * Edita varias cuotas de una vez, atómico (editar una en `card` redistribuye las pendientes).
+   * Si una cuota ya tiene movimiento, lo actualiza también: el movimiento de una cuota `card` es
+   * un espejo del cronograma, y editar uno sin el otro dejaría dos verdades.
+   */
+  updateItems(
+    updates: { itemId: string; dueDate?: Date; amount: Money }[]
+  ): Promise<void>
+  /**
+   * Recategoriza el plan Y todos sus movimientos (cuotas registradas y compra origen), atómico.
+   * La categoría es del plan: cambiarla desde cualquier punto cambia el conjunto completo.
+   */
+  setCategory(planId: string, categoryId: string): Promise<void>
   /** Cierra el plan cuando su última cuota queda saldada. */
   markCompleted(planId: string, at: Date): Promise<void>
   /** Reabre un plan cerrado: al soltar una cuota vuelve a tener algo pendiente. */
@@ -439,6 +456,22 @@ export class InstallmentItemAlreadySettledError extends Error {
   constructor() {
     super("Esta cuota ya está registrada y no puede modificarse")
     this.name = "InstallmentItemAlreadySettledError"
+  }
+}
+
+/** La categoría de una cuota la manda el plan: no puede quedar sin categoría (→ 422). */
+export class InstallmentCategoryRequiredError extends Error {
+  constructor() {
+    super("Un movimiento de un plan de cuotas no puede quedar sin categoría")
+    this.name = "InstallmentCategoryRequiredError"
+  }
+}
+
+/** El monto de una cuota refleja el cronograma del plan: se edita en el plan, no aquí (→ 422). */
+export class InstallmentAmountReadOnlyError extends Error {
+  constructor() {
+    super("El monto de una cuota se edita en su plan de cuotas")
+    this.name = "InstallmentAmountReadOnlyError"
   }
 }
 

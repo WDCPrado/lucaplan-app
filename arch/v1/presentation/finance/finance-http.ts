@@ -32,6 +32,8 @@ import {
 } from "../../domain/finance/recurring.domain.ts"
 import {
   InstallmentAccountMismatchError,
+  InstallmentAmountReadOnlyError,
+  InstallmentCategoryRequiredError,
   InstallmentItemAlreadySettledError,
   InstallmentPlanNotFoundError,
   InstallmentSplitMismatchError,
@@ -88,6 +90,8 @@ function errorStatus(e: unknown): number {
     e instanceof InstallmentAccountMismatchError ||
     e instanceof InstallmentSplitMismatchError ||
     e instanceof InstallmentItemAlreadySettledError ||
+    e instanceof InstallmentCategoryRequiredError ||
+    e instanceof InstallmentAmountReadOnlyError ||
     e instanceof EmailReauthRequiredError ||
     e instanceof EmailSetupStateError
   )

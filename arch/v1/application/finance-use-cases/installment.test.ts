@@ -20,6 +20,7 @@ import {
   type LoanPayment,
   type NewInstallmentPlan,
   InstallmentAccountMismatchError,
+  InstallmentCategoryRequiredError,
   InstallmentItemAlreadySettledError,
   InstallmentSplitMismatchError,
   InvalidInstallmentPlanError,
@@ -28,12 +29,15 @@ import {
 import {
   adoptLoanInstallment,
   createInstallmentPlan,
+  deleteInstallmentPlan,
   executeCardInstallments,
   linkTransactionToItem,
   payInstallmentManually,
+  setInstallmentPlanCategory,
   unlinkTransactionFromItem,
   updateInstallmentItem,
 } from "./installment-use-cases.ts"
+import { categorizeTransaction } from "./categorize-transaction-use-case.ts"
 
 const clp = (n: number) => Money.fromMinor(n, "CLP")
 const day = (y: number, m: number, d: number) => new Date(y, m - 1, d)
@@ -66,6 +70,8 @@ function makeRepo() {
   const registered: Registered[] = []
   const adopted: { itemId: string; transactionId: string }[] = []
   const neutralized: string[] = []
+  const restored: string[] = [] // compras origen des-neutralizadas al borrar el plan
+  const recategorized: { planId: string; categoryId: string }[] = []
   let unclaimed: (LoanPayment & { transactionId: string })[] = []
   const candidates: LinkCandidate[] = []
   let seq = 0
@@ -87,6 +93,12 @@ function makeRepo() {
           p.accountId === accountId && p.kind === kind && p.completedAt === null
       ),
     findById: async (id) => plans.get(id) ?? null,
+    findByTransaction: async (transactionId) =>
+      [...plans.values()].find(
+        (p) =>
+          p.sourceTransactionId === transactionId ||
+          p.items.some((i) => i.transactionId === transactionId)
+      ) ?? null,
     create: async (input: NewInstallmentPlan, items) => {
       const id = `p${++seq}`
       const plan: InstallmentPlan = {
@@ -104,7 +116,10 @@ function makeRepo() {
       plans.set(id, plan)
       return plan
     },
-    delete: async (id) => void plans.delete(id),
+    delete: async (id, restoreSourceTransactionId = null) => {
+      if (restoreSourceTransactionId) restored.push(restoreSourceTransactionId)
+      plans.delete(id)
+    },
     registerItemTransaction: async (plan, itemId, date, amount) => {
       const ok = settle(plan.id, itemId, `tx-${itemId}`)
       if (ok) registered.push({ itemId, date, amount })
@@ -120,10 +135,19 @@ function makeRepo() {
         for (const item of plan.items)
           if (itemIds.includes(item.id)) item.paidOutsideApp = true
     },
-    updateItem: async (itemId, dueDate, amount) => {
-      for (const plan of plans.values())
-        for (const item of plan.items)
-          if (item.id === itemId) Object.assign(item, { dueDate, amount })
+    updateItems: async (updates) => {
+      for (const u of updates)
+        for (const plan of plans.values())
+          for (const item of plan.items)
+            if (item.id === u.itemId)
+              Object.assign(item, {
+                amount: u.amount,
+                ...(u.dueDate ? { dueDate: u.dueDate } : {}),
+              })
+    },
+    setCategory: async (planId, categoryId) => {
+      recategorized.push({ planId, categoryId })
+      plans.get(planId)!.categoryId = categoryId
     },
     markCompleted: async (planId, at) => {
       plans.get(planId)!.completedAt = at
@@ -149,6 +173,8 @@ function makeRepo() {
     registered,
     adopted,
     neutralized,
+    restored,
+    recategorized,
     plans,
     setUnclaimed: (p: (LoanPayment & { transactionId: string })[]) =>
       (unclaimed = p),
@@ -618,6 +644,8 @@ function makeTransactions(
             ...rows[id],
           } as Transaction)
         : null,
+    setCategory: async (id: string, categoryId: string | null) =>
+      ({ id, categoryId }) as unknown as Transaction,
   } as TransactionRepository
 }
 
@@ -722,24 +750,93 @@ test("soltar la cuota la deja pendiente y reabre el plan cerrado", async () => {
   assert.equal(after.completedAt, null, "vuelve a esperar pagos")
 })
 
-test("una cuota ya registrada no se puede editar", async () => {
+test("una cuota loan ya registrada no se puede editar: su monto y fecha los fijó el correo", async () => {
   const { repo } = makeRepo()
-  const deps = { installments: repo, accounts: makeAccounts(), categories }
-  const plan = await createInstallmentPlan(deps, "u1", baseInput)
-  await executeCardInstallments({ installments: repo }, "acc1", day(2026, 9, 3))
+  const deps = {
+    installments: repo,
+    accounts: makeAccounts("checking"),
+    categories,
+  }
+  const plan = await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    kind: "loan",
+  })
+  await linkTransactionToItem(
+    { installments: repo, transactions: makeTransactions({ tx1: {} }) },
+    "u1",
+    { planId: plan.id, itemId: plan.items[0].id, transactionId: "tx1" }
+  )
   await assert.rejects(
     () =>
       updateInstallmentItem({ installments: repo }, "u1", {
         planId: plan.id,
         itemId: plan.items[0].id,
         dueDate: day(2026, 8, 10),
-        amount: 120_000,
+        amount: 100_000,
       }),
     InstallmentItemAlreadySettledError
   )
 })
 
-test("editar una cuota de card rompiendo el total se rechaza", async () => {
+test("una cuota card ya registrada SÍ se edita: el movimiento es un espejo del cronograma", async () => {
+  const { repo } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", baseInput)
+  await executeCardInstallments({ installments: repo }, "acc1", day(2026, 9, 3))
+
+  // Mismo monto (Σ = total se mantiene), nueva fecha: la edición pasa y el repo sincroniza el
+  // movimiento (verificado en infra; aquí basta que el use-case ya no la rechace).
+  const after = await updateInstallmentItem({ installments: repo }, "u1", {
+    planId: plan.id,
+    itemId: plan.items[0].id,
+    dueDate: day(2026, 8, 20),
+    amount: 100_000,
+  })
+  assert.equal(after.items[0].dueDate.getDate(), 20)
+  assert.notEqual(after.items[0].transactionId, null, "sigue registrada")
+})
+
+test("editar el monto de una cuota card redistribuye las pendientes manteniendo el total", async () => {
+  const { repo } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", baseInput)
+  const after = await updateInstallmentItem({ installments: repo }, "u1", {
+    planId: plan.id,
+    itemId: plan.items[0].id,
+    dueDate: day(2026, 8, 10),
+    amount: 120_000,
+  })
+  assert.equal(after.items[0].amount.toMajor(), 120_000)
+  assert.deepEqual(
+    after.items.slice(1).map((i) => i.amount.toMajor()),
+    [96_000, 96_000, 96_000, 96_000, 96_000]
+  )
+  const sum = after.items.reduce((s, i) => s + i.amount.toMajor(), 0)
+  assert.equal(sum, 600_000, "el total del plan no se negocia")
+})
+
+test("la redistribución no toca las cuotas ya saldadas", async () => {
+  const { repo } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", baseInput)
+  // La cuota 1 queda registrada: su movimiento ya vivió su mes.
+  await executeCardInstallments({ installments: repo }, "acc1", day(2026, 9, 3))
+  const after = await updateInstallmentItem({ installments: repo }, "u1", {
+    planId: plan.id,
+    itemId: plan.items[2].id,
+    dueDate: day(2026, 10, 5),
+    amount: 150_000,
+  })
+  assert.equal(after.items[0].amount.toMajor(), 100_000, "la saldada no se mueve")
+  assert.equal(after.items[2].amount.toMajor(), 150_000)
+  // 600k − 100k (saldada) − 150k (editada) = 350k entre las 4 pendientes restantes.
+  assert.deepEqual(
+    [1, 3, 4, 5].map((n) => after.items[n].amount.toMajor()),
+    [87_500, 87_500, 87_500, 87_500]
+  )
+})
+
+test("un monto que no deja saldo para las pendientes se rechaza", async () => {
   const { repo } = makeRepo()
   const deps = { installments: repo, accounts: makeAccounts(), categories }
   const plan = await createInstallmentPlan(deps, "u1", baseInput)
@@ -749,8 +846,178 @@ test("editar una cuota de card rompiendo el total se rechaza", async () => {
         planId: plan.id,
         itemId: plan.items[0].id,
         dueDate: day(2026, 8, 10),
-        amount: 120_000,
+        amount: 600_000,
+      }),
+    InvalidInstallmentPlanError
+  )
+})
+
+test("con una sola pendiente el monto debe cuadrar el total", async () => {
+  const { repo } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    installmentsCount: 2,
+    totalAmount: 200_000,
+  })
+  await executeCardInstallments({ installments: repo }, "acc1", day(2026, 9, 3))
+  await assert.rejects(
+    () =>
+      updateInstallmentItem({ installments: repo }, "u1", {
+        planId: plan.id,
+        itemId: plan.items[1].id,
+        dueDate: day(2026, 9, 5),
+        amount: 90_000,
       }),
     InstallmentSplitMismatchError
+  )
+})
+
+test("cambiar solo la fecha no redistribuye montos personalizados", async () => {
+  const { repo } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    installmentsCount: 3,
+    totalAmount: 300_000,
+    amounts: [120_000, 90_000, 90_000],
+  })
+  const after = await updateInstallmentItem({ installments: repo }, "u1", {
+    planId: plan.id,
+    itemId: plan.items[0].id,
+    dueDate: day(2026, 8, 20),
+    amount: 120_000, // mismo monto: solo se mueve la fecha
+  })
+  assert.equal(after.items[0].dueDate.getDate(), 20)
+  assert.deepEqual(
+    after.items.map((i) => i.amount.toMajor()),
+    [120_000, 90_000, 90_000],
+    "los montos configurados a mano quedan como estaban"
+  )
+})
+
+// --- Borrado ---
+
+test("borrar un plan card sin cuotas registradas des-neutraliza la compra origen", async () => {
+  const { repo, restored } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    sourceTransactionId: "compra1",
+  })
+  await deleteInstallmentPlan({ installments: repo }, "u1", plan.id)
+  assert.deepEqual(restored, ["compra1"], "el gasto vuelve a contar en su mes")
+})
+
+test("borrar un plan card con cuotas registradas conserva la neutralización", async () => {
+  const { repo, restored } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    sourceTransactionId: "compra1",
+  })
+  await executeCardInstallments({ installments: repo }, "acc1", day(2026, 9, 3))
+  await deleteInstallmentPlan({ installments: repo }, "u1", plan.id)
+  assert.deepEqual(
+    restored,
+    [],
+    "parte del gasto ya vive en las cuotas: des-neutralizar lo contaría dos veces"
+  )
+})
+
+// --- Categoría: es del plan, se propaga completa ---
+
+test("recategorizar el plan valida la categoría y recategoriza el conjunto", async () => {
+  const { repo, recategorized } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", baseInput)
+  await setInstallmentPlanCategory(
+    { installments: repo, categories },
+    "u1",
+    { planId: plan.id, categoryId: "cat1" }
+  )
+  assert.deepEqual(recategorized, [{ planId: plan.id, categoryId: "cat1" }])
+})
+
+test("un plan de cuotas no acepta una categoría de ingreso", async () => {
+  const { repo } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", baseInput)
+  const cats = {
+    findById: async (id: string) =>
+      id === "catIn"
+        ? ({ id, userId: "u1", type: "income" } as Category)
+        : null,
+  } as CategoryRepository
+  await assert.rejects(
+    () =>
+      setInstallmentPlanCategory(
+        { installments: repo, categories: cats },
+        "u1",
+        { planId: plan.id, categoryId: "catIn" }
+      ),
+    InvalidInstallmentPlanError
+  )
+})
+
+test("recategorizar la compra origen recategoriza el plan completo", async () => {
+  const { repo, recategorized } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    sourceTransactionId: "compra1",
+  })
+  await categorizeTransaction(
+    {
+      transactions: makeTransactions({ compra1: {} }),
+      categories,
+      installments: repo,
+    },
+    "u1",
+    "compra1",
+    "cat1"
+  )
+  assert.deepEqual(recategorized, [{ planId: plan.id, categoryId: "cat1" }])
+})
+
+test("recategorizar una cuota registrada recategoriza el plan completo", async () => {
+  const { repo, recategorized } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", baseInput)
+  await executeCardInstallments({ installments: repo }, "acc1", day(2026, 9, 3))
+  const txId = (await repo.findById(plan.id))!.items[0].transactionId!
+  await categorizeTransaction(
+    {
+      transactions: makeTransactions({ [txId]: {} }),
+      categories,
+      installments: repo,
+    },
+    "u1",
+    txId,
+    "cat1"
+  )
+  assert.deepEqual(recategorized, [{ planId: plan.id, categoryId: "cat1" }])
+})
+
+test("un movimiento de un plan no puede quedar sin categoría", async () => {
+  const { repo } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    sourceTransactionId: "compra1",
+  })
+  await assert.rejects(
+    () =>
+      categorizeTransaction(
+        {
+          transactions: makeTransactions({ compra1: {} }),
+          categories,
+          installments: repo,
+        },
+        "u1",
+        "compra1",
+        null
+      ),
+    InstallmentCategoryRequiredError
   )
 })

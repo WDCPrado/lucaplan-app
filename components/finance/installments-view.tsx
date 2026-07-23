@@ -45,7 +45,12 @@ export function InstallmentsView({
 }) {
   const router = useRouter()
   const [creating, setCreating] = useState(false)
-  const [detail, setDetail] = useState<InstallmentPlanDTO | null>(null)
+  const [detailId, setDetailId] = useState<string | null>(null)
+  // Derivado de las props frescas (no un snapshot en estado): tras una mutación del modal +
+  // router.refresh(), el detalle muestra el plan actualizado, no el de cuando se abrió.
+  const detail = detailId
+    ? (plans.find((p) => p.id === detailId) ?? null)
+    : null
 
   const active = plans.filter((p) => p.completedAt === null)
   const done = plans.filter((p) => p.completedAt !== null)
@@ -104,7 +109,7 @@ export function InstallmentsView({
             {active.length > 0 && (
               <ul className="flex flex-col gap-2">
                 {active.map((p) => (
-                  <PlanRow key={p.id} plan={p} onOpen={() => setDetail(p)} />
+                  <PlanRow key={p.id} plan={p} onOpen={() => setDetailId(p.id)} />
                 ))}
               </ul>
             )}
@@ -115,7 +120,7 @@ export function InstallmentsView({
                 </h3>
                 <ul className="flex flex-col gap-2">
                   {done.map((p) => (
-                    <PlanRow key={p.id} plan={p} onOpen={() => setDetail(p)} />
+                    <PlanRow key={p.id} plan={p} onOpen={() => setDetailId(p.id)} />
                   ))}
                 </ul>
               </section>
@@ -137,7 +142,7 @@ export function InstallmentsView({
         <InstallmentPlanModal
           key={detail.id}
           open
-          onOpenChange={(o) => !o && setDetail(null)}
+          onOpenChange={(o) => !o && setDetailId(null)}
           plan={detail}
         />
       )}

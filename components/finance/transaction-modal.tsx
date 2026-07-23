@@ -221,6 +221,9 @@ function EditForm({
   const [date, setDate] = useState(tx.date.slice(0, 10))
   const money = useMoneyInput(tx.currency as CurrencyCode, Math.abs(tx.amount))
   const [busy, setBusy] = useState<null | "save" | "delete">(null)
+  // La cuota de un plan: su monto es un espejo del cronograma (se edita en el plan, que sincroniza
+  // el movimiento) y su categoría es la del plan (cambiarla aquí recategoriza el plan completo).
+  const isInstallment = !!tx.installmentItemId
 
   const canSave = money.value > 0 && description.trim() !== "" && busy === null
 
@@ -287,8 +290,9 @@ function EditForm({
           <button
             type="button"
             onClick={() => changeDirection("debit")}
+            disabled={isInstallment}
             className={cn(
-              "size-11 text-xl",
+              "size-11 text-xl disabled:opacity-50",
               direction === "debit" &&
                 "bg-destructive text-destructive-foreground"
             )}
@@ -298,8 +302,9 @@ function EditForm({
           <button
             type="button"
             onClick={() => changeDirection("credit")}
+            disabled={isInstallment}
             className={cn(
-              "size-11 text-xl",
+              "size-11 text-xl disabled:opacity-50",
               direction === "credit" && "bg-success text-success-foreground"
             )}
           >
@@ -310,12 +315,18 @@ function EditForm({
           inputMode="numeric"
           value={money.display}
           onChange={(e) => money.onChange(e.target.value)}
+          disabled={isInstallment}
           className={cn(
             "tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0",
             direction === "debit" ? "text-destructive" : "text-success"
           )}
         />
       </div>
+      {isInstallment && (
+        <p className="-mt-3 text-xs text-muted-foreground">
+          El monto de una cuota se edita en su plan de cuotas.
+        </p>
+      )}
 
       {accountLabel(account) && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -338,9 +349,9 @@ function EditForm({
         ) : (
           <>
             <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
-              {/* Sin categoría solo si NO es recurrente: la plantilla exige una, y quitarla aquí
-                  la dejaría sin la suya. Se libera al eliminar la recurrencia. */}
-              {!tx.recurringTemplateId && (
+              {/* Sin categoría solo si NO es recurrente ni cuota: plantilla y plan exigen una,
+                  y quitarla aquí los dejaría sin la suya. */}
+              {!tx.recurringTemplateId && !isInstallment && (
                 <Chip
                   active={categoryId === null}
                   onClick={() => setCategoryId(null)}
@@ -352,11 +363,13 @@ function EditForm({
                 <Chip
                   key={c.id}
                   active={c.id === categoryId}
-                  // Tocar la activa la deselecciona… salvo en un recurrente, que no puede quedarse
-                  // sin categoría.
+                  // Tocar la activa la deselecciona… salvo en un recurrente o una cuota, que no
+                  // pueden quedarse sin categoría.
                   onClick={() =>
                     setCategoryId(
-                      c.id === categoryId && !tx.recurringTemplateId
+                      c.id === categoryId &&
+                        !tx.recurringTemplateId &&
+                        !isInstallment
                         ? null
                         : c.id
                     )
@@ -375,6 +388,12 @@ function EditForm({
               <p className="mt-2 text-xs text-muted-foreground">
                 Cambiarla también recategoriza la recurrencia. Para dejarlo sin
                 categoría, elimina antes la recurrencia.
+              </p>
+            )}
+            {isInstallment && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Cambiarla recategoriza el plan de cuotas completo: todas sus
+                cuotas y la compra original.
               </p>
             )}
           </>
@@ -436,6 +455,11 @@ function ConnectedDetail({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const changed = categoryId !== tx.categoryId
   const isCreditCard = account?.accountType === "credit_card"
+  // Pertenece a un plan de cuotas (cuota registrada, cuota proyectada o compra origen): la
+  // categoría es del PLAN — cambiarla aquí recategoriza el plan y todos sus movimientos, y no
+  // puede quedar sin categoría.
+  const inInstallmentPlan =
+    !!tx.installmentItemId || !!tx.installmentSourceCount
   // Solo categorías del mismo lado del movimiento (ingreso ↔ credit, gasto ↔ debit).
   const visibleCategories = savedFirst(
     categories.filter((c) => c.type === (income ? "income" : "expense")),
@@ -444,19 +468,26 @@ function ConnectedDetail({
 
   async function saveCategory() {
     setSaving(true)
-    const res = await fetch(`/api/transactions/${tx.id}/category`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ categoryId }),
-    })
+    // Una cuota proyectada no es una transacción: recategorizarla es recategorizar su plan.
+    const res = tx.installmentForecast
+      ? await fetch(`/api/installments/${tx.installmentPlanId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ categoryId }),
+        })
+      : await fetch(`/api/transactions/${tx.id}/category`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ categoryId }),
+        })
     setSaving(false)
     if (!res.ok) {
       haptic("error")
       return
     }
     haptic("success")
-    // Quitar categoría no aprende nada: cierre directo.
-    if (!categoryId) {
+    // Quitar categoría no aprende nada; una cuota proyectada tampoco (no hay texto del banco).
+    if (!categoryId || tx.installmentForecast) {
       onClose()
       router.refresh()
       return
@@ -584,7 +615,8 @@ function ConnectedDetail({
           label="Estado"
           value={
             STATUS_LABEL[
-              tx.status === "pending" && tx.recurringTemplateId
+              tx.status === "pending" &&
+              (tx.recurringTemplateId || tx.installmentForecast)
                 ? "committed"
                 : tx.status
             ] ?? tx.status
@@ -663,9 +695,9 @@ function ConnectedDetail({
         ) : (
           <>
             <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
-              {/* Sin categoría solo si NO es recurrente: la plantilla exige una, y quitarla aquí
-                  la dejaría sin la suya. Se libera al eliminar la recurrencia. */}
-              {!tx.recurringTemplateId && (
+              {/* Sin categoría solo si NO es recurrente ni de un plan de cuotas: plantilla y plan
+                  exigen una, y quitarla aquí los dejaría sin la suya. */}
+              {!tx.recurringTemplateId && !inInstallmentPlan && (
                 <Chip
                   active={categoryId === null}
                   onClick={() => setCategoryId(null)}
@@ -677,11 +709,13 @@ function ConnectedDetail({
                 <Chip
                   key={c.id}
                   active={c.id === categoryId}
-                  // Tocar la activa la deselecciona… salvo en un recurrente, que no puede quedarse
-                  // sin categoría.
+                  // Tocar la activa la deselecciona… salvo en un recurrente o un plan de cuotas,
+                  // que no pueden quedarse sin categoría.
                   onClick={() =>
                     setCategoryId(
-                      c.id === categoryId && !tx.recurringTemplateId
+                      c.id === categoryId &&
+                        !tx.recurringTemplateId &&
+                        !inInstallmentPlan
                         ? null
                         : c.id
                     )
@@ -700,6 +734,12 @@ function ConnectedDetail({
               <p className="mt-2 text-xs text-muted-foreground">
                 Cambiarla también recategoriza la recurrencia. Para dejarlo sin
                 categoría, elimina antes la recurrencia.
+              </p>
+            )}
+            {inInstallmentPlan && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Cambiarla recategoriza el plan de cuotas completo: todas sus
+                cuotas y la compra original.
               </p>
             )}
           </>

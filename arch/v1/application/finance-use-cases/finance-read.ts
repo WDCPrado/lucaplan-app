@@ -129,8 +129,11 @@ export type TransactionDTO = {
   installmentItemId?: string | null // cuota de un plan que este movimiento salda; null si no lo es
   installmentSourceCount?: number | null // esta compra se transformó en un plan de N cuotas; null si no
   // Fila DERIVADA (no es una transacción real): la cuota que vence este mes y aún no se paga, para
-  // mostrarla como "Por cobrar" igual que una recurrente. Al abrirla se va al plan, no al modal.
+  // mostrarla como "Por cobrar" igual que una recurrente. Abre el modal como cualquier movimiento.
   installmentForecast?: boolean
+  // Solo en filas forecast: el plan dueño de la cuota, para recategorizarlo desde el modal (una
+  // fila derivada no tiene transacción propia que recategorizar).
+  installmentPlanId?: string | null
 }
 
 export type CategoryDTO = {
@@ -418,6 +421,8 @@ async function installmentForecastRows(
         remaining: null,
         categoryLimit: null,
         installmentForecast: true,
+        installmentItemId: item.id,
+        installmentPlanId: plan.id,
       })
     }
   }

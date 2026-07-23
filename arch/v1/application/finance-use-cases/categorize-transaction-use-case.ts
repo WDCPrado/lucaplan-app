@@ -22,6 +22,10 @@ import {
   RecurringCategoryRequiredError,
   type RecurringTemplateRepository,
 } from "../../domain/finance/recurring.domain.ts"
+import {
+  InstallmentCategoryRequiredError,
+  type InstallmentPlanRepository,
+} from "../../domain/finance/installment.domain.ts"
 
 export async function categorizeTransaction(
   deps: {
@@ -29,6 +33,7 @@ export async function categorizeTransaction(
     categories: CategoryRepository
     corrections?: CorrectionRepository // opcional: sin repo no hay aprendizaje
     recurring?: RecurringTemplateRepository // opcional: propaga la categoría a la plantilla
+    installments?: InstallmentPlanRepository // opcional: propaga la categoría al plan de cuotas
   },
   userId: string,
   transactionId: string,
@@ -40,6 +45,12 @@ export async function categorizeTransaction(
   // Un movimiento recurrente no puede quedar sin categoría: la plantilla la exige.
   if (!categoryId && tx.recurringTemplateId)
     throw new RecurringCategoryRequiredError()
+  // ¿El movimiento pertenece a un plan de cuotas (como cuota o como compra origen)? Entonces la
+  // categoría es del PLAN: recategorizarlo aquí recategoriza el plan y todos sus movimientos.
+  const plan = deps.installments
+    ? await deps.installments.findByTransaction(transactionId)
+    : null
+  if (!categoryId && plan) throw new InstallmentCategoryRequiredError()
   if (categoryId) {
     const cat = await deps.categories.findById(categoryId)
     if (!cat) throw new CategoryNotFoundError(categoryId)
@@ -56,6 +67,11 @@ export async function categorizeTransaction(
   // una, y dejarla sin categoría rompería su invariante.
   if (categoryId && tx.recurringTemplateId && deps.recurring)
     await deps.recurring.setCategory(tx.recurringTemplateId, categoryId)
+
+  // Misma regla para cuotas: el plan y TODOS sus movimientos siguen la nueva categoría (la del
+  // propio movimiento ya quedó escrita arriba; el updateMany del repo la reafirma sin conflicto).
+  if (categoryId && plan && deps.installments)
+    await deps.installments.setCategory(plan.id, categoryId)
 
   let sameTextCount = 0
   if (categoryId && deps.corrections) {

@@ -6,21 +6,32 @@ import {
   deleteInstallmentPlan,
   linkTransactionToItem,
   payInstallmentManually,
+  setInstallmentPlanCategory,
   unlinkTransactionFromItem,
   updateInstallmentItem,
 } from "@/arch/v1/application/finance-use-cases/installment-use-cases"
 
-// Cuatro acciones sobre una cuota del plan, según lo que traiga el cuerpo:
-//  · `transactionId` → asignarle un movimiento que YA existe (no crea nada);
+// Acciones sobre el plan o una de sus cuotas, según lo que traiga el cuerpo:
+//  · `categoryId` (sin itemId) → recategorizar el plan COMPLETO (plan + todos sus movimientos);
+//  · `transactionId` → asignarle a la cuota un movimiento que YA existe (no crea nada);
 //  · `unlink: true`  → soltar el movimiento asignado y dejar la cuota pendiente;
 //  · `paid: true`    → crear su movimiento, para cuando el pago no dejó rastro en la app;
-//  · resto           → editar su vencimiento y monto (solo si aún no está registrada).
+//  · resto           → editar vencimiento y monto de la cuota (en card sincroniza su movimiento).
 export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params
   const body = await req.json()
+
+  if (body.categoryId !== undefined && body.itemId === undefined)
+    return withUser(req, (userId) =>
+      setInstallmentPlanCategory(financeDeps, userId, {
+        planId: id,
+        categoryId: String(body.categoryId),
+      })
+    )
+
   const itemId = String(body.itemId)
 
   if (body.unlink === true)

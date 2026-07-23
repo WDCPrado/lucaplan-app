@@ -21,37 +21,45 @@ import {
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { formatCLP } from "@/lib/finance-format"
+import { DatePicker } from "./transaction-modal"
 import { InstallmentLinkPicker } from "./installment-link-picker"
 import type { InstallmentPlanDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
-// Edición en línea de una cuota aún no registrada: monto y vencimiento. Reemplaza la fila en vez
-// de abrir otro modal — es un ajuste menor, no vale apilar superficies.
+// Edición en línea de una cuota: monto y vencimiento. Reemplaza la fila en vez de abrir otro
+// modal — es un ajuste menor, no vale apilar superficies. En `card` el total del plan no se
+// negocia: `max` acota el monto (lo demás debe alcanzar para las pendientes) y al guardar las
+// pendientes se recalculan; null = sin tope (loan, donde el cronograma es estimación).
 function ItemEditor({
   item,
+  max,
   busy,
   onCancel,
   onSave,
 }: {
   item: InstallmentPlanDTO["items"][number]
+  max: number | null
   busy: boolean
   onCancel: () => void
   onSave: (dueDate: string, amount: number) => void
 }) {
   const [amount, setAmount] = useState(item.amount)
   const [date, setDate] = useState(item.dueDate.slice(0, 10))
+  const over = max !== null && amount > max
+  const changedAmount = amount !== item.amount
   return (
     <li className="flex flex-col gap-2 border-b border-border/40 py-3 last:border-0">
+      {/* Fecha y monto en filas propias: el texto de la fecha ("25 de diciembre de 2026") no cabe
+          junto al monto en el ancho del drawer móvil. */}
       <div className="flex items-center gap-2">
         <span className="tabular w-6 shrink-0 text-xs text-muted-foreground">
           {item.index}
         </span>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          aria-label={`Vencimiento de la cuota ${item.index}`}
-          className="h-9 rounded-lg border border-border bg-transparent px-2 text-sm"
-        />
+        <div className="min-w-0 flex-1">
+          <DatePicker value={date} onChange={setDate} />
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="w-6 shrink-0" aria-hidden />
         <input
           inputMode="numeric"
           value={amount ? amount.toLocaleString("es-CL") : ""}
@@ -59,9 +67,26 @@ function ItemEditor({
             setAmount(Number(e.target.value.replace(/\D/g, "")) || 0)
           }
           aria-label={`Monto de la cuota ${item.index}`}
-          className="tabular min-w-0 flex-1 rounded-lg bg-secondary/40 px-2 py-1.5 text-right text-sm outline-none focus:bg-secondary"
+          aria-invalid={over}
+          className={cn(
+            "tabular h-11 min-w-0 flex-1 rounded-lg bg-secondary/40 px-3 text-right text-base outline-none focus:bg-secondary",
+            over && "ring-1 ring-destructive"
+          )}
         />
       </div>
+      {over ? (
+        <p className="pl-8 text-xs text-destructive">
+          Máximo {formatCLP(max)}: lo demás debe alcanzar para las cuotas
+          pendientes.
+        </p>
+      ) : (
+        max !== null &&
+        changedAmount && (
+          <p className="pl-8 text-xs text-muted-foreground">
+            Las cuotas pendientes se recalculan para mantener el total.
+          </p>
+        )
+      )}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
           Cancelar
@@ -69,7 +94,7 @@ function ItemEditor({
         <Button
           size="sm"
           onClick={() => onSave(new Date(`${date}T12:00:00`).toISOString(), amount)}
-          disabled={busy || amount <= 0}
+          disabled={busy || amount <= 0 || over}
         >
           Guardar
         </Button>
@@ -210,11 +235,25 @@ export function InstallmentPlanModal({
             {plan.items.map((item) => {
               const settled =
                 item.status === "paid" || item.status === "outside_app"
-              if (editingId === item.id)
+              if (editingId === item.id) {
+                // Tope en card: total − cuotas saldadas (no se mueven) − $1 por cada pendiente
+                // que absorbe el resto (una cuota de $0 no es una cuota). Espejo del use-case.
+                const others = plan.items.filter((i) => i.id !== item.id)
+                const settledOthers = others.filter(
+                  (i) => i.status === "paid" || i.status === "outside_app"
+                )
+                const fixed = settledOthers.reduce((s, i) => s + i.amount, 0)
+                const max =
+                  plan.kind === "card"
+                    ? plan.totalAmount -
+                      fixed -
+                      (others.length - settledOthers.length)
+                    : null
                 return (
                   <ItemEditor
                     key={item.id}
                     item={item}
+                    max={max}
                     busy={busy}
                     onCancel={() => setEditingId(null)}
                     onSave={(dueDate, amount) =>
@@ -222,6 +261,7 @@ export function InstallmentPlanModal({
                     }
                   />
                 )
+              }
               return (
                 <li
                   key={item.id}
@@ -264,27 +304,30 @@ export function InstallmentPlanModal({
                   <span className="tabular shrink-0 text-sm font-medium">
                     {formatCLP(item.paidAmount ?? item.amount)}
                   </span>
+                  {/* En card una cuota ya registrada sigue siendo editable: su movimiento es un
+                      espejo del cronograma y la edición lo sincroniza. En loan el monto/fecha
+                      reales los fijó el correo: registrada no se toca. */}
+                  {(!settled || plan.kind === "card") && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(item.id)}
+                      disabled={busy}
+                      className="shrink-0 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                    >
+                      Editar
+                    </button>
+                  )}
                   {/* Asignar va primero: el caso normal es que el gasto YA esté en la app y haya
                       que reconocerlo, no fabricar uno nuevo. */}
                   {!settled && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setEditingId(item.id)}
-                        disabled={busy}
-                        className="shrink-0 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setLinking(item)}
-                        disabled={busy}
-                        className="shrink-0 rounded-full border border-primary px-2.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
-                      >
-                        Asignar
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      onClick={() => setLinking(item)}
+                      disabled={busy}
+                      className="shrink-0 rounded-full border border-primary px-2.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+                    >
+                      Asignar
+                    </button>
                   )}
                   {/* Deshacer una asignación equivocada; si no, la única salida sería borrar el plan. */}
                   {item.status === "paid" && (
@@ -359,8 +402,11 @@ export function InstallmentPlanModal({
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Eliminar este plan?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Los movimientos de las cuotas ya registradas se conservan: son
-                  gastos que ocurrieron. Solo desaparece el plan que los agrupa.
+                  {plan.kind === "card" &&
+                  plan.sourceTransactionId &&
+                  !plan.items.some((i) => i.status === "paid")
+                    ? "La compra original vuelve a contar como gasto normal en su mes, como antes de pasarla a cuotas."
+                    : "Los movimientos de las cuotas ya registradas se conservan: son gastos que ocurrieron. Solo desaparece el plan que los agrupa."}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

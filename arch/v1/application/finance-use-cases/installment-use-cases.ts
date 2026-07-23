@@ -423,16 +423,45 @@ export async function updateInstallmentItem(
   if (plan.userId !== userId) throw new NotOwnerError()
   const item = plan.items.find((i) => i.id === input.itemId)
   if (!item) throw new InstallmentPlanNotFoundError(input.itemId)
-  // Una cuota registrada es historia: su movimiento ya vivió su mes.
-  if (isSettled(item)) throw new InstallmentItemAlreadySettledError()
+  // En `loan` una cuota registrada es historia: su monto y fecha reales los fijó el correo. En
+  // `card` el movimiento es un espejo del cronograma: editarla vale, y el repo lo sincroniza.
+  if (plan.kind === "loan" && isSettled(item))
+    throw new InstallmentItemAlreadySettledError()
 
   const amount = Money.of(input.amount, plan.currency)
-  if (requiresExactSplit(plan.kind)) {
-    const next = plan.items.map((i) => (i.id === item.id ? amount : i.amount))
-    if (!splitMatchesTotal(plan.totalAmount, next))
-      throw new InstallmentSplitMismatchError()
+  const updates: { itemId: string; dueDate?: Date; amount: Money }[] = [
+    { itemId: item.id, dueDate: input.dueDate, amount },
+  ]
+
+  // En `card` el total es el capital de la compra y no se negocia: cambiar el monto de una cuota
+  // redistribuye la diferencia entre las PENDIENTES restantes (partes iguales, resto en la
+  // última, como al crear). Las ya saldadas no se tocan: su movimiento ya vivió su mes.
+  // ponytail: el reparto uniforme pisa montos personalizados de las pendientes; si alguien
+  // configura cuota a cuota y le molesta, el paso siguiente es repartir proporcional.
+  if (requiresExactSplit(plan.kind) && amount.compare(item.amount) !== 0) {
+    const pool = plan.items.filter((i) => i.id !== item.id && !isSettled(i))
+    const fixed = plan.items
+      .filter((i) => i.id !== item.id && isSettled(i))
+      .reduce((sum, i) => sum.add(i.amount), Money.zero(plan.currency))
+    const rest = plan.totalAmount.subtract(fixed).subtract(amount)
+
+    if (pool.length === 0) {
+      // No queda quién absorba la diferencia: el monto tiene que cuadrar solo.
+      if (rest.minor !== BigInt(0)) throw new InstallmentSplitMismatchError()
+    } else {
+      // Cada pendiente debe quedar con al menos una unidad: una cuota de $0 no es una cuota.
+      if (rest.minor < BigInt(pool.length))
+        throw new InvalidInstallmentPlanError(
+          "El monto no deja saldo suficiente para las cuotas pendientes"
+        )
+      const amounts = splitAmount(rest, pool.length)
+      pool.forEach((i, idx) =>
+        updates.push({ itemId: i.id, amount: amounts[idx] })
+      )
+    }
   }
-  await deps.installments.updateItem(item.id, input.dueDate, amount)
+
+  await deps.installments.updateItems(updates)
   return (await deps.installments.findById(plan.id)) ?? plan
 }
 
@@ -444,7 +473,40 @@ export async function deleteInstallmentPlan(
   const plan = await deps.installments.findById(id)
   if (!plan) throw new InstallmentPlanNotFoundError(id)
   if (plan.userId !== userId) throw new NotOwnerError()
-  await deps.installments.delete(id)
+  // Sin cuotas registradas, borrar el plan deshace la transformación completa: la compra origen
+  // se des-neutraliza y vuelve a contar como gasto en su mes. Con cuotas ya registradas no: parte
+  // del gasto ya vive repartido y des-neutralizar lo contaría dos veces.
+  // ponytail: en ese segundo caso el gasto aún no repartido se pierde con el plan; si molesta,
+  // la salida es borrar también las cuotas creadas por el plan antes de des-neutralizar.
+  const hasRegistered = plan.items.some((i) => i.transactionId !== null)
+  await deps.installments.delete(
+    id,
+    plan.kind === "card" && !hasRegistered ? plan.sourceTransactionId : null
+  )
+  return { ok: true }
+}
+
+/**
+ * Recategoriza el plan completo: el plan y todos sus movimientos (cuotas registradas y compra
+ * origen). La categoría es UNA por plan; cambiarla desde cualquier punto cambia el conjunto.
+ */
+export async function setInstallmentPlanCategory(
+  deps: {
+    installments: InstallmentPlanRepository
+    categories: CategoryRepository
+  },
+  userId: string,
+  input: { planId: string; categoryId: string }
+): Promise<{ ok: true }> {
+  const plan = await deps.installments.findById(input.planId)
+  if (!plan) throw new InstallmentPlanNotFoundError(input.planId)
+  if (plan.userId !== userId) throw new NotOwnerError()
+  const category = await deps.categories.findById(input.categoryId)
+  if (!category) throw new CategoryNotFoundError(input.categoryId)
+  if (category.userId !== userId) throw new NotOwnerError()
+  if (category.type !== "expense")
+    throw new InvalidInstallmentPlanError("Una deuda en cuotas es un gasto")
+  await deps.installments.setCategory(plan.id, input.categoryId)
   return { ok: true }
 }
 

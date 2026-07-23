@@ -73,6 +73,18 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
     })
     return row ? toPlan(row) : null
   },
+  async findByTransaction(transactionId) {
+    const row = await prisma.installmentPlan.findFirst({
+      where: {
+        OR: [
+          { sourceTransactionId: transactionId },
+          { items: { some: { transaction: { id: transactionId } } } },
+        ],
+      },
+      include: withItems,
+    })
+    return row ? toPlan(row) : null
+  },
   async create(input, items) {
     return toPlan(
       await prisma.installmentPlan.create({
@@ -100,10 +112,19 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
       })
     )
   },
-  async delete(id) {
+  async delete(id, restoreSourceTransactionId = null) {
     // Los movimientos de las cuotas ya ocurrieron: se conservan, solo pierden el vínculo. Borrar el
-    // plan no puede borrar gasto real del historial.
-    await prisma.installmentPlan.delete({ where: { id } })
+    // plan no puede borrar gasto real del historial. La compra origen se des-neutraliza solo cuando
+    // el use-case lo pide (plan card sin cuotas registradas): si no, ese gasto desaparecería de los
+    // cálculos para siempre.
+    await prisma.$transaction(async (db) => {
+      if (restoreSourceTransactionId)
+        await db.transaction.update({
+          where: { id: restoreSourceTransactionId },
+          data: { isInternal: false },
+        })
+      await db.installmentPlan.delete({ where: { id } })
+    })
   },
   async registerItemTransaction(plan, itemId, date, amount) {
     const item = await prisma.installmentItem.findUnique({
@@ -159,11 +180,48 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
       data: { paidOutsideApp: true },
     })
   },
-  async updateItem(itemId, dueDate, amount) {
-    await prisma.installmentItem.update({
-      where: { id: itemId },
-      data: { dueDate, amount: amount.toDecimalString() },
+  async updateItems(updates) {
+    // La cuota y su movimiento son la misma verdad: si ya está registrada, la edición viaja a las
+    // dos filas. Todo el lote (cuota editada + pendientes redistribuidas) en una sola transacción.
+    await prisma.$transaction(async (db) => {
+      for (const u of updates) {
+        const item = await db.installmentItem.update({
+          where: { id: u.itemId },
+          data: {
+            amount: u.amount.toDecimalString(),
+            ...(u.dueDate ? { dueDate: u.dueDate } : {}),
+          },
+          include: { transaction: { select: { id: true } } },
+        })
+        if (item.transaction)
+          await db.transaction.update({
+            where: { id: item.transaction.id },
+            data: {
+              amount: u.amount.toDecimalString(),
+              ...(u.dueDate ? { transactionDate: u.dueDate } : {}),
+            },
+          })
+      }
     })
+  },
+  async setCategory(planId, categoryId) {
+    // La categoría es del PLAN: recategorizarlo arrastra todos sus movimientos —cuotas registradas
+    // y compra origen— para que no queden dos verdades.
+    await prisma.$transaction([
+      prisma.installmentPlan.update({
+        where: { id: planId },
+        data: { categoryId },
+      }),
+      prisma.transaction.updateMany({
+        where: {
+          OR: [
+            { installmentItem: { planId } },
+            { installmentPlanAsSource: { id: planId } },
+          ],
+        },
+        data: { categoryId },
+      }),
+    ])
   },
   async markCompleted(planId, at) {
     await prisma.installmentPlan.update({

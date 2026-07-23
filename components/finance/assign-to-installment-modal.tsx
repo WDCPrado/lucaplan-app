@@ -4,7 +4,9 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
+import { Plus } from "lucide-react"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { Button } from "@/components/ui/button"
 import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 import { formatCLP } from "@/lib/finance-format"
@@ -31,11 +33,14 @@ export function AssignToInstallmentModal({
   onOpenChange,
   transactionId,
   onAssigned,
+  onCreateLoan,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   transactionId: string
   onAssigned: () => void
+  /** El crédito de esta cuota todavía no existe como plan: salir a registrarlo desde aquí. */
+  onCreateLoan?: () => void
 }) {
   const router = useRouter()
   const [plans, setPlans] = useState<InstallmentPlanDTO[] | null>(null)
@@ -99,8 +104,9 @@ export function AssignToInstallmentModal({
           </p>
         ) : plans.length === 0 ? (
           <p className="py-8 text-center text-sm text-balance text-muted-foreground">
-            No tienes planes de cuotas con cuotas pendientes. Crea uno desde
-            Cuotas, o pasa una compra de tarjeta a cuotas.
+            {onCreateLoan
+              ? "No tienes planes de cuotas con cuotas pendientes. Registra el crédito y este pago quedará enganchado como su cuota."
+              : "No tienes planes de cuotas con cuotas pendientes. Crea uno desde Cuotas, o pasa una compra de tarjeta a cuotas."}
           </p>
         ) : !plan ? (
           <>
@@ -194,6 +200,18 @@ export function AssignToInstallmentModal({
                 ))}
             </ul>
           </>
+        )}
+        {/* La deuda puede no estar registrada todavía (el caso típico: la cuota llega por correo
+            antes de que exista el plan). La salida de crear vive aquí, junto a la pregunta. */}
+        {plans !== null && onCreateLoan && (
+          <Button
+            variant="outline"
+            onClick={onCreateLoan}
+            className="mt-4 h-11 rounded-full"
+          >
+            <Plus className="size-4" />
+            Registrar un crédito nuevo
+          </Button>
         )}
       </div>
     </ResponsiveModal>

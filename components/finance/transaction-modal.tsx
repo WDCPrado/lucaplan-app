@@ -97,6 +97,13 @@ export function savedFirst(
   return saved ? [saved, ...list.filter((c) => c.id !== saved.id)] : list
 }
 
+// "Pago cuota 3 de crédito de consumo" → 3. Mismo patrón que usa el import (run-installments):
+// la descripción la escribe el parser del banco, no el usuario, así que es estable.
+function parseInstallmentNumber(description: string): number | null {
+  const m = description.match(/cuota\s+(\d{1,3})\b/i)
+  return m ? Number(m[1]) : null
+}
+
 // YYYY-MM-DD ↔ Date en horario local (mediodía evita el corrimiento de día por zona horaria).
 const parseISODate = (s: string) => new Date(`${s}T12:00:00`)
 export const toISODate = (d: Date) =>
@@ -452,6 +459,7 @@ function ConnectedDetail({
   const [makeRecurring, setMakeRecurring] = useState(false)
   const [makeInstallments, setMakeInstallments] = useState(false)
   const [assignInstallment, setAssignInstallment] = useState(false)
+  const [makeLoan, setMakeLoan] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const changed = categoryId !== tx.categoryId
   const isCreditCard = account?.accountType === "credit_card"
@@ -867,18 +875,48 @@ function ConnectedDetail({
 
       {/* Este movimiento pasa a SER la cuota de un plan existente: no se crea nada. Cubre lo que
           el enganche automático no alcanza (plan creado después del cargo, pago ambiguo entre dos
-          créditos, descripción distinta a la esperada). */}
+          créditos, descripción distinta a la esperada). Si la deuda aún no existe como plan, la
+          salida es registrar el crédito desde aquí. */}
       {assignInstallment && (
         <AssignToInstallmentModal
           open
           onOpenChange={setAssignInstallment}
           transactionId={tx.id}
           onAssigned={onClose}
+          onCreateLoan={() => {
+            setAssignInstallment(false)
+            setMakeLoan(true)
+          }}
+        />
+      )}
+
+      {/* Registrar el crédito de consumo cuya cuota es este movimiento. El N° de cuota y la fecha
+          del pago precargan el desfase y el calendario; al crear, el enganche automático adopta
+          este pago como su cuota (no se crea gasto nuevo). */}
+      {makeLoan && (
+        <InstallmentModal
+          open
+          onOpenChange={(o) => {
+            setMakeLoan(o)
+            if (!o) onClose()
+          }}
+          accounts={accounts}
+          categories={categories}
+          kind="loan"
+          preset={{
+            accountId: tx.accountId,
+            // La seleccionada en pantalla, no la persistida: es la que el usuario está viendo.
+            categoryId: categoryId ?? tx.categoryId,
+            startIndex: parseInstallmentNumber(tx.description) ?? undefined,
+            dayOfMonth: new Date(tx.date).getUTCDate(),
+            startMonth: tx.date.slice(0, 7),
+          }}
         />
       )}
 
       {/* Cronograma precargado con esta compra. Al confirmarlo, la compra queda neutralizada (deja
-          de contar como gasto) y el plan la reemplaza por una cuota al mes. */}
+          de contar como gasto) y el plan la reemplaza por una cuota al mes. La categoría es la
+          SELECCIONADA en pantalla, no la persistida: es la que el usuario está viendo. */}
       {makeInstallments && (
         <InstallmentModal
           open
@@ -892,7 +930,7 @@ function ConnectedDetail({
           preset={{
             description: tx.description,
             accountId: tx.accountId,
-            categoryId: tx.categoryId,
+            categoryId: categoryId ?? tx.categoryId,
             totalAmount: Math.abs(tx.amount),
             sourceTransactionId: tx.id,
           }}

@@ -271,6 +271,7 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
         amount: true,
         currency: true,
         transactionDate: true,
+        categoryId: true,
         account: { select: { name: true } },
       },
       take: 50,
@@ -282,6 +283,7 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
         amount: Money.of(r.amount.toString(), r.currency as CurrencyCode),
         date: r.transactionDate,
         accountName: r.account.name,
+        categoryId: r.categoryId ?? null,
       }))
       .sort(
         (a, b) =>

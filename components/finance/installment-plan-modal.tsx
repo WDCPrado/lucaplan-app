@@ -361,6 +361,9 @@ export function InstallmentPlanModal({
             onOpenChange={(o) => !o && setLinking(null)}
             around={linking.dueDate}
             accountId={plan.accountId}
+            expectedAmount={linking.amount}
+            categoryId={plan.categoryId}
+            categoryName={plan.categoryName}
             onPick={async (transactionId) => {
               const ok = await patch(
                 { itemId: linking.id, transactionId },

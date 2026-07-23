@@ -30,6 +30,11 @@ export type InstallmentPreset = {
   categoryId?: string | null
   totalAmount?: number
   sourceTransactionId?: string
+  // Al registrar un crédito DESDE el movimiento de una de sus cuotas: el N° de cuota que informó
+  // el correo y su fecha de pago precargan el desfase y el calendario del cronograma.
+  startIndex?: number
+  dayOfMonth?: number
+  startMonth?: string // YYYY-MM del vencimiento de la cuota `startIndex`
 }
 
 // Reparto por defecto: el resto de la división queda en la última cuota, para que la suma sea
@@ -88,12 +93,21 @@ export function InstallmentModal({
   const [total, setTotal] = useState(preset?.totalAmount ?? 0)
   const [count, setCount] = useState(kind === "loan" ? 48 : 12)
   // Un crédito se registra casi siempre a mitad de camino: el banco dice "vas en la 5 de 49".
-  const [startIndex, setStartIndex] = useState(1)
-  const [day, setDay] = useState(today.getDate())
-  const [startMonth, setStartMonth] = useState(monthValue(nextMonth(today)))
+  const [startIndex, setStartIndex] = useState(preset?.startIndex ?? 1)
+  const [day, setDay] = useState(preset?.dayOfMonth ?? today.getDate())
+  const [startMonth, setStartMonth] = useState(
+    preset?.startMonth ?? monthValue(nextMonth(today))
+  )
   const [amounts, setAmounts] = useState<number[] | null>(null)
   const [unpaid, setUnpaid] = useState<Set<number>>(new Set())
   const [saving, setSaving] = useState(false)
+
+  // El plan que nace de un movimiento hereda SU categoría, fija: es la del gasto que lo origina.
+  // Cambiarla después recategoriza el plan completo desde cualquier cuota, así que aquí no se
+  // elige. Solo el alta suelta (desde /installments) muestra el selector.
+  const lockedCategory = preset?.categoryId
+    ? categories.find((c) => c.id === preset.categoryId)
+    : undefined
 
   const account = eligible.find((a) => a.id === accountId) ?? eligible[0]
   const startDate = startOfMonth(startMonth)
@@ -209,22 +223,39 @@ export function InstallmentModal({
                 ))}
               </ChipRow>
             )}
-            <ChipRow>
-              {expenseCategories.map((c) => (
-                <Chip
-                  key={c.id}
-                  active={c.id === categoryId}
-                  onClick={() => setCategoryId(c.id)}
-                >
+            {lockedCategory ? (
+              <div>
+                <span className="inline-flex h-9 items-center gap-1.5 rounded-full border border-primary bg-primary/10 px-3 text-sm text-primary">
                   <CategoryIcon
-                    icon={c.icon}
+                    icon={lockedCategory.icon}
                     size={16}
-                    color={c.color ?? undefined}
+                    color={lockedCategory.color ?? undefined}
                   />{" "}
-                  {c.name}
-                </Chip>
-              ))}
-            </ChipRow>
+                  {lockedCategory.name}
+                </span>
+                <span className="mt-1.5 block text-xs text-muted-foreground">
+                  La categoría del movimiento. Después se cambia desde el plan o
+                  cualquiera de sus cuotas.
+                </span>
+              </div>
+            ) : (
+              <ChipRow>
+                {expenseCategories.map((c) => (
+                  <Chip
+                    key={c.id}
+                    active={c.id === categoryId}
+                    onClick={() => setCategoryId(c.id)}
+                  >
+                    <CategoryIcon
+                      icon={c.icon}
+                      size={16}
+                      color={c.color ?? undefined}
+                    />{" "}
+                    {c.name}
+                  </Chip>
+                ))}
+              </ChipRow>
+            )}
           </Section>
 
           {/* 2 · Cuánto y en cuántas ----------------------------------------- */}
@@ -280,11 +311,15 @@ export function InstallmentModal({
               />
             </label>
             {/* Un crédito rara vez se registra desde la cuota 1: el banco dice "vas en la 5 de 49",
-                y respetar esa numeración es lo que hace que sus correos caigan en la cuota correcta. */}
+                y respetar esa numeración es lo que hace que sus correos caigan en la cuota correcta.
+                Al venir desde el movimiento de una cuota, la pregunta es cuál cuota ES ese pago:
+                viene precargada con el N° que informó el correo, y hay que confirmarla. */}
             {kind === "loan" && (
               <label className="flex items-center justify-between gap-3 text-sm">
                 <span className="text-muted-foreground">
-                  Próxima cuota a pagar
+                  {preset?.startMonth
+                    ? "¿Qué cuota es este pago?"
+                    : "Próxima cuota a pagar"}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <input

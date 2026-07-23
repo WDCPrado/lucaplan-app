@@ -999,6 +999,35 @@ test("recategorizar una cuota registrada recategoriza el plan completo", async (
   assert.deepEqual(recategorized, [{ planId: plan.id, categoryId: "cat1" }])
 })
 
+test("recategorizar la cuota adoptada de un loan recategoriza el crédito completo", async () => {
+  const { repo, recategorized } = makeRepo()
+  const deps = {
+    installments: repo,
+    accounts: makeAccounts("checking"),
+    categories,
+  }
+  const plan = await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    kind: "loan",
+  })
+  await linkTransactionToItem(
+    { installments: repo, transactions: makeTransactions({ tx1: {} }) },
+    "u1",
+    { planId: plan.id, itemId: plan.items[0].id, transactionId: "tx1" }
+  )
+  await categorizeTransaction(
+    {
+      transactions: makeTransactions({ tx1: {} }),
+      categories,
+      installments: repo,
+    },
+    "u1",
+    "tx1",
+    "cat1"
+  )
+  assert.deepEqual(recategorized, [{ planId: plan.id, categoryId: "cat1" }])
+})
+
 test("un movimiento de un plan no puede quedar sin categoría", async () => {
   const { repo } = makeRepo()
   const deps = { installments: repo, accounts: makeAccounts(), categories }

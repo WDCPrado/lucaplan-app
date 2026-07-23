@@ -246,6 +246,7 @@ export type LinkCandidate = {
   amount: Money
   date: Date
   accountName: string
+  categoryId: string | null // para filtrar candidatos por la categoría del plan
 }
 
 // --- Avance y saldo ---

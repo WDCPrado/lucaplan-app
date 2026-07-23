@@ -62,11 +62,13 @@ export function MovementRow({
     >
       <Repeat className="size-3 text-primary" strokeWidth={3} />
     </span>
-  ) : tx.installmentForecast ? (
+  ) : tx.installmentForecast || tx.installmentItemId ? (
+    // Cuota de un plan: proyectada ("Por cobrar") o ya registrada/adoptada. El mismo sello en la
+    // lista, la búsqueda y el detalle de categoría — todos pasan por esta fila.
     <span
       className="absolute -right-0.5 -bottom-0.5 grid size-4 place-items-center rounded-full bg-background ring-2 ring-background"
-      title="Cuota por cobrar"
-      aria-label="Cuota por cobrar"
+      title={tx.installmentForecast ? "Cuota por cobrar" : "Cuota de un plan"}
+      aria-label={tx.installmentForecast ? "Cuota por cobrar" : "Cuota de un plan"}
     >
       <CreditCard className="size-3 text-primary" strokeWidth={3} />
     </span>

@@ -25,6 +25,7 @@ export async function GET(req: Request) {
       currency: c.amount.currency,
       date: c.date.toISOString(),
       accountName: c.accountName,
+      categoryId: c.categoryId,
     }))
   })
 }

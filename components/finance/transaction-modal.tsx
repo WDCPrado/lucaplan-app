@@ -461,6 +461,7 @@ function ConnectedDetail({
   const [assignInstallment, setAssignInstallment] = useState(false)
   const [makeLoan, setMakeLoan] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmDeleteTx, setConfirmDeleteTx] = useState(false)
   const changed = categoryId !== tx.categoryId
   const isCreditCard = account?.accountType === "credit_card"
   // Pertenece a un plan de cuotas (cuota registrada, cuota proyectada o compra origen): la
@@ -521,7 +522,9 @@ function ConnectedDetail({
     }
     haptic("success")
     setRecurringActive(!recurringActive)
-    toast.success(recurringActive ? "Recurrencia pausada" : "Recurrencia reanudada")
+    toast.success(
+      recurringActive ? "Recurrencia pausada" : "Recurrencia reanudada"
+    )
     router.refresh()
   }
 
@@ -540,7 +543,26 @@ function ConnectedDetail({
       return toast.error("No se pudo eliminar la recurrencia")
     }
     haptic("success")
-    toast.success("Recurrencia eliminada; los movimientos cobrados se conservan")
+    toast.success(
+      "Recurrencia eliminada; los movimientos cobrados se conservan"
+    )
+    onClose()
+    router.refresh()
+  }
+
+  // Elimina el ABONO (solo ingresos: en cuentas conectadas los abonos los ingresa el usuario;
+  // los cargos del banco son de solo lectura). El backend revierte el saldo.
+  async function removeTx() {
+    setSaving(true)
+    haptic("heavy") // destructiva
+    const res = await fetch(`/api/transactions/${tx.id}`, { method: "DELETE" })
+    setSaving(false)
+    if (!res.ok) {
+      haptic("error")
+      return toast.error("No se pudo eliminar el movimiento")
+    }
+    haptic("success")
+    toast.success("Ingreso eliminado; el saldo se ajustó")
     onClose()
     router.refresh()
   }
@@ -842,6 +864,23 @@ function ConnectedDetail({
             </>
           )
         )}
+        {/* Eliminar: solo ingresos (los abonos los ingresa el usuario, no el banco) y nunca
+            los generados por recurrencia o plan de cuotas, que se gestionan en su origen. */}
+        {income &&
+          !tx.recurringTemplateId &&
+          !inInstallmentPlan &&
+          !tx.installmentForecast && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setConfirmDeleteTx(true)}
+              disabled={saving}
+              aria-label="Eliminar ingreso"
+              className="size-12 shrink-0 rounded-full text-destructive hover:text-destructive"
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          )}
         <Button
           onClick={saveCategory}
           disabled={!changed || saving}
@@ -850,6 +889,27 @@ function ConnectedDetail({
           {saving ? "Guardando…" : changed ? "Guardar categoría" : "Guardado"}
         </Button>
       </ModalFooter>
+
+      <AlertDialog open={confirmDeleteTx} onOpenChange={setConfirmDeleteTx}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar este ingreso?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se borra el movimiento y su monto se descuenta del saldo de la
+              cuenta.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={removeTx}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
@@ -871,7 +931,6 @@ function ConnectedDetail({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
 
       {/* Este movimiento pasa a SER la cuota de un plan existente: no se crea nada. Cubre lo que
           el enganche automático no alcanza (plan creado después del cargo, pago ambiguo entre dos

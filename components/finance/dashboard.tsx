@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import {
+  Check,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -10,6 +11,7 @@ import {
   Pencil,
   Plus,
 } from "lucide-react"
+import { toast } from "sonner"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
@@ -30,14 +32,15 @@ import { SyncBancoChileButton } from "./sync-bancochile-button"
 import { UncategorizedTriage } from "./uncategorized-triage"
 import { TransactionModal } from "./transaction-modal"
 import { TransactionSearch } from "./transaction-search"
-import { MonthlyIncomes } from "./monthly-incomes"
 import { OnboardingFlow } from "./onboarding/onboarding-flow"
 import {
   formatCLP,
   formatCompact,
+  formatMoney,
   monthName,
   quartileVar,
 } from "@/lib/finance-format"
+import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
   AccountDTO,
   AmountBoundsDTO,
@@ -89,6 +92,11 @@ export function Dashboard({
   const [editCat, setEditCat] = useState<CategoryDTO | null | undefined>(
     undefined
   ) // undefined=cerrado, null=crear
+  // Tipo fijo al crear categoría: "Nueva" dentro de un grupo abre el modal ya fijado en ese tipo;
+  // el "Agregar" del header deja el selector libre (null).
+  const [newCatType, setNewCatType] = useState<"income" | "expense" | null>(
+    null
+  )
   const {
     ref: cardsRef,
     handlers: cardsHandlers,
@@ -115,6 +123,11 @@ export function Dashboard({
     (c) => c.type === "expense"
   )
   const incomeCategories = budget.categories.filter((c) => c.type === "income")
+  // Categorías de ingreso sin fuente fija (solo agrupan abonos sueltos): fila informativa.
+  const looseIncomeCategories = incomeCategories.filter(
+    (c) => !incomes.some((i) => i.categoryId === c.id)
+  )
+  const hasIncomeRows = incomes.length > 0 || looseIncomeCategories.length > 0
   // Sobre-asignado: los límites de categoría superan el límite global del mes (alerta, no bloquea).
   const overAllocated =
     budget.remainingToAllocate !== null && budget.remainingToAllocate < 0
@@ -262,28 +275,14 @@ export function Dashboard({
           </div>
         </section>
 
-        {/* Escritorio: columna izquierda con Ingresos + Movimientos apilados y Presupuestos en la
-            derecha desde arriba (a la altura de Ingresos) vía row-span. Móvil: una columna en el
-            orden del DOM — Ingresos → Presupuestos → Movimientos, igual que antes. */}
+        {/* Escritorio: Movimientos a la izquierda (2 col) y Presupuestos sticky a la derecha.
+            Móvil: una columna en el orden del DOM — Presupuestos → Movimientos. */}
         <div className="mt-8 grid gap-x-6 gap-y-8 lg:grid-cols-3 lg:items-start">
-          {/* Ingresos del mes: fuentes de ingreso del usuario (generar, CRUD, sugerir presupuesto) */}
-          <section className="min-w-0 lg:col-span-2">
-            <MonthlyIncomes
-              incomes={incomes}
-              accounts={accounts}
-              categories={budget.categories}
-              period={period}
-              globalLimit={budget.globalLimit}
-              onCreateCategory={() => setEditCat(null)}
-            />
-          </section>
-
           <section
             id="presupuestos"
-            className="min-w-0 scroll-mt-20 lg:sticky lg:top-20 lg:col-span-1 lg:row-span-2 lg:self-start"
+            className="min-w-0 scroll-mt-20 lg:sticky lg:top-20 lg:order-2 lg:self-start"
           >
             <div className="mb-3 flex items-center justify-between gap-2">
-              {/* Mes junto al título; a la derecha "Agregar" (mismo patrón que Ingresos del mes). */}
               <div className="flex min-w-0 items-baseline gap-2">
                 <h2 className="font-heading text-lg font-bold">Presupuestos</h2>
                 <span className="truncate text-sm text-muted-foreground">
@@ -291,13 +290,96 @@ export function Dashboard({
                 </span>
               </div>
               <button
-                onClick={() => setEditCat(null)}
+                onClick={() => {
+                  setNewCatType(null)
+                  setEditCat(null)
+                }}
                 className="flex shrink-0 items-center gap-1.5 text-sm text-primary"
               >
                 <Plus className="size-4" /> Agregar
               </button>
             </div>
             <div className="glass rounded-2xl p-4">
+              {/* Ingresos primero: lo que entra define cuánto se puede presupuestar abajo.
+                  Una fila por fuente (día en que llega, estado, generar) + categorías de ingreso
+                  sin fuente (agrupan abonos sueltos) + fila para agregar. */}
+              <div className="mb-1 text-xs font-medium text-muted-foreground">
+                Ingresos
+              </div>
+              <div className="divide-y divide-border/40">
+                {incomes.map((inc) => (
+                  <IncomeRow
+                    key={inc.id}
+                    income={inc}
+                    period={period}
+                    isCurrentMonth={isCurrentMonth}
+                    onOpen={() => {
+                      const cat = budget.categories.find(
+                        (c) => c.id === inc.categoryId
+                      )
+                      if (cat) setDetail(cat)
+                    }}
+                  />
+                ))}
+                {looseIncomeCategories.map((c) => (
+                  <div key={c.id} className="flex items-center gap-3 py-2.5">
+                    <button
+                      onClick={() => setDetail(c)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    >
+                      <ProgressRing
+                        percent={c.used > 0 ? 100 : 0}
+                        status="bueno"
+                        size={44}
+                      >
+                        <CategoryIcon
+                          icon={c.icon}
+                          size={16}
+                          color={c.color ?? undefined}
+                        />
+                      </ProgressRing>
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">
+                          {c.name}
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          Sin fecha fija
+                        </div>
+                      </div>
+                    </button>
+                    <span className="tabular shrink-0 text-sm font-semibold text-success">
+                      +{formatCLP(c.used)}
+                    </span>
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    setNewCatType("income")
+                    setEditCat(null)
+                  }}
+                  className="flex w-full items-center gap-3 py-2.5 text-left text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <span className="grid size-11 shrink-0 place-items-center rounded-full border-2 border-dashed border-border text-lg">
+                    +
+                  </span>
+                  {hasIncomeRows ? (
+                    <span className="text-sm">Agregar ingreso</span>
+                  ) : (
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">
+                        Registra tus ingresos
+                      </span>
+                      <span className="block text-xs">
+                        Sueldo, arriendo u otros · definen tu presupuesto
+                      </span>
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              <div className="mt-5 mb-3 text-xs font-medium text-muted-foreground">
+                Gastos
+              </div>
               {/* Cabecera del límite global: restante por presupuestar (o CTA para definirlo) */}
               {budget.globalLimit === null ? (
                 <button
@@ -365,7 +447,10 @@ export function Dashboard({
               )}
               {expenseCategories.length === 0 ? (
                 <button
-                  onClick={() => setEditCat(null)}
+                  onClick={() => {
+                    setNewCatType("expense")
+                    setEditCat(null)
+                  }}
                   className="flex w-full flex-col items-center gap-2 py-6 text-muted-foreground"
                 >
                   <span className="grid size-18 place-items-center rounded-full border-2 border-dashed border-border text-2xl">
@@ -410,9 +495,12 @@ export function Dashboard({
                     )
                   })}
                   <button
-                    onClick={() => setEditCat(null)}
+                    onClick={() => {
+                      setNewCatType("expense")
+                      setEditCat(null)
+                    }}
                     className="flex w-20 shrink-0 flex-col items-center gap-1.5 lg:w-auto"
-                    aria-label="Nueva categoría"
+                    aria-label="Nueva categoría de gasto"
                   >
                     <span className="grid size-18 place-items-center rounded-full border-2 border-dashed border-border text-2xl text-muted-foreground">
                       +
@@ -421,53 +509,12 @@ export function Dashboard({
                   </button>
                 </div>
               )}
-              {incomeCategories.length > 0 && (
-                <>
-                  <div className="mt-5 mb-3 text-xs font-medium text-muted-foreground">
-                    Ingresos
-                  </div>
-                  <div className="-mx-4 flex scrollbar-none gap-4 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-2 lg:overflow-visible lg:px-0">
-                    {incomeCategories.map((c) => {
-                      // Anillo = avance hacia la meta de ingreso; sin meta, lleno si ya entró algo.
-                      const pct =
-                        c.limit > 0
-                          ? (c.used / c.limit) * 100
-                          : c.used > 0
-                            ? 100
-                            : 0
-                      return (
-                        <button
-                          key={c.id}
-                          onClick={() => setDetail(c)}
-                          className="flex w-20 shrink-0 flex-col items-center gap-1.5 lg:w-auto"
-                        >
-                          <ProgressRing percent={pct} status="bueno" size={72}>
-                            <CategoryIcon
-                              icon={c.icon}
-                              size={22}
-                              color={c.color ?? undefined}
-                            />
-                          </ProgressRing>
-                          <div className="w-full text-center">
-                            <div className="truncate text-xs font-medium">
-                              {c.name}
-                            </div>
-                            <div className="tabular text-xs text-success">
-                              +{formatCLP(c.used)}
-                            </div>
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
             </div>
           </section>
 
           <section
             id="movimientos"
-            className="min-w-0 scroll-mt-20 lg:col-span-2"
+            className="min-w-0 scroll-mt-20 lg:order-1 lg:col-span-2"
           >
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-heading text-lg font-bold">Movimientos</h2>
@@ -529,12 +576,15 @@ export function Dashboard({
         onOpenTx={setDetailTx}
       />
       <CategoryModal
-        key={editCat?.id ?? "new"}
+        key={editCat?.id ?? `new-${newCatType ?? "libre"}`}
         open={editCat !== undefined}
         onOpenChange={(o) => !o && setEditCat(undefined)}
         period={period}
         category={editCat}
+        lockedType={editCat ? null : newCatType}
         remainingToAllocate={budget.remainingToAllocate}
+        accounts={accounts}
+        incomes={incomes}
       />
       <BudgetLimitModal
         key={`${period.year}-${period.month}-${budget.globalLimit ?? "unset"}`}
@@ -569,6 +619,7 @@ export function Dashboard({
           onClose={() => setTriageDismissed(true)}
           onCreateCategory={() => {
             setTriageDismissed(true)
+            setNewCatType(null)
             setEditCat(null) // abre el modal de categoría existente; el triage vuelve en la próxima carga
           }}
         />
@@ -591,6 +642,105 @@ export function Dashboard({
         />
       )}
     </AppShell>
+  )
+}
+
+// Fila de fuente de ingreso: cuándo llega, cuánto y su estado del mes. "Generar" crea el
+// movimiento (idempotente en el backend); tocar "Recibido" lo deshace, para corregir errores.
+function IncomeRow({
+  income,
+  period,
+  isCurrentMonth,
+  onOpen,
+}: {
+  income: IncomeDTO
+  period: { year: number; month: number }
+  isCurrentMonth: boolean
+  onOpen: () => void
+}) {
+  const router = useRouter()
+  const [busy, setBusy] = useState(false)
+
+  async function toggleGenerated() {
+    if (busy) return
+    setBusy(true)
+    haptic("light")
+    const res = await fetch(
+      `/api/incomes/${income.id}/generate?year=${period.year}&month=${period.month}`,
+      { method: income.generated ? "DELETE" : "POST" }
+    )
+    setBusy(false)
+    if (!res.ok) {
+      haptic("error")
+      toast.error("No se pudo actualizar el ingreso")
+      return
+    }
+    haptic("success")
+    toast.success(income.generated ? "Ingreso deshecho" : "Ingreso recibido")
+    router.refresh()
+  }
+
+  // Detalle de fecha: día absoluto siempre; en el mes actual, cuánto falta para que llegue.
+  const day = income.dayOfMonth
+  let when: string
+  if (income.generated) {
+    when = `Recibido · día ${day}`
+  } else if (isCurrentMonth) {
+    const diff = day - new Date().getDate()
+    when =
+      diff > 1
+        ? `Llega el ${day} · en ${diff} días`
+        : diff === 1
+          ? `Llega el ${day} · mañana`
+          : diff === 0
+            ? "Llega hoy"
+            : `Esperado el día ${day}`
+  } else {
+    when = `Llega el ${day} · ${income.accountName}`
+  }
+
+  return (
+    <div className="flex items-center gap-3 py-2.5">
+      <button
+        onClick={onOpen}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+      >
+        <ProgressRing
+          percent={income.generated ? 100 : 0}
+          status="bueno"
+          size={44}
+        >
+          <CategoryIcon
+            icon={income.categoryIcon}
+            size={16}
+            color={income.categoryColor ?? undefined}
+          />
+        </ProgressRing>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium">{income.name}</div>
+          <div className="truncate text-xs text-muted-foreground">{when}</div>
+        </div>
+      </button>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <span className="tabular text-sm font-semibold text-success">
+          +{formatMoney(income.amount, income.currency as CurrencyCode)}
+        </span>
+        <button
+          onClick={toggleGenerated}
+          disabled={busy}
+          title={income.generated ? "Deshacer" : "Registrar el ingreso del mes"}
+          className={cn(
+            "flex h-6 items-center gap-1 rounded-full px-2.5 text-xs font-medium transition duration-150 ease-out active:scale-[0.97] disabled:opacity-50",
+            income.generated
+              ? "bg-success/10 text-success"
+              : "bg-primary text-primary-foreground"
+          )}
+        >
+          {income.generated && <Check className="size-3" />}
+          {income.generated ? "Recibido" : "Generar"}
+        </button>
+      </div>
+    </div>
   )
 }
 

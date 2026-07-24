@@ -1,5 +1,7 @@
-// Editar/borrar un movimiento MANUAL. Los movimientos de cuentas conectadas son de solo lectura →
-// se rechazan. El repo reajusta el saldo de la cuenta atómicamente.
+// Editar/borrar un movimiento MANUAL (los de cuentas conectadas son de solo lectura → se
+// rechazan), con una excepción: los ABONOS de cuentas conectadas también se pueden borrar,
+// porque los ingresa el usuario (el banco no los notifica por correo). El repo reajusta el
+// saldo de la cuenta atómicamente.
 import {
   type AccountRepository,
   type TransactionRepository,
@@ -32,18 +34,24 @@ type Deps = {
   installments?: InstallmentPlanRepository // opcional: propaga la categoría al plan de cuotas
 }
 
-// Carga el movimiento y valida que sea editable (existe, es del usuario, y su cuenta es manual).
-// En cuentas conectadas por correo editar/borrar ajustaría la columna de saldo por fuera de
-// la proyección de buckets → todo queda de solo lectura; los abonos manuales se corrigen con
-// "Actualizar saldos".
-async function loadEditable(deps: Deps, userId: string, transactionId: string) {
+// Carga el movimiento y valida dueño y cuenta; la editabilidad se decide en cada operación.
+async function loadOwned(deps: Deps, userId: string, transactionId: string) {
   const tx = await deps.transactions.findById(transactionId)
   if (!tx) throw new AccountNotFoundError(transactionId)
   if (tx.userId !== userId) throw new NotOwnerError()
   const account = await deps.accounts.findById(tx.accountId)
   if (!account) throw new AccountNotFoundError(tx.accountId)
-  if (account.provider !== "manual") throw new ConnectedAccountReadOnlyError()
   return { tx, account }
+}
+
+// Editable = cuenta manual. En cuentas conectadas por correo editar ajustaría la columna de
+// saldo por fuera de la proyección de buckets → solo lectura; los saldos se corrigen con
+// "Actualizar saldos".
+async function loadEditable(deps: Deps, userId: string, transactionId: string) {
+  const loaded = await loadOwned(deps, userId, transactionId)
+  if (loaded.account.provider !== "manual")
+    throw new ConnectedAccountReadOnlyError()
+  return loaded
 }
 
 export async function updateTransaction(
@@ -88,6 +96,12 @@ export async function deleteTransaction(
   userId: string,
   transactionId: string
 ): Promise<void> {
-  await loadEditable(deps, userId, transactionId)
+  // Manual: se borra todo. Conectada: solo abonos — los ingresó el usuario y borrarlos revierte
+  // el saldo, igual que deshacer un ingreso generado (ungenerateMonthly).
+  // ponytail: no revierte los buckets del abono (mismo techo que ungenerateMonthly); se corrigen
+  // con "Actualizar saldos".
+  const { tx, account } = await loadOwned(deps, userId, transactionId)
+  if (account.provider !== "manual" && tx.direction !== "credit")
+    throw new ConnectedAccountReadOnlyError()
   await deps.transactions.delete(transactionId)
 }

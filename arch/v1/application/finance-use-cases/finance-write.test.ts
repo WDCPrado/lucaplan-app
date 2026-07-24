@@ -71,7 +71,7 @@ class FakeTx implements TransactionRepository {
       ...tx,
     }
   }
-  async findById() {
+  async findById(): Promise<Transaction | null> {
     return null
   }
   async update(): Promise<never> {
@@ -83,7 +83,7 @@ class FakeTx implements TransactionRepository {
   async setCategoryIfUncategorized(): Promise<never> {
     throw new Error("no usado en este test")
   }
-  async delete() {}
+  async delete(_id: string) {}
 }
 
 test("createTransaction: gasto CLP válido se crea como debit", async () => {
@@ -277,4 +277,57 @@ test("createTransaction: abono en corriente conectada paga sobregiro, sube caja 
     { id: "cash", used: 0, available: 60000 }
   )
   assert.deepEqual(balances, [60000]) // balance = caja disponible
+})
+
+// --- deleteTransaction: en conectadas solo abonos (los ingresa el usuario, no el banco) ---
+
+import { deleteTransaction } from "./update-transaction-use-case.ts"
+
+const savedTx = (direction: "credit" | "debit"): Transaction => ({
+  id: "t1",
+  userId: "u1",
+  accountId: "a1",
+  categoryId: null,
+  amount: clp(1000),
+  direction,
+  description: "Sueldo",
+  date: new Date(2026, 0, 5),
+  status: "confirmed",
+  isInternal: false,
+  externalId: null,
+})
+
+test("deleteTransaction: abono en cuenta conectada se borra", async () => {
+  const txs = new FakeTx()
+  txs.findById = async () => savedTx("credit")
+  const deleted: string[] = []
+  txs.delete = async (id: string) => {
+    deleted.push(id)
+  }
+  await deleteTransaction(
+    {
+      accounts: new FakeAccounts([acc({ provider: "bancochile" })]),
+      transactions: txs,
+    },
+    "u1",
+    "t1"
+  )
+  assert.deepEqual(deleted, ["t1"])
+})
+
+test("deleteTransaction: cargo en cuenta conectada sigue de solo lectura", async () => {
+  const txs = new FakeTx()
+  txs.findById = async () => savedTx("debit")
+  await assert.rejects(
+    () =>
+      deleteTransaction(
+        {
+          accounts: new FakeAccounts([acc({ provider: "bancochile" })]),
+          transactions: txs,
+        },
+        "u1",
+        "t1"
+      ),
+    ConnectedAccountReadOnlyError
+  )
 })

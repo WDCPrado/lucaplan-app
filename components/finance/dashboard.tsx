@@ -32,6 +32,7 @@ import { SyncBancoChileButton } from "./sync-bancochile-button"
 import { UncategorizedTriage } from "./uncategorized-triage"
 import { TransactionModal } from "./transaction-modal"
 import { TransactionSearch } from "./transaction-search"
+import { IncomeModal } from "./income-modal"
 import { OnboardingFlow } from "./onboarding/onboarding-flow"
 import {
   formatCLP,
@@ -97,6 +98,10 @@ export function Dashboard({
   const [newCatType, setNewCatType] = useState<"income" | "expense" | null>(
     null
   )
+  // Ingreso (fuente) en edición: modal SEPARADO del de categoría (una categoría tiene N ingresos).
+  const [editIncome, setEditIncome] = useState<IncomeDTO | null | undefined>(
+    undefined
+  ) // undefined=cerrado, null=crear
   const {
     ref: cardsRef,
     handlers: cardsHandlers,
@@ -344,19 +349,22 @@ export function Dashboard({
                     income={inc}
                     period={period}
                     isCurrentMonth={isCurrentMonth}
-                    onOpen={() => {
+                    onEdit={() => setEditIncome(inc)}
+                    onOpenCategory={() => {
                       const cat = budget.categories.find(
                         (c) => c.id === inc.categoryId
                       )
-                      if (cat) setDetail(cat)
+                      if (cat) setEditCat(cat)
                     }}
                   />
                 ))}
                 {looseIncomeCategories.map((c) => (
                   <div key={c.id} className="flex items-center gap-3 py-2.5">
+                    {/* Aro = la categoría (editar); el resto de la fila abre su detalle. */}
                     <button
-                      onClick={() => setDetail(c)}
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      onClick={() => setEditCat(c)}
+                      aria-label={`Editar categoría ${c.name}`}
+                      className="shrink-0"
                     >
                       <ProgressRing
                         percent={c.used > 0 ? 100 : 0}
@@ -369,12 +377,17 @@ export function Dashboard({
                           color={c.color ?? undefined}
                         />
                       </ProgressRing>
+                    </button>
+                    <button
+                      onClick={() => setDetail(c)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    >
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium">
                           {c.name}
                         </div>
                         <div className="truncate text-xs text-muted-foreground">
-                          Sin fecha fija
+                          Sin ingreso fijo
                         </div>
                       </div>
                     </button>
@@ -384,10 +397,7 @@ export function Dashboard({
                   </div>
                 ))}
                 <button
-                  onClick={() => {
-                    setNewCatType("income")
-                    setEditCat(null)
-                  }}
+                  onClick={() => setEditIncome(null)}
                   className="flex w-full items-center gap-3 py-2.5 text-left text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <span className="grid size-11 shrink-0 place-items-center rounded-full border-2 border-dashed border-border text-lg">
@@ -636,8 +646,19 @@ export function Dashboard({
         category={editCat}
         lockedType={editCat ? null : newCatType}
         remainingToAllocate={budget.remainingToAllocate}
+      />
+      <IncomeModal
+        key={editIncome?.id ?? "new-income"}
+        open={editIncome !== undefined}
+        onOpenChange={(o) => !o && setEditIncome(undefined)}
         accounts={accounts}
-        incomes={incomes}
+        categories={budget.categories}
+        income={editIncome}
+        period={period}
+        onCreateCategory={() => {
+          setNewCatType("income")
+          setEditCat(null)
+        }}
       />
       <BudgetLimitModal
         key={`${period.year}-${period.month}-${budget.globalLimit ?? "unset"}`}
@@ -698,18 +719,21 @@ export function Dashboard({
   )
 }
 
-// Fila de fuente de ingreso: cuándo llega, cuánto y su estado del mes. "Generar" crea el
-// movimiento (idempotente en el backend); tocar "Recibido" lo deshace, para corregir errores.
+// Fila de INGRESO (fuente): cuándo llega, cuánto y su estado del mes. El aro es la categoría
+// (tocarla la edita); el resto de la fila edita el ingreso — son entidades separadas. "Generar"
+// crea el movimiento (idempotente en el backend); tocar "Recibido" lo deshace.
 function IncomeRow({
   income,
   period,
   isCurrentMonth,
-  onOpen,
+  onEdit,
+  onOpenCategory,
 }: {
   income: IncomeDTO
   period: { year: number; month: number }
   isCurrentMonth: boolean
-  onOpen: () => void
+  onEdit: () => void
+  onOpenCategory: () => void
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
@@ -755,8 +779,9 @@ function IncomeRow({
   return (
     <div className="flex items-center gap-3 py-2.5">
       <button
-        onClick={onOpen}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        onClick={onOpenCategory}
+        aria-label="Editar categoría"
+        className="shrink-0"
       >
         <ProgressRing
           percent={income.generated ? 100 : 0}
@@ -769,6 +794,11 @@ function IncomeRow({
             color={income.categoryColor ?? undefined}
           />
         </ProgressRing>
+      </button>
+      <button
+        onClick={onEdit}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+      >
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">{income.name}</div>
           <div className="truncate text-xs text-muted-foreground">{when}</div>

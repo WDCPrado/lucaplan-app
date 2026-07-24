@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronDown, Trash2 } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import { toast } from "sonner"
 import { haptic } from "@/lib/haptics"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
@@ -20,22 +20,12 @@ import { cn } from "@/lib/utils"
 import { formatCLP, monthName } from "@/lib/finance-format"
 import { ProgressRing } from "./progress-ring"
 import { CATEGORY_COLORS, CATEGORY_ICONS, CategoryIcon } from "./category-icons"
-import { DayOfMonthPicker } from "./income-modal"
-import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
-import type {
-  AccountDTO,
-  CategoryDTO,
-  IncomeDTO,
-} from "@/arch/v1/application/finance-use-cases/finance-read"
+import type { CategoryDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
-// Cuentas que reciben ingresos: no de crédito (un abono a una tarjeta es un pago, no un ingreso).
-const acceptsIncome = (a: AccountDTO) =>
-  a.accountType !== "credit_card" && a.accountType !== "credit_line"
-
-// Crear o editar categoría + lo que la define en el mes: límite (gasto) o su ingreso mensual
-// (income: monto, cuenta y día — crear una categoría de ingreso ES asignarle un ingreso).
-// `lockedType` fija el tipo al crear desde un grupo; el selector solo aparece en creación libre.
-// `accounts`/`incomes` alimentan el bloque de ingreso; sin ellas (onboarding) el bloque se oculta.
+// Crear o editar categoría (global) + su límite del mes, siempre en modal. `category` ⇒ edición.
+// SOLO categoría: los ingresos (fuentes) se editan aparte en IncomeModal — una categoría puede
+// tener N ingresos. `lockedType` fija el tipo al crear desde un grupo (se oculta el selector y
+// el título lo refleja); el selector solo aparece en creación libre.
 export function CategoryModal({
   open,
   onOpenChange,
@@ -43,8 +33,6 @@ export function CategoryModal({
   category,
   lockedType,
   remainingToAllocate,
-  accounts,
-  incomes,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
@@ -52,8 +40,6 @@ export function CategoryModal({
   category?: CategoryDTO | null
   lockedType?: "income" | "expense" | null
   remainingToAllocate?: number | null
-  accounts?: AccountDTO[]
-  incomes?: IncomeDTO[]
 }) {
   const router = useRouter()
   const isEdit = !!category
@@ -66,20 +52,6 @@ export function CategoryModal({
   const [icon, setIcon] = useState(category?.icon ?? "")
   const [color, setColor] = useState(category?.color ?? CATEGORY_COLORS[0])
   const [saving, setSaving] = useState(false)
-
-  // Fuente de ingreso vinculada a la categoría (edición).
-  // ponytail: una fuente por categoría; si existieran varias se edita la primera.
-  const source =
-    (category && incomes?.find((i) => i.categoryId === category.id)) || null
-  const destinations = (accounts ?? []).filter(acceptsIncome)
-  const [accountId, setAccountId] = useState(source?.accountId ?? "")
-  const account =
-    destinations.find((a) => a.id === accountId) ?? destinations[0]
-  const amount = useMoneyInput(
-    (account?.currency as CurrencyCode) ?? "CLP",
-    source?.amount ?? 0
-  )
-  const [day, setDay] = useState(source?.dayOfMonth ?? 1)
 
   const canSave = !!name.trim() && !saving
 
@@ -149,60 +121,8 @@ export function CategoryModal({
         return
       }
     }
-    // 3) Ingreso mensual: con monto y cuenta se crea/actualiza la fuente (mismo nombre que la
-    // categoría). Monto vacío no toca la fuente; quitarla es acción explícita aparte.
-    if (type === "income" && amount.value > 0 && account) {
-      const url = source
-        ? `/api/incomes/${source.id}?year=${period.year}&month=${period.month}`
-        : `/api/incomes?year=${period.year}&month=${period.month}`
-      const incRes = await fetch(url, {
-        method: source ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          accountId: account.id,
-          categoryId,
-          name: name.trim(),
-          amount: amount.value,
-          dayOfMonth: day,
-          isActive: source?.isActive ?? true,
-        }),
-      })
-      const data = await incRes.json().catch(() => ({}))
-      if (!incRes.ok) {
-        setSaving(false)
-        haptic("error")
-        toast.error(
-          "La categoría se guardó, pero el ingreso no. Vuelve a intentarlo."
-        )
-        return
-      }
-      if (data.seed?.seeded)
-        toast.success(`Presupuesto del mes: ${formatCLP(data.seed.total)}`)
-    }
     setSaving(false)
     haptic("success")
-    onOpenChange(false)
-    router.refresh()
-  }
-
-  // Elimina el ingreso DESDE este mes (este y los próximos); los anteriores conservan su
-  // historia — misma regla de vigencia que al editar. La categoría se conserva por eso mismo.
-  async function removeSource() {
-    if (!source || saving) return
-    setSaving(true)
-    haptic("heavy") // destructiva
-    const res = await fetch(
-      `/api/incomes/${source.id}?year=${period.year}&month=${period.month}`,
-      { method: "DELETE" }
-    )
-    setSaving(false)
-    if (!res.ok) {
-      haptic("error")
-      toast.error("No se pudo eliminar el ingreso")
-      return
-    }
-    haptic("success")
-    toast.success("Ingreso eliminado")
     onOpenChange(false)
     router.refresh()
   }
@@ -213,11 +133,9 @@ export function CategoryModal({
       onOpenChange={onOpenChange}
       title={
         isEdit
-          ? type === "income"
-            ? "Editar ingreso"
-            : "Editar categoría"
+          ? "Editar categoría"
           : lockedType === "income"
-            ? "Nuevo ingreso"
+            ? "Nueva categoría de ingreso"
             : lockedType === "expense"
               ? "Nueva categoría de gasto"
               : "Nueva categoría"
@@ -236,7 +154,7 @@ export function CategoryModal({
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={type === "income" ? "Sueldo" : "Compras"}
+            placeholder={type === "income" ? "Abonos" : "Compras"}
             aria-label="Nombre"
             className="h-12 flex-1 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
           />
@@ -267,81 +185,6 @@ export function CategoryModal({
             </div>
           </div>
         )}
-
-        {/* Ingreso mensual: crear una categoría de ingreso es asignarle su ingreso */}
-        {type === "income" &&
-          accounts &&
-          (destinations.length > 0 ? (
-            <div className="flex flex-col gap-4 rounded-xl bg-secondary/50 p-4">
-              <div>
-                <Label className="mb-1 block text-xs">Monto mensual</Label>
-                <div className="flex items-center gap-3">
-                  <span
-                    className="grid size-10 shrink-0 place-items-center rounded-full bg-success text-lg text-success-foreground"
-                    aria-hidden
-                  >
-                    +
-                  </span>
-                  <Input
-                    inputMode="numeric"
-                    placeholder="0"
-                    value={amount.display}
-                    onChange={(e) => amount.onChange(e.target.value)}
-                    aria-label="Monto mensual del ingreso"
-                    className="tabular h-11 flex-1 border-0 bg-transparent px-0 text-2xl font-bold text-success shadow-none focus-visible:ring-0"
-                  />
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Lo que esperas recibir cada mes. Déjalo vacío si la categoría
-                  solo agrupa abonos sueltos.
-                </p>
-              </div>
-              {amount.value > 0 && (
-                <>
-                  <div>
-                    <Label className="mb-1.5 block text-xs">
-                      Cuenta donde entra
-                    </Label>
-                    <div className="flex flex-wrap gap-2">
-                      {destinations.map((a) => (
-                        <button
-                          key={a.id}
-                          type="button"
-                          onClick={() => {
-                            haptic("light")
-                            setAccountId(a.id)
-                          }}
-                          className={cn(
-                            "flex h-10 items-center rounded-full border px-4 text-sm whitespace-nowrap transition-colors",
-                            a.id === account?.id
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "text-muted-foreground"
-                          )}
-                        >
-                          {a.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="mb-1.5 block text-xs">
-                      Día en que llega
-                    </Label>
-                    <DayOfMonthPicker value={day} onChange={setDay} />
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Si el mes no tiene ese día (ej. 31 en febrero), se usa el
-                      último.
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-          ) : (
-            <p className="rounded-xl bg-secondary/50 p-4 text-xs text-muted-foreground">
-              Necesitas una cuenta que reciba dinero (corriente, ahorro o
-              billetera) para asignarle un monto mensual.
-            </p>
-          ))}
 
         {/* Presupuesto (solo gasto) */}
         {type === "expense" && (
@@ -437,27 +280,13 @@ export function CategoryModal({
           </CollapsibleContent>
         </Collapsible>
 
-        <div className="flex gap-2">
-          {/* Eliminar el ingreso (solo edición con fuente): mismo patrón que tenía el modal viejo */}
-          {type === "income" && source && (
-            <Button
-              variant="ghost"
-              onClick={removeSource}
-              disabled={saving}
-              aria-label="Eliminar ingreso"
-              className="h-12 rounded-full px-4 text-destructive hover:text-destructive"
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          )}
-          <Button
-            onClick={save}
-            disabled={!canSave}
-            className="h-12 flex-1 rounded-full text-base"
-          >
-            {saving ? "Guardando…" : "Guardar"}
-          </Button>
-        </div>
+        <Button
+          onClick={save}
+          disabled={!canSave}
+          className="h-12 rounded-full text-base"
+        >
+          {saving ? "Guardando…" : "Guardar"}
+        </Button>
       </div>
     </ResponsiveModal>
   )

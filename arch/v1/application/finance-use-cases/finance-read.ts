@@ -648,7 +648,9 @@ export async function getBudgetView(
         used: used.toMajor(),
         committed: committed.toMajor(),
         available: available.toMajor(),
-        status: categoryStatus(used, limit),
+        // Ingreso: llegar a la meta es bueno, no "excedido" — el semáforo es solo de gastos.
+        status:
+          category.type === "income" ? "bueno" : categoryStatus(used, limit),
       }
     }
   )

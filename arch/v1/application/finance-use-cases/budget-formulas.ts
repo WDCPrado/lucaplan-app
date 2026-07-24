@@ -93,8 +93,10 @@ export function computeCategoryUsage(
         t.status === "confirmed" &&
         !t.isInternal &&
         t.amount.currency === limit.currency &&
-        t.date.getFullYear() === year &&
-        t.date.getMonth() + 1 === month
+        // UTC: las fechas de movimientos se guardan y muestran en UTC; con getters locales un
+        // movimiento a medianoche UTC del día 1 caía en el mes anterior (Chile UTC-4).
+        t.date.getUTCFullYear() === year &&
+        t.date.getUTCMonth() + 1 === month
     )
     .reduce((sum, t) => sum.add(t.amount), Money.zero(limit.currency))
   return { used, available: limit.subtract(used) }
@@ -121,8 +123,9 @@ export function computeCategoryCommitted(
         t.status === "pending" &&
         !t.isInternal &&
         t.amount.currency === currency &&
-        t.date.getFullYear() === year &&
-        t.date.getMonth() + 1 === month
+        // UTC: mismo criterio que computeCategoryUsage.
+        t.date.getUTCFullYear() === year &&
+        t.date.getUTCMonth() + 1 === month
     )
     .reduce((sum, t) => sum.add(t.amount), Money.zero(currency))
 }

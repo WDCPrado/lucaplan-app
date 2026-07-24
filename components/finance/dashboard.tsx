@@ -129,11 +129,6 @@ export function Dashboard({
     (c) => c.type === "expense"
   )
   const incomeCategories = budget.categories.filter((c) => c.type === "income")
-  // Categorías de ingreso sin fuente fija (solo agrupan abonos sueltos): fila informativa.
-  const looseIncomeCategories = incomeCategories.filter(
-    (c) => !incomes.some((i) => i.categoryId === c.id)
-  )
-  const hasIncomeRows = incomes.length > 0 || looseIncomeCategories.length > 0
   // Al crear/editar/eliminar un ingreso la suma puede dejar de calzar con el presupuesto global:
   // se ofrece actualizarlo (acción explícita, nunca automática — mismo criterio que antes).
   const activeIncomeTotal = incomes
@@ -358,44 +353,6 @@ export function Dashboard({
                     }}
                   />
                 ))}
-                {looseIncomeCategories.map((c) => (
-                  <div key={c.id} className="flex items-center gap-3 py-2.5">
-                    {/* Aro = la categoría (editar); el resto de la fila abre su detalle. */}
-                    <button
-                      onClick={() => setEditCat(c)}
-                      aria-label={`Editar categoría ${c.name}`}
-                      className="shrink-0"
-                    >
-                      <ProgressRing
-                        percent={c.used > 0 ? 100 : 0}
-                        status="bueno"
-                        size={44}
-                      >
-                        <CategoryIcon
-                          icon={c.icon}
-                          size={16}
-                          color={c.color ?? undefined}
-                        />
-                      </ProgressRing>
-                    </button>
-                    <button
-                      onClick={() => setDetail(c)}
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">
-                          {c.name}
-                        </div>
-                        <div className="truncate text-xs text-muted-foreground">
-                          Sin ingreso fijo
-                        </div>
-                      </div>
-                    </button>
-                    <span className="tabular shrink-0 text-sm font-semibold text-success">
-                      +{formatCLP(c.used)}
-                    </span>
-                  </div>
-                ))}
                 <button
                   onClick={() => setEditIncome(null)}
                   className="flex w-full items-center gap-3 py-2.5 text-left text-muted-foreground transition-colors hover:text-foreground"
@@ -403,7 +360,7 @@ export function Dashboard({
                   <span className="grid size-11 shrink-0 place-items-center rounded-full border-2 border-dashed border-border text-lg">
                     +
                   </span>
-                  {hasIncomeRows ? (
+                  {incomes.length > 0 ? (
                     <span className="text-sm">Agregar ingreso</span>
                   ) : (
                     <span className="min-w-0">
@@ -417,6 +374,70 @@ export function Dashboard({
                   )}
                 </button>
               </div>
+              {/* Categorías de ingreso: MISMO patrón visual que las de gasto (celda, anillo y
+                  monto disponible). Meta = suma de sus ingresos; tocar abre el detalle. */}
+              {incomeCategories.length > 0 && (
+                <>
+                  <div className="mt-5 mb-3 text-xs font-medium text-muted-foreground">
+                    Categorías de ingreso
+                  </div>
+                  {/* Mismo padding que las filas de Ingresos: celdas alineadas a la izquierda
+                      (en escritorio con wrap, no grilla centrada). */}
+                  <div className="-mx-4 flex scrollbar-none gap-4 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0">
+                    {incomeCategories.map((c) => {
+                      // Avance hacia la meta; sin meta definida, lleno si ya entró algo.
+                      const pct =
+                        c.limit > 0
+                          ? (c.used / c.limit) * 100
+                          : c.used > 0
+                            ? 100
+                            : 0
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => setDetail(c)}
+                          className="flex w-20 shrink-0 flex-col items-center gap-1.5"
+                        >
+                          <ProgressRing
+                            percent={pct}
+                            status={c.status}
+                            size={72}
+                          >
+                            <CategoryIcon
+                              icon={c.icon}
+                              size={22}
+                              color={c.color ?? undefined}
+                            />
+                          </ProgressRing>
+                          <div className="w-full text-center">
+                            <div className="truncate text-xs font-medium">
+                              {c.name}
+                            </div>
+                            <div className="tabular text-xs text-muted-foreground">
+                              {formatCLP(c.available)}
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                    <button
+                      onClick={() => {
+                        setNewCatType("income")
+                        setEditCat(null)
+                      }}
+                      className="flex w-20 shrink-0 flex-col items-center gap-1.5"
+                      aria-label="Nueva categoría de ingreso"
+                    >
+                      <span className="grid size-18 place-items-center rounded-full border-2 border-dashed border-border text-2xl text-muted-foreground">
+                        +
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Nueva
+                      </span>
+                    </button>
+                  </div>
+                </>
+              )}
 
               <div className="mt-5 mb-3 text-xs font-medium text-muted-foreground">
                 Gastos
@@ -508,6 +529,9 @@ export function Dashboard({
                   </div>
                 </button>
               )}
+              <div className="mb-3 text-xs font-medium text-muted-foreground">
+                Categorías de gasto
+              </div>
               {expenseCategories.length === 0 ? (
                 <button
                   onClick={() => {
@@ -522,15 +546,16 @@ export function Dashboard({
                   <span className="text-sm">Crear categoría</span>
                 </button>
               ) : (
-                // Móvil: scroll-x sin wrap (más limpio que la grilla); escritorio: grid 2 col.
-                <div className="-mx-4 flex scrollbar-none gap-4 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-2 lg:overflow-visible lg:px-0">
+                // Móvil: scroll-x sin wrap; escritorio: wrap alineado a la izquierda (mismo
+                // padding que las filas de Ingresos, igual que las categorías de ingreso).
+                <div className="-mx-4 flex scrollbar-none gap-4 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0">
                   {expenseCategories.map((c) => {
                     const pct = c.limit > 0 ? (c.used / c.limit) * 100 : 0
                     return (
                       <button
                         key={c.id}
                         onClick={() => setDetail(c)}
-                        className="flex w-20 shrink-0 flex-col items-center gap-1.5 lg:w-auto"
+                        className="flex w-20 shrink-0 flex-col items-center gap-1.5"
                       >
                         <ProgressRing
                           percent={pct}
@@ -562,7 +587,7 @@ export function Dashboard({
                       setNewCatType("expense")
                       setEditCat(null)
                     }}
-                    className="flex w-20 shrink-0 flex-col items-center gap-1.5 lg:w-auto"
+                    className="flex w-20 shrink-0 flex-col items-center gap-1.5"
                     aria-label="Nueva categoría de gasto"
                   >
                     <span className="grid size-18 place-items-center rounded-full border-2 border-dashed border-border text-2xl text-muted-foreground">
@@ -626,7 +651,7 @@ export function Dashboard({
         // guarda encima y refresca, el usado/disponible del detalle se actualiza solo.
         category={
           detail &&
-          (expenseCategories.find((c) => c.id === detail.id) ?? detail)
+          (budget.categories.find((c) => c.id === detail.id) ?? detail)
         }
         transactions={transactions}
         // Con el modal de transacción abierto encima, su X / click fuera llega aquí como

@@ -105,6 +105,7 @@ export function Dashboard({
   const [infoAccount, setInfoAccount] = useState<AccountDTO | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [budgetLimitOpen, setBudgetLimitOpen] = useState(false)
+  const [applyingBudget, setApplyingBudget] = useState(false)
   // Triage de sin categoría: descartado no reaparece hasta la PRÓXIMA carga (el estado vive en
   // el cliente; recargar la app lo resetea). Se monta solo mientras está abierto.
   const [triageDismissed, setTriageDismissed] = useState(false)
@@ -128,6 +129,15 @@ export function Dashboard({
     (c) => !incomes.some((i) => i.categoryId === c.id)
   )
   const hasIncomeRows = incomes.length > 0 || looseIncomeCategories.length > 0
+  // Al crear/editar/eliminar un ingreso la suma puede dejar de calzar con el presupuesto global:
+  // se ofrece actualizarlo (acción explícita, nunca automática — mismo criterio que antes).
+  const activeIncomeTotal = incomes
+    .filter((i) => i.isActive && i.currency === "CLP")
+    .reduce((s, i) => s + i.amount, 0)
+  const suggestBudget =
+    budget.globalLimit !== null &&
+    activeIncomeTotal > 0 &&
+    activeIncomeTotal !== budget.globalLimit
   // Sobre-asignado: los límites de categoría superan el límite global del mes (alerta, no bloquea).
   const overAllocated =
     budget.remainingToAllocate !== null && budget.remainingToAllocate < 0
@@ -156,6 +166,27 @@ export function Dashboard({
   async function signOut() {
     await authClient.signOut()
     router.push("/login")
+  }
+
+  async function applyIncomeTotal() {
+    setApplyingBudget(true)
+    const res = await fetch("/api/budgets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        year: period.year,
+        month: period.month,
+        globalLimit: activeIncomeTotal,
+      }),
+    })
+    setApplyingBudget(false)
+    if (!res.ok) {
+      haptic("error")
+      return toast.error("No se pudo actualizar el presupuesto")
+    }
+    haptic("success")
+    toast.success("Presupuesto actualizado")
+    router.refresh()
   }
 
   return (
@@ -380,6 +411,28 @@ export function Dashboard({
               <div className="mt-5 mb-3 text-xs font-medium text-muted-foreground">
                 Gastos
               </div>
+              {/* Ingresos ≠ presupuesto definido → ofrecer actualizar el límite global */}
+              {suggestBudget && (
+                <div className="mb-4 flex flex-col gap-2 rounded-xl bg-secondary/50 p-3">
+                  <p className="text-sm">
+                    Tus ingresos suman{" "}
+                    <span className="tabular font-semibold">
+                      {formatMoney(activeIncomeTotal, "CLP")}
+                    </span>{" "}
+                    · presupuesto en{" "}
+                    {formatMoney(budget.globalLimit ?? 0, "CLP")}
+                  </p>
+                  <button
+                    onClick={applyIncomeTotal}
+                    disabled={applyingBudget}
+                    className="self-start rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
+                  >
+                    {applyingBudget
+                      ? "Actualizando…"
+                      : "Actualizar presupuesto"}
+                  </button>
+                </div>
+              )}
               {/* Cabecera del límite global: restante por presupuestar (o CTA para definirlo) */}
               {budget.globalLimit === null ? (
                 <button

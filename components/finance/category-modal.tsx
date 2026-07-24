@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { haptic } from "@/lib/haptics"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
@@ -185,10 +185,12 @@ export function CategoryModal({
     router.refresh()
   }
 
-  // Quita la fuente (deja la categoría): desde este mes; los anteriores conservan su historia.
+  // Elimina el ingreso DESDE este mes (este y los próximos); los anteriores conservan su
+  // historia — misma regla de vigencia que al editar. La categoría se conserva por eso mismo.
   async function removeSource() {
     if (!source || saving) return
     setSaving(true)
+    haptic("heavy") // destructiva
     const res = await fetch(
       `/api/incomes/${source.id}?year=${period.year}&month=${period.month}`,
       { method: "DELETE" }
@@ -196,11 +198,11 @@ export function CategoryModal({
     setSaving(false)
     if (!res.ok) {
       haptic("error")
-      toast.error("No se pudo quitar el ingreso")
+      toast.error("No se pudo eliminar el ingreso")
       return
     }
     haptic("success")
-    toast.success("Ingreso mensual quitado")
+    toast.success("Ingreso eliminado")
     onOpenChange(false)
     router.refresh()
   }
@@ -333,16 +335,6 @@ export function CategoryModal({
                   </div>
                 </>
               )}
-              {source && (
-                <button
-                  type="button"
-                  onClick={removeSource}
-                  disabled={saving}
-                  className="self-start text-xs text-destructive transition-opacity disabled:opacity-50"
-                >
-                  Quitar ingreso mensual (la categoría se conserva)
-                </button>
-              )}
             </div>
           ) : (
             <p className="rounded-xl bg-secondary/50 p-4 text-xs text-muted-foreground">
@@ -445,13 +437,27 @@ export function CategoryModal({
           </CollapsibleContent>
         </Collapsible>
 
-        <Button
-          onClick={save}
-          disabled={!canSave}
-          className="h-12 rounded-full text-base"
-        >
-          {saving ? "Guardando…" : "Guardar"}
-        </Button>
+        <div className="flex gap-2">
+          {/* Eliminar el ingreso (solo edición con fuente): mismo patrón que tenía el modal viejo */}
+          {type === "income" && source && (
+            <Button
+              variant="ghost"
+              onClick={removeSource}
+              disabled={saving}
+              aria-label="Eliminar ingreso"
+              className="h-12 rounded-full px-4 text-destructive hover:text-destructive"
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          )}
+          <Button
+            onClick={save}
+            disabled={!canSave}
+            className="h-12 flex-1 rounded-full text-base"
+          >
+            {saving ? "Guardando…" : "Guardar"}
+          </Button>
+        </div>
       </div>
     </ResponsiveModal>
   )

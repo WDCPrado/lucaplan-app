@@ -31,13 +31,17 @@ const PERIODICITY_LABEL: Record<string, string> = {
 // cuán cerca está; la referencia relativa no.
 function nextChargeLabel(iso: string, today = new Date()): string {
   const date = new Date(iso)
-  const day = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
-  const days = Math.round((day(date) - day(today)) / 86_400_000)
+  // La fecha viene de un @db.Date (medianoche UTC): se lee en UTC. `today` es un instante real:
+  // se lee en local, que es el día que el usuario tiene en su calendario.
+  const dueDay = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  const todayDay = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())
+  const days = Math.round((dueDay - todayDay) / 86_400_000)
   if (days === 0) return "Cobra hoy"
   if (days === 1) return "Cobra mañana"
   return `Cobra el ${date.toLocaleDateString("es-CL", {
     day: "numeric",
     month: "short",
+    timeZone: "UTC",
   })}`
 }
 
@@ -48,6 +52,7 @@ function shortDate(iso: string): string {
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: "UTC", // @db.Date es medianoche UTC: en local (Chile) mostraría el día anterior
   })
 }
 
@@ -133,13 +138,16 @@ export function RecurringView({
               </p>
             )}
           </div>
-          <Button
-            onClick={create}
-            className="hidden shrink-0 rounded-full lg:inline-flex"
-          >
-            <Plus className="size-4" />
-            Nueva
-          </Button>
+          {/* Con lista vacía el CTA vive en el empty state: dos "crear" a la vista confunden. */}
+          {templates.length > 0 && (
+            <Button
+              onClick={create}
+              className="hidden shrink-0 rounded-full lg:inline-flex"
+            >
+              <Plus className="size-4" />
+              Nueva
+            </Button>
+          )}
         </div>
 
         {templates.length === 0 ? (
@@ -296,7 +304,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       <p className="mx-auto mt-1 max-w-sm text-sm text-balance text-muted-foreground">
         El arriendo, el gasto común o una suscripción quedan reservados en tu
         presupuesto desde que empieza el mes, y se reconocen solos cuando el
-        banco los cobra —aunque el monto cambie un poco.
+        banco los cobra, aunque el monto cambie un poco.
       </p>
       <Button onClick={onCreate} className="mt-5 rounded-full">
         <Plus className="size-4" />

@@ -29,6 +29,7 @@ function shortDate(iso: string): string {
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: "UTC", // @db.Date es medianoche UTC: en local (Chile) mostraría el día anterior
   })
 }
 
@@ -93,13 +94,16 @@ export function InstallmentsView({
               </p>
             )}
           </div>
-          <Button
-            onClick={() => setCreating(true)}
-            className="hidden shrink-0 rounded-full lg:inline-flex"
-          >
-            <Plus className="size-4" />
-            Nuevo
-          </Button>
+          {/* Con lista vacía el CTA vive en el empty state: dos "crear" a la vista confunden. */}
+          {plans.length > 0 && (
+            <Button
+              onClick={() => setCreating(true)}
+              className="hidden shrink-0 rounded-full lg:inline-flex"
+            >
+              <Plus className="size-4" />
+              Nuevo
+            </Button>
+          )}
         </div>
 
         {plans.length === 0 ? (

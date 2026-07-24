@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { ChevronDown, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { haptic } from "@/lib/haptics"
-import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -173,7 +173,7 @@ export function CategoryModal({
               : "Nueva categoría"
       }
     >
-      <div className="flex flex-col gap-5 px-4 pb-6">
+      <div className="flex flex-col gap-5 px-4">
         {/* Identidad: vista previa en vivo + nombre grande (mismo patrón que el resto de la app) */}
         <div className="flex items-center gap-4">
           <ProgressRing
@@ -312,14 +312,15 @@ export function CategoryModal({
           </CollapsibleContent>
         </Collapsible>
 
-        <div className="flex gap-2">
+        <ModalFooter>
           {isEdit && (
             <Button
-              variant="ghost"
+              variant="outline"
+              size="icon"
               onClick={() => setConfirmDelete(true)}
               disabled={saving}
               aria-label="Eliminar categoría"
-              className="h-12 rounded-full px-4 text-destructive hover:text-destructive"
+              className="size-12 shrink-0 rounded-full text-destructive hover:text-destructive"
             >
               <Trash2 className="size-4" />
             </Button>
@@ -331,7 +332,7 @@ export function CategoryModal({
           >
             {saving ? "Guardando…" : "Guardar"}
           </Button>
-        </div>
+        </ModalFooter>
       </div>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
@@ -348,7 +349,7 @@ export function CategoryModal({
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={removeCategory}
-              className="bg-destructive text-white hover:bg-destructive/90"
+              variant="destructive"
             >
               Eliminar
             </AlertDialogAction>

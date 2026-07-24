@@ -2,14 +2,14 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { cn } from "@/lib/utils"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { variantForType } from "@/lib/bank-cards"
 import { AccountCard } from "./account-card"
+import { Chip } from "./transaction-modal"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
@@ -102,7 +102,7 @@ export function AccountModal({
       title="Nueva tarjeta"
       className="sm:max-w-3xl"
     >
-      <div className="px-4 pb-6">
+      <div className="px-4">
         <div className="md:grid md:grid-cols-2 md:gap-6">
           {/* Columna izquierda: tarjeta grande + banco + tipo (+ dígitos) */}
           <div className="flex flex-col gap-4">
@@ -208,39 +208,16 @@ export function AccountModal({
           </div>
         </div>
 
-        <Button
-          onClick={save}
-          disabled={!canSave}
-          className="mt-6 h-12 w-full rounded-full text-base"
-        >
-          {saving ? "Guardando…" : "Crear tarjeta"}
-        </Button>
+        <ModalFooter className="mt-4">
+          <Button
+            onClick={save}
+            disabled={!canSave}
+            className="h-12 flex-1 rounded-full text-base"
+          >
+            {saving ? "Guardando…" : "Crear tarjeta"}
+          </Button>
+        </ModalFooter>
       </div>
     </ResponsiveModal>
-  )
-}
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active?: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex h-11 items-center rounded-full border px-4 text-sm whitespace-nowrap",
-        active
-          ? "border-primary bg-primary/10 text-primary"
-          : "text-muted-foreground"
-      )}
-    >
-      {children}
-    </button>
   )
 }

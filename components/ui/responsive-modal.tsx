@@ -33,7 +33,9 @@ export function ModalFooter({
   return (
     <div
       className={cn(
-        "sticky bottom-0 z-10 -mx-4 mt-2 flex items-center gap-2 border-t border-border/60 bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+        // bg-popover, no bg-background: es la superficie del Dialog y de la tarjeta del Drawer.
+        // Con background (más oscuro en dark) el footer se ve como una banda de otro color.
+        "sticky bottom-0 z-10 -mx-4 mt-2 flex flex-wrap items-center gap-2 border-t border-border/60 bg-popover px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
         className
       )}
     >
@@ -117,7 +119,7 @@ export function ResponsiveModal({
         onEscapeKeyDown={dismissible ? undefined : (e) => e.preventDefault()}
         onInteractOutside={dismissible ? undefined : (e) => e.preventDefault()}
         className={cn(
-          "max-h-[90dvh] [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto rounded-3xl p-0 sm:max-w-lg [&>*]:min-w-0",
+          "max-h-[90dvh] [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto p-0 sm:max-w-lg [&>*]:min-w-0",
           className
         )}
       >

@@ -8,11 +8,22 @@ import { toast } from "sonner"
 import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
-import { DatePicker, savedFirst } from "./transaction-modal"
+import { Chip, DatePicker, savedFirst } from "./transaction-modal"
 import { DayOfMonthPicker } from "./income-modal"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
@@ -368,15 +379,39 @@ export function RecurringModal({
 
           <ModalFooter>
             {template && (
-              <Button
-                variant="ghost"
-                onClick={remove}
-                disabled={saving}
-                className="h-12 rounded-full px-4 text-destructive hover:text-destructive"
-                aria-label="Eliminar recurrente"
-              >
-                <Trash2 className="size-4" />
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={saving}
+                    className="size-12 shrink-0 rounded-full text-destructive hover:text-destructive"
+                    aria-label="Eliminar recurrente"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      ¿Eliminar la recurrencia?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Se borra la plantilla y deja de cobrarse. Los movimientos
+                      ya cobrados se conservan.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={remove}
+                      variant="destructive"
+                    >
+                      Eliminar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
             <Button
               onClick={save}
@@ -422,30 +457,5 @@ function ChipRow({ children }: { children: React.ReactNode }) {
     <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
       {children}
     </div>
-  )
-}
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors",
-        active
-          ? "border-primary bg-primary text-primary-foreground"
-          : "border-border bg-transparent text-muted-foreground hover:text-foreground"
-      )}
-    >
-      {children}
-    </button>
   )
 }

@@ -33,6 +33,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
 import {
@@ -147,8 +148,16 @@ export function AppShell({
               />
             </div>
           </div>
-          {/* pb móvil: aire para que el FAB no tape el último movimiento */}
-          <div className="min-w-0 flex-1 pb-20 md:pb-0">{children}</div>
+          {/* Aire inferior cuando hay FABs: también en escritorio, donde tapaban el final de la
+              columna derecha (banner de presupuesto). Sin FABs no hace falta. */}
+          <div
+            className={cn(
+              "min-w-0 flex-1",
+              onAdd || onSearch ? "pb-24 md:pb-28" : "pb-6 md:pb-0"
+            )}
+          >
+            {children}
+          </div>
         </SidebarInset>
 
         {/* FABs flotantes abajo-derecha: lupa + crear, juntos (misma fila en móvil y escritorio) */}

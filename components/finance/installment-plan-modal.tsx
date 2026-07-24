@@ -115,6 +115,7 @@ function shortDate(iso: string): string {
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: "UTC", // @db.Date es medianoche UTC: en local (Chile) mostraría el día anterior
   })
 }
 
@@ -393,12 +394,12 @@ export function InstallmentPlanModal({
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
                 aria-label="Eliminar plan"
-                className="size-12 shrink-0 rounded-full text-muted-foreground hover:text-destructive"
+                className="size-12 shrink-0 rounded-full text-destructive hover:text-destructive"
               >
-                <Trash2 className="size-5" />
+                <Trash2 className="size-4" />
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -414,7 +415,12 @@ export function InstallmentPlanModal({
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={remove}>Eliminar</AlertDialogAction>
+                <AlertDialogAction
+                  onClick={remove}
+                  variant="destructive"
+                >
+                  Eliminar
+                </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { formatCLP } from "@/lib/finance-format"
 import { CategoryIcon } from "./category-icons"
-import { savedFirst } from "./transaction-modal"
+import { Chip, savedFirst } from "./transaction-modal"
 import { DayOfMonthPicker } from "./income-modal"
 import { schedule } from "@/arch/v1/domain/finance/installment.domain"
 import type {
@@ -532,30 +532,5 @@ function ChipRow({ children }: { children: React.ReactNode }) {
     <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
       {children}
     </div>
-  )
-}
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors",
-        active
-          ? "border-primary bg-primary text-primary-foreground"
-          : "border-border bg-transparent text-muted-foreground hover:text-foreground"
-      )}
-    >
-      {children}
-    </button>
   )
 }

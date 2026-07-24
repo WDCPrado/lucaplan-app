@@ -29,6 +29,7 @@ function shortDate(iso: string): string {
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: "UTC", // @db.Date es medianoche UTC: en local (Chile) mostraría el día anterior
   })
 }
 

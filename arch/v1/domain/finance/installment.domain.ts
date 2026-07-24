@@ -82,12 +82,12 @@ export function lastDayOfMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate()
 }
 
-// Compara solo el día calendario: la hora de una fecha guardada como DATE (medianoche UTC) no
-// debe cambiar el resultado.
+// Compara solo el día calendario, leído en UTC: una fecha guardada como DATE es medianoche UTC,
+// y con getters locales (Chile, UTC-4) retrocedería un día.
 function isAfterDay(a: Date, b: Date): boolean {
   return (
-    Date.UTC(a.getFullYear(), a.getMonth(), a.getDate()) >
-    Date.UTC(b.getFullYear(), b.getMonth(), b.getDate())
+    Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate()) >
+    Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate())
   )
 }
 
@@ -286,8 +286,10 @@ export function dueUnsettledItems(
   return plan.items.filter(
     (i) =>
       !isSettled(i) &&
-      i.dueDate.getFullYear() === year &&
-      i.dueDate.getMonth() + 1 === month
+      // Getters UTC: el DATE de la BD es medianoche UTC y en local caería en el día (y a veces
+      // mes) anterior.
+      i.dueDate.getUTCFullYear() === year &&
+      i.dueDate.getUTCMonth() + 1 === month
   )
 }
 

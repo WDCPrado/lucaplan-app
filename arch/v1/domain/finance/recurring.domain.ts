@@ -104,21 +104,22 @@ export function executionDateFor(
   const [yearPart, monthPart] = periodKey.split("-")
   const year = Number(yearPart)
   // Anual: el mes lo fija la plantilla por su fecha de inicio; mensual: el del propio período.
+  // Getters UTC: `startDate` es un DATE (medianoche UTC) y en local retrocedería un día.
   const month = monthPart
     ? Number(monthPart)
-    : template.startDate.getMonth() + 1
-  const day = template.dayOfMonth ?? template.startDate.getDate()
+    : template.startDate.getUTCMonth() + 1
+  const day = template.dayOfMonth ?? template.startDate.getUTCDate()
   return new Date(year, month - 1, Math.min(day, lastDayOfMonth(year, month)))
 }
 
 // --- Vigencia ---
 
-// Compara solo el día calendario: la hora de `endDate` (medianoche UTC) no debe excluir cobros
-// del mismo día.
+// Compara solo el día calendario, leído en UTC: `endDate` es un DATE (medianoche UTC) y con
+// getters locales (Chile, UTC-4) retrocedería un día.
 function isAfterDay(a: Date, b: Date): boolean {
   return (
-    Date.UTC(a.getFullYear(), a.getMonth(), a.getDate()) >
-    Date.UTC(b.getFullYear(), b.getMonth(), b.getDate())
+    Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate()) >
+    Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate())
   )
 }
 

@@ -138,13 +138,16 @@ export function RecurringView({
               </p>
             )}
           </div>
-          <Button
-            onClick={create}
-            className="hidden shrink-0 rounded-full lg:inline-flex"
-          >
-            <Plus className="size-4" />
-            Nueva
-          </Button>
+          {/* Con lista vacía el CTA vive en el empty state: dos "crear" a la vista confunden. */}
+          {templates.length > 0 && (
+            <Button
+              onClick={create}
+              className="hidden shrink-0 rounded-full lg:inline-flex"
+            >
+              <Plus className="size-4" />
+              Nueva
+            </Button>
+          )}
         </div>
 
         {templates.length === 0 ? (
@@ -301,7 +304,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       <p className="mx-auto mt-1 max-w-sm text-sm text-balance text-muted-foreground">
         El arriendo, el gasto común o una suscripción quedan reservados en tu
         presupuesto desde que empieza el mes, y se reconocen solos cuando el
-        banco los cobra —aunque el monto cambie un poco.
+        banco los cobra, aunque el monto cambie un poco.
       </p>
       <Button onClick={onCreate} className="mt-5 rounded-full">
         <Plus className="size-4" />

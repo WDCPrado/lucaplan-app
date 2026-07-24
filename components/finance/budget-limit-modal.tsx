@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { haptic } from "@/lib/haptics"
-import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -60,7 +60,7 @@ export function BudgetLimitModal({
       onOpenChange={onOpenChange}
       title={`Presupuesto de ${monthName(period.month)}`}
     >
-      <div className="flex flex-col gap-4 px-4 pb-6 sm:px-6">
+      <div className="flex flex-col gap-4 px-4">
         <div>
           <Label className="mb-1 block text-xs">
             Límite global del mes (CLP)
@@ -78,13 +78,15 @@ export function BudgetLimitModal({
             siguientes heredan este límite hasta que lo cambies.
           </p>
         </div>
-        <Button
-          onClick={save}
-          disabled={saving}
-          className="h-12 rounded-full text-base"
-        >
-          {saving ? "Guardando…" : "Guardar"}
-        </Button>
+        <ModalFooter>
+          <Button
+            onClick={save}
+            disabled={saving}
+            className="h-12 flex-1 rounded-full text-base"
+          >
+            {saving ? "Guardando…" : "Guardar"}
+          </Button>
+        </ModalFooter>
       </div>
     </ResponsiveModal>
   )

@@ -5,19 +5,30 @@ import { useRouter } from "next/navigation"
 import { CalendarIcon, Trash2 } from "lucide-react"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
-import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Calendar } from "@/components/ui/calendar"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
+import { Chip } from "./transaction-modal"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
   AccountDTO,
@@ -142,7 +153,7 @@ export function IncomeModal({
           para registrar un ingreso.
         </div>
       ) : (
-        <div className="flex flex-col gap-5 px-4 pb-6">
+        <div className="flex flex-col gap-5 px-4">
           <Input
             placeholder="Nombre (ej. Sueldo)"
             value={name}
@@ -150,22 +161,16 @@ export function IncomeModal({
             className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
           />
 
-          <div className="flex items-center gap-3">
-            <span
-              className="grid size-11 shrink-0 place-items-center rounded-full bg-success text-xl text-success-foreground"
-              aria-hidden
-            >
-              +
-            </span>
-            <Input
-              inputMode="numeric"
-              placeholder="0"
-              value={money.display}
-              onChange={(e) => money.onChange(e.target.value)}
-              aria-label="Monto del ingreso"
-              className="tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold text-success shadow-none focus-visible:ring-0"
-            />
-          </div>
+          {/* Sin la insignia "+": imitaba el toggle ±  del form de movimiento sin ser un control.
+              El verde del monto ya dice "entra dinero". */}
+          <Input
+            inputMode="numeric"
+            placeholder="0"
+            value={money.display}
+            onChange={(e) => money.onChange(e.target.value)}
+            aria-label="Monto del ingreso"
+            className="tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold text-success shadow-none focus-visible:ring-0"
+          />
 
           <Field label="Cuenta donde entra">
             <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
@@ -210,17 +215,41 @@ export function IncomeModal({
             </span>
           </Field>
 
-          <div className="flex gap-2">
+          <ModalFooter>
             {income && (
-              <Button
-                variant="ghost"
-                onClick={remove}
-                disabled={saving}
-                className="h-12 rounded-full px-4 text-destructive hover:text-destructive"
-                aria-label="Eliminar ingreso"
-              >
-                <Trash2 className="size-4" />
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={saving}
+                    className="size-12 shrink-0 rounded-full text-destructive hover:text-destructive"
+                    aria-label="Eliminar ingreso"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      ¿Eliminar esta fuente de ingreso?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Deja de contar desde este mes. Los meses anteriores
+                      conservan su historia.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={remove}
+                      variant="destructive"
+                    >
+                      Eliminar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
             <Button
               onClick={save}
@@ -229,7 +258,7 @@ export function IncomeModal({
             >
               {saving ? "Guardando…" : income ? "Guardar" : "Agregar ingreso"}
             </Button>
-          </div>
+          </ModalFooter>
         </div>
       )}
     </ResponsiveModal>
@@ -298,30 +327,3 @@ function Field({
   )
 }
 
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        haptic("light")
-        onClick()
-      }}
-      className={cn(
-        "flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm whitespace-nowrap",
-        active
-          ? "border-primary bg-primary/10 text-primary"
-          : "text-muted-foreground"
-      )}
-    >
-      {children}
-    </button>
-  )
-}

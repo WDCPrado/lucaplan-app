@@ -2,14 +2,13 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
-import { DatePicker, toISODate } from "./transaction-modal"
+import { Chip, DatePicker, toISODate } from "./transaction-modal"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
   AccountDTO,
@@ -91,28 +90,23 @@ export function AddTransactionSheet({
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col gap-5 px-4 pb-6">
+        <div className="flex flex-col gap-5 px-4">
           <Input
             placeholder="Descripción"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
           />
-          <div className="flex items-center gap-3">
-            <span
-              className="grid size-11 shrink-0 place-items-center rounded-full bg-success text-xl text-success-foreground"
-              aria-hidden="true"
-            >
-              +
-            </span>
-            <Input
-              inputMode="numeric"
-              placeholder="0"
-              value={money.display}
-              onChange={(e) => money.onChange(e.target.value)}
-              className="tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold text-success shadow-none focus-visible:ring-0"
-            />
-          </div>
+          {/* Sin la insignia "+": imitaba el toggle ± del form de movimiento sin ser un control.
+              El verde del monto ya dice "entra dinero". */}
+          <Input
+            inputMode="numeric"
+            placeholder="0"
+            value={money.display}
+            onChange={(e) => money.onChange(e.target.value)}
+            aria-label="Monto del ingreso"
+            className="tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold text-success shadow-none focus-visible:ring-0"
+          />
           {connected && (
             <p className="-mt-2 text-xs text-muted-foreground">
               Cuenta conectada: aquí registras abonos e ingresos — los cargos
@@ -156,43 +150,18 @@ export function AddTransactionSheet({
             )}
           </div>
 
-          <Button
-            onClick={save}
-            disabled={!canSave}
-            className="h-12 rounded-full text-base"
-          >
-            {saving ? "Guardando…" : "✓ Guardar"}
-          </Button>
+          <ModalFooter>
+            <Button
+              onClick={save}
+              disabled={!canSave}
+              className="h-12 flex-1 rounded-full text-base"
+            >
+              {saving ? "Guardando…" : "Guardar"}
+            </Button>
+          </ModalFooter>
         </div>
       )}
     </ResponsiveModal>
   )
 }
 
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active?: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        haptic("light") // selección de chip
-        onClick()
-      }}
-      className={cn(
-        "flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm whitespace-nowrap",
-        active
-          ? "border-primary bg-primary/10 text-primary"
-          : "text-muted-foreground"
-      )}
-    >
-      {children}
-    </button>
-  )
-}

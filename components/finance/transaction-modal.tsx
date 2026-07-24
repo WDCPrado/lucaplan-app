@@ -26,6 +26,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import {
   DropdownMenu,
@@ -324,8 +325,10 @@ function EditForm({
           onChange={(e) => money.onChange(e.target.value)}
           disabled={isInstallment}
           className={cn(
+            // Misma regla que las filas del dashboard: ingreso verde, gasto neutro. Rojo queda
+            // reservado para estados (vencido, error), no para "es un gasto".
             "tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0",
-            direction === "debit" ? "text-destructive" : "text-success"
+            direction === "debit" ? "text-foreground" : "text-success"
           )}
         />
       </div>
@@ -408,18 +411,41 @@ function EditForm({
       </div>
 
       <ModalFooter>
-        <Button
-          variant="outline"
-          onClick={remove}
-          disabled={busy !== null}
-          className="h-12 flex-1 rounded-full text-destructive hover:text-destructive"
-        >
-          {busy === "delete" ? "Borrando…" : "Eliminar"}
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={busy !== null}
+              className="size-12 shrink-0 rounded-full text-destructive hover:text-destructive"
+              aria-label="Eliminar movimiento"
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar este movimiento?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Se borra el movimiento y su monto se descuenta del saldo de la
+                cuenta.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={remove}
+                variant="destructive"
+              >
+                {busy === "delete" ? "Borrando…" : "Eliminar"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         <Button
           onClick={save}
           disabled={!canSave}
-          className="h-12 flex-2 rounded-full text-base"
+          className="h-12 flex-1 rounded-full text-base"
         >
           {busy === "save" ? "Guardando…" : "Guardar"}
         </Button>
@@ -469,6 +495,14 @@ function ConnectedDetail({
   // puede quedar sin categoría.
   const inInstallmentPlan =
     !!tx.installmentItemId || !!tx.installmentSourceCount
+  // Acciones de conversión del footer (recurrente / cuotas): solo gastos categorizados que no
+  // pertenecen ya a un plan.
+  const showConversions =
+    !tx.recurringTemplateId &&
+    !income &&
+    !!tx.categoryId &&
+    !tx.installmentItemId &&
+    !tx.installmentSourceCount
   // Solo categorías del mismo lado del movimiento (ingreso ↔ credit, gasto ↔ debit).
   const visibleCategories = savedFirst(
     categories.filter((c) => c.type === (income ? "income" : "expense")),
@@ -814,10 +848,9 @@ function ConnectedDetail({
         ) : (
           // Descubrimiento: crear la recurrente se queda a la vista, no escondido en el menú.
           // Una compra ya repartida en cuotas no admite recurrente ni volver a pasarse a cuotas.
-          !income &&
-          tx.categoryId &&
-          !tx.installmentItemId &&
-          !tx.installmentSourceCount && (
+          // Los labels van SIEMPRE visibles (un círculo con icono no explica nada); en móvil no
+          // caben junto a Guardar, así que el footer se apila en dos filas (flex-wrap).
+          showConversions && (
             <>
               <Button
                 variant="outline"
@@ -826,10 +859,10 @@ function ConnectedDetail({
                   setMakeRecurring(true)
                 }}
                 disabled={saving}
-                className="h-12 shrink-0 rounded-full"
+                className="h-12 flex-1 rounded-full sm:flex-initial"
               >
                 <Repeat className="size-4" />
-                <span className="hidden sm:inline">Hacer recurrente</span>
+                Hacer recurrente
               </Button>
               {/* En crédito, el movimiento es la COMPRA y se reparte en cuotas: el plan la
                   reemplaza. En cualquier otra cuenta, el movimiento ES una cuota de una deuda que
@@ -842,10 +875,10 @@ function ConnectedDetail({
                     setMakeInstallments(true)
                   }}
                   disabled={saving}
-                  className="h-12 shrink-0 rounded-full"
+                  className="h-12 flex-1 rounded-full sm:flex-initial"
                 >
                   <CreditCard className="size-4" />
-                  <span className="hidden sm:inline">Pasar a cuotas</span>
+                  Pasar a cuotas
                 </Button>
               ) : (
                 <Button
@@ -855,10 +888,10 @@ function ConnectedDetail({
                     setAssignInstallment(true)
                   }}
                   disabled={saving}
-                  className="h-12 shrink-0 rounded-full"
+                  className="h-12 flex-1 rounded-full sm:flex-initial"
                 >
                   <CreditCard className="size-4" />
-                  <span className="hidden sm:inline">Es una cuota</span>
+                  Es una cuota
                 </Button>
               )}
             </>
@@ -884,7 +917,12 @@ function ConnectedDetail({
         <Button
           onClick={saveCategory}
           disabled={!changed || saving}
-          className="h-12 flex-1 rounded-full text-base"
+          className={cn(
+            "h-12 rounded-full text-base",
+            // Con acciones de conversión, Guardar baja a su propia fila en móvil (basis-full
+            // fuerza el salto de línea del flex-wrap del footer).
+            showConversions ? "grow basis-full sm:basis-0" : "flex-1"
+          )}
         >
           {saving ? "Guardando…" : changed ? "Guardar categoría" : "Guardado"}
         </Button>
@@ -903,7 +941,7 @@ function ConnectedDetail({
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={removeTx}
-              className="bg-destructive text-white hover:bg-destructive/90"
+              variant="destructive"
             >
               Eliminar
             </AlertDialogAction>
@@ -924,7 +962,7 @@ function ConnectedDetail({
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={deleteRecurring}
-              className="bg-destructive text-white hover:bg-destructive/90"
+              variant="destructive"
             >
               Eliminar
             </AlertDialogAction>

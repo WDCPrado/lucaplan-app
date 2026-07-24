@@ -85,7 +85,6 @@ export default function RootLayout({
     <html
       lang="es"
       suppressHydrationWarning
-      data-env={process.env.NODE_ENV === "production" ? undefined : "dev"}
       // globals.css pone scroll-behavior: smooth; este atributo deja que Next lo
       // suspenda durante transiciones de ruta (evita el scroll animado al navegar).
       data-scroll-behavior="smooth"
@@ -97,6 +96,18 @@ export default function RootLayout({
       )}
     >
       <body>
+        {/* Señal de que no estás en prod: pestañita verde flotando sobre el navbar.
+            Server component: en producción ni se renderiza. */}
+        {process.env.NODE_ENV !== "production" && (
+          <div
+            aria-hidden
+            className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center pt-[env(safe-area-inset-top)]"
+          >
+            <span className="animate-pulse rounded-b-md bg-emerald-500 px-2 pb-0.5 text-[10px] font-bold tracking-widest text-white uppercase shadow-[0_0_10px_2px_rgb(52_211_153/0.9)]">
+              local
+            </span>
+          </div>
+        )}
         <ThemeProvider>
           {/* data-vaul-drawer-wrapper: vaul escala este contenedor (efecto iOS) al abrir un drawer */}
           <div data-vaul-drawer-wrapper className="min-h-dvh">

@@ -61,6 +61,8 @@ type ReadDeps = {
   recurring?: RecurringTemplateRepository
   // Opcional: el presupuesto suma las cuotas del mes al comprometido de su categoría.
   installments?: InstallmentPlanRepository
+  // Opcional: la meta de una categoría de ingreso es la suma de sus ingresos del mes.
+  incomes?: IncomeRepository
   accounts: AccountRepository
   banks: BankRepository
   categories: CategoryRepository
@@ -204,7 +206,9 @@ async function clpView(
     )
   )
   const clpTxs = txs.map((t, i) =>
-    t.amount.currency === "CLP" ? t : { ...t, amount: toClp(t.amount, rates[i]) }
+    t.amount.currency === "CLP"
+      ? t
+      : { ...t, amount: toClp(t.amount, rates[i]) }
   )
   const clpAmounts = txs.map((t, i) =>
     t.amount.currency === "CLP" ? null : clpTxs[i].amount.toMajor()
@@ -366,7 +370,10 @@ export async function listTransactions(
   const catById = new Map(withLimit.map((x) => [x.category.id, x.category]))
   const limitById = new Map(withLimit.map((x) => [x.category.id, x.limit]))
   // "Quedan" histórico en CLP (USD ya convertidos), indexado por id.
-  const remaining = historicalRemaining(clpTxs, (id) => limitById.get(id) ?? null)
+  const remaining = historicalRemaining(
+    clpTxs,
+    (id) => limitById.get(id) ?? null
+  )
   // La lista no muestra reversados ni duplicados (ruido); sí muestra confirmed y pending.
   const dtos = txs
     .map((t, i) => ({ t, clp: clpAmounts[i] }))
@@ -385,11 +392,19 @@ export async function listTransactions(
   // Cuotas por cobrar del mes: filas DERIVADAS, no transacciones. Se anticipan como "Por cobrar"
   // igual que una recurrente y desaparecen solas al pagarse (ahí nace la transacción real). No se
   // persiste nada: por eso el disparo por correo sigue intacto y no hay doble conteo.
-  const forecast = await installmentForecastRows(deps, userId, year, month, catById)
+  const forecast = await installmentForecastRows(
+    deps,
+    userId,
+    year,
+    month,
+    catById
+  )
   // Orden por fecha desc para TODO el conjunto: la lista agrupa por día filas CONTIGUAS, así que
   // un forecast fuera de orden partiría un día en dos grupos (keys duplicadas en React) y además
   // mostraría la cuota lejos de su fecha. El sort es estable: dentro del día, forecast primero.
-  return [...forecast, ...withState].sort((a, b) => b.date.localeCompare(a.date))
+  return [...forecast, ...withState].sort((a, b) =>
+    b.date.localeCompare(a.date)
+  )
 }
 
 // Construye las filas de pronóstico de las cuotas que vencen en (year, month) y aún no se pagan.
@@ -442,8 +457,7 @@ async function withRecurringState(
   userId: string,
   dtos: TransactionDTO[]
 ): Promise<TransactionDTO[]> {
-  const hasRecurring =
-    deps.recurring && dtos.some((d) => d.recurringTemplateId)
+  const hasRecurring = deps.recurring && dtos.some((d) => d.recurringTemplateId)
   // Una compra transformada en cuotas queda neutralizada: sin este sello se vería como un gasto
   // interno cualquiera, sin explicar por qué no cuenta. La cuota en sí ya se marca por su ítem.
   const hasInstallments = deps.installments && dtos.length > 0
@@ -451,7 +465,9 @@ async function withRecurringState(
 
   const [templates, plans] = await Promise.all([
     hasRecurring ? deps.recurring!.listByUser(userId) : Promise.resolve([]),
-    hasInstallments ? deps.installments!.listByUser(userId) : Promise.resolve([]),
+    hasInstallments
+      ? deps.installments!.listByUser(userId)
+      : Promise.resolve([]),
   ])
   const byId = new Map(templates.map((t) => [t.id, t]))
   // Compra origen → cuántas cuotas, para el sello "Compra en N cuotas" en el movimiento.
@@ -560,12 +576,15 @@ export async function getBudgetView(
   year: number,
   month: number
 ): Promise<BudgetViewDTO> {
-  const [withLimit, txs, budgets, plans] = await Promise.all([
-    categoriesWithLimit(deps, userId, year, month),
-    deps.transactions.listByUserPeriod(userId, year, month),
-    deps.monthlyBudgets.listByUser(userId),
-    deps.installments?.listByUser(userId) ?? Promise.resolve([]),
-  ])
+  const [withLimit, txs, budgets, plans, incomesList, incomeAmounts] =
+    await Promise.all([
+      categoriesWithLimit(deps, userId, year, month),
+      deps.transactions.listByUserPeriod(userId, year, month),
+      deps.monthlyBudgets.listByUser(userId),
+      deps.installments?.listByUser(userId) ?? Promise.resolve([]),
+      deps.incomes?.listByUser(userId) ?? Promise.resolve([]),
+      deps.incomes?.listAmountsByUser(userId) ?? Promise.resolve([]),
+    ])
   // USD → CLP por fecha para que el uso por categoría cuente esos movimientos.
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
   // Comprometido de cuotas por categoría: la cuota que vence este mes y aún no se paga se anticipa
@@ -576,59 +595,75 @@ export async function getBudgetView(
     const amount = committedForMonth(plan, year, month)
     if (amount.isZero) continue
     const prev = installmentCommitted.get(plan.categoryId)
-    installmentCommitted.set(
-      plan.categoryId,
-      prev ? prev.add(amount) : amount
-    )
+    installmentCommitted.set(plan.categoryId, prev ? prev.add(amount) : amount)
   }
-  const categories = withLimit.map(({ category, limit }): CategoryDTO => {
-    const direction = category.type === "income" ? "credit" : "debit"
-    const { used, available } = computeCategoryUsage(
-      category.id,
-      limit,
-      clpTxs,
-      year,
-      month,
-      direction
-    )
-    const fromInstallments = installmentCommitted.get(category.id)
-    const committed = computeCategoryCommitted(
-      category.id,
-      limit.currency,
-      clpTxs,
-      year,
-      month,
-      direction
-    ).add(
-      // Solo si coinciden la moneda de la categoría y la del plan (el comprometido es por moneda).
-      fromInstallments && fromInstallments.currency === limit.currency
-        ? fromInstallments
-        : Money.zero(limit.currency)
-    )
-    return {
-      id: category.id,
-      name: category.name,
-      type: category.type,
-      icon: category.icon,
-      color: category.color,
-      description: category.description,
-      limit: limit.toMajor(),
-      used: used.toMajor(),
-      committed: committed.toMajor(),
-      available: available.toMajor(),
-      status: categoryStatus(used, limit),
+  // Meta de cada categoría de ingreso = suma de sus ingresos vigentes del mes. Derivada, no
+  // persistida: agregar/editar/eliminar un ingreso la actualiza sola.
+  // ponytail: suma solo CLP; una fuente en otra moneda no entra a la meta.
+  const incomeGoal = new Map<string, Money>()
+  for (const inc of incomesList) {
+    if (!inc.isActive || isIncomeEndedAt(inc, year, month)) continue
+    const amount = effectiveIncomeAmount(incomeAmounts, inc.id, year, month)
+    if (!amount || amount.currency !== CLP) continue
+    const prev = incomeGoal.get(inc.categoryId)
+    incomeGoal.set(inc.categoryId, prev ? prev.add(amount) : amount)
+  }
+  const categories = withLimit.map(
+    ({ category, limit: catLimit }): CategoryDTO => {
+      const direction = category.type === "income" ? "credit" : "debit"
+      const limit =
+        category.type === "income"
+          ? (incomeGoal.get(category.id) ?? Money.zero(CLP))
+          : catLimit
+      const { used, available } = computeCategoryUsage(
+        category.id,
+        limit,
+        clpTxs,
+        year,
+        month,
+        direction
+      )
+      const fromInstallments = installmentCommitted.get(category.id)
+      const committed = computeCategoryCommitted(
+        category.id,
+        limit.currency,
+        clpTxs,
+        year,
+        month,
+        direction
+      ).add(
+        // Solo si coinciden la moneda de la categoría y la del plan (el comprometido es por moneda).
+        fromInstallments && fromInstallments.currency === limit.currency
+          ? fromInstallments
+          : Money.zero(limit.currency)
+      )
+      return {
+        id: category.id,
+        name: category.name,
+        type: category.type,
+        icon: category.icon,
+        color: category.color,
+        description: category.description,
+        limit: limit.toMajor(),
+        used: used.toMajor(),
+        committed: committed.toMajor(),
+        available: available.toMajor(),
+        status: categoryStatus(used, limit),
+      }
     }
-  })
+  )
   // Orden (WDC-13): categoría con la transacción más reciente del mes primero. `txs` viene
   // más-nuevo primero, así que el primer encuentro de cada categoría marca su recencia; las sin
   // movimiento este mes quedan al final en su orden original (sort estable).
   const recencyRank = new Map<string, number>()
   txs.forEach((t, i) => {
-    if (t.categoryId && !recencyRank.has(t.categoryId)) recencyRank.set(t.categoryId, i)
+    if (t.categoryId && !recencyRank.has(t.categoryId))
+      recencyRank.set(t.categoryId, i)
   })
   categories.sort(
     (a, b) =>
-      (recencyRank.get(a.id) ?? txs.length) - (recencyRank.get(b.id) ?? txs.length)
+      (recencyRank.get(a.id) ?? txs.length) -
+      (recencyRank.get(b.id) ?? txs.length)
   )
   const allocated = withLimit
     .filter((x) => x.category.type === "expense")
@@ -788,10 +823,7 @@ export async function listRecurringView(
 }
 
 // Un día dentro del período siguiente al que contiene a `from` (basta para derivar su clave).
-function nextPeriodDate(
-  template: { periodicity: string },
-  from: Date
-): Date {
+function nextPeriodDate(template: { periodicity: string }, from: Date): Date {
   const d = new Date(from)
   if (template.periodicity === "biweekly") d.setDate(d.getDate() + 14)
   else if (template.periodicity === "yearly") d.setFullYear(d.getFullYear() + 1)
@@ -928,7 +960,9 @@ export async function listInstallmentsView(
   const catById = new Map(categories.map((c) => [c.id, c]))
   // Montos reales de las cuotas ya registradas: una sola consulta para todos los planes.
   const txIds = plans.flatMap((p) =>
-    p.items.map((i) => i.transactionId).filter((id): id is string => id !== null)
+    p.items
+      .map((i) => i.transactionId)
+      .filter((id): id is string => id !== null)
   )
   const paidById = new Map<string, Money>()
   for (const id of txIds) {

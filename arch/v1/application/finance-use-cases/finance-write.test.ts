@@ -315,6 +315,91 @@ test("deleteTransaction: abono en cuenta conectada se borra", async () => {
   assert.deepEqual(deleted, ["t1"])
 })
 
+// --- deleteCategory: bloqueado si recurrentes/planes la usan (exigen categoría) ---
+
+import { deleteCategory } from "./upsert-category-use-case.ts"
+import {
+  CategoryInUseError,
+  type Category,
+  type CategoryRepository,
+} from "../../domain/finance/finance.domain.ts"
+import type { RecurringTemplateRepository } from "../../domain/finance/recurring.domain.ts"
+import type { InstallmentPlanRepository } from "../../domain/finance/installment.domain.ts"
+
+const category: Category = {
+  id: "c1",
+  userId: "u1",
+  name: "Sueldo",
+  type: "income",
+  icon: null,
+  color: null,
+  description: null,
+}
+
+class FakeCategories implements CategoryRepository {
+  deleted: string[] = []
+  async listByUser() {
+    return [category]
+  }
+  async findById() {
+    return category
+  }
+  async upsert(): Promise<never> {
+    throw new Error("no usado en este test")
+  }
+  async delete(id: string) {
+    this.deleted.push(id)
+  }
+  async listLimitsByUser() {
+    return []
+  }
+  async setLimit(): Promise<never> {
+    throw new Error("no usado en este test")
+  }
+}
+
+const recurringRepo = (categoryIds: string[]) =>
+  ({
+    listByUser: async () => categoryIds.map((categoryId) => ({ categoryId })),
+  }) as unknown as RecurringTemplateRepository
+
+const installmentsRepo = (categoryIds: string[]) =>
+  ({
+    listByUser: async () => categoryIds.map((categoryId) => ({ categoryId })),
+  }) as unknown as InstallmentPlanRepository
+
+test("deleteCategory: sin recurrentes ni planes → borra", async () => {
+  const cats = new FakeCategories()
+  await deleteCategory(
+    {
+      categories: cats,
+      recurring: recurringRepo([]),
+      installments: installmentsRepo(["otra"]),
+    },
+    "u1",
+    "c1"
+  )
+  assert.deepEqual(cats.deleted, ["c1"])
+})
+
+test("deleteCategory: una recurrente la usa → CategoryInUse, no borra", async () => {
+  const cats = new FakeCategories()
+  await assert.rejects(
+    () =>
+      deleteCategory(
+        {
+          categories: cats,
+          recurring: recurringRepo(["c1"]),
+          installments: installmentsRepo([]),
+        },
+        "u1",
+        "c1"
+      ),
+    CategoryInUseError
+  )
+  assert.deepEqual(cats.deleted, [])
+})
+
 test("deleteTransaction: cargo en cuenta conectada sigue de solo lectura", async () => {
   const txs = new FakeTx()
   txs.findById = async () => savedTx("debit")

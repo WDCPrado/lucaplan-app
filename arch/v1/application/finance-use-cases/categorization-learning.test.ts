@@ -109,6 +109,7 @@ function fakeCategories(cats: Category[]) {
     async upsert(): Promise<Category> {
       throw new Error("no usado")
     },
+    async delete() {},
     async listLimitsByUser() {
       return []
     },

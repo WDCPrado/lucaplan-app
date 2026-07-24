@@ -1,7 +1,6 @@
 "use client"
 
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
-import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { ProgressRing } from "./progress-ring"
@@ -52,23 +51,35 @@ export function CategoryDetailSheet({
       {category && (
         <div className="md:flex md:min-h-0 md:flex-1 md:flex-col">
           <div className="flex flex-col items-center gap-1 px-4">
-            <ProgressRing
-              percent={pct}
-              committedPercent={
-                category.limit > 0
-                  ? (category.committed / category.limit) * 100
-                  : 0
-              }
-              status={category.status}
-              size={150}
-              stroke={11}
+            {/* El aro ES el botón de editar: icono + "Editar" adentro. */}
+            <button
+              onClick={() => onEdit(category)}
+              aria-label="Editar categoría"
+              className="transition-transform duration-150 ease-out active:scale-[0.98]"
             >
-              <CategoryIcon
-                icon={category.icon}
-                size={48}
-                color={category.color ?? undefined}
-              />
-            </ProgressRing>
+              <ProgressRing
+                percent={pct}
+                committedPercent={
+                  category.limit > 0
+                    ? (category.committed / category.limit) * 100
+                    : 0
+                }
+                status={category.status}
+                size={150}
+                stroke={11}
+              >
+                <span className="flex flex-col items-center gap-1">
+                  <CategoryIcon
+                    icon={category.icon}
+                    size={44}
+                    color={category.color ?? undefined}
+                  />
+                  <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                    Editar
+                  </span>
+                </span>
+              </ProgressRing>
+            </button>
             <div className="tabular mt-2 text-3xl font-bold">
               {formatCLP(category.used)}{" "}
               <span className="text-lg font-normal text-muted-foreground">
@@ -87,13 +98,6 @@ export function CategoryDetailSheet({
                 cuotas por cobrar)
               </div>
             )}
-            <Button
-              variant="secondary"
-              className="mt-3 rounded-full"
-              onClick={() => onEdit(category)}
-            >
-              Editar
-            </Button>
           </div>
           <div className="mt-4 px-4 pb-6 md:flex md:min-h-0 md:flex-1 md:flex-col md:pb-4">
             <div className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">

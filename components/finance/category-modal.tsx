@@ -2,10 +2,20 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { haptic } from "@/lib/haptics"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -52,6 +62,7 @@ export function CategoryModal({
   const [icon, setIcon] = useState(category?.icon ?? "")
   const [color, setColor] = useState(category?.color ?? CATEGORY_COLORS[0])
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const canSave = !!name.trim() && !saving
 
@@ -123,6 +134,27 @@ export function CategoryModal({
     }
     setSaving(false)
     haptic("success")
+    onOpenChange(false)
+    router.refresh()
+  }
+
+  // Elimina la categoría: sus movimientos quedan sin categoría; los ingresos asignados se
+  // eliminan. El backend rechaza (422 con mensaje) si recurrentes o planes de cuotas la usan.
+  async function removeCategory() {
+    if (!category || saving) return
+    setSaving(true)
+    haptic("heavy") // destructiva
+    const res = await fetch(`/api/categories/${category.id}`, {
+      method: "DELETE",
+    })
+    const data = await res.json().catch(() => ({}))
+    setSaving(false)
+    if (!res.ok) {
+      haptic("error")
+      return toast.error(data.error ?? "No se pudo eliminar la categoría")
+    }
+    haptic("success")
+    toast.success("Categoría eliminada; sus movimientos quedaron sin categoría")
     onOpenChange(false)
     router.refresh()
   }
@@ -280,14 +312,49 @@ export function CategoryModal({
           </CollapsibleContent>
         </Collapsible>
 
-        <Button
-          onClick={save}
-          disabled={!canSave}
-          className="h-12 rounded-full text-base"
-        >
-          {saving ? "Guardando…" : "Guardar"}
-        </Button>
+        <div className="flex gap-2">
+          {isEdit && (
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmDelete(true)}
+              disabled={saving}
+              aria-label="Eliminar categoría"
+              className="h-12 rounded-full px-4 text-destructive hover:text-destructive"
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          )}
+          <Button
+            onClick={save}
+            disabled={!canSave}
+            className="h-12 flex-1 rounded-full text-base"
+          >
+            {saving ? "Guardando…" : "Guardar"}
+          </Button>
+        </div>
       </div>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar la categoría?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sus movimientos quedarán sin categoría (no se borran).
+              {type === "income" &&
+                " Los ingresos asignados a ella sí se eliminan."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={removeCategory}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ResponsiveModal>
   )
 }

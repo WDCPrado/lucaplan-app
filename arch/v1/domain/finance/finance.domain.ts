@@ -318,6 +318,9 @@ export interface CategoryRepository {
   listByUser(userId: string): Promise<Category[]>
   findById(id: string): Promise<Category | null>
   upsert(input: CategoryInput): Promise<Category>
+  /** Borra la categoría; los movimientos quedan sin categoría (FK SetNull) y los ingresos
+   *  asignados se eliminan en cascada. */
+  delete(categoryId: string): Promise<void>
   // Todos los límites de las categorías del usuario (para calcular el efectivo con carry).
   listLimitsByUser(userId: string): Promise<CategoryLimit[]>
   setLimit(input: LimitInput): Promise<CategoryLimit>
@@ -383,6 +386,23 @@ export class CategoryNotFoundError extends Error {
   constructor(id: string) {
     super(`Categoría no encontrada: ${id}`)
     this.name = "CategoryNotFoundError"
+  }
+}
+
+// Recurrentes y planes de cuotas EXIGEN categoría: eliminarla los borraría en cascada. Se
+// bloquea con mensaje accionable; el usuario los recategoriza primero (→ 422).
+export class CategoryInUseError extends Error {
+  constructor(recurring: number, plans: number) {
+    const users = [
+      recurring > 0 ? `${recurring} recurrente(s)` : null,
+      plans > 0 ? `${plans} plan(es) de cuotas` : null,
+    ]
+      .filter(Boolean)
+      .join(" y ")
+    super(
+      `No se puede eliminar: la usan ${users}. Cámbialos de categoría primero.`
+    )
+    this.name = "CategoryInUseError"
   }
 }
 

@@ -5,6 +5,7 @@ import { sessionGateway } from "../../infrastructure/auth/session.gateway.ts"
 import {
   NotOwnerError,
   AccountNotFoundError,
+  CategoryInUseError,
   CategoryNotFoundError,
   InvalidMonthlyBudgetError,
   TransactionCurrencyMismatchError,
@@ -78,6 +79,7 @@ function errorStatus(e: unknown): number {
   if (e instanceof ConnectionMethodConflictError) return 409 // otro método de conexión activo
   if (
     e instanceof TransactionCurrencyMismatchError ||
+    e instanceof CategoryInUseError ||
     e instanceof CardLast4RequiredError ||
     e instanceof ConnectedAccountReadOnlyError ||
     e instanceof BankConnectionError ||

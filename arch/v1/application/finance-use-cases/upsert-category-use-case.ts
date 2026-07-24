@@ -3,9 +3,12 @@ import {
   type Category,
   type CategoryLimit,
   type CategoryType,
+  CategoryInUseError,
   CategoryNotFoundError,
   NotOwnerError,
 } from "../../domain/finance/finance.domain.ts"
+import type { RecurringTemplateRepository } from "../../domain/finance/recurring.domain.ts"
+import type { InstallmentPlanRepository } from "../../domain/finance/installment.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
 
 const CLP = "CLP" as const
@@ -37,6 +40,34 @@ export async function upsertCategory(
     color: input.color,
     description: input.description,
   })
+}
+
+// Elimina la categoría: los movimientos quedan sin categoría (FK SetNull) y los ingresos
+// asignados se eliminan en cascada. Bloqueado si recurrentes o planes de cuotas la usan —
+// esas entidades exigen categoría y el cascade las borraría en silencio.
+export async function deleteCategory(
+  deps: {
+    categories: CategoryRepository
+    recurring: RecurringTemplateRepository
+    installments: InstallmentPlanRepository
+  },
+  userId: string,
+  categoryId: string
+): Promise<void> {
+  const category = await deps.categories.findById(categoryId)
+  if (!category) throw new CategoryNotFoundError(categoryId)
+  if (category.userId !== userId) throw new NotOwnerError()
+  const [recurring, plans] = await Promise.all([
+    deps.recurring.listByUser(userId),
+    deps.installments.listByUser(userId),
+  ])
+  const inRecurring = recurring.filter(
+    (r) => r.categoryId === categoryId
+  ).length
+  const inPlans = plans.filter((p) => p.categoryId === categoryId).length
+  if (inRecurring > 0 || inPlans > 0)
+    throw new CategoryInUseError(inRecurring, inPlans)
+  await deps.categories.delete(categoryId)
 }
 
 // Fija el límite de una categoría para un mes concreto (upsert por categoría+año+mes). Ownership.

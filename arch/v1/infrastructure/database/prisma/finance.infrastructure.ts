@@ -234,6 +234,11 @@ export const categoryRepository: CategoryRepository = {
       : await prisma.category.create({ data })
     return toCategory(row)
   },
+  // FK: Transaction.categoryId SetNull (movimientos quedan sin categoría); Income, CategoryLimit
+  // y correcciones de IA se van en cascada.
+  async delete(categoryId) {
+    await prisma.category.delete({ where: { id: categoryId } })
+  },
   async listLimitsByUser(userId) {
     return (
       await prisma.categoryLimit.findMany({ where: { category: { userId } } })

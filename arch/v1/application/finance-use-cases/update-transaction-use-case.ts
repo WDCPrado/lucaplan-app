@@ -1,7 +1,7 @@
-// Editar/borrar un movimiento MANUAL (los de cuentas conectadas son de solo lectura → se
-// rechazan), con una excepción: los ABONOS de cuentas conectadas también se pueden borrar,
-// porque los ingresa el usuario (el banco no los notifica por correo). El repo reajusta el
-// saldo de la cuenta atómicamente.
+// Editar un movimiento MANUAL (los de cuentas conectadas son de solo lectura → se rechazan).
+// Borrar admite además dos casos de cuentas conectadas: los ABONOS (los ingresa el usuario, el
+// banco no los notifica) y los CARGOS SIN CATEGORÍA. El repo reajusta el saldo de la cuenta
+// atómicamente.
 import {
   type AccountRepository,
   type TransactionRepository,
@@ -96,12 +96,17 @@ export async function deleteTransaction(
   userId: string,
   transactionId: string
 ): Promise<void> {
-  // Manual: se borra todo. Conectada: solo abonos — los ingresó el usuario y borrarlos revierte
-  // el saldo, igual que deshacer un ingreso generado (ungenerateMonthly).
-  // ponytail: no revierte los buckets del abono (mismo techo que ungenerateMonthly); se corrigen
-  // con "Actualizar saldos".
+  // Manual: se borra todo. Conectada: los abonos (los ingresa el usuario) y los cargos SIN
+  // categoría — ruido del banco que nadie clasificó; borrarlos revierte el saldo hacia arriba.
+  // Un cargo ya categorizado sostiene el gasto del mes: sigue de solo lectura.
+  // ponytail: no revierte los buckets (mismo techo que ungenerateMonthly); se corrigen con
+  // "Actualizar saldos".
   const { tx, account } = await loadOwned(deps, userId, transactionId)
-  if (account.provider !== "manual" && tx.direction !== "credit")
+  if (
+    account.provider !== "manual" &&
+    tx.direction !== "credit" &&
+    tx.categoryId
+  )
     throw new ConnectedAccountReadOnlyError()
   await deps.transactions.delete(transactionId)
 }

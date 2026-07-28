@@ -78,6 +78,15 @@ const STATUS_LABEL: Record<string, string> = {
   duplicated: "Duplicado",
 }
 
+// Borrar revierte el efecto del movimiento en el saldo: un ingreso lo baja, un gasto lo sube.
+// La confirmación lo dice con esas palabras — "se ajusta el saldo" no explica hacia dónde.
+const deleteCopy = (income: boolean) => ({
+  title: income ? "¿Eliminar este ingreso?" : "¿Eliminar este gasto?",
+  description: income
+    ? "Se borra el movimiento y su monto se descuenta del saldo de la cuenta."
+    : "Se borra el movimiento y su monto vuelve a la cuenta: el saldo se recalcula hacia arriba.",
+})
+
 const fullDate = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CL", {
     weekday: "long",
@@ -425,18 +434,18 @@ function EditForm({
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>¿Eliminar este movimiento?</AlertDialogTitle>
+              {/* El texto sale de lo GUARDADO (tx.direction), no del lado elegido en pantalla:
+                  se borra el movimiento tal como está en la base, no como quedó el formulario. */}
+              <AlertDialogTitle>
+                {deleteCopy(tx.direction === "credit").title}
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                Se borra el movimiento y su monto se descuenta del saldo de la
-                cuenta.
+                {deleteCopy(tx.direction === "credit").description}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={remove}
-                variant="destructive"
-              >
+              <AlertDialogAction onClick={remove} variant="destructive">
                 {busy === "delete" ? "Borrando…" : "Eliminar"}
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -584,8 +593,7 @@ function ConnectedDetail({
     router.refresh()
   }
 
-  // Elimina el ABONO (solo ingresos: en cuentas conectadas los abonos los ingresa el usuario;
-  // los cargos del banco son de solo lectura). El backend revierte el saldo.
+  // Elimina el movimiento (abono o cargo). El backend revierte su efecto en el saldo de la cuenta.
   async function removeTx() {
     setSaving(true)
     haptic("heavy") // destructiva
@@ -596,7 +604,11 @@ function ConnectedDetail({
       return toast.error("No se pudo eliminar el movimiento")
     }
     haptic("success")
-    toast.success("Ingreso eliminado; el saldo se ajustó")
+    toast.success(
+      income
+        ? "Ingreso eliminado; el saldo bajó"
+        : "Gasto eliminado; el saldo subió"
+    )
     onClose()
     router.refresh()
   }
@@ -897,9 +909,10 @@ function ConnectedDetail({
             </>
           )
         )}
-        {/* Eliminar: solo ingresos (los abonos los ingresa el usuario, no el banco) y nunca
-            los generados por recurrencia o plan de cuotas, que se gestionan en su origen. */}
-        {income &&
+        {/* Eliminar: los ingresos (los abona el usuario) y los gastos SIN categoría — ruido del
+            banco que nadie clasificó. Se mira la categoría GUARDADA, no la elegida en pantalla.
+            Nunca los generados por recurrencia o plan de cuotas: se gestionan en su origen. */}
+        {(income || !tx.categoryId) &&
           !tx.recurringTemplateId &&
           !inInstallmentPlan &&
           !tx.installmentForecast && (
@@ -908,7 +921,7 @@ function ConnectedDetail({
               size="icon"
               onClick={() => setConfirmDeleteTx(true)}
               disabled={saving}
-              aria-label="Eliminar ingreso"
+              aria-label={income ? "Eliminar ingreso" : "Eliminar gasto"}
               className="size-12 shrink-0 rounded-full text-destructive hover:text-destructive"
             >
               <Trash2 className="size-4" />
@@ -931,18 +944,14 @@ function ConnectedDetail({
       <AlertDialog open={confirmDeleteTx} onOpenChange={setConfirmDeleteTx}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar este ingreso?</AlertDialogTitle>
+            <AlertDialogTitle>{deleteCopy(income).title}</AlertDialogTitle>
             <AlertDialogDescription>
-              Se borra el movimiento y su monto se descuenta del saldo de la
-              cuenta.
+              {deleteCopy(income).description}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={removeTx}
-              variant="destructive"
-            >
+            <AlertDialogAction onClick={removeTx} variant="destructive">
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -960,10 +969,7 @@ function ConnectedDetail({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={deleteRecurring}
-              variant="destructive"
-            >
+            <AlertDialogAction onClick={deleteRecurring} variant="destructive">
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>

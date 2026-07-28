@@ -279,15 +279,18 @@ test("createTransaction: abono en corriente conectada paga sobregiro, sube caja 
   assert.deepEqual(balances, [60000]) // balance = caja disponible
 })
 
-// --- deleteTransaction: en conectadas solo abonos (los ingresa el usuario, no el banco) ---
+// --- deleteTransaction: en conectadas, abonos y cargos SIN categoría ---
 
 import { deleteTransaction } from "./update-transaction-use-case.ts"
 
-const savedTx = (direction: "credit" | "debit"): Transaction => ({
+const savedTx = (
+  direction: "credit" | "debit",
+  categoryId: string | null = null
+): Transaction => ({
   id: "t1",
   userId: "u1",
   accountId: "a1",
-  categoryId: null,
+  categoryId,
   amount: clp(1000),
   direction,
   description: "Sueldo",
@@ -400,9 +403,27 @@ test("deleteCategory: una recurrente la usa → CategoryInUse, no borra", async 
   assert.deepEqual(cats.deleted, [])
 })
 
-test("deleteTransaction: cargo en cuenta conectada sigue de solo lectura", async () => {
+test("deleteTransaction: cargo sin categoría en cuenta conectada se borra", async () => {
   const txs = new FakeTx()
   txs.findById = async () => savedTx("debit")
+  const deleted: string[] = []
+  txs.delete = async (id: string) => {
+    deleted.push(id)
+  }
+  await deleteTransaction(
+    {
+      accounts: new FakeAccounts([acc({ provider: "bancochile" })]),
+      transactions: txs,
+    },
+    "u1",
+    "t1"
+  )
+  assert.deepEqual(deleted, ["t1"])
+})
+
+test("deleteTransaction: cargo categorizado en cuenta conectada sigue de solo lectura", async () => {
+  const txs = new FakeTx()
+  txs.findById = async () => savedTx("debit", "c1")
   await assert.rejects(
     () =>
       deleteTransaction(

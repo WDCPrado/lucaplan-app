@@ -39,35 +39,51 @@ test("un movimiento se nombra; varios se resumen; ninguno no notifica", () => {
   assert.match(many!.body, /32\.990/) // solo gastos, el abono no suma
 })
 
-test("la alerta de presupuesto solo se dispara al CRUZAR el umbral", () => {
-  const P = [80, 100] // umbrales configurados
-  // Cruza el 80%: 700k → 850k sobre un límite de 1M.
-  assert.match(budgetAlertMessage(700_000, 850_000, 1_000_000, P)!.title, /80%/)
+const COMIDA = { id: "cat1", name: "Comida" }
+
+test("la alerta de presupuesto solo se dispara al CRUZAR el umbral de la categoría", () => {
+  const P = [80, 100] // umbrales configurados: valen para TODAS las categorías
+  // Cruza el 80% de Comida: 70k → 85k sobre un límite de 100k. El título nombra la categoría y
+  // reporta el gasto REAL (85%), no el umbral que lo gatilló (80%).
+  const aviso = budgetAlertMessage(COMIDA, 70_000, 85_000, 100_000, P)!
+  assert.match(aviso.title, /Comida.*85%/)
+  assert.equal(aviso.tag, "budget:cat1") // una notificación viva por categoría
   // Ya estaba sobre el 80%: no se repite.
-  assert.equal(budgetAlertMessage(850_000, 900_000, 1_000_000, P), null)
+  assert.equal(budgetAlertMessage(COMIDA, 85_000, 90_000, 100_000, P), null)
   // Cruza el 100% (gana el umbral más alto aunque cruce ambos) y reporta el % real, no el umbral.
   assert.match(
-    budgetAlertMessage(700_000, 1_250_000, 1_000_000, P)!.title,
-    /Superaste.*125%/
+    budgetAlertMessage(COMIDA, 70_000, 125_000, 100_000, P)!.title,
+    /te pasaste.*125%/
   )
   // Justo en el 100% no es sobrepaso: se completó.
   assert.match(
-    budgetAlertMessage(700_000, 1_000_000, 1_000_000, P)!.title,
-    /Completaste/
+    budgetAlertMessage(COMIDA, 70_000, 100_000, 100_000, P)!.title,
+    /presupuesto completo/
   )
-  // Sin límite definido no hay nada que alertar.
-  assert.equal(budgetAlertMessage(0, 500_000, 0, P), null)
+  // Categoría sin límite: no hay porcentaje que cruzar.
+  assert.equal(budgetAlertMessage(COMIDA, 0, 50_000, 0, P), null)
   // Sin umbrales configurados no se avisa nada.
-  assert.equal(budgetAlertMessage(0, 900_000, 1_000_000, []), null)
+  assert.equal(budgetAlertMessage(COMIDA, 0, 90_000, 100_000, []), null)
 })
 
 test("los umbrales son configurables: N y en cualquier orden", () => {
   const P = [100, 50, 90] // desordenados a propósito
-  assert.match(budgetAlertMessage(400_000, 550_000, 1_000_000, P)!.title, /50%/)
-  // 50% y 90% se cruzan de una vez: gana el más alto.
-  assert.match(budgetAlertMessage(400_000, 950_000, 1_000_000, P)!.title, /90%/)
+  assert.match(
+    budgetAlertMessage(COMIDA, 40_000, 55_000, 100_000, P)!.title,
+    /55%/
+  )
+  // 50% y 90% se cruzan de una vez: un solo aviso, con el gasto real.
+  assert.match(
+    budgetAlertMessage(COMIDA, 40_000, 95_000, 100_000, P)!.title,
+    /95%/
+  )
+  // Sin umbral de 100, saltar de 40% a 139% igual avisa (gatilla el 90) y dice 139%, no 90.
+  assert.match(
+    budgetAlertMessage(COMIDA, 40_000, 139_000, 100_000, [50, 90])!.title,
+    /te pasaste.*139%/
+  )
   // Ya sobre el 100%: el cruce ocurrió una vez, no se repite en cada gasto posterior.
-  assert.equal(budgetAlertMessage(1_100_000, 1_400_000, 1_000_000, P), null)
+  assert.equal(budgetAlertMessage(COMIDA, 110_000, 140_000, 100_000, P), null)
 })
 
 test("categorizar un movimiento lo mete al presupuesto y puede cruzar un umbral", async () => {
@@ -109,18 +125,24 @@ test("categorizar un movimiento lo mete al presupuesto y puede cruzar un umbral"
       },
     },
     transactions: { listByUserPeriod: async () => txs },
-    monthlyBudgets: {
+    categories: {
       listByUser: async () => [
-        { id: "b1", userId: "u1", year: 2026, month: 7, globalLimit: clp(1_000_000) },
+        { id: "cat1", userId: "u1", name: "Comida", type: "expense" as const, icon: null, color: null, description: null },
+        { id: "cat2", userId: "u1", name: "Transporte", type: "expense" as const, icon: null, color: null, description: null },
+      ],
+      listLimitsByUser: async () => [
+        { id: "l1", userId: "u1", categoryId: "cat1", year: 2026, month: 7, limit: clp(100_000) },
+        // cat2 sin límite: aunque se toque, no hay porcentaje que cruzar.
+        { id: "l2", userId: "u1", categoryId: "cat2", year: 2026, month: 7, limit: clp(0) },
       ],
     },
     budgetAlerts: { list: async () => [{ id: "a1", percent: 80 }] },
   })
 
-  // 700k ya categorizados + uno de 150k SIN categoría: el sin categoría no gasta nada todavía.
-  const sinCategoria = tx({ id: "nuevo", amount: clp(150_000), categoryId: null })
+  // 70k ya categorizados en Comida + uno de 15k SIN categoría: el sin categoría no gasta todavía.
+  const sinCategoria = tx({ id: "nuevo", amount: clp(15_000), categoryId: null })
   await notifyBudgetCrossing(
-    deps([tx({ id: "viejo", amount: clp(700_000) }), sinCategoria]),
+    deps([tx({ id: "viejo", amount: clp(70_000) }), sinCategoria]),
     "u1",
     2026,
     7,
@@ -128,11 +150,11 @@ test("categorizar un movimiento lo mete al presupuesto y puede cruzar un umbral"
   )
   assert.equal(enviados.length, 0)
 
-  // Al categorizarlo entra al presupuesto: 700k → 850k cruza el 80%.
+  // Al categorizarlo entra al presupuesto de Comida: 70k → 85k cruza el 80% de su límite (100k).
   await notifyBudgetCrossing(
     deps([
-      tx({ id: "viejo", amount: clp(700_000) }),
-      tx({ id: "nuevo", amount: clp(150_000) }),
+      tx({ id: "viejo", amount: clp(70_000) }),
+      tx({ id: "nuevo", amount: clp(15_000) }),
     ]),
     "u1",
     2026,
@@ -140,7 +162,21 @@ test("categorizar un movimiento lo mete al presupuesto y puede cruzar un umbral"
     (t) => t.id === "nuevo"
   )
   assert.equal(enviados.length, 1)
-  assert.match(enviados[0].title, /80%/)
+  assert.match(enviados[0].title, /Comida.*85%/)
+
+  // Mover ese mismo gasto a Transporte (sin límite) no alerta, y Comida no se revisa: no la tocó.
+  enviados.length = 0
+  await notifyBudgetCrossing(
+    deps([
+      tx({ id: "viejo", amount: clp(70_000) }),
+      tx({ id: "nuevo", amount: clp(15_000), categoryId: "cat2" }),
+    ]),
+    "u1",
+    2026,
+    7,
+    (t) => t.id === "nuevo"
+  )
+  assert.equal(enviados.length, 0)
 })
 
 test("vencimientos: solo dentro de la ventana, en UTC", () => {

@@ -141,9 +141,10 @@ function BudgetAlertsSection({
         </h2>
       </div>
       <p className="mb-5 text-sm text-muted-foreground">
-        Te avisamos cuando el gasto del mes cruza un porcentaje de tu límite
-        global. Solo llega un aviso: el del umbral más alto que se cruzó. Si te
-        pasas del 100%, el aviso dice cuánto (125%, 180%…).
+        Te avisamos cuando una categoría cruza estos porcentajes de{" "}
+        <strong>su</strong> límite del mes. Valen para todas. Llega un solo
+        aviso por categoría: el del umbral más alto que cruzó. Si te pasas del
+        100%, el aviso dice cuánto (125%, 180%…).
       </p>
 
       {alerts.length === 0 ? (

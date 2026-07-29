@@ -64,15 +64,17 @@ export function newMovementsMessage(
 }
 
 /**
- * Alerta de presupuesto del mes. Se dispara SOLO cuando el gasto cruza un umbral con este
- * movimiento (antes por debajo, después en o sobre él): así no hace falta guardar "ya avisé" —
- * el cruce ocurre una vez. Sin límite definido (o límite 0) no hay nada que alertar.
+ * Alerta del presupuesto de UNA categoría en el mes. Los umbrales configurados valen para todas:
+ * cada categoría los mide contra SU propio límite. Se dispara SOLO cuando el gasto de la categoría
+ * cruza un umbral (antes por debajo, después en o sobre él): así no hace falta guardar "ya avisé",
+ * el cruce ocurre una vez. Sin límite (o límite 0) no hay nada que alertar.
  *
- * `percents` son los umbrales configurados (tabla `budget_alert`, en %). Se avisa UNO solo: el MÁS
- * ALTO que se cruza (del 40% al 90% con umbrales 50 y 80 → avisa el 80, no el 50). Al cruzar el
- * 100% el aviso reporta el % REAL alcanzado, no el umbral: gastar 1.25M de 1M dice 125%.
+ * Se avisa UNO solo: el umbral MÁS ALTO que se cruza (del 40% al 90% con umbrales 50 y 80 → avisa
+ * una vez, no dos). El umbral es el GATILLO; lo que el aviso reporta es el % REAL alcanzado: saltar
+ * de 40% a 139% con umbral 80 dice 139%, no 80 — decir el umbral sería mentir sobre el gasto.
  */
 export function budgetAlertMessage(
+  category: { id: string; name: string },
   usedBefore: number,
   usedAfter: number,
   limit: number,
@@ -87,14 +89,15 @@ export function budgetAlertMessage(
   const real = Math.round((usedAfter / limit) * 100)
   return {
     title:
-      crossed < 100
-        ? `Vas en el ${crossed}% del presupuesto`
-        : real > 100
-          ? `Superaste tu presupuesto: vas en el ${real}%`
-          : "Completaste tu presupuesto",
+      real > 100
+        ? `${category.name}: te pasaste, vas en el ${real}%`
+        : real === 100
+          ? `${category.name}: presupuesto completo`
+          : `${category.name}: vas en el ${real}% del presupuesto`,
     body: `Llevas ${money(usedAfter, currency)} de ${money(limit, currency)} este mes.`,
     url: "/dashboard",
-    tag: "budget",
+    // Una notificación viva por categoría: dos categorías distintas no se pisan entre sí.
+    tag: `budget:${category.id}`,
   }
 }
 

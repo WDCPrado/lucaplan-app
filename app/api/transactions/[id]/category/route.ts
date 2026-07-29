@@ -22,9 +22,9 @@ export async function PATCH(
         id,
         body.categoryId ?? null
       )
-    // De sin categoría a con categoría: el gasto entra al presupuesto y puede cruzar un umbral.
-    // Best-effort: un fallo del push nunca rompe la categorización.
-    if (!previousCategoryId && t.categoryId)
+    // El gasto entra al presupuesto de su nueva categoría (venga de "sin categoría" o de otra) y
+    // puede cruzar un umbral. Best-effort: un fallo del push nunca rompe la categorización.
+    if (t.categoryId && t.categoryId !== previousCategoryId)
       await notifyBudgetForCategorized(userId, t).catch(() => {})
     return { id: t.id, categoryId: t.categoryId, sameTextCount }
   })

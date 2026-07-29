@@ -52,7 +52,7 @@ configurar, se vuelve a ofrecer la próxima vez.
 | Evento                     | Cuándo                                                                       |
 | -------------------------- | ----------------------------------------------------------------------------- |
 | Movimientos nuevos         | Cuando el sync de correo importa cargos/abonos del banco. Uno se nombra; varios se resumen. Los movimientos **manuales no notifican**: el usuario acaba de crearlos. |
-| Alerta de presupuesto      | Cuando un gasto hace **cruzar** alguno de los porcentajes configurados del límite global del mes: al importarlo, o al **categorizarlo** (sin categoría no cuenta para el presupuesto, igual que en el resumen). Al ser un cruce (antes debajo, después encima) no se repite ni hace falta guardar "ya avisé". Si un gasto cruza varios de una vez, avisa **solo el más alto**. |
+| Alerta de presupuesto      | Cuando un gasto hace que **una categoría** cruce alguno de los porcentajes configurados de **su** límite del mes: al importarlo, o al **categorizarlo** (sin categoría no cuenta para el presupuesto, igual que en el resumen). Al ser un cruce (antes debajo, después encima) no se repite ni hace falta guardar "ya avisé". Si un gasto cruza varios umbrales de una vez, avisa **solo el más alto**. |
 | Pagos por vencer           | Recurrentes y cuotas que vencen en los próximos días. Lo dispara el cron `pnpm notify:due`. |
 
 ## Umbrales de presupuesto configurables
@@ -61,9 +61,20 @@ Viven en la tabla `budget_alert` y se editan en **Configuración → Alertas de 
 slider por umbral (5–100%, en pasos de 5). Puedes tener **los que quieras**: 50%, 80%, 100%…
 La migración siembra 80% y 100%, que eran los valores fijos anteriores.
 
-El techo es 100% porque el aviso de sobrepaso ya reporta el porcentaje **real** alcanzado: gastar
-1.25M de un límite de 1M dice "Superaste tu presupuesto: vas en el 125%". Justo en el 100% el
-título es "Completaste tu presupuesto".
+Los umbrales son **globales en el sentido de que valen para todas las categorías**, pero cada una los
+mide contra **su propio límite** del mes (`category_limit`, con carry-forward). Gastar el 80% de
+Comida avisa "Comida: vas en el 80% del presupuesto", aunque el total del mes vaya en el 30%. Una
+categoría sin límite (o en 0) nunca alerta: no hay porcentaje que cruzar. Las categorías de ingreso
+tampoco.
+
+El umbral es el **gatillo**; lo que el aviso dice es el gasto **real**: saltar de 40% a 139% con un
+umbral en 80 titula "Comida: te pasaste, vas en el 139%", no "vas en el 80%". Justo en el 100% es
+"Comida: presupuesto completo". Por eso el techo del slider es 100: sobre eso el número ya lo pone
+el gasto, no la configuración.
+
+Cada aviso viaja con `tag: budget:<id>` y el service worker muestra con `renotify: true`: la
+notificación de una categoría se reemplaza en vez de apilarse, pero **vuelve a sonar**. Sin
+`renotify` el reemplazo es mudo y parece que la app no avisó.
 
 La tabla es **global a propósito**: sin `userId` ni mes. Es una preferencia de la app, no un dato
 financiero de un usuario o un período. El `percent` es único — dos alertas iguales avisarían dos
@@ -74,10 +85,17 @@ los vencimientos siguen avisando).
 
 El cruce lo evalúa `notifyBudgetCrossing`
 ([notify-imported-use-case.ts](../arch/v1/application/notification-use-cases/notify-imported-use-case.ts)):
-suma el gasto del mes **con categoría** y deriva el "antes" excluyendo los movimientos que acaban de
-entrar (el lote importado, o el que se acaba de categorizar en
-[/api/transactions/[id]/category](../app/api/transactions/[id]/category/route.ts)). Propagar una
-categoría a todos los movimientos con el mismo texto **no** dispara alertas.
+revisa **solo las categorías que tocó** el cambio (el resto no se movió), suma el gasto del mes de
+cada una y deriva el "antes" excluyendo los movimientos que acaban de entrar (el lote importado, o el
+que se acaba de categorizar en
+[/api/transactions/[id]/category](../app/api/transactions/[id]/category/route.ts)). Mover un gasto de
+una categoría a otra sí evalúa la **nueva** (su gasto subió). Cada aviso usa `tag: budget:<id>`, así
+dos categorías no se pisan. Propagar una categoría a todos los movimientos con el mismo texto **no**
+dispara alertas.
+
+Categorizar solo alerta si el movimiento es del **mes en curso**: el triage del onboarding clasifica
+tres meses de historial y avisar del presupuesto de un mes pasado sería ruido. El import inicial
+(`confirmSetup`) tampoco notifica: solo el sync incremental llama al hook.
 
 ## Recordatorio de vencimientos (cron)
 

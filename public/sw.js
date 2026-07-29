@@ -43,6 +43,8 @@ self.addEventListener("push", (event) => {
       badge: "/icons/icon-192.png",
       // tag colapsa avisos del mismo tipo (no se apilan 8 "nuevo gasto" en la pantalla).
       tag: data.tag || "lucaplan",
+      // ...pero reemplazar en silencio parece "no me avisó": renotify vuelve a sonar/vibrar.
+      renotify: true,
       data: { url: data.url || "/dashboard" },
     })
   );

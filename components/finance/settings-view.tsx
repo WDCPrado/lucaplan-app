@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { BellRing, Plus, Trash2 } from "lucide-react"
+import { BellRing, CalendarClock, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
@@ -22,10 +22,12 @@ const STEP = 5
 export function SettingsView({
   user,
   alerts: initialAlerts,
+  dueDays,
   vapidPublicKey,
 }: {
   user: { name: string; email: string; initial: string }
   alerts: BudgetAlert[]
+  dueDays: number
   // Vacío = sin claves VAPID en el servidor: no hay push posible, la sección ni se ofrece.
   vapidPublicKey: string
 }) {
@@ -58,9 +60,63 @@ export function SettingsView({
             </section>
           )}
           <BudgetAlertsSection initialAlerts={initialAlerts} />
+          <DueReminderSection initialDays={dueDays} />
         </div>
       </div>
     </AppShell>
+  )
+}
+
+// Anticipación del recordatorio de recurrentes y cuotas. Rango del dominio (0–14); 0 = el día del
+// cobro. El slider persiste al soltar, igual que los umbrales.
+const DUE_MAX = 14
+
+function DueReminderSection({ initialDays }: { initialDays: number }) {
+  const [days, setDays] = useState(initialDays)
+  const [pending, setPending] = useState(false)
+
+  async function commit(value: number) {
+    setPending(true)
+    const res = await fetch("/api/due-reminder", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ days: value }),
+    })
+    setPending(false)
+    if (!res.ok) {
+      toast.error("No se pudo guardar la anticipación.")
+      setDays(initialDays)
+      return
+    }
+    haptic("light")
+  }
+
+  return (
+    <section className="glass rounded-2xl p-5">
+      <div className="mb-1 flex items-center gap-2">
+        <CalendarClock className="size-4 text-muted-foreground" />
+        <h2 className="font-heading text-base font-bold">Pagos por vencer</h2>
+      </div>
+      <p className="mb-5 text-sm text-muted-foreground">
+        Con cuánta anticipación te avisamos de recurrentes y cuotas por cobrar.
+      </p>
+      <div className="flex items-center gap-4">
+        <span className="w-32 shrink-0 font-heading text-lg font-bold tabular-nums">
+          {days === 0 ? "El mismo día" : `${days} día${days === 1 ? "" : "s"}`}
+        </span>
+        <Slider
+          value={[days]}
+          min={0}
+          max={DUE_MAX}
+          step={1}
+          disabled={pending}
+          aria-label={`Avisar ${days} días antes del vencimiento`}
+          onValueChange={([v]) => setDays(v)}
+          onValueCommit={([v]) => commit(v)}
+          className="flex-1"
+        />
+      </div>
+    </section>
   )
 }
 

@@ -1,28 +1,20 @@
-// Recordatorio de pagos por vencer (recurrentes y cuotas) para CRON / tarea programada.
-// Recorre a los usuarios que tienen al menos un dispositivo suscrito y les envía UNA notificación
-// con lo que vence en los próximos días. Sin nada por vencer no envía nada.
+// Recordatorio de pagos por vencer (recurrentes y cuotas) por consola. La misma pasada que expone
+// `POST /api/cron/notify-due`: úsalo para probar a mano; en el despliegue lo dispara el scheduler
+// contra el endpoint.
 //
-//   pnpm notify:due            # ventana por defecto: 2 días
-//   pnpm notify:due -- 5       # ventana de 5 días
-//
-// Pensado para correr UNA vez al día (ej. 9:00). Correrlo más seguido repite el mismo aviso.
-import { notifyDueSoon } from "../arch/v1/application/notification-use-cases/notify-due-use-case.ts"
-import { notifyDueDeps } from "../arch/v1/infrastructure/database/prisma/push-deps.ts"
+//   pnpm notify:due            # ventana configurada en Configuración → Pagos por vencer
+//   pnpm notify:due -- 5       # ventana de 5 días (puntual, ignora la configuración)
+import { runDueReminders } from "../arch/v1/infrastructure/database/prisma/push-deps.ts"
 import { prisma } from "../arch/v1/infrastructure/database/prisma/client.ts"
 
-const windowDays = Number(process.argv[2]) || 2
+const arg = Number(process.argv[2])
 
 try {
-  const subscribed = await prisma.pushSubscription.findMany({
-    distinct: ["userId"],
-    select: { userId: true },
-  })
-  let sent = 0
-  for (const { userId } of subscribed) {
-    sent += await notifyDueSoon(notifyDueDeps, userId, new Date(), windowDays)
-  }
+  const { users, sent, windowDays } = await runDueReminders(
+    Number.isFinite(arg) ? arg : undefined
+  )
   console.log(
-    `[${new Date().toISOString()}] Recordatorios OK: ${subscribed.length} usuarios, ${sent} envíos.`
+    `[${new Date().toISOString()}] Recordatorios OK (${windowDays} días): ${users} usuarios, ${sent} envíos.`
   )
 } catch (e) {
   console.error(

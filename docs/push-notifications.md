@@ -53,7 +53,7 @@ configurar, se vuelve a ofrecer la próxima vez.
 | -------------------------- | ----------------------------------------------------------------------------- |
 | Movimientos nuevos         | Cuando el sync de correo importa cargos/abonos del banco. Uno se nombra; varios se resumen. Los movimientos **manuales no notifican**: el usuario acaba de crearlos. |
 | Alerta de presupuesto      | Cuando un gasto hace que **una categoría** cruce alguno de los porcentajes configurados de **su** límite del mes: al importarlo, o al **categorizarlo** (sin categoría no cuenta para el presupuesto, igual que en el resumen). Al ser un cruce (antes debajo, después encima) no se repite ni hace falta guardar "ya avisé". Si un gasto cruza varios umbrales de una vez, avisa **solo el más alto**. |
-| Pagos por vencer           | Recurrentes y cuotas que vencen en los próximos días. Lo dispara el cron `pnpm notify:due`. |
+| Pagos por vencer           | Recurrentes y cuotas que vencen dentro de la ventana configurada (**Configuración → Pagos por vencer**, 0–14 días). Lo dispara el cron `pnpm notify:due`. |
 
 ## Umbrales de presupuesto configurables
 
@@ -100,13 +100,73 @@ tres meses de historial y avisar del presupuesto de un mes pasado sería ruido. 
 ## Recordatorio de vencimientos (cron)
 
 ```bash
-pnpm notify:due        # ventana por defecto: 2 días
-pnpm notify:due 5      # ventana de 5 días
+pnpm notify:due        # ventana configurada en Configuración → Pagos por vencer
+pnpm notify:due 5      # ventana de 5 días (puntual, ignora la configuración)
 ```
 
-Pensado para **una corrida diaria** (ej. 9:00, con Task Scheduler o cron). Recorre a los usuarios
-con al menos un dispositivo suscrito y envía una sola notificación con lo que vence. Correrlo más
-seguido repite el mismo aviso.
+Pensado para **una corrida diaria** (ej. 9:00). Recorre a los usuarios con al menos un dispositivo
+suscrito y envía una sola notificación con lo que vence. Correrlo más seguido repite el mismo aviso.
+Nadie lo llama solo: sin un scheduler configurado, **este aviso no sale nunca**.
+
+### Agendarlo en Railway
+
+El despliegue usa un **servicio cron aparte** (`function-bun`) que golpea la app por HTTP. La app no
+se agenda sola: `next start` nunca termina, así que no puede ser su propio cron.
+
+Endpoints que expone, ambos con secreto Bearer y sin sesión de usuario:
+
+| Endpoint                            | Qué hace                                    | Secreto                 |
+| ----------------------------------- | ------------------------------------------- | ----------------------- |
+| `POST /api/cron/notify-due`         | Recordatorio de vencimientos a los suscritos | `CRON_SECRET`           |
+| `POST /api/email-connection/renew`  | Renueva las suscripciones de Graph           | `OUTLOOK_RENEW_SECRET`  |
+
+Código del servicio cron (Bun). **Sin `Bun.serve`**: un cron job debe terminar, no quedarse
+escuchando — si sigue vivo, Railway se salta la corrida siguiente.
+
+```ts
+// index.ts — cron diario de Luca Plan. Llama, reporta y termina.
+const BASE = process.env.APP_URL ?? "https://lucaplan.cl"
+
+async function call(path: string, secret: string | undefined, label: string) {
+  if (!secret) {
+    console.log(`${label}: sin secreto configurado, omitido`)
+    return true
+  }
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${secret}` },
+    })
+    console.log(`${label}: ${res.status} ${await res.text()}`)
+    return res.ok
+  } catch (e) {
+    console.error(`${label}: falló`, (e as Error).message)
+    return false
+  }
+}
+
+const resultados = [
+  await call("/api/cron/notify-due", process.env.CRON_SECRET, "vencimientos"),
+  await call("/api/email-connection/renew", process.env.OUTLOOK_RENEW_SECRET, "renovación Outlook"),
+]
+// Exit ≠ 0 marca la corrida como fallida en Railway (queda visible en Cron Runs).
+process.exit(resultados.every(Boolean) ? 0 : 1)
+```
+
+Variables del servicio cron: `APP_URL`, `CRON_SECRET`, `OUTLOOK_RENEW_SECRET` — los dos secretos con
+el MISMO valor que en el servicio web. Horario: Railway usa **UTC**, así que `0 13 * * *` son las
+9:00 en Chile en invierno (UTC−4) y `0 12 * * *` en verano (UTC−3). El `Daily` por defecto
+(`0 0 * * *`) avisa a las 20:00 hora local.
+
+`pnpm notify:due` sigue existiendo para probar a mano desde la consola; hace exactamente la misma
+pasada que el endpoint. Los scripts usan `--env-file-if-exists=.env` para no morir con ENOENT donde
+no hay archivo `.env`.
+
+La anticipación (0–14 días, 0 = el mismo día del cobro) vive en `app_setting.due_days` y se edita
+con un slider en **Configuración → Pagos por vencer**
+([due-reminder.domain.ts](../arch/v1/domain/notifications/due-reminder.domain.ts) +
+[/api/due-reminder](../app/api/due-reminder/route.ts)). El script la lee en cada corrida, así que
+cambiarla no exige tocar el cron; el argumento posicional sigue mandando para pruebas puntuales.
 
 ## Piezas
 
@@ -115,6 +175,7 @@ seguido repite el mismo aviso.
 | Puertos y tipos                | [arch/v1/domain/notifications/push.domain.ts](../arch/v1/domain/notifications/push.domain.ts) |
 | Reglas de mensaje (puras)      | [arch/v1/application/notification-use-cases/notification-rules.ts](../arch/v1/application/notification-use-cases/notification-rules.ts) |
 | Umbrales configurables         | [budget-alert.domain.ts](../arch/v1/domain/notifications/budget-alert.domain.ts) + [budget-alert-use-cases.ts](../arch/v1/application/notification-use-cases/budget-alert-use-cases.ts) |
+| Anticipación de vencimientos   | [due-reminder.domain.ts](../arch/v1/domain/notifications/due-reminder.domain.ts) + [due-reminder-use-cases.ts](../arch/v1/application/notification-use-cases/due-reminder-use-cases.ts) |
 | Use-cases                      | `push-use-cases.ts` (alta/baja/envío), `notify-imported-use-case.ts` (correo + presupuesto), `notify-due-use-case.ts` (vencimientos) |
 | Envío (VAPID + cifrado)        | [arch/v1/infrastructure/http/webpush/webpush.provider.ts](../arch/v1/infrastructure/http/webpush/webpush.provider.ts) |
 | Suscripciones (Prisma)         | [arch/v1/infrastructure/database/prisma/push.infrastructure.ts](../arch/v1/infrastructure/database/prisma/push.infrastructure.ts) |

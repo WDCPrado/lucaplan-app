@@ -96,6 +96,17 @@ model BudgetAlert {
   @@map("budget_alert")
 }
 
+// Preferencias sueltas de la app (clave → valor), globales como los umbrales: no cuelgan de un
+// usuario ni de un mes. Hoy solo `due_days` (días de anticipación del aviso de vencimientos).
+// Clave-valor para no pagar una migración por cada preferencia escalar que aparezca.
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("app_setting")
+}
+
 // Suscripción Web Push de un dispositivo (endpoint del push service del navegador). Un usuario
 // puede tener varias (teléfono, escritorio). El endpoint es la identidad: si el navegador la
 // renueva llega uno nuevo y el viejo muere con 404/410, momento en que se borra.

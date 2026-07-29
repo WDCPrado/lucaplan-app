@@ -3,7 +3,11 @@ import { redirect } from "next/navigation"
 
 import { auth } from "@/arch/v1/infrastructure/auth/auth"
 import { listBudgetAlerts } from "@/arch/v1/application/notification-use-cases/budget-alert-use-cases"
-import { budgetAlertDeps } from "@/arch/v1/infrastructure/database/prisma/push-deps"
+import { getDueDays } from "@/arch/v1/application/notification-use-cases/due-reminder-use-cases"
+import {
+  budgetAlertDeps,
+  dueReminderDeps,
+} from "@/arch/v1/infrastructure/database/prisma/push-deps"
 import { SettingsView } from "@/components/finance/settings-view"
 
 export default async function SettingsPage() {
@@ -11,7 +15,10 @@ export default async function SettingsPage() {
   if (!session) redirect("/login")
 
   // Datos iniciales en el servidor (nada de useEffect para el primer render).
-  const alerts = await listBudgetAlerts(budgetAlertDeps)
+  const [alerts, dueDays] = await Promise.all([
+    listBudgetAlerts(budgetAlertDeps),
+    getDueDays(dueReminderDeps),
+  ])
 
   const label = session.user.name || session.user.email || "Usuario"
   return (
@@ -22,6 +29,7 @@ export default async function SettingsPage() {
         initial: label.charAt(0).toUpperCase(),
       }}
       alerts={alerts}
+      dueDays={dueDays}
       vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? ""}
     />
   )

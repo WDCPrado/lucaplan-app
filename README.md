@@ -204,6 +204,7 @@ cp .env.example .env
 | `VAPID_PUBLIC_KEY`         | opcional  | Notificaciones push (Android, iOS 16.4+ instalada, Windows). Genera el par con `pnpm exec web-push generate-vapid-keys` — ver [guía](docs/push-notifications.md). Sin claves, la app no ofrece ni envía notificaciones. |
 | `VAPID_PRIVATE_KEY`        | opcional  | Ídem. Nunca sale del servidor.                                               |
 | `VAPID_SUBJECT`            | opcional  | Contacto que exige VAPID, ej. `mailto:tu@correo.com`                         |
+| `CRON_SECRET`              | opcional  | Solo producción: bearer de `POST /api/cron/notify-due` (recordatorio diario de vencimientos). Sin él, ese endpoint rechaza todo. |
 | `BANCOCHILE_ENC_KEY`       | opcional  | Llave maestra de cifrado de secretos. Si falta, se autogenera en `.bancochile-key` (gitignored). En producción defínela (≥32 chars de alta entropía) y **respáldala**. |
 
 ### 3. Levanta la base de datos
@@ -377,6 +378,10 @@ los tokens ya cifrados dejan de poder descifrarse y habrá que reconectar el cor
 | `pnpm seed:categories` | Set completo de categorías con contexto para la IA (idempotente)           |
 | `pnpm sync:email`      | Corre la sincronización del correo (para cron / tarea programada)          |
 | `pnpm notify:due`      | Notifica los pagos por vencer (recurrentes y cuotas); una corrida diaria    |
+
+En el despliegue el recordatorio no lo corre este script sino un **servicio cron** de Railway que
+llama `POST /api/cron/notify-due` (y `/api/email-connection/renew`) con secreto Bearer — código y
+variables en [docs/push-notifications.md](docs/push-notifications.md#agendarlo-en-railway).
 
 Tests del backend (sin framework, sin DB):
 

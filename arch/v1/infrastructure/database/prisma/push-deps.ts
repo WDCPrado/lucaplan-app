@@ -4,14 +4,18 @@ import {
   transactionRepository,
 } from "./finance.infrastructure.ts"
 import { budgetAlertRepository } from "./budget-alert.infrastructure.ts"
+import { dueReminderRepository } from "./due-reminder.infrastructure.ts"
 import { installmentPlanRepository } from "./installment.infrastructure.ts"
 import { recurringTemplateRepository } from "./recurring.infrastructure.ts"
 import { pushSubscriptionRepository } from "./push.infrastructure.ts"
 import { webpushSender } from "../../http/webpush/webpush.provider.ts"
+import { prisma } from "./client.ts"
 import {
   notifyBudgetCrossing,
   notifyImportedMovements,
 } from "../../../application/notification-use-cases/notify-imported-use-case.ts"
+import { notifyDueSoon } from "../../../application/notification-use-cases/notify-due-use-case.ts"
+import { getDueDays } from "../../../application/notification-use-cases/due-reminder-use-cases.ts"
 import type { NotifiableMovement } from "../../../application/notification-use-cases/notification-rules.ts"
 import type { Transaction } from "../../../domain/finance/finance.domain.ts"
 
@@ -30,12 +34,37 @@ const notifyDeps = {
 /** Deps del CRUD de umbrales (Configuración → Alertas de presupuesto). */
 export const budgetAlertDeps = { budgetAlerts: budgetAlertRepository }
 
+/** Deps de la anticipación del recordatorio de vencimientos (Configuración → Pagos por vencer). */
+export const dueReminderDeps = { dueReminder: dueReminderRepository }
+
 /** Deps del recordatorio de vencimientos (lo usa el cron `pnpm notify:due`). */
 export const notifyDueDeps = {
   ...pushDeps,
   transactions: transactionRepository,
   recurring: recurringTemplateRepository,
   installments: installmentPlanRepository,
+}
+
+/**
+ * Una pasada del recordatorio de vencimientos sobre TODOS los usuarios con algún dispositivo
+ * suscrito. La comparten el script `pnpm notify:due` y el endpoint `/api/cron/notify-due`: el
+ * scheduler del despliegue elige cuál usar, la lógica es una sola.
+ *
+ * `windowDays` solo se pasa para pruebas puntuales; por defecto manda lo configurado en la app.
+ */
+export async function runDueReminders(
+  windowDays?: number
+): Promise<{ users: number; sent: number; windowDays: number }> {
+  const days = windowDays ?? (await getDueDays(dueReminderDeps))
+  const subscribed = await prisma.pushSubscription.findMany({
+    distinct: ["userId"],
+    select: { userId: true },
+  })
+  const now = new Date()
+  let sent = 0
+  for (const { userId } of subscribed)
+    sent += await notifyDueSoon(notifyDueDeps, userId, now, days)
+  return { users: subscribed.length, sent, windowDays: days }
 }
 
 /** Hook que el sync de correo invoca con los movimientos recién importados (best-effort). */

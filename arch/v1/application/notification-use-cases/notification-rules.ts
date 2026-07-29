@@ -147,7 +147,10 @@ export function dueSoonMessage(
     .reduce((sum, i) => sum + i.amount, 0)
   return {
     title: `${due.length} pagos por vencer`,
-    body: `${money(total, currency)} en los próximos ${windowDays} días.`,
+    body:
+      windowDays === 0
+        ? `${money(total, currency)} vencen hoy.`
+        : `${money(total, currency)} en los próximos ${windowDays} día${windowDays === 1 ? "" : "s"}.`,
     url: "/recurring",
     tag: "due",
   }

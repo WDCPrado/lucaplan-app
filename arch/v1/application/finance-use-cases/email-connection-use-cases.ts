@@ -22,6 +22,7 @@ import {
   type EmailConnection,
   type EmailConnectionRepository,
 } from "../../domain/finance/email-connection.domain.ts"
+import type { NotifiableMovement } from "../notification-use-cases/notification-rules.ts"
 import {
   parseBancoChileEmail,
   type EmailEvent,
@@ -159,6 +160,9 @@ export type EmailConnectionDeps = {
   runInstallments?: (userId: string, externalIds: string[]) => Promise<number>
   // Categorización IA best-effort de lo importado no interno (una falla no revierte nada).
   categorize?: (userId: string) => Promise<number>
+  // Notificación push de lo que entró SOLO por correo (best-effort, después de categorizar para
+  // que el usuario abra la app con el movimiento ya clasificado).
+  notify?: (userId: string, movements: NotifiableMovement[]) => Promise<void>
 }
 
 // --- Helpers de ventana y mapeo ---
@@ -893,6 +897,18 @@ export async function syncEmailConnection(
     if (deps.runInstallments)
       await deps.runInstallments(userId, createdExternalIds).catch(() => {})
     if (deps.categorize) await deps.categorize(userId).catch(() => {})
+    // Solo lo que el usuario NO registró a mano y no es un traspaso interno merece notificación.
+    if (deps.notify) {
+      const nuevos: NotifiableMovement[] = resolved
+        .filter((m) => createdSet.has(m.externalId) && !m.isInternal)
+        .map((m) => ({
+          description: m.description,
+          amount: m.amount.toMajor(),
+          currency: m.amount.currency,
+          direction: m.direction,
+        }))
+      await deps.notify(userId, nuevos).catch(() => {})
+    }
   }
 
   return {

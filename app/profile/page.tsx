@@ -19,6 +19,8 @@ export default async function ProfilePage() {
         role: (u.role ?? "USER") as string,
         initial: label.charAt(0).toUpperCase(),
       }}
+      // Sin claves VAPID configuradas no hay push posible: la sección ni se ofrece.
+      vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? ""}
     />
   )
 }

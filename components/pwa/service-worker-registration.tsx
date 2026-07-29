@@ -2,7 +2,8 @@
 
 import { useEffect } from "react"
 
-// Isla mínima que registra el service worker (fallback offline público; ver public/sw.js).
+// Isla mínima que registra el service worker (fallback offline público y recepción de Web Push;
+// ver public/sw.js). Sin registro no hay notificaciones: el push se entrega al SW, no a la página.
 // useEffect justificado: sincroniza con el sistema externo navigator.serviceWorker — no existe
 // equivalente server-side. updateViaCache: "none" fuerza a revalidar sw.js en cada chequeo.
 export function ServiceWorkerRegistration() {

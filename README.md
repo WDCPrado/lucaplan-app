@@ -111,6 +111,16 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
 - El refresh token se guarda **cifrado con AES-256-GCM**; los cuerpos de correo se
   procesan en memoria y nunca se persisten.
 
+### 🔔 Notificaciones donde estés
+
+- Web Push estándar (VAPID): **Android**, **Windows** y **iOS 16.4+** con la app añadida a la
+  pantalla de inicio — sin tienda ni SDK de terceros.
+- Te avisa de los movimientos que entran solos por correo, cuando el gasto del mes cruza el 80% o
+  el 100% de tu presupuesto, y de los pagos recurrentes o cuotas por vencer.
+- El contenido viaja cifrado de extremo a extremo y no se guarda: del dispositivo solo se conserva
+  su endpoint de entrega. Se activa (y desactiva) desde **Mi perfil**.
+  Configuración en [docs/push-notifications.md](docs/push-notifications.md).
+
 ## Stack
 
 | Capa          | Tecnología                                                              |
@@ -189,6 +199,9 @@ cp .env.example .env
 | `OUTLOOK_REDIRECT_URI`     | opcional  | `http://localhost:3005/api/email-connection/callback` en desarrollo          |
 | `OUTLOOK_WEBHOOK_URL`      | opcional  | Solo producción: URL HTTPS pública del webhook                               |
 | `OUTLOOK_RENEW_SECRET`     | opcional  | Solo producción: bearer para renovar la suscripción del webhook              |
+| `VAPID_PUBLIC_KEY`         | opcional  | Notificaciones push (Android, iOS 16.4+ instalada, Windows). Genera el par con `pnpm exec web-push generate-vapid-keys` — ver [guía](docs/push-notifications.md). Sin claves, la app no ofrece ni envía notificaciones. |
+| `VAPID_PRIVATE_KEY`        | opcional  | Ídem. Nunca sale del servidor.                                               |
+| `VAPID_SUBJECT`            | opcional  | Contacto que exige VAPID, ej. `mailto:tu@correo.com`                         |
 | `BANCOCHILE_ENC_KEY`       | opcional  | Llave maestra de cifrado de secretos. Si falta, se autogenera en `.bancochile-key` (gitignored). En producción defínela (≥32 chars de alta entropía) y **respáldala**. |
 
 ### 3. Levanta la base de datos
@@ -361,6 +374,7 @@ los tokens ya cifrados dejan de poder descifrarse y habrá que reconectar el cor
 | `pnpm seed`            | Seed de ejemplo (Banco de Chile + categorías + movimientos)                |
 | `pnpm seed:categories` | Set completo de categorías con contexto para la IA (idempotente)           |
 | `pnpm sync:email`      | Corre la sincronización del correo (para cron / tarea programada)          |
+| `pnpm notify:due`      | Notifica los pagos por vencer (recurrentes y cuotas); una corrida diaria    |
 
 Tests del backend (sin framework, sin DB):
 
@@ -392,6 +406,7 @@ La app queda en el puerto `3005` y Postgres en `5433` (host). Los secretos se le
 | Arquitectura                | [arch/clean-architecture.md](arch/clean-architecture.md) — capas y regla de dependencias. |
 | Desarrollo y contribución   | [docs/development.md](docs/development.md) — flujo OpenSpec, Next 16, reglas de UI, mocks, convenciones y verificaciones. |
 | Design system               | [docs/design/design-system.md](docs/design/design-system.md) — tokens, glass, dark/light. La fuente de verdad visual es [app/globals.css](app/globals.css). |
+| Notificaciones push         | [docs/push-notifications.md](docs/push-notifications.md) — Web Push (VAPID) en Android, iOS 16.4+ y Windows: configuración, eventos y cron. |
 | Outlook / Microsoft Graph   | [docs/email-connection-outlook.md](docs/email-connection-outlook.md) — referencia de la conexión de correo con Banco de Chile. El paso a paso está [más arriba](#-conectar-outlook-banco-de-chile-paso-a-paso). |
 | Correos bancarios           | [docs/bank-email-contract.md](docs/bank-email-contract.md) — catálogo de correos soportados y qué debe aportar un banco nuevo. |
 | Operación y despliegue      | [Scripts](#scripts) y [Deploy](#deploy) en este README; cerrar/abrir el registro en [docs/pre-launch-lock.md](docs/pre-launch-lock.md). |

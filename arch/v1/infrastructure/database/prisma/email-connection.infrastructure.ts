@@ -27,6 +27,7 @@ import { msgraphMailProvider } from "../../http/outlook/msgraph.provider.ts"
 import { categorizePendingMovements } from "./categorize-pending.infrastructure.ts"
 import { matchRecurringForImported } from "./match-recurring.ts"
 import { runInstallmentsForImported } from "./run-installments.ts"
+import { notifyImportedForSync } from "./push-deps.ts"
 
 const CHUNK = 10 // upsert en lotes acotados (no satura el pool de conexiones)
 
@@ -382,5 +383,6 @@ export function makeEmailConnectionDeps(): EmailConnectionDeps {
     matchRecurring: matchRecurringForImported,
     runInstallments: runInstallmentsForImported,
     categorize: categorizePendingMovements,
+    notify: notifyImportedForSync,
   }
 }

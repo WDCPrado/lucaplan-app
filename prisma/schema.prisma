@@ -85,6 +85,21 @@ model Verification {
 // moneda ISO 4217 en `currency`. La "caja activa" y el uso por categoría son fórmulas
 // (ver arch/v1/application/finance-use-cases), no columnas.
 
+// Suscripción Web Push de un dispositivo (endpoint del push service del navegador). Un usuario
+// puede tener varias (teléfono, escritorio). El endpoint es la identidad: si el navegador la
+// renueva llega uno nuevo y el viejo muere con 404/410, momento en que se borra.
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String // clave pública del cliente (base64url)
+  auth      String // secreto de autenticación del cliente (base64url)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscription")
+}
+
 model Bank {
   id               String             @id @default(uuid())
   userId           String

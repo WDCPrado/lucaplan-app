@@ -27,6 +27,9 @@ export type NotifiableMovement = {
   // Id del banco: sirve para reconocer el lote entre los movimientos ya persistidos (y ver cuáles
   // quedaron categorizados). Ausente = no se puede reconocer; solo afecta la alerta de presupuesto.
   externalId?: string | null
+  // Nombre de la categoría que quedó asignada (la IA corre antes de notificar). Ausente/null = el
+  // movimiento quedó sin clasificar: el aviso lo omite en vez de inventar.
+  category?: string | null
 }
 
 /**
@@ -42,7 +45,9 @@ export function newMovementsMessage(
     const charge = m.direction === "debit"
     return {
       title: charge ? "Nuevo gasto" : "Nuevo abono",
-      body: `${money(m.amount, m.currency)} · ${m.description}`,
+      // La categoría cierra la pregunta obvia ("¿dónde quedó clasificado?"); sin ella, el aviso
+      // queda igual que antes en vez de mostrar un separador huérfano.
+      body: `${money(m.amount, m.currency)} · ${m.description}${m.category ? ` · ${m.category}` : ""}`,
       url: "/dashboard",
       tag: "movements",
     }

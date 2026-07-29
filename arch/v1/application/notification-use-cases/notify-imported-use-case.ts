@@ -88,6 +88,28 @@ export async function notifyBudgetCrossing(
 }
 
 /**
+ * Nombre de la categoría con la que quedó persistido un movimiento del lote. Se busca por su id del
+ * banco entre los movimientos del mes; uno cuya fecha caiga fuera (una compra de fin del mes pasado
+ * que llega hoy) simplemente no la muestra.
+ */
+async function assignedCategory(
+  deps: NotifyImportedDeps,
+  userId: string,
+  year: number,
+  month: number,
+  movement: NotifiableMovement
+): Promise<string | null> {
+  if (!movement.externalId) return null
+  const txs = await deps.transactions.listByUserPeriod(userId, year, month)
+  const categoryId = txs.find(
+    (t) => t.externalId === movement.externalId
+  )?.categoryId
+  if (!categoryId) return null
+  const categories = await deps.categories.listByUser(userId)
+  return categories.find((c) => c.id === categoryId)?.name ?? null
+}
+
+/**
  * Avisa de los movimientos que ENTRARON SOLOS (correo del banco) y, si con ellos alguna categoría
  * cruza un umbral, de su presupuesto. Los movimientos manuales no notifican: el usuario acaba de
  * crearlos y ve el resultado en pantalla.
@@ -101,7 +123,20 @@ export async function notifyImportedMovements(
   movements: NotifiableMovement[],
   now = new Date()
 ): Promise<void> {
-  const message = newMovementsMessage(movements)
+  const year = now.getUTCFullYear()
+  const month = now.getUTCMonth() + 1
+  // Un solo movimiento se nombra, y ahí la categoría que le puso la IA hace útil el aviso. Con
+  // varios el resumen no las lista, así que ni se consultan.
+  const message = newMovementsMessage(
+    movements.length === 1
+      ? [
+          {
+            ...movements[0],
+            category: await assignedCategory(deps, userId, year, month, movements[0]),
+          },
+        ]
+      : movements
+  )
   if (!message) return
   await sendPushToUser(deps, userId, message)
 

@@ -30,6 +30,14 @@ test("un movimiento se nombra; varios se resumen; ninguno no notifica", () => {
   assert.equal(one?.title, "Nuevo gasto")
   assert.match(one!.body, /12\.990/)
   assert.match(one!.body, /Uber Eats/)
+  // Sin categoría no queda separador huérfano al final.
+  assert.doesNotMatch(one!.body, /·\s*$/)
+  // Con categoría asignada, el aviso la nombra.
+  assert.match(
+    newMovementsMessage([{ ...mov("Uber Eats", 12990), category: "Comida" }])!
+      .body,
+    /Uber Eats · Comida/
+  )
   const many = newMovementsMessage([
     mov("Uber Eats", 12990),
     mov("Copec", 20000),

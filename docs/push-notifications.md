@@ -51,7 +51,7 @@ configurar, se vuelve a ofrecer la próxima vez.
 
 | Evento                     | Cuándo                                                                       |
 | -------------------------- | ----------------------------------------------------------------------------- |
-| Movimientos nuevos         | Cuando el sync de correo importa cargos/abonos del banco. Uno se nombra; varios se resumen. Los movimientos **manuales no notifican**: el usuario acaba de crearlos. |
+| Movimientos nuevos         | Cuando el sync de correo importa cargos/abonos del banco. Uno se nombra con su categoría (`$12.990 · Uber Eats · Comida`; sin clasificar, se omite); varios se resumen. Los movimientos **manuales no notifican**: el usuario acaba de crearlos. |
 | Alerta de presupuesto      | Cuando un gasto hace que **una categoría** cruce alguno de los porcentajes configurados de **su** límite del mes: al importarlo, o al **categorizarlo** (sin categoría no cuenta para el presupuesto, igual que en el resumen). Al ser un cruce (antes debajo, después encima) no se repite ni hace falta guardar "ya avisé". Si un gasto cruza varios umbrales de una vez, avisa **solo el más alto**. |
 | Pagos por vencer           | Recurrentes y cuotas que vencen dentro de la ventana configurada (**Configuración → Pagos por vencer**, 0–14 días). Lo dispara el cron `pnpm notify:due`. |
 

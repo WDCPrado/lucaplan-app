@@ -38,7 +38,13 @@ export async function categorizeTransaction(
   userId: string,
   transactionId: string,
   categoryId: string | null
-): Promise<{ transaction: Transaction; sameTextCount: number }> {
+): Promise<{
+  transaction: Transaction
+  sameTextCount: number
+  // Categoría que tenía ANTES: de null a una, el movimiento entra al presupuesto (y puede cruzar
+  // un umbral de alerta). Lo decide el llamador; aquí no se notifica nada.
+  previousCategoryId: string | null
+}> {
   const tx = await deps.transactions.findById(transactionId)
   if (!tx) throw new AccountNotFoundError(transactionId)
   if (tx.userId !== userId) throw new NotOwnerError()
@@ -97,5 +103,5 @@ export async function categorizeTransaction(
       // best-effort: la categoría ya quedó asignada; el aprendizaje no bloquea la operación
     }
   }
-  return { transaction, sameTextCount }
+  return { transaction, sameTextCount, previousCategoryId: tx.categoryId }
 }

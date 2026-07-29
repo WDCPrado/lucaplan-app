@@ -8,8 +8,12 @@ import { installmentPlanRepository } from "./installment.infrastructure.ts"
 import { recurringTemplateRepository } from "./recurring.infrastructure.ts"
 import { pushSubscriptionRepository } from "./push.infrastructure.ts"
 import { webpushSender } from "../../http/webpush/webpush.provider.ts"
-import { notifyImportedMovements } from "../../../application/notification-use-cases/notify-imported-use-case.ts"
+import {
+  notifyBudgetCrossing,
+  notifyImportedMovements,
+} from "../../../application/notification-use-cases/notify-imported-use-case.ts"
 import type { NotifiableMovement } from "../../../application/notification-use-cases/notification-rules.ts"
+import type { Transaction } from "../../../domain/finance/finance.domain.ts"
 
 export const pushDeps = {
   subscriptions: pushSubscriptionRepository,
@@ -40,4 +44,21 @@ export function notifyImportedForSync(
   movements: NotifiableMovement[]
 ): Promise<void> {
   return notifyImportedMovements(notifyDeps, userId, movements)
+}
+
+/**
+ * Un movimiento recién categorizado entra al presupuesto de SU mes: puede cruzar un umbral, así que
+ * se evalúa igual que lo importado.
+ */
+export function notifyBudgetForCategorized(
+  userId: string,
+  tx: Transaction
+): Promise<void> {
+  return notifyBudgetCrossing(
+    notifyDeps,
+    userId,
+    tx.date.getUTCFullYear(),
+    tx.date.getUTCMonth() + 1,
+    (t) => t.id === tx.id
+  )
 }

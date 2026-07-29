@@ -24,6 +24,9 @@ export type NotifiableMovement = {
   amount: number
   currency: CurrencyCode
   direction: "debit" | "credit"
+  // Id del banco: sirve para reconocer el lote entre los movimientos ya persistidos (y ver cuáles
+  // quedaron categorizados). Ausente = no se puede reconocer; solo afecta la alerta de presupuesto.
+  externalId?: string | null
 }
 
 /**

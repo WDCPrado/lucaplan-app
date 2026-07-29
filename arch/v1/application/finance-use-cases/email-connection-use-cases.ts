@@ -906,6 +906,7 @@ export async function syncEmailConnection(
           amount: m.amount.toMajor(),
           currency: m.amount.currency,
           direction: m.direction,
+          externalId: m.externalId,
         }))
       await deps.notify(userId, nuevos).catch(() => {})
     }

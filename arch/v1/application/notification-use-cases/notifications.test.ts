@@ -4,9 +4,13 @@ import assert from "node:assert/strict"
 import {
   InvalidPushEndpointError,
   isAllowedPushEndpoint,
+  type PushMessage,
   type PushSubscription,
   type PushSendResult,
 } from "../../domain/notifications/push.domain.ts"
+import type { Transaction } from "../../domain/finance/finance.domain.ts"
+import { Money } from "../../domain/finance/money.ts"
+import { notifyBudgetCrossing } from "./notify-imported-use-case.ts"
 import {
   budgetAlertMessage,
   dueSoonMessage,
@@ -64,6 +68,79 @@ test("los umbrales son configurables: N y en cualquier orden", () => {
   assert.match(budgetAlertMessage(400_000, 950_000, 1_000_000, P)!.title, /90%/)
   // Ya sobre el 100%: el cruce ocurrió una vez, no se repite en cada gasto posterior.
   assert.equal(budgetAlertMessage(1_100_000, 1_400_000, 1_000_000, P), null)
+})
+
+test("categorizar un movimiento lo mete al presupuesto y puede cruzar un umbral", async () => {
+  const clp = (n: number) => Money.of(n, "CLP")
+  const tx = (over: Partial<Transaction>): Transaction => ({
+    id: "t",
+    userId: "u1",
+    accountId: "cc",
+    categoryId: "cat1",
+    date: new Date(Date.UTC(2026, 6, 10)),
+    description: "x",
+    amount: clp(0),
+    direction: "debit",
+    status: "confirmed",
+    isInternal: false,
+    externalId: null,
+    ...over,
+  })
+  const enviados: PushMessage[] = []
+  const deps = (txs: Transaction[]) => ({
+    subscriptions: {
+      save: async () => {},
+      deleteByEndpoint: async () => {},
+      listByUser: async () => [
+        {
+          userId: "u1",
+          endpoint: "https://fcm.googleapis.com/fcm/send/ok",
+          keys: { p256dh: "a", auth: "b" },
+        },
+      ],
+    },
+    sender: {
+      send: async (
+        _s: PushSubscription,
+        m: PushMessage
+      ): Promise<PushSendResult> => {
+        enviados.push(m)
+        return "sent"
+      },
+    },
+    transactions: { listByUserPeriod: async () => txs },
+    monthlyBudgets: {
+      listByUser: async () => [
+        { id: "b1", userId: "u1", year: 2026, month: 7, globalLimit: clp(1_000_000) },
+      ],
+    },
+    budgetAlerts: { list: async () => [{ id: "a1", percent: 80 }] },
+  })
+
+  // 700k ya categorizados + uno de 150k SIN categoría: el sin categoría no gasta nada todavía.
+  const sinCategoria = tx({ id: "nuevo", amount: clp(150_000), categoryId: null })
+  await notifyBudgetCrossing(
+    deps([tx({ id: "viejo", amount: clp(700_000) }), sinCategoria]),
+    "u1",
+    2026,
+    7,
+    (t) => t.id === "nuevo"
+  )
+  assert.equal(enviados.length, 0)
+
+  // Al categorizarlo entra al presupuesto: 700k → 850k cruza el 80%.
+  await notifyBudgetCrossing(
+    deps([
+      tx({ id: "viejo", amount: clp(700_000) }),
+      tx({ id: "nuevo", amount: clp(150_000) }),
+    ]),
+    "u1",
+    2026,
+    7,
+    (t) => t.id === "nuevo"
+  )
+  assert.equal(enviados.length, 1)
+  assert.match(enviados[0].title, /80%/)
 })
 
 test("vencimientos: solo dentro de la ventana, en UTC", () => {

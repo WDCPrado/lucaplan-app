@@ -1,8 +1,10 @@
-import type {
-  PushMessage,
-  PushSubscription,
-  PushSubscriptionRepository,
-  PushSender,
+import {
+  InvalidPushEndpointError,
+  isAllowedPushEndpoint,
+  type PushMessage,
+  type PushSubscription,
+  type PushSubscriptionRepository,
+  type PushSender,
 } from "../../domain/notifications/push.domain.ts"
 
 export type PushDeps = {
@@ -10,12 +12,19 @@ export type PushDeps = {
   sender: PushSender
 }
 
-/** Alta del dispositivo actual. Idempotente: re-suscribirse actualiza las claves del mismo endpoint. */
+/**
+ * Alta del dispositivo actual. Idempotente: re-suscribirse actualiza las claves del mismo endpoint.
+ *
+ * El endpoint se valida contra los push services conocidos ANTES de guardarlo: es una URL que el
+ * cliente propone y a la que el servidor hará POST en cada envío. Aceptar cualquiera convertiría a
+ * la app en un proxy hacia hosts arbitrarios (SSRF).
+ */
 export async function subscribeToPush(
   deps: PushDeps,
   userId: string,
   sub: { endpoint: string; keys: { p256dh: string; auth: string } }
 ): Promise<void> {
+  if (!isAllowedPushEndpoint(sub.endpoint)) throw new InvalidPushEndpointError()
   await deps.subscriptions.save({ userId, ...sub })
 }
 
@@ -38,7 +47,11 @@ export async function sendPushToUser(
   userId: string,
   message: PushMessage
 ): Promise<number> {
-  const subs = await deps.subscriptions.listByUser(userId)
+  // Segunda barrera: aunque el alta ya valida, nada sale hacia un host que no sea un push service
+  // conocido (filas viejas, escrituras directas a la BD, un adapter futuro que se salte el caso de uso).
+  const subs = (await deps.subscriptions.listByUser(userId)).filter((s) =>
+    isAllowedPushEndpoint(s.endpoint)
+  )
   const results = await Promise.all(
     subs.map(async (sub: PushSubscription) => ({
       sub,

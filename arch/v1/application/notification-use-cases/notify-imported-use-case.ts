@@ -2,6 +2,7 @@ import type {
   MonthlyBudgetRepository,
   TransactionRepository,
 } from "../../domain/finance/finance.domain.ts"
+import type { BudgetAlertRepository } from "../../domain/notifications/budget-alert.domain.ts"
 import { effectiveGlobalLimit } from "../finance-use-cases/budget-formulas.ts"
 import {
   budgetAlertMessage,
@@ -13,6 +14,7 @@ import { sendPushToUser, type PushDeps } from "./push-use-cases.ts"
 export type NotifyImportedDeps = PushDeps & {
   transactions: Pick<TransactionRepository, "listByUserPeriod">
   monthlyBudgets: Pick<MonthlyBudgetRepository, "listByUser">
+  budgetAlerts: Pick<BudgetAlertRepository, "list">
 }
 
 /**
@@ -41,6 +43,9 @@ export async function notifyImportedMovements(
     month
   )
   if (!limit || limit.isZero) return
+  // Umbrales configurables (Configuración → Alertas de presupuesto). Sin ninguno, no se alerta.
+  const percents = (await deps.budgetAlerts.list()).map((a) => a.percent)
+  if (percents.length === 0) return
 
   // Gasto del mes en la moneda del límite global (CLP): confirmado, no interno, dirección débito.
   const txs = await deps.transactions.listByUserPeriod(userId, year, month)
@@ -61,6 +66,7 @@ export async function notifyImportedMovements(
     usedAfter - batch,
     usedAfter,
     limit.toMajor(),
+    percents,
     limit.currency
   )
   if (alert) await sendPushToUser(deps, userId, alert)

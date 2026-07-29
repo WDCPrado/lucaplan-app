@@ -7,6 +7,7 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from "@/arch/v1/application/notification-use-cases/push-use-cases"
+import { isAllowedPushEndpoint } from "@/arch/v1/domain/notifications/push.domain"
 import { pushDeps } from "@/arch/v1/infrastructure/database/prisma/push-deps"
 
 type Body = {
@@ -19,10 +20,12 @@ export async function POST(req: Request) {
   const endpoint = body?.endpoint
   const p256dh = body?.keys?.p256dh
   const auth = body?.keys?.auth
-  // Validación en el boundary: sin endpoint https ni claves no hay suscripción que guardar.
+  // Validación en el boundary: sin claves no hay suscripción, y el endpoint debe ser de un push
+  // service conocido — es la URL a la que el servidor hará POST en cada envío (el caso de uso lo
+  // revalida; aquí se corta antes de tocar la base).
   if (
     typeof endpoint !== "string" ||
-    !endpoint.startsWith("https://") ||
+    !isAllowedPushEndpoint(endpoint) ||
     typeof p256dh !== "string" ||
     typeof auth !== "string"
   ) {

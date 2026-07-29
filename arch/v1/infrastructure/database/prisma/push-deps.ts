@@ -3,6 +3,7 @@ import {
   monthlyBudgetRepository,
   transactionRepository,
 } from "./finance.infrastructure.ts"
+import { budgetAlertRepository } from "./budget-alert.infrastructure.ts"
 import { installmentPlanRepository } from "./installment.infrastructure.ts"
 import { recurringTemplateRepository } from "./recurring.infrastructure.ts"
 import { pushSubscriptionRepository } from "./push.infrastructure.ts"
@@ -19,7 +20,11 @@ const notifyDeps = {
   ...pushDeps,
   transactions: transactionRepository,
   monthlyBudgets: monthlyBudgetRepository,
+  budgetAlerts: budgetAlertRepository,
 }
+
+/** Deps del CRUD de umbrales (Configuración → Alertas de presupuesto). */
+export const budgetAlertDeps = { budgetAlerts: budgetAlertRepository }
 
 /** Deps del recordatorio de vencimientos (lo usa el cron `pnpm notify:due`). */
 export const notifyDueDeps = {

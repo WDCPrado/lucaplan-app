@@ -12,6 +12,7 @@ import {
   UserRound,
   Repeat,
   CreditCard,
+  Settings,
   ChevronsUpDown,
   Plus,
   Search,
@@ -47,12 +48,23 @@ import {
 
 // Solo rutas que existen. Movimientos/Presupuestos viven como secciones del
 // dashboard; cuando sean páginas propias, se agregan aquí.
-export type NavKey = "inicio" | "recurrentes" | "cuotas" | "perfil"
+export type NavKey =
+  | "inicio"
+  | "recurrentes"
+  | "cuotas"
+  | "configuracion"
+  | "perfil"
 
 const NAV: { key: NavKey; label: string; Icon: typeof Home; href: string }[] = [
   { key: "inicio", label: "Inicio", Icon: Home, href: "/dashboard" },
   { key: "recurrentes", label: "Recurrentes", Icon: Repeat, href: "/recurring" },
   { key: "cuotas", label: "Cuotas", Icon: CreditCard, href: "/installments" },
+  {
+    key: "configuracion",
+    label: "Configuración",
+    Icon: Settings,
+    href: "/settings",
+  },
   { key: "perfil", label: "Mi perfil", Icon: UserRound, href: "/profile" },
 ]
 

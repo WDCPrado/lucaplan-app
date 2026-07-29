@@ -12,6 +12,40 @@ export type PushSubscription = {
   keys: { p256dh: string; auth: string }
 }
 
+// Hosts de los push services reales (dominio base; se aceptan sus subdominios). El endpoint lo
+// elige el NAVEGADOR, no el usuario: fuera de esta lista no hay suscripción legítima posible.
+// Sin allowlist, cualquiera con sesión haría que el servidor emitiera POSTs contra el host que
+// quisiera —incluidos los internos de la red— usando la app como proxy (SSRF).
+// Si algún día aparece otro push service, se agrega aquí (y solo aquí).
+const PUSH_SERVICE_HOSTS = [
+  "fcm.googleapis.com", // Chrome, Edge y Android
+  "android.googleapis.com", // GCM heredado
+  "push.services.mozilla.com", // Firefox
+  "push.apple.com", // Safari en iOS y macOS
+  "notify.windows.com", // WNS (Windows)
+]
+
+/** ¿El endpoint es de un push service conocido y por HTTPS? Todo lo demás se rechaza. */
+export function isAllowedPushEndpoint(endpoint: string): boolean {
+  let url: URL
+  try {
+    url = new URL(endpoint)
+  } catch {
+    return false
+  }
+  if (url.protocol !== "https:") return false
+  return PUSH_SERVICE_HOSTS.some(
+    (host) => url.hostname === host || url.hostname.endsWith(`.${host}`)
+  )
+}
+
+export class InvalidPushEndpointError extends Error {
+  constructor() {
+    super("El endpoint no pertenece a un servicio de notificaciones conocido")
+    this.name = "InvalidPushEndpointError"
+  }
+}
+
 /** Payload que viaja cifrado al dispositivo. `url` es la ruta que abre el tap; `tag` colapsa repetidas. */
 export type PushMessage = {
   title: string

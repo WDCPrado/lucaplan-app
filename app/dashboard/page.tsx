@@ -14,6 +14,7 @@ import {
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { materializeUserPeriods } from "@/arch/v1/application/finance-use-cases/recurring-use-cases"
 import { Dashboard } from "@/components/finance/dashboard"
+import { PushPrompt } from "@/components/pwa/push-prompt"
 
 export default async function DashboardPage({
   searchParams,
@@ -65,18 +66,23 @@ export default async function DashboardPage({
   }
 
   return (
-    <Dashboard
-      period={{ year, month }}
-      summary={summary}
-      accounts={accounts}
-      budget={budget}
-      transactions={transactions}
-      uncategorized={uncategorized}
-      incomes={incomes}
-      amountBounds={amountBounds}
-      user={user}
-      outlookResult={sp.outlook ?? null}
-      outlookReason={sp.reason ?? null}
-    />
+    <>
+      {/* Entrada de la app (start_url de la PWA): aquí se ofrece activar los avisos mientras el
+          dispositivo no los tenga. Sin claves VAPID no se ofrece nada. */}
+      <PushPrompt vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? ""} />
+      <Dashboard
+        period={{ year, month }}
+        summary={summary}
+        accounts={accounts}
+        budget={budget}
+        transactions={transactions}
+        uncategorized={uncategorized}
+        incomes={incomes}
+        amountBounds={amountBounds}
+        user={user}
+        outlookResult={sp.outlook ?? null}
+        outlookReason={sp.reason ?? null}
+      />
+    </>
   )
 }

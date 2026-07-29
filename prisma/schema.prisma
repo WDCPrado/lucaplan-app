@@ -85,6 +85,17 @@ model Verification {
 // moneda ISO 4217 en `currency`. La "caja activa" y el uso por categoría son fórmulas
 // (ver arch/v1/application/finance-use-cases), no columnas.
 
+// Umbrales de aviso del presupuesto mensual, configurables. GLOBAL a propósito: sin relación a
+// usuario ni a mes — es una preferencia de la app, no un dato financiero. Puede haber N (50%, 80%,
+// 100%, 120%…); se avisa el más alto que el gasto CRUZA con un movimiento.
+model BudgetAlert {
+  id        String   @id @default(uuid())
+  percent   Int      @unique // % del límite global; único para no avisar dos veces lo mismo
+  createdAt DateTime @default(now())
+
+  @@map("budget_alert")
+}
+
 // Suscripción Web Push de un dispositivo (endpoint del push service del navegador). Un usuario
 // puede tener varias (teléfono, escritorio). El endpoint es la identidad: si el navegador la
 // renueva llega uno nuevo y el viejo muere con 404/410, momento en que se borra.

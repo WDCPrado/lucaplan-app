@@ -40,6 +40,10 @@ import {
   InstallmentSplitMismatchError,
   InvalidInstallmentPlanError,
 } from "../../domain/finance/installment.domain.ts"
+import {
+  DuplicateBudgetAlertError,
+  InvalidBudgetAlertError,
+} from "../../domain/notifications/budget-alert.domain.ts"
 import { LockBusyError } from "../../../shared/mutex.ts"
 import {
   accountRepository,
@@ -77,6 +81,8 @@ function errorStatus(e: unknown): number {
     return 401
   if (e instanceof LockBusyError) return 409 // sync ya en curso
   if (e instanceof ConnectionMethodConflictError) return 409 // otro método de conexión activo
+  if (e instanceof DuplicateBudgetAlertError) return 409 // ya existe una alerta a ese %
+  if (e instanceof InvalidBudgetAlertError) return 422
   if (
     e instanceof TransactionCurrencyMismatchError ||
     e instanceof CategoryInUseError ||

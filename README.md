@@ -115,10 +115,12 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
 
 - Web Push estándar (VAPID): **Android**, **Windows** y **iOS 16.4+** con la app añadida a la
   pantalla de inicio — sin tienda ni SDK de terceros.
-- Te avisa de los movimientos que entran solos por correo, cuando el gasto del mes cruza el 80% o
-  el 100% de tu presupuesto, y de los pagos recurrentes o cuotas por vencer.
+- Te avisa de los movimientos que entran solos por correo, cuando el gasto del mes cruza alguno de
+  tus umbrales de presupuesto, y de los pagos recurrentes o cuotas por vencer.
+- Los umbrales los defines tú en **Configuración → Alertas de presupuesto**: los que quieras (50%,
+  80%, 120%…), cada uno con su slider.
 - El contenido viaja cifrado de extremo a extremo y no se guarda: del dispositivo solo se conserva
-  su endpoint de entrega. Se activa (y desactiva) desde **Mi perfil**.
+  su endpoint de entrega. Se activa (y desactiva) desde **Configuración**.
   Configuración en [docs/push-notifications.md](docs/push-notifications.md).
 
 ## Stack

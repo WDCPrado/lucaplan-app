@@ -8,7 +8,6 @@ import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
 import { haptic } from "@/lib/haptics"
-import { PushToggle } from "@/components/pwa/push-toggle"
 import { AppShell } from "./app-shell"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -25,10 +24,8 @@ const ROLE_LABEL: Record<string, string> = {
 
 export function ProfileView({
   user,
-  vapidPublicKey,
 }: {
   user: { name: string; email: string; role: string; initial: string }
-  vapidPublicKey: string
 }) {
   const router = useRouter()
 
@@ -78,11 +75,6 @@ export function ProfileView({
           <div className="grid gap-4">
             <NameForm initialName={user.name} />
             <EmailField email={user.email} />
-            {vapidPublicKey && (
-              <Section title="Notificaciones">
-                <PushToggle vapidPublicKey={vapidPublicKey} />
-              </Section>
-            )}
           </div>
           <PasswordForm />
         </div>

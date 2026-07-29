@@ -7,10 +7,11 @@ export type BudgetAlert = {
   percent: number
 }
 
-// Rango permitido. Bajo el 5% cualquier gasto dispararía el aviso; sobre el 300% deja de ser una
-// alerta de presupuesto. Enteros: medio punto porcentual no cambia ninguna decisión.
+// Rango permitido. Bajo el 5% cualquier gasto dispararía el aviso; el 100% es el techo porque el
+// aviso de sobrepaso ya reporta el % real alcanzado (125%, 180%…), así que un umbral sobre 100 no
+// agrega nada. Enteros: medio punto porcentual no cambia ninguna decisión.
 export const MIN_ALERT_PERCENT = 5
-export const MAX_ALERT_PERCENT = 300
+export const MAX_ALERT_PERCENT = 100
 
 export class InvalidBudgetAlertError extends Error {
   constructor(message: string) {

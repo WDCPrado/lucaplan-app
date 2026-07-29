@@ -65,8 +65,9 @@ export function newMovementsMessage(
  * movimiento (antes por debajo, después en o sobre él): así no hace falta guardar "ya avisé" —
  * el cruce ocurre una vez. Sin límite definido (o límite 0) no hay nada que alertar.
  *
- * `percents` son los umbrales configurados (tabla `budget_alert`, en %). Se avisa el MÁS ALTO que
- * se cruza: un gasto que salta del 40% al 110% notifica "superaste", no "vas en el 50%".
+ * `percents` son los umbrales configurados (tabla `budget_alert`, en %). Se avisa UNO solo: el MÁS
+ * ALTO que se cruza (del 40% al 90% con umbrales 50 y 80 → avisa el 80, no el 50). Al cruzar el
+ * 100% el aviso reporta el % REAL alcanzado, no el umbral: gastar 1.25M de 1M dice 125%.
  */
 export function budgetAlertMessage(
   usedBefore: number,
@@ -80,11 +81,14 @@ export function budgetAlertMessage(
     .sort((a, b) => b - a)
     .find((p) => usedBefore < limit * (p / 100) && usedAfter >= limit * (p / 100))
   if (crossed === undefined) return null
+  const real = Math.round((usedAfter / limit) * 100)
   return {
     title:
-      crossed >= 100
-        ? "Superaste tu presupuesto"
-        : `Vas en el ${crossed}% del presupuesto`,
+      crossed < 100
+        ? `Vas en el ${crossed}% del presupuesto`
+        : real > 100
+          ? `Superaste tu presupuesto: vas en el ${real}%`
+          : "Completaste tu presupuesto",
     body: `Llevas ${money(usedAfter, currency)} de ${money(limit, currency)} este mes.`,
     url: "/dashboard",
     tag: "budget",

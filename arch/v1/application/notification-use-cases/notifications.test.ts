@@ -41,10 +41,15 @@ test("la alerta de presupuesto solo se dispara al CRUZAR el umbral", () => {
   assert.match(budgetAlertMessage(700_000, 850_000, 1_000_000, P)!.title, /80%/)
   // Ya estaba sobre el 80%: no se repite.
   assert.equal(budgetAlertMessage(850_000, 900_000, 1_000_000, P), null)
-  // Cruza el 100% (gana el umbral más alto aunque cruce ambos).
+  // Cruza el 100% (gana el umbral más alto aunque cruce ambos) y reporta el % real, no el umbral.
   assert.match(
-    budgetAlertMessage(700_000, 1_100_000, 1_000_000, P)!.title,
-    /Superaste/
+    budgetAlertMessage(700_000, 1_250_000, 1_000_000, P)!.title,
+    /Superaste.*125%/
+  )
+  // Justo en el 100% no es sobrepaso: se completó.
+  assert.match(
+    budgetAlertMessage(700_000, 1_000_000, 1_000_000, P)!.title,
+    /Completaste/
   )
   // Sin límite definido no hay nada que alertar.
   assert.equal(budgetAlertMessage(0, 500_000, 0, P), null)
@@ -52,18 +57,13 @@ test("la alerta de presupuesto solo se dispara al CRUZAR el umbral", () => {
   assert.equal(budgetAlertMessage(0, 900_000, 1_000_000, []), null)
 })
 
-test("los umbrales son configurables: N, en cualquier orden y sobre el 100%", () => {
-  const P = [120, 50, 90] // desordenados a propósito
+test("los umbrales son configurables: N y en cualquier orden", () => {
+  const P = [100, 50, 90] // desordenados a propósito
   assert.match(budgetAlertMessage(400_000, 550_000, 1_000_000, P)!.title, /50%/)
   // 50% y 90% se cruzan de una vez: gana el más alto.
   assert.match(budgetAlertMessage(400_000, 950_000, 1_000_000, P)!.title, /90%/)
-  // Sobre el 100% el título cambia a "superaste", sea 120% o 100%.
-  assert.match(
-    budgetAlertMessage(950_000, 1_300_000, 1_000_000, P)!.title,
-    /Superaste/
-  )
-  // Entre el 90% y el 120% no hay umbral: nada que avisar.
-  assert.equal(budgetAlertMessage(1_000_000, 1_100_000, 1_000_000, P), null)
+  // Ya sobre el 100%: el cruce ocurrió una vez, no se repite en cada gasto posterior.
+  assert.equal(budgetAlertMessage(1_100_000, 1_400_000, 1_000_000, P), null)
 })
 
 test("vencimientos: solo dentro de la ventana, en UTC", () => {

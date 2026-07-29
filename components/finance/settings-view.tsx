@@ -13,10 +13,10 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import type { BudgetAlert } from "@/arch/v1/domain/notifications/budget-alert.domain"
 
-// Rango del slider: el dominio permite 5–300, pero la escala útil se acaba mucho antes; pasar del
-// 200% ya no es una alerta de presupuesto. Paso de 5 para que el arrastre caiga en valores redondos.
+// Rango del slider = el del dominio. El 100% es el techo: pasado eso el aviso ya reporta el % real
+// alcanzado. Paso de 5 para que el arrastre caiga en valores redondos.
 const MIN = 5
-const MAX = 200
+const MAX = 100
 const STEP = 5
 
 export function SettingsView({
@@ -141,8 +141,9 @@ function BudgetAlertsSection({
         </h2>
       </div>
       <p className="mb-5 text-sm text-muted-foreground">
-        Te avisamos cuando el gasto del mes cruza cada porcentaje de tu límite
-        global. Puedes tener las que quieras.
+        Te avisamos cuando el gasto del mes cruza un porcentaje de tu límite
+        global. Solo llega un aviso: el del umbral más alto que se cruzó. Si te
+        pasas del 100%, el aviso dice cuánto (125%, 180%…).
       </p>
 
       {alerts.length === 0 ? (

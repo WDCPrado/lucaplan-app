@@ -82,8 +82,9 @@ test("rechaza duplicados y porcentajes fuera de rango", async () => {
     () => saveBudgetAlert(deps, { percent: 0 }),
     InvalidBudgetAlertError
   )
+  // El techo es 100: sobre eso el aviso ya reporta el % real alcanzado.
   await assert.rejects(
-    () => saveBudgetAlert(deps, { percent: 500 }),
+    () => saveBudgetAlert(deps, { percent: 120 }),
     InvalidBudgetAlertError
   )
   assert.equal(rows().length, 2) // ningún rechazo dejó basura

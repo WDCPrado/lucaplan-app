@@ -58,8 +58,12 @@ configurar, se vuelve a ofrecer la próxima vez.
 ## Umbrales de presupuesto configurables
 
 Viven en la tabla `budget_alert` y se editan en **Configuración → Alertas de presupuesto**, con un
-slider por umbral (5–200%, en pasos de 5). Puedes tener **los que quieras**: 50%, 80%, 100%, 120%…
+slider por umbral (5–100%, en pasos de 5). Puedes tener **los que quieras**: 50%, 80%, 100%…
 La migración siembra 80% y 100%, que eran los valores fijos anteriores.
+
+El techo es 100% porque el aviso de sobrepaso ya reporta el porcentaje **real** alcanzado: gastar
+1.25M de un límite de 1M dice "Superaste tu presupuesto: vas en el 125%". Justo en el 100% el
+título es "Completaste tu presupuesto".
 
 La tabla es **global a propósito**: sin `userId` ni mes. Es una preferencia de la app, no un dato
 financiero de un usuario o un período. El `percent` es único — dos alertas iguales avisarían dos

@@ -88,25 +88,28 @@ export async function notifyBudgetCrossing(
 }
 
 /**
- * Nombre de la categoría con la que quedó persistido un movimiento del lote. Se busca por su id del
- * banco entre los movimientos del mes; uno cuya fecha caiga fuera (una compra de fin del mes pasado
- * que llega hoy) simplemente no la muestra.
+ * Datos del movimiento YA persistido que el aviso necesita: su id (para enlazar directo a su modal)
+ * y el nombre de la categoría que le quedó. Se busca por el id del banco entre los movimientos del
+ * mes; uno cuya fecha caiga fuera (una compra de fin del mes pasado que llega hoy) no aporta
+ * ninguno de los dos y el aviso sale como antes.
  */
-async function assignedCategory(
+async function persisted(
   deps: NotifyImportedDeps,
   userId: string,
   year: number,
   month: number,
   movement: NotifiableMovement
-): Promise<string | null> {
-  if (!movement.externalId) return null
+): Promise<{ id?: string; category?: string }> {
+  if (!movement.externalId) return {}
   const txs = await deps.transactions.listByUserPeriod(userId, year, month)
-  const categoryId = txs.find(
-    (t) => t.externalId === movement.externalId
-  )?.categoryId
-  if (!categoryId) return null
+  const tx = txs.find((t) => t.externalId === movement.externalId)
+  if (!tx) return {}
+  if (!tx.categoryId) return { id: tx.id }
   const categories = await deps.categories.listByUser(userId)
-  return categories.find((c) => c.id === categoryId)?.name ?? null
+  return {
+    id: tx.id,
+    category: categories.find((c) => c.id === tx.categoryId)?.name,
+  }
 }
 
 /**
@@ -125,14 +128,14 @@ export async function notifyImportedMovements(
 ): Promise<void> {
   const year = now.getUTCFullYear()
   const month = now.getUTCMonth() + 1
-  // Un solo movimiento se nombra, y ahí la categoría que le puso la IA hace útil el aviso. Con
-  // varios el resumen no las lista, así que ni se consultan.
+  // Un solo movimiento se nombra: ahí valen la categoría que le puso la IA y el enlace directo a su
+  // modal. Con varios el resumen no los lista, así que ni se consultan.
   const message = newMovementsMessage(
     movements.length === 1
       ? [
           {
             ...movements[0],
-            category: await assignedCategory(deps, userId, year, month, movements[0]),
+            ...(await persisted(deps, userId, year, month, movements[0])),
           },
         ]
       : movements

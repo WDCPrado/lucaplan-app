@@ -38,6 +38,12 @@ test("un movimiento se nombra; varios se resumen; ninguno no notifica", () => {
       .body,
     /Uber Eats · Comida/
   )
+  // Con el id del movimiento, el aviso enlaza directo a su modal; sin él, al dashboard pelado.
+  assert.equal(
+    newMovementsMessage([{ ...mov("Uber Eats", 12990), id: "tx1" }])!.url,
+    "/dashboard?tx=tx1"
+  )
+  assert.equal(one!.url, "/dashboard")
   const many = newMovementsMessage([
     mov("Uber Eats", 12990),
     mov("Copec", 20000),
@@ -189,24 +195,37 @@ test("categorizar un movimiento lo mete al presupuesto y puede cruzar un umbral"
 
 test("vencimientos: solo dentro de la ventana, en UTC", () => {
   const now = new Date("2026-07-28T12:00:00Z")
-  const item = (description: string, day: string, amount = 15000) => ({
+  const item = (
+    description: string,
+    day: string,
+    amount = 15000,
+    kind: "recurring" | "installment" = "recurring"
+  ) => ({
     description,
     amount,
     currency: "CLP" as const,
     dueDate: new Date(`${day}T00:00:00Z`),
+    kind,
   })
   assert.equal(dueSoonMessage([item("Netflix", "2026-08-05")], now), null) // fuera de ventana
   assert.equal(dueSoonMessage([item("Netflix", "2026-07-27")], now), null) // ya venció
-  assert.match(
-    dueSoonMessage([item("Netflix", "2026-07-29")], now)!.title,
-    /Vence mañana: Netflix/
-  )
+  const uno = dueSoonMessage([item("Netflix", "2026-07-29")], now)!
+  assert.match(uno.title, /Vence mañana: Netflix/)
+  assert.equal(uno.url, "/recurring")
   const many = dueSoonMessage(
     [item("Netflix", "2026-07-28"), item("Spotify", "2026-07-30", 5000)],
     now
   )
   assert.equal(many?.title, "2 pagos por vencer")
   assert.match(many!.body, /20\.000/)
+
+  // Cuotas: el aviso lleva a su página. Mezcladas con una recurrente, gana /recurring.
+  const cuota = item("TV (cuota 2/12)", "2026-07-29", 30000, "installment")
+  assert.equal(dueSoonMessage([cuota], now)!.url, "/installments")
+  assert.equal(
+    dueSoonMessage([cuota, item("Netflix", "2026-07-29")], now)!.url,
+    "/recurring"
+  )
 })
 
 test("solo se aceptan endpoints de push services conocidos (SSRF)", async () => {

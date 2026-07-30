@@ -55,6 +55,7 @@ export async function collectDueItems(
         amount: item.amount.toMajor(),
         currency: item.amount.currency,
         dueDate: item.dueDate,
+        kind: "installment",
       })
     }
   }
@@ -98,6 +99,7 @@ export async function collectDueItems(
         amount: t.baseAmount.toMajor(),
         currency: t.baseAmount.currency,
         dueDate,
+        kind: "recurring",
       })
     }
   }

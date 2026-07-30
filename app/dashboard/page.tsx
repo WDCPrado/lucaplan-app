@@ -24,6 +24,7 @@ export default async function DashboardPage({
     month?: string
     outlook?: string
     reason?: string
+    tx?: string // deep link de la notificación de movimiento: abre su modal al entrar
   }>
 }) {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -82,6 +83,7 @@ export default async function DashboardPage({
         user={user}
         outlookResult={sp.outlook ?? null}
         outlookReason={sp.reason ?? null}
+        openTxId={sp.tx ?? null}
       />
     </>
   )

@@ -24,6 +24,9 @@ export type NotifiableMovement = {
   amount: number
   currency: CurrencyCode
   direction: "debit" | "credit"
+  // Id del movimiento ya persistido: el aviso enlaza a `/dashboard?tx=<id>` y la app abre su modal.
+  // Ausente = el aviso lleva al dashboard sin abrir nada.
+  id?: string
   // Id del banco: sirve para reconocer el lote entre los movimientos ya persistidos (y ver cuáles
   // quedaron categorizados). Ausente = no se puede reconocer; solo afecta la alerta de presupuesto.
   externalId?: string | null
@@ -48,7 +51,8 @@ export function newMovementsMessage(
       // La categoría cierra la pregunta obvia ("¿dónde quedó clasificado?"); sin ella, el aviso
       // queda igual que antes en vez de mostrar un separador huérfano.
       body: `${money(m.amount, m.currency)} · ${m.description}${m.category ? ` · ${m.category}` : ""}`,
-      url: "/dashboard",
+      // Tocar el aviso abre el movimiento, no una lista donde haya que buscarlo.
+      url: m.id ? `/dashboard?tx=${m.id}` : "/dashboard",
       tag: "movements",
     }
   }
@@ -111,6 +115,15 @@ export type DueItem = {
   amount: number
   currency: CurrencyCode
   dueDate: Date
+  kind: "installment" | "recurring" // de dónde viene: decide a qué página lleva el aviso
+}
+
+// Página que abre el aviso: la de cuotas si todo lo que vence son cuotas; si hay alguna recurrente
+// (o están mezcladas), la de recurrentes.
+function dueUrl(items: DueItem[]): string {
+  return items.every((i) => i.kind === "installment")
+    ? "/installments"
+    : "/recurring"
 }
 
 // Días de diferencia en UTC (las fechas del proyecto se guardan y comparan en UTC).
@@ -142,7 +155,7 @@ export function dueSoonMessage(
     return {
       title: `Vence ${when}: ${i.description}`,
       body: money(i.amount, i.currency),
-      url: "/recurring",
+      url: dueUrl(due),
       tag: "due",
     }
   }
@@ -156,7 +169,7 @@ export function dueSoonMessage(
       windowDays === 0
         ? `${money(total, currency)} vencen hoy.`
         : `${money(total, currency)} en los próximos ${windowDays} día${windowDays === 1 ? "" : "s"}.`,
-    url: "/recurring",
+    url: dueUrl(due),
     tag: "due",
   }
 }

@@ -51,20 +51,24 @@ self.addEventListener("push", (event) => {
 });
 
 // Tap en la notificación: reusa la ventana de la PWA si ya está abierta; si no, abre una.
+// SIEMPRE navega a la URL del aviso (no basta con enfocar): los avisos enlazan a destinos concretos
+// —`/dashboard?tx=<id>` abre ese movimiento— y una ventana ya parada en /dashboard no mostraría
+// nada. `navigate` puede fallar (ventana de otro contexto): ahí se abre una nueva.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = event.notification.data?.url || "/dashboard";
+  const target = new URL(url, self.location.origin).href;
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clients) => {
-        for (const client of clients) {
-          if (client.url.includes(new URL(url, self.location.origin).pathname))
-            return client.focus();
-        }
         const open = clients[0];
-        if (open) return open.navigate(url).then((c) => c && c.focus());
-        return self.clients.openWindow(url);
+        if (!open) return self.clients.openWindow(target);
+        if (open.url === target) return open.focus(); // ya está exactamente ahí
+        return open
+          .navigate(target)
+          .then((c) => (c || open).focus())
+          .catch(() => self.clients.openWindow(target));
       })
   );
 });

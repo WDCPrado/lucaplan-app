@@ -65,6 +65,8 @@ type Props = {
   user: { name: string; initial: string; email: string }
   outlookResult: string | null
   outlookReason: string | null
+  // `?tx=<id>` de la notificación de movimiento: abre ese modal al entrar.
+  openTxId: string | null
 }
 
 // Dashboard desktop-first: AppShell (sidebar + topbar + FAB) con el contenido en grid
@@ -81,6 +83,7 @@ export function Dashboard({
   user,
   outlookResult,
   outlookReason,
+  openTxId,
 }: Props) {
   const router = useRouter()
   // Primera conexión de correo (callback OAuth ?outlook=setup, aún sin banco): onboarding fullscreen.
@@ -89,7 +92,16 @@ export function Dashboard({
   const [addOpen, setAddOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const [detail, setDetail] = useState<CategoryDTO | null>(null)
-  const [detailTx, setDetailTx] = useState<TransactionDTO | null>(null)
+  const [detailTx, setDetailTx] = useState<TransactionDTO | null>(
+    () => transactions.find((t) => t.id === openTxId) ?? null
+  )
+  // Tocar otra notificación con la app ya abierta navega a `?tx=<otro>` sin remontar: se ajusta el
+  // estado en render (patrón de React para props que cambian) en vez de un useEffect.
+  const [linkedTxId, setLinkedTxId] = useState(openTxId)
+  if (openTxId !== linkedTxId) {
+    setLinkedTxId(openTxId)
+    setDetailTx(transactions.find((t) => t.id === openTxId) ?? null)
+  }
   const [editCat, setEditCat] = useState<CategoryDTO | null | undefined>(
     undefined
   ) // undefined=cerrado, null=crear
@@ -696,7 +708,13 @@ export function Dashboard({
         tx={detailTx}
         categories={budget.categories}
         accounts={accounts}
-        onOpenChange={(o) => !o && setDetailTx(null)}
+        onOpenChange={(o) => {
+          if (o) return
+          setDetailTx(null)
+          // Saca el `?tx=` de la barra: recargar o volver no debe reabrir el modal.
+          if (openTxId)
+            window.history.replaceState(null, "", window.location.pathname)
+        }}
       />
       <TransactionSearch
         open={searchOpen}

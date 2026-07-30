@@ -181,6 +181,25 @@ cambiarla no exige tocar el cron; el argumento posicional sigue mandando para pr
 | Suscripciones (Prisma)         | [arch/v1/infrastructure/database/prisma/push.infrastructure.ts](../arch/v1/infrastructure/database/prisma/push.infrastructure.ts) |
 | Alta/baja HTTP                 | [app/api/push/route.ts](../app/api/push/route.ts); umbrales en [app/api/budget-alerts/route.ts](../app/api/budget-alerts/route.ts) |
 | `push` y `notificationclick`   | [public/sw.js](../public/sw.js)                                       |
+
+## A dónde lleva cada aviso
+
+| Aviso                      | Destino                                                                 |
+| -------------------------- | ----------------------------------------------------------------------- |
+| Movimiento nuevo (uno)     | `/dashboard?tx=<id>` — abre el modal de ESE movimiento                   |
+| Movimientos nuevos (varios)| `/dashboard`                                                             |
+| Alerta de presupuesto      | `/dashboard`                                                             |
+| Pagos por vencer           | `/installments` si todo lo que vence son cuotas; si no, `/recurring`     |
+
+El `notificationclick` del service worker **navega** la ventana existente a esa URL en vez de solo
+enfocarla: con la PWA ya abierta en `/dashboard`, un simple `focus()` dejaba el enlace sin efecto.
+Si `navigate` falla (ventana de otro contexto), abre una nueva.
+
+El deep link lo resuelve el dashboard sin `useEffect`: `?tx=` llega como prop desde el server
+component y el estado se ajusta en render (patrón de React para props que cambian), así tocar otra
+notificación con la app abierta cambia de movimiento. Al cerrar el modal se limpia el query para que
+recargar no lo reabra. Un movimiento fuera del mes en curso no está en la lista cargada: el aviso
+abre el dashboard sin modal en vez de fallar.
 | UI                             | [push-toggle.tsx](../components/pwa/push-toggle.tsx) (botón), [push-prompt.tsx](../components/pwa/push-prompt.tsx) (modal de entrada), [settings-view.tsx](../components/finance/settings-view.tsx) (pestaña Configuración) |
 | Alta/baja en el navegador      | [lib/push.ts](../lib/push.ts) — permiso, suscripción y baja; lo comparten el botón y el modal |
 

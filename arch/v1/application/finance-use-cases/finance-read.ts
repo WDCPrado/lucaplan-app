@@ -536,7 +536,9 @@ export async function searchTransactions(
   filters: TransactionSearchFilters
 ): Promise<TransactionDTO[]> {
   const [txs, cats, accounts] = await Promise.all([
-    deps.transactions.searchByUser(userId, filters),
+    // El buscador mira la cartola: solo lo que ya ocurrió. Se fuerza acá (no en el endpoint) para
+    // que ninguna llamada pueda pedir las recurrentes por cobrar por accidente.
+    deps.transactions.searchByUser(userId, { ...filters, settledOnly: true }),
     deps.categories.listByUser(userId),
     deps.accounts.listByUser(userId),
   ])

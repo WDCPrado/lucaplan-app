@@ -18,6 +18,11 @@ const mocks = [
     title: "Outlook · Revisión y snapshot",
     desc: "Tarjetas editables de candidatos con saldos total/disponible",
   },
+  {
+    slug: "ux-audit",
+    title: "Auditoría UX · propuesta",
+    desc: "Inicio, movimientos, recurrentes, cuotas y ajustes rediseñados",
+  },
 ]
 
 export default function DesignIndex() {

@@ -2,8 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { ArrowLeft, Check, Eye, EyeOff, Loader2 } from "lucide-react"
+import { Check, Eye, EyeOff, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
@@ -41,14 +40,13 @@ export function ProfileView({
       onSignOut={signOut}
       title="Mi perfil"
     >
-      <div className="mx-auto w-full max-w-4xl px-4 py-6 lg:px-8">
-        <Link
-          href="/dashboard"
-          className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          Volver
-        </Link>
+      {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para
+          el enlace "Volver", que ya no está (la navegación vive en el shell). */}
+      <div className="mx-auto w-full max-w-4xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
+        {/* En escritorio el título ya está en la topbar; en móvil no hay, así que se muestra. */}
+        <h1 className="mb-3 font-heading text-xl font-bold md:sr-only">
+          Mi perfil
+        </h1>
 
         {/* Cabecera: identidad (ancho completo) */}
         <div className="glass flex items-center gap-4 rounded-2xl p-5">
@@ -122,7 +120,11 @@ function NameForm({ initialName }: { initialName: string }) {
     <Section title="Nombre">
       <form onSubmit={save} className="space-y-3">
         <div className="space-y-2">
-          <Label htmlFor="name">Nombre para mostrar</Label>
+          {/* El título de la sección ya dice "Nombre": el label se mantiene para el lector de
+              pantalla, sin repetirlo a la vista. */}
+          <Label htmlFor="name" className="sr-only">
+            Nombre para mostrar
+          </Label>
           <Input
             id="name"
             value={name}
@@ -149,19 +151,12 @@ function NameForm({ initialName }: { initialName: string }) {
 function EmailField({ email }: { email: string }) {
   return (
     <Section title="Correo">
-      <div className="space-y-2">
-        <Label htmlFor="email">Correo</Label>
-        <Input
-          id="email"
-          value={email}
-          readOnly
-          disabled
-          className="h-11 text-base"
-        />
-        <p className="text-xs text-muted-foreground">
-          El correo no se puede cambiar por ahora.
-        </p>
-      </div>
+      {/* Texto, no un input deshabilitado: un campo gris con el valor apagado se lee como
+          "editable pero roto" y hasta como vacío. Si no se puede cambiar, no es un campo. */}
+      <p className="truncate text-base">{email}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        El correo no se puede cambiar por ahora.
+      </p>
     </Section>
   )
 }

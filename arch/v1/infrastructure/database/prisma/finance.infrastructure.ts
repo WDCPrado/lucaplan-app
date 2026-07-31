@@ -358,6 +358,14 @@ export const transactionRepository: TransactionRepository = {
       where.isInternal = false
       where.reviewed = false // el usuario ya decidió (aunque sea dejarla vacía) no vuelve al triage
     }
+    // Buscador: fuera el ruido y las recurrentes por cobrar. Un pending SIN plantilla sí queda:
+    // es un cargo real que el banco todavía no confirma, y el usuario lo busca igual.
+    if (f.settledOnly) {
+      where.status = { notIn: ["reversed", "duplicated"] }
+      where.NOT = {
+        AND: [{ status: "pending" }, { recurringTemplateId: { not: null } }],
+      }
+    }
     const rows = await prisma.transaction.findMany({
       where,
       orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],

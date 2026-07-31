@@ -2,8 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { ArrowLeft, Plus, Repeat } from "lucide-react"
+import { Pause, Play, Plus, Repeat } from "lucide-react"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
@@ -14,7 +13,6 @@ import { AppShell } from "./app-shell"
 import { CategoryIcon } from "./category-icons"
 import { RecurringModal } from "./recurring-modal"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import type {
   AccountDTO,
   CategoryDTO,
@@ -56,6 +54,16 @@ function shortDate(iso: string): string {
   })
 }
 
+// Cae el próximo cobro dentro del mes en curso: lo que todavía hay que reservar antes de que
+// termine el mes (el resto ya se cobró y vuelve recién el mes siguiente).
+function isThisMonth(iso: string, today = new Date()): boolean {
+  const d = new Date(iso)
+  return (
+    d.getUTCFullYear() === today.getFullYear() &&
+    d.getUTCMonth() === today.getMonth()
+  )
+}
+
 export function RecurringView({
   user,
   templates,
@@ -77,6 +85,11 @@ export function RecurringView({
   // Lo que estas plantillas comprometen en un período completo: responde "¿cuánto de mi
   // presupuesto ya está tomado antes de gastar nada?".
   const committed = active.reduce((sum, t) => sum + t.baseAmount, 0)
+  const dueThisMonth = active.filter((t) => isThisMonth(t.nextExecution))
+  const dueTotal = dueThisMonth.reduce((sum, t) => sum + t.baseAmount, 0)
+  const upcoming = [...active].sort((a, b) =>
+    a.nextExecution.localeCompare(b.nextExecution)
+  )
 
   async function signOut() {
     await authClient.signOut()
@@ -119,89 +132,150 @@ export function RecurringView({
       onAdd={create}
       title="Recurrentes"
     >
-      <div className="mx-auto w-full max-w-2xl px-4 py-6 lg:px-8">
-        <Link
-          href="/dashboard"
-          className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          Volver
-        </Link>
-
-        <div className="mb-5 flex items-end justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">Gastos recurrentes</h2>
-            {active.length > 0 && (
-              <p className="tabular text-sm text-muted-foreground">
-                {formatCLP(committed)} comprometidos ·{" "}
-                {active.length === 1 ? "1 activa" : `${active.length} activas`}
-              </p>
-            )}
-          </div>
-          {/* Con lista vacía el CTA vive en el empty state: dos "crear" a la vista confunden. */}
-          {templates.length > 0 && (
-            <Button
-              onClick={create}
-              className="hidden shrink-0 rounded-full lg:inline-flex"
-            >
-              <Plus className="size-4" />
-              Nueva
-            </Button>
-          )}
-        </div>
-
+      {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para
+          el enlace "Volver", que ya no está. En escritorio la topbar sí pide su margen. */}
+      <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
         {templates.length === 0 ? (
           <EmptyState onCreate={create} />
         ) : (
-          <div className="flex flex-col gap-6">
-            {active.length > 0 && (
-              <ul className="flex flex-col gap-2">
-                {active.map((t) => (
-                  <RecurringRow
-                    key={t.id}
-                    template={t}
-                    onEdit={() => edit(t)}
-                    onToggle={() => toggleActive(t, false)}
-                  />
-                ))}
-              </ul>
-            )}
+          // Escritorio: la lista manda y el resumen del mes acompaña; móvil: una columna con el
+          // resumen al final (primero se decide sobre las filas, después se mira el total).
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start">
+            <div className="min-w-0">
+              {/* min-h-9: la fila mide lo mismo con o sin el botón, así el título del panel
+                  derecho queda alineado con este. */}
+              <div className="mb-3 flex min-h-9 items-end justify-between gap-3">
+                <h2 className="font-heading text-lg font-bold">
+                  Gastos recurrentes
+                </h2>
+                <Button
+                  onClick={create}
+                  className="hidden shrink-0 rounded-full lg:inline-flex"
+                >
+                  <Plus className="size-4" />
+                  Nueva
+                </Button>
+              </div>
 
-            {paused.length > 0 && (
-              <section>
-                <h3 className="mb-2 text-xs font-medium text-muted-foreground">
-                  Pausadas
-                </h3>
-                <ul className="flex flex-col gap-2">
-                  {paused.map((t) => (
-                    <RecurringRow
-                      key={t.id}
-                      template={t}
-                      onEdit={() => edit(t)}
-                      onToggle={() => toggleActive(t, true)}
-                    />
-                  ))}
-                </ul>
-              </section>
-            )}
+              <div className="flex flex-col gap-6">
+                {active.length > 0 && (
+                  <ul className="glass divide-y divide-border/50 rounded-2xl px-3">
+                    {active.map((t) => (
+                      <RecurringRow
+                        key={t.id}
+                        template={t}
+                        onEdit={() => edit(t)}
+                        onToggle={() => toggleActive(t, false)}
+                      />
+                    ))}
+                  </ul>
+                )}
 
-            {ended.length > 0 && (
-              <section>
-                <h3 className="mb-2 text-xs font-medium text-muted-foreground">
-                  Finalizadas
-                </h3>
-                <ul className="flex flex-col gap-2">
-                  {ended.map((t) => (
-                    <RecurringRow
-                      key={t.id}
-                      template={t}
-                      onEdit={() => edit(t)}
-                      onToggle={() => toggleActive(t, true)}
-                    />
-                  ))}
-                </ul>
+                {paused.length > 0 && (
+                  <section>
+                    <h3 className="mb-2 text-xs font-medium text-muted-foreground">
+                      Pausadas
+                    </h3>
+                    <ul className="glass divide-y divide-border/50 rounded-2xl px-3">
+                      {paused.map((t) => (
+                        <RecurringRow
+                          key={t.id}
+                          template={t}
+                          onEdit={() => edit(t)}
+                          onToggle={() => toggleActive(t, true)}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
+                {ended.length > 0 && (
+                  <section>
+                    <h3 className="mb-2 text-xs font-medium text-muted-foreground">
+                      Finalizadas
+                    </h3>
+                    <ul className="glass divide-y divide-border/50 rounded-2xl px-3">
+                      {ended.map((t) => (
+                        <RecurringRow
+                          key={t.id}
+                          template={t}
+                          onEdit={() => edit(t)}
+                          onToggle={() => toggleActive(t, true)}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </div>
+            </div>
+
+            {/* Móvil: el resumen del mes va primero (es el titular); escritorio: columna derecha. */}
+            <div className="max-lg:order-first">
+              <div className="mb-3 flex min-h-9 items-end">
+                <h2 className="font-heading text-lg font-bold">Este mes</h2>
+              </div>
+              <section className="glass rounded-2xl p-4 lg:sticky lg:top-24">
+                <p className="text-sm text-muted-foreground">
+                  Total recurrente
+                </p>
+                <p className="tabular text-2xl font-bold">
+                  {formatCLP(committed)}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {active.length} de {templates.length}{" "}
+                  {templates.length === 1 ? "activa" : "activas"}
+                </p>
+
+                {/* Lo que falta cobrar dentro del mes es lo accionable (hay que reservarlo). Si ya
+                    no queda nada, el panel muestra los que vienen en vez de una frase vacía. */}
+                <div className="mt-4 border-t border-border/60 pt-3">
+                  <p className="text-sm font-medium">
+                    {dueThisMonth.length > 0
+                      ? "Por cobrar este mes"
+                      : "Próximos cobros"}
+                  </p>
+                  {upcoming.length === 0 ? (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Sin cobros programados.
+                    </p>
+                  ) : (
+                    <>
+                      <ul className="mt-1.5 space-y-1.5">
+                        {(dueThisMonth.length > 0
+                          ? dueThisMonth
+                          : upcoming.slice(0, 3)
+                        ).map((t) => (
+                          <li
+                            key={t.id}
+                            className="flex justify-between gap-2 text-sm"
+                          >
+                            <span className="min-w-0 truncate text-muted-foreground">
+                              {t.description}
+                              {dueThisMonth.length === 0 &&
+                                ` · ${nextChargeLabel(t.nextExecution)
+                                  .replace("Cobra el ", "")
+                                  .replace("Cobra ", "")}`}
+                            </span>
+                            <span className="tabular shrink-0">
+                              {formatCLP(t.baseAmount)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      {dueThisMonth.length > 0 && (
+                        <p className="mt-2 text-sm">
+                          Reserva{" "}
+                          <strong className="tabular font-semibold">
+                            {formatCLP(dueTotal)}
+                          </strong>{" "}
+                          antes de fin de mes.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
               </section>
-            )}
+            </div>
           </div>
         )}
       </div>
@@ -231,20 +305,19 @@ function RecurringRow({
   onEdit: () => void
   onToggle: () => void
 }) {
+  const inactive = !t.isActive || t.hasEnded
   return (
-    <li
-      className={cn(
-        "glass flex items-center gap-3 rounded-2xl py-3 pr-4 pl-3 transition-opacity",
-        (!t.isActive || t.hasEnded) && "opacity-60"
-      )}
-    >
+    <li className={cn("flex items-center gap-3 py-2.5", inactive && "opacity-60")}>
       <button
         type="button"
         onClick={onEdit}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
         <span
-          className="grid size-10 shrink-0 place-items-center rounded-full bg-muted"
+          className="grid size-10 shrink-0 place-items-center rounded-full"
+          style={{
+            background: t.categoryColor ? `${t.categoryColor}1f` : "var(--muted)",
+          }}
           aria-hidden
         >
           <CategoryIcon
@@ -266,7 +339,7 @@ function RecurringRow({
           <span className="tabular block font-semibold">
             {formatCLP(t.baseAmount)}
           </span>
-          <span className="tabular block text-xs text-muted-foreground">
+          <span className="block text-xs whitespace-nowrap text-muted-foreground">
             {t.hasEnded
               ? `Terminó el ${shortDate(t.endDate!)}`
               : t.isActive
@@ -275,17 +348,29 @@ function RecurringRow({
           </span>
         </span>
       </button>
-      {/* Separado del bloque de datos: es un control, no información. El label describe la acción
-          para el lector de pantalla; el estado lo anuncia el propio switch. */}
-      {/* Terminada: el switch queda inerte. Reactivarla exige correr su fecha de fin (se edita
+      {/* Pausar es lo excepcional: va como acción secundaria, no como el control más pesado de la
+          fila (el switch azul competía con el monto por la atención). */}
+      {/* Terminada: el control queda inerte. Reactivarla exige correr su fecha de fin (se edita
           tocando la fila), y el backend rechaza el intento de todos modos. */}
-      <Switch
-        checked={t.isActive && !t.hasEnded}
+      <Button
+        variant="ghost"
+        size="icon"
         disabled={t.hasEnded}
-        onCheckedChange={onToggle}
-        aria-label={`Recurrencia de ${t.description}`}
-        className="ml-1 shrink-0"
-      />
+        onClick={onToggle}
+        aria-label={
+          t.isActive
+            ? `Pausar ${t.description}`
+            : `Reanudar ${t.description}`
+        }
+        title={t.isActive ? "Pausar" : "Reanudar"}
+        className="size-11 shrink-0 text-muted-foreground"
+      >
+        {t.isActive && !t.hasEnded ? (
+          <Pause className="size-4" />
+        ) : (
+          <Play className="size-4" />
+        )}
+      </Button>
     </li>
   )
 }
@@ -293,7 +378,7 @@ function RecurringRow({
 // Empty state que enseña qué resuelve la función, en vez de anunciar el vacío.
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="glass rounded-2xl px-6 py-10 text-center">
+    <div className="glass mx-auto max-w-2xl rounded-2xl px-6 py-10 text-center">
       <span
         className="mx-auto mb-3 grid size-11 place-items-center rounded-full bg-primary/10"
         aria-hidden

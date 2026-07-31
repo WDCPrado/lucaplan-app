@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import {
-  Check,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -11,13 +10,14 @@ import {
   Pencil,
   Plus,
 } from "lucide-react"
-import { toast } from "sonner"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useCardCarousel } from "@/hooks/use-card-carousel"
 import { AppShell } from "./app-shell"
 import { MonthPicker } from "./month-picker"
+import { MonthStatus } from "./month-status"
+import { PlanSheet } from "./plan-sheet"
 import { AccountCard } from "./account-card"
 import { MovementsList } from "./movements-list"
 import { ProgressRing } from "./progress-ring"
@@ -34,14 +34,7 @@ import { TransactionModal } from "./transaction-modal"
 import { TransactionSearch } from "./transaction-search"
 import { IncomeModal } from "./income-modal"
 import { OnboardingFlow } from "./onboarding/onboarding-flow"
-import {
-  formatCLP,
-  formatCompact,
-  formatMoney,
-  monthName,
-  quartileVar,
-} from "@/lib/finance-format"
-import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
+import { formatCLP, formatCompact, monthName } from "@/lib/finance-format"
 import type {
   AccountDTO,
   AmountBoundsDTO,
@@ -122,7 +115,8 @@ export function Dashboard({
   const [infoAccount, setInfoAccount] = useState<AccountDTO | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [budgetLimitOpen, setBudgetLimitOpen] = useState(false)
-  const [applyingBudget, setApplyingBudget] = useState(false)
+  // Plan del mes (ingresos + presupuesto): decisiones ocasionales, fuera del flujo diario.
+  const [planOpen, setPlanOpen] = useState(false)
   // Triage de sin categoría: descartado no reaparece hasta la PRÓXIMA carga (el estado vive en
   // el cliente; recargar la app lo resetea). Se monta solo mientras está abierto.
   const [triageDismissed, setTriageDismissed] = useState(false)
@@ -146,10 +140,7 @@ export function Dashboard({
   const activeIncomeTotal = incomes
     .filter((i) => i.isActive && i.currency === "CLP")
     .reduce((s, i) => s + i.amount, 0)
-  const suggestBudget =
-    budget.globalLimit !== null &&
-    activeIncomeTotal > 0 &&
-    activeIncomeTotal !== budget.globalLimit
+
   // Sobre-asignado: los límites de categoría superan el límite global del mes (alerta, no bloquea).
   const overAllocated =
     budget.remainingToAllocate !== null && budget.remainingToAllocate < 0
@@ -159,9 +150,12 @@ export function Dashboard({
     (s, c) => s + Math.max(0, c.used),
     0
   )
-  const usedPct = budget.globalLimit
-    ? (totalUsed / budget.globalLimit) * 100
-    : 0
+  // Comprometido del mes: recurrentes y cuotas que aún no se cobran. Sin descontarlo, el
+  // "disponible" miente justo con la plata que ya tiene dueño.
+  const totalCommitted = expenseCategories.reduce(
+    (s, c) => s + Math.max(0, c.committed),
+    0
+  )
 
   function goMonth(delta: number) {
     const d = new Date(Date.UTC(period.year, period.month - 1 + delta, 1))
@@ -180,26 +174,12 @@ export function Dashboard({
     router.push("/login")
   }
 
-  async function applyIncomeTotal() {
-    setApplyingBudget(true)
-    const res = await fetch("/api/budgets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        year: period.year,
-        month: period.month,
-        globalLimit: activeIncomeTotal,
-      }),
-    })
-    setApplyingBudget(false)
-    if (!res.ok) {
-      haptic("error")
-      return toast.error("No se pudo actualizar el presupuesto")
-    }
-    haptic("success")
-    toast.success("Presupuesto actualizado")
-    router.refresh()
-  }
+  // Días que quedan del mes (incluye hoy). Solo tiene sentido en el mes en curso.
+  const daysLeft = isCurrentMonth
+    ? new Date(Date.UTC(period.year, period.month, 0)).getUTCDate() -
+      now.getUTCDate() +
+      1
+    : null
 
   return (
     <AppShell
@@ -248,8 +228,19 @@ export function Dashboard({
       }
     >
       <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
+        {/* Estado del mes: la respuesta a "¿cuánto puedo gastar?" antes que cualquier detalle.
+            Desde acá se abre el plan (ingresos y presupuesto), que es lo que lo determina. */}
+        <MonthStatus
+          period={period}
+          globalLimit={budget.globalLimit}
+          spent={totalUsed}
+          committed={totalCommitted}
+          daysLeft={daysLeft}
+          onOpenPlan={() => setPlanOpen(true)}
+        />
+
         {/* Cuentas */}
-        <section>
+        <section className="mt-8">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-heading text-lg font-bold">Cuentas</h2>
             <button
@@ -343,204 +334,40 @@ export function Dashboard({
               </button>
             </div>
             <div className="glass rounded-2xl p-4">
-              {/* Ingresos primero: lo que entra define cuánto se puede presupuestar abajo.
-                  Una fila por fuente (día en que llega, estado, generar) + categorías de ingreso
-                  sin fuente (agrupan abonos sueltos) + fila para agregar. */}
-              <div className="mb-1 text-xs font-medium text-muted-foreground">
-                Ingresos
-              </div>
-              <div className="divide-y divide-border/40">
-                {incomes.map((inc) => (
-                  <IncomeRow
-                    key={inc.id}
-                    income={inc}
-                    period={period}
-                    isCurrentMonth={isCurrentMonth}
-                    onEdit={() => setEditIncome(inc)}
-                    onOpenCategory={() => {
-                      const cat = budget.categories.find(
-                        (c) => c.id === inc.categoryId
-                      )
-                      if (cat) setEditCat(cat)
-                    }}
-                  />
-                ))}
-                <button
-                  onClick={() => setEditIncome(null)}
-                  className="flex w-full items-center gap-3 py-2.5 text-left text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <span className="grid size-11 shrink-0 place-items-center rounded-full border-2 border-dashed border-border text-lg">
-                    +
+              {/* Asignación del mes: cuánto del presupuesto ya tiene destino. Tocarlo abre el
+                  plan (ingresos y presupuesto), que es donde se cambia. */}
+              <button
+                onClick={() => setPlanOpen(true)}
+                className="group mb-4 flex w-full items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2.5 text-left transition-colors hover:bg-accent"
+                aria-label="Ver el plan del mes"
+              >
+                <span className="min-w-0">
+                  <span className="block text-xs text-muted-foreground uppercase">
+                    {budget.globalLimit === null
+                      ? "Sin presupuesto del mes"
+                      : overAllocated
+                        ? "Sobre-asignado"
+                        : "Por presupuestar"}
                   </span>
-                  {incomes.length > 0 ? (
-                    <span className="text-sm">Agregar ingreso</span>
-                  ) : (
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium">
-                        Registra tus ingresos
-                      </span>
-                      <span className="block text-xs">
-                        Sueldo, arriendo u otros · definen tu presupuesto
-                      </span>
-                    </span>
-                  )}
-                </button>
-              </div>
-              {/* Categorías de ingreso: MISMO patrón visual que las de gasto (celda, anillo y
-                  monto disponible). Meta = suma de sus ingresos; tocar abre el detalle. */}
-              {incomeCategories.length > 0 && (
-                <>
-                  <div className="mt-5 mb-3 text-xs font-medium text-muted-foreground">
-                    Categorías de ingreso
-                  </div>
-                  {/* Mismo padding que las filas de Ingresos: celdas alineadas a la izquierda
-                      (en escritorio con wrap, no grilla centrada). */}
-                  <div className="-mx-4 flex scrollbar-none gap-4 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0">
-                    {incomeCategories.map((c) => {
-                      // Avance hacia la meta; sin meta definida, lleno si ya entró algo.
-                      const pct =
-                        c.limit > 0
-                          ? (c.used / c.limit) * 100
-                          : c.used > 0
-                            ? 100
-                            : 0
-                      return (
-                        <button
-                          key={c.id}
-                          onClick={() => setDetail(c)}
-                          className="flex w-20 shrink-0 flex-col items-center gap-1.5"
-                        >
-                          <ProgressRing
-                            percent={pct}
-                            status={c.status}
-                            size={72}
-                          >
-                            <CategoryIcon
-                              icon={c.icon}
-                              size={22}
-                              color={c.color ?? undefined}
-                            />
-                          </ProgressRing>
-                          <div className="w-full text-center">
-                            <div className="truncate text-xs font-medium">
-                              {c.name}
-                            </div>
-                            <div className="tabular text-xs text-muted-foreground">
-                              {formatCLP(c.available)}
-                            </div>
-                          </div>
-                        </button>
-                      )
-                    })}
-                    <button
-                      onClick={() => {
-                        setNewCatType("income")
-                        setEditCat(null)
-                      }}
-                      className="flex w-20 shrink-0 flex-col items-center gap-1.5"
-                      aria-label="Nueva categoría de ingreso"
-                    >
-                      <span className="grid size-18 place-items-center rounded-full border-2 border-dashed border-border text-2xl text-muted-foreground">
-                        +
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        Nueva
-                      </span>
-                    </button>
-                  </div>
-                </>
-              )}
-
-              <div className="mt-5 mb-3 text-xs font-medium text-muted-foreground">
-                Gastos
-              </div>
-              {/* Ingresos ≠ presupuesto definido → ofrecer actualizar el límite global */}
-              {suggestBudget && (
-                <div className="mb-4 flex flex-col gap-2 rounded-xl bg-secondary/50 p-3">
-                  <p className="text-sm">
-                    Tus ingresos suman{" "}
-                    <span className="tabular font-semibold">
-                      {formatMoney(activeIncomeTotal, "CLP")}
-                    </span>{" "}
-                    · presupuesto en{" "}
-                    {formatMoney(budget.globalLimit ?? 0, "CLP")}
-                  </p>
-                  <button
-                    onClick={applyIncomeTotal}
-                    disabled={applyingBudget}
-                    className="self-start rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
-                  >
-                    {applyingBudget
-                      ? "Actualizando…"
-                      : "Actualizar presupuesto"}
-                  </button>
-                </div>
-              )}
-              {/* Cabecera del límite global: restante por presupuestar (o CTA para definirlo) */}
-              {budget.globalLimit === null ? (
-                <button
-                  onClick={() => setBudgetLimitOpen(true)}
-                  className="mb-4 flex w-full items-center justify-between gap-3 rounded-xl border-2 border-dashed border-border px-4 py-3 text-left text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium">
-                      Definir presupuesto del mes
-                    </div>
-                    <div className="text-xs">
-                      Fija un límite global para repartir entre categorías
-                    </div>
-                  </div>
-                  <span className="shrink-0 text-xl">＋</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => setBudgetLimitOpen(true)}
-                  className="group mb-4 w-full rounded-xl bg-secondary/50 px-4 py-3 text-left transition-colors hover:bg-accent"
-                  aria-label="Editar presupuesto del mes"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-muted-foreground uppercase">
-                      {overAllocated ? "Sobre-asignado" : "Por presupuestar"}
-                    </span>
-                    <Pencil className="size-3.5 shrink-0 text-muted-foreground opacity-60 transition-opacity group-hover:opacity-100" />
-                  </div>
-                  <div
+                  <span
                     className={cn(
-                      "tabular text-2xl font-bold",
+                      "tabular block text-xl font-bold",
                       overAllocated && "text-destructive"
                     )}
                   >
-                    {formatCLP(budget.remainingToAllocate ?? 0)}
-                  </div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    Asignado {formatCLP(budget.allocated)} de{" "}
-                    {formatCLP(budget.globalLimit)}
-                  </div>
-                  {/* Uso REAL del mes vs presupuesto total: línea con color por cuartil */}
-                  <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full transition-[width] duration-500"
-                      style={{
-                        width: `${Math.min(100, usedPct)}%`,
-                        background: quartileVar(usedPct),
-                      }}
-                    />
-                  </div>
-                  <div className="tabular mt-1.5 flex items-center justify-between gap-2 text-xs">
-                    <span
-                      className="font-medium"
-                      style={{ color: quartileVar(usedPct) }}
-                    >
-                      Usado {formatCLP(totalUsed)} · {Math.round(usedPct)}%
+                    {budget.globalLimit === null
+                      ? "Definir"
+                      : formatCLP(budget.remainingToAllocate ?? 0)}
+                  </span>
+                  {budget.globalLimit !== null && (
+                    <span className="tabular mt-0.5 block text-xs text-muted-foreground">
+                      Asignado {formatCLP(budget.allocated)} de{" "}
+                      {formatCLP(budget.globalLimit)}
                     </span>
-                    <span className="text-muted-foreground">
-                      {budget.globalLimit - totalUsed >= 0
-                        ? `Queda ${formatCLP(budget.globalLimit - totalUsed)}`
-                        : `Excedido ${formatCLP(totalUsed - budget.globalLimit)}`}
-                    </span>
-                  </div>
-                </button>
-              )}
+                  )}
+                </span>
+                <Pencil className="size-4 shrink-0 text-muted-foreground opacity-60 transition-opacity group-hover:opacity-100" />
+              </button>
               <div className="mb-3 text-xs font-medium text-muted-foreground">
                 Categorías de gasto
               </div>
@@ -704,6 +531,41 @@ export function Dashboard({
         period={period}
         current={budget.globalLimit}
       />
+      {/* Plan del mes. Los sub-modales (límite, ingreso, categoría) reemplazan a este en vez de
+          apilarse: dos superficies encima confunden el cierre, sobre todo en móvil. */}
+      <PlanSheet
+        open={planOpen}
+        onOpenChange={setPlanOpen}
+        period={period}
+        isCurrentMonth={isCurrentMonth}
+        globalLimit={budget.globalLimit}
+        allocated={budget.allocated}
+        remainingToAllocate={budget.remainingToAllocate}
+        incomes={incomes}
+        incomeCategories={incomeCategories}
+        activeIncomeTotal={activeIncomeTotal}
+        onEditBudget={() => {
+          setPlanOpen(false)
+          setBudgetLimitOpen(true)
+        }}
+        onAddIncome={() => {
+          setPlanOpen(false)
+          setEditIncome(null)
+        }}
+        onEditIncome={(inc) => {
+          setPlanOpen(false)
+          setEditIncome(inc)
+        }}
+        onOpenIncomeCategory={(cat) => {
+          setPlanOpen(false)
+          setDetail(cat)
+        }}
+        onNewIncomeCategory={() => {
+          setPlanOpen(false)
+          setNewCatType("income")
+          setEditCat(null)
+        }}
+      />
       <TransactionModal
         tx={detailTx}
         categories={budget.categories}
@@ -762,113 +624,6 @@ export function Dashboard({
   )
 }
 
-// Fila de INGRESO (fuente): cuándo llega, cuánto y su estado del mes. El aro es la categoría
-// (tocarla la edita); el resto de la fila edita el ingreso — son entidades separadas. "Generar"
-// crea el movimiento (idempotente en el backend); tocar "Recibido" lo deshace.
-function IncomeRow({
-  income,
-  period,
-  isCurrentMonth,
-  onEdit,
-  onOpenCategory,
-}: {
-  income: IncomeDTO
-  period: { year: number; month: number }
-  isCurrentMonth: boolean
-  onEdit: () => void
-  onOpenCategory: () => void
-}) {
-  const router = useRouter()
-  const [busy, setBusy] = useState(false)
-
-  async function toggleGenerated() {
-    if (busy) return
-    setBusy(true)
-    haptic("light")
-    const res = await fetch(
-      `/api/incomes/${income.id}/generate?year=${period.year}&month=${period.month}`,
-      { method: income.generated ? "DELETE" : "POST" }
-    )
-    setBusy(false)
-    if (!res.ok) {
-      haptic("error")
-      toast.error("No se pudo actualizar el ingreso")
-      return
-    }
-    haptic("success")
-    toast.success(income.generated ? "Ingreso deshecho" : "Ingreso recibido")
-    router.refresh()
-  }
-
-  // Detalle de fecha: día absoluto siempre; en el mes actual, cuánto falta para que llegue.
-  const day = income.dayOfMonth
-  let when: string
-  if (income.generated) {
-    when = `Recibido · día ${day}`
-  } else if (isCurrentMonth) {
-    const diff = day - new Date().getDate()
-    when =
-      diff > 1
-        ? `Llega el ${day} · en ${diff} días`
-        : diff === 1
-          ? `Llega el ${day} · mañana`
-          : diff === 0
-            ? "Llega hoy"
-            : `Esperado el día ${day}`
-  } else {
-    when = `Llega el ${day} · ${income.accountName}`
-  }
-
-  return (
-    <div className="flex items-center gap-3 py-2.5">
-      <button
-        onClick={onOpenCategory}
-        aria-label="Editar categoría"
-        className="shrink-0"
-      >
-        <ProgressRing
-          percent={income.generated ? 100 : 0}
-          status="bueno"
-          size={44}
-        >
-          <CategoryIcon
-            icon={income.categoryIcon}
-            size={16}
-            color={income.categoryColor ?? undefined}
-          />
-        </ProgressRing>
-      </button>
-      <button
-        onClick={onEdit}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
-      >
-        <div className="min-w-0">
-          <div className="truncate text-sm font-medium">{income.name}</div>
-          <div className="truncate text-xs text-muted-foreground">{when}</div>
-        </div>
-      </button>
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <span className="tabular text-sm font-semibold text-success">
-          +{formatMoney(income.amount, income.currency as CurrencyCode)}
-        </span>
-        <button
-          onClick={toggleGenerated}
-          disabled={busy}
-          title={income.generated ? "Deshacer" : "Registrar el ingreso del mes"}
-          className={cn(
-            "flex h-6 items-center gap-1 rounded-full px-2.5 text-xs font-medium transition duration-150 ease-out active:scale-[0.97] disabled:opacity-50",
-            income.generated
-              ? "bg-success/10 text-success"
-              : "bg-primary text-primary-foreground"
-          )}
-        >
-          {income.generated && <Check className="size-3" />}
-          {income.generated ? "Recibido" : "Generar"}
-        </button>
-      </div>
-    </div>
-  )
-}
 
 function Stat({
   label,

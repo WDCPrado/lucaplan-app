@@ -55,17 +55,31 @@ export type NavKey =
   | "configuracion"
   | "perfil"
 
-const NAV: { key: NavKey; label: string; Icon: typeof Home; href: string }[] = [
+// `short`: etiqueta de la barra inferior, donde cada destino tiene ~1/5 del ancho de pantalla.
+const NAV: {
+  key: NavKey
+  label: string
+  short?: string
+  Icon: typeof Home
+  href: string
+}[] = [
   { key: "inicio", label: "Inicio", Icon: Home, href: "/dashboard" },
   { key: "recurrentes", label: "Recurrentes", Icon: Repeat, href: "/recurring" },
   { key: "cuotas", label: "Cuotas", Icon: CreditCard, href: "/installments" },
   {
     key: "configuracion",
     label: "Configuración",
+    short: "Ajustes",
     Icon: Settings,
     href: "/settings",
   },
-  { key: "perfil", label: "Mi perfil", Icon: UserRound, href: "/profile" },
+  {
+    key: "perfil",
+    label: "Mi perfil",
+    short: "Perfil",
+    Icon: UserRound,
+    href: "/profile",
+  },
 ]
 
 type AppShellProps = {
@@ -160,21 +174,29 @@ export function AppShell({
               />
             </div>
           </div>
-          {/* Aire inferior cuando hay FABs: también en escritorio, donde tapaban el final de la
-              columna derecha (banner de presupuesto). Sin FABs no hace falta. */}
+          {/* Aire inferior: en móvil siempre, por la barra de navegación fija (y el FAB encima
+              cuando lo hay); en escritorio solo cuando hay FABs, que tapaban el final de la
+              columna derecha (banner de presupuesto). */}
           <div
             className={cn(
-              "min-w-0 flex-1",
-              onAdd || onSearch ? "pb-24 md:pb-28" : "pb-6 md:pb-0"
+              "min-w-0 flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]",
+              onAdd || onSearch
+                ? "max-md:pb-[calc(8.5rem+env(safe-area-inset-bottom))] md:pb-28"
+                : "md:pb-0"
             )}
           >
             {children}
           </div>
         </SidebarInset>
 
-        {/* FABs flotantes abajo-derecha: lupa + crear, juntos (misma fila en móvil y escritorio) */}
+        {/* Móvil: barra inferior fija con los destinos a un toque. El drawer del sidebar sigue
+            estando (mismo menú, con el resto de acciones); esto solo acorta el camino frecuente. */}
+        <BottomNav active={active} onNavigate={onNavigate} />
+
+        {/* FABs flotantes abajo-derecha: lupa + crear, juntos (misma fila en móvil y escritorio).
+            En móvil suben por encima de la barra de navegación. */}
         {(onAdd || onSearch) && (
-          <div className="fixed right-5 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-30 flex items-center gap-3 lg:right-8 lg:bottom-8">
+          <div className="fixed right-5 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 md:bottom-[max(1.25rem,env(safe-area-inset-bottom))] lg:right-8 lg:bottom-8">
             {onSearch && (
               <Button
                 onClick={() => {
@@ -244,6 +266,55 @@ function NavMenu({
         </SidebarMenuItem>
       ))}
     </SidebarMenu>
+  )
+}
+
+// Barra inferior de navegación (solo móvil): los mismos destinos del sidebar, al alcance del
+// pulgar y con el actual siempre visible. El drawer sigue disponible desde el header.
+function BottomNav({
+  active,
+  onNavigate,
+}: {
+  active?: NavKey
+  onNavigate?: (key: NavKey) => void
+}) {
+  const pathname = usePathname()
+  const activeKey =
+    active ??
+    NAV.find((n) => pathname === n.href || pathname.startsWith(n.href + "/"))
+      ?.key
+
+  return (
+    <nav
+      aria-label="Navegación principal"
+      className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border/60 bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+    >
+      {NAV.map(({ key, label, short, Icon, href }) => {
+        const isActive = activeKey === key
+        return (
+          <Link
+            key={key}
+            href={href}
+            aria-current={isActive ? "page" : undefined}
+            onClick={() => {
+              haptic("light")
+              onNavigate?.(key)
+              if (pathname === href)
+                window.scrollTo({ top: 0, behavior: "smooth" })
+            }}
+            className={cn(
+              "flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 transition-colors",
+              isActive ? "text-primary" : "text-muted-foreground"
+            )}
+          >
+            <Icon className="size-5 shrink-0" />
+            <span className="max-w-full truncate text-[10px] leading-none">
+              {short ?? label}
+            </span>
+          </Link>
+        )
+      })}
+    </nav>
   )
 }
 

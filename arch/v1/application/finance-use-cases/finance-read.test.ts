@@ -10,7 +10,7 @@ import type {
   TransactionRepository,
   TransactionSearchFilters,
 } from "../../domain/finance/finance.domain.ts"
-import { listUncategorized } from "./finance-read.ts"
+import { listUncategorized, searchTransactions } from "./finance-read.ts"
 
 const mov = (id: string, accountId = "a1"): Transaction => ({
   id,
@@ -92,6 +92,25 @@ function makeDeps(rows: Transaction[], accounts: Account[]) {
     filters: () => received,
   }
 }
+
+test("searchTransactions: pide solo movimientos ocurridos (sin las recurrentes por cobrar)", async () => {
+  const { deps, filters } = makeDeps([mov("t1")], [account("a1", "bancochile")])
+  await searchTransactions(
+    {
+      ...deps,
+      categories: {
+        async listByUser() {
+          return []
+        },
+      },
+      exchangeRates: { async clpPerUsdAt() { return 950 } },
+    } as unknown as Parameters<typeof searchTransactions>[0],
+    "u1",
+    { query: "jumbo", limit: 20 }
+  )
+  assert.equal(filters()?.settledOnly, true)
+  assert.equal(filters()?.query, "jumbo") // el resto del filtro llega intacto
+})
 
 test("listUncategorized: acota al mes (from/to), delega el criterio y pide limit+1 (51)", async () => {
   const { deps, filters } = makeDeps([mov("t1")], [account("a1", "bancochile")])

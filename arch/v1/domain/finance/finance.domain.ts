@@ -278,6 +278,10 @@ export type TransactionSearchFilters = {
   // El repo mete el criterio completo al filtro, no post-filtra: el límite no se consume con
   // filas inelegibles.
   uncategorized?: boolean
+  // Buscador: solo movimientos que YA ocurrieron. Deja fuera el ruido (reversed/duplicated) y las
+  // recurrentes "Por cobrar" (pending de una plantilla), que son compromiso del mes y no algo que
+  // se pueda buscar en la cartola. Va al where del repo por la misma razón que `uncategorized`.
+  settledOnly?: boolean
 }
 
 // --- Ports (los implementa la infraestructura; aquí solo el contrato) ---

@@ -2,8 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { ArrowLeft, CreditCard, Plus } from "lucide-react"
+import { CreditCard, Plus } from "lucide-react"
 
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
@@ -33,6 +32,32 @@ function shortDate(iso: string): string {
   })
 }
 
+// "septiembre 2026": el final del plan se lee mejor por mes que por día exacto.
+function monthYear(iso: string): string {
+  return new Date(iso).toLocaleDateString("es-CL", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  })
+}
+
+function isThisMonth(iso: string, today = new Date()): boolean {
+  const d = new Date(iso)
+  return (
+    d.getUTCFullYear() === today.getFullYear() &&
+    d.getUTCMonth() === today.getMonth()
+  )
+}
+
+// Cuota vigente del plan: la del próximo vencimiento. Es el monto que golpea el mes, que es lo
+// que se pregunta acá; el total del plan se paga en meses que ya no son este.
+function currentItem(p: InstallmentPlanDTO) {
+  return (
+    p.items.find((i) => i.dueDate === p.nextDueDate) ??
+    p.items.find((i) => i.status === "upcoming" || i.status === "overdue")
+  )
+}
+
 export function InstallmentsView({
   user,
   plans,
@@ -57,6 +82,20 @@ export function InstallmentsView({
   const done = plans.filter((p) => p.completedAt !== null)
   // Lo que falta pagar en total: la pregunta que trae a alguien a esta pantalla.
   const debt = active.reduce((sum, p) => sum + p.outstanding, 0)
+  // Lo que cargan las cuotas ESTE mes: el dato que se compara contra el presupuesto.
+  const monthTotal = active.reduce(
+    (sum, p) =>
+      sum +
+      p.items
+        .filter((i) => isThisMonth(i.dueDate))
+        .reduce((s, i) => s + (i.paidAmount ?? i.amount), 0),
+    0
+  )
+  const lastDue = active
+    .flatMap((p) => p.items.filter((i) => i.status !== "paid"))
+    .map((i) => i.dueDate)
+    .sort()
+    .at(-1)
 
   async function signOut() {
     await authClient.signOut()
@@ -75,60 +114,91 @@ export function InstallmentsView({
       onAdd={() => setCreating(true)}
       title="Cuotas"
     >
-      <div className="mx-auto w-full max-w-2xl px-4 py-6 lg:px-8">
-        <Link
-          href="/dashboard"
-          className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          Volver
-        </Link>
-
-        <div className="mb-5 flex items-end justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">Deudas en cuotas</h2>
-            {active.length > 0 && (
-              <p className="tabular text-sm text-muted-foreground">
-                {formatCLP(debt)} por pagar ·{" "}
-                {active.length === 1 ? "1 plan" : `${active.length} planes`}
-              </p>
-            )}
-          </div>
-          {/* Con lista vacía el CTA vive en el empty state: dos "crear" a la vista confunden. */}
-          {plans.length > 0 && (
-            <Button
-              onClick={() => setCreating(true)}
-              className="hidden shrink-0 rounded-full lg:inline-flex"
-            >
-              <Plus className="size-4" />
-              Nuevo
-            </Button>
-          )}
-        </div>
-
+      {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para
+          el enlace "Volver", que ya no está. En escritorio la topbar sí pide su margen. */}
+      <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
         {plans.length === 0 ? (
           <EmptyState onCreate={() => setCreating(true)} />
         ) : (
-          <div className="flex flex-col gap-6">
-            {active.length > 0 && (
-              <ul className="flex flex-col gap-2">
-                {active.map((p) => (
-                  <PlanRow key={p.id} plan={p} onOpen={() => setDetailId(p.id)} />
-                ))}
-              </ul>
-            )}
-            {done.length > 0 && (
-              <section>
-                <h3 className="mb-2 text-xs font-medium text-muted-foreground">
-                  Pagadas
-                </h3>
-                <ul className="flex flex-col gap-2">
-                  {done.map((p) => (
-                    <PlanRow key={p.id} plan={p} onOpen={() => setDetailId(p.id)} />
-                  ))}
-                </ul>
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start">
+            <div className="min-w-0">
+              {/* min-h-9: la fila mide lo mismo con o sin el botón, así el título del panel
+                  derecho queda alineado con este. */}
+              <div className="mb-3 flex min-h-9 items-end justify-between gap-3">
+                <h2 className="font-heading text-lg font-bold">
+                  Compras en cuotas
+                </h2>
+                <Button
+                  onClick={() => setCreating(true)}
+                  className="hidden shrink-0 rounded-full lg:inline-flex"
+                >
+                  <Plus className="size-4" />
+                  Nuevo
+                </Button>
+              </div>
+
+              <div className="flex flex-col gap-6">
+                {active.length > 0 && (
+                  <ul className="glass divide-y divide-border/50 rounded-2xl px-3">
+                    {active.map((p) => (
+                      <PlanRow
+                        key={p.id}
+                        plan={p}
+                        onOpen={() => setDetailId(p.id)}
+                      />
+                    ))}
+                  </ul>
+                )}
+                {done.length > 0 && (
+                  <section>
+                    <h3 className="mb-2 text-xs font-medium text-muted-foreground">
+                      Pagadas
+                    </h3>
+                    <ul className="glass divide-y divide-border/50 rounded-2xl px-3">
+                      {done.map((p) => (
+                        <PlanRow
+                          key={p.id}
+                          plan={p}
+                          onOpen={() => setDetailId(p.id)}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </div>
+            </div>
+
+            {/* Móvil: el resumen del mes va primero (es el titular); escritorio: columna derecha. */}
+            <div className="max-lg:order-first">
+              <div className="mb-3 flex min-h-9 items-end">
+                <h2 className="font-heading text-lg font-bold">Este mes</h2>
+              </div>
+              <section className="glass rounded-2xl p-4 lg:sticky lg:top-24">
+                <p className="text-sm text-muted-foreground">Pagas en cuotas</p>
+                <p className="tabular text-2xl font-bold">
+                  {formatCLP(monthTotal)}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {active.length}{" "}
+                  {active.length === 1 ? "compra activa" : "compras activas"}
+                </p>
+                <div className="mt-4 space-y-2 border-t border-border/60 pt-3 text-sm">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">
+                      Deuda total restante
+                    </span>
+                    <span className="tabular font-semibold">
+                      {formatCLP(debt)}
+                    </span>
+                  </div>
+                  {lastDue && (
+                    <p className="text-muted-foreground">
+                      La última cuota vence en {monthYear(lastDue)}.
+                    </p>
+                  )}
+                </div>
               </section>
-            )}
+            </div>
           </div>
         )}
       </div>
@@ -163,15 +233,21 @@ function PlanRow({
 }) {
   const completed = p.completedAt !== null
   const pct = Math.round((p.settledCount / p.installmentsCount) * 100)
+  const item = currentItem(p)
+  const endsOn = p.items.at(-1)?.dueDate
+
   return (
-    <li className={cn("glass rounded-2xl", completed && "opacity-60")}>
+    <li className={cn(completed && "opacity-60")}>
       <button
         type="button"
         onClick={onOpen}
-        className="flex w-full items-center gap-3 py-3 pr-4 pl-3 text-left"
+        className="flex w-full gap-3 py-3 text-left"
       >
         <span
-          className="grid size-10 shrink-0 place-items-center rounded-full bg-muted"
+          className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-full"
+          style={{
+            background: p.categoryColor ? `${p.categoryColor}1f` : "var(--muted)",
+          }}
           aria-hidden
         >
           <CategoryIcon
@@ -181,29 +257,55 @@ function PlanRow({
           />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{p.description}</span>
-          <span className="block truncate text-xs text-muted-foreground">
-            {KIND_LABEL[p.kind] ?? p.kind} · cuota {p.settledCount} de{" "}
-            {p.installmentsCount}
-            {p.nextDueDate && !completed && ` · vence ${shortDate(p.nextDueDate)}`}
+          <span className="flex items-baseline justify-between gap-3">
+            <span className="min-w-0 truncate font-medium">
+              {p.description}
+            </span>
+            {/* La cuota del mes manda: el total del plan se paga en meses que no son este. */}
+            <span className="shrink-0 text-sm whitespace-nowrap">
+              {completed || !item ? (
+                <span className="tabular font-semibold">
+                  {formatCLP(p.outstanding)}
+                </span>
+              ) : (
+                <>
+                  <span className="tabular font-semibold">
+                    {formatCLP(item.amount)}
+                  </span>
+                  <span className="ml-1 text-xs text-muted-foreground">
+                    al mes
+                  </span>
+                </>
+              )}
+            </span>
           </span>
-          {/* El avance en barra se lee de un vistazo; el texto de arriba da el detalle exacto. */}
+          <span className="mt-1 flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
+            <span>
+              {KIND_LABEL[p.kind] ?? p.kind} · cuota {p.settledCount} de{" "}
+              {p.installmentsCount}
+              {p.nextDueDate &&
+                !completed &&
+                ` · vence ${shortDate(p.nextDueDate)}`}
+              {/* El fin del plan es contexto, no urgencia: en móvil cede el espacio. */}
+              {endsOn && !completed && (
+                <span className="max-sm:hidden">
+                  {` · termina en ${monthYear(endsOn)}`}
+                </span>
+              )}
+            </span>
+            <span className="tabular">
+              {completed ? "Pagada" : `quedan ${formatCLP(p.outstanding)}`}
+            </span>
+          </span>
+          {/* El avance cierra la fila: puesto bajo el título parecía un subrayado del nombre. */}
           <span
-            className="mt-1.5 block h-1 w-full overflow-hidden rounded-full bg-muted"
+            className="mt-2 block h-1 w-full overflow-hidden rounded-full bg-muted"
             aria-hidden
           >
             <span
               className="block h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
               style={{ width: `${pct}%` }}
             />
-          </span>
-        </span>
-        <span className="shrink-0 text-right">
-          <span className="tabular block font-semibold">
-            {formatCLP(p.outstanding)}
-          </span>
-          <span className="block text-xs text-muted-foreground">
-            {completed ? "Pagada" : "por pagar"}
           </span>
         </span>
       </button>
@@ -214,7 +316,7 @@ function PlanRow({
 // Empty state que explica qué problema resuelve, no que la lista está vacía.
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="glass rounded-2xl px-6 py-10 text-center">
+    <div className="glass mx-auto max-w-2xl rounded-2xl px-6 py-10 text-center">
       <span
         className="mx-auto mb-3 grid size-11 place-items-center rounded-full bg-primary/10"
         aria-hidden

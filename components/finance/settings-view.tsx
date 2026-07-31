@@ -1,23 +1,22 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { BellRing, CalendarClock, Plus, Trash2 } from "lucide-react"
+import { BellRing, CalendarClock, Check, Minus, Plus } from "lucide-react"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
 import { haptic } from "@/lib/haptics"
+import { cn } from "@/lib/utils"
 import { PushToggle } from "@/components/pwa/push-toggle"
 import { AppShell } from "./app-shell"
 import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
 import type { BudgetAlert } from "@/arch/v1/domain/notifications/budget-alert.domain"
 
-// Rango del slider = el del dominio. El 100% es el techo: pasado eso el aviso ya reporta el % real
-// alcanzado. Paso de 5 para que el arrastre caiga en valores redondos.
-const MIN = 5
-const MAX = 100
-const STEP = 5
+// Umbrales ofrecidos. Son los que la gente usa: elegir "aviso al 80%" es una decisión discreta,
+// no un continuo, y un slider de 700px para eso se lee como barra de progreso, no como control.
+// Un umbral guardado fuera de esta lista igual aparece como chip (se puede quitar).
+const PRESETS = [25, 50, 75, 80, 90, 100]
 
 export function SettingsView({
   user,
@@ -45,14 +44,17 @@ export function SettingsView({
       onSignOut={signOut}
       title="Configuración"
     >
-      <div className="mx-auto w-full max-w-4xl px-4 py-6 lg:px-8">
-        <p className="mb-6 text-sm text-muted-foreground">
+      <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
+        <h1 className="font-heading text-xl font-bold md:sr-only">
+          Configuración
+        </h1>
+        <p className="mt-1 mb-6 text-sm text-muted-foreground">
           Preferencias de la app. Valen para todo Luca Plan, no para un mes en
           particular.
         </p>
-        <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
           {vapidPublicKey && (
-            <section className="glass rounded-2xl p-5">
+            <section className="glass rounded-2xl p-5 lg:col-span-2">
               <h2 className="mb-4 font-heading text-base font-bold">
                 Notificaciones
               </h2>
@@ -68,12 +70,22 @@ export function SettingsView({
 }
 
 // Anticipación del recordatorio de recurrentes y cuotas. Rango del dominio (0–14); 0 = el día del
-// cobro. El slider persiste al soltar, igual que los umbrales.
+// cobro. Stepper en vez de slider: son 15 valores enteros y el número es la información.
 const DUE_MAX = 14
 
 function DueReminderSection({ initialDays }: { initialDays: number }) {
   const [days, setDays] = useState(initialDays)
   const [pending, setPending] = useState(false)
+  // Un POST por clic convertiría "subir a 5 días" en cinco guardados; se persiste al parar.
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function change(next: number) {
+    if (next < 0 || next > DUE_MAX) return
+    haptic("light")
+    setDays(next)
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => commit(next), 500)
+  }
 
   async function commit(value: number) {
     setPending(true)
@@ -86,9 +98,7 @@ function DueReminderSection({ initialDays }: { initialDays: number }) {
     if (!res.ok) {
       toast.error("No se pudo guardar la anticipación.")
       setDays(initialDays)
-      return
     }
-    haptic("light")
   }
 
   return (
@@ -100,22 +110,40 @@ function DueReminderSection({ initialDays }: { initialDays: number }) {
       <p className="mb-5 text-sm text-muted-foreground">
         Con cuánta anticipación te avisamos de recurrentes y cuotas por cobrar.
       </p>
-      <div className="flex items-center gap-4">
-        <span className="w-32 shrink-0 font-heading text-lg font-bold tabular-nums">
+      <div className="flex items-center gap-3">
+        <Button
+          variant="secondary"
+          size="icon"
+          disabled={pending || days === 0}
+          onClick={() => change(days - 1)}
+          aria-label="Avisar un día menos antes"
+          className="size-11 shrink-0 rounded-full"
+        >
+          <Minus className="size-4" />
+        </Button>
+        <p
+          aria-live="polite"
+          className="font-heading w-36 text-center text-lg font-bold tabular-nums"
+        >
           {days === 0 ? "El mismo día" : `${days} día${days === 1 ? "" : "s"}`}
-        </span>
-        <Slider
-          value={[days]}
-          min={0}
-          max={DUE_MAX}
-          step={1}
-          disabled={pending}
-          aria-label={`Avisar ${days} días antes del vencimiento`}
-          onValueChange={([v]) => setDays(v)}
-          onValueCommit={([v]) => commit(v)}
-          className="flex-1"
-        />
+        </p>
+        <Button
+          variant="secondary"
+          size="icon"
+          disabled={pending || days === DUE_MAX}
+          onClick={() => change(days + 1)}
+          aria-label="Avisar un día más antes"
+          className="size-11 shrink-0 rounded-full"
+        >
+          <Plus className="size-4" />
+        </Button>
       </div>
+      {/* El ajuste se confirma con su efecto, no con el número suelto. */}
+      <p className="mt-3 text-sm text-muted-foreground">
+        {days === 0
+          ? "Recibirás el aviso el mismo día del cobro."
+          : `Un cobro del día 20 se avisaría el día ${20 - days}.`}
+      </p>
     </section>
   )
 }
@@ -126,66 +154,38 @@ function BudgetAlertsSection({
   initialAlerts: BudgetAlert[]
 }) {
   const [alerts, setAlerts] = useState(initialAlerts)
-  const [pending, setPending] = useState(false)
+  const [pending, setPending] = useState<number | null>(null)
 
-  // Primer múltiplo de 5 libre a partir del 50%: propuesta razonable para una alerta nueva.
-  function freePercent(): number | null {
-    const used = new Set(alerts.map((a) => a.percent))
-    for (let p = 50; p <= MAX; p += STEP) if (!used.has(p)) return p
-    for (let p = MIN; p < 50; p += STEP) if (!used.has(p)) return p
-    return null
-  }
+  // Presets + los umbrales guardados que no estén en la lista: nada configurado queda oculto.
+  const percents = [
+    ...new Set([...PRESETS, ...alerts.map((a) => a.percent)]),
+  ].sort((a, b) => a - b)
 
-  async function save(id: string | undefined, percent: number) {
-    setPending(true)
+  async function toggle(percent: number) {
+    const existing = alerts.find((a) => a.percent === percent)
+    setPending(percent)
+    if (existing) {
+      const res = await fetch(`/api/budget-alerts?id=${existing.id}`, {
+        method: "DELETE",
+      })
+      setPending(null)
+      if (!res.ok) return toast.error("No se pudo eliminar la alerta.")
+      haptic("light")
+      setAlerts((prev) => prev.filter((a) => a.id !== existing.id))
+      return
+    }
     const res = await fetch("/api/budget-alerts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id, percent }),
+      body: JSON.stringify({ percent }),
     })
-    setPending(false)
     const body = await res.json().catch(() => null)
-    if (!res.ok) {
-      toast.error(body?.error ?? "No se pudo guardar la alerta.")
-      return null
-    }
+    setPending(null)
+    if (!res.ok) return toast.error(body?.error ?? "No se pudo guardar la alerta.")
     haptic("light")
-    return body as BudgetAlert
-  }
-
-  // El slider mueve el valor en local (fluido) y solo persiste al soltar (onValueCommit).
-  function move(id: string, percent: number) {
     setAlerts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, percent } : a))
+      [...prev, body as BudgetAlert].sort((a, b) => a.percent - b.percent)
     )
-  }
-
-  async function commit(alert: BudgetAlert, percent: number) {
-    const saved = await save(alert.id, percent)
-    // Rechazo (% duplicado, fuera de rango): se vuelve al valor guardado.
-    if (!saved) setAlerts((prev) => prev.map((a) => (a.id === alert.id ? alert : a)))
-  }
-
-  async function add() {
-    const percent = freePercent()
-    if (percent === null) {
-      toast.error("Ya no quedan porcentajes libres.")
-      return
-    }
-    const saved = await save(undefined, percent)
-    if (saved) setAlerts((prev) => [...prev, saved].sort((a, b) => a.percent - b.percent))
-  }
-
-  async function remove(id: string) {
-    setPending(true)
-    const res = await fetch(`/api/budget-alerts?id=${id}`, { method: "DELETE" })
-    setPending(false)
-    if (!res.ok) {
-      toast.error("No se pudo eliminar la alerta.")
-      return
-    }
-    setAlerts((prev) => prev.filter((a) => a.id !== id))
-    toast.success("Alerta eliminada.")
   }
 
   return (
@@ -203,52 +203,38 @@ function BudgetAlertsSection({
         100%, el aviso dice cuánto (125%, 180%…).
       </p>
 
-      {alerts.length === 0 ? (
-        <p className="mb-5 rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
-          Sin alertas configuradas: no recibirás avisos de presupuesto.
-        </p>
-      ) : (
-        <ul className="mb-5 space-y-5">
-          {alerts.map((alert) => (
-            <li key={alert.id} className="flex items-center gap-4">
-              <span className="w-16 shrink-0 font-heading text-lg font-bold tabular-nums">
-                {alert.percent}%
-              </span>
-              <Slider
-                value={[alert.percent]}
-                min={MIN}
-                max={MAX}
-                step={STEP}
-                disabled={pending}
-                aria-label={`Umbral de aviso: ${alert.percent}%`}
-                onValueChange={([v]) => move(alert.id, v)}
-                onValueCommit={([v]) => commit(alert, v)}
-                className="flex-1"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => remove(alert.id)}
-                disabled={pending}
-                aria-label={`Eliminar la alerta del ${alert.percent}%`}
-                className="size-11 shrink-0 text-muted-foreground hover:text-destructive"
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {percents.map((p) => {
+          const on = alerts.some((a) => a.percent === p)
+          return (
+            <button
+              key={p}
+              type="button"
+              aria-pressed={on}
+              disabled={pending !== null}
+              onClick={() => toggle(p)}
+              className={cn(
+                "tabular h-11 rounded-full border px-4 text-sm transition-colors disabled:opacity-60",
+                on
+                  ? "border-primary bg-primary/10 font-medium text-primary"
+                  : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+              )}
+            >
+              {on && <Check className="mr-1.5 inline size-3.5" />}
+              {p}%
+            </button>
+          )
+        })}
+      </div>
 
-      <Button
-        variant="outline"
-        onClick={add}
-        disabled={pending}
-        className="h-11 rounded-full"
-      >
-        <Plus className="size-4" />
-        Agregar alerta
-      </Button>
+      <p className="mt-3 text-sm text-muted-foreground">
+        {alerts.length === 0
+          ? "Sin alertas: no recibirás avisos de presupuesto."
+          : `Avisaremos al ${alerts
+              .map((a) => a.percent)
+              .sort((a, b) => a - b)
+              .join("%, ")}% del límite de cada categoría.`}
+      </p>
     </section>
   )
 }

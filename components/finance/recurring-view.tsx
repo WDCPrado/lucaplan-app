@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import { authClient } from "@/lib/auth-client"
 import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
-import { formatCLP } from "@/lib/finance-format"
+import { currentPeriod, formatCLP } from "@/lib/finance-format"
 import { AppShell } from "./app-shell"
 import { CategoryIcon } from "./category-icons"
 import { RecurringModal } from "./recurring-modal"
@@ -27,12 +27,13 @@ const PERIODICITY_LABEL: Record<string, string> = {
 
 // "Cobra el 20 ago" / "Cobra hoy" / "Cobra mañana": una fecha suelta obliga a calcular mentalmente
 // cuán cerca está; la referencia relativa no.
-function nextChargeLabel(iso: string, today = new Date()): string {
+function nextChargeLabel(iso: string): string {
   const date = new Date(iso)
   // La fecha viene de un @db.Date (medianoche UTC): se lee en UTC. `today` es un instante real:
   // se lee en local, que es el día que el usuario tiene en su calendario.
   const dueDay = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
-  const todayDay = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())
+  const t = currentPeriod()
+  const todayDay = Date.UTC(t.year, t.month - 1, t.day)
   const days = Math.round((dueDay - todayDay) / 86_400_000)
   if (days === 0) return "Cobra hoy"
   if (days === 1) return "Cobra mañana"
@@ -56,12 +57,10 @@ function shortDate(iso: string): string {
 
 // Cae el próximo cobro dentro del mes en curso: lo que todavía hay que reservar antes de que
 // termine el mes (el resto ya se cobró y vuelve recién el mes siguiente).
-function isThisMonth(iso: string, today = new Date()): boolean {
+function isThisMonth(iso: string): boolean {
   const d = new Date(iso)
-  return (
-    d.getUTCFullYear() === today.getFullYear() &&
-    d.getUTCMonth() === today.getMonth()
-  )
+  const t = currentPeriod()
+  return d.getUTCFullYear() === t.year && d.getUTCMonth() + 1 === t.month
 }
 
 export function RecurringView({

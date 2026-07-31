@@ -2,6 +2,7 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { auth } from "@/arch/v1/infrastructure/auth/auth"
+import { currentPeriod } from "@/lib/finance-format"
 import { financeDeps } from "@/arch/v1/presentation/finance/finance-http"
 import {
   getMonthlySummary,
@@ -31,9 +32,11 @@ export default async function DashboardPage({
   if (!session) redirect("/login")
 
   const sp = await searchParams
-  const now = new Date()
-  const year = Number(sp.year) || now.getUTCFullYear()
-  const month = Number(sp.month) || now.getUTCMonth() + 1
+  // Mes por defecto: el del calendario del usuario (APP_TZ), no el de UTC. Con el servidor en UTC,
+  // el último día del mes saltaba al mes siguiente a media tarde en Chile.
+  const now = currentPeriod()
+  const year = Number(sp.year) || now.year
+  const month = Number(sp.month) || now.month
   const userId = session.user.id
 
   // Abre los períodos de las recurrentes activas antes de leer: el comprometido del mes debe verse

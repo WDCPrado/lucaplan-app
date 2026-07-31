@@ -11,7 +11,12 @@ import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { CategoryIcon } from "./category-icons"
 import { ProgressRing } from "./progress-ring"
-import { formatCLP, formatMoney, monthName } from "@/lib/finance-format"
+import {
+  currentPeriod,
+  formatCLP,
+  formatMoney,
+  monthName,
+} from "@/lib/finance-format"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
   CategoryDTO,
@@ -300,7 +305,7 @@ function IncomeRow({
   if (income.generated) {
     when = `Recibido · día ${day}`
   } else if (isCurrentMonth) {
-    const diff = day - new Date().getDate()
+    const diff = day - currentPeriod().day
     when =
       diff > 1
         ? `Llega el ${day} · en ${diff} días`

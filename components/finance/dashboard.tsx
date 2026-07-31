@@ -34,7 +34,13 @@ import { TransactionModal } from "./transaction-modal"
 import { TransactionSearch } from "./transaction-search"
 import { IncomeModal } from "./income-modal"
 import { OnboardingFlow } from "./onboarding/onboarding-flow"
-import { formatCLP, formatCompact, monthName } from "@/lib/finance-format"
+import {
+  currentPeriod,
+  daysLeftInMonth,
+  formatCLP,
+  formatCompact,
+  monthName,
+} from "@/lib/finance-format"
 import type {
   AccountDTO,
   AmountBoundsDTO,
@@ -164,10 +170,10 @@ export function Dashboard({
     )
   }
 
-  const now = new Date()
+  // "Mes en curso" según el calendario del usuario, no el de UTC (ver APP_TZ).
+  const today = currentPeriod()
   const isCurrentMonth =
-    period.year === now.getUTCFullYear() &&
-    period.month === now.getUTCMonth() + 1
+    period.year === today.year && period.month === today.month
 
   async function signOut() {
     await authClient.signOut()
@@ -175,11 +181,7 @@ export function Dashboard({
   }
 
   // Días que quedan del mes (incluye hoy). Solo tiene sentido en el mes en curso.
-  const daysLeft = isCurrentMonth
-    ? new Date(Date.UTC(period.year, period.month, 0)).getUTCDate() -
-      now.getUTCDate() +
-      1
-    : null
+  const daysLeft = isCurrentMonth ? daysLeftInMonth() : null
 
   return (
     <AppShell

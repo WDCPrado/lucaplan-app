@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
-import { monthName } from "@/lib/finance-format"
+import { currentPeriod, monthName } from "@/lib/finance-format"
 
 // Selector de mes con Popover de shadcn: el pill del mes abre un grid de 12 meses con
 // navegación de año. El mes seleccionado va en primary; el mes actual lleva un anillo.
@@ -22,7 +22,7 @@ export function MonthPicker({
 }) {
   const [open, setOpen] = useState(false)
   const [year, setYear] = useState(period.year)
-  const now = new Date()
+  const now = currentPeriod()
 
   return (
     <Popover
@@ -59,7 +59,7 @@ export function MonthPicker({
           {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
             const selected = year === period.year && m === period.month
             const isNow =
-              year === now.getUTCFullYear() && m === now.getUTCMonth() + 1
+              year === now.year && m === now.month
             return (
               <button
                 key={m}

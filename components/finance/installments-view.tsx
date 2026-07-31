@@ -6,7 +6,7 @@ import { CreditCard, Plus } from "lucide-react"
 
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
-import { formatCLP } from "@/lib/finance-format"
+import { currentPeriod, formatCLP } from "@/lib/finance-format"
 import { AppShell } from "./app-shell"
 import { CategoryIcon } from "./category-icons"
 import { InstallmentModal } from "./installment-modal"
@@ -41,12 +41,10 @@ function monthYear(iso: string): string {
   })
 }
 
-function isThisMonth(iso: string, today = new Date()): boolean {
+function isThisMonth(iso: string): boolean {
   const d = new Date(iso)
-  return (
-    d.getUTCFullYear() === today.getFullYear() &&
-    d.getUTCMonth() === today.getMonth()
-  )
+  const t = currentPeriod()
+  return d.getUTCFullYear() === t.year && d.getUTCMonth() + 1 === t.month
 }
 
 // Cuota vigente del plan: la del próximo vencimiento. Es el monto que golpea el mes, que es lo

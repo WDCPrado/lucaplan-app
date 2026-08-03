@@ -23,7 +23,7 @@ import {
   isValidTolerance,
   periodIsWithinValidity,
   periodKeyFor,
-  pickTemplateFor,
+  rankTemplatesFor,
   requiresDayOfMonth,
 } from "../../domain/finance/recurring.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
@@ -233,15 +233,19 @@ export async function confirmFromMovement(
 ): Promise<RecurringTemplate | null> {
   // Una plantilla terminada ya no reclama cargos posteriores a su fin.
   const vigentes = templates.filter((t) => !hasEnded(t, movement.date))
-  const template = pickTemplateFor(movement, vigentes)
-  if (!template) return null
-  const periodKey = periodKeyFor(template, movement.date)
-  const attached = await deps.recurring.attachImportedMovement(
-    movement.id,
-    template,
-    periodKey
-  )
-  return attached ? template : null
+  // Greedy por período: se recorren las candidatas en orden de prioridad y el cargo se imputa a la
+  // PRIMERA cuyo período aún no esté consumido (`attach` rebota si ya está confirmado). Así dos
+  // (o N) plantillas equivalentes reparten un cargo a cada una en vez de dejar el segundo huérfano.
+  for (const template of rankTemplatesFor(movement, vigentes)) {
+    const periodKey = periodKeyFor(template, movement.date)
+    const attached = await deps.recurring.attachImportedMovement(
+      movement.id,
+      template,
+      periodKey
+    )
+    if (attached) return template
+  }
+  return null
 }
 
 /**

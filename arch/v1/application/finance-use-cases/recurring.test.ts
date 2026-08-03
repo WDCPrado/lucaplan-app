@@ -192,6 +192,62 @@ test("cargo fuera del rango no lo reclama ninguna plantilla", async () => {
   assert.equal(rows.length, 0)
 })
 
+// N plantillas equivalentes (misma descripción y precio) → cada cargo del período se imputa a una
+// distinta; ninguno queda huérfano y todos los comprometidos se consumen.
+const gym = (id: string): RecurringTemplate => ({
+  ...arriendo,
+  id,
+  label: `Gimnasio ${id}`,
+  description: "SMARTFIT",
+  baseAmount: Money.of(20_000, "CLP"),
+  dayOfMonth: 3,
+})
+
+test("dos plantillas equivalentes reparten un cargo a cada una", async () => {
+  const gyms = [gym("g1"), gym("g2")]
+  const { repo, rows } = makeRepo(gyms)
+  for (const g of gyms)
+    await materializePeriod({ recurring: repo }, g, new Date(2026, 6, 3))
+
+  const cargo = {
+    description: "SMARTFIT 07/26",
+    amount: Money.of(20_000, "CLP"),
+    direction: "debit" as const,
+    date: new Date(2026, 6, 3),
+  }
+  const a = await confirmFromMovement({ recurring: repo }, gyms, { ...cargo, id: "c1" })
+  const b = await confirmFromMovement({ recurring: repo }, gyms, { ...cargo, id: "c2" })
+
+  // Cada cargo a una plantilla distinta; ambos comprometidos consumidos → 2 filas confirmadas.
+  assert.notEqual(a?.id, b?.id)
+  assert.deepEqual(new Set([a?.id, b?.id]), new Set(["g1", "g2"]))
+  assert.equal(rows.length, 2)
+  assert.ok(rows.every((r) => r.status === "confirmed"))
+})
+
+test("N=3 plantillas equivalentes reparten un cargo a cada una", async () => {
+  const gyms = [gym("g1"), gym("g2"), gym("g3")]
+  const { repo, rows } = makeRepo(gyms)
+  for (const g of gyms)
+    await materializePeriod({ recurring: repo }, g, new Date(2026, 6, 3))
+
+  const matched: (string | undefined)[] = []
+  for (const id of ["c1", "c2", "c3"]) {
+    const m = await confirmFromMovement({ recurring: repo }, gyms, {
+      id,
+      description: "SMARTFIT 07/26",
+      amount: Money.of(20_000, "CLP"),
+      direction: "debit",
+      date: new Date(2026, 6, 3),
+    })
+    matched.push(m?.id)
+  }
+  // Los 3 cargos a las 3 plantillas, sin repetir.
+  assert.deepEqual(new Set(matched), new Set(["g1", "g2", "g3"]))
+  assert.equal(rows.length, 3)
+  assert.ok(rows.every((r) => r.status === "confirmed"))
+})
+
 test("crear desde un movimiento lo vincula como ejecución de su período", async () => {
   const { repo, rows } = makeRepo([])
   const created: RecurringTemplate[] = []

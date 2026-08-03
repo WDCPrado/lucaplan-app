@@ -212,27 +212,38 @@ export function matchesTemplate(
 }
 
 /**
- * Plantilla que reclama el movimiento cuando varias matchean: gana la de rango más ESTRECHO (la
- * más específica). Empate de rango → la de monto base más cercano al del movimiento.
+ * Plantillas que matchean el movimiento, ORDENADAS por prioridad de reclamo: primero la de rango
+ * más ESTRECHO (la más específica); a igualdad de rango, la de monto base más cercano al del
+ * movimiento. Con esto quien confirma puede recorrerlas e imputar el cargo a la primera cuyo
+ * período aún esté libre (varias plantillas equivalentes reparten un cargo a cada una).
  */
+export function rankTemplatesFor(
+  movement: MovementForMatch,
+  templates: RecurringTemplate[]
+): RecurringTemplate[] {
+  const abs = (v: bigint): bigint => (v < BigInt(0) ? -v : v)
+  const width = (x: RecurringTemplate) => {
+    const { min, max } = toleranceRange(x)
+    return max.minor - min.minor
+  }
+  const gap = (x: RecurringTemplate) =>
+    abs(movement.amount.minor - x.baseAmount.minor)
+  return templates
+    .filter((t) => matchesTemplate(movement, t))
+    .sort((a, b) => {
+      const d = width(a) - width(b)
+      if (d !== BigInt(0)) return d < BigInt(0) ? -1 : 1
+      const g = gap(a) - gap(b)
+      return g < BigInt(0) ? -1 : g > BigInt(0) ? 1 : 0
+    })
+}
+
+/** La plantilla de mayor prioridad que matchea (o null). */
 export function pickTemplateFor(
   movement: MovementForMatch,
   templates: RecurringTemplate[]
 ): RecurringTemplate | null {
-  const abs = (v: bigint): bigint => (v < BigInt(0) ? -v : v)
-  const candidates = templates.filter((t) => matchesTemplate(movement, t))
-  if (candidates.length === 0) return null
-  return candidates.reduce((best, t) => {
-    const width = (x: RecurringTemplate) => {
-      const { min, max } = toleranceRange(x)
-      return max.minor - min.minor
-    }
-    const gap = (x: RecurringTemplate) =>
-      abs(movement.amount.minor - x.baseAmount.minor)
-    const d = width(t) - width(best)
-    const zero = BigInt(0)
-    return d < zero || (d === zero && gap(t) < gap(best)) ? t : best
-  })
+  return rankTemplatesFor(movement, templates)[0] ?? null
 }
 
 // --- Validación ---

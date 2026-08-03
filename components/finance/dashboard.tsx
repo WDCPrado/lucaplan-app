@@ -138,6 +138,49 @@ export function Dashboard({
   const expenseCategories = budget.categories.filter(
     (c) => c.type === "expense"
   )
+  // Las con tope son las que importan en el mes; las sin tope van aparte, en su propio grupo.
+  const cappedCategories = expenseCategories.filter((c) => c.limit > 0)
+  const uncappedCategories = expenseCategories.filter((c) => c.limit <= 0)
+  const renderExpenseCat = (c: CategoryDTO) => {
+    const pct = c.limit > 0 ? Math.min(100, (c.used / c.limit) * 100) : 0
+    // El comprometido continúa al gastado en lo que queda de barra (no se suma).
+    const commPct =
+      c.limit > 0 ? Math.min(100 - pct, (c.committed / c.limit) * 100) : 0
+    return (
+      <button
+        key={c.id}
+        onClick={() => setDetail(c)}
+        className="flex flex-col gap-1.5 rounded-lg px-1.5 py-2 text-left transition-colors hover:bg-accent/50"
+      >
+        <div className="flex items-center gap-2">
+          <CategoryIcon icon={c.icon} size={16} color={c.color ?? undefined} />
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+            {c.name}
+          </span>
+          <span className="tabular shrink-0 text-xs text-muted-foreground">
+            {c.limit > 0
+              ? `${formatCLP(c.used)} de ${formatCLP(c.limit)}`
+              : `sin tope · ${formatCLP(c.used)}`}
+          </span>
+        </div>
+        {/* Mismo semáforo que el arco (statusVar): gastado sólido + comprometido tenue detrás. */}
+        <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full transition-[width] duration-500 ease-out"
+            style={{ width: `${pct}%`, background: statusVar(c.status) }}
+          />
+          <div
+            className="h-full transition-[width] duration-500 ease-out"
+            style={{
+              width: `${Math.max(0, commPct)}%`,
+              background: statusVar(c.status),
+              opacity: 0.35,
+            }}
+          />
+        </div>
+      </button>
+    )
+  }
   const incomeCategories = budget.categories.filter((c) => c.type === "income")
   // Al crear/editar/eliminar un ingreso la suma puede dejar de calzar con el presupuesto global:
   // se ofrece actualizarlo (acción explícita, nunca automática — mismo criterio que antes).
@@ -348,51 +391,16 @@ export function Dashboard({
                 // arcos en scroll, y encaja en la columna angosta del panel en cualquier ancho.
                 // El arco sigue viviendo en movimientos y en el detalle.
                 <div className="flex flex-col">
-                  {expenseCategories.map((c) => {
-                    const pct = c.limit > 0 ? Math.min(100, (c.used / c.limit) * 100) : 0
-                    // El comprometido continúa al gastado en lo que queda de barra (no se suma).
-                    const commPct =
-                      c.limit > 0 ? Math.min(100 - pct, (c.committed / c.limit) * 100) : 0
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => setDetail(c)}
-                        className="flex flex-col gap-1.5 rounded-lg px-1.5 py-2 text-left transition-colors hover:bg-accent/50"
-                      >
-                        <div className="flex items-center gap-2">
-                          <CategoryIcon
-                            icon={c.icon}
-                            size={16}
-                            color={c.color ?? undefined}
-                          />
-                          <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                            {c.name}
-                          </span>
-                          <span className="tabular shrink-0 text-xs text-muted-foreground">
-                            {c.limit > 0
-                              ? `${formatCLP(c.used)} de ${formatCLP(c.limit)}`
-                              : `sin tope · ${formatCLP(c.used)}`}
-                          </span>
-                        </div>
-                        {/* Mismo semáforo que el arco (statusVar): gastado sólido + comprometido
-                            tenue detrás. */}
-                        <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
-                          <div
-                            className="h-full transition-[width] duration-500 ease-out"
-                            style={{ width: `${pct}%`, background: statusVar(c.status) }}
-                          />
-                          <div
-                            className="h-full transition-[width] duration-500 ease-out"
-                            style={{
-                              width: `${Math.max(0, commPct)}%`,
-                              background: statusVar(c.status),
-                              opacity: 0.35,
-                            }}
-                          />
-                        </div>
-                      </button>
-                    )
-                  })}
+                  {cappedCategories.map(renderExpenseCat)}
+                  {/* Sin tope: separadas para que no compitan con las que sí acotan el mes. */}
+                  {uncappedCategories.length > 0 && (
+                    <>
+                      <div className="mt-3 mb-1 px-1.5 text-xs font-medium text-muted-foreground">
+                        Sin topes
+                      </div>
+                      {uncappedCategories.map(renderExpenseCat)}
+                    </>
+                  )}
                   <button
                     onClick={() => {
                       setNewCatType("expense")

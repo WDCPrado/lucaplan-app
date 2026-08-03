@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Pause, Play, Repeat } from "lucide-react"
+import { Check, Pause, Play, Repeat } from "lucide-react"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
@@ -325,13 +325,21 @@ function RecurringRow({
           <span className="tabular block font-semibold">
             {formatCLP(t.baseAmount)}
           </span>
-          <span className="block text-xs whitespace-nowrap text-muted-foreground">
-            {t.hasEnded
-              ? `Terminó el ${shortDate(t.endDate!)}`
-              : t.isActive
-                ? nextChargeLabel(t.nextExecution)
-                : "Sin cobros"}
-          </span>
+          {/* Cobrado del mes = el cargo real ya llegó; manda sobre el "Cobra el …". */}
+          {t.currentPeriodPaid && !t.hasEnded ? (
+            <span className="flex items-center justify-end gap-1 text-xs whitespace-nowrap text-primary">
+              <Check className="size-3.5" />
+              Cobrado
+            </span>
+          ) : (
+            <span className="block text-xs whitespace-nowrap text-muted-foreground">
+              {t.hasEnded
+                ? `Terminó el ${shortDate(t.endDate!)}`
+                : t.isActive
+                  ? nextChargeLabel(t.nextExecution)
+                  : "Sin cobros"}
+            </span>
+          )}
         </span>
       </button>
       {/* Pausar es lo excepcional: va como acción secundaria, no como el control más pesado de la

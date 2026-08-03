@@ -15,6 +15,7 @@ import {
   materializeUserPeriods,
   setRecurringActive,
 } from "./recurring-use-cases.ts"
+import { listRecurringView } from "./finance-read.ts"
 
 type Row = {
   id: string
@@ -246,6 +247,36 @@ test("N=3 plantillas equivalentes reparten un cargo a cada una", async () => {
   assert.deepEqual(new Set(matched), new Set(["g1", "g2", "g3"]))
   assert.equal(rows.length, 3)
   assert.ok(rows.every((r) => r.status === "confirmed"))
+})
+
+test("currentPeriodPaid: true solo cuando el período tiene cargo confirmado", async () => {
+  const { repo } = makeRepo([arriendo])
+  const today = new Date(2026, 6, 10) // julio 2026, dentro del período en curso
+  const deps = {
+    recurring: repo,
+    accounts: { listByUser: async () => [{ id: "acc1", name: "Cuenta", currency: "CLP" }] },
+    categories: {
+      listByUser: async () => [{ id: "vivienda", name: "Vivienda", icon: null, color: null }],
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any
+
+  // Sin transacción del período → no cobrado.
+  assert.equal((await listRecurringView(deps, "u1", today))[0].currentPeriodPaid, false)
+
+  // Solo comprometido pending → sigue sin cobrar.
+  await materializePeriod({ recurring: repo }, arriendo, today)
+  assert.equal((await listRecurringView(deps, "u1", today))[0].currentPeriodPaid, false)
+
+  // Llega el cargo real y confirma el período → cobrado.
+  await confirmFromMovement({ recurring: repo }, [arriendo], {
+    id: "cargo",
+    description: "Arriendo Depto",
+    amount: Money.of(350_000, "CLP"),
+    direction: "debit",
+    date: today,
+  })
+  assert.equal((await listRecurringView(deps, "u1", today))[0].currentPeriodPaid, true)
 })
 
 test("crear desde un movimiento lo vincula como ejecución de su período", async () => {

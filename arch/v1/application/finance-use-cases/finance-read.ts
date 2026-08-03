@@ -751,7 +751,7 @@ export async function listIncomesView(
 
 export type RecurringDTO = {
   id: string
-  description: string
+  label: string // nombre visible; la clave de match (description) no se expone al cliente
   accountId: string
   accountName: string
   categoryId: string
@@ -802,7 +802,7 @@ export async function listRecurringView(
         : executionDateFor(t, periodKeyFor(t, nextPeriodDate(t, today)))
     return {
       id: t.id,
-      description: t.description,
+      label: t.label,
       accountId: t.accountId,
       accountName: accById.get(t.accountId)?.name ?? "",
       categoryId: t.categoryId,

@@ -120,6 +120,7 @@ const arriendo: RecurringTemplate = {
   userId: "u1",
   accountId: "acc1",
   categoryId: "vivienda",
+  label: "Arriendo depto",
   description: "ARRIENDO DEPTO",
   direction: "debit",
   baseAmount: Money.of(350_000, "CLP"),
@@ -242,7 +243,7 @@ test("crear desde un movimiento lo vincula como ejecución de su período", asyn
     {
       accountId: "acc1",
       categoryId: "subscripciones",
-      description: "Smart Fit Chile",
+      label: "Gimnasio", // el usuario le pone un nombre distinto al del cargo
       direction: "debit",
       baseAmount: 17_450,
       tolerancePct: 10,
@@ -255,6 +256,9 @@ test("crear desde un movimiento lo vincula como ejecución de su período", asyn
   )
 
   assert.equal(template.id, "nueva")
+  // La clave de match sale del cargo real, no del label; renombrar no la afecta.
+  assert.equal(created[0].label, "Gimnasio")
+  assert.equal(created[0].description, "Smart Fit Chile")
   assert.equal(rows.length, 1)
   assert.equal(rows[0].id, "tx-origen")
   assert.equal(rows[0].templateId, "nueva")

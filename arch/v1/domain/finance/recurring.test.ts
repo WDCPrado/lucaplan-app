@@ -19,6 +19,7 @@ const template = (over: Partial<RecurringTemplate> = {}): RecurringTemplate => (
   userId: "u1",
   accountId: "acc1",
   categoryId: "c1",
+  label: "Arriendo depto",
   description: "ARRIENDO DEPTO",
   direction: "debit",
   baseAmount: Money.of(350_000, "CLP"),

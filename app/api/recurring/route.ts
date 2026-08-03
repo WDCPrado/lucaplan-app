@@ -13,8 +13,8 @@ export async function GET(req: Request) {
   return withUser(req, (userId) => listRecurringTemplates(financeDeps, userId))
 }
 
-// Crea una plantilla. La UI la precarga desde un movimiento, pero siempre manda los campos ya
-// revisados por el usuario: aquí no hay creación derivada a ciegas.
+// Crea una plantilla. Solo nace desde un movimiento (`sourceTransactionId` obligatorio): de ahí
+// sale la clave de match; el `label` lo elige el usuario. Los campos van ya revisados por él.
 export async function POST(req: Request) {
   const body = await req.json()
   return withUser(
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       createRecurringTemplate(financeDeps, userId, {
         accountId: String(body.accountId),
         categoryId: String(body.categoryId),
-        description: String(body.description ?? ""),
+        label: String(body.label ?? ""),
         direction: body.direction === "credit" ? "credit" : "debit",
         baseAmount: Number(body.baseAmount),
         tolerancePct: Number(body.tolerancePct ?? 10),

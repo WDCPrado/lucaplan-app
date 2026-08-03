@@ -25,7 +25,7 @@ export async function PATCH(
       id,
       accountId: String(body.accountId),
       categoryId: String(body.categoryId),
-      description: String(body.description ?? ""),
+      label: String(body.label ?? ""),
       direction: body.direction === "credit" ? "credit" : "debit",
       baseAmount: Number(body.baseAmount),
       tolerancePct: Number(body.tolerancePct ?? 10),

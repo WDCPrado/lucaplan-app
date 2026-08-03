@@ -1052,7 +1052,7 @@ function ConnectedDetail({
           accounts={accounts}
           categories={categories}
           preset={{
-            description: tx.description,
+            label: tx.description, // nombre inicial editable; la clave de match sale del cargo real
             accountId: tx.accountId,
             categoryId: tx.categoryId,
             baseAmount: Math.abs(tx.amount),

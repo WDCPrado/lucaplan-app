@@ -12,6 +12,7 @@
     "setup:db": "node scripts/setup-db.mjs",
     "migrate:db": "node scripts/migrate-db.mjs",
     "clone:db": "node scripts/clone-prod-db.mjs",
+    "fix:recurring-keys": "node scripts/fix-recurring-keys.ts",
     "deploy:init": "node scripts/deploy-init.mjs",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",

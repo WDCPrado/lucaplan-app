@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Pause, Play, Plus, Repeat } from "lucide-react"
+import { Pause, Play, Repeat } from "lucide-react"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
@@ -95,11 +95,6 @@ export function RecurringView({
     router.push("/login")
   }
 
-  function create() {
-    setEditing(null)
-    setOpen(true)
-  }
-
   function edit(t: RecurringDTO) {
     setEditing(t)
     setOpen(true)
@@ -128,14 +123,13 @@ export function RecurringView({
       }}
       active="recurrentes"
       onSignOut={signOut}
-      onAdd={create}
       title="Recurrentes"
     >
       {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para
           el enlace "Volver", que ya no está. En escritorio la topbar sí pide su margen. */}
       <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
         {templates.length === 0 ? (
-          <EmptyState onCreate={create} />
+          <EmptyState />
         ) : (
           // Escritorio: la lista manda y el resumen del mes acompaña; móvil: una columna con el
           // resumen al final (primero se decide sobre las filas, después se mira el total).
@@ -147,13 +141,6 @@ export function RecurringView({
                 <h2 className="font-heading text-lg font-bold">
                   Gastos recurrentes
                 </h2>
-                <Button
-                  onClick={create}
-                  className="hidden shrink-0 rounded-full lg:inline-flex"
-                >
-                  <Plus className="size-4" />
-                  Nueva
-                </Button>
               </div>
 
               <div className="flex flex-col gap-6">
@@ -249,7 +236,7 @@ export function RecurringView({
                             className="flex justify-between gap-2 text-sm"
                           >
                             <span className="min-w-0 truncate text-muted-foreground">
-                              {t.description}
+                              {t.label}
                               {dueThisMonth.length === 0 &&
                                 ` · ${nextChargeLabel(t.nextExecution)
                                   .replace("Cobra el ", "")
@@ -326,7 +313,7 @@ function RecurringRow({
           />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{t.description}</span>
+          <span className="block truncate font-medium">{t.label}</span>
           <span className="block truncate text-xs text-muted-foreground">
             {t.categoryName} ·{" "}
             {PERIODICITY_LABEL[t.periodicity] ?? t.periodicity}
@@ -358,8 +345,8 @@ function RecurringRow({
         onClick={onToggle}
         aria-label={
           t.isActive
-            ? `Pausar ${t.description}`
-            : `Reanudar ${t.description}`
+            ? `Pausar ${t.label}`
+            : `Reanudar ${t.label}`
         }
         title={t.isActive ? "Pausar" : "Reanudar"}
         className="size-11 shrink-0 text-muted-foreground"
@@ -374,8 +361,9 @@ function RecurringRow({
   )
 }
 
-// Empty state que enseña qué resuelve la función, en vez de anunciar el vacío.
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+// Empty state que enseña qué resuelve la función, en vez de anunciar el vacío. Una recurrente
+// solo nace de un movimiento, así que aquí no hay botón de creación: se explica de dónde sale.
+function EmptyState() {
   return (
     <div className="glass mx-auto max-w-2xl rounded-2xl px-6 py-10 text-center">
       <span
@@ -390,13 +378,9 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         presupuesto desde que empieza el mes, y se reconocen solos cuando el
         banco los cobra, aunque el monto cambie un poco.
       </p>
-      <Button onClick={onCreate} className="mt-5 rounded-full">
-        <Plus className="size-4" />
-        Crear la primera
-      </Button>
-      <p className="mt-3 text-xs text-muted-foreground">
-        También puedes crearla desde un movimiento, con &quot;Hacer
-        recurrente&quot;.
+      <p className="mx-auto mt-4 max-w-sm text-sm text-muted-foreground">
+        Para crear una, abre un movimiento y elige{" "}
+        <span className="font-medium text-foreground">Hacer recurrente</span>.
       </p>
     </div>
   )

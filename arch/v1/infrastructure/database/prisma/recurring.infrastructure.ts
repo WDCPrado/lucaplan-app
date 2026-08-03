@@ -19,6 +19,7 @@ function toTemplate(row: any): RecurringTemplate {
     userId: row.userId,
     accountId: row.accountId,
     categoryId: row.categoryId,
+    label: row.label,
     description: row.description,
     direction: row.direction as Direction,
     baseAmount: Money.of(row.baseAmount.toString(), currency),
@@ -68,6 +69,7 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
           userId: input.userId,
           accountId: input.accountId,
           categoryId: input.categoryId,
+          label: input.label,
           description: input.description,
           direction: input.direction,
           baseAmount: input.baseAmount.toDecimalString(),
@@ -88,7 +90,8 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
         data: {
           accountId: input.accountId,
           categoryId: input.categoryId,
-          description: input.description,
+          label: input.label,
+          // `description` (clave de match) NO se escribe: es inmutable desde el front.
           direction: input.direction,
           baseAmount: input.baseAmount.toDecimalString(),
           currency: input.baseAmount.currency,
@@ -158,7 +161,7 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
           recurringTemplateId: template.id,
           periodKey,
           transactionDate: date,
-          description: template.description,
+          description: template.label, // el comprometido muestra el nombre visible, no la clave
           amount: template.baseAmount.toDecimalString(),
           currency: template.baseAmount.currency,
           direction: template.direction,

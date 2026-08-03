@@ -36,7 +36,6 @@ export function PlanSheet({
   isCurrentMonth,
   globalLimit,
   allocated,
-  remainingToAllocate,
   incomes,
   incomeCategories,
   activeIncomeTotal,
@@ -52,7 +51,6 @@ export function PlanSheet({
   isCurrentMonth: boolean
   globalLimit: number | null
   allocated: number
-  remainingToAllocate: number | null
   incomes: IncomeDTO[]
   incomeCategories: CategoryDTO[]
   activeIncomeTotal: number
@@ -64,7 +62,6 @@ export function PlanSheet({
 }) {
   const router = useRouter()
   const [applying, setApplying] = useState(false)
-  const overAllocated = remainingToAllocate !== null && remainingToAllocate < 0
   // Los ingresos cambiaron y ya no calzan con el presupuesto: se ofrece igualarlos, nunca se
   // hace solo (el presupuesto es una decisión, no un cálculo).
   const suggest =
@@ -130,15 +127,8 @@ export function PlanSheet({
                 </span>
                 <Pencil className="size-4 shrink-0 text-muted-foreground opacity-60 transition-opacity group-hover:opacity-100" />
               </div>
-              <div className="tabular mt-1 flex flex-wrap justify-between gap-x-3 text-xs">
-                <span className="text-muted-foreground">
-                  Asignado {formatCLP(allocated)} en categorías
-                </span>
-                <span className={cn(overAllocated && "text-destructive")}>
-                  {overAllocated
-                    ? `Sobre-asignado ${formatCLP(Math.abs(remainingToAllocate!))}`
-                    : `Por presupuestar ${formatCLP(remainingToAllocate ?? 0)}`}
-                </span>
+              <div className="tabular mt-1 text-xs text-muted-foreground">
+                Asignado {formatCLP(allocated)} de {formatCLP(globalLimit)}
               </div>
             </button>
           )}

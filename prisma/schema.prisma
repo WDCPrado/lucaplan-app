@@ -399,7 +399,8 @@ model RecurringTemplate {
   account      FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
   categoryId   String // obligatoria: toda ejecución usa ESTA categoría, nunca la IA
   category     Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  description  String // clave de match: se compara normalizada (normalizeMovementText)
+  label        String // nombre visible/editable; no afecta el match
+  description  String // clave de match: se compara normalizada (normalizeMovementText); inmutable desde el front
   direction    String // debit | credit
   baseAmount   Decimal          @db.Decimal(18, 2) // monto esperado; el real puede variar dentro del rango
   currency     String // coincide con la moneda de la cuenta

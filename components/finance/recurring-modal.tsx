@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
-import { Chip, DatePicker, savedFirst } from "./transaction-modal"
+import { Chip, DatePicker } from "./transaction-modal"
 import { DayOfMonthPicker } from "./income-modal"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
@@ -54,7 +54,7 @@ const PERIODICITIES = [
 // Valores con los que se abre el formulario al crear desde un movimiento: la creación nunca es
 // directa, el usuario revisa y confirma (el monto del cargo es solo el centro del rango).
 export type RecurringPreset = {
-  description?: string
+  label?: string // nombre inicial editable (por defecto, la descripción del movimiento)
   accountId?: string
   categoryId?: string | null
   baseAmount?: number
@@ -80,22 +80,15 @@ export function RecurringModal({
   preset?: RecurringPreset | null // precarga al crear desde un movimiento
 }) {
   const router = useRouter()
-  // La categoría ya elegida va primero. Se ancla al valor INICIAL (no al estado): si se anclara a
-  // la selección en vivo, los chips saltarían de posición en cada toque.
-  const expenseCategories = savedFirst(
-    categories.filter((c) => c.type === "expense"),
-    template?.categoryId ?? preset?.categoryId ?? null
-  )
-
-  const [description, setDescription] = useState(
-    template?.description ?? preset?.description ?? ""
+  const [label, setLabel] = useState(
+    template?.label ?? preset?.label ?? ""
   )
   const [accountId, setAccountId] = useState(
     template?.accountId ?? preset?.accountId ?? accounts[0]?.id ?? ""
   )
-  const [categoryId, setCategoryId] = useState<string | null>(
-    template?.categoryId ?? preset?.categoryId ?? expenseCategories[0]?.id ?? null
-  )
+  // La categoría siempre viene del movimiento de origen (creación) o de la plantilla (edición):
+  // no se elige aquí, es de solo lectura.
+  const categoryId = template?.categoryId ?? preset?.categoryId ?? null
   const [tolerancePct, setTolerancePct] = useState(template?.tolerancePct ?? 10)
   const [periodicity, setPeriodicity] = useState<string>(
     template?.periodicity ?? "monthly"
@@ -108,8 +101,6 @@ export function RecurringModal({
   const [withEnd, setWithEnd] = useState(!!template?.endDate)
   const [saving, setSaving] = useState(false)
 
-  // Heredada = la plantilla nació de un movimiento (edición, o creación con preset).
-  const inheritsCategory = !!(template || preset?.categoryId)
   const inheritedCategory = categories.find((c) => c.id === categoryId)
   const account = accounts.find((a) => a.id === accountId) ?? accounts[0]
   const money = useMoneyInput(
@@ -118,7 +109,7 @@ export function RecurringModal({
   )
   const needsDay = periodicity !== "biweekly"
   const canSave =
-    !!description.trim() &&
+    !!label.trim() &&
     !!account &&
     !!categoryId &&
     money.value > 0 &&
@@ -140,7 +131,7 @@ export function RecurringModal({
         body: JSON.stringify({
           accountId: account.id,
           categoryId,
-          description: description.trim(),
+          label: label.trim(),
           direction: "debit",
           baseAmount: money.value,
           tolerancePct,
@@ -198,49 +189,31 @@ export function RecurringModal({
           <Section title="Qué se cobra">
             <Input
               placeholder="Ej. Arriendo depto"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              aria-label="Descripción"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              aria-label="Nombre"
               className="h-11 rounded-xl text-base"
             />
             <span className="block text-xs text-muted-foreground">
-              Es la clave con la que se reconoce el cargo en el correo del banco.
+              Es solo el nombre para reconocerla aquí; cambiarlo no afecta la
+              detección del cargo en el correo.
             </span>
             {/* La categoría la manda el movimiento, no la plantilla: si se pudiera editar en los
-                dos lados habría dos verdades. Heredada ⇒ se muestra; se cambia recategorizando el
-                movimiento. Sin movimiento de origen (creación manual) sí hay que elegirla. */}
-            {inheritsCategory ? (
-              <div className="flex items-center gap-2 rounded-xl bg-secondary/50 px-3 py-2.5">
-                <CategoryIcon
-                  icon={inheritedCategory?.icon ?? null}
-                  size={18}
-                  color={inheritedCategory?.color ?? undefined}
-                />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {inheritedCategory?.name ?? "Sin categoría"}
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  Del movimiento
-                </span>
-              </div>
-            ) : (
-              <ChipRow>
-                {expenseCategories.map((c) => (
-                  <Chip
-                    key={c.id}
-                    active={c.id === categoryId}
-                    onClick={() => setCategoryId(c.id)}
-                  >
-                    <CategoryIcon
-                      icon={c.icon}
-                      size={16}
-                      color={c.color ?? undefined}
-                    />{" "}
-                    {c.name}
-                  </Chip>
-                ))}
-              </ChipRow>
-            )}
+                dos lados habría dos verdades. Como una recurrente solo nace de un movimiento,
+                la categoría siempre es heredada; se cambia recategorizando el movimiento. */}
+            <div className="flex items-center gap-2 rounded-xl bg-secondary/50 px-3 py-2.5">
+              <CategoryIcon
+                icon={inheritedCategory?.icon ?? null}
+                size={18}
+                color={inheritedCategory?.color ?? undefined}
+              />
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {inheritedCategory?.name ?? "Sin categoría"}
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                Del movimiento
+              </span>
+            </div>
           </Section>
 
           {/* 2 · Cuánto ------------------------------------------------------ */}

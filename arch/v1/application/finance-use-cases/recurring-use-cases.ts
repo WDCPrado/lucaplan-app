@@ -37,7 +37,7 @@ type RecurringDeps = {
 export type RecurringInput = {
   accountId: string
   categoryId: string
-  description: string
+  label: string // nombre visible; la clave de match (description) sale del movimiento de origen
   direction: "debit" | "credit"
   baseAmount: number
   tolerancePct: number
@@ -68,8 +68,8 @@ async function validateInput(
       "La categoría debe ser del mismo lado que el movimiento"
     )
 
-  if (!input.description.trim())
-    throw new InvalidRecurringTemplateError("La recurrente necesita descripción")
+  if (!input.label.trim())
+    throw new InvalidRecurringTemplateError("La recurrente necesita un nombre")
   if (!Number.isFinite(input.baseAmount) || input.baseAmount <= 0)
     throw new InvalidRecurringTemplateError("El monto base debe ser mayor que 0")
   if (!isValidTolerance(input.tolerancePct))
@@ -102,19 +102,32 @@ export async function listRecurringTemplates(
 }
 
 export async function createRecurringTemplate(
-  deps: RecurringDeps & { transactions?: TransactionRepository },
+  deps: RecurringDeps & { transactions: TransactionRepository },
   userId: string,
-  // `sourceTransactionId`: el movimiento desde el que se creó la plantilla. Se vincula como la
-  // ejecución de SU período — si no, ese movimiento queda huérfano (sin sello ni acciones en la
-  // UI) y el período volvería a materializar un comprometido por un gasto que ya se cobró.
+  // `sourceTransactionId` es OBLIGATORIO: una recurrente solo nace de un movimiento real. De ahí
+  // sale la CLAVE de match (`description` = descripción del cargo real, inmutable) y el movimiento
+  // queda vinculado como la ejecución de SU período (si no, quedaría huérfano y el período volvería
+  // a materializar un comprometido por un gasto ya cobrado). `label` sí lo elige el usuario.
   input: RecurringInput & { sourceTransactionId?: string | null }
 ): Promise<RecurringTemplate> {
   const { money } = await validateInput(deps, userId, input)
+
+  if (!input.sourceTransactionId)
+    throw new InvalidRecurringTemplateError(
+      "Una recurrente solo se crea desde un movimiento existente"
+    )
+  const source = await deps.transactions.findById(input.sourceTransactionId)
+  if (!source || source.userId !== userId)
+    throw new InvalidRecurringTemplateError(
+      "El movimiento de origen no existe o no es tuyo"
+    )
+
   const template = await deps.recurring.create({
     userId,
     accountId: input.accountId,
     categoryId: input.categoryId,
-    description: input.description.trim(),
+    label: input.label.trim(),
+    description: source.description, // clave de match: el texto real del cargo, sin editar
     direction: input.direction,
     baseAmount: money,
     tolerancePct: input.tolerancePct,
@@ -124,15 +137,11 @@ export async function createRecurringTemplate(
     endDate: input.endDate,
   })
 
-  if (input.sourceTransactionId && deps.transactions) {
-    const source = await deps.transactions.findById(input.sourceTransactionId)
-    if (source && source.userId === userId)
-      await deps.recurring.attachImportedMovement(
-        source.id,
-        template,
-        periodKeyFor(template, source.date)
-      )
-  }
+  await deps.recurring.attachImportedMovement(
+    source.id,
+    template,
+    periodKeyFor(template, source.date)
+  )
   return template
 }
 
@@ -145,11 +154,12 @@ export async function updateRecurringTemplate(
   if (!existing) throw new RecurringTemplateNotFoundError(input.id)
   if (existing.userId !== userId) throw new NotOwnerError()
   const { money } = await validateInput(deps, userId, input)
+  // La clave de match (`description`) no se toca: el update ni la recibe.
   const updated = await deps.recurring.update({
     id: input.id,
     accountId: input.accountId,
     categoryId: input.categoryId,
-    description: input.description.trim(),
+    label: input.label.trim(),
     direction: input.direction,
     baseAmount: money,
     tolerancePct: input.tolerancePct,

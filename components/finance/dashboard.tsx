@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
-  Pencil,
   Plus,
 } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
@@ -20,7 +19,6 @@ import { MonthStatus } from "./month-status"
 import { PlanSheet } from "./plan-sheet"
 import { AccountCard } from "./account-card"
 import { MovementsList } from "./movements-list"
-import { ProgressRing } from "./progress-ring"
 import { CategoryIcon } from "./category-icons"
 import { AddTransactionSheet } from "./add-transaction-sheet"
 import { CategoryModal } from "./category-modal"
@@ -36,10 +34,10 @@ import { IncomeModal } from "./income-modal"
 import { OnboardingFlow } from "./onboarding/onboarding-flow"
 import {
   currentPeriod,
-  daysLeftInMonth,
   formatCLP,
   formatCompact,
   monthName,
+  statusVar,
 } from "@/lib/finance-format"
 import type {
   AccountDTO,
@@ -147,10 +145,6 @@ export function Dashboard({
     .filter((i) => i.isActive && i.currency === "CLP")
     .reduce((s, i) => s + i.amount, 0)
 
-  // Sobre-asignado: los límites de categoría superan el límite global del mes (alerta, no bloquea).
-  const overAllocated =
-    budget.remainingToAllocate !== null && budget.remainingToAllocate < 0
-
   // Uso REAL del presupuesto total: gastado del mes (categorías de gasto) vs límite global.
   const totalUsed = expenseCategories.reduce(
     (s, c) => s + Math.max(0, c.used),
@@ -179,9 +173,6 @@ export function Dashboard({
     await authClient.signOut()
     router.push("/login")
   }
-
-  // Días que quedan del mes (incluye hoy). Solo tiene sentido en el mes en curso.
-  const daysLeft = isCurrentMonth ? daysLeftInMonth() : null
 
   return (
     <AppShell
@@ -237,7 +228,7 @@ export function Dashboard({
           globalLimit={budget.globalLimit}
           spent={totalUsed}
           committed={totalCommitted}
-          daysLeft={daysLeft}
+          remainingToAllocate={budget.remainingToAllocate}
           onOpenPlan={() => setPlanOpen(true)}
         />
 
@@ -336,40 +327,6 @@ export function Dashboard({
               </button>
             </div>
             <div className="glass rounded-2xl p-4">
-              {/* Asignación del mes: cuánto del presupuesto ya tiene destino. Tocarlo abre el
-                  plan (ingresos y presupuesto), que es donde se cambia. */}
-              <button
-                onClick={() => setPlanOpen(true)}
-                className="group mb-4 flex w-full items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2.5 text-left transition-colors hover:bg-accent"
-                aria-label="Ver el plan del mes"
-              >
-                <span className="min-w-0">
-                  <span className="block text-xs text-muted-foreground uppercase">
-                    {budget.globalLimit === null
-                      ? "Sin presupuesto del mes"
-                      : overAllocated
-                        ? "Sobre-asignado"
-                        : "Por presupuestar"}
-                  </span>
-                  <span
-                    className={cn(
-                      "tabular block text-xl font-bold",
-                      overAllocated && "text-destructive"
-                    )}
-                  >
-                    {budget.globalLimit === null
-                      ? "Definir"
-                      : formatCLP(budget.remainingToAllocate ?? 0)}
-                  </span>
-                  {budget.globalLimit !== null && (
-                    <span className="tabular mt-0.5 block text-xs text-muted-foreground">
-                      Asignado {formatCLP(budget.allocated)} de{" "}
-                      {formatCLP(budget.globalLimit)}
-                    </span>
-                  )}
-                </span>
-                <Pencil className="size-4 shrink-0 text-muted-foreground opacity-60 transition-opacity group-hover:opacity-100" />
-              </button>
               <div className="mb-3 text-xs font-medium text-muted-foreground">
                 Categorías de gasto
               </div>
@@ -387,38 +344,51 @@ export function Dashboard({
                   <span className="text-sm">Crear categoría</span>
                 </button>
               ) : (
-                // Móvil: scroll-x sin wrap; escritorio: wrap alineado a la izquierda (mismo
-                // padding que las filas de Ingresos, igual que las categorías de ingreso).
-                <div className="-mx-4 flex scrollbar-none gap-4 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0">
+                // Lista vertical de barras: da mejor lectura del gastado por categoría que los
+                // arcos en scroll, y encaja en la columna angosta del panel en cualquier ancho.
+                // El arco sigue viviendo en movimientos y en el detalle.
+                <div className="flex flex-col">
                   {expenseCategories.map((c) => {
-                    const pct = c.limit > 0 ? (c.used / c.limit) * 100 : 0
+                    const pct = c.limit > 0 ? Math.min(100, (c.used / c.limit) * 100) : 0
+                    // El comprometido continúa al gastado en lo que queda de barra (no se suma).
+                    const commPct =
+                      c.limit > 0 ? Math.min(100 - pct, (c.committed / c.limit) * 100) : 0
                     return (
                       <button
                         key={c.id}
                         onClick={() => setDetail(c)}
-                        className="flex w-20 shrink-0 flex-col items-center gap-1.5"
+                        className="flex flex-col gap-1.5 rounded-lg px-1.5 py-2 text-left transition-colors hover:bg-accent/50"
                       >
-                        <ProgressRing
-                          percent={pct}
-                          committedPercent={
-                            c.limit > 0 ? (c.committed / c.limit) * 100 : 0
-                          }
-                          status={c.status}
-                          size={72}
-                        >
+                        <div className="flex items-center gap-2">
                           <CategoryIcon
                             icon={c.icon}
-                            size={22}
+                            size={16}
                             color={c.color ?? undefined}
                           />
-                        </ProgressRing>
-                        <div className="w-full text-center">
-                          <div className="truncate text-xs font-medium">
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium">
                             {c.name}
-                          </div>
-                          <div className="tabular text-xs text-muted-foreground">
-                            {formatCLP(c.available)}
-                          </div>
+                          </span>
+                          <span className="tabular shrink-0 text-xs text-muted-foreground">
+                            {c.limit > 0
+                              ? `${formatCLP(c.used)} de ${formatCLP(c.limit)}`
+                              : `sin tope · ${formatCLP(c.used)}`}
+                          </span>
+                        </div>
+                        {/* Mismo semáforo que el arco (statusVar): gastado sólido + comprometido
+                            tenue detrás. */}
+                        <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full transition-[width] duration-500 ease-out"
+                            style={{ width: `${pct}%`, background: statusVar(c.status) }}
+                          />
+                          <div
+                            className="h-full transition-[width] duration-500 ease-out"
+                            style={{
+                              width: `${Math.max(0, commPct)}%`,
+                              background: statusVar(c.status),
+                              opacity: 0.35,
+                            }}
+                          />
                         </div>
                       </button>
                     )
@@ -428,13 +398,13 @@ export function Dashboard({
                       setNewCatType("expense")
                       setEditCat(null)
                     }}
-                    className="flex w-20 shrink-0 flex-col items-center gap-1.5"
+                    className="flex items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
                     aria-label="Nueva categoría de gasto"
                   >
-                    <span className="grid size-18 place-items-center rounded-full border-2 border-dashed border-border text-2xl text-muted-foreground">
+                    <span className="grid size-5 shrink-0 place-items-center rounded-full border border-dashed border-border text-sm">
                       +
                     </span>
-                    <span className="text-xs text-muted-foreground">Nueva</span>
+                    Nueva categoría
                   </button>
                 </div>
               )}
@@ -542,7 +512,6 @@ export function Dashboard({
         isCurrentMonth={isCurrentMonth}
         globalLimit={budget.globalLimit}
         allocated={budget.allocated}
-        remainingToAllocate={budget.remainingToAllocate}
         incomes={incomes}
         incomeCategories={incomeCategories}
         activeIncomeTotal={activeIncomeTotal}

@@ -3,6 +3,11 @@
 // no cuenta como gastado) y el cargo real del banco la confirma, reconocido por texto normalizado +
 // monto dentro del rango de tolerancia. La categoría de la plantilla manda siempre: un movimiento
 // vinculado nunca pasa por la IA.
+//
+// `label` vs `description`: son campos SEPARADOS. `label` es el nombre visible/editable (solo
+// presentación, no afecta el match). `description` es la CLAVE de match contra el correo: sale del
+// movimiento real de origen y es inmutable desde el front. Renombrar (editar `label`) nunca rompe
+// el reconocimiento del cargo.
 
 import type { Direction } from "./finance.domain.ts"
 import { normalizeMovementText } from "./categorization-learning.domain.ts"
@@ -19,7 +24,8 @@ export type RecurringTemplate = {
   userId: string
   accountId: string // cuenta donde se materializa el comprometido
   categoryId: string // obligatoria: toda ejecución usa ESTA categoría
-  description: string // clave de match (se compara normalizada)
+  label: string // nombre visible/editable; no afecta el match
+  description: string // clave de match (se compara normalizada); del movimiento real, inmutable
   direction: Direction
   baseAmount: Money
   currency: CurrencyCode
@@ -37,6 +43,7 @@ export type NewRecurringTemplate = {
   userId: string
   accountId: string
   categoryId: string
+  label: string
   description: string
   direction: Direction
   baseAmount: Money
@@ -47,7 +54,12 @@ export type NewRecurringTemplate = {
   endDate: Date | null
 }
 
-export type UpdateRecurringTemplate = Omit<NewRecurringTemplate, "userId"> & {
+// `description` (clave de match) NO se edita: se omite del update para que ni siquiera pueda
+// reescribirse por accidente.
+export type UpdateRecurringTemplate = Omit<
+  NewRecurringTemplate,
+  "userId" | "description"
+> & {
   id: string
   isActive: boolean
 }

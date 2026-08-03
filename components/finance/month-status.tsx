@@ -1,6 +1,6 @@
 "use client"
 
-import { SlidersHorizontal } from "lucide-react"
+import { ChevronRight, SlidersHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
@@ -11,23 +11,24 @@ import {
 } from "@/lib/finance-format"
 
 /**
- * Estado del mes en una línea: cuánto queda LIBRE de verdad, ya descontado lo gastado y lo que
- * está comprometido (recurrentes y cuotas que aún no se cobran). El "por presupuestar" responde
- * otra pregunta (cuánto falta repartir entre categorías) y vive en el panel del plan.
+ * Estado del mes en una línea: el PRESUPUESTO de gasto como titular, con el avance de lo gastado
+ * debajo. Las tres cifras de apoyo (gastado, comprometido y lo que queda libre) y la barra
+ * completan el detalle. Si aún queda plata sin repartir entre categorías, se avisa con un nudge
+ * que abre el plan ("por presupuestar" ya no vive en el panel ni en el modal).
  */
 export function MonthStatus({
   period,
   globalLimit,
   spent,
   committed,
-  daysLeft,
+  remainingToAllocate,
   onOpenPlan,
 }: {
   period: { year: number; month: number }
   globalLimit: number | null
   spent: number
   committed: number
-  daysLeft: number | null // null = el mes no es el actual (no hay "por día" que calcular)
+  remainingToAllocate: number | null // lo que falta repartir entre categorías (null = sin presupuesto)
   onOpenPlan: () => void
 }) {
   const mes = monthName(period.month).toLowerCase()
@@ -55,12 +56,13 @@ export function MonthStatus({
   }
 
   const free = globalLimit - spent - committed
-  const over = free < 0
   const usedPct = (spent / globalLimit) * 100
   const spentPct = Math.min(100, usedPct)
   // El comprometido ocupa lo que queda de barra: si ya no cabe, el mes está excedido igual.
   const commPct = Math.min(100 - spentPct, (committed / globalLimit) * 100)
-  const perDay = daysLeft && daysLeft > 0 ? Math.round(free / daysLeft) : null
+  // "Te pasaste" mira solo el gasto contra el presupuesto (sin el comprometido): es la pregunta
+  // del titular ("presupuesto de gasto"), no la del disponible.
+  const spentOver = spent > globalLimit
 
   return (
     <section className="glass relative rounded-2xl p-5 lg:p-6">
@@ -69,26 +71,20 @@ export function MonthStatus({
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-x-8">
         <div className="min-w-0 max-sm:pr-12">
           <p className="text-sm text-muted-foreground">
-            {over ? `Te pasaste en ${mes}` : `Te queda libre en ${mes}`}
+            Presupuesto de {mes}
+          </p>
+          <p className="tabular mt-1 text-3xl font-bold sm:text-4xl lg:text-5xl">
+            {formatCLP(globalLimit)}
           </p>
           <p
             className={cn(
-              "tabular mt-1 text-3xl font-bold sm:text-4xl lg:text-5xl",
-              over && "text-destructive"
+              "mt-1 text-sm text-muted-foreground",
+              spentOver && "text-destructive"
             )}
           >
-            {formatCLP(Math.abs(free))}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {over
-              ? "sobre tu presupuesto del mes, contando lo comprometido"
-              : daysLeft === null
-                ? "en el presupuesto de este mes"
-                : daysLeft <= 1
-                  ? "para el último día del mes"
-                  : perDay !== null
-                    ? `para los ${daysLeft} días que quedan · ${formatCLP(perDay)} por día`
-                    : `para los ${daysLeft} días que quedan`}
+            {spentOver
+              ? `Te pasaste por ${formatCLP(spent - globalLimit)}`
+              : `Llevas gastado ${formatCLP(spent)} · ${Math.round(usedPct)}%`}
           </p>
         </div>
 
@@ -103,7 +99,11 @@ export function MonthStatus({
           >
             <Stat label="Gastado" value={spent} />
             {committed > 0 && <Stat label="Comprometido" value={committed} />}
-            <Stat label="Presupuesto" value={globalLimit} />
+            <Stat
+              label="Libre"
+              value={free}
+              valueClassName={cn(free < 0 && "text-destructive")}
+            />
           </dl>
           {/* Editar el plan (ingresos, presupuesto, categorías de ingreso) vive acá: es el mismo
               lugar donde se ve su resultado. En móvil se ancla arriba a la derecha, fuera del
@@ -146,17 +146,46 @@ export function MonthStatus({
         </Legend>
         <Legend className="bg-success/30">Libre</Legend>
       </ul>
+
+      {/* Nudge de asignación: solo aparece cuando hay algo que hacer (falta repartir o te pasaste
+          asignando). Abre el plan, que es donde se reparte. En $0 no molesta. */}
+      {remainingToAllocate !== null && remainingToAllocate !== 0 && (
+        <button
+          onClick={onOpenPlan}
+          className={cn(
+            "mt-4 flex w-full items-center justify-between gap-2 rounded-xl px-4 py-2.5 text-left text-sm transition-colors",
+            remainingToAllocate < 0
+              ? "bg-destructive/10 text-destructive hover:bg-destructive/15"
+              : "bg-secondary/50 hover:bg-accent"
+          )}
+        >
+          <span className="min-w-0">
+            {remainingToAllocate < 0
+              ? `Sobre-asignado ${formatCLP(Math.abs(remainingToAllocate))} en categorías`
+              : `Te falta repartir ${formatCLP(remainingToAllocate)} en categorías`}
+          </span>
+          <ChevronRight className="size-4 shrink-0 opacity-60" />
+        </button>
+      )}
     </section>
   )
 }
 
 // En móvil las tres cifras comparten el ancho de la pantalla: van abreviadas ($2.6M) para que
 // ninguna se corte. Desde sm hay espacio para el monto completo.
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({
+  label,
+  value,
+  valueClassName,
+}: {
+  label: string
+  value: number
+  valueClassName?: string
+}) {
   return (
     <div className="min-w-0">
       <dt className="truncate text-muted-foreground">{label}</dt>
-      <dd className="tabular font-semibold">
+      <dd className={cn("tabular font-semibold", valueClassName)}>
         <span className="sm:hidden">{formatCompact(value)}</span>
         <span className="max-sm:hidden">{formatCLP(value)}</span>
       </dd>

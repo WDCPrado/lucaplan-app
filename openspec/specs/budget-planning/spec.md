@@ -6,9 +6,7 @@ Planificación mensual del gasto: el presupuesto es un grupo de categorías con 
 (no global). Cubre el cálculo derivado de uso/disponible por categoría, su estado por porcentaje,
 y las cifras de caja activa, deuda de sobregiro y posición neta. Todo derivado por fórmula, sin
 persistir. Lógica en `arch/v1/application/finance-use-cases/`.
-
 ## Requirements
-
 ### Requirement: Presupuesto mensual como grupo de categorías
 
 El presupuesto de un mes SHALL ser un agrupamiento **derivado**: las categorías de gasto del
@@ -57,6 +55,18 @@ categoría: el registro de ese mes si existe; si no, el del mes anterior más re
 registro previo, el límite global SHALL considerarse **no definido** (distinto de 0). La escritura
 SHALL ser upsert por (usuario, año, mes).
 
+El comportamiento del `globalLimit` (editable a libertad por el usuario, con carry-forward)
+NO SHALL cambiar. Adicionalmente, las fuentes de ingreso activas SHALL poder **sembrar** el
+`globalLimit`: cuando el mes en curso aún no tiene un `globalLimit` definido (ni propio ni
+heredado), el sistema SHALL materializar el `globalLimit` como la suma de los montos de las
+fuentes de ingreso activas del usuario, vía el mismo upsert por (usuario, año, mes). Esta
+siembra es solo un valor inicial: no introduce una fuente de verdad distinta ni una atadura.
+
+Cuando el mes **ya tiene** un `globalLimit` definido y el usuario edita o agrega fuentes de
+ingreso, el sistema NO SHALL sobrescribir el `globalLimit` automáticamente. En su lugar MAY
+sugerir al usuario actualizarlo al nuevo total de ingresos; la actualización SHALL requerir
+una acción explícita del usuario.
+
 #### Scenario: Definir el límite global del mes
 
 - **WHEN** el usuario define 500.000 CLP como límite global de julio 2026
@@ -71,6 +81,21 @@ SHALL ser upsert por (usuario, año, mes).
 
 - **WHEN** el usuario nunca ha definido un límite global
 - **THEN** el límite global efectivo es "no definido" y no se deriva restante por presupuestar
+
+#### Scenario: Ingresos siembran el límite global cuando no está definido
+
+- **WHEN** el mes en curso no tiene `globalLimit` definido y el usuario tiene fuentes de ingreso activas que suman 900.000 CLP
+- **THEN** el `globalLimit` del mes se siembra como 900.000 vía upsert por (usuario, año, mes)
+
+#### Scenario: Editar ingresos no pisa un límite global ya definido
+
+- **WHEN** el mes ya tiene `globalLimit` de 700.000 (definido a mano) y el usuario edita/agrega un ingreso que sube el total a 900.000
+- **THEN** el `globalLimit` sigue en 700.000 y el sistema solo sugiere actualizarlo a 900.000, que el usuario aplica si quiere
+
+#### Scenario: El usuario mantiene la libertad de ajustar el límite
+
+- **WHEN** el `globalLimit` fue sembrado desde los ingresos y el usuario lo cambia manualmente a otro valor
+- **THEN** el valor manual prevalece y se propaga por carry-forward a los meses siguientes como cualquier otro límite
 
 ### Requirement: Restante por presupuestar (derivado)
 
@@ -174,3 +199,31 @@ cualquier otro gasto, independientemente de cuándo se pague la tarjeta.
 #### Scenario: Deudas reportadas por separado
 - **WHEN** hay deuda de sobregiro y deuda en dos tarjetas
 - **THEN** el resumen muestra la deuda de sobregiro y la deuda de cada tarjeta por separado, sin sumarlas en un único total
+
+### Requirement: Comprometido del mes por categoría (derivado)
+
+El sistema SHALL calcular, además del uso (gasto confirmado), el **comprometido** de una
+categoría en el mes: la suma de los movimientos `pending` no internos de esa categoría, en
+la moneda del límite y dentro del mes. El comprometido NO SHALL persistirse ni sumarse al
+usado: son dos valores distintos derivados de los mismos movimientos.
+
+El disponible SHALL seguir calculándose como `limit_amount − usado`, y el estado de la
+categoría SHALL seguir derivándose solo del usado. El sistema SHALL exponer el comprometido
+para que la superficie de presupuesto lo muestre como una capa distinta del gasto real.
+
+#### Scenario: Usado y comprometido conviven
+- **WHEN** la categoría Vivienda tiene límite 400.000, movimientos confirmados por 20.000 y un movimiento pending de 350.000
+- **THEN** usado = 20.000, comprometido = 350.000 y disponible = 380.000
+
+#### Scenario: Al cobrarse el comprometido pasa a usado
+- **WHEN** el movimiento pending de 350.000 se confirma en 362.000
+- **THEN** usado = 382.000, comprometido = 0 y no se cuenta dos veces
+
+#### Scenario: Movimientos internos no comprometen
+- **WHEN** hay un movimiento `pending` marcado como interno en la categoría
+- **THEN** no suma al comprometido del mes
+
+#### Scenario: Sin categoría no compromete ni gasta
+- **WHEN** existe un movimiento sin categoría, esté `pending` o `confirmed`
+- **THEN** no suma al comprometido ni al usado de ninguna categoría, igual que hoy: solo se cuenta una vez clasificado
+

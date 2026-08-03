@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { CreditCard, Plus } from "lucide-react"
+import { Check, CreditCard, Plus } from "lucide-react"
 
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
@@ -54,6 +54,12 @@ function currentItem(p: InstallmentPlanDTO) {
     p.items.find((i) => i.dueDate === p.nextDueDate) ??
     p.items.find((i) => i.status === "upcoming" || i.status === "overdue")
   )
+}
+
+// ¿La cuota que vence este mes ya está saldada (pagada o registrada antes de la conexión)?
+function thisMonthSettled(p: InstallmentPlanDTO): boolean {
+  const item = p.items.find((i) => isThisMonth(i.dueDate))
+  return !!item && (item.status === "paid" || item.status === "outside_app")
 }
 
 export function InstallmentsView({
@@ -232,6 +238,7 @@ function PlanRow({
   const completed = p.completedAt !== null
   const pct = Math.round((p.settledCount / p.installmentsCount) * 100)
   const item = currentItem(p)
+  const monthPaid = !completed && thisMonthSettled(p)
   const endsOn = p.items.at(-1)?.dueDate
 
   return (
@@ -270,9 +277,17 @@ function PlanRow({
                   <span className="tabular font-semibold">
                     {formatCLP(item.amount)}
                   </span>
-                  <span className="ml-1 text-xs text-muted-foreground">
-                    al mes
-                  </span>
+                  {/* Pagada del mes = la cuota de este mes ya está saldada; manda sobre "al mes". */}
+                  {monthPaid ? (
+                    <span className="ml-1 inline-flex items-center gap-0.5 text-xs text-primary">
+                      <Check className="size-3.5" />
+                      Pagada
+                    </span>
+                  ) : (
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      al mes
+                    </span>
+                  )}
                 </>
               )}
             </span>

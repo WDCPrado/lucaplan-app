@@ -771,6 +771,7 @@ export type RecurringDTO = {
   hasEnded: boolean // su fecha de fin ya pasó: no ejecuta más ni puede reactivarse
   isActive: boolean
   nextExecution: string // ISO del próximo cobro esperado: lo que el usuario viene a mirar
+  currentPeriodPaid: boolean // el cobro del período en curso ya llegó (transacción confirmed)
 }
 
 // Plantillas recurrentes del usuario con nombres resueltos y el rango de tolerancia ya derivado,
@@ -791,7 +792,7 @@ export async function listRecurringView(
   ])
   const accById = new Map(accounts.map((a) => [a.id, a]))
   const catById = new Map(categories.map((c) => [c.id, c]))
-  return templates.map((t): RecurringDTO => {
+  return Promise.all(templates.map(async (t): Promise<RecurringDTO> => {
     const cat = catById.get(t.categoryId)
     const { min, max } = toleranceRange(t)
     // Próximo cobro: la ejecución del período en curso si aún no pasó; si ya pasó, la del siguiente.
@@ -800,6 +801,11 @@ export async function listRecurringView(
       thisPeriod >= today
         ? thisPeriod
         : executionDateFor(t, periodKeyFor(t, nextPeriodDate(t, today)))
+    // Cobrado = el período en curso ya tiene su cargo real (confirmed); el comprometido pending no.
+    const periodTx = await deps.recurring.findPeriodTransaction(
+      t.id,
+      periodKeyFor(t, today)
+    )
     return {
       id: t.id,
       label: t.label,
@@ -822,8 +828,9 @@ export async function listRecurringView(
       hasEnded: hasEnded(t, today),
       isActive: t.isActive,
       nextExecution: next.toISOString(),
+      currentPeriodPaid: periodTx?.status === "confirmed",
     }
-  })
+  }))
 }
 
 // Un día dentro del período siguiente al que contiene a `from` (basta para derivar su clave).

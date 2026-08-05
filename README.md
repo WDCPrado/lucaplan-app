@@ -409,9 +409,10 @@ La app queda en el puerto `3005` y Postgres en `5433` (host). Los secretos se le
 ### Railway: entornos de PR con datos falsos
 
 El arranque de la imagen aplica las migraciones y luego corre `pnpm seed:pr`. Ese script solo
-siembra cuando `RAILWAY_ENVIRONMENT_NAME` empieza con `pr-` — la variable la inyecta Railway sola en
-los entornos efímeros de pull request, así que en `production` (y en local, y en Docker Compose) se
-salta sin tocar la base. No hay nada que configurar.
+siembra cuando `RAILWAY_ENVIRONMENT_NAME` termina en `pr-<número>` — Railway inyecta esa variable
+sola y nombra así los entornos efímeros de pull request (`pr-2`, o `lucaplan-app-pr-2` cuando el
+proyecto tiene varios servicios). En `production` (y en local, y en Docker Compose) se salta sin
+tocar la base. No hay nada que configurar.
 
 Cada PR queda entonces navegable de inmediato con un usuario demo y un mes de datos ya armado. El
 formulario de login de esos entornos muestra la cuenta, la trae escrita en los campos (entrar es un

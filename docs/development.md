@@ -74,8 +74,9 @@ Todo el backend (doc + código) vive en `arch/`; no hay carpeta `src/`. Dentro d
   [components/finance/app-shell.tsx](../components/finance/app-shell.tsx) (shadcn `sidebar`,
   colapsable, drawer en móvil); las superficies contextuales usan
   [components/ui/responsive-modal.tsx](../components/ui/responsive-modal.tsx) (dialog en escritorio,
-  drawer vaul full-height estilo iOS en móvil — el fondo se escala vía `data-vaul-drawer-wrapper`
-  en el layout). Listas de chips/badges van en **scroll-x sin wrap**; fechas con **Calendar +
+  drawer vaul full-height estilo iOS en móvil — **sin** `shouldScaleBackground`: escalar el fondo
+  le pone un `transform` al wrapper y eso rompe todo `position: fixed` de la página, empezando por
+  la barra de navegación inferior). Listas de chips/badges van en **scroll-x sin wrap**; fechas con **Calendar +
   Popover de shadcn**, nunca `<input type="date">`. Escala **hacia abajo** con breakpoints
   (`sm`/`md`/`lg`): en móvil el shell colapsa a drawer y el contenido se apila en una columna.
   Reglas mínimas (en ambos extremos): sin scroll horizontal; `min-h-dvh` (no `100vh`); targets

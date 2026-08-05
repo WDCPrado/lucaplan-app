@@ -109,7 +109,9 @@ export default function RootLayout({
           </div>
         )}
         <ThemeProvider>
-          {/* data-vaul-drawer-wrapper: vaul escala este contenedor (efecto iOS) al abrir un drawer */}
+          {/* El atributo queda inerte a propósito: ningún drawer usa ya `shouldScaleBackground`
+              (rompía la barra de navegación fija, ver responsive-modal.tsx). Está por si se vuelve
+              a activar el efecto iOS; el `min-h-dvh` sí hace falta. */}
           <div data-vaul-drawer-wrapper className="min-h-dvh">
             {children}
           </div>

@@ -380,12 +380,8 @@ export function Dashboard({
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-baseline gap-2">
                 <h2 className="font-heading text-lg font-bold">Presupuestos</h2>
-                {/* Los días que faltan mandan sobre todas las categorías (son el divisor del
-                    ritmo diario): se dicen una vez acá, junto al mes, no en cada fila. */}
                 <span className="truncate text-sm text-muted-foreground">
                   {monthName(period.month)}
-                  {daysLeft > 0 &&
-                    ` · ${daysLeft === 1 ? "queda 1 día" : `quedan ${daysLeft} días`}`}
                 </span>
               </div>
               <button
@@ -399,8 +395,15 @@ export function Dashboard({
               </button>
             </div>
             <div className="glass rounded-2xl p-4">
-              <div className="mb-3 text-xs font-medium text-muted-foreground">
-                Categorías de gasto
+              <div className="mb-3 flex items-baseline justify-between gap-2 text-xs font-medium text-muted-foreground">
+                <span>Categorías de gasto</span>
+                {/* Los días que faltan valen para todas las categorías: se dicen una vez acá, no
+                    repetidos en cada fila. */}
+                {daysLeft > 0 && (
+                  <span className="tabular font-normal">
+                    {daysLeft === 1 ? "queda 1 día" : `quedan ${daysLeft} días`}
+                  </span>
+                )}
               </div>
               {expenseCategories.length === 0 ? (
                 <button

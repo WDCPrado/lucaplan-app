@@ -83,14 +83,17 @@ export function ResponsiveModal({
     }
   }, [open])
 
+  // Sin `shouldScaleBackground`: escalar el fondo le pone un `transform` al wrapper del layout, y un
+  // ancestro con transform se vuelve el marco de referencia de todo `position: fixed` que tenga
+  // dentro. La barra de navegación inferior (`fixed bottom-0`) pasaba a colgar del final del wrapper
+  // —que mide todo el largo de la página, no la pantalla— y se iba de vista hasta cerrar el drawer.
+  // El efecto se perdía igual bajo el overlay al 80%.
   if (isMobile) {
     return (
       <Drawer
         open={open}
         onOpenChange={handleOpenChange}
         dismissible={dismissible}
-        shouldScaleBackground
-        setBackgroundColorOnScale={false}
       >
         <DrawerContent
           className={cn(

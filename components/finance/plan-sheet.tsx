@@ -254,7 +254,8 @@ export function PlanSheet({
 // Fila de INGRESO (fuente): cuándo llega, cuánto y su estado del mes. El aro es la categoría
 // (tocarla la edita); el resto de la fila edita el ingreso — son entidades separadas. "Generar"
 // crea el movimiento (idempotente en el backend); tocar "Recibido" lo deshace.
-function IncomeRow({
+// Exportada: el panel Presupuestos del dashboard muestra las mismas filas (misma acción, un tap menos).
+export function IncomeRow({
   income,
   period,
   isCurrentMonth,

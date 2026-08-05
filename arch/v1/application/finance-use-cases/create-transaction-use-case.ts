@@ -10,7 +10,7 @@ import {
   ConnectedAccountReadOnlyError,
 } from "../../domain/finance/finance.domain.ts"
 import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
-import { applyInternalCredit, type BucketAmounts } from "./email-projection.ts"
+import { projectCashEvent } from "./bucket-projection.ts"
 
 export type CreateTransactionInput = {
   accountId: string
@@ -64,33 +64,12 @@ export async function createTransaction(
 
   if (connected && deps.balanceBuckets) {
     // ponytail: create + proyección no son atómicos; si esto falla, "Actualizar saldos" reconcilia.
-    const buckets = await deps.balanceBuckets.listByAccount(account.id)
-    const cash = buckets.find((b) => b.kind === "cash")
-    if (cash) {
-      const od = buckets.find((b) => b.kind === "overdraft") ?? null
-      const amounts = (b: {
-        limitAmount: Money
-        used: Money
-        available: Money
-      }): BucketAmounts => ({
-        limitAmount: b.limitAmount,
-        used: b.used,
-        available: b.available,
-      })
-      const res = applyInternalCredit(
-        amounts(cash),
-        od ? amounts(od) : null,
-        Money.of(input.amount, input.currency)
-      )
-      const asOf = new Date()
-      await deps.balanceBuckets.updateAmounts(cash.id, { ...res.cash, asOf })
-      if (od && res.overdraft)
-        await deps.balanceBuckets.updateAmounts(od.id, {
-          ...res.overdraft,
-          asOf,
-        })
-      await deps.accounts.setBalance(account.id, res.cash.available)
-    }
+    await projectCashEvent(
+      { accounts: deps.accounts, balanceBuckets: deps.balanceBuckets },
+      account.id,
+      Money.of(input.amount, input.currency),
+      "credit"
+    )
   }
   return tx
 }

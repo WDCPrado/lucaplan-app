@@ -448,6 +448,46 @@ export function Dashboard({
                   </button>
                 </div>
               )}
+              {/* Ingresos del mes: lo recibido por categoría y la puerta directa a crear una
+                  fuente, que antes solo vivía dentro de "Ajustar plan". Mismo lenguaje visual
+                  que el grupo "Sin topes" para no agregar ruido. */}
+              <div className="mt-3 mb-1 px-1.5 text-xs font-medium text-muted-foreground">
+                Ingresos
+              </div>
+              <div className="flex flex-col">
+                {incomeCategories.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setDetail(c)}
+                    className="flex items-center gap-2 rounded-lg px-1.5 py-2 text-left transition-colors hover:bg-accent/50"
+                  >
+                    <CategoryIcon
+                      icon={c.icon}
+                      size={16}
+                      color={c.color ?? undefined}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                      {c.name}
+                    </span>
+                    <span
+                      className={cn(
+                        "tabular shrink-0 text-xs",
+                        c.used > 0 ? "text-success" : "text-muted-foreground"
+                      )}
+                    >
+                      {c.used > 0 ? `+${formatCLP(c.used)}` : formatCLP(0)}
+                    </span>
+                  </button>
+                ))}
+                <button
+                  onClick={() => setEditIncome(null)}
+                  className="flex min-h-11 w-full items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                  aria-label="Nueva fuente de ingreso"
+                >
+                  <CirclePlus className="size-4 shrink-0" />
+                  Nueva fuente de ingreso
+                </button>
+              </div>
             </div>
           </section>
 

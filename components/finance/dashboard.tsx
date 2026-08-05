@@ -34,6 +34,8 @@ import { IncomeModal } from "./income-modal"
 import { OnboardingFlow } from "./onboarding/onboarding-flow"
 import {
   currentPeriod,
+  dailyPace,
+  daysLeftInMonth,
   formatCLP,
   formatCompact,
   monthName,
@@ -133,6 +135,13 @@ export function Dashboard({
       a.provider === "manual" ||
       (a.connectionMethod === "email" && a.accountType === "checking")
   )
+  // "Mes en curso" según el calendario del usuario, no el de UTC (ver APP_TZ).
+  const today = currentPeriod()
+  const isCurrentMonth =
+    period.year === today.year && period.month === today.month
+  // Días que faltan (hoy incluido): el divisor del ritmo diario por categoría. Se anuncia una sola
+  // vez en la cabecera del grupo — es un dato del mes, no de cada categoría.
+  const daysLeft = isCurrentMonth ? daysLeftInMonth() : 0
   // El presupuesto de gastos usa las categorías de gasto (tope/uso). Las de ingreso se muestran
   // en su propio grupo con lo recibido en el mes (y su meta, si tienen límite).
   const expenseCategories = budget.categories.filter(
@@ -142,6 +151,7 @@ export function Dashboard({
   const cappedCategories = expenseCategories.filter((c) => c.limit > 0)
   const uncappedCategories = expenseCategories.filter((c) => c.limit <= 0)
   const renderExpenseCat = (c: CategoryDTO) => {
+    const { perDay, pace, over } = dailyPace(c.available, c.used)
     const pct = c.limit > 0 ? Math.min(100, (c.used / c.limit) * 100) : 0
     // El comprometido continúa al gastado en lo que queda de barra (no se suma).
     const commPct =
@@ -178,6 +188,26 @@ export function Dashboard({
             }}
           />
         </div>
+        {/* Cuánto se puede gastar por día con lo que queda. Solo en el mes en curso y con tope: en
+            un mes cerrado no hay días que repartir y sin límite no hay de qué dividir. El ritmo
+            real solo aparece cuando supera al permitido — es una alarma, no un dato de siempre. */}
+        {isCurrentMonth && c.limit > 0 && (
+          <p className="tabular text-xs text-muted-foreground">
+            {c.available > 0 ? (
+              <>
+                {formatCLP(perDay)} por día
+                {over && (
+                  <span className="text-destructive">
+                    {" · "}
+                    vas a {formatCLP(pace)} por día
+                  </span>
+                )}
+              </>
+            ) : (
+              `Sin margen · ${formatCLP(-c.available)} sobre el tope`
+            )}
+          </p>
+        )}
       </button>
     )
   }
@@ -206,11 +236,6 @@ export function Dashboard({
       `/dashboard?year=${d.getUTCFullYear()}&month=${d.getUTCMonth() + 1}`
     )
   }
-
-  // "Mes en curso" según el calendario del usuario, no el de UTC (ver APP_TZ).
-  const today = currentPeriod()
-  const isCurrentMonth =
-    period.year === today.year && period.month === today.month
 
   async function signOut() {
     await authClient.signOut()
@@ -370,8 +395,15 @@ export function Dashboard({
               </button>
             </div>
             <div className="glass rounded-2xl p-4">
-              <div className="mb-3 text-xs font-medium text-muted-foreground">
-                Categorías de gasto
+              <div className="mb-3 flex items-baseline justify-between gap-2 text-xs font-medium text-muted-foreground">
+                <span>Categorías de gasto</span>
+                {/* Los días que faltan valen para todas las categorías: se dicen una vez acá, no
+                    repetidos en cada fila. */}
+                {daysLeft > 0 && (
+                  <span className="tabular font-normal">
+                    {daysLeft === 1 ? "queda 1 día" : `quedan ${daysLeft} días`}
+                  </span>
+                )}
               </div>
               {expenseCategories.length === 0 ? (
                 <button

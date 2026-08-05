@@ -130,23 +130,20 @@ export function AccountCard({
         // barra + frase. Misma gramática que la rama corriente: etiqueta → número grande → contexto.
         <div className="relative">
           <div className="text-xs text-white/75">Disponible</div>
-          <div className="flex items-baseline gap-2">
-            <div className="tabular text-3xl font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
-              {hidden
-                ? "••••••"
-                : formatMoney(
-                    primary.available,
-                    primary.currency as CurrencyCode
-                  )}
-            </div>
-            {chip && (
-              <span className="tabular shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-xs backdrop-blur">
-                {hidden
-                  ? "••••"
-                  : formatMoney(chip.available, chip.currency as CurrencyCode)}
-              </span>
-            )}
+          <div className="tabular text-3xl font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
+            {hidden
+              ? "••••••"
+              : formatMoney(primary.available, primary.currency as CurrencyCode)}
           </div>
+          {/* El cupo secundario va DEBAJO, no al lado: en la misma línea, dos montos largos
+              (CLP de siete dígitos + USD) se salen del ancho de la tarjeta. */}
+          {chip && (
+            <span className="tabular mt-1.5 inline-block rounded-full bg-white/15 px-2 py-0.5 text-xs backdrop-blur">
+              {hidden
+                ? "••••"
+                : formatMoney(chip.available, chip.currency as CurrencyCode)}
+            </span>
+          )}
           {primary.limit > 0 && (
             <>
               <CapacityBar usedPct={usedPct} />

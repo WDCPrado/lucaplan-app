@@ -75,7 +75,8 @@ function incomesRepo(
 ): IncomeRepository {
   const store = new Map(seed.map((i) => [i.id, i]))
   const amounts = [...seedAmounts]
-  const generated = new Map<string, string>() // `${incomeId}:${year}-${month}` -> txId
+  // `${incomeId}:${year}-${month}` -> movimiento generado (como el repo real: monto congelado).
+  const generated = new Map<string, { txId: string; amount: Money }>()
   let n = 0
   const key = (id: string, y: number, m: number) => `${id}:${y}-${m}`
   // Upsert por (fuente, mes), igual que el repo real: editar un mes no toca los otros.
@@ -144,14 +145,29 @@ function incomesRepo(
     generateMonthly: async (income, y, m) => {
       const k = key(income.id, y, m)
       const existing = generated.get(k)
-      if (existing) return { transactionId: existing, created: false }
+      if (existing)
+        return {
+          transactionId: existing.txId,
+          created: false,
+          amount: existing.amount,
+        }
       const txId = `tx${generated.size + 1}`
-      generated.set(k, txId)
-      return { transactionId: txId, created: true }
+      const amount =
+        effectiveIncomeAmount(amounts, income.id, y, m) ??
+        Money.zero(income.currency)
+      generated.set(k, { txId, amount })
+      return { transactionId: txId, created: true, amount }
     },
-    ungenerateMonthly: async (id, y, m) => ({
-      deleted: generated.delete(key(id, y, m)),
-    }),
+    ungenerateMonthly: async (id, y, m) => {
+      const entry = generated.get(key(id, y, m))
+      if (!entry) return { deleted: false }
+      generated.delete(key(id, y, m))
+      return {
+        deleted: true,
+        amount: entry.amount,
+        accountId: store.get(id)?.accountId,
+      }
+    },
   }
 }
 
@@ -271,6 +287,147 @@ test("ungenerateMonthlyIncome deshace la generación y permite regenerar", async
   await ungenerateMonthlyIncome({ incomes: deps.incomes }, "u1", period)
   const noop = await ungenerateMonthlyIncome({ incomes: deps.incomes }, "u1", period)
   assert.equal(noop.deleted, false)
+})
+
+// --- proyección sobre buckets (cuentas conectadas: el saldo de la tarjeta vive ahí) ---
+
+import type {
+  BalanceBucket,
+  BalanceBucketRepository,
+} from "../../domain/finance/finance.domain.ts"
+
+const clp = (n: number) => Money.of(n, "CLP")
+
+const bucket = (over: Partial<BalanceBucket>): BalanceBucket => ({
+  id: "bk1",
+  userId: "u1",
+  accountId: "acc1",
+  cardId: null,
+  kind: "cash",
+  currency: "CLP",
+  limitAmount: clp(0),
+  used: clp(0),
+  available: clp(0),
+  asOf: null,
+  ...over,
+})
+
+class FakeBuckets implements BalanceBucketRepository {
+  updated: { id: string; used: number; available: number }[] = []
+  private list: BalanceBucket[]
+  constructor(list: BalanceBucket[]) {
+    this.list = list
+  }
+  async listByUser() {
+    return this.list
+  }
+  async listByAccount(accountId: string) {
+    return this.list.filter((b) => b.accountId === accountId)
+  }
+  async updateAmounts(id: string, amounts: { used: Money; available: Money }) {
+    this.updated.push({
+      id,
+      used: amounts.used.toMajor(),
+      available: amounts.available.toMajor(),
+    })
+  }
+}
+
+// Cuenta conectada + registro de setBalance (balance derivado = caja disponible).
+function connectedDeps(buckets: FakeBuckets, balances: number[]) {
+  const a = account({ provider: "bancochile" })
+  const accounts = {
+    findById: async (id: string) => (id === a.id ? a : null),
+    setBalance: async (_id: string, b: Money) => {
+      balances.push(b.toMajor())
+    },
+  } as AccountRepository
+  return {
+    incomes: incomesRepo(),
+    accounts,
+    categories: categoriesRepo(category()),
+    balanceBuckets: buckets,
+  }
+}
+
+test("generateMonthlyIncome en cuenta conectada paga el sobregiro primero y fija balance = caja", async () => {
+  const balances: number[] = []
+  const buckets = new FakeBuckets([
+    bucket({ id: "cash", kind: "cash", available: clp(0) }),
+    bucket({
+      id: "od",
+      kind: "overdraft",
+      limitAmount: clp(1000000),
+      used: clp(290967),
+      available: clp(709033),
+    }),
+  ])
+  const deps = connectedDeps(buckets, balances)
+  const income = await createIncome(deps, "u1", validInput) // 900.000 CLP
+
+  await generateMonthlyIncome(deps, "u1", {
+    incomeId: income.id,
+    year: 2026,
+    month: 7,
+  })
+  // 900.000: 290.967 pagan el sobregiro completo; 609.033 suben la caja.
+  assert.deepEqual(
+    buckets.updated.find((u) => u.id === "od"),
+    { id: "od", used: 0, available: 1000000 }
+  )
+  assert.deepEqual(
+    buckets.updated.find((u) => u.id === "cash"),
+    { id: "cash", used: 0, available: 609033 }
+  )
+  assert.deepEqual(balances, [609033])
+})
+
+test("regenerar un mes ya generado no proyecta el abono dos veces", async () => {
+  const balances: number[] = []
+  const buckets = new FakeBuckets([bucket({ id: "cash", kind: "cash" })])
+  const deps = connectedDeps(buckets, balances)
+  const income = await createIncome(deps, "u1", validInput)
+  const period = { incomeId: income.id, year: 2026, month: 7 }
+
+  await generateMonthlyIncome(deps, "u1", period)
+  const updates = buckets.updated.length
+  const second = await generateMonthlyIncome(deps, "u1", period)
+  assert.equal(second.created, false)
+  assert.equal(buckets.updated.length, updates)
+  assert.equal(balances.length, 1)
+})
+
+test("ungenerateMonthlyIncome revierte la proyección: la caja baja y el excedente vuelve al sobregiro", async () => {
+  const balances: number[] = []
+  // Estado post-generación: sobregiro pagado, caja con el remanente del sueldo.
+  const buckets = new FakeBuckets([
+    bucket({ id: "cash", kind: "cash", available: clp(609033) }),
+    bucket({
+      id: "od",
+      kind: "overdraft",
+      limitAmount: clp(1000000),
+      used: clp(0),
+      available: clp(1000000),
+    }),
+  ])
+  const deps = connectedDeps(buckets, balances)
+  const income = await createIncome(deps, "u1", validInput)
+  const period = { incomeId: income.id, year: 2026, month: 7 }
+
+  // Generar sin proyectar (deps mínimos) para aislar la reversión sobre el estado sembrado.
+  await generateMonthlyIncome({ incomes: deps.incomes }, "u1", period)
+  const undo = await ungenerateMonthlyIncome(deps, "u1", period)
+  assert.equal(undo.deleted, true)
+  // Débito de 900.000: consume los 609.033 de caja y los 290.967 restantes usan sobregiro.
+  assert.deepEqual(
+    buckets.updated.find((u) => u.id === "cash"),
+    { id: "cash", used: 0, available: 0 }
+  )
+  assert.deepEqual(
+    buckets.updated.find((u) => u.id === "od"),
+    { id: "od", used: 290967, available: 709033 }
+  )
+  assert.deepEqual(balances, [0])
 })
 
 // --- siembra del límite global ---

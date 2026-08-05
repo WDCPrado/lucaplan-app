@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -64,14 +65,18 @@ export function AddTransactionSheet({
     })
     setSaving(false)
     haptic(res.ok ? "success" : "error")
-    if (res.ok) {
-      money.reset()
-      setDescription("")
-      setCategoryId(null)
-      setDate(toISODate(new Date()))
-      onOpenChange(false)
-      router.refresh()
+    // Sin esto, un fallo era invisible: el sheet quedaba abierto "sin pasar nada".
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      toast.error(data.error ?? "No se pudo registrar el ingreso")
+      return
     }
+    money.reset()
+    setDescription("")
+    setCategoryId(null)
+    setDate(toISODate(new Date()))
+    onOpenChange(false)
+    router.refresh()
   }
 
   return (

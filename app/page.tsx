@@ -5,6 +5,8 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import {
   ArrowRight,
+  Check,
+  CreditCard,
   LockKeyhole,
   Mail,
   NotebookPen,
@@ -18,9 +20,8 @@ import { LEGAL, type LegalKey } from "@/components/landing/legal-content"
 import { useCardCarousel } from "@/hooks/use-card-carousel"
 import { AccountCard } from "@/components/finance/account-card"
 import { MovementRow } from "@/components/finance/movement-row"
-import { ProgressRing } from "@/components/finance/progress-ring"
 import { CategoryIcon } from "@/components/finance/category-icons"
-import { formatCLP, quartileVar } from "@/lib/finance-format"
+import { formatCLP, quartileVar, statusVar } from "@/lib/finance-format"
 import type {
   AccountDTO,
   TransactionDTO,
@@ -156,12 +157,6 @@ const cta = {
   },
 }
 
-const monthStats = [
-  ["Lo que entra", "$1.480.000", "Tus ingresos del mes"],
-  ["Lo que reservaste", "$950.000", "Categorías con un límite real"],
-  ["Lo que queda", "$479.050", "Espacio para decidir hoy"],
-] as const
-
 // Demo con los componentes REALES de la app (mismos que usa el dashboard).
 const demoChecking: AccountDTO = {
   id: "demo-checking",
@@ -283,7 +278,8 @@ const demoMovements: TransactionDTO[] = [
   },
 ]
 
-// Presupuestos demo: mismas cifras que la sección "Presupuestos" del dashboard real.
+// Presupuestos demo: mismas cifras y mismo orden de lectura que el panel "Presupuestos" del
+// dashboard real (lista de barras por categoría, con el comprometido detrás del gastado).
 const demoBudgets = [
   {
     name: "Supermercado",
@@ -292,14 +288,7 @@ const demoBudgets = [
     status: "bueno",
     limit: 630000,
     used: 390750,
-  },
-  {
-    name: "Transporte",
-    icon: "Bus",
-    color: "#0e9488",
-    status: "bueno",
-    limit: 100000,
-    used: 35200,
+    committed: 0,
   },
   {
     name: "Ocio",
@@ -308,6 +297,16 @@ const demoBudgets = [
     status: "moderado",
     limit: 120000,
     used: 103200,
+    committed: 16490,
+  },
+  {
+    name: "Transporte",
+    icon: "Bus",
+    color: "#0e9488",
+    status: "bueno",
+    limit: 100000,
+    used: 35200,
+    committed: 0,
   },
   {
     name: "Restaurantes",
@@ -316,13 +315,113 @@ const demoBudgets = [
     status: "bueno",
     limit: 100000,
     used: 41800,
+    committed: 0,
+  },
+] as const
+
+// Gastos recurrentes demo: las mismas filas de /recurrentes (categoría · periodicidad · cobro).
+const demoRecurring = [
+  {
+    label: "Internet hogar",
+    category: "Cuentas · Mensual",
+    icon: "Wifi",
+    color: "#06b6d4",
+    amount: 24990,
+    note: "Cobra el 20 ago",
+    paid: false,
+  },
+  {
+    label: "Netflix",
+    category: "Ocio · Mensual",
+    icon: "Film",
+    color: "#e8618c",
+    amount: 9990,
+    note: "Cobra el 12 ago",
+    paid: false,
+  },
+  {
+    label: "Spotify",
+    category: "Ocio · Mensual",
+    icon: "Music",
+    color: "#e8618c",
+    amount: 6500,
+    note: "Cobra mañana",
+    paid: false,
+  },
+  {
+    label: "Gimnasio",
+    category: "Salud · Mensual",
+    icon: "Dumbbell",
+    color: "#10b981",
+    amount: 26800,
+    note: "Cobrado",
+    paid: true,
+  },
+] as const
+
+// Planes en cuotas demo: las filas de /cuotas (cuota del mes, avance y lo que falta).
+const demoInstallments = [
+  {
+    description: "iPhone 15",
+    detail: "Tarjeta · cuota 3 de 12 · vence 5 sep",
+    icon: "Smartphone",
+    color: "#6366f1",
+    monthly: 58000,
+    outstanding: 522000,
+    progress: 25,
+    paid: false,
+  },
+  {
+    description: "Pasajes a Lima",
+    detail: "Tarjeta · cuota 5 de 6 · termina en sept.",
+    icon: "Plane",
+    color: "#a855f7",
+    monthly: 29300,
+    outstanding: 29300,
+    progress: 83,
+    paid: true,
   },
 ] as const
 
 const demoBudgetLimit = 1050000
-const demoAllocated = demoBudgets.reduce((sum, b) => sum + b.limit, 0)
+// Días que quedan del mes: en la app es el divisor del "por día" de cada categoría.
+const demoDaysLeft = 12
 const demoUsed = demoBudgets.reduce((sum, b) => sum + b.used, 0)
+// Comprometido = lo que ya tiene dueño y todavía no se cobra: recurrentes pendientes + la cuota
+// del mes. Se deriva de las mismas listas para que las tres secciones nunca se contradigan.
+const demoDueRecurring = demoRecurring
+  .filter((r) => !r.paid)
+  .reduce((sum, r) => sum + r.amount, 0)
+const demoMonthInstallments = demoInstallments.reduce(
+  (sum, i) => sum + i.monthly,
+  0
+)
+const demoDebt = demoInstallments.reduce((sum, i) => sum + i.outstanding, 0)
+const demoCommitted =
+  demoDueRecurring +
+  demoInstallments.filter((i) => !i.paid).reduce((sum, i) => sum + i.monthly, 0)
+const demoFree = demoBudgetLimit - demoUsed - demoCommitted
 const demoUsedPct = (demoUsed / demoBudgetLimit) * 100
+const demoCommittedPct = (demoCommitted / demoBudgetLimit) * 100
+
+// Las tres cifras del mes, con los mismos nombres que la app usa arriba del dashboard.
+const monthStats = [
+  [
+    "Presupuesto de julio",
+    formatCLP(demoBudgetLimit),
+    "Lo que decidiste que puede gastar el mes",
+  ],
+  [
+    "Ya tiene dueño",
+    formatCLP(demoCommitted),
+    "Recurrentes y cuotas que se cobran igual",
+  ],
+  [
+    "Libre para decidir",
+    formatCLP(demoFree),
+    "Lo que queda después de lo gastado y lo comprometido",
+  ],
+] as const
 
 // Movimientos "crudos" del banco ya categorizados por la IA (descripciones bancarias reales).
 const demoCategorized: TransactionDTO[] = [
@@ -411,6 +510,10 @@ const faqs = [
     a: "No. Solo se procesan los mensajes de los remitentes oficiales del banco; el resto no se lee ni se guarda. Y del aviso se conserva únicamente el movimiento: monto, comercio y fecha.",
   },
   {
+    q: "¿Qué pasa con las suscripciones y las compras en cuotas?",
+    a: "Tienen su propia pantalla. Un gasto recurrente (arriendo, gimnasio, streaming) queda reservado en tu presupuesto desde que parte el mes y se reconoce solo cuando el banco lo cobra, aunque el monto cambie un poco. Una compra en cuotas se convierte en un plan: cada mes carga solo su cuota y siempre ves cuánto falta.",
+  },
+  {
     q: "¿Los saldos son exactos?",
     a: "Son proyecciones desde el último saldo que registraste: cada aviso nuevo los actualiza al instante. Si algo no genera correo (un ajuste o reverso), lo corriges en un paso con “Actualizar saldos”.",
   },
@@ -493,12 +596,18 @@ export default function Home() {
             </span>
             Luca Plan
           </Link>
-          <div className="hidden items-center gap-8 text-sm text-muted-foreground lg:flex">
+          <div className="hidden items-center gap-7 text-sm text-muted-foreground lg:flex">
             <a href="#mes" className="transition-colors hover:text-foreground">
               El mes
             </a>
             <a href="#app" className="transition-colors hover:text-foreground">
               La app
+            </a>
+            <a
+              href="#compromisos"
+              className="transition-colors hover:text-foreground"
+            >
+              Cuotas y recurrentes
             </a>
             <a
               href="#conecta"
@@ -542,8 +651,8 @@ export default function Home() {
               style={delay(160)}
               className="mt-7 max-w-md text-lg leading-8 text-muted-foreground"
             >
-              Presupuestos que reinician contigo, pagos visibles y tus
-              movimientos en un solo lugar.
+              Presupuestos que reinician contigo, tus cuotas y recurrentes ya
+              reservadas, y cada movimiento en su lugar.
             </p>
             <div
               data-reveal
@@ -586,36 +695,53 @@ export default function Home() {
                 sizes="(min-width: 1024px) 54vw, 100vw"
                 className="object-cover object-[62%_52%]"
               />
+              {/* Las mismas cifras del mes que abre el dashboard: libre = presupuesto − gastado
+                  − comprometido, con las dos capas ocupando una sola barra. */}
               <div className="absolute inset-x-5 bottom-5 rounded-2xl border border-white/50 bg-white/80 p-5 backdrop-blur-xl">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-medium text-muted-foreground">
                       Presupuesto de julio
                     </p>
-                    <p className="mt-1 text-2xl font-semibold tracking-[-0.04em]">
-                      $429.500{" "}
+                    <p className="tabular mt-1 text-2xl font-semibold tracking-[-0.04em]">
+                      {formatCLP(demoFree)}{" "}
                       <span className="text-base font-normal text-muted-foreground">
-                        disponibles
+                        libres
                       </span>
                     </p>
                   </div>
-                  <span className="hidden rounded-full bg-success/10 px-3 py-1.5 text-xs font-semibold text-success sm:block">
-                    Vas bien
+                  <span className="tabular hidden rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-muted-foreground sm:block">
+                    quedan {demoDaysLeft} días
                   </span>
                 </div>
-                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-border">
+                <div className="mt-4 flex h-1.5 overflow-hidden rounded-full bg-border">
                   <div
-                    className="landing-bar h-full rounded-full bg-primary"
-                    style={{ "--bar": "57%" } as React.CSSProperties}
+                    className="landing-bar h-full"
+                    style={
+                      {
+                        "--bar": `${demoUsedPct}%`,
+                        background: quartileVar(demoUsedPct),
+                      } as React.CSSProperties
+                    }
+                  />
+                  <div
+                    className="landing-bar h-full border-l border-white/70 bg-committed"
+                    style={
+                      { "--bar": `${demoCommittedPct}%` } as React.CSSProperties
+                    }
                   />
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  $850.000 reservados de $1.480.000
+                <p className="tabular mt-2 text-xs text-muted-foreground">
+                  {formatCLP(demoUsed)} gastados ·{" "}
+                  {formatCLP(demoCommitted)} comprometidos
                 </p>
               </div>
             </div>
             <div className="absolute -top-5 -left-6 hidden landing-float-a rounded-2xl border border-border bg-card px-5 py-4 shadow-lg lg:block">
-              <p className="text-xs text-muted-foreground">Próximo pago</p>
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Repeat2 className="size-3.5" aria-hidden="true" />
+                Recurrente por cobrar
+              </p>
               <p className="mt-1 font-medium">Spotify, mañana</p>
             </div>
           </div>
@@ -679,8 +805,8 @@ export default function Home() {
             </h2>
             <p className="mt-7 max-w-lg text-lg leading-8 text-muted-foreground">
               Cada gasto aterriza en su categoría y descuenta su presupuesto al
-              instante. Tus cuentas, movimientos y límites del mes, en una sola
-              pantalla.
+              instante. Tus cuentas, tus movimientos y cuánto te queda por día,
+              en una sola pantalla.
             </p>
           </div>
 
@@ -711,62 +837,70 @@ export default function Home() {
                   <p className="font-heading text-lg font-bold">Presupuestos</p>
                   <span className="text-sm text-muted-foreground">Julio</span>
                 </div>
-                {/* Cabecera del límite global: mismo bloque que el dashboard */}
-                <div className="rounded-xl bg-secondary/50 px-4 py-3">
-                  <span className="text-xs text-muted-foreground uppercase">
-                    Por presupuestar
+                {/* Categorías de gasto: una barra por categoría —gastado sólido, comprometido
+                    tenue detrás— y el ritmo diario, tal cual el panel del dashboard. Los días que
+                    faltan se dicen una vez, en la cabecera. */}
+                <div className="mb-1 flex items-baseline justify-between gap-2 px-1.5 text-xs font-medium text-muted-foreground">
+                  <span>Categorías de gasto</span>
+                  <span className="tabular font-normal">
+                    quedan {demoDaysLeft} días
                   </span>
-                  <div className="tabular text-2xl font-bold">
-                    {formatCLP(demoBudgetLimit - demoAllocated)}
-                  </div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    Asignado {formatCLP(demoAllocated)} de{" "}
-                    {formatCLP(demoBudgetLimit)}
-                  </div>
-                  <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${demoUsedPct}%`,
-                        background: quartileVar(demoUsedPct),
-                      }}
-                    />
-                  </div>
-                  <div className="tabular mt-1.5 flex items-center justify-between gap-2 text-xs">
-                    <span
-                      className="font-medium"
-                      style={{ color: quartileVar(demoUsedPct) }}
-                    >
-                      Usado {formatCLP(demoUsed)} · {Math.round(demoUsedPct)}%
-                    </span>
-                    <span className="text-muted-foreground">
-                      Queda {formatCLP(demoBudgetLimit - demoUsed)}
-                    </span>
-                  </div>
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-4">
-                  {demoBudgets.map((b) => (
-                    <div
-                      key={b.name}
-                      className="flex flex-col items-center gap-1.5"
-                    >
-                      <ProgressRing
-                        percent={(b.used / b.limit) * 100}
-                        status={b.status}
-                        size={72}
+                <div className="flex flex-col">
+                  {demoBudgets.map((b) => {
+                    const pct = (b.used / b.limit) * 100
+                    const commPct = Math.min(
+                      100 - pct,
+                      (b.committed / b.limit) * 100
+                    )
+                    return (
+                      <div
+                        key={b.name}
+                        className="flex flex-col gap-1.5 px-1.5 py-2"
                       >
-                        <CategoryIcon icon={b.icon} size={22} color={b.color} />
-                      </ProgressRing>
-                      <div className="w-full text-center">
-                        <div className="truncate text-xs font-medium">
-                          {b.name}
+                        <div className="flex items-center gap-2">
+                          <CategoryIcon
+                            icon={b.icon}
+                            size={16}
+                            color={b.color}
+                          />
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                            {b.name}
+                          </span>
+                          <span className="tabular shrink-0 text-xs text-muted-foreground">
+                            {formatCLP(b.used)} de {formatCLP(b.limit)}
+                          </span>
                         </div>
-                        <div className="tabular text-xs text-muted-foreground">
-                          {formatCLP(b.limit - b.used)}
+                        <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="landing-bar h-full"
+                            style={
+                              {
+                                "--bar": `${pct}%`,
+                                background: statusVar(b.status),
+                              } as React.CSSProperties
+                            }
+                          />
+                          <div
+                            className="landing-bar h-full"
+                            style={
+                              {
+                                "--bar": `${commPct}%`,
+                                background: statusVar(b.status),
+                                opacity: 0.35,
+                              } as React.CSSProperties
+                            }
+                          />
                         </div>
+                        <p className="tabular text-xs text-muted-foreground">
+                          {formatCLP(
+                            Math.floor((b.limit - b.used) / demoDaysLeft)
+                          )}{" "}
+                          por día
+                        </p>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -802,8 +936,178 @@ export default function Home() {
       </section>
 
       <section
+        id="compromisos"
+        className="mx-auto grid max-w-[88rem] scroll-mt-24 gap-12 px-6 py-24 lg:grid-cols-[0.72fr_1.28fr] lg:gap-16 lg:px-10 lg:py-32"
+      >
+        <div data-reveal className="lg:pt-2">
+          <p className="text-sm font-semibold text-primary">
+            Recurrentes y cuotas
+          </p>
+          <h2 className="mt-5 max-w-sm text-4xl leading-[0.98] font-semibold tracking-[-0.05em] lg:text-5xl">
+            La plata que ya tiene dueño.
+          </h2>
+          <p className="mt-7 max-w-md text-lg leading-8 text-muted-foreground">
+            El arriendo, Netflix o la cuota del notebook se van a cobrar igual.
+            Luca Plan los reserva desde el día 1 del mes y descuenta lo
+            comprometido antes de decirte cuánto te queda.
+          </p>
+          <p className="mt-5 max-w-md text-lg leading-8 text-muted-foreground">
+            Cada uno tiene su pantalla: pausas una suscripción o miras cuánto
+            falta de un crédito sin buscarlo entre los movimientos.
+          </p>
+        </div>
+
+        <div className="grid gap-6 sm:grid-cols-2 lg:border-l lg:border-border lg:pl-16">
+          {/* Recurrentes: la fila lleva el próximo cobro, y el mes se cierra con lo que
+              todavía hay que reservar (el panel "Este mes" de /recurrentes). */}
+          <div
+            data-reveal
+            className="flex flex-col rounded-3xl border border-border bg-card p-4 shadow-xl"
+          >
+            <div className="mb-2 flex items-center gap-2 px-1.5">
+              <Repeat2 className="size-4 text-primary" aria-hidden="true" />
+              <p className="font-heading font-bold">Gastos recurrentes</p>
+            </div>
+            <div className="flex flex-1 flex-col divide-y divide-border/60">
+              {demoRecurring.map((r) => (
+                <div
+                  key={r.label}
+                  className={`flex items-center gap-3 px-1.5 py-2.5 ${r.paid ? "opacity-60" : ""}`}
+                >
+                  <span
+                    className="grid size-9 shrink-0 place-items-center rounded-full"
+                    style={{ background: `${r.color}1f` }}
+                    aria-hidden="true"
+                  >
+                    <CategoryIcon icon={r.icon} size={17} color={r.color} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{r.label}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {r.category}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="tabular text-sm font-semibold">
+                      {formatCLP(r.amount)}
+                    </p>
+                    <p
+                      className={`flex items-center justify-end gap-0.5 text-xs whitespace-nowrap ${r.paid ? "text-primary" : "text-muted-foreground"}`}
+                    >
+                      {r.paid && (
+                        <Check className="size-3.5" aria-hidden="true" />
+                      )}
+                      {r.note}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex items-baseline justify-between gap-2 rounded-xl bg-secondary/60 px-3.5 py-2.5">
+              <span className="text-xs text-muted-foreground">
+                Por cobrar este mes
+              </span>
+              <span className="tabular text-sm font-semibold">
+                {formatCLP(demoDueRecurring)}
+              </span>
+            </div>
+          </div>
+
+          {/* Cuotas: cada plan carga solo la cuota del mes; la barra dice cuánto va del plan. */}
+          <div
+            data-reveal
+            style={delay(120)}
+            className="flex flex-col rounded-3xl border border-border bg-card p-4 shadow-xl"
+          >
+            <div className="mb-2 flex items-center gap-2 px-1.5">
+              <CreditCard className="size-4 text-primary" aria-hidden="true" />
+              <p className="font-heading font-bold">Compras en cuotas</p>
+            </div>
+            <div className="flex flex-1 flex-col divide-y divide-border/60">
+              {demoInstallments.map((p) => (
+                <div key={p.description} className="flex gap-3 px-1.5 py-2.5">
+                  <span
+                    className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full"
+                    style={{ background: `${p.color}1f` }}
+                    aria-hidden="true"
+                  >
+                    <CategoryIcon icon={p.icon} size={17} color={p.color} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="min-w-0 truncate text-sm font-medium">
+                        {p.description}
+                      </p>
+                      <p className="tabular shrink-0 text-sm font-semibold">
+                        {formatCLP(p.monthly)}
+                        {p.paid ? (
+                          <span className="ml-1 inline-flex items-center gap-0.5 text-xs font-normal text-primary">
+                            <Check className="size-3.5" aria-hidden="true" />
+                            Pagada
+                          </span>
+                        ) : (
+                          <span className="ml-1 text-xs font-normal text-muted-foreground">
+                            al mes
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
+                      <span className="truncate">{p.detail}</span>
+                      <span className="tabular">
+                        quedan {formatCLP(p.outstanding)}
+                      </span>
+                    </div>
+                    <span
+                      className="mt-2 block h-1 w-full overflow-hidden rounded-full bg-muted"
+                      aria-hidden="true"
+                    >
+                      <span
+                        className="landing-bar block h-full rounded-full bg-primary"
+                        style={
+                          { "--bar": `${p.progress}%` } as React.CSSProperties
+                        }
+                      />
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-secondary/60 px-3.5 py-2.5">
+              <div>
+                <p className="text-xs text-muted-foreground">Pagas este mes</p>
+                <p className="tabular text-sm font-semibold">
+                  {formatCLP(demoMonthInstallments)}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Deuda restante</p>
+                <p className="tabular text-sm font-semibold">
+                  {formatCLP(demoDebt)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Cierre: lo que las dos pantallas aportan al mes, que es el dato del dashboard. */}
+          <p
+            data-reveal
+            style={delay(240)}
+            className="tabular text-sm text-muted-foreground sm:col-span-2"
+          >
+            <span className="font-semibold text-committed">
+              {formatCLP(demoCommitted)} comprometidos
+            </span>{" "}
+            este mes: {formatCLP(demoDueRecurring)} en recurrentes y{" "}
+            {formatCLP(demoCommitted - demoDueRecurring)} de cuotas todavía por
+            cobrar, ya descontados de lo que te queda libre.
+          </p>
+        </div>
+      </section>
+
+      <section
         id="categorias"
-        className="mx-auto grid max-w-[88rem] scroll-mt-24 gap-16 px-6 py-24 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:px-10 lg:py-32"
+        className="mx-auto grid max-w-[88rem] scroll-mt-24 gap-16 border-t border-border px-6 py-24 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:px-10 lg:py-32"
       >
         {/* Demo visual: movimientos crudos ya categorizados + el diálogo de recategorización */}
         <div className="relative order-2 mx-auto w-full max-w-xl lg:order-1 lg:min-h-120">
@@ -1082,6 +1386,14 @@ export default function Home() {
                     className="transition-colors hover:text-foreground"
                   >
                     La app
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#compromisos"
+                    className="transition-colors hover:text-foreground"
+                  >
+                    Cuotas y recurrentes
                   </a>
                 </li>
                 <li>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import {
   ChevronLeft,
   ChevronRight,
+  CirclePlus,
   Eye,
   EyeOff,
   Plus,
@@ -34,7 +35,6 @@ import { IncomeModal } from "./income-modal"
 import { OnboardingFlow } from "./onboarding/onboarding-flow"
 import {
   currentPeriod,
-  dailyPace,
   daysLeftInMonth,
   formatCLP,
   formatCompact,
@@ -151,7 +151,6 @@ export function Dashboard({
   const cappedCategories = expenseCategories.filter((c) => c.limit > 0)
   const uncappedCategories = expenseCategories.filter((c) => c.limit <= 0)
   const renderExpenseCat = (c: CategoryDTO) => {
-    const { perDay, pace, over } = dailyPace(c.available, c.used)
     const pct = c.limit > 0 ? Math.min(100, (c.used / c.limit) * 100) : 0
     // El comprometido continúa al gastado en lo que queda de barra (no se suma).
     const commPct =
@@ -189,23 +188,24 @@ export function Dashboard({
           />
         </div>
         {/* Cuánto se puede gastar por día con lo que queda. Solo en el mes en curso y con tope: en
-            un mes cerrado no hay días que repartir y sin límite no hay de qué dividir. El ritmo
-            real solo aparece cuando supera al permitido — es una alarma, no un dato de siempre. */}
+            un mes cerrado no hay días que repartir y sin límite no hay de qué dividir.
+            El número ya lleva la señal: gastar de más lo baja solo. No se compara contra el ritmo
+            que se lleva (gastado ÷ días corridos) porque un pago único al principio del mes —las
+            cuentas, el arriendo— deja ese promedio disparado el resto del mes y teñiría de alarma
+            una categoría que ya cumplió. Distinguirlo pide separar gasto fijo de variable, que hoy
+            el DTO no permite. */}
         {isCurrentMonth && c.limit > 0 && (
-          <p className="tabular text-xs text-muted-foreground">
-            {c.available > 0 ? (
-              <>
-                {formatCLP(perDay)} por día
-                {over && (
-                  <span className="text-destructive">
-                    {" · "}
-                    vas a {formatCLP(pace)} por día
-                  </span>
-                )}
-              </>
-            ) : (
-              `Sin margen · ${formatCLP(-c.available)} sobre el tope`
+          <p
+            className={cn(
+              "tabular text-xs",
+              c.available > 0 ? "text-muted-foreground" : "text-destructive"
             )}
+          >
+            {c.available > 0
+              ? `${formatCLP(Math.floor(c.available / daysLeft))} por día`
+              : c.available < 0
+                ? `Sin margen · ${formatCLP(-c.available)} sobre el tope`
+                : "Sin margen"}
           </p>
         )}
       </button>
@@ -438,12 +438,12 @@ export function Dashboard({
                       setNewCatType("expense")
                       setEditCat(null)
                     }}
-                    className="flex items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                    className="flex min-h-11 w-full items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
                     aria-label="Nueva categoría de gasto"
                   >
-                    <span className="grid size-5 shrink-0 place-items-center rounded-full border border-dashed border-border text-sm">
-                      +
-                    </span>
+                    {/* Icono de lucide en size-4, igual que el CategoryIcon de las filas: mismo
+                        tamaño, mismo trazo y el texto arranca en la misma columna. */}
+                    <CirclePlus className="size-4 shrink-0" />
                     Nueva categoría
                   </button>
                 </div>

@@ -58,7 +58,10 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
       onOpenChange={setOpen}
       title="Activa tus notificaciones"
     >
-      <div className="space-y-4 py-2">
+      {/* Contenido y footer comparten el contenedor con `px-4`: ModalFooter se sangra con `-mx-4`
+          para llegar a los bordes, así que fuera de un padre con ese padding sus botones se salen
+          de la tarjeta (y el texto queda pegado al borde). Mismo patrón que el resto de modales. */}
+      <div className="flex flex-col gap-4 px-4 pt-2">
         <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10">
           <BellRing className="size-6 text-primary" />
         </div>
@@ -81,25 +84,25 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
         <p className="text-xs text-muted-foreground">
           Puedes cambiarlo cuando quieras en Configuración.
         </p>
+        <ModalFooter>
+          <Button
+            onClick={activate}
+            disabled={pending}
+            className="h-11 flex-1 rounded-full"
+          >
+            {pending && <Loader2 className="size-4 animate-spin" />}
+            Activar notificaciones
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => setOpen(false)}
+            disabled={pending}
+            className="h-11 rounded-full"
+          >
+            Ahora no
+          </Button>
+        </ModalFooter>
       </div>
-      <ModalFooter>
-        <Button
-          onClick={activate}
-          disabled={pending}
-          className="h-11 flex-1 rounded-full"
-        >
-          {pending && <Loader2 className="size-4 animate-spin" />}
-          Activar notificaciones
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={() => setOpen(false)}
-          disabled={pending}
-          className="h-11 rounded-full"
-        >
-          Ahora no
-        </Button>
-      </ModalFooter>
     </ResponsiveModal>
   )
 }

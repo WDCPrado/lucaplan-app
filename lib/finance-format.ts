@@ -106,28 +106,6 @@ export function daysLeftInMonth(now: Date = new Date()): number {
   return lastDay - day + 1
 }
 
-/**
- * Ritmo diario de una categoría con tope, solo tiene sentido en el mes en curso: `perDay` es lo
- * que queda disponible repartido en los días que faltan (hoy incluido), y `pace` el ritmo que se
- * lleva (gastado ÷ días transcurridos, hoy incluido). `over` marca que el ritmo real se come lo
- * permitido: es una alarma, por eso la UI muestra `pace` únicamente en ese caso.
- * Sin margen (`available <= 0`) no hay ritmo que ofrecer y `perDay` queda en cero o negativo.
- */
-export function dailyPace(
-  available: number,
-  used: number,
-  now: Date = new Date()
-): { perDay: number; pace: number; over: boolean } {
-  const day = currentPeriod(now).day
-  const perDay = Math.floor(available / daysLeftInMonth(now))
-  const pace = Math.round(used / day)
-  // ponytail: el promedio de los primeros días no es un ritmo. Los gastos fijos (arriendo, cuentas)
-  // caen todos al principio del mes y encenderían la alarma en casi todas las categorías el día 3.
-  // Una semana de datos ya significa algo; si sigue molestando, el arreglo de fondo es calcular el
-  // ritmo solo con gasto variable (hoy `used` no distingue lo que vino de un recurrente).
-  return { perDay, pace, over: available > 0 && day >= 7 && pace > perDay }
-}
-
 /** Encabezado de grupo por fecha: "Hoy", "Ayer" o "Martes 9 de julio". */
 export function formatDateHeader(iso: string): string {
   const key = iso.slice(0, 10) // YYYY-MM-DD del @db.Date (día civil)

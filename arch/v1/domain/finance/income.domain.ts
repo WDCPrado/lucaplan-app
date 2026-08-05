@@ -105,20 +105,23 @@ export interface IncomeRepository {
   ): Promise<boolean>
   // Crea el movimiento de ingreso del mes (credit) en la cuenta destino, vinculado a la fuente
   // (incomeId), ajustando el saldo. Idempotente y atómico (check-then-insert en una transacción DB):
-  // si ya existe uno para (income, year, month) lo devuelve sin crear otro. `created` indica si escribió.
+  // si ya existe uno para (income, year, month) lo devuelve sin crear otro. `created` indica si
+  // escribió. `amount` es el monto del movimiento (el creado o el existente) — el caller lo usa
+  // para proyectar el abono sobre los buckets de una cuenta conectada.
   generateMonthly(
     income: Income,
     year: number,
     month: number
-  ): Promise<{ transactionId: string; created: boolean }>
+  ): Promise<{ transactionId: string; created: boolean; amount: Money }>
   // Deshace la generación: borra el movimiento de (income, year, month) y revierte el saldo con el
-  // monto REAL del movimiento (no el de la fuente, que pudo cambiarse). Atómico. `deleted` = si había uno.
+  // monto REAL del movimiento (no el de la fuente, que pudo cambiarse). Atómico. `deleted` = si había
+  // uno; en ese caso `amount`/`accountId` son los del movimiento borrado (para revertir la proyección).
   // Permitido aunque la cuenta destino sea conectada (es la inversa de generar, no una edición libre).
   ungenerateMonthly(
     incomeId: string,
     year: number,
     month: number
-  ): Promise<{ deleted: boolean }>
+  ): Promise<{ deleted: boolean; amount?: Money; accountId?: string }>
 }
 
 // --- Errores de negocio ---

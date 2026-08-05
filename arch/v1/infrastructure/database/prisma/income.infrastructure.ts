@@ -145,7 +145,15 @@ export const incomeRepository: IncomeRepository = {
       const existing = await db.transaction.findFirst({
         where: { incomeId: income.id, ...periodWhere(year, month) },
       })
-      if (existing) return { transactionId: existing.id, created: false }
+      if (existing)
+        return {
+          transactionId: existing.id,
+          created: false,
+          amount: Money.of(
+            existing.amount.toString(),
+            existing.currency as CurrencyCode
+          ),
+        }
 
       // Monto vigente en ESE mes (carry-forward): el registro del mes o el último previo.
       const amountRow = await db.incomeAmount.findFirst({
@@ -187,7 +195,7 @@ export const incomeRepository: IncomeRepository = {
           direction: "credit",
         },
       })
-      return { transactionId: row.id, created: true }
+      return { transactionId: row.id, created: true, amount: monthAmount }
     })
   },
   async ungenerateMonthly(incomeId, year, month) {
@@ -210,7 +218,11 @@ export const incomeRepository: IncomeRepository = {
         data: { balance: newBalance.toDecimalString() },
       })
       await db.transaction.delete({ where: { id: tx.id } })
-      return { deleted: true }
+      return {
+        deleted: true,
+        amount: Money.of(tx.amount.toString(), tx.currency as CurrencyCode),
+        accountId: tx.accountId,
+      }
     })
   },
 }

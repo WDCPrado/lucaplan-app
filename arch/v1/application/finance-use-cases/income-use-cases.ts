@@ -3,6 +3,7 @@
 import {
   type Account,
   type AccountRepository,
+  type BalanceBucketRepository,
   type Category,
   type CategoryRepository,
   type MonthlyBudgetRepository,
@@ -22,6 +23,7 @@ import {
 } from "../../domain/finance/income.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
 import { effectiveGlobalLimit, latestUpTo } from "./budget-formulas.ts"
+import { projectCashEvent } from "./bucket-projection.ts"
 
 const CLP = "CLP" as const
 
@@ -198,9 +200,16 @@ export async function deleteIncome(
   return { ok: true, ended: true }
 }
 
-// Genera el movimiento de ingreso de un mes desde una fuente (idempotente en el repo).
+// Genera el movimiento de ingreso de un mes desde una fuente (idempotente en el repo). En cuentas
+// conectadas el saldo vive en los buckets (caja + sobregiro): el abono se proyecta ahí —paga
+// sobregiro primero, como un abono manual— y el balance queda = caja. En manuales no hay buckets
+// y la columna balance ya la ajustó el repo (la proyección es no-op).
 export async function generateMonthlyIncome(
-  deps: { incomes: IncomeRepository },
+  deps: {
+    incomes: IncomeRepository
+    accounts?: AccountRepository // requeridos en la práctica para cuentas conectadas
+    balanceBuckets?: BalanceBucketRepository
+  },
   userId: string,
   input: { incomeId: string; year: number; month: number }
 ): Promise<{ transactionId: string; created: boolean }> {
@@ -208,12 +217,27 @@ export async function generateMonthlyIncome(
   const income = await deps.incomes.findById(input.incomeId)
   if (!income) throw new IncomeNotFoundError(input.incomeId)
   if (income.userId !== userId) throw new NotOwnerError()
-  return deps.incomes.generateMonthly(income, input.year, input.month)
+  const res = await deps.incomes.generateMonthly(income, input.year, input.month)
+  // Solo si escribió: regenerar un mes ya generado no debe abonar dos veces.
+  // ponytail: create + proyección no son atómicos; si esto falla, "Actualizar saldos" reconcilia.
+  if (res.created && deps.accounts && deps.balanceBuckets)
+    await projectCashEvent(
+      { accounts: deps.accounts, balanceBuckets: deps.balanceBuckets },
+      income.accountId,
+      res.amount,
+      "credit"
+    )
+  return { transactionId: res.transactionId, created: res.created }
 }
 
 // Deshace el movimiento de ingreso de un mes (por si se generó por error). Idempotente en el repo.
+// Revierte también la proyección: el débito consume caja y, si no alcanza, vuelve al sobregiro.
 export async function ungenerateMonthlyIncome(
-  deps: { incomes: IncomeRepository },
+  deps: {
+    incomes: IncomeRepository
+    accounts?: AccountRepository
+    balanceBuckets?: BalanceBucketRepository
+  },
   userId: string,
   input: { incomeId: string; year: number; month: number }
 ): Promise<{ deleted: boolean }> {
@@ -221,7 +245,20 @@ export async function ungenerateMonthlyIncome(
   const income = await deps.incomes.findById(input.incomeId)
   if (!income) throw new IncomeNotFoundError(input.incomeId)
   if (income.userId !== userId) throw new NotOwnerError()
-  return deps.incomes.ungenerateMonthly(input.incomeId, input.year, input.month)
+  const res = await deps.incomes.ungenerateMonthly(
+    input.incomeId,
+    input.year,
+    input.month
+  )
+  // accountId del movimiento borrado (la fuente pudo cambiar de cuenta después de generar).
+  if (res.deleted && res.amount && deps.accounts && deps.balanceBuckets)
+    await projectCashEvent(
+      { accounts: deps.accounts, balanceBuckets: deps.balanceBuckets },
+      res.accountId ?? income.accountId,
+      res.amount,
+      "debit"
+    )
+  return { deleted: res.deleted }
 }
 
 // Suma (CLP) de las fuentes de ingreso activas del usuario. El límite global es CLP; solo los ingresos

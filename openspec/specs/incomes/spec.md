@@ -101,6 +101,12 @@ idempotente por fuente y mes: no SHALL crear un segundo movimiento si ya existe 
 desde esa fuente en ese mes. La `Transaction` generada SHALL quedar vinculada a su fuente
 (`incomeId`) como gancho para la recurrencia automática futura.
 
+Si la cuenta destino es conectada (su saldo vive en buckets), el abono generado SHALL
+proyectarse sobre los buckets igual que un abono manual: paga primero el sobregiro usado y el
+remanente sube la caja, dejando el saldo de la cuenta = caja disponible. Deshacer la
+generación SHALL revertir la proyección con el monto real del movimiento (débito: consume
+caja y el exceso vuelve al sobregiro). En cuentas manuales solo se ajusta el saldo simple.
+
 #### Scenario: Generar el ingreso del mes
 
 - **WHEN** el usuario toca "generar" sobre la fuente "Sueldo" para julio 2026
@@ -110,4 +116,9 @@ desde esa fuente en ese mes. La `Transaction` generada SHALL quedar vinculada a 
 
 - **WHEN** el usuario toca "generar" sobre una fuente cuyo ingreso de ese mes ya fue generado
 - **THEN** el sistema no crea un segundo movimiento y mantiene el existente
+
+#### Scenario: Generar hacia una cuenta conectada con sobregiro usado
+
+- **WHEN** el usuario genera el ingreso "Sueldo" de $900.000 hacia una corriente conectada con caja $0 y sobregiro usado $290.967
+- **THEN** el sobregiro queda pagado ($0 usado), la caja sube a $609.033 y el saldo de la cuenta muestra $609.033
 

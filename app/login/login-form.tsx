@@ -9,12 +9,14 @@ import {
   Copy,
   Eye,
   EyeOff,
+  FlaskConical,
   Loader2,
   Moon,
   Sun,
 } from "lucide-react"
 
 import { authClient } from "@/lib/auth-client"
+import type { DemoAccount } from "@/lib/pr-demo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -120,6 +122,70 @@ function OpenSourceNotice() {
   )
 }
 
+// Solo en los entornos de PR: la cuenta que sembró scripts/seed-pr.ts. Los campos del formulario ya
+// vienen rellenos, así que esto es la referencia visible del dato y el atajo para copiarlo suelto.
+function DemoAccountNotice({ env, email, password }: DemoAccount) {
+  const [copied, setCopied] = useState<"email" | "password" | null>(null)
+
+  const copy = async (field: "email" | "password", value: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(field)
+      setTimeout(() => setCopied(null), 1500)
+    } catch {
+      // Sin permiso de clipboard: el dato queda visible para copiarlo a mano.
+    }
+  }
+
+  const rows = [
+    { field: "email" as const, label: "Correo", value: email },
+    { field: "password" as const, label: "Contraseña", value: password },
+  ]
+
+  return (
+    <div className="mb-6 rounded-2xl border border-border bg-secondary/40 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex items-center gap-2 text-sm font-semibold">
+          <FlaskConical className="size-4 text-primary" />
+          Entorno de prueba
+        </span>
+        <span className="rounded-full bg-primary/10 px-2.5 py-1 font-mono text-[11px] font-semibold text-primary">
+          {env}
+        </span>
+      </div>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+        Los campos ya vienen con la cuenta de demostración y sus datos de
+        ejemplo. Pulsa Ingresar, o copia un dato para pegarlo donde lo
+        necesites.
+      </p>
+      <div className="mt-4 space-y-2">
+        {rows.map(({ field, label, value }) => (
+          <button
+            key={field}
+            type="button"
+            onClick={() => copy(field, value)}
+            aria-label={`Copiar ${label.toLowerCase()}`}
+            title={`Copiar ${label.toLowerCase()}`}
+            className="group/copy flex w-full items-center gap-3 rounded-xl border border-border bg-background px-3.5 py-2.5 text-left transition-[border-color,transform] duration-150 ease-out hover:border-foreground/25 active:scale-[0.99]"
+          >
+            <span className="w-24 shrink-0 text-xs text-muted-foreground">
+              {label}
+            </span>
+            <code className="flex-1 scrollbar-none overflow-x-auto font-mono text-xs whitespace-nowrap">
+              {value}
+            </code>
+            {copied === field ? (
+              <Check className="size-4 shrink-0 text-success" />
+            ) : (
+              <Copy className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/copy:text-foreground" />
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // Logo "G" multicolor oficial de Google (inline, sin dependencia).
 function GoogleIcon() {
   return (
@@ -144,7 +210,15 @@ function GoogleIcon() {
   )
 }
 
-function AuthForm({ mode }: { mode: "signin" | "signup" }) {
+function AuthForm({
+  mode,
+  demo,
+}: {
+  mode: "signin" | "signup"
+  // Entorno de PR: el ingreso arranca con la cuenta demo escrita (no controlado, solo valor inicial).
+  demo?: DemoAccount | null
+}) {
+  const prefill = mode === "signin" ? demo : null
   const router = useRouter()
   const [showPw, setShowPw] = useState(false)
   const [pending, setPending] = useState(false)
@@ -223,6 +297,7 @@ function AuthForm({ mode }: { mode: "signin" | "signup" }) {
           inputMode="email"
           autoComplete="email"
           required
+          defaultValue={prefill?.email}
           placeholder="tu@email.com"
           className="h-11 text-base"
         />
@@ -240,6 +315,7 @@ function AuthForm({ mode }: { mode: "signin" | "signup" }) {
             }
             required
             minLength={8}
+            defaultValue={prefill?.password}
             placeholder="••••••••"
             className="h-11 pr-11 text-base"
           />
@@ -300,7 +376,7 @@ function AuthForm({ mode }: { mode: "signin" | "signup" }) {
   )
 }
 
-export function LoginForm() {
+export function LoginForm({ demo }: { demo?: DemoAccount | null }) {
   const [legal, setLegal] = useState<LegalKey | null>(null)
 
   return (
@@ -391,6 +467,18 @@ export function LoginForm() {
           </div>
 
           <div className="mt-0 lg:mt-8">
+            {demo && (
+              <div
+                className="animate-in duration-500 fade-in slide-in-from-bottom-2"
+                style={{
+                  animationDelay: "50ms",
+                  animationFillMode: "backwards",
+                }}
+              >
+                <DemoAccountNotice {...demo} />
+              </div>
+            )}
+
             {/* ponytail: Google OAuth aún sin backend → botón visible pero bloqueado */}
             <div
               className="animate-in duration-500 fade-in slide-in-from-bottom-2"
@@ -428,7 +516,7 @@ export function LoginForm() {
             >
               {LANDING_ONLY ? (
                 <>
-                  <AuthForm mode="signin" />
+                  <AuthForm mode="signin" demo={demo} />
                   <OpenSourceNotice />
                 </>
               ) : (
@@ -438,7 +526,7 @@ export function LoginForm() {
                     <TabsTrigger value="signup">Crear cuenta</TabsTrigger>
                   </TabsList>
                   <TabsContent value="signin" className="mt-6">
-                    <AuthForm mode="signin" />
+                    <AuthForm mode="signin" demo={demo} />
                   </TabsContent>
                   <TabsContent value="signup" className="mt-6">
                     <AuthForm mode="signup" />

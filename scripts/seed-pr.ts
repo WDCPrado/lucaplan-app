@@ -3,12 +3,13 @@
 // exige RAILWAY_ENVIRONMENT_NAME = "pr-*", que Railway únicamente inyecta en esos entornos.
 // Idempotente: si el usuario demo ya existe no toca nada (SEED_PR_FORCE=1 lo re-siembra desde cero).
 
-export {} // los imports son dinámicos (ver abajo); esto hace del archivo un módulo ESM para tsc.
+import { prDemoAccount } from "../lib/pr-demo.ts"
 
-const envName = process.env.RAILWAY_ENVIRONMENT_NAME ?? ""
-if (!envName.startsWith("pr-")) {
+// Misma fuente que usa el login para ofrecer la cuenta: null fuera de un entorno de PR.
+const demo = prDemoAccount()
+if (!demo) {
   console.log(
-    `[seed:pr] omitido — RAILWAY_ENVIRONMENT_NAME="${envName}" no es un entorno de PR.`
+    `[seed:pr] omitido — RAILWAY_ENVIRONMENT_NAME="${process.env.RAILWAY_ENVIRONMENT_NAME ?? ""}" no es un entorno de PR.`
   )
   process.exit(0)
 }
@@ -21,8 +22,7 @@ const { prisma } = await import(
 )
 const { auth } = await import("../arch/v1/infrastructure/auth/auth.ts")
 
-const EMAIL = process.env.SEED_PR_EMAIL ?? "demo@lucaplan.cl"
-const PASSWORD = process.env.SEED_PR_PASSWORD ?? "lucaplan1234"
+const { env: envName, email: EMAIL, password: PASSWORD } = demo
 
 const now = new Date()
 const year = now.getFullYear()

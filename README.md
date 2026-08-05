@@ -413,7 +413,9 @@ siembra cuando `RAILWAY_ENVIRONMENT_NAME` empieza con `pr-` — la variable la i
 los entornos efímeros de pull request, así que en `production` (y en local, y en Docker Compose) se
 salta sin tocar la base. No hay nada que configurar.
 
-Cada PR queda entonces navegable de inmediato con un usuario demo y un mes de datos ya armado:
+Cada PR queda entonces navegable de inmediato con un usuario demo y un mes de datos ya armado. El
+formulario de login de esos entornos muestra la cuenta, la trae escrita en los campos (entrar es un
+clic) y deja copiar cada dato por separado:
 
 | Variable            | Default            | Para qué                                                       |
 | ------------------- | ------------------ | -------------------------------------------------------------- |

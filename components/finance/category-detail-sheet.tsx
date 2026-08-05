@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { ProgressRing } from "./progress-ring"
 import { MovementRow } from "./movement-row"
 import { CategoryIcon } from "./category-icons"
-import { formatCLP } from "@/lib/finance-format"
+import { formatCLP, statusVar } from "@/lib/finance-format"
 import type {
   CategoryDTO,
   TransactionDTO,
@@ -86,9 +86,11 @@ export function CategoryDetailSheet({
                 de {formatCLP(category.limit)}
               </span>
             </div>
+            {/* Mismo color que el anillo: en verde fijo, un disponible negativo se leía como
+                "vas bien". El estado manda sobre el texto igual que sobre el arco. */}
             <div
               className="tabular text-sm font-medium"
-              style={{ color: "var(--success)" }}
+              style={{ color: statusVar(category.status) }}
             >
               {formatCLP(category.available)} disponible
             </div>

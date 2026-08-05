@@ -139,7 +139,11 @@ export function MovementRow({
             )}
           </div>
           {tx.remaining !== null && tx.remaining !== undefined && (
-            <div className="tabular text-xs text-muted-foreground">
+            // Restante negativo = categoría excedida: en rojo, como el "Libre" del mes. El resto
+            // queda neutro para no llenar la lista de color (el arco ya lleva el semáforo).
+            <div
+              className={`tabular text-xs ${tx.remaining < 0 ? "text-destructive" : "text-muted-foreground"}`}
+            >
               Quedan {formatCLP(tx.remaining)}
             </div>
           )}

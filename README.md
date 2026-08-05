@@ -375,6 +375,7 @@ los tokens ya cifrados dejan de poder descifrarse y habrá que reconectar el cor
 | `pnpm deploy:init`     | Migraciones contra una DB por argumento (primer deploy)                    |
 | `pnpm migrate:db`      | `migrate deploy` a una DB elegida por consola, con confirmación            |
 | `pnpm seed`            | Seed de ejemplo (Banco de Chile + categorías + movimientos)                |
+| `pnpm seed:pr`         | Datos falsos para un entorno de PR de Railway; fuera de ahí no hace nada   |
 | `pnpm seed:categories` | Set completo de categorías con contexto para la IA (idempotente)           |
 | `pnpm sync:email`      | Corre la sincronización del correo (para cron / tarea programada)          |
 | `pnpm notify:due`      | Notifica los pagos por vencer (recurrentes y cuotas); una corrida diaria    |
@@ -404,6 +405,26 @@ docker compose up -d --build
 
 La app queda en el puerto `3005` y Postgres en `5433` (host). Los secretos se leen del
 `.env`.
+
+### Railway: entornos de PR con datos falsos
+
+El arranque de la imagen aplica las migraciones y luego corre `pnpm seed:pr`. Ese script solo
+siembra cuando `RAILWAY_ENVIRONMENT_NAME` empieza con `pr-` — la variable la inyecta Railway sola en
+los entornos efímeros de pull request, así que en `production` (y en local, y en Docker Compose) se
+salta sin tocar la base. No hay nada que configurar.
+
+Cada PR queda entonces navegable de inmediato con un usuario demo y un mes de datos ya armado:
+
+| Variable            | Default            | Para qué                                                       |
+| ------------------- | ------------------ | -------------------------------------------------------------- |
+| `SEED_PR_EMAIL`     | `demo@lucaplan.cl` | Correo del usuario demo con el que entras al entorno del PR      |
+| `SEED_PR_PASSWORD`  | `lucaplan1234`     | Su contraseña                                                    |
+| `SEED_PR_FORCE`     | —                  | `1` borra los datos del demo y los vuelve a sembrar en el próximo deploy |
+
+Es idempotente: si el usuario demo ya existe, los redeploys del PR no tocan nada (lo que probaste
+sigue ahí). Siembra 2 cuentas con cupos separados por moneda, 9 categorías con contexto para la IA,
+presupuesto global y por categoría, sueldo con carry-forward, movimientos del mes en curso y del
+anterior, 3 gastos recurrentes y 2 planes de cuotas (tarjeta y crédito de consumo).
 
 ## Mapa documental
 

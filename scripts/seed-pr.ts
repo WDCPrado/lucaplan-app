@@ -306,4 +306,32 @@ console.log(
   `[seed:pr] listo en "${envName}": ${EMAIL} / ${PASSWORD} — 2 cuentas, ${EXPENSE_CATEGORIES.length + 1} categorías, ` +
     `presupuesto ${month}/${year}, ${movementRows.length + 2} movimientos, ${RECURRING.length} recurrentes, ${plans.length} planes de cuotas.`
 )
+
+// Lo que recibe el seed de la feature: lo ya sembrado que casi siempre necesita como dependencia,
+// para que no tenga que volver a consultarlo.
+export type FeatureSeedContext = {
+  prisma: typeof prisma
+  userId: string
+  checkingId: string
+  creditCardId: string
+  categoryId: Map<string, string> // nombre de la categoría → id
+}
+
+// Datos propios de la feature de esta rama (scripts/seed-pr-feature.ts, se reescribe en cada PR).
+// En try/catch a propósito: el arranque del contenedor encadena `seed:pr && next start`, así que un
+// seed de feature desactualizado —esquema que cambió debajo— tumbaría la app entera. Que falle solo
+// él: el entorno queda con el seed base, que es lo que había antes de todo esto.
+try {
+  const { default: seedFeature } = await import("./seed-pr-feature.ts")
+  await seedFeature({
+    prisma,
+    userId,
+    checkingId: checking.id,
+    creditCardId: creditCard.id,
+    categoryId,
+  })
+} catch (error) {
+  console.error("[seed:pr] el seed de la feature falló; sigo con el seed base.", error)
+}
+
 process.exit(0)

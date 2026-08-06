@@ -26,6 +26,7 @@ import {
   IncomeNotFoundError,
 } from "../../domain/finance/income.domain.ts"
 import { InvalidPaceFrequencyError } from "../../domain/finance/pace.domain.ts"
+import { BalanceScanError } from "../../domain/finance/balance-scan.domain.ts"
 import {
   InvalidRecurringTemplateError,
   RecurringCategoryRequiredError,
@@ -60,6 +61,7 @@ import { incomeRepository } from "../../infrastructure/database/prisma/income.in
 import { recurringTemplateRepository } from "../../infrastructure/database/prisma/recurring.infrastructure.ts"
 import { installmentPlanRepository } from "../../infrastructure/database/prisma/installment.infrastructure.ts"
 import { openaiCategorizationProvider } from "../../infrastructure/http/ai/openai-categorization.provider.ts"
+import { openaiBalanceScanReader } from "../../infrastructure/http/ai/openai-balance-scan.provider.ts"
 import { exchangeRateProvider } from "../../infrastructure/http/exchange/usd-clp.ts"
 
 // Todos los adapters, listos para inyectar en los use-cases.
@@ -74,6 +76,7 @@ export const financeDeps = {
   recurring: recurringTemplateRepository,
   installments: installmentPlanRepository,
   categorization: openaiCategorizationProvider,
+  balanceScan: openaiBalanceScanReader,
   corrections: correctionRepository,
   exchangeRates: exchangeRateProvider,
 }
@@ -108,7 +111,8 @@ function errorStatus(e: unknown): number {
     e instanceof InstallmentCategoryRequiredError ||
     e instanceof InstallmentAmountReadOnlyError ||
     e instanceof EmailReauthRequiredError ||
-    e instanceof EmailSetupStateError
+    e instanceof EmailSetupStateError ||
+    e instanceof BalanceScanError
   )
     return 422
   if (

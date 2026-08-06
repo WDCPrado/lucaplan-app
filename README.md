@@ -93,6 +93,24 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
 - Funciona con OpenAI (`gpt-4o-mini` por defecto) y se degrada con gracia: sin API key
   la app funciona igual, solo que los movimientos quedan sin categorizar.
 
+### 📷 Actualizar saldo con una captura
+
+Abres la tarjeta, **Actualizar saldo**, subes una captura de la app de tu banco y la IA lee los
+montos. No hay que ordenar la captura ni recortarla: el navegador la reescala solo antes de subirla.
+
+- **Se adapta a lo que muestre la pantalla.** Casi ninguna app del banco muestra todas las
+  variables: si trae el cupo y el disponible, el usado sale de la resta; si trae solo el disponible,
+  se completa con el cupo que ya tienes guardado; y si la cuenta corriente está en rojo, ese saldo
+  negativo *es* la deuda de la línea, así que el cupo total sale de sumarle la línea disponible.
+  Cuando no alcanza para calcular nada, ese saldo se deja intacto en vez de inventarlo.
+- **Tú confirmas antes de guardar.** La lectura puede equivocarse en un dígito y dar un monto
+  perfectamente válido, que ninguna validación podría detectar: por eso los montos se muestran
+  editables y nada se guarda hasta que los apruebas. Los saldos derivados los calcula el servidor.
+- **Barata por diseño.** Se lee en detalle bajo (costo fijo por imagen, sin importar el tamaño) y
+  solo se reintenta en detalle alto si no se reconoció nada. La respuesta va con esquema estricto,
+  así que no hay reintentos por formato.
+- **La imagen no se guarda** en ninguna parte: se procesa y se descarta.
+
 ### 📬 Conexión por correo: tu banco ya te avisa, Luca Plan escucha
 
 ![Conexión por correo](docs/images/email-connection.png)
@@ -193,7 +211,7 @@ cp .env.example .env
 | `DATABASE_URL`             | ✅        | Conexión PostgreSQL, ej. `postgresql://lucaplan:lucaplan@localhost:5432/lucaplan?schema=public` |
 | `BETTER_AUTH_SECRET`       | ✅        | Génerala con `npx @better-auth/cli secret`                                  |
 | `BETTER_AUTH_URL`          | ✅        | URL base de la app: `http://localhost:3005` en desarrollo                   |
-| `OPENAI_API_KEY`           | opcional  | Habilita la categorización con IA ([crear key](https://platform.openai.com/api-keys)). Sin ella, la app funciona sin categorizar. |
+| `OPENAI_API_KEY`           | opcional  | Habilita la categorización con IA y la lectura de saldos por captura ([crear key](https://platform.openai.com/api-keys)). Sin ella, la app funciona igual: los movimientos quedan sin categorizar y los saldos se escriben a mano. |
 | `OPENAI_MODEL`             | opcional  | Modelo a usar (default `gpt-4o-mini`)                                        |
 | `OUTLOOK_CLIENT_ID`        | opcional  | Conexión por correo — ver [guía paso a paso](#-conectar-outlook-banco-de-chile-paso-a-paso) |
 | `OUTLOOK_CLIENT_SECRET`    | opcional  | Ídem                                                                         |

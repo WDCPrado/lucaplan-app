@@ -144,16 +144,27 @@ export function AppShell({
             )}
             <div className="ml-auto flex items-center gap-2">{actions}</div>
           </header>
-          {/* Móvil: fila flotante siempre visible — sidebar | (selector u otras acciones) | usuario.
-              items-start: el "Hoy" cuelga debajo del selector sin descentrar sidebar/avatar. */}
+          {/* Móvil: fila flotante siempre visible — buscar | (selector u otras acciones) | usuario.
+              items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar. */}
           <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center bg-linear-to-b from-background via-background/85 to-transparent px-4 pt-3 pb-6 md:hidden">
             <div className="pointer-events-auto flex w-full items-start justify-between gap-2 drop-shadow-md">
-              {/* Trigger del sidebar (drawer en móvil), donde antes vivía la lupa */}
-              <SidebarTrigger
-                onClick={() => haptic("light")}
-                aria-label="Abrir menú"
-                className="size-10 rounded-full bg-secondary transition-colors hover:bg-accent [&>svg]:size-4.5"
-              />
+              {/* Sin trigger del sidebar: en móvil el drawer solo repetía la barra inferior y el
+                  menú de usuario. El hueco lo ocupa la lupa; sin ella, un espaciador del mismo
+                  ancho que el avatar para que las acciones del centro no se descentren. */}
+              {onSearch ? (
+                <button
+                  onClick={() => {
+                    haptic("light")
+                    onSearch()
+                  }}
+                  aria-label="Buscar movimientos"
+                  className="grid size-10 shrink-0 place-items-center rounded-full bg-secondary transition-colors hover:bg-accent"
+                >
+                  <Search className="size-4.5" />
+                </button>
+              ) : (
+                <div className="size-10 shrink-0" aria-hidden />
+              )}
               {actions}
               <UserMenu
                 user={user}
@@ -193,8 +204,9 @@ export function AppShell({
             estando (mismo menú, con el resto de acciones); esto solo acorta el camino frecuente. */}
         <BottomNav active={active} onNavigate={onNavigate} />
 
-        {/* FABs flotantes abajo-derecha: lupa + crear, juntos (misma fila en móvil y escritorio).
-            En móvil suben por encima de la barra de navegación. */}
+        {/* FABs flotantes abajo-derecha: lupa + crear, juntos (misma fila en escritorio).
+            En móvil suben por encima de la barra de navegación y la lupa no va aquí: vive
+            arriba a la izquierda, para que "agregar" sea el único botón flotante. */}
         {(onAdd || onSearch) && (
           <div className="fixed right-5 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 md:bottom-[max(1.25rem,env(safe-area-inset-bottom))] lg:right-8 lg:bottom-8">
             {onSearch && (
@@ -206,7 +218,7 @@ export function AppShell({
                 size="icon"
                 variant="secondary"
                 aria-label="Buscar movimientos"
-                className="inline-flex size-14 rounded-full shadow-lg"
+                className="inline-flex size-14 rounded-full shadow-lg max-md:hidden"
               >
                 <Search className="size-6" />
               </Button>

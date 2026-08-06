@@ -6,7 +6,7 @@ import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { admin } from "better-auth/plugins"
 import { prisma } from "../database/prisma/client.ts"
-import { prDemoAccount } from "@/lib/pr-demo"
+import { prDemoAccount } from "../../../../lib/pr-demo.ts"
 
 export const auth = betterAuth({
   appName: "Luca Plan",

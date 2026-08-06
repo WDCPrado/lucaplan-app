@@ -10,6 +10,7 @@ import type {
   Transaction,
   CategoryStatus,
 } from "../../domain/finance/finance.domain.ts"
+import type { PaceFrequency } from "../../domain/finance/pace.domain.ts"
 import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
 
 /** Caja activa: Σ saldo POSITIVO de cuentas `checking` de la moneda dada. Cupos y negativos no cuentan. */
@@ -128,6 +129,85 @@ export function computeCategoryCommitted(
         t.date.getUTCMonth() + 1 === month
     )
     .reduce((sum, t) => sum.add(t.amount), Money.zero(currency))
+}
+
+/**
+ * Período del RITMO dentro del mes, en días civiles 1..lastDay: hoy (daily) o la semana calendario
+ * lunes–domingo que contiene a hoy, recortada a los bordes del mes (weekly). La semana es LA
+ * semana: empieza el lunes aunque hoy sea jueves — lo gastado el lunes cuenta igual.
+ */
+export function pacePeriod(
+  today: { year: number; month: number; day: number },
+  frequency: PaceFrequency
+): { startDay: number; endDay: number } {
+  if (frequency === "daily") return { startDay: today.day, endDay: today.day }
+  const lastDay = new Date(Date.UTC(today.year, today.month, 0)).getUTCDate()
+  // 0=lunes … 6=domingo (getUTCDay da 0=domingo; se rota para partir la semana en lunes).
+  const dow =
+    (new Date(Date.UTC(today.year, today.month - 1, today.day)).getUTCDay() +
+      6) %
+    7
+  const monday = today.day - dow
+  return {
+    startDay: Math.max(1, monday),
+    endDay: Math.min(lastDay, monday + 6),
+  }
+}
+
+/**
+ * Ritmo de una categoría: lo gastado en el período (hoy / esta semana) y el presupuesto de ese
+ * período. El presupuesto reparte lo disponible AL INICIO del período (disponible actual +
+ * gastado del período) entre los días de mes que quedaban desde ese inicio, × los días del
+ * período. Así la cifra es estable: registrar un gasto sube el "gastado" pero no mueve la meta,
+ * y la semana vale lo mismo el lunes que el jueves. Puede ser $0 si la categoría llegó al
+ * período sin margen.
+ */
+export function computeCategoryPace(
+  categoryId: string,
+  available: Money, // límite − usado del MES (puede ser negativo)
+  transactions: Transaction[],
+  today: { year: number; month: number; day: number },
+  frequency: PaceFrequency
+): { spent: Money; budget: Money } {
+  const { startDay, endDay } = pacePeriod(today, frequency)
+  const spent = transactions
+    .filter(
+      (t) =>
+        t.categoryId === categoryId &&
+        t.direction === "debit" &&
+        t.status === "confirmed" &&
+        !t.isInternal &&
+        t.amount.currency === available.currency &&
+        // UTC: mismo criterio de día civil que computeCategoryUsage.
+        t.date.getUTCFullYear() === today.year &&
+        t.date.getUTCMonth() + 1 === today.month &&
+        t.date.getUTCDate() >= startDay &&
+        t.date.getUTCDate() <= endDay
+    )
+    .reduce((sum, t) => sum.add(t.amount), Money.zero(available.currency))
+  const lastDay = new Date(Date.UTC(today.year, today.month, 0)).getUTCDate()
+  const availableAtStart = available.add(spent)
+  const daysFromStart = lastDay - startDay + 1
+  const periodDays = endDay - startDay + 1
+  // Piso por día (como la línea "por día" original) y en unidad mayor: CLP no tiene centavos.
+  const dailyMajor = Math.floor(availableAtStart.toMajor() / daysFromStart)
+  const budget = Money.of(
+    Math.max(0, dailyMajor) * periodDays,
+    available.currency
+  )
+  return { spent, budget }
+}
+
+/** Semáforo del ritmo: silencio bajo 80%, alerta 80–100%, excedido >100% (o sin presupuesto). */
+export function paceStatus(
+  spent: Money,
+  budget: Money
+): "ok" | "alerta" | "excedido" {
+  if (!budget.isPositive) return spent.isPositive ? "excedido" : "ok"
+  const ratio = Number(spent.minor) / Number(budget.minor)
+  if (ratio > 1) return "excedido"
+  if (ratio >= 0.8) return "alerta"
+  return "ok"
 }
 
 /** Estado por % usado: bueno ≤50%, moderado >50% y <100%, completado =100%, excedido >100%. */

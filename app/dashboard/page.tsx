@@ -14,6 +14,8 @@ import {
   getAmountBounds,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { materializeUserPeriods } from "@/arch/v1/application/finance-use-cases/recurring-use-cases"
+import { getPaceFrequency } from "@/arch/v1/application/finance-use-cases/pace-use-cases"
+import { paceDeps } from "@/arch/v1/infrastructure/database/prisma/pace.infrastructure"
 import { Dashboard } from "@/components/finance/dashboard"
 import { PushPrompt } from "@/components/pwa/push-prompt"
 
@@ -43,6 +45,8 @@ export default async function DashboardPage({
   // aunque el cron no haya corrido todavía. Idempotente y solo mes actual/futuro.
   await materializeUserPeriods(financeDeps, userId, year, month).catch(() => {})
 
+  // La frecuencia primero: getBudgetView la necesita para calcular el ritmo del período.
+  const paceFrequency = await getPaceFrequency(paceDeps)
   const [
     summary,
     accounts,
@@ -54,7 +58,10 @@ export default async function DashboardPage({
   ] = await Promise.all([
     getMonthlySummary(financeDeps, userId, year, month),
     listAccounts(financeDeps, userId),
-    getBudgetView(financeDeps, userId, year, month),
+    getBudgetView(financeDeps, userId, year, month, {
+      frequency: paceFrequency,
+      today: now,
+    }),
     listTransactions(financeDeps, userId, year, month),
     listUncategorized(financeDeps, userId, year, month),
     listIncomesView(financeDeps, userId, year, month),

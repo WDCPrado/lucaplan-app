@@ -6,10 +6,22 @@ import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { admin } from "better-auth/plugins"
 import { prisma } from "../database/prisma/client.ts"
+import { prDemoAccount } from "@/lib/pr-demo"
 
 export const auth = betterAuth({
   appName: "Luca Plan",
   database: prismaAdapter(prisma, { provider: "postgresql" }),
+  // Entornos efímeros de PR (Railway): el dominio es dinámico (…-pr-N.up.railway.app), así que
+  // Better Auth rechazaría el login por origin desconocido. Se confía el dominio del servicio y,
+  // como red, cualquier https de Railway — SOLO en PR (datos seed); producción no agrega nada.
+  trustedOrigins: prDemoAccount()
+    ? [
+        ...(process.env.RAILWAY_PUBLIC_DOMAIN
+          ? [`https://${process.env.RAILWAY_PUBLIC_DOMAIN}`]
+          : []),
+        "https://*.up.railway.app",
+      ]
+    : [],
   // Landing-only (vitrina open source): el registro se cierra también en el endpoint,
   // no solo en la UI. Solo entran cuentas existentes.
   emailAndPassword: {

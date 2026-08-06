@@ -130,6 +130,43 @@ pnpm lint && pnpm typecheck && node --test "arch/**/*.test.ts"
 Sin commit/push, instalación de dependencias, cambios en secretos o `.env`, deploys ni operaciones
 destructivas sin autorización explícita del usuario.
 
+### Sembrar los datos de la feature
+
+Cada PR levanta un entorno efímero en Railway con su propia base vacía, que `scripts/seed-pr.ts`
+llena con el usuario demo y su mes de datos ([detalle en el README](../README.md#railway-entornos-de-pr-con-datos-falsos)).
+Ese seed base es igual para todos los PR, así que **una feature que necesite datos que ahí no
+existen no se puede revisar**: hay que sembrarlos.
+
+Para eso, **el último paso antes de abrir el PR es reescribir `scripts/seed-pr-feature.ts`**. El
+seed base lo llama al final de la primera siembra y le pasa lo que ya creó:
+
+```ts
+import type { FeatureSeedContext } from "./seed-pr.ts" // solo el tipo: no ejecuta el seed base
+
+export default async function seedFeature({ prisma, checkingId }: FeatureSeedContext) {
+  // El aviso de sobregiro que trae este PR solo se ve con la cuenta en rojo.
+  await prisma.financialAccount.update({
+    where: { id: checkingId },
+    data: { balance: -120000 },
+  })
+}
+```
+
+El ctx trae `prisma`, `userId`, `checkingId`, `creditCardId` y `categoryId` (Map nombre → id).
+
+Reglas:
+
+- **Solo la data de la feature y sus dependencias.** Todo lo demás ya está sembrado: tómalo del
+  ctx, no crees un segundo usuario ni categorías paralelas.
+- **Cubre el caso que hay que mirar**, no el genérico: si el cambio es un aviso de sobregiro,
+  siembra la cuenta en rojo; si es un estado vacío, no siembres nada de esa entidad.
+- **Nada de datos reales ni secretos** — el entorno de PR es público.
+- **Se reescribe entero, no se acumula.** El archivo pertenece al PR en curso. Si tu cambio no
+  necesita datos propios, déjalo en su forma no-op (el `console.log` y nada más).
+- **Pruébalo antes de abrir el PR**: `SEED_PR_FORCE=1 RAILWAY_ENVIRONMENT_NAME=pr-0 pnpm seed:pr`
+  contra una base local (⚠️ re-siembra desde cero al usuario demo). Si el seed falla en Railway, el
+  base lo registra y sigue —el deploy no se cae— pero la feature queda sin datos que mostrar.
+
 ## Convenciones
 
 | Capa           | Archivo                                |

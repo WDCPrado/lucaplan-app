@@ -429,6 +429,19 @@ sigue ahí). Siembra 2 cuentas con cupos separados por moneda, 9 categorías con
 presupuesto global y por categoría, sueldo con carry-forward, movimientos del mes en curso y del
 anterior, 3 gastos recurrentes y 2 planes de cuotas (tarjeta y crédito de consumo).
 
+#### Datos de la feature del PR
+
+Ese seed base es el mismo para todos los PR. Lo que cambia de un PR a otro va en
+[`scripts/seed-pr-feature.ts`](scripts/seed-pr-feature.ts): un archivo que **se reescribe entero en
+cada feature, antes de abrir el PR**, con la data mínima para probar ese cambio y nada más. Lo llama
+el seed base al terminar, pasándole lo ya sembrado (`prisma`, `userId`, cuenta corriente, tarjeta y
+el mapa nombre → id de las categorías), así el seed de la feature son unas pocas líneas.
+
+Si el cambio no necesita datos propios, el archivo queda como no-op. Si falla —típicamente un seed
+de una feature anterior contra un esquema que ya cambió— el seed base lo registra y sigue: el
+entorno queda con los datos base en vez de caerse el deploy. Cómo escribirlo, en
+[docs/development.md](docs/development.md#antes-del-pr).
+
 ## Mapa documental
 
 | Tema                        | Dónde                                                                 |

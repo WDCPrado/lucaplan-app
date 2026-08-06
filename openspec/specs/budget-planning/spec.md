@@ -153,6 +153,35 @@ Los umbrales SHALL ser: `bueno` si ≤ 50%; `moderado` si > 50% y < 100%; `compl
 - **WHEN** el usado supera el límite (120000 de 100000)
 - **THEN** el estado es `excedido` (alerta), sin bloquear el registro del movimiento
 
+### Requirement: Ritmo de gasto del período por categoría (derivado)
+
+Para cada categoría de gasto con tope, mirando el mes en curso, el sistema SHALL derivar el
+**ritmo del período**: lo gastado en el período actual contra el presupuesto de ese período.
+El período depende de la frecuencia configurada (Configuración → Ritmo de gasto): el día de hoy
+(`daily`) o la semana calendario lunes–domingo que contiene a hoy, recortada a los bordes del
+mes (`weekly`). La frecuencia SHALL ser una preferencia global de la app con `weekly` por
+defecto, persistida en `app_setting` (`pace_frequency`).
+
+El presupuesto del período SHALL ser estable durante el período: se reparte lo disponible **al
+inicio del período** (disponible actual + gastado del período) entre los días de mes restantes
+desde ese inicio, multiplicado por los días del período dentro del mes. Registrar un gasto sube
+el gastado pero NO SHALL mover el presupuesto del período; el gastado semanal SHALL acumular
+desde el lunes aunque la frecuencia se configure o consulte a mitad de semana. El semáforo
+SHALL ser: silencio bajo 80% del presupuesto del período, alerta entre 80% y 100%, excedido
+sobre 100%. Estos valores NO SHALL persistirse; se recalculan en cada lectura.
+
+#### Scenario: Gastado de hoy contra el presupuesto diario
+- **WHEN** la categoría llega a hoy con 250000 disponibles al inicio del día, quedan 25 días de mes y hoy se registran gastos por 16000
+- **THEN** el ritmo muestra 16000 de 10000 con estado `excedido`, sin que la meta cambie por el gasto
+
+#### Scenario: La semana acumula desde el lunes
+- **WHEN** la frecuencia es semanal y hoy es miércoles
+- **THEN** el gastado del período suma desde el lunes de esa semana y el presupuesto cubre la semana completa recortada al mes
+
+#### Scenario: Fuera del mes en curso no hay ritmo
+- **WHEN** el usuario navega a un mes distinto al de hoy
+- **THEN** las categorías no llevan ritmo del período
+
 ### Requirement: Caja activa por fórmula
 
 La caja activa SHALL calcularse como la suma de saldos **positivos** de las cuentas de tipo

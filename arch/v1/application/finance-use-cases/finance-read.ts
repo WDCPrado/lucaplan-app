@@ -48,11 +48,14 @@ import {
   creditCardDebts,
   computeCategoryUsage,
   computeCategoryCommitted,
+  computeCategoryPace,
   categoryStatus,
   effectiveLimit,
   effectiveGlobalLimit,
+  paceStatus,
   remainingToAllocate,
 } from "./budget-formulas.ts"
+import type { PaceFrequency } from "../../domain/finance/pace.domain.ts"
 
 const CLP = "CLP" as const
 
@@ -150,6 +153,16 @@ export type CategoryDTO = {
   committed: number // comprometido: Σ pending del mes (recurrentes aún no cobradas); capa aparte del usado
   available: number
   status: string
+  // Ritmo del período en curso (hoy / esta semana): gastado vs presupuesto, con su semáforo.
+  // Solo en categorías de gasto con tope, mirando el mes actual; null/ausente en el resto.
+  pace?: PaceDTO | null
+}
+
+export type PaceDTO = {
+  frequency: PaceFrequency
+  spent: number // gastado en el período (hoy o desde el lunes)
+  budget: number // presupuesto del período; estable durante el período
+  status: "ok" | "alerta" | "excedido" // silencio <80%, alerta 80–100%, excedido >100%
 }
 
 export type BudgetViewDTO = {
@@ -576,7 +589,10 @@ export async function getBudgetView(
   deps: ReadDeps,
   userId: string,
   year: number,
-  month: number
+  month: number,
+  // Ritmo del período (dashboard): frecuencia configurada + "hoy" del calendario del usuario.
+  // Sin esto (u otras vistas/meses pasados) las categorías no llevan `pace`.
+  pace?: { frequency: PaceFrequency; today: { year: number; month: number; day: number } }
 ): Promise<BudgetViewDTO> {
   const [withLimit, txs, budgets, plans, incomesList, incomeAmounts] =
     await Promise.all([
@@ -639,6 +655,30 @@ export async function getBudgetView(
           ? fromInstallments
           : Money.zero(limit.currency)
       )
+      // Ritmo del período: solo gasto con tope y solo si la vista mira el mes de "hoy". El DTO
+      // se recalcula en cada lectura (router.refresh tras registrar un gasto lo actualiza solo).
+      const paceDTO =
+        pace &&
+        category.type === "expense" &&
+        limit.isPositive &&
+        pace.today.year === year &&
+        pace.today.month === month
+          ? (() => {
+              const p = computeCategoryPace(
+                category.id,
+                available,
+                clpTxs,
+                pace.today,
+                pace.frequency
+              )
+              return {
+                frequency: pace.frequency,
+                spent: p.spent.toMajor(),
+                budget: p.budget.toMajor(),
+                status: paceStatus(p.spent, p.budget),
+              }
+            })()
+          : null
       return {
         id: category.id,
         name: category.name,
@@ -653,6 +693,7 @@ export async function getBudgetView(
         // Ingreso: llegar a la meta es bueno, no "excedido" — el semáforo es solo de gastos.
         status:
           category.type === "income" ? "bueno" : categoryStatus(used, limit),
+        pace: paceDTO,
       }
     }
   )

@@ -2,8 +2,9 @@
 
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { BellRing, CalendarClock, Check, Minus, Plus } from "lucide-react"
+import { BellRing, CalendarClock, Check, Gauge, Minus, Plus } from "lucide-react"
 import { toast } from "sonner"
+import type { PaceFrequency } from "@/arch/v1/domain/finance/pace.domain"
 
 import { authClient } from "@/lib/auth-client"
 import { haptic } from "@/lib/haptics"
@@ -22,11 +23,13 @@ export function SettingsView({
   user,
   alerts: initialAlerts,
   dueDays,
+  paceFrequency,
   vapidPublicKey,
 }: {
   user: { name: string; email: string; initial: string }
   alerts: BudgetAlert[]
   dueDays: number
+  paceFrequency: PaceFrequency
   // Vacío = sin claves VAPID en el servidor: no hay push posible, la sección ni se ofrece.
   vapidPublicKey: string
 }) {
@@ -63,6 +66,7 @@ export function SettingsView({
           )}
           <BudgetAlertsSection initialAlerts={initialAlerts} />
           <DueReminderSection initialDays={dueDays} />
+          <PaceSection initialFrequency={paceFrequency} />
         </div>
       </div>
     </AppShell>
@@ -143,6 +147,81 @@ function DueReminderSection({ initialDays }: { initialDays: number }) {
         {days === 0
           ? "Recibirás el aviso el mismo día del cobro."
           : `Un cobro del día 20 se avisaría el día ${20 - days}.`}
+      </p>
+    </section>
+  )
+}
+
+// Frecuencia del ritmo de gasto que muestra cada categoría en el inicio: lo gastado del período
+// contra el presupuesto del período. Dos valores discretos → dos botones, no un select.
+const PACE_OPTIONS: { value: PaceFrequency; label: string }[] = [
+  { value: "weekly", label: "Semanal" },
+  { value: "daily", label: "Diario" },
+]
+
+function PaceSection({
+  initialFrequency,
+}: {
+  initialFrequency: PaceFrequency
+}) {
+  const [frequency, setFrequency] = useState(initialFrequency)
+  const [pending, setPending] = useState(false)
+
+  async function change(next: PaceFrequency) {
+    if (next === frequency || pending) return
+    haptic("light")
+    const prev = frequency
+    setFrequency(next)
+    setPending(true)
+    const res = await fetch("/api/pace-frequency", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ frequency: next }),
+    })
+    setPending(false)
+    if (!res.ok) {
+      toast.error("No se pudo guardar la frecuencia.")
+      setFrequency(prev)
+    }
+  }
+
+  return (
+    <section className="glass rounded-2xl p-5">
+      <div className="mb-1 flex items-center gap-2">
+        <Gauge className="size-4 text-muted-foreground" />
+        <h2 className="font-heading text-base font-bold">Ritmo de gasto</h2>
+      </div>
+      <p className="mb-5 text-sm text-muted-foreground">
+        Cada categoría del inicio compara lo gastado del período con su
+        presupuesto: el día, o la semana de lunes a domingo.
+      </p>
+      <div className="flex gap-2" role="radiogroup" aria-label="Frecuencia del ritmo">
+        {PACE_OPTIONS.map((opt) => {
+          const active = opt.value === frequency
+          return (
+            <button
+              key={opt.value}
+              role="radio"
+              aria-checked={active}
+              disabled={pending}
+              onClick={() => change(opt.value)}
+              className={cn(
+                "flex h-11 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors disabled:opacity-60",
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary hover:bg-accent"
+              )}
+            >
+              {active && <Check className="size-4" />}
+              {opt.label}
+            </button>
+          )
+        })}
+      </div>
+      <p className="mt-3 text-sm text-muted-foreground">
+        {frequency === "weekly"
+          ? "Verás “gastado de presupuesto esta semana”. La semana parte el lunes aunque la mires el jueves."
+          : "Verás “gastado de presupuesto hoy”. Un gasto grande puede reventar el día; la semana lo absorbe mejor."}
       </p>
     </section>
   )

@@ -25,6 +25,7 @@ import {
   InvalidIncomeError,
   IncomeNotFoundError,
 } from "../../domain/finance/income.domain.ts"
+import { InvalidPaceFrequencyError } from "../../domain/finance/pace.domain.ts"
 import {
   InvalidRecurringTemplateError,
   RecurringCategoryRequiredError,
@@ -83,7 +84,11 @@ function errorStatus(e: unknown): number {
   if (e instanceof LockBusyError) return 409 // sync ya en curso
   if (e instanceof ConnectionMethodConflictError) return 409 // otro método de conexión activo
   if (e instanceof DuplicateBudgetAlertError) return 409 // ya existe una alerta a ese %
-  if (e instanceof InvalidBudgetAlertError || e instanceof InvalidDueDaysError)
+  if (
+    e instanceof InvalidBudgetAlertError ||
+    e instanceof InvalidDueDaysError ||
+    e instanceof InvalidPaceFrequencyError
+  )
     return 422
   if (
     e instanceof TransactionCurrencyMismatchError ||

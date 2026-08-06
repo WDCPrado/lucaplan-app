@@ -187,27 +187,33 @@ export function Dashboard({
             }}
           />
         </div>
-        {/* Cuánto se puede gastar por día con lo que queda. Solo en el mes en curso y con tope: en
-            un mes cerrado no hay días que repartir y sin límite no hay de qué dividir.
-            El número ya lleva la señal: gastar de más lo baja solo. No se compara contra el ritmo
-            que se lleva (gastado ÷ días corridos) porque un pago único al principio del mes —las
-            cuentas, el arriendo— deja ese promedio disparado el resto del mes y teñiría de alarma
-            una categoría que ya cumplió. Distinguirlo pide separar gasto fijo de variable, que hoy
-            el DTO no permite. */}
-        {isCurrentMonth && c.limit > 0 && (
-          <p
-            className={cn(
-              "tabular text-xs",
-              c.available > 0 ? "text-muted-foreground" : "text-destructive"
-            )}
-          >
-            {c.available > 0
-              ? `${formatCLP(Math.floor(c.available / daysLeft))} por día`
-              : c.available < 0
+        {/* Ritmo del período (hoy / esta semana, según Configuración): lo gastado del período
+            contra su presupuesto, que el backend deja ESTABLE — registrar un gasto sube el
+            gastado, no mueve la meta, y la semana vale lo mismo el lunes que el jueves.
+            Semáforo silencioso: gris bajo 80%, alerta 80–100%, excedido >100%. `pace` solo viene
+            en el mes en curso y con tope; sin margen de período se mantiene el aviso de siempre. */}
+        {c.pace &&
+          (c.pace.budget > 0 ? (
+            <p
+              className={cn(
+                "tabular text-xs",
+                c.pace.status === "excedido"
+                  ? "text-destructive"
+                  : c.pace.status === "alerta"
+                    ? "text-warning"
+                    : "text-muted-foreground"
+              )}
+            >
+              {formatCLP(c.pace.spent)} de {formatCLP(c.pace.budget)}{" "}
+              {c.pace.frequency === "daily" ? "hoy" : "esta semana"}
+            </p>
+          ) : (
+            <p className="tabular text-xs text-destructive">
+              {c.available < 0
                 ? `Sin margen · ${formatCLP(-c.available)} sobre el tope`
                 : "Sin margen"}
-          </p>
-        )}
+            </p>
+          ))}
       </button>
     )
   }

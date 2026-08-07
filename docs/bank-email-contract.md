@@ -38,7 +38,7 @@ UI estos movimientos llevan el badge **"Ajuste de saldo"** y no suman en el tota
 
 ## Catálogo Banco de Chile
 
-Remitentes permitidos: `enviodigital@bancochile.cl` (avisos) y
+Remitentes permitidos (catálogo, clave `bancochile`): `enviodigital@bancochile.cl` (avisos) y
 `serviciodetransferencias@bancochile.cl` (comprobantes).
 
 | Asunto | `source` | Efecto | Instrumento | Qué se extrae |
@@ -88,14 +88,37 @@ quedando fuera.
 
 Lo que **no** se necesita: API del banco, credenciales, scraping. Solo lectura del correo.
 
-## Qué falta para soportar un segundo banco
+## Cómo se agrega un banco
 
-El parser de Banco de Chile está invocado directamente desde
-`email-connection-use-cases.ts` (escaneo, previsualización e importación). No hay puerto ni
-registro de parsers, así que hoy agregar un banco no es escribir su parser: es editar el
-use-case en tres puntos.
+Los bancos soportados viven en un catálogo (`bank-email-registry.ts`), una entrada por banco:
 
-El arreglo natural es un mapa `bankKey → parser` con la firma que ya existe
-(`(msg: BankEmailMessage) => ParsedEmail`), resuelto desde la conexión. No se ha hecho porque
-todavía no hay un segundo banco que lo justifique — pero es la primera pieza a mover cuando
-aparezca, antes de escribir una sola regex nueva.
+```ts
+{ key: "bancochile", name: "Banco de Chile", senders: [...], parse: (msg) => ParsedEmail }
+```
+
+Agregar un banco es agregar su entrada y su archivo de parseo. Los use-cases no se tocan: piden el
+parser por clave y enrutan cada correo **por remitente** antes de parsearlo. Ese enrutado es lo que
+permite que un mismo buzón alimente varios bancos sin que los correos de uno cuenten como omitidos
+del otro.
+
+Variantes de la misma institución (por ejemplo, los avisos de una cuenta empresa) van como
+remitentes adicionales de la **misma** clave: el efecto financiero es idéntico. Lo que distingue
+"personal" de "empresa" es la etiqueta del vínculo, no el parser.
+
+El catálogo se inyecta como dependencia, así que los tests pueden registrar un banco de prueba sin
+esperar a que exista uno real.
+
+## Cómo se conecta: buzón y vínculos
+
+- Un **buzón** es un correo autorizado: un token, un estado delta y una suscripción, sin importar
+  cuántos bancos alimente. Su estado de autorización lo comparten todos sus bancos, y una sola
+  reconexión los restablece.
+- Un **vínculo** es lo que ese buzón alimenta en un banco concreto: su snapshot, sus instrumentos y
+  sus mensajes omitidos. Se agrega sin pasar de nuevo por OAuth.
+- Un banco puede venir de varios correos (personal y empresa) y se distinguen por una etiqueta, que
+  el usuario elige y es obligatoria desde el segundo. Lo que **no** se puede es repetir un banco
+  dentro del mismo correo: el enrutado por remitente no tendría cómo decidir a cuál imputar el
+  movimiento.
+- La identidad externa de las cuentas importadas incluye el banco
+  (`email:<bankKey>:acct:<ref>`): dos bancos pueden tener el mismo número de cuenta o los mismos
+  últimos 4.

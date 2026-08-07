@@ -1,11 +1,15 @@
-// Use-cases de la conexión por CORREO (Outlook → Banco de Chile). Orquestan el proveedor de correo
-// (port BankMailProvider), el repositorio de conexiones y la persistencia (EmailSetupStore,
-// implementada por infraestructura). Sin IO directo: nada de Prisma, fetch ni Next aquí.
+// Use-cases de la conexión por CORREO. Orquestan el proveedor de correo (port BankMailProvider),
+// los repositorios de buzones y vínculos, y la persistencia (EmailSetupStore, implementada por
+// infraestructura). Sin IO directo: nada de Prisma, fetch ni Next aquí.
 //
-// Flujo: OAuth (completeEmailConnection) → escaneo del mes SIN persistir (scanEmailCandidates) →
-// validación del usuario + snapshot (confirmEmailSetup, creación e importación atómicas) →
-// sincronización incremental por delta/webhook (syncEmailConnection) → reconciliación manual
-// (reconcileEmailBalances) → desconexión (disconnectEmailConnection).
+// Flujo: OAuth del BUZÓN (connectMailbox) → agregar un banco a ese buzón (addBankLink) → escaneo del
+// mes SIN persistir (scanEmailCandidates) → validación del usuario + snapshot (confirmEmailSetup,
+// creación e importación atómicas) → sincronización incremental por delta/webhook (syncMailbox, una
+// pasada que reparte entre los vínculos del buzón) → reconciliación manual (reconcileEmailBalances)
+// → desconexión por banco o por buzón.
+//
+// Qué es de quién: la autorización, el delta y la suscripción son del BUZÓN; el snapshot, los
+// instrumentos y los mensajes omitidos son del VÍNCULO con cada banco.
 import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
 import type {
   BucketKind,
@@ -14,20 +18,27 @@ import type {
   MovementStatus,
 } from "../../domain/finance/finance.domain.ts"
 import {
+  BankAlreadyLinkedError,
+  BankLabelRequiredError,
   EmailConnectionNotFoundError,
   EmailSetupStateError,
   type BankEmailMessage,
   type BankMailProvider,
   type ConnectionMethodRepository,
-  type EmailConnection,
-  type EmailConnectionRepository,
+  type EmailBankLink,
+  type EmailBankLinkRepository,
+  type EmailBankLinkWithMailbox,
+  type EmailMailbox,
+  type EmailMailboxRepository,
 } from "../../domain/finance/email-connection.domain.ts"
 import type { NotifiableMovement } from "../notification-use-cases/notification-rules.ts"
 import {
-  parseBancoChileEmail,
-  type EmailEvent,
-  type ParsedEmail,
-} from "./bancochile-email-map.ts"
+  BANK_EMAIL_REGISTRY,
+  bankByKey,
+  routeEmail,
+  type BankEmailRegistry,
+} from "./bank-email-registry.ts"
+import type { EmailEvent, ParsedEmail } from "./bancochile-email-map.ts"
 import {
   detectCandidates,
   type EmailScanSummary,
@@ -40,8 +51,6 @@ import {
   type BucketAmounts,
 } from "./email-projection.ts"
 
-export const BANK_PROVIDER = "bancochile"
-const BANK_NAME = "Banco de Chile"
 // Renovar la suscripción cuando le queda menos de un día (Outlook la limita a <7 días; se renueva a
 // diario vía sync/refresco; ver docs/email-connection-outlook.md).
 const SUBSCRIPTION_RENEW_WINDOW_MS = 24 * 60 * 60 * 1000
@@ -58,7 +67,7 @@ export type EmailBucketDef = {
 
 export type EmailAccountDef = {
   key: string // "checking" | "card:<last4>" — clave temporal para vincular movimientos
-  externalId: string // identidad estable: email:acct:<ref> | email:card:<last4>
+  externalId: string // identidad estable: email:<bankKey>:acct:<ref> | email:<bankKey>:card:<last4>
   name: string
   accountType: "checking" | "credit_card"
   currency: CurrencyCode // moneda base de la cuenta (CLP)
@@ -81,8 +90,9 @@ export type EmailMovementDef = {
 }
 
 export type EmailConfirmPersistInput = {
-  connectionId: string
+  linkId: string
   userId: string
+  bankProvider: string
   bankName: string
   snapshotAt: Date
   accounts: EmailAccountDef[]
@@ -119,9 +129,19 @@ export type ResolvedEmailMovement = {
   isInternal: boolean
 }
 
+// Lo que se pierde al desconectar un banco: sus cuentas arrastran en cascada datos que el usuario
+// creó a mano, así que la UI los enumera antes de ejecutar.
+export type BankDependents = {
+  accounts: number
+  movements: number
+  recurring: number
+  installments: number
+  incomes: number
+}
+
 export interface EmailSetupStore {
-  // Confirmación ATÓMICA: crea banco (provider bancochile, método email), cuentas, tarjetas y
-  // buckets, e importa los movimientos del mes vinculados. Todo o nada.
+  // Confirmación ATÓMICA: crea banco (con su provider y método email), cuentas, tarjetas y buckets,
+  // e importa los movimientos del mes vinculados. Todo o nada.
   confirmSetup(input: EmailConfirmPersistInput): Promise<{
     bankId: string
     accounts: number
@@ -143,14 +163,19 @@ export interface EmailSetupStore {
   ): Promise<void>
   setAccountBalance(accountId: string, amount: Money): Promise<void>
   markBankSynced(bankId: string): Promise<void>
+  countBankDependents(bankId: string): Promise<BankDependents>
   deleteBank(bankId: string): Promise<void>
 }
 
 export type EmailConnectionDeps = {
-  emailConnections: EmailConnectionRepository
+  mailboxes: EmailMailboxRepository
+  links: EmailBankLinkRepository
   methods: ConnectionMethodRepository
   mail: BankMailProvider
   store: EmailSetupStore
+  // Catálogo de bancos. Inyectable para que los tests registren bancos de prueba sin esperar a que
+  // exista un segundo banco real.
+  registry?: BankEmailRegistry
   // Match contra plantillas recurrentes de los movimientos recién importados. Corre ANTES de la
   // IA: lo que reclama una plantilla ya queda categorizado y revisado, así que la IA no lo ve.
   matchRecurring?: (userId: string, externalIds: string[]) => Promise<number>
@@ -165,6 +190,10 @@ export type EmailConnectionDeps = {
   notify?: (userId: string, movements: NotifiableMovement[]) => Promise<void>
 }
 
+function registryOf(deps: { registry?: BankEmailRegistry }): BankEmailRegistry {
+  return deps.registry ?? BANK_EMAIL_REGISTRY
+}
+
 // --- Helpers de ventana y mapeo ---
 
 // Primer día del mes calendario actual (UTC), inicio de la carga inicial y fallback de sync.
@@ -172,13 +201,25 @@ export function firstDayOfMonth(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
 }
 
-async function requireConnection(
-  deps: EmailConnectionDeps,
-  userId: string
-): Promise<EmailConnection> {
-  const conn = await deps.emailConnections.findByUser(userId, BANK_PROVIDER)
-  if (!conn) throw new EmailConnectionNotFoundError()
-  return conn
+async function requireLink(
+  deps: Pick<EmailConnectionDeps, "links">,
+  userId: string,
+  linkId: string
+): Promise<EmailBankLinkWithMailbox> {
+  const link = await deps.links.findById(linkId)
+  if (!link || link.userId !== userId) throw new EmailConnectionNotFoundError()
+  return link
+}
+
+async function requireMailbox(
+  deps: Pick<EmailConnectionDeps, "mailboxes">,
+  userId: string,
+  mailboxId: string
+): Promise<EmailMailbox> {
+  const mailbox = await deps.mailboxes.findById(mailboxId)
+  if (!mailbox || mailbox.userId !== userId)
+    throw new EmailConnectionNotFoundError("No existe ese correo conectado")
+  return mailbox
 }
 
 // Resuelve el instrumento/bucket de un evento contra los instrumentos confirmados. Null = sin
@@ -298,77 +339,130 @@ function directionOf(event: EmailEvent): Direction {
   return isInternalEvent(event) ? "credit" : "debit"
 }
 
-// --- OAuth: alta / reconexión ---
+// --- OAuth: alta / reconexión del BUZÓN ---
 
-export type CompleteEmailConnectionInput = {
+export type ConnectMailboxInput = {
   emailAddress: string
   refreshToken: string
 }
 
-// Tras el intercambio OAuth: crea la conexión (reclamando el método `email`) o, si ya existía,
-// rota el token y la reactiva SIN borrar datos (caso reauth_required).
-export async function completeEmailConnection(
-  deps: Pick<EmailConnectionDeps, "emailConnections" | "methods">,
+// Tras el intercambio OAuth: crea el buzón o, si ese correo ya estaba autorizado, rota el token y lo
+// reactiva SIN borrar datos (caso reauth_required). Los bancos que alimenta no se tocan.
+export async function connectMailbox(
+  deps: Pick<EmailConnectionDeps, "mailboxes">,
   userId: string,
-  input: CompleteEmailConnectionInput
-): Promise<{ connection: EmailConnection; reconnected: boolean }> {
-  const existing = await deps.emailConnections.findByUser(userId, BANK_PROVIDER)
+  input: ConnectMailboxInput
+): Promise<{ mailbox: EmailMailbox; reconnected: boolean }> {
+  const existing = await deps.mailboxes.findByAddress(userId, input.emailAddress)
   if (existing) {
-    const active = await deps.methods.activeMethod(userId, BANK_PROVIDER)
-    if (!active) await deps.methods.claim(userId, BANK_PROVIDER, "email")
-    const connection = await deps.emailConnections.update(existing.id, {
-      emailAddress: input.emailAddress,
+    const mailbox = await deps.mailboxes.update(existing.id, {
       refreshToken: input.refreshToken,
-      status: existing.bankId ? "active" : "pending_setup",
+      status: "active",
       lastError: null,
     })
-    return { connection, reconnected: true }
+    return { mailbox, reconnected: true }
   }
-  // Exclusividad: reclama el método `email` (la fila única por usuario+banco rechaza al segundo).
-  await deps.methods.claim(userId, BANK_PROVIDER, "email")
+  const mailbox = await deps.mailboxes.create({
+    userId,
+    emailProvider: "outlook",
+    emailAddress: input.emailAddress,
+    refreshToken: input.refreshToken,
+  })
+  return { mailbox, reconnected: false }
+}
+
+// --- Agregar un banco a un buzón ya autorizado (sin OAuth nuevo) ---
+
+export type AddBankLinkInput = {
+  mailboxId: string
+  bankProvider: string
+  label?: string | null
+}
+
+export async function addBankLink(
+  deps: Pick<
+    EmailConnectionDeps,
+    "mailboxes" | "links" | "methods" | "registry"
+  >,
+  userId: string,
+  input: AddBankLinkInput
+): Promise<EmailBankLink> {
+  const bank = bankByKey(input.bankProvider, registryOf(deps))
+  await requireMailbox(deps, userId, input.mailboxId)
+
+  const existing = await deps.links.listByUser(userId)
+  // Mismo banco en ESTE buzón: el enrutado por remitente no tendría cómo decidir a cuál imputar.
+  if (
+    existing.some(
+      (l) => l.mailboxId === input.mailboxId && l.bankProvider === bank.key
+    )
+  )
+    throw new BankAlreadyLinkedError(bank.name)
+  // Mismo banco en OTRO buzón: se permite, pero necesita etiqueta para distinguirlos a la vista.
+  const label = input.label?.trim() || null
+  if (existing.some((l) => l.bankProvider === bank.key) && !label)
+    throw new BankLabelRequiredError(bank.name)
+
+  await deps.methods.claim(userId, bank.key, input.mailboxId, "email")
   try {
-    const connection = await deps.emailConnections.create({
+    return await deps.links.create({
+      mailboxId: input.mailboxId,
       userId,
-      bankProvider: BANK_PROVIDER,
-      emailProvider: "outlook",
-      emailAddress: input.emailAddress,
-      refreshToken: input.refreshToken,
+      bankProvider: bank.key,
+      label,
     })
-    return { connection, reconnected: false }
   } catch (e) {
-    await deps.methods.release(userId, BANK_PROVIDER, "email").catch(() => {})
+    await deps.methods
+      .release(userId, bank.key, input.mailboxId, "email")
+      .catch(() => {})
     throw e
   }
+}
+
+// Nombre visible del banco: el del catálogo más su etiqueta ("Banco de Chile Empresa").
+export function bankDisplayName(
+  bankName: string,
+  label: string | null
+): string {
+  return label ? `${bankName} ${label}` : bankName
 }
 
 // --- Escaneo inicial (sin persistir) ---
 
 export type ScanResult = EmailScanSummary & {
   emailAddress: string
+  bankProvider: string
+  bankName: string
   since: string
 }
 
 export async function scanEmailCandidates(
-  deps: Pick<EmailConnectionDeps, "emailConnections" | "mail">,
+  deps: Pick<EmailConnectionDeps, "links" | "mail" | "registry">,
   userId: string,
+  linkId: string,
   opts: { now?: Date } = {}
 ): Promise<ScanResult> {
-  const conn = await requireConnection(deps as EmailConnectionDeps, userId)
-  if (conn.bankId)
+  const link = await requireLink(deps, userId, linkId)
+  if (link.bankId)
     throw new EmailSetupStateError(
-      "La conexión ya fue configurada; usa el refresco manual"
+      "Ese banco ya fue configurado; usa el refresco manual"
     )
+  const bank = bankByKey(link.bankProvider, registryOf(deps))
   const now = opts.now ?? new Date()
-  const scanUntil =
-    conn.createdAt.getTime() <= now.getTime() ? conn.createdAt : now
+  const scanUntil = link.createdAt.getTime() <= now.getTime() ? link.createdAt : now
   const since = firstDayOfMonth(scanUntil)
-  const messages = await deps.mail.listMessagesSince(conn.id, since)
+  const messages = await deps.mail.listMessagesSince(link.mailboxId, since)
+  // Solo los correos que este banco reclama: los de otro banco del mismo buzón no son candidatos
+  // suyos ni cuentan como omitidos.
   const parsed = messages
     .filter((message) => message.receivedAt.getTime() <= scanUntil.getTime())
-    .map(parseBancoChileEmail)
+    .filter((message) => routeEmail(message, registryOf(deps))?.key === bank.key)
+    .map(bank.parse)
   return {
     ...detectCandidates(parsed),
-    emailAddress: conn.emailAddress,
+    emailAddress: link.mailbox.emailAddress,
+    bankProvider: bank.key,
+    bankName: bankDisplayName(bank.name, link.label),
     since: since.toISOString(),
   }
 }
@@ -394,25 +488,25 @@ export type ConfirmResult = {
   accounts: number
   cards: number
   movements: number
-  skipped: number // omitidos: fuera de allowlist, sin datos o sin mapeo inequívoco
+  skipped: number // omitidos: sin datos o sin mapeo inequívoco
 }
 
 export async function confirmEmailSetup(
   deps: EmailConnectionDeps,
   userId: string,
+  linkId: string,
   input: EmailSnapshotInput,
   opts: { now?: Date } = {}
 ): Promise<ConfirmResult> {
-  const conn = await requireConnection(deps, userId)
-  if (conn.bankId)
-    throw new EmailSetupStateError("La conexión ya fue configurada")
+  const link = await requireLink(deps, userId, linkId)
+  if (link.bankId) throw new EmailSetupStateError("Ese banco ya fue configurado")
   if (!input.checking && input.cards.length === 0)
     throw new EmailSetupStateError(
       "Confirma al menos un instrumento (cuenta o tarjeta)"
     )
+  const bank = bankByKey(link.bankProvider, registryOf(deps))
   const now = opts.now ?? new Date()
-  const scanUntil =
-    conn.createdAt.getTime() <= now.getTime() ? conn.createdAt : now
+  const scanUntil = link.createdAt.getTime() <= now.getTime() ? link.createdAt : now
   const since = firstDayOfMonth(scanUntil)
 
   // Instrumentos y buckets desde el snapshot ingresado (available = limit − used).
@@ -444,7 +538,7 @@ export async function confirmEmailSetup(
     }
     accounts.push({
       key: "checking",
-      externalId: `email:acct:${ref}`,
+      externalId: accountExternalId(bank.key, "acct", ref),
       name: "Cuenta Corriente",
       accountType: "checking",
       currency: "CLP",
@@ -485,7 +579,7 @@ export async function confirmEmailSetup(
     }
     accounts.push({
       key: `card:${last4}`,
-      externalId: `email:card:${last4}`,
+      externalId: accountExternalId(bank.key, "card", last4),
       name: `Tarjeta de Crédito •••• ${last4}`,
       accountType: "credit_card",
       currency: "CLP",
@@ -497,10 +591,14 @@ export async function confirmEmailSetup(
   }
 
   // Releer el mes completo (refrescar obliga a reescanear; no hay modelo de borradores).
-  const messages = (await deps.mail.listMessagesSince(conn.id, since)).filter(
-    (message) => message.receivedAt.getTime() <= scanUntil.getTime()
+  const messages = (
+    await deps.mail.listMessagesSince(link.mailboxId, since)
+  ).filter(
+    (message) =>
+      message.receivedAt.getTime() <= scanUntil.getTime() &&
+      routeEmail(message, registryOf(deps))?.key === bank.key
   )
-  const parsed = messages.map(parseBancoChileEmail)
+  const parsed = messages.map(bank.parse)
 
   // Mapeo evento → cuenta/bucket confirmados, usando claves temporales (los ids reales nacen en la
   // transacción de confirmSetup). La proyección solo considera eventos POSTERIORES al snapshot.
@@ -588,26 +686,29 @@ export async function confirmEmailSetup(
   }
 
   const result = await deps.store.confirmSetup({
-    connectionId: conn.id,
+    linkId: link.id,
     userId,
-    bankName: BANK_NAME,
+    bankProvider: bank.key,
+    bankName: bankDisplayName(bank.name, link.label),
     snapshotAt: input.snapshotAt,
     accounts,
     movements,
   })
 
-  // Estado delta desde AHORA (el mes ya quedó importado) + suscripción webhook best-effort.
-  let deltaLink: string | null = null
-  let subscriptionId = conn.subscriptionId
-  let subscriptionExpiresAt = conn.subscriptionExpiresAt
+  // Estado delta desde AHORA (el mes ya quedó importado) + suscripción webhook best-effort. Ambos
+  // son del buzón: si otro banco del mismo buzón ya los dejó listos, esto solo los refresca.
+  const mailbox = link.mailbox
+  let deltaLink = mailbox.deltaLink
+  let subscriptionId = mailbox.subscriptionId
+  let subscriptionExpiresAt = mailbox.subscriptionExpiresAt
   let lastError: string | null = null
   try {
-    deltaLink = await deps.mail.startDelta(conn.id, now)
+    if (!deltaLink) deltaLink = await deps.mail.startDelta(mailbox.id, now)
   } catch (e) {
     lastError = `Delta no disponible: ${(e as Error).message}`
   }
   try {
-    const sub = await deps.mail.ensureSubscription(conn.id)
+    const sub = await deps.mail.ensureSubscription(mailbox.id)
     if (sub) {
       subscriptionId = sub.subscriptionId
       subscriptionExpiresAt = sub.expiresAt
@@ -616,21 +717,33 @@ export async function confirmEmailSetup(
     lastError = `Suscripción webhook no disponible: ${(e as Error).message}`
   }
 
-  await deps.emailConnections.update(conn.id, {
+  await deps.mailboxes.update(mailbox.id, {
     status: "active",
     deltaLink,
     subscriptionId,
     subscriptionExpiresAt,
     lastSyncedAt: now,
     lastError,
-    skippedCount: conn.skippedCount + skipped,
-    lastBalanceReconciledAt: input.snapshotAt,
+  })
+  // bankId, status y snapshot ya quedaron dentro de la transacción de confirmSetup.
+  await deps.links.update(link.id, {
+    skippedCount: link.skippedCount + skipped,
   })
 
   // Categorización IA best-effort (solo no internos; una falla no revierte la importación).
   if (deps.categorize) await deps.categorize(userId).catch(() => {})
 
   return { ...result, skipped }
+}
+
+// Identidad externa de una cuenta importada: incluye el banco, porque dos bancos pueden tener el
+// mismo número de cuenta o los mismos últimos 4 y el unique es por usuario.
+export function accountExternalId(
+  bankKey: string,
+  kind: "acct" | "card",
+  ref: string
+): string {
+  return `email:${bankKey}:${kind}:${ref}`
 }
 
 // Mapeo temporal: usa key/kind como ids para reutilizar resolveEventTarget antes de persistir.
@@ -726,50 +839,170 @@ function applyCashDebitToProjection(
 export type EmailSyncResult = {
   imported: number
   created: number
-  skipped: number
+  skipped: number // correos de un banco vinculado que no pudieron convertirse en movimiento
+  discarded: number // correos que ningún banco vinculado a este buzón reclama
 }
 
-export async function syncEmailConnection(
+// Una pasada por BUZÓN: trae los mensajes nuevos una sola vez y los reparte entre sus vínculos según
+// el banco que el enrutado les atribuya.
+export async function syncMailbox(
   deps: EmailConnectionDeps,
-  userId: string,
+  mailboxId: string,
   opts: { now?: Date; messages?: BankEmailMessage[] } = {}
 ): Promise<EmailSyncResult> {
-  const conn = await requireConnection(deps, userId)
-  if (!conn.bankId)
-    throw new EmailSetupStateError(
-      "La conexión aún no completa su configuración inicial"
-    )
+  const mailbox = await deps.mailboxes.findById(mailboxId)
+  if (!mailbox) throw new EmailConnectionNotFoundError("No existe ese correo conectado")
+  const links = (await deps.links.listByMailbox(mailboxId)).filter(
+    (l) => l.bankId !== null
+  )
   const now = opts.now ?? new Date()
 
   // Mensajes nuevos: los inyectados (webhook ya los trajo de Graph) o el delta guardado.
   let messages: BankEmailMessage[]
-  let deltaLink = conn.deltaLink
+  let deltaLink = mailbox.deltaLink
   try {
     if (opts.messages) {
       messages = opts.messages
-    } else if (conn.deltaLink) {
-      const res = await deps.mail.runDelta(conn.id, conn.deltaLink)
+    } else if (mailbox.deltaLink) {
+      const res = await deps.mail.runDelta(mailbox.id, mailbox.deltaLink)
       messages = res.messages
       deltaLink = res.deltaLink
     } else {
       // Sin estado delta (caso borde): releer desde la última sync o el inicio del mes.
-      const since = conn.lastSyncedAt ?? firstDayOfMonth(now)
-      messages = await deps.mail.listMessagesSince(conn.id, since)
-      deltaLink = await deps.mail.startDelta(conn.id, now)
+      const since = mailbox.lastSyncedAt ?? firstDayOfMonth(now)
+      messages = await deps.mail.listMessagesSince(mailbox.id, since)
+      deltaLink = await deps.mail.startDelta(mailbox.id, now)
     }
   } catch (e) {
-    await markSyncError(deps, conn, e as Error)
+    await markSyncError(deps, mailbox, e as Error)
     throw e
   }
 
-  const parsed = messages.map(parseBancoChileEmail)
+  // Reparto por banco. Un correo que ningún banco del catálogo reclama, o que pertenece a un banco
+  // sin vínculo en este buzón, se descarta a nivel de buzón: no es omisión de nadie.
+  const byLink = new Map<string, BankEmailMessage[]>()
+  let discarded = 0
+  for (const message of messages) {
+    const bank = routeEmail(message, registryOf(deps))
+    const link = bank
+      ? links.find((l) => l.bankProvider === bank.key)
+      : undefined
+    if (!link) {
+      discarded++
+      continue
+    }
+    const list = byLink.get(link.id)
+    if (list) list.push(message)
+    else byLink.set(link.id, [message])
+  }
+
+  let imported = 0
+  let skipped = 0
+  const created: string[] = []
+  const notifiable: NotifiableMovement[] = []
+  for (const link of links) {
+    const own = byLink.get(link.id)
+    if (!own || own.length === 0) continue
+    const res = await importIntoLink(deps, link, own, now)
+    imported += res.imported
+    skipped += res.skipped
+    created.push(...res.created)
+    notifiable.push(...res.notifiable)
+    await deps.links.update(link.id, {
+      skippedCount: link.skippedCount + res.skipped,
+    })
+  }
+
+  // Renovación diaria de la suscripción (best-effort; su falla no pierde datos: delta recupera).
+  let subscriptionId = mailbox.subscriptionId
+  let subscriptionExpiresAt = mailbox.subscriptionExpiresAt
+  let lastError: string | null = null
+  const needsRenewal =
+    !mailbox.subscriptionExpiresAt ||
+    mailbox.subscriptionExpiresAt.getTime() - now.getTime() <
+      SUBSCRIPTION_RENEW_WINDOW_MS
+  if (needsRenewal) {
+    try {
+      const sub = await deps.mail.ensureSubscription(mailbox.id)
+      if (sub) {
+        subscriptionId = sub.subscriptionId
+        subscriptionExpiresAt = sub.expiresAt
+      }
+    } catch (e) {
+      lastError = `Suscripción webhook no disponible: ${(e as Error).message}`
+    }
+  }
+
+  await deps.mailboxes.update(mailbox.id, {
+    status: "active",
+    deltaLink,
+    subscriptionId,
+    subscriptionExpiresAt,
+    lastSyncedAt: now,
+    lastError,
+    discardedCount: mailbox.discardedCount + discarded,
+  })
+
+  if (created.length > 0) {
+    // Plantilla > IA: el match corre primero y deja categorizado y revisado lo que reclama.
+    if (deps.matchRecurring)
+      await deps.matchRecurring(mailbox.userId, created).catch(() => {})
+    if (deps.runInstallments)
+      await deps.runInstallments(mailbox.userId, created).catch(() => {})
+    if (deps.categorize) await deps.categorize(mailbox.userId).catch(() => {})
+    // Solo lo que el usuario NO registró a mano y no es un traspaso interno merece notificación.
+    if (deps.notify && notifiable.length > 0)
+      await deps.notify(mailbox.userId, notifiable).catch(() => {})
+  }
+
+  return { imported, created: created.length, skipped, discarded }
+}
+
+// Refresco manual: sincroniza todos los buzones del usuario.
+export async function syncUserMailboxes(
+  deps: EmailConnectionDeps,
+  userId: string,
+  opts: { now?: Date } = {}
+): Promise<EmailSyncResult> {
+  const mailboxes = await deps.mailboxes.listByUser(userId)
+  if (mailboxes.length === 0) throw new EmailConnectionNotFoundError()
+  const total: EmailSyncResult = {
+    imported: 0,
+    created: 0,
+    skipped: 0,
+    discarded: 0,
+  }
+  for (const mailbox of mailboxes) {
+    const res = await syncMailbox(deps, mailbox.id, opts)
+    total.imported += res.imported
+    total.created += res.created
+    total.skipped += res.skipped
+    total.discarded += res.discarded
+  }
+  return total
+}
+
+// Importa los mensajes de UN banco sobre los instrumentos de su vínculo.
+async function importIntoLink(
+  deps: EmailConnectionDeps,
+  link: EmailBankLink,
+  messages: BankEmailMessage[],
+  now: Date
+): Promise<{
+  imported: number
+  skipped: number
+  created: string[]
+  notifiable: NotifiableMovement[]
+}> {
+  const bank = bankByKey(link.bankProvider, registryOf(deps))
+  const parsed = messages.map(bank.parse)
   const events = parsed
     .filter((p): p is Extract<ParsedEmail, { ok: true }> => p.ok)
     .map((p) => p.event)
     .sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime())
   let skipped = parsed.length - events.length
 
-  const { accounts, buckets } = await deps.store.listInstruments(conn.bankId)
+  const { accounts, buckets } = await deps.store.listInstruments(link.bankId!)
   const resolved: ResolvedEmailMovement[] = []
   const byExternalId = new Map<string, EmailEvent>()
   for (const event of events) {
@@ -818,13 +1051,13 @@ export async function syncEmailConnection(
   }
 
   const { createdExternalIds } = await deps.store.upsertMovements(
-    userId,
+    link.userId,
     resolved
   )
 
   // Proyección: SOLO movimientos nuevos y posteriores al snapshot vigente mueven los buckets
   // (reprocesos por webhook/delta no descuentan dos veces).
-  const reconciledAt = conn.lastBalanceReconciledAt?.getTime() ?? 0
+  const reconciledAt = link.lastBalanceReconciledAt?.getTime() ?? 0
   const bucketById = new Map(buckets.map((b) => [b.id, { ...b }]))
   const touchedAccounts = new Set<string>()
   const createdSet = new Set(createdExternalIds)
@@ -869,63 +1102,23 @@ export async function syncEmailConnection(
       await deps.store.setAccountBalance(accountId, nat.used.negate())
   }
 
-  // Renovación diaria de la suscripción (best-effort; su falla no pierde datos: delta recupera).
-  let subscriptionId = conn.subscriptionId
-  let subscriptionExpiresAt = conn.subscriptionExpiresAt
-  let lastError: string | null = null
-  const needsRenewal =
-    !conn.subscriptionExpiresAt ||
-    conn.subscriptionExpiresAt.getTime() - now.getTime() <
-      SUBSCRIPTION_RENEW_WINDOW_MS
-  if (needsRenewal) {
-    try {
-      const sub = await deps.mail.ensureSubscription(conn.id)
-      if (sub) {
-        subscriptionId = sub.subscriptionId
-        subscriptionExpiresAt = sub.expiresAt
-      }
-    } catch (e) {
-      lastError = `Suscripción webhook no disponible: ${(e as Error).message}`
-    }
-  }
+  await deps.store.markBankSynced(link.bankId!)
 
-  await deps.emailConnections.update(conn.id, {
-    status: "active",
-    deltaLink,
-    subscriptionId,
-    subscriptionExpiresAt,
-    lastSyncedAt: now,
-    lastError,
-    skippedCount: conn.skippedCount + skipped,
-  })
-  await deps.store.markBankSynced(conn.bankId)
-
-  if (createdExternalIds.length > 0) {
-    // Plantilla > IA: el match corre primero y deja categorizado y revisado lo que reclama.
-    if (deps.matchRecurring)
-      await deps.matchRecurring(userId, createdExternalIds).catch(() => {})
-    if (deps.runInstallments)
-      await deps.runInstallments(userId, createdExternalIds).catch(() => {})
-    if (deps.categorize) await deps.categorize(userId).catch(() => {})
-    // Solo lo que el usuario NO registró a mano y no es un traspaso interno merece notificación.
-    if (deps.notify) {
-      const nuevos: NotifiableMovement[] = resolved
-        .filter((m) => createdSet.has(m.externalId) && !m.isInternal)
-        .map((m) => ({
-          description: m.description,
-          amount: m.amount.toMajor(),
-          currency: m.amount.currency,
-          direction: m.direction,
-          externalId: m.externalId,
-        }))
-      await deps.notify(userId, nuevos).catch(() => {})
-    }
-  }
+  const notifiable: NotifiableMovement[] = resolved
+    .filter((m) => createdSet.has(m.externalId) && !m.isInternal)
+    .map((m) => ({
+      description: m.description,
+      amount: m.amount.toMajor(),
+      currency: m.amount.currency,
+      direction: m.direction,
+      externalId: m.externalId,
+    }))
 
   return {
     imported: resolved.length,
-    created: createdExternalIds.length,
     skipped,
+    created: createdExternalIds,
+    notifiable,
   }
 }
 
@@ -995,13 +1188,13 @@ function applyCashDebitToStoredBuckets(
 }
 
 async function markSyncError(
-  deps: EmailConnectionDeps,
-  conn: EmailConnection,
+  deps: Pick<EmailConnectionDeps, "mailboxes">,
+  mailbox: EmailMailbox,
   error: Error
 ): Promise<void> {
   const reauth = error.name === "EmailReauthRequiredError"
-  await deps.emailConnections
-    .update(conn.id, {
+  await deps.mailboxes
+    .update(mailbox.id, {
       status: reauth ? "reauth_required" : "error",
       lastError: error.message,
     })
@@ -1013,14 +1206,15 @@ async function markSyncError(
 export async function reconcileEmailBalances(
   deps: EmailConnectionDeps,
   userId: string,
+  linkId: string,
   input: EmailSnapshotInput
 ): Promise<{ updatedBuckets: number }> {
-  const conn = await requireConnection(deps, userId)
-  if (!conn.bankId)
+  const link = await requireLink(deps, userId, linkId)
+  if (!link.bankId)
     throw new EmailSetupStateError(
-      "La conexión aún no completa su configuración inicial"
+      "Ese banco aún no completa su configuración inicial"
     )
-  const { accounts, buckets } = await deps.store.listInstruments(conn.bankId)
+  const { accounts, buckets } = await deps.store.listInstruments(link.bankId)
   let updated = 0
 
   const apply = async (
@@ -1102,7 +1296,7 @@ export async function reconcileEmailBalances(
       )
   }
 
-  await deps.emailConnections.update(conn.id, {
+  await deps.links.update(link.id, {
     lastBalanceReconciledAt: input.snapshotAt,
   })
   return { updatedBuckets: updated }
@@ -1110,61 +1304,141 @@ export async function reconcileEmailBalances(
 
 // --- Desconexión segura ---
 
-export async function disconnectEmailConnection(
-  deps: EmailConnectionDeps,
-  userId: string
-): Promise<void> {
-  const conn = await deps.emailConnections.findByUser(userId, BANK_PROVIDER)
-  if (!conn) throw new EmailConnectionNotFoundError()
-  // Best-effort: si Microsoft falla, igual se borra local (el usuario no queda atascado).
-  await deps.mail.deleteSubscription(conn.id).catch(() => {})
-  if (conn.bankId) await deps.store.deleteBank(conn.bankId)
-  await deps.emailConnections.delete(conn.id)
-  await deps.methods.release(userId, BANK_PROVIDER, "email")
+// Qué se pierde al desconectar este banco. Las cuentas arrastran en cascada lo que el usuario creó
+// sobre ellas (ingresos, recurrentes, cuotas): la UI lo enumera antes de ejecutar.
+export async function describeBankRemoval(
+  deps: Pick<EmailConnectionDeps, "links" | "store">,
+  userId: string,
+  linkId: string
+): Promise<BankDependents> {
+  const link = await requireLink(deps, userId, linkId)
+  if (!link.bankId)
+    return { accounts: 0, movements: 0, recurring: 0, installments: 0, incomes: 0 }
+  return deps.store.countBankDependents(link.bankId)
 }
 
-// --- Webhook: localizar la conexión notificada (la validación de clientState la hace el caller) ---
+// Desconecta UN banco: borra su vínculo y sus datos financieros. Los demás bancos del buzón siguen
+// vivos; si era el último, el buzón se va con su suscripción y su token.
+export async function disconnectBankLink(
+  deps: Pick<
+    EmailConnectionDeps,
+    "mailboxes" | "links" | "methods" | "mail" | "store"
+  >,
+  userId: string,
+  linkId: string
+): Promise<void> {
+  const link = await requireLink(deps, userId, linkId)
+  if (link.bankId) await deps.store.deleteBank(link.bankId)
+  await deps.links.delete(link.id)
+  await deps.methods
+    .release(userId, link.bankProvider, link.mailboxId, "email")
+    .catch(() => {})
+  const remaining = await deps.links.listByMailbox(link.mailboxId)
+  if (remaining.length === 0) await removeMailbox(deps, link.mailboxId)
+}
 
-export async function findWebhookConnection(
-  deps: Pick<EmailConnectionDeps, "emailConnections">,
+// Desconecta un buzón completo: equivale a desconectar todos sus bancos.
+export async function disconnectMailbox(
+  deps: Pick<
+    EmailConnectionDeps,
+    "mailboxes" | "links" | "methods" | "mail" | "store"
+  >,
+  userId: string,
+  mailboxId: string
+): Promise<void> {
+  await requireMailbox(deps, userId, mailboxId)
+  const links = await deps.links.listByMailbox(mailboxId)
+  for (const link of links) {
+    if (link.bankId) await deps.store.deleteBank(link.bankId)
+    await deps.links.delete(link.id)
+    await deps.methods
+      .release(userId, link.bankProvider, mailboxId, "email")
+      .catch(() => {})
+  }
+  await removeMailbox(deps, mailboxId)
+}
+
+async function removeMailbox(
+  deps: Pick<EmailConnectionDeps, "mailboxes" | "mail">,
+  mailboxId: string
+): Promise<void> {
+  // Best-effort: si Microsoft falla, igual se borra local (el usuario no queda atascado).
+  await deps.mail.deleteSubscription(mailboxId).catch(() => {})
+  await deps.mailboxes.delete(mailboxId)
+}
+
+// --- Webhook: localizar el buzón notificado (la validación de clientState la hace el caller) ---
+
+export async function findWebhookMailbox(
+  deps: Pick<EmailConnectionDeps, "mailboxes">,
   subscriptionId: string
-): Promise<EmailConnection | null> {
-  return deps.emailConnections.findBySubscriptionId(subscriptionId)
+): Promise<EmailMailbox | null> {
+  return deps.mailboxes.findBySubscriptionId(subscriptionId)
 }
 
 // --- Vista de estado para la UI (sin tokens ni contenido de correo) ---
 
-export type EmailConnectionViewDTO = {
-  activeMethod: "email" | null
-  status: string
-  emailAddress: string
+export type EmailBankLinkDTO = {
+  id: string
+  bankProvider: string
+  bankName: string // nombre del catálogo + etiqueta
+  label: string | null
   pendingSetup: boolean
-  lastSyncedAt: string | null
-  lastBalanceReconciledAt: string | null
   skippedCount: number
+  lastBalanceReconciledAt: string | null
+}
+
+export type EmailMailboxDTO = {
+  id: string
+  emailAddress: string
+  status: string
+  lastSyncedAt: string | null
   lastError: string | null
+  discardedCount: number
   webhookActive: boolean
-} | null
+  banks: EmailBankLinkDTO[]
+}
+
+export type EmailConnectionViewDTO = {
+  mailboxes: EmailMailboxDTO[]
+  // Bancos del catálogo que este usuario todavía puede agregar, por buzón.
+  availableBanks: { key: string; name: string }[]
+}
 
 export async function getEmailConnectionView(
-  deps: Pick<EmailConnectionDeps, "emailConnections" | "methods">,
+  deps: Pick<EmailConnectionDeps, "mailboxes" | "links" | "registry">,
   userId: string
 ): Promise<EmailConnectionViewDTO> {
-  const [conn, activeMethod] = await Promise.all([
-    deps.emailConnections.findByUser(userId, BANK_PROVIDER),
-    deps.methods.activeMethod(userId, BANK_PROVIDER),
+  const [mailboxes, links] = await Promise.all([
+    deps.mailboxes.listByUser(userId),
+    deps.links.listByUser(userId),
   ])
-  if (!conn) return null
+  const registry = registryOf(deps)
   return {
-    activeMethod,
-    status: conn.status,
-    emailAddress: conn.emailAddress,
-    pendingSetup: !conn.bankId,
-    lastSyncedAt: conn.lastSyncedAt?.toISOString() ?? null,
-    lastBalanceReconciledAt:
-      conn.lastBalanceReconciledAt?.toISOString() ?? null,
-    skippedCount: conn.skippedCount,
-    lastError: conn.lastError,
-    webhookActive: Boolean(conn.subscriptionId),
+    mailboxes: mailboxes.map((m) => ({
+      id: m.id,
+      emailAddress: m.emailAddress,
+      status: m.status,
+      lastSyncedAt: m.lastSyncedAt?.toISOString() ?? null,
+      lastError: m.lastError,
+      discardedCount: m.discardedCount,
+      webhookActive: Boolean(m.subscriptionId),
+      banks: links
+        .filter((l) => l.mailboxId === m.id)
+        .map((l) => {
+          const bank = registry.find((b) => b.key === l.bankProvider)
+          return {
+            id: l.id,
+            bankProvider: l.bankProvider,
+            bankName: bankDisplayName(bank?.name ?? l.bankProvider, l.label),
+            label: l.label,
+            pendingSetup: !l.bankId,
+            skippedCount: l.skippedCount,
+            lastBalanceReconciledAt:
+              l.lastBalanceReconciledAt?.toISOString() ?? null,
+          }
+        }),
+    })),
+    availableBanks: registry.map((b) => ({ key: b.key, name: b.name })),
   }
 }

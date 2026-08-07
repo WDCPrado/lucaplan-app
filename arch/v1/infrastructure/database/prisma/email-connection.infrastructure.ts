@@ -1,6 +1,7 @@
-// Persistencia Prisma de la conexión por CORREO: repositorio de conexiones (tokens cifrados),
-// método de conexión exclusivo por (usuario, banco) y el store del setup/sync (creación atómica de
-// instrumentos + importación idempotente). El dominio nunca ve Prisma ni tokens en claro.
+// Persistencia Prisma de la conexión por CORREO: repositorios de buzones (tokens cifrados) y de
+// vínculos con bancos, método de conexión exclusivo por (usuario, banco, buzón) y el store del
+// setup/sync (creación atómica de instrumentos + importación idempotente). El dominio nunca ve
+// Prisma ni tokens en claro.
 import { prisma } from "./client.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import type { BucketKind } from "../../../domain/finance/finance.domain.ts"
@@ -8,11 +9,17 @@ import {
   ConnectionMethodConflictError,
   type ConnectionMethod,
   type ConnectionMethodRepository,
-  type EmailConnection,
-  type EmailConnectionPatch,
-  type EmailConnectionRepository,
-  type EmailConnectionStatus,
-  type NewEmailConnection,
+  type EmailBankLink,
+  type EmailBankLinkPatch,
+  type EmailBankLinkRepository,
+  type EmailBankLinkWithMailbox,
+  type EmailLinkStatus,
+  type EmailMailbox,
+  type EmailMailboxPatch,
+  type EmailMailboxRepository,
+  type EmailMailboxStatus,
+  type NewEmailBankLink,
+  type NewEmailMailbox,
 } from "../../../domain/finance/email-connection.domain.ts"
 import type {
   EmailConfirmPersistInput,
@@ -32,58 +39,94 @@ import { notifyImportedForSync } from "./push-deps.ts"
 const CHUNK = 10 // upsert en lotes acotados (no satura el pool de conexiones)
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function toEmailConnection(row: any): EmailConnection {
+function toMailbox(row: any): EmailMailbox {
   return {
     id: row.id,
     userId: row.userId,
-    bankProvider: row.bankProvider,
     emailProvider: row.emailProvider,
     emailAddress: row.emailAddress,
-    bankId: row.bankId ?? null,
-    status: row.status as EmailConnectionStatus,
+    status: row.status as EmailMailboxStatus,
     createdAt: row.createdAt,
     deltaLink: row.deltaLink ?? null,
     subscriptionId: row.subscriptionId ?? null,
     subscriptionExpiresAt: row.subscriptionExpiresAt ?? null,
     lastSyncedAt: row.lastSyncedAt ?? null,
     lastError: row.lastError ?? null,
+    discardedCount: row.discardedCount ?? 0,
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toLink(row: any): EmailBankLink {
+  return {
+    id: row.id,
+    mailboxId: row.mailboxId,
+    userId: row.userId,
+    bankProvider: row.bankProvider,
+    label: row.label ?? null,
+    bankId: row.bankId ?? null,
+    status: row.status as EmailLinkStatus,
+    createdAt: row.createdAt,
     skippedCount: row.skippedCount ?? 0,
     lastBalanceReconciledAt: row.lastBalanceReconciledAt ?? null,
   }
 }
 
-export const emailConnectionRepository: EmailConnectionRepository = {
-  async findByUser(userId, bankProvider) {
-    const row = await prisma.emailConnection.findUnique({
-      where: { userId_bankProvider: { userId, bankProvider } },
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toLinkWithMailbox(row: any): EmailBankLinkWithMailbox {
+  return { ...toLink(row), mailbox: toMailbox(row.mailbox) }
+}
+
+export const emailMailboxRepository: EmailMailboxRepository = {
+  async listByUser(userId) {
+    const rows = await prisma.emailMailbox.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
     })
-    return row ? toEmailConnection(row) : null
+    return rows.map(toMailbox)
   },
   async findById(id) {
-    const row = await prisma.emailConnection.findUnique({ where: { id } })
-    return row ? toEmailConnection(row) : null
+    const row = await prisma.emailMailbox.findUnique({ where: { id } })
+    return row ? toMailbox(row) : null
+  },
+  async findByAddress(userId, emailAddress) {
+    const row = await prisma.emailMailbox.findUnique({
+      where: { userId_emailAddress: { userId, emailAddress } },
+    })
+    return row ? toMailbox(row) : null
   },
   async findBySubscriptionId(subscriptionId) {
-    const row = await prisma.emailConnection.findFirst({
+    const row = await prisma.emailMailbox.findFirst({
       where: { subscriptionId },
     })
-    return row ? toEmailConnection(row) : null
+    return row ? toMailbox(row) : null
   },
-  async create(input: NewEmailConnection) {
+  async listForSubscriptionRenewal(before) {
+    const rows = await prisma.emailMailbox.findMany({
+      where: {
+        status: "active",
+        OR: [
+          { subscriptionExpiresAt: null },
+          { subscriptionExpiresAt: { lt: before } },
+        ],
+      },
+    })
+    return rows.map(toMailbox)
+  },
+  async create(input: NewEmailMailbox) {
     const { enc, iv } = encryptSecret(input.refreshToken, EMAIL_PURPOSE)
-    const row = await prisma.emailConnection.create({
+    const row = await prisma.emailMailbox.create({
       data: {
         userId: input.userId,
-        bankProvider: input.bankProvider,
         emailProvider: input.emailProvider,
         emailAddress: input.emailAddress,
         refreshTokenEnc: enc,
         refreshTokenIv: iv,
       },
     })
-    return toEmailConnection(row)
+    return toMailbox(row)
   },
-  async update(id, patch: EmailConnectionPatch) {
+  async update(id, patch: EmailMailboxPatch) {
     const { refreshToken, ...rest } = patch
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any = { ...rest }
@@ -92,47 +135,90 @@ export const emailConnectionRepository: EmailConnectionRepository = {
       data.refreshTokenEnc = enc
       data.refreshTokenIv = iv
     }
-    return toEmailConnection(
-      await prisma.emailConnection.update({ where: { id }, data })
+    return toMailbox(await prisma.emailMailbox.update({ where: { id }, data }))
+  },
+  async delete(id) {
+    await prisma.emailMailbox.delete({ where: { id } })
+  },
+}
+
+export const emailBankLinkRepository: EmailBankLinkRepository = {
+  async listByUser(userId) {
+    const rows = await prisma.emailBankLink.findMany({
+      where: { userId },
+      include: { mailbox: true },
+      orderBy: { createdAt: "asc" },
+    })
+    return rows.map(toLinkWithMailbox)
+  },
+  async listByMailbox(mailboxId) {
+    const rows = await prisma.emailBankLink.findMany({
+      where: { mailboxId },
+      orderBy: { createdAt: "asc" },
+    })
+    return rows.map(toLink)
+  },
+  async findById(id) {
+    const row = await prisma.emailBankLink.findUnique({
+      where: { id },
+      include: { mailbox: true },
+    })
+    return row ? toLinkWithMailbox(row) : null
+  },
+  async create(input: NewEmailBankLink) {
+    const row = await prisma.emailBankLink.create({
+      data: {
+        mailboxId: input.mailboxId,
+        userId: input.userId,
+        bankProvider: input.bankProvider,
+        label: input.label,
+      },
+    })
+    return toLink(row)
+  },
+  async update(id, patch: EmailBankLinkPatch) {
+    return toLink(
+      await prisma.emailBankLink.update({ where: { id }, data: patch })
     )
   },
   async delete(id) {
-    await prisma.emailConnection.delete({ where: { id } })
+    await prisma.emailBankLink.delete({ where: { id } })
   },
 }
 
 export const connectionMethodRepository: ConnectionMethodRepository = {
-  async activeMethod(userId, bankProvider) {
+  async activeMethod(userId, bankProvider, mailboxId) {
     const row = await prisma.bankConnectionMethod.findUnique({
-      where: { userId_bankProvider: { userId, bankProvider } },
+      where: {
+        userId_bankProvider_mailboxId: { userId, bankProvider, mailboxId },
+      },
     })
     return (row?.method as ConnectionMethod) ?? null
   },
-  async claim(userId, bankProvider, method) {
+  async claim(userId, bankProvider, mailboxId, method) {
+    const key = { userId, bankProvider, mailboxId }
     const existing = await prisma.bankConnectionMethod.findUnique({
-      where: { userId_bankProvider: { userId, bankProvider } },
+      where: { userId_bankProvider_mailboxId: key },
     })
     if (existing) {
       if (existing.method === method) return // ya reclamado por el mismo método (idempotente)
       throw new ConnectionMethodConflictError()
     }
     try {
-      await prisma.bankConnectionMethod.create({
-        data: { userId, bankProvider, method },
-      })
+      await prisma.bankConnectionMethod.create({ data: { ...key, method } })
     } catch (e) {
       // Carrera: otro proceso reclamó primero (índice único). Releer y decidir.
       const row = await prisma.bankConnectionMethod.findUnique({
-        where: { userId_bankProvider: { userId, bankProvider } },
+        where: { userId_bankProvider_mailboxId: key },
       })
       if (row && row.method !== method)
         throw new ConnectionMethodConflictError()
       if (!row) throw e
     }
   },
-  async release(userId, bankProvider, method) {
+  async release(userId, bankProvider, mailboxId, method) {
     await prisma.bankConnectionMethod.deleteMany({
-      where: { userId, bankProvider, method },
+      where: { userId, bankProvider, mailboxId, method },
     })
   },
 }
@@ -168,7 +254,7 @@ export const emailSetupStore: EmailSetupStore = {
           data: {
             userId: input.userId,
             name: input.bankName,
-            provider: "bancochile",
+            provider: input.bankProvider,
             connectionMethod: "email",
             lastSyncedAt: now,
           },
@@ -186,7 +272,7 @@ export const emailSetupStore: EmailSetupStore = {
               currency: acc.currency,
               balance: acc.balance.toDecimalString(),
               cardLast4: acc.cardLast4,
-              provider: "bancochile",
+              provider: input.bankProvider,
               externalId: acc.externalId,
               lastSyncedAt: now,
             },
@@ -201,7 +287,7 @@ export const emailSetupStore: EmailSetupStore = {
                 cardType: acc.card.cardType,
                 cardLast4: acc.cardLast4,
                 brand: acc.card.brand,
-                provider: "bancochile",
+                provider: input.bankProvider,
                 externalId: acc.externalId,
               },
             })
@@ -253,12 +339,13 @@ export const emailSetupStore: EmailSetupStore = {
           })
           movements++
         }
-        await db.emailConnection.update({
-          where: { id: input.connectionId },
+        // El vínculo adopta su banco dentro de la MISMA transacción: si algo falla, no queda un
+        // vínculo apuntando a un banco a medio crear.
+        await db.emailBankLink.update({
+          where: { id: input.linkId },
           data: {
             bankId: bank.id,
             status: "active",
-            lastSyncedAt: now,
             lastBalanceReconciledAt: input.snapshotAt,
           },
         })
@@ -367,8 +454,43 @@ export const emailSetupStore: EmailSetupStore = {
     })
   },
 
+  // Lo que el borrado del banco arrastra en cascada desde sus cuentas. Se cuenta ANTES de ejecutar
+  // para que la UI pueda decir qué se pierde: son datos que el usuario creó a mano.
+  async countBankDependents(bankId) {
+    const accountIds = (
+      await prisma.financialAccount.findMany({
+        where: { bankId },
+        select: { id: true },
+      })
+    ).map((a) => a.id)
+    if (accountIds.length === 0)
+      return {
+        accounts: 0,
+        movements: 0,
+        recurring: 0,
+        installments: 0,
+        incomes: 0,
+      }
+    const where = { accountId: { in: accountIds } }
+    const [movements, recurring, installments, incomes] = await Promise.all([
+      prisma.transaction.count({ where }),
+      prisma.recurringTemplate.count({ where }),
+      prisma.installmentPlan.count({ where }),
+      prisma.income.count({ where }),
+    ])
+    return {
+      accounts: accountIds.length,
+      movements,
+      recurring,
+      installments,
+      incomes,
+    }
+  },
+
   async deleteBank(bankId) {
-    // FK ON DELETE CASCADE: borra cuentas y, con ellas, tarjetas, buckets y movimientos.
+    // FK ON DELETE CASCADE: borra cuentas y, con ellas, tarjetas, buckets, movimientos y lo que el
+    // usuario colgó de esas cuentas (ingresos, recurrentes, planes de cuotas). Por eso la UI lo
+    // enumera antes: ver countBankDependents.
     await prisma.bank.delete({ where: { id: bankId } })
   },
 }
@@ -376,7 +498,8 @@ export const emailSetupStore: EmailSetupStore = {
 // Deps completas de los use-cases de correo, listas para inyectar desde las rutas.
 export function makeEmailConnectionDeps(): EmailConnectionDeps {
   return {
-    emailConnections: emailConnectionRepository,
+    mailboxes: emailMailboxRepository,
+    links: emailBankLinkRepository,
     methods: connectionMethodRepository,
     mail: msgraphMailProvider,
     store: emailSetupStore,

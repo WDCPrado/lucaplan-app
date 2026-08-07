@@ -13,11 +13,13 @@
 //   - Si falla, el seed base lo registra y sigue (no tumba el deploy), pero la feature queda sin
 //     datos. Pruébalo antes con `SEED_PR_FORCE=1 pnpm seed:pr` contra una base local.
 //
-// --- PR actual: actualizar saldo desde una captura del banco ---
-// Para probarlo hay que poder subir una captura REAL y ver cambiar los saldos. Eso exige que los
-// instrumentos del demo coincidan con los de la captura: mismos últimos 4 (si no, la app rechaza la
-// imagen por ser de otra cuenta) y cupos coherentes con lo que muestra. Los saldos quedan a
-// propósito DISTINTOS de los de la captura, para que al aplicarla se note el cambio.
+// --- PR actual: multi-buzón y multi-banco en la conexión por correo ---
+// Para revisar la pantalla de conexión hace falta ver los dos niveles llenos: correos y, dentro de
+// cada uno, sus bancos. Se siembran DOS buzones con el mismo banco (personal y empresa), que es el
+// caso que estrena la etiqueta y el badge, más el banco del seed base ya migrado al modelo nuevo.
+//
+// Los tokens son basura deliberada: sirven para dibujar la UI, no para hablar con Microsoft. Tocar
+// "Sincronizar ahora" con estos buzones falla (token inválido) — es lo esperado en el entorno de PR.
 import type { FeatureSeedContext } from "./seed-pr.ts" // solo el tipo: no ejecuta el seed base
 
 export default async function seedFeature({
@@ -28,11 +30,10 @@ export default async function seedFeature({
 }: FeatureSeedContext) {
   const asOf = new Date()
 
-  // Cuenta corriente ••••8900 con caja y línea de crédito. El seed base no le crea buckets: sin
-  // ellos no hay dónde escribir el saldo leído.
+  // Instrumentos con últimos 4 y buckets, para que el banco conectado se vea como en producción.
   await prisma.financialAccount.update({
     where: { id: checkingId },
-    data: { cardLast4: "8900", balance: 842350 },
+    data: { cardLast4: "8900", balance: 842350, provider: "bancochile" },
   })
   await prisma.balanceBucket.createMany({
     data: [
@@ -58,23 +59,127 @@ export default async function seedFeature({
       },
     ],
   })
-
-  // Tarjeta Visa Signature ••••2120. Los cupos totales toleran los disponibles de la captura
-  // ($1.334.697 y USD 2.069) — un disponible mayor que el cupo se rechaza como lectura mala.
   await prisma.financialAccount.update({
     where: { id: creditCardId },
-    data: { cardLast4: "2120", name: "Visa Signature", balance: -1900000 },
+    data: {
+      cardLast4: "2120",
+      name: "Visa Signature",
+      balance: -1900000,
+      provider: "bancochile",
+    },
   })
-  await prisma.balanceBucket.updateMany({
-    where: { accountId: creditCardId, kind: "credit_national" },
-    data: { limitAmount: 3000000, used: 1900000, available: 1100000, asOf },
+
+  // El banco del seed base pasa a ser el que alimenta el buzón personal.
+  const personalBank = await prisma.financialAccount.findUnique({
+    where: { id: checkingId },
+    select: { bankId: true },
   })
-  await prisma.balanceBucket.updateMany({
-    where: { accountId: creditCardId, kind: "credit_international" },
-    data: { limitAmount: 2500, used: 700, available: 1800, asOf },
+  if (!personalBank) return
+
+  const fakeToken = { refreshTokenEnc: "seed-pr", refreshTokenIv: "seed-pr" }
+
+  const personal = await prisma.emailMailbox.create({
+    data: {
+      userId,
+      emailAddress: "demo.personal@example.test",
+      status: "active",
+      lastSyncedAt: asOf,
+      subscriptionId: "seed-pr-personal",
+      subscriptionExpiresAt: new Date(asOf.getTime() + 3 * 24 * 3600 * 1000),
+      ...fakeToken,
+    },
+  })
+  await prisma.emailBankLink.create({
+    data: {
+      mailboxId: personal.id,
+      userId,
+      bankProvider: "bancochile",
+      label: null, // único vínculo de este correo: sin etiqueta, se ve "Banco de Chile"
+      bankId: personalBank.bankId,
+      status: "active",
+      skippedCount: 3,
+      lastBalanceReconciledAt: asOf,
+    },
+  })
+  await prisma.bankConnectionMethod.create({
+    data: {
+      userId,
+      bankProvider: "bancochile",
+      mailboxId: personal.id,
+      method: "email",
+    },
+  })
+
+  // Segundo correo con el MISMO banco: es lo que exige la etiqueta y lo que muestra el badge
+  // ("Banco de Chile Empresa"). Su banco tiene cuentas propias, sin mezclarse con las del personal.
+  const empresaBank = await prisma.bank.create({
+    data: {
+      userId,
+      name: "Banco de Chile Empresa",
+      provider: "bancochile",
+      connectionMethod: "email",
+      lastSyncedAt: asOf,
+    },
+  })
+  const empresaAccount = await prisma.financialAccount.create({
+    data: {
+      userId,
+      bankId: empresaBank.id,
+      name: "Cuenta Corriente",
+      accountType: "checking",
+      currency: "CLP",
+      balance: 2450000,
+      cardLast4: "7412",
+      provider: "bancochile",
+      // La identidad externa lleva el banco: sin eso, dos cuentas con los mismos últimos 4
+      // colisionarían en el unique (userId, externalId).
+      externalId: "email:bancochile:acct:001234567412",
+      lastSyncedAt: asOf,
+    },
+  })
+  await prisma.balanceBucket.create({
+    data: {
+      userId,
+      accountId: empresaAccount.id,
+      kind: "cash",
+      currency: "CLP",
+      limitAmount: 0,
+      used: 0,
+      available: 2450000,
+      asOf,
+    },
+  })
+  const empresa = await prisma.emailMailbox.create({
+    data: {
+      userId,
+      emailAddress: "demo.empresa@example.test",
+      status: "active",
+      lastSyncedAt: asOf,
+      ...fakeToken,
+    },
+  })
+  await prisma.emailBankLink.create({
+    data: {
+      mailboxId: empresa.id,
+      userId,
+      bankProvider: "bancochile",
+      label: "Empresa",
+      bankId: empresaBank.id,
+      status: "active",
+      skippedCount: 0,
+      lastBalanceReconciledAt: asOf,
+    },
+  })
+  await prisma.bankConnectionMethod.create({
+    data: {
+      userId,
+      bankProvider: "bancochile",
+      mailboxId: empresa.id,
+      method: "email",
+    },
   })
 
   console.log(
-    "[seed:pr] saldos listos para la captura: corriente ••••8900 (caja + línea) y tarjeta ••••2120 (cupo CLP y USD)."
+    "[seed:pr] dos correos conectados: personal (Banco de Chile) y empresa (Banco de Chile Empresa, con badge)."
   )
 }

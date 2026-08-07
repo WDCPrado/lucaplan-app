@@ -1,13 +1,18 @@
 // Callback del OAuth de Outlook. Verifica el estado firmado contra la sesión, canjea el código con
-// el verifier PKCE (cookie httpOnly) y persiste la conexión con el refresh token cifrado. Nunca
-// expone tokens al navegador: termina con un redirect al dashboard con un flag de resultado.
+// el verifier PKCE (cookie httpOnly) y persiste el BUZÓN con el refresh token cifrado; después
+// vincula a ese buzón el banco que venía firmado en el estado. Nunca expone tokens al navegador:
+// termina con un redirect al dashboard con un flag de resultado.
 import { cookies } from "next/headers"
 import { sessionGateway } from "@/arch/v1/infrastructure/auth/session.gateway"
 import { OAuthStateError } from "@/arch/v1/domain/finance/email-connection.domain"
-import { completeEmailConnection } from "@/arch/v1/application/finance-use-cases/email-connection-use-cases"
+import {
+  addBankLink,
+  connectMailbox,
+} from "@/arch/v1/application/finance-use-cases/email-connection-use-cases"
 import {
   connectionMethodRepository,
-  emailConnectionRepository,
+  emailBankLinkRepository,
+  emailMailboxRepository,
 } from "@/arch/v1/infrastructure/database/prisma/email-connection.infrastructure"
 import {
   emailFromIdToken,
@@ -43,28 +48,54 @@ export async function GET(req: Request) {
   if (!verifier) return redirectTo(req, { outlook: "error", reason: "state" })
 
   try {
-    verifyOAuthState(state, userId)
+    const intent = verifyOAuthState(state, userId)
     const tokens = await exchangeCodeForTokens(outlookConfig(), code, verifier)
     if (!tokens.refreshToken)
       return redirectTo(req, { outlook: "error", reason: "no_refresh_token" })
     const emailAddress = emailFromIdToken(tokens.idToken) ?? "cuenta Outlook"
-    const { connection, reconnected } = await completeEmailConnection(
-      {
-        emailConnections: emailConnectionRepository,
-        methods: connectionMethodRepository,
-      },
-      userId,
-      { emailAddress, refreshToken: tokens.refreshToken }
+    const deps = {
+      mailboxes: emailMailboxRepository,
+      links: emailBankLinkRepository,
+      methods: connectionMethodRepository,
+    }
+    const { mailbox } = await connectMailbox(deps, userId, {
+      emailAddress,
+      refreshToken: tokens.refreshToken,
+    })
+
+    // Reconexión pura (sin banco en el estado): el buzón recupera su autorización y todos sus
+    // bancos vuelven a sincronizar sin tocar nada más.
+    if (!intent.bankProvider) return redirectTo(req, { outlook: "reconnected" })
+
+    const existing = await emailBankLinkRepository.listByMailbox(mailbox.id)
+    const already = existing.find(
+      (l) => l.bankProvider === intent.bankProvider
     )
-    // Conexión nueva → asistente de configuración; reconexión con banco → sigue operando.
-    const step = !reconnected || !connection.bankId ? "setup" : "reconnected"
-    return redirectTo(req, { outlook: step })
+    // Volver a autorizar un correo que ya alimenta ese banco no crea un vínculo nuevo: si su setup
+    // quedó a medias, se retoma; si estaba andando, se sigue.
+    if (already)
+      return redirectTo(req, {
+        outlook: already.bankId ? "reconnected" : "setup",
+        link: already.id,
+      })
+
+    const link = await addBankLink(deps, userId, {
+      mailboxId: mailbox.id,
+      bankProvider: intent.bankProvider,
+      label: intent.label,
+    })
+    return redirectTo(req, { outlook: "setup", link: link.id })
   } catch (e) {
     if (e instanceof OAuthStateError)
       return redirectTo(req, { outlook: "error", reason: "state" })
-    if ((e as Error).name === "ConnectionMethodConflictError")
+    const name = (e as Error).name
+    if (name === "ConnectionMethodConflictError")
       return redirectTo(req, { outlook: "error", reason: "method" })
-    console.error("[email-connection] callback OAuth falló:", (e as Error).name) // sin tokens ni PII
+    if (name === "BankLabelRequiredError")
+      return redirectTo(req, { outlook: "error", reason: "label" })
+    if (name === "BankAlreadyLinkedError")
+      return redirectTo(req, { outlook: "error", reason: "duplicate" })
+    console.error("[email-connection] callback OAuth falló:", name) // sin tokens ni PII
     return redirectTo(req, { outlook: "error", reason: "exchange" })
   }
 }

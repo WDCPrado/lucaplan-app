@@ -1,5 +1,5 @@
-// "Actualizar saldos": reemplaza los valores estimados por los reales ingresados por el usuario y
-// mueve la fecha del snapshot; la proyección continúa solo con eventos posteriores.
+// "Actualizar saldos" de un banco: reemplaza los valores estimados por los reales ingresados por el
+// usuario y mueve la fecha del snapshot; la proyección continúa solo con eventos posteriores.
 import { withUser } from "@/arch/v1/presentation/finance/finance-http"
 import { parseSnapshotBody } from "@/arch/v1/presentation/finance/email-snapshot-body"
 import { withLock } from "@/arch/shared/mutex"
@@ -13,6 +13,7 @@ export async function POST(req: Request) {
       reconcileEmailBalances(
         makeEmailConnectionDeps(),
         userId,
+        String(body?.linkId ?? ""),
         parseSnapshotBody(body)
       )
     )

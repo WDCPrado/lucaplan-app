@@ -93,7 +93,7 @@ export function OnboardingFlow({
       })
       setStatus(await res.json())
     } catch {
-      setStatus({ configured: false, activeMethod: null, connection: null })
+      setStatus({ configured: false, mailboxes: [], availableBanks: [] })
     }
   }, [])
 

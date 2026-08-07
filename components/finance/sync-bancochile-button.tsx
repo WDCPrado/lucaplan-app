@@ -5,19 +5,14 @@ import { useRouter } from "next/navigation"
 import { Landmark } from "lucide-react"
 import { toast } from "sonner"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
-import { cn } from "@/lib/utils"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 import {
   OutlookBankConnection,
   type OutlookStatus,
 } from "./outlook-bank-connection"
 
-// Método único de conexión: notificaciones de correo vía Outlook.
-const BANKS: { id: string; name: string; available: boolean }[] = [
-  { id: "bancochile", name: "Banco de Chile", available: true },
-]
-
-// Otros bancos aún no soportados (se muestran como "Próximamente" abajo).
+// Bancos aún no soportados (se muestran como "Próximamente" abajo). Los soportados los ofrece
+// OutlookBankConnection desde el catálogo del servidor, junto al correo donde se conectan.
 const COMING_SOON = [
   "Santander",
   "BCI",
@@ -39,7 +34,6 @@ export function SyncBancoChileButton({
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [selected, setSelected] = useState("bancochile")
   const [outlookStatus, setOutlookStatus] = useState<OutlookStatus | null>(null)
   const [locked, setLocked] = useState(false) // importación inicial en curso: no cerrar el modal
   const callbackHandled = useRef(false)
@@ -54,8 +48,8 @@ export function SyncBancoChileButton({
     } catch {
       setOutlookStatus({
         configured: false,
-        activeMethod: null,
-        connection: null,
+        mailboxes: [],
+        availableBanks: [],
       })
     }
   }
@@ -104,33 +98,6 @@ export function SyncBancoChileButton({
         className="sm:max-w-2xl"
       >
         <div className="flex flex-col gap-5 px-4 pb-6">
-          {/* Selección de banco */}
-          <div className="flex flex-col gap-2">
-            {BANKS.map((b) => (
-              <button
-                key={b.id}
-                type="button"
-                disabled={!b.available}
-                onClick={() => setSelected(b.id)}
-                className={cn(
-                  "flex h-14 items-center gap-3 rounded-xl border px-4 text-left transition-colors",
-                  selected === b.id
-                    ? "border-primary bg-primary/10 text-foreground"
-                    : "border-border text-foreground",
-                  !b.available && "opacity-60"
-                )}
-              >
-                <Landmark className="size-5 shrink-0 text-primary" />
-                <span className="font-medium">{b.name}</span>
-                {!b.available && (
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    Próximamente
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
           <OutlookBankConnection
             status={outlookStatus}
             accounts={accounts.filter(

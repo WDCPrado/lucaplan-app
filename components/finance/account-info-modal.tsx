@@ -45,7 +45,8 @@ export function AccountInfoModal({
   // "scan" reemplaza el contenido del modal en vez de abrir otro encima: un diálogo dentro de otro
   // en móvil deja al usuario sin saber qué cierra cada gesto.
   const [mode, setMode] = useState<"info" | "scan">("info")
-  const connected = account?.provider === "bancochile"
+  // Conectada = importada por un banco, cualquiera sea (ver account-card.tsx).
+  const connected = !!account && account.provider !== "manual"
   const buckets = account?.buckets ?? []
   const nat = buckets.find((b) => b.kind === "credit_national")
   const intl = buckets.find((b) => b.kind === "credit_international")

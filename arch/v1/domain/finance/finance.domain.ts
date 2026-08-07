@@ -35,10 +35,16 @@ export function cardVariant(t: AccountType): "debito" | "credito" | null {
 export const DIRECTIONS = ["debit", "credit"] as const
 export type Direction = (typeof DIRECTIONS)[number]
 
-// Origen de un banco/cuenta/movimiento: creado a mano, o leído de las notificaciones por correo de
-// Banco de Chile (`bancochile`, solo lectura).
-export const PROVIDERS = ["manual", "bancochile"] as const
-export type Provider = (typeof PROVIDERS)[number]
+// Origen de un banco/cuenta/movimiento: creado a mano (`manual`, editable) o leído de las
+// notificaciones por correo de un banco del catálogo (su clave, solo lectura). No es un enum
+// cerrado: un banco nuevo entra por el catálogo sin tocar el dominio. Lo único que la app decide
+// por este campo es editable vs. solo lectura, y eso se pregunta con `isConnectedProvider`.
+export const MANUAL_PROVIDER = "manual"
+export type Provider = string
+
+export function isConnectedProvider(provider: string): boolean {
+  return provider !== MANUAL_PROVIDER
+}
 
 // Tipo de tarjeta física asociada a una cuenta.
 export const CARD_TYPES = ["debito", "credito"] as const

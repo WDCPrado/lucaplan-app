@@ -61,25 +61,36 @@ function b64url(buf: Buffer): string {
 
 const STATE_PURPOSE = `${EMAIL_PURPOSE}:oauth-state`
 
-export function signOAuthState(userId: string, now = new Date()): string {
+// El banco elegido y su etiqueta viajan FIRMADOS en el estado: al volver del OAuth hay que saber
+// qué vincular a este buzón, y el estado es lo único que sobrevive el viaje a Microsoft.
+export type OAuthIntent = { bankProvider?: string; label?: string | null }
+
+export function signOAuthState(
+  userId: string,
+  intent: OAuthIntent = {},
+  now = new Date()
+): string {
   const payload = b64url(
     Buffer.from(
       JSON.stringify({
         u: userId,
         e: now.getTime() + STATE_TTL_MS,
         n: b64url(randomBytes(8)),
+        b: intent.bankProvider,
+        l: intent.label ?? undefined,
       })
     )
   )
   return `${payload}.${deriveVerifier(STATE_PURPOSE, payload)}`
 }
 
-// Verifica firma, expiración y que el estado pertenezca al usuario de la sesión.
+// Verifica firma, expiración y que el estado pertenezca al usuario de la sesión; devuelve la
+// intención (banco a vincular) que viajó dentro.
 export function verifyOAuthState(
   state: string,
   userId: string,
   now = new Date()
-): void {
+): OAuthIntent {
   const [payload, sig] = state.split(".")
   const expected = payload ? deriveVerifier(STATE_PURPOSE, payload) : ""
   if (
@@ -90,7 +101,7 @@ export function verifyOAuthState(
   ) {
     throw new OAuthStateError()
   }
-  let decoded: { u?: string; e?: number }
+  let decoded: { u?: string; e?: number; b?: string; l?: string }
   try {
     decoded = JSON.parse(
       Buffer.from(
@@ -107,6 +118,7 @@ export function verifyOAuthState(
     decoded.e < now.getTime()
   )
     throw new OAuthStateError()
+  return { bankProvider: decoded.b, label: decoded.l ?? null }
 }
 
 // --- PKCE ---

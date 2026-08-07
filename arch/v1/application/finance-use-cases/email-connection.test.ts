@@ -3,7 +3,9 @@ import { test } from "node:test"
 import { Money } from "../../domain/finance/money.ts"
 import type {
   BankEmailMessage,
-  EmailConnection,
+  EmailBankLink,
+  EmailBankLinkWithMailbox,
+  EmailMailbox,
 } from "../../domain/finance/email-connection.domain.ts"
 import { parseBancoChileEmail } from "./bancochile-email-map.ts"
 import { detectCandidates } from "./bancochile-email-candidates.ts"
@@ -17,7 +19,7 @@ import {
   confirmEmailSetup,
   resolveEventTarget,
   scanEmailCandidates,
-  syncEmailConnection,
+  syncMailbox,
   type EmailConfirmPersistInput,
   type EmailConnectionDeps,
   type EmailStoredBucket,
@@ -33,6 +35,80 @@ const message = (over: Partial<BankEmailMessage> = {}): BankEmailMessage => ({
     "Compra por $ 12.345 en COMERCIO PRUEBA con tu tarjeta terminada en 1234 el 14/07/2026.",
   ...over,
 })
+
+// --- Fakes del buzón y su vínculo con un banco ---
+
+const mailbox = (over: Partial<EmailMailbox> = {}): EmailMailbox => ({
+  id: "mbx-1",
+  userId: "user-1",
+  emailProvider: "outlook",
+  emailAddress: "sanitized@example.test",
+  status: "active",
+  createdAt: new Date("2026-07-01T00:00:00Z"),
+  deltaLink: null,
+  subscriptionId: null,
+  subscriptionExpiresAt: null,
+  lastSyncedAt: null,
+  lastError: null,
+  discardedCount: 0,
+  ...over,
+})
+
+const link = (
+  over: Partial<EmailBankLinkWithMailbox> = {}
+): EmailBankLinkWithMailbox => ({
+  id: "link-1",
+  mailboxId: "mbx-1",
+  userId: "user-1",
+  bankProvider: "bancochile",
+  label: null,
+  bankId: null,
+  status: "pending_setup",
+  createdAt: new Date("2026-07-14T12:00:00Z"),
+  skippedCount: 0,
+  lastBalanceReconciledAt: null,
+  mailbox: mailbox(),
+  ...over,
+})
+
+// Repos en memoria: devuelven siempre los mismos vínculos y aceptan las escrituras sin guardarlas
+// (los tests observan el efecto en el store y en los mensajes, no en estas filas).
+const repos = (links: EmailBankLinkWithMailbox[]) => ({
+  mailboxes: {
+    listByUser: async () => links.map((l) => l.mailbox),
+    findById: async (id: string) =>
+      links.find((l) => l.mailboxId === id)?.mailbox ?? null,
+    findByAddress: async () => links[0]?.mailbox ?? null,
+    findBySubscriptionId: async () => null,
+    listForSubscriptionRenewal: async () => [],
+    create: async () => links[0].mailbox,
+    update: async () => links[0].mailbox,
+    delete: async () => {},
+  },
+  links: {
+    listByUser: async () => links,
+    listByMailbox: async (mailboxId: string): Promise<EmailBankLink[]> =>
+      links.filter((l) => l.mailboxId === mailboxId),
+    findById: async (id: string) => links.find((l) => l.id === id) ?? null,
+    create: async () => links[0],
+    update: async () => links[0],
+    delete: async () => {},
+  },
+})
+
+const methodsFake = {
+  activeMethod: async () => "email" as const,
+  claim: async () => {},
+  release: async () => {},
+}
+
+const noDependents = {
+  accounts: 0,
+  movements: 0,
+  recurring: 0,
+  installments: 0,
+  incomes: 0,
+}
 
 test("parser fail-closed extrae gastos CLP/USD y excluye remitentes/asuntos no permitidos", () => {
   const clp = parseBancoChileEmail(message())
@@ -552,34 +628,10 @@ test("mapeo ambiguo por last4 se omite", () => {
 
 test("carga inicial usa el mes e instante del OAuth y no persiste candidatos", async () => {
   const connectedAt = new Date("2026-06-30T23:00:00Z")
-  const connection: EmailConnection = {
-    id: "conn-1",
-    userId: "user-1",
-    bankProvider: "bancochile",
-    emailProvider: "outlook",
-    emailAddress: "sanitized@example.test",
-    bankId: null,
-    status: "pending_setup",
-    createdAt: connectedAt,
-    deltaLink: null,
-    subscriptionId: null,
-    subscriptionExpiresAt: null,
-    lastSyncedAt: null,
-    lastError: null,
-    skippedCount: 0,
-    lastBalanceReconciledAt: null,
-  }
   const requestedSince: { value?: Date } = {}
   const result = await scanEmailCandidates(
     {
-      emailConnections: {
-        findByUser: async () => connection,
-        findById: async () => connection,
-        findBySubscriptionId: async () => null,
-        create: async () => connection,
-        update: async () => connection,
-        delete: async () => {},
-      },
+      ...repos([link({ createdAt: connectedAt })]),
       mail: {
         listMessagesSince: async (_id, since) => {
           requestedSince.value = since
@@ -599,6 +651,7 @@ test("carga inicial usa el mes e instante del OAuth y no persiste candidatos", a
       },
     },
     "user-1",
+    "link-1",
     { now: new Date("2026-07-14T12:00:00Z") }
   )
   // Carga inicial: arranca el 1° del mes de la conexión (junio).
@@ -607,23 +660,6 @@ test("carga inicial usa el mes e instante del OAuth y no persiste candidatos", a
 })
 
 test("confirmación vincula al bucket y no redescuenta movimientos anteriores al snapshot", async () => {
-  const connection: EmailConnection = {
-    id: "conn-confirm",
-    userId: "user-1",
-    bankProvider: "bancochile",
-    emailProvider: "outlook",
-    emailAddress: "sanitized@example.test",
-    bankId: null,
-    status: "pending_setup",
-    createdAt: new Date("2026-07-14T12:00:00Z"),
-    deltaLink: null,
-    subscriptionId: null,
-    subscriptionExpiresAt: null,
-    lastSyncedAt: null,
-    lastError: null,
-    skippedCount: 0,
-    lastBalanceReconciledAt: null,
-  }
   let persisted: EmailConfirmPersistInput | null = null
   let categorized = 0
   const checkingMessage = (id: string, receivedAt: string, amount: number) =>
@@ -635,19 +671,8 @@ test("confirmación vincula al bucket y no redescuenta movimientos anteriores al
       htmlBody: `Cargo por $ ${amount.toLocaleString("es-CL")} asociado a COMPRA PRUEBA. Cuenta terminada en 2345.`,
     })
   const deps = {
-    emailConnections: {
-      findByUser: async () => connection,
-      findById: async () => connection,
-      findBySubscriptionId: async () => null,
-      create: async () => connection,
-      update: async () => connection,
-      delete: async () => {},
-    },
-    methods: {
-      activeMethod: async () => "email" as const,
-      claim: async () => {},
-      release: async () => {},
-    },
+    ...repos([link({ id: "link-confirm" })]),
+    methods: methodsFake,
     mail: {
       listMessagesSince: async () => [
         checkingMessage("old", "2026-07-14T10:00:00Z", 1000),
@@ -674,6 +699,7 @@ test("confirmación vincula al bucket y no redescuenta movimientos anteriores al
       updateBucketAmounts: async () => {},
       setAccountBalance: async () => {},
       markBankSynced: async () => {},
+      countBankDependents: async () => noDependents,
       deleteBank: async () => {},
     },
     categorize: async () => ++categorized,
@@ -682,6 +708,7 @@ test("confirmación vincula al bucket y no redescuenta movimientos anteriores al
   await confirmEmailSetup(
     deps,
     "user-1",
+    "link-confirm",
     {
       snapshotAt: new Date("2026-07-14T11:00:00Z"),
       checking: { ref: "2345", cash: Money.of(10000, "CLP"), overdraft: null },
@@ -691,7 +718,7 @@ test("confirmación vincula al bucket y no redescuenta movimientos anteriores al
   )
   assert.ok(persisted)
   const saved = persisted as EmailConfirmPersistInput
-  assert.equal(saved.connectionId, "conn-confirm")
+  assert.equal(saved.linkId, "link-confirm")
   assert.equal(saved.movements.length, 2)
   assert.equal(saved.movements[0].bucketKind, "cash")
   assert.equal(
@@ -704,23 +731,16 @@ test("confirmación vincula al bucket y no redescuenta movimientos anteriores al
 })
 
 test("sync repetido es idempotente: crea y proyecta una sola vez", async () => {
-  const connection: EmailConnection = {
-    id: "conn-sync",
-    userId: "user-1",
-    bankProvider: "bancochile",
-    emailProvider: "outlook",
-    emailAddress: "sanitized@example.test",
+  const activeLink = link({
+    id: "link-sync",
     bankId: "bank-1",
     status: "active",
-    createdAt: new Date("2026-07-01T00:00:00Z"),
-    deltaLink: "delta-1",
-    subscriptionId: null,
-    subscriptionExpiresAt: null,
-    lastSyncedAt: new Date("2026-07-14T10:00:00Z"),
-    lastError: null,
-    skippedCount: 0,
     lastBalanceReconciledAt: new Date("2026-07-14T10:00:00Z"),
-  }
+    mailbox: mailbox({
+      deltaLink: "delta-1",
+      lastSyncedAt: new Date("2026-07-14T10:00:00Z"),
+    }),
+  })
   const bucket: EmailStoredBucket = {
     id: "cash-1",
     accountId: "account-1",
@@ -741,19 +761,8 @@ test("sync repetido es idempotente: crea y proyecta una sola vez", async () => {
       "Cargo por $ 1.000 asociado a COMPRA PRUEBA. Cuenta terminada en 2345.",
   })
   const deps = {
-    emailConnections: {
-      findByUser: async () => connection,
-      findById: async () => connection,
-      findBySubscriptionId: async () => null,
-      create: async () => connection,
-      update: async () => connection,
-      delete: async () => {},
-    },
-    methods: {
-      activeMethod: async () => "email" as const,
-      claim: async () => {},
-      release: async () => {},
-    },
+    ...repos([activeLink]),
+    methods: methodsFake,
     mail: {
       listMessagesSince: async () => [],
       startDelta: async () => "delta-2",
@@ -799,15 +808,16 @@ test("sync repetido es idempotente: crea y proyecta una sola vez", async () => {
       },
       setAccountBalance: async () => {},
       markBankSynced: async () => {},
+      countBankDependents: async () => noDependents,
       deleteBank: async () => {},
     },
     categorize: async () => ++categorized,
   } satisfies EmailConnectionDeps
 
-  await syncEmailConnection(deps, "user-1", {
+  await syncMailbox(deps, "mbx-1", {
     now: new Date("2026-07-14T12:00:00Z"),
   })
-  await syncEmailConnection(deps, "user-1", {
+  await syncMailbox(deps, "mbx-1", {
     now: new Date("2026-07-14T12:05:00Z"),
   })
   assert.equal(bucket.available.toMajor(), 9000)
@@ -815,27 +825,22 @@ test("sync repetido es idempotente: crea y proyecta una sola vez", async () => {
   assert.equal(categorized, 1)
 })
 
-// Conexión activa base para los tests de sync del pago de tarjeta.
-const activeConnection = (
-  over: Partial<EmailConnection> = {}
-): EmailConnection => ({
-  id: "conn-tj",
-  userId: "user-1",
-  bankProvider: "bancochile",
-  emailProvider: "outlook",
-  emailAddress: "sanitized@example.test",
-  bankId: "bank-1",
-  status: "active",
-  createdAt: new Date("2026-06-01T00:00:00Z"),
-  deltaLink: "delta-1",
-  subscriptionId: null,
-  subscriptionExpiresAt: null,
-  lastSyncedAt: new Date("2026-07-14T10:00:00Z"),
-  lastError: null,
-  skippedCount: 0,
-  lastBalanceReconciledAt: new Date("2026-07-14T10:00:00Z"),
-  ...over,
-})
+// Vínculo activo base para los tests de sync del pago de tarjeta.
+const activeLinkTj = (
+  over: Partial<EmailBankLinkWithMailbox> = {}
+): EmailBankLinkWithMailbox =>
+  link({
+    id: "link-tj",
+    bankId: "bank-1",
+    status: "active",
+    createdAt: new Date("2026-06-01T00:00:00Z"),
+    lastBalanceReconciledAt: new Date("2026-07-14T10:00:00Z"),
+    mailbox: mailbox({
+      deltaLink: "delta-1",
+      lastSyncedAt: new Date("2026-07-14T10:00:00Z"),
+    }),
+    ...over,
+  })
 
 const syncDepsForCardPayment = (
   instruments: {
@@ -857,19 +862,8 @@ const syncDepsForCardPayment = (
   messages: BankEmailMessage[] = [pagoTarjetaNac()]
 ) =>
   ({
-    emailConnections: {
-      findByUser: async () => activeConnection(),
-      findById: async () => activeConnection(),
-      findBySubscriptionId: async () => null,
-      create: async () => activeConnection(),
-      update: async () => activeConnection(),
-      delete: async () => {},
-    },
-    methods: {
-      activeMethod: async () => "email" as const,
-      claim: async () => {},
-      release: async () => {},
-    },
+    ...repos([activeLinkTj()]),
+    methods: methodsFake,
     mail: {
       listMessagesSince: async () => [],
       startDelta: async () => "delta-2",
@@ -913,6 +907,7 @@ const syncDepsForCardPayment = (
       },
       setAccountBalance: async () => {},
       markBankSynced: async () => {},
+      countBankDependents: async () => noDependents,
       deleteBank: async () => {},
     },
     notify: async (_userId: string, movements: { description: string }[]) => {
@@ -973,10 +968,10 @@ test("pago de tarjeta: sync expande dos patas (caja + deuda) y es idempotente", 
     captured
   )
 
-  await syncEmailConnection(deps, "user-1", {
+  await syncMailbox(deps, "mbx-1", {
     now: new Date("2026-07-14T13:00:00Z"),
   })
-  await syncEmailConnection(deps, "user-1", {
+  await syncMailbox(deps, "mbx-1", {
     now: new Date("2026-07-14T13:05:00Z"),
   })
 
@@ -1029,7 +1024,7 @@ test("pago de tarjeta: sin la cuenta de origen confirmada se omite el pago compl
     captured
   )
 
-  await syncEmailConnection(deps, "user-1", {
+  await syncMailbox(deps, "mbx-1", {
     now: new Date("2026-07-14T13:00:00Z"),
   })
 
@@ -1089,7 +1084,7 @@ test("una transferencia recibida sube el saldo pero nunca cuenta como ingreso", 
     [abono]
   )
 
-  await syncEmailConnection(deps, "user-1", {
+  await syncMailbox(deps, "mbx-1", {
     now: new Date("2026-07-14T13:00:00Z"),
   })
 

@@ -1,15 +1,16 @@
 // Webhook público de Microsoft Graph. Dos modos:
 //  1) Validación: Microsoft manda `validationToken` por query y espera el token en texto plano.
-//  2) Notificación: cada item se acepta SOLO si su subscription pertenece a una conexión activa y
-//     su `clientState` coincide con el derivado server-side; recién entonces se recupera el mensaje
+//  2) Notificación: cada item se acepta SOLO si su subscription pertenece a un buzón activo y su
+//     `clientState` coincide con el derivado server-side; recién entonces se recupera el mensaje
 //     desde Graph y se procesa. Una notificación inválida no lee correo ni toca datos.
-// El procesamiento se serializa por conexión y es idempotente (webhook repetido no duplica).
+// El procesamiento se serializa por usuario y es idempotente (webhook repetido no duplica). Una
+// pasada por buzón reparte los mensajes entre los bancos que ese correo alimenta.
 import { timingSafeEqual } from "node:crypto"
 import { withLock, LockBusyError } from "@/arch/shared/mutex"
 import type { BankEmailMessage } from "@/arch/v1/domain/finance/email-connection.domain"
 import {
-  findWebhookConnection,
-  syncEmailConnection,
+  findWebhookMailbox,
+  syncMailbox,
 } from "@/arch/v1/application/finance-use-cases/email-connection-use-cases"
 import { makeEmailConnectionDeps } from "@/arch/v1/infrastructure/database/prisma/email-connection.infrastructure"
 import { graphClientState } from "@/arch/v1/infrastructure/http/outlook/msgraph.provider"
@@ -44,41 +45,37 @@ export async function POST(req: Request) {
   const notifications = (body?.value ?? []).slice(0, 100)
   const deps = makeEmailConnectionDeps()
 
-  // Mensajes válidos agrupados por conexión (verificación de clientState ANTES de leer correo).
-  const byConnection = new Map<
-    string,
-    { userId: string; messageIds: string[] }
-  >()
+  // Mensajes válidos agrupados por buzón (verificación de clientState ANTES de leer correo).
+  const byMailbox = new Map<string, { userId: string; messageIds: string[] }>()
   for (const n of notifications) {
     if (!n.subscriptionId || !n.clientState || !n.resourceData?.id) continue
-    const conn = await findWebhookConnection(deps, n.subscriptionId)
+    const mailbox = await findWebhookMailbox(deps, n.subscriptionId)
     if (
-      !conn ||
-      conn.status !== "active" ||
-      !conn.bankId ||
-      !sameSecret(graphClientState(conn.id), n.clientState)
+      !mailbox ||
+      mailbox.status !== "active" ||
+      !sameSecret(graphClientState(mailbox.id), n.clientState)
     )
       continue
-    const entry = byConnection.get(conn.id) ?? {
-      userId: conn.userId,
+    const entry = byMailbox.get(mailbox.id) ?? {
+      userId: mailbox.userId,
       messageIds: [],
     }
     entry.messageIds.push(n.resourceData.id)
-    byConnection.set(conn.id, entry)
+    byMailbox.set(mailbox.id, entry)
   }
 
-  // Volumen personal: se procesa en línea (serializado por usuario) y se acusa recibo. Si la
-  // conexión está ocupada, el delta periódico/manual recupera el mensaje después.
-  for (const [connectionId, { userId, messageIds }] of byConnection) {
+  // Volumen personal: se procesa en línea (serializado por usuario) y se acusa recibo. Si el buzón
+  // está ocupado, el delta periódico/manual recupera el mensaje después.
+  for (const [mailboxId, { userId, messageIds }] of byMailbox) {
     try {
       await withLock(`email:${userId}`, async () => {
         const messages: BankEmailMessage[] = []
         for (const id of messageIds) {
-          const msg = await deps.mail.fetchMessage(connectionId, id)
+          const msg = await deps.mail.fetchMessage(mailboxId, id)
           if (msg) messages.push(msg)
         }
         if (messages.length > 0)
-          await syncEmailConnection(deps, userId, { messages })
+          await syncMailbox(deps, mailboxId, { messages })
       })
     } catch (e) {
       if (!(e instanceof LockBusyError)) {

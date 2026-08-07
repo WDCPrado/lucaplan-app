@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto"
-import { prisma } from "@/arch/v1/infrastructure/database/prisma/client"
+import { emailMailboxRepository } from "@/arch/v1/infrastructure/database/prisma/email-connection.infrastructure"
 import { msgraphMailProvider } from "@/arch/v1/infrastructure/http/outlook/msgraph.provider"
 
 function authorized(req: Request): boolean {
@@ -12,51 +12,40 @@ function authorized(req: Request): boolean {
 
 // Llamar cada 12 horas desde el scheduler del despliegue. No requiere sesión de usuario, pero sí
 // un secreto dedicado; solo renueva suscripciones próximas a vencer y nunca devuelve tokens.
+// La suscripción es del BUZÓN: se renueva una vez por correo, no una por banco.
 export async function POST(req: Request) {
   if (!authorized(req))
     return Response.json({ error: "unauthorized" }, { status: 401 })
   const renewBefore = new Date(Date.now() + 24 * 60 * 60 * 1000)
-  const rows = await prisma.emailConnection.findMany({
-    where: {
-      status: "active",
-      OR: [
-        { subscriptionExpiresAt: null },
-        { subscriptionExpiresAt: { lt: renewBefore } },
-      ],
-    },
-    select: { id: true },
-  })
+  const mailboxes =
+    await emailMailboxRepository.listForSubscriptionRenewal(renewBefore)
   let renewed = 0
   let failed = 0
-  for (const row of rows) {
+  for (const mailbox of mailboxes) {
     try {
-      const subscription = await msgraphMailProvider.ensureSubscription(row.id)
+      const subscription = await msgraphMailProvider.ensureSubscription(
+        mailbox.id
+      )
       if (subscription) {
-        await prisma.emailConnection.update({
-          where: { id: row.id },
-          data: {
-            subscriptionId: subscription.subscriptionId,
-            subscriptionExpiresAt: subscription.expiresAt,
-            lastError: null,
-          },
+        await emailMailboxRepository.update(mailbox.id, {
+          subscriptionId: subscription.subscriptionId,
+          subscriptionExpiresAt: subscription.expiresAt,
+          lastError: null,
         })
         renewed++
       }
     } catch (error) {
       failed++
-      await prisma.emailConnection
-        .update({
-          where: { id: row.id },
-          data: {
-            status:
-              (error as Error).name === "EmailReauthRequiredError"
-                ? "reauth_required"
-                : "error",
-            lastError: (error as Error).message,
-          },
+      await emailMailboxRepository
+        .update(mailbox.id, {
+          status:
+            (error as Error).name === "EmailReauthRequiredError"
+              ? "reauth_required"
+              : "error",
+          lastError: (error as Error).message,
         })
         .catch(() => {})
     }
   }
-  return Response.json({ checked: rows.length, renewed, failed })
+  return Response.json({ checked: mailboxes.length, renewed, failed })
 }

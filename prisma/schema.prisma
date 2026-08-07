@@ -127,15 +127,15 @@ model Bank {
   userId           String
   name             String
   isActive         Boolean            @default(true)
-  provider         String             @default("manual") // manual | bancochile
-  connectionMethod String? // email (solo bancos conectados, ej. bancochile); null = manual
+  provider         String             @default("manual") // manual | clave de un banco del catálogo (bancochile, …)
+  connectionMethod String? // email (solo bancos conectados); null = manual
   externalLinkId   String? // ponytail: columna legada sin uso; dropear en una migración aparte
   linkToken        String? // ponytail: columna legada sin uso; dropear en una migración aparte
   lastSyncedAt     DateTime?
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   accounts         FinancialAccount[]
-  emailConnection  EmailConnection?
+  emailBankLink    EmailBankLink?
 
   @@index([userId])
   @@index([externalLinkId])
@@ -216,46 +216,69 @@ model BalanceBucket {
   @@map("balance_bucket")
 }
 
-// Conexión de correo (Outlook vía Microsoft Graph) que alimenta un banco con sus notificaciones.
-// Una por (usuario, banco). El refresh token va CIFRADO (AES-256-GCM con llave derivada con
-// propósito propio, distinto del de credenciales bancarias); nunca sale al cliente ni a logs.
-// Los cuerpos de correo NO se persisten: solo el evento financiero extraído.
-model EmailConnection {
-  id                      String    @id @default(uuid())
-  userId                  String
-  bankProvider            String    @default("bancochile") // banco cuyas notificaciones se leen
-  emailProvider           String    @default("outlook") // proveedor de correo (solo outlook en v1)
-  emailAddress            String
-  bankId                  String?   @unique // banco creado tras validar candidatos; null durante el setup
-  bank                    Bank?     @relation(fields: [bankId], references: [id], onDelete: SetNull)
-  status                  String    @default("pending_setup") // pending_setup | active | reauth_required | error
-  refreshTokenEnc         String // ciphertext+tag AES-256-GCM (base64)
-  refreshTokenIv          String // nonce (base64)
-  deltaLink               String? // estado delta de Graph (recuperación de notificaciones perdidas)
-  subscriptionId          String? // suscripción webhook de Graph (null sin webhook HTTPS)
-  subscriptionExpiresAt   DateTime?
-  lastSyncedAt            DateTime?
-  lastError               String? // último error operativo, sin PII ni tokens
-  skippedCount            Int       @default(0) // mensajes omitidos (conteo, sin contenido)
-  lastBalanceReconciledAt DateTime? // fecha/hora del snapshot manual vigente (la proyección parte aquí)
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+// BUZÓN de correo autorizado (Outlook vía Microsoft Graph). Es la unidad de autorización: un token,
+// un estado delta y una suscripción por correo, sin importar cuántos bancos alimente. El refresh
+// token va CIFRADO (AES-256-GCM con llave derivada con propósito propio, distinto del de
+// credenciales bancarias); nunca sale al cliente ni a logs. Los cuerpos de correo NO se persisten:
+// solo el evento financiero extraído.
+model EmailMailbox {
+  id                    String          @id @default(uuid())
+  userId                String
+  emailProvider         String          @default("outlook") // proveedor de correo (solo outlook en v1)
+  emailAddress          String
+  status                String          @default("active") // active | reauth_required | error
+  refreshTokenEnc       String // ciphertext+tag AES-256-GCM (base64)
+  refreshTokenIv        String // nonce (base64)
+  deltaLink             String? // estado delta de Graph (recuperación de notificaciones perdidas)
+  subscriptionId        String? // suscripción webhook de Graph (null sin webhook HTTPS)
+  subscriptionExpiresAt DateTime?
+  lastSyncedAt          DateTime?
+  lastError             String? // último error operativo, sin PII ni tokens
+  discardedCount        Int             @default(0) // correos que ningún banco del catálogo reclama
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  links                 EmailBankLink[]
 
-  @@unique([userId, bankProvider])
+  @@unique([userId, emailAddress])
   @@index([subscriptionId])
-  @@map("email_connection")
+  @@map("email_mailbox")
 }
 
-// Método de conexión ACTIVO por (usuario, banco): la fila única impide a nivel de DB tener dos
-// métodos a la vez para el mismo banco. Se reclama al conectar y se libera al desconectar.
+// VÍNCULO entre un buzón y un banco: lo que ese correo alimenta. Un buzón tiene N vínculos (bancos
+// distintos) y un banco puede venir de N buzones (personal/empresa), pero NUNCA dos veces del mismo
+// buzón: el enrutado por remitente no tendría cómo decidir a cuál imputar el movimiento.
+model EmailBankLink {
+  id                      String       @id @default(uuid())
+  mailboxId               String
+  mailbox                 EmailMailbox @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  userId                  String
+  bankProvider            String // clave del banco en el catálogo (bancochile, …)
+  label                   String? // etiqueta que distingue este origen ("Empresa"); obligatoria desde el 2º vínculo del mismo banco
+  bankId                  String?      @unique // banco creado tras validar candidatos; null durante el setup
+  bank                    Bank?        @relation(fields: [bankId], references: [id], onDelete: SetNull)
+  status                  String       @default("pending_setup") // pending_setup | active
+  skippedCount            Int          @default(0) // correos de ESTE banco que no pudieron convertirse en movimiento
+  lastBalanceReconciledAt DateTime? // fecha/hora del snapshot manual vigente (la proyección parte aquí)
+  createdAt               DateTime     @default(now()) // fija el cierre de la carga inicial de este banco
+  updatedAt               DateTime     @updatedAt
+
+  @@unique([mailboxId, bankProvider])
+  @@index([userId])
+  @@map("email_bank_link")
+}
+
+// Método de conexión ACTIVO por (usuario, banco, buzón): la fila única impide a nivel de DB tener
+// dos métodos a la vez para el mismo banco desde el mismo origen, sin bloquear el mismo banco desde
+// otro correo. Se reclama al conectar y se libera al desconectar.
 model BankConnectionMethod {
   id           String   @id @default(uuid())
   userId       String
   bankProvider String // bancochile
+  mailboxId    String // buzón de origen
   method       String // email
   createdAt    DateTime @default(now())
 
-  @@unique([userId, bankProvider])
+  @@unique([userId, bankProvider, mailboxId])
   @@map("bank_connection_method")
 }
 

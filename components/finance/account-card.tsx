@@ -55,7 +55,9 @@ export function AccountCard({
   onClick?: () => void
 }) {
   const art = resolveCardArt(account.bankName, account.accountType)
-  const connected = account.provider === "bancochile"
+  // Conectada = importada por un banco, cualquiera sea. Comparar contra un banco concreto
+  // dejaría las cuentas de los demás como editables (y sus movimientos, borrables a mano).
+  const connected = account.provider !== "manual"
   const buckets = account.buckets ?? []
   const cash = buckets.find((b) => b.kind === "cash")
   const overdraft = buckets.find((b) => b.kind === "overdraft")

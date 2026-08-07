@@ -1,6 +1,7 @@
-// Confirmación del setup: instrumentos validados + snapshot con fecha → crea banco, cuentas,
-// tarjetas y buckets, e importa los movimientos del mes en UNA operación atómica. Luego guarda el
-// estado delta y categoriza los no internos (best-effort). Serializado por usuario.
+// Confirmación del setup de un banco: instrumentos validados + snapshot con fecha → crea banco,
+// cuentas, tarjetas y buckets, e importa los movimientos del mes en UNA operación atómica. Luego
+// guarda el estado delta del buzón y categoriza los no internos (best-effort). Serializado por
+// usuario.
 import { withUser } from "@/arch/v1/presentation/finance/finance-http"
 import { parseSnapshotBody } from "@/arch/v1/presentation/finance/email-snapshot-body"
 import { withLock } from "@/arch/shared/mutex"
@@ -14,6 +15,7 @@ export async function POST(req: Request) {
       confirmEmailSetup(
         makeEmailConnectionDeps(),
         userId,
+        String(body?.linkId ?? ""),
         parseSnapshotBody(body)
       )
     )

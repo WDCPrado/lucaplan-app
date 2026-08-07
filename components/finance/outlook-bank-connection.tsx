@@ -40,20 +40,34 @@ import { cn } from "@/lib/utils"
 import { ImportProgressTimeline } from "./import-progress-timeline"
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+// Estado de la conexión en DOS niveles: los correos autorizados y, dentro de cada uno, los bancos
+// que alimenta. La autorización es del correo (un token, una suscripción); el snapshot y los
+// omitidos son de cada banco.
+export type OutlookBankDTO = {
+  id: string // id del vínculo correo↔banco
+  bankProvider: string
+  bankName: string // nombre del catálogo + etiqueta
+  label: string | null
+  pendingSetup: boolean
+  skippedCount: number
+  lastBalanceReconciledAt: string | null
+}
+
+export type OutlookMailboxDTO = {
+  id: string
+  emailAddress: string
+  status: string
+  lastSyncedAt: string | null
+  lastError: string | null
+  discardedCount: number
+  webhookActive: boolean
+  banks: OutlookBankDTO[]
+}
 
 export type OutlookStatus = {
   configured: boolean
-  activeMethod: "email" | null
-  connection: {
-    status: string
-    emailAddress: string
-    pendingSetup: boolean
-    lastSyncedAt: string | null
-    lastBalanceReconciledAt: string | null
-    skippedCount: number
-    lastError: string | null
-    webhookActive: boolean
-  } | null
+  mailboxes: OutlookMailboxDTO[]
+  availableBanks: { key: string; name: string }[]
 }
 
 type Candidate =
@@ -70,6 +84,7 @@ type Scan = {
   expenseCount: number
   internalCount: number
   skippedCount: number
+  bankName: string
 }
 export type CheckingForm = {
   ref: string
@@ -89,6 +104,15 @@ export type CardForm = {
   internationalLimit: number
   internationalAvailable: number
   movementCount?: number
+}
+
+// Lo que se pierde al desconectar un banco: sus cuentas arrastran lo que el usuario creó sobre ellas.
+type Dependents = {
+  accounts: number
+  movements: number
+  recurring: number
+  installments: number
+  incomes: number
 }
 
 const nowLocal = () => {
@@ -173,16 +197,29 @@ export function OutlookBankConnection({
   const [snapshotAt, setSnapshotAt] = useState(nowLocal)
   const [checking, setChecking] = useState<CheckingForm | null>(null)
   const [cards, setCards] = useState<CardForm[]>([])
-  const [reconciling, setReconciling] = useState(false)
+  // Banco en curso: el que está en setup (escaneo → snapshot) o el que se está reconciliando.
+  const [reconcilingLinkId, setReconcilingLinkId] = useState<string | null>(null)
   const [scanError, setScanError] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const [importStepIdx, setImportStepIdx] = useState(0)
+  const [addingTo, setAddingTo] = useState<string | null>(null) // buzón al que se agrega un banco
   const automaticScanStarted = useRef(false)
   const invalidSnapshot = snapshotInvalid(checking, cards)
 
-  async function connect() {
+  const mailboxes = status?.mailboxes ?? []
+  const banks = mailboxes.flatMap((m) =>
+    m.banks.map((b) => ({ ...b, mailbox: m }))
+  )
+  const pending = banks.find((b) => b.pendingSetup) ?? null
+
+  // Conectar un CORREO nuevo (pasa por OAuth) trayendo consigo el banco elegido.
+  async function connect(bankProvider: string, label?: string | null) {
     setBusy(true)
-    const res = await fetch("/api/email-connection/connect", { method: "POST" })
+    const res = await fetch("/api/email-connection/connect", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ bankProvider, label }),
+    })
     const data = await res.json().catch(() => ({}))
     setBusy(false)
     if (!res.ok || !data.url)
@@ -190,13 +227,37 @@ export function OutlookBankConnection({
     window.location.assign(data.url)
   }
 
-  const detect = useCallback(async () => {
+  // Agregar un banco a un correo YA autorizado: sin OAuth, el buzón conserva su autorización.
+  async function addBank(
+    mailboxId: string,
+    bankProvider: string,
+    label: string | null
+  ) {
+    setBusy(true)
+    const res = await fetch("/api/email-connection/banks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mailboxId, bankProvider, label }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setBusy(false)
+    if (!res.ok) {
+      haptic("error")
+      return toast.error(data.error ?? "No se pudo agregar el banco")
+    }
+    setAddingTo(null)
+    automaticScanStarted.current = false
+    await onReload()
+  }
+
+  const detect = useCallback(async (linkId: string) => {
     setBusy(true)
     setScanError(null)
     try {
-      const res = await fetch("/api/email-connection/candidates", {
-        cache: "no-store",
-      })
+      const res = await fetch(
+        `/api/email-connection/candidates?link=${encodeURIComponent(linkId)}`,
+        { cache: "no-store" }
+      )
       const data = (await res.json().catch(() => ({}))) as Scan & {
         error?: string
       }
@@ -247,14 +308,15 @@ export function OutlookBankConnection({
   }, [])
 
   useEffect(() => {
-    if (status?.connection?.pendingSetup && !automaticScanStarted.current) {
+    if (pending && !automaticScanStarted.current) {
       automaticScanStarted.current = true
-      void detect()
+      void detect(pending.id)
     }
-  }, [status?.connection?.pendingSetup, detect])
+  }, [pending, detect])
 
-  function snapshotBody() {
+  function snapshotBody(linkId: string) {
     return {
+      linkId,
       snapshotAt: new Date(snapshotAt).toISOString(),
       checking: checking
         ? {
@@ -289,7 +351,7 @@ export function OutlookBankConnection({
   // Importación inicial con overlay de pasos: la petición /confirm corre en paralelo mientras el
   // timeline avanza; el paso "Categorizando" espera la respuesta y recién ahí llega a "Listo". El
   // modal queda bloqueado (onImportingChange) para que no se cierre a mitad.
-  async function startInitialImport() {
+  async function startInitialImport(linkId: string) {
     setImporting(true)
     setImportStepIdx(0)
     onImportingChange?.(true)
@@ -302,7 +364,7 @@ export function OutlookBankConnection({
     void fetch("/api/email-connection/confirm", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(snapshotBody()),
+      body: JSON.stringify(snapshotBody(linkId)),
     })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}))
@@ -338,17 +400,17 @@ export function OutlookBankConnection({
     setImporting(false)
     onImportingChange?.(false)
     haptic("success")
-    toast.success("Outlook conectado y movimientos importados")
-    setReconciling(false)
+    toast.success("Banco conectado y movimientos importados")
+    setScan(null)
     await onReload()
   }
 
-  async function saveSnapshot(mode: "confirm" | "reconcile") {
+  async function saveReconcile(linkId: string) {
     setBusy(true)
-    const res = await fetch(`/api/email-connection/${mode}`, {
+    const res = await fetch("/api/email-connection/reconcile", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(snapshotBody()),
+      body: JSON.stringify(snapshotBody(linkId)),
     })
     const data = await res.json().catch(() => ({}))
     setBusy(false)
@@ -357,12 +419,8 @@ export function OutlookBankConnection({
       return toast.error(data.error ?? "No se pudieron guardar los saldos")
     }
     haptic("success")
-    toast.success(
-      mode === "confirm"
-        ? "Outlook conectado y movimientos importados"
-        : "Saldos actualizados"
-    )
-    setReconciling(false)
+    toast.success("Saldos actualizados")
+    setReconcilingLinkId(null)
     await onReload()
   }
 
@@ -380,18 +438,22 @@ export function OutlookBankConnection({
     await onReload()
   }
 
-  async function disconnect() {
+  async function disconnect(body: { linkId?: string; mailboxId?: string }) {
     setBusy(true)
     haptic("heavy") // acción destructiva confirmada
     const res = await fetch("/api/email-connection/disconnect", {
       method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
     })
     setBusy(false)
     if (!res.ok) {
       haptic("error")
-      return toast.error("No se pudo desconectar Outlook")
+      return toast.error("No se pudo desconectar")
     }
-    toast.success("Outlook desconectado")
+    toast.success(body.linkId ? "Banco desconectado" : "Correo desconectado")
+    setScan(null)
+    automaticScanStarted.current = false
     await onReload()
   }
 
@@ -412,38 +474,53 @@ export function OutlookBankConnection({
       </Notice>
     )
   }
-  if (!status.connection) {
+
+  // Reconciliación de un banco concreto ("Actualizar saldos").
+  if (reconcilingLinkId) {
     return (
-      <div className="space-y-4">
-        <Notice icon={Mail}>
-          Luca Plan solo leerá notificaciones de Banco de Chile con el permiso
-          Mail.Read. No puede enviar ni borrar correos.
-        </Notice>
-        <Button
-          onClick={connect}
-          disabled={busy}
-          className="h-12 w-full rounded-full"
-        >
-          {busy ? <Loader2 className="animate-spin" /> : <Mail />} Conectar
-          Outlook
-        </Button>
+      <div className="space-y-5">
+        <SnapshotForm
+          snapshotAt={snapshotAt}
+          setSnapshotAt={setSnapshotAt}
+          checking={checking}
+          setChecking={setChecking}
+          cards={cards}
+          setCards={setCards}
+        />
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setReconcilingLinkId(null)}
+            className="h-11 flex-1 rounded-full"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => saveReconcile(reconcilingLinkId)}
+            disabled={busy || invalidSnapshot}
+            className="h-11 flex-1 rounded-full"
+          >
+            Guardar saldos
+          </Button>
+        </div>
       </div>
     )
   }
 
-  if (status.connection.pendingSetup) {
+  // Banco recién agregado: escaneo del mes y snapshot antes de crear nada.
+  if (pending) {
     if (!scan) {
       return (
         <div className="space-y-4">
           <Notice icon={Check}>
-            Outlook autorizado como {status.connection.emailAddress}. Aún no se
-            creó ninguna cuenta ni movimiento.
+            {pending.bankName} en {pending.mailbox.emailAddress}. Aún no se creó
+            ninguna cuenta ni movimiento.
           </Notice>
           {scanError ? (
             <>
               <Notice icon={CircleAlert}>{scanError}</Notice>
               <Button
-                onClick={detect}
+                onClick={() => detect(pending.id)}
                 disabled={busy}
                 className="h-12 w-full rounded-full"
               >
@@ -459,10 +536,12 @@ export function OutlookBankConnection({
               Revisando notificaciones de este mes…
             </div>
           )}
-          <DisconnectOutlookButton
+          <DisconnectButton
             busy={busy}
-            onConfirm={disconnect}
-            description="Se eliminará la autorización de Outlook. Aún no se creó ninguna cuenta ni movimiento."
+            label="Cancelar conexión"
+            title={`¿Cancelar la conexión de ${pending.bankName}?`}
+            description="Aún no se creó ninguna cuenta ni movimiento."
+            onConfirm={() => disconnect({ linkId: pending.id })}
           />
         </div>
       )
@@ -488,97 +567,68 @@ export function OutlookBankConnection({
           setCards={setCards}
         />
         <Button
-          onClick={startInitialImport}
+          onClick={() => startInitialImport(pending.id)}
           disabled={busy || invalidSnapshot}
           className="h-12 w-full rounded-full"
         >
           Validar e importar movimientos
         </Button>
-        <DisconnectOutlookButton
+        <DisconnectButton
           busy={busy}
-          onConfirm={disconnect}
-          description="Se eliminará la autorización de Outlook. Aún no se creó ninguna cuenta ni movimiento."
+          label="Cancelar conexión"
+          title={`¿Cancelar la conexión de ${pending.bankName}?`}
+          description="Aún no se creó ninguna cuenta ni movimiento."
+          onConfirm={() => disconnect({ linkId: pending.id })}
         />
       </div>
     )
   }
 
-  if (reconciling) {
+  // Sin correos conectados: primer OAuth, trayendo el banco elegido.
+  if (mailboxes.length === 0) {
     return (
-      <div className="space-y-5">
-        <SnapshotForm
-          snapshotAt={snapshotAt}
-          setSnapshotAt={setSnapshotAt}
-          checking={checking}
-          setChecking={setChecking}
-          cards={cards}
-          setCards={setCards}
+      <div className="space-y-4">
+        <Notice icon={Mail}>
+          Luca Plan solo leerá notificaciones de tu banco con el permiso
+          Mail.Read. No puede enviar ni borrar correos.
+        </Notice>
+        <BankPicker
+          banks={status.availableBanks}
+          busy={busy}
+          cta="Conectar Outlook"
+          onSubmit={(bank) => connect(bank)}
         />
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setReconciling(false)}
-            className="h-11 flex-1 rounded-full"
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={() => saveSnapshot("reconcile")}
-            disabled={busy || invalidSnapshot}
-            className="h-11 flex-1 rounded-full"
-          >
-            Guardar saldos
-          </Button>
-        </div>
       </div>
     )
   }
 
-  const conn = status.connection
-  const statusLabel =
-    conn.status === "active"
-      ? "Autorización activa"
-      : conn.status === "reauth_required"
-        ? "Requiere reconexión"
-        : conn.status === "error"
-          ? "Error de sincronización"
-          : "Configuración pendiente"
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-success/40 bg-success/5 p-4 text-sm">
-        <div className="flex items-center gap-2 font-medium">
-          <Check className="size-4 text-success" /> {conn.emailAddress}
-        </div>
-        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-          <p>Estado: {statusLabel}</p>
-          <p>
-            Saldo estimado desde{" "}
-            {conn.lastBalanceReconciledAt
-              ? new Date(conn.lastBalanceReconciledAt).toLocaleString("es-CL")
-              : "sin fecha"}
-          </p>
-          <p>
-            Última sincronización:{" "}
-            {conn.lastSyncedAt
-              ? new Date(conn.lastSyncedAt).toLocaleString("es-CL")
-              : "pendiente"}
-          </p>
-          <p>
-            {conn.skippedCount} mensajes omitidos · webhook{" "}
-            {conn.webhookActive ? "activo" : "no configurado"}
-          </p>
-        </div>
-      </div>
-      {conn.lastError && <Notice icon={CircleAlert}>{conn.lastError}</Notice>}
-      {conn.status === "reauth_required" && (
-        <Button
-          onClick={connect}
-          disabled={busy}
-          className="h-12 w-full rounded-full"
-        >
-          <Mail /> Reconectar Outlook
-        </Button>
-      )}
+      {mailboxes.map((mailbox) => (
+        <MailboxCard
+          key={mailbox.id}
+          mailbox={mailbox}
+          availableBanks={status.availableBanks}
+          allBanks={banks}
+          busy={busy}
+          adding={addingTo === mailbox.id}
+          onToggleAdd={() =>
+            setAddingTo(addingTo === mailbox.id ? null : mailbox.id)
+          }
+          onAddBank={(bank, label) => addBank(mailbox.id, bank, label)}
+          onReconnect={() => connect(mailbox.banks[0]?.bankProvider ?? "")}
+          onReconcile={(bank) => {
+            const forms = formsFromAccounts(accounts)
+            setChecking(forms.checking)
+            setCards(forms.cards)
+            setSnapshotAt(nowLocal())
+            setReconcilingLinkId(bank.id)
+          }}
+          onDisconnectBank={(bank) => disconnect({ linkId: bank.id })}
+          onDisconnectMailbox={() => disconnect({ mailboxId: mailbox.id })}
+        />
+      ))}
+
       <Button
         onClick={refresh}
         disabled={busy}
@@ -586,34 +636,301 @@ export function OutlookBankConnection({
       >
         <RefreshCw /> Sincronizar ahora
       </Button>
-      <Button
-        variant="outline"
-        onClick={() => {
-          const forms = formsFromAccounts(accounts)
-          setChecking(forms.checking)
-          setCards(forms.cards)
-          setSnapshotAt(nowLocal())
-          setReconciling(true)
-        }}
-        className="h-11 w-full rounded-full"
-      >
-        Actualizar saldos
-      </Button>
-      <DisconnectOutlookButton
+
+      <BankPicker
+        banks={status.availableBanks}
         busy={busy}
-        onConfirm={disconnect}
-        description="Se borrarán las cuentas y los movimientos importados por Outlook. Podrás volver a conectar el banco más adelante."
+        cta="Conectar otro correo"
+        variant="outline"
+        onSubmit={(bank, label) => connect(bank, label)}
+        needsLabel={(bank) => banks.some((b) => b.bankProvider === bank)}
       />
     </div>
   )
 }
 
-function DisconnectOutlookButton({
+// Un correo conectado con los bancos que alimenta. El estado de la autorización es del correo y sus
+// bancos lo heredan: una sola reconexión los arregla a todos.
+function MailboxCard({
+  mailbox,
+  availableBanks,
+  allBanks,
   busy,
+  adding,
+  onToggleAdd,
+  onAddBank,
+  onReconnect,
+  onReconcile,
+  onDisconnectBank,
+  onDisconnectMailbox,
+}: {
+  mailbox: OutlookMailboxDTO
+  availableBanks: { key: string; name: string }[]
+  allBanks: OutlookBankDTO[]
+  busy: boolean
+  adding: boolean
+  onToggleAdd: () => void
+  onAddBank: (bankProvider: string, label: string | null) => void
+  onReconnect: () => void
+  onReconcile: (bank: OutlookBankDTO) => void
+  onDisconnectBank: (bank: OutlookBankDTO) => void
+  onDisconnectMailbox: () => void
+}) {
+  const statusLabel =
+    mailbox.status === "active"
+      ? "Autorización activa"
+      : mailbox.status === "reauth_required"
+        ? "Requiere reconexión"
+        : "Error de sincronización"
+  const tone =
+    mailbox.status === "active" ? "border-success/40 bg-success/5" : "border-destructive/40 bg-destructive/5"
+  // Un banco ya vinculado a ESTE correo no se puede repetir aquí (el enrutado sería ambiguo).
+  const addable = availableBanks.filter(
+    (b) => !mailbox.banks.some((linked) => linked.bankProvider === b.key)
+  )
+
+  return (
+    <div className={cn("space-y-3 rounded-xl border p-4 text-sm", tone)}>
+      <div className="flex items-center gap-2 font-medium">
+        <Mail className="size-4 text-primary" /> {mailbox.emailAddress}
+      </div>
+      <div className="space-y-1 text-xs text-muted-foreground">
+        <p>Estado: {statusLabel}</p>
+        <p>
+          Última sincronización:{" "}
+          {mailbox.lastSyncedAt
+            ? new Date(mailbox.lastSyncedAt).toLocaleString("es-CL")
+            : "pendiente"}
+        </p>
+        <p>webhook {mailbox.webhookActive ? "activo" : "no configurado"}</p>
+      </div>
+      {mailbox.lastError && (
+        <Notice icon={CircleAlert}>{mailbox.lastError}</Notice>
+      )}
+      {mailbox.status === "reauth_required" && (
+        <Button
+          onClick={onReconnect}
+          disabled={busy}
+          className="h-11 w-full rounded-full"
+        >
+          <Mail /> Reconectar este correo
+        </Button>
+      )}
+
+      <ul className="space-y-2">
+        {mailbox.banks.map((bank) => (
+          <li key={bank.id} className="rounded-lg border bg-background/60 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">{bank.bankName}</span>
+              {/* La etiqueta distingue este origen cuando el mismo banco viene de dos correos. */}
+              {bank.label && (
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                  {bank.label}
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Saldo estimado desde{" "}
+              {bank.lastBalanceReconciledAt
+                ? new Date(bank.lastBalanceReconciledAt).toLocaleString("es-CL")
+                : "sin fecha"}{" "}
+              · {bank.skippedCount} mensajes omitidos
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => onReconcile(bank)}
+                disabled={busy}
+                className="h-9 rounded-full"
+              >
+                Actualizar saldos
+              </Button>
+              <DisconnectBankButton
+                busy={busy}
+                bank={bank}
+                onConfirm={() => onDisconnectBank(bank)}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      {addable.length > 0 &&
+        (adding ? (
+          <BankPicker
+            banks={addable}
+            busy={busy}
+            cta="Agregar a este correo"
+            onSubmit={onAddBank}
+            needsLabel={(bank) => allBanks.some((b) => b.bankProvider === bank)}
+          />
+        ) : (
+          <Button
+            variant="outline"
+            onClick={onToggleAdd}
+            disabled={busy}
+            className="h-10 w-full rounded-full"
+          >
+            <Plus /> Agregar banco a este correo
+          </Button>
+        ))}
+
+      <DisconnectButton
+        busy={busy}
+        label="Desconectar este correo"
+        title="¿Desconectar el correo?"
+        description={`Se desconectarán todos los bancos de ${mailbox.emailAddress}, con sus cuentas y movimientos importados.`}
+        onConfirm={onDisconnectMailbox}
+      />
+    </div>
+  )
+}
+
+// Selector de banco (+ etiqueta cuando ese banco ya viene de otro correo, para distinguirlos).
+function BankPicker({
+  banks,
+  busy,
+  cta,
+  variant = "default",
+  needsLabel,
+  onSubmit,
+}: {
+  banks: { key: string; name: string }[]
+  busy: boolean
+  cta: string
+  variant?: "default" | "outline"
+  needsLabel?: (bankProvider: string) => boolean
+  onSubmit: (bankProvider: string, label: string | null) => void
+}) {
+  const [selected, setSelected] = useState(banks[0]?.key ?? "")
+  const [label, setLabel] = useState("")
+  const requiresLabel = needsLabel?.(selected) ?? false
+
+  return (
+    <div className="space-y-3">
+      {banks.length > 1 && (
+        <div className="flex flex-col gap-2">
+          {banks.map((bank) => (
+            <button
+              key={bank.key}
+              type="button"
+              onClick={() => setSelected(bank.key)}
+              className={cn(
+                "flex h-12 items-center gap-3 rounded-xl border px-4 text-left transition-colors",
+                selected === bank.key
+                  ? "border-primary bg-primary/10"
+                  : "border-border"
+              )}
+            >
+              <span className="font-medium">{bank.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {requiresLabel && (
+        <div className="space-y-1">
+          <Input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Etiqueta: Empresa, Personal…"
+            maxLength={24}
+            className="h-11"
+          />
+          <p className="text-xs text-muted-foreground">
+            Ya tienes ese banco conectado desde otro correo: la etiqueta los
+            distingue en toda la app.
+          </p>
+        </div>
+      )}
+      <Button
+        variant={variant}
+        onClick={() => onSubmit(selected, label.trim() || null)}
+        disabled={busy || !selected || (requiresLabel && !label.trim())}
+        className="h-12 w-full rounded-full"
+      >
+        {busy ? <Loader2 className="animate-spin" /> : <Mail />} {cta}
+      </Button>
+    </div>
+  )
+}
+
+// Desconectar un banco: enumera lo que se pierde ANTES de ejecutar (las cuentas arrastran ingresos,
+// recurrentes y planes de cuotas que el usuario creó sobre ellas).
+function DisconnectBankButton({
+  busy,
+  bank,
+  onConfirm,
+}: {
+  busy: boolean
+  bank: OutlookBankDTO
+  onConfirm: () => void
+}) {
+  const [dependents, setDependents] = useState<Dependents | null>(null)
+
+  async function loadDependents() {
+    setDependents(null)
+    const res = await fetch(
+      `/api/email-connection/disconnect?link=${encodeURIComponent(bank.id)}`,
+      { cache: "no-store" }
+    )
+    if (res.ok) setDependents(await res.json())
+  }
+
+  const lines = dependents
+    ? [
+        [dependents.accounts, "cuenta", "cuentas"],
+        [dependents.movements, "movimiento", "movimientos"],
+        [dependents.recurring, "recurrente", "recurrentes"],
+        [dependents.installments, "plan de cuotas", "planes de cuotas"],
+        [dependents.incomes, "fuente de ingreso", "fuentes de ingreso"],
+      ]
+        .filter(([n]) => (n as number) > 0)
+        .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
+    : []
+
+  return (
+    <AlertDialog onOpenChange={(open) => open && loadDependents()}>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="ghost"
+          disabled={busy}
+          className="h-9 rounded-full text-destructive hover:text-destructive"
+        >
+          <Unplug /> Desconectar
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>¿Desconectar {bank.bankName}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {dependents === null
+              ? "Revisando qué se eliminará…"
+              : lines.length === 0
+                ? "No hay datos asociados a este banco todavía."
+                : `Se eliminarán ${lines.join(", ")}. Los demás bancos de este correo no se tocan.`}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={onConfirm}>
+            Desconectar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+function DisconnectButton({
+  busy,
+  label,
+  title,
   description,
   onConfirm,
 }: {
   busy: boolean
+  label: string
+  title: string
   description: string
   onConfirm: () => void
 }) {
@@ -625,12 +942,12 @@ function DisconnectOutlookButton({
           disabled={busy}
           className="h-10 w-full rounded-full text-destructive hover:text-destructive"
         >
-          <Unplug /> Desconectar Outlook
+          <Unplug /> {label}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>¿Desconectar Outlook?</AlertDialogTitle>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

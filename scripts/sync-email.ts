@@ -5,25 +5,25 @@
 //
 //   pnpm sync:email
 //   # o programado (Windows Task Scheduler / cron) apuntando a ese comando, cada pocos minutos.
-import { syncEmailConnection } from "../arch/v1/application/finance-use-cases/email-connection-use-cases.ts"
+import { syncUserMailboxes } from "../arch/v1/application/finance-use-cases/email-connection-use-cases.ts"
 import { makeEmailConnectionDeps } from "../arch/v1/infrastructure/database/prisma/email-connection.infrastructure.ts"
 import { prisma } from "../arch/v1/infrastructure/database/prisma/client.ts"
 
 async function resolveUserId(): Promise<string> {
   if (process.env.OUTLOOK_USER_ID) return process.env.OUTLOOK_USER_ID
-  // Sin env: el usuario dueño de la conexión Outlook activa (el que conectó en la app).
-  const conn = await prisma.emailConnection.findFirst({
+  // Sin env: el usuario dueño del buzón Outlook activo (el que conectó en la app).
+  const mailbox = await prisma.emailMailbox.findFirst({
     where: { status: "active" },
   })
-  if (conn) return conn.userId
+  if (mailbox) return mailbox.userId
   throw new Error(
-    "No hay una conexión Outlook activa. Conéctate en la app o configura OUTLOOK_USER_ID."
+    "No hay un correo Outlook conectado. Conéctate en la app o configura OUTLOOK_USER_ID."
   )
 }
 
 try {
   const userId = await resolveUserId()
-  const res = await syncEmailConnection(makeEmailConnectionDeps(), userId)
+  const res = await syncUserMailboxes(makeEmailConnectionDeps(), userId)
   console.log(`[${new Date().toISOString()}] Sync email OK:`, res)
 } catch (e) {
   console.error(

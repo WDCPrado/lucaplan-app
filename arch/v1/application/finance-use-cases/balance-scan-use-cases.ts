@@ -59,12 +59,13 @@ async function requireAccount(
 const limitOf = (buckets: BalanceBucket[], kind: BucketKind): Money | null =>
   buckets.find((b) => b.kind === kind)?.limitAmount ?? null
 
-// Lo que ve el usuario antes de confirmar: qué se leyó y cómo quedaría cada saldo.
+// Lo que ve el usuario antes de confirmar. Solo lo LEÍDO: los derivados no se mandan porque el
+// usuario todavía va a editar los montos, y un "así queda" calculado sobre la lectura original
+// quedaría desactualizado en el primer tecleo. Se calculan al guardar, con lo que quedó escrito.
 export type BalanceScanProposal = {
   reading: BalanceReading
   last4Matches: boolean // false ⇒ la captura es de OTRO instrumento (la UI corta ahí)
   mismatches: BucketMismatch[] // cupos donde disponible + usado no dan el total
-  preview: BalancePreview
 }
 
 // Descuadre detectado en un cupo: la diferencia en unidad mayor. Sin texto: la frase la arma la UI.
@@ -72,11 +73,6 @@ export type BucketMismatch = {
   kind: BucketKind
   difference: number
   currency: "CLP" | "USD"
-}
-
-export type BalancePreview = {
-  cash: number | null
-  buckets: { kind: BucketKind; limit: number; used: number; available: number }[]
 }
 
 // --- Paso 1: leer la captura (no persiste nada) ---
@@ -99,7 +95,6 @@ export async function scanAccountBalance(
     last4Matches:
       !reading.last4 || !account.cardLast4 || reading.last4 === account.cardLast4,
     mismatches: mismatchesIn(scannable(account), reading),
-    preview: await previewFor(deps, account, reading),
   }
 }
 
@@ -211,24 +206,6 @@ function resolveFor(
     )
   )
   return out
-}
-
-async function previewFor(
-  deps: Deps,
-  account: Account,
-  reading: BalanceReading
-): Promise<BalancePreview> {
-  const buckets = await deps.balanceBuckets.listByAccount(account.id)
-  const plan = resolveFor(scannable(account), reading, buckets)
-  return {
-    cash: plan.cash?.toMajor() ?? null,
-    buckets: plan.buckets.map(({ kind, amounts }) => ({
-      kind,
-      limit: amounts.limitAmount.toMajor(),
-      used: amounts.used.toMajor(),
-      available: amounts.available.toMajor(),
-    })),
-  }
 }
 
 // Lectura vacía: base para lo que arma el cliente al confirmar.

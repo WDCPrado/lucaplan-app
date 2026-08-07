@@ -78,6 +78,18 @@ const BUCKET_LABEL: Record<string, string> = {
   credit_international: "el cupo internacional",
 }
 
+// A qué cupo pertenece cada campo: al editarlo, el descuadre de ESE cupo deja de describir lo que
+// hay en pantalla y se retira. El saldo cuenta como línea porque su parte negativa es su deuda.
+const FIELD_BUCKET: Record<FieldKey, string> = {
+  cash: "overdraft",
+  overdraftAvailable: "overdraft",
+  overdraftLimit: "overdraft",
+  nationalAvailable: "credit_national",
+  nationalLimit: "credit_national",
+  internationalAvailable: "credit_international",
+  internationalLimit: "credit_international",
+}
+
 // "1.334.697" → 1334697; "2.069,00" → 2069; "2069.50" → 2069.5; "-25650" → -25650.
 // Vacío ⇒ null (el campo no se envía y el servidor decide qué se puede calcular sin él).
 //
@@ -295,9 +307,14 @@ export function BalanceScanPanel({
                 id={f.key}
                 inputMode="decimal"
                 value={values[f.key] ?? ""}
-                onChange={(e) =>
+                onChange={(e) => {
                   setValues({ ...values, [f.key]: e.target.value })
-                }
+                  // El servidor recalcula los derivados al guardar; lo único que envejece acá es el
+                  // aviso, que hablaba de los montos de la foto.
+                  setMismatches((ms) =>
+                    ms.filter((m) => m.kind !== FIELD_BUCKET[f.key])
+                  )
+                }}
                 placeholder="—"
               />
               {f.hint && (

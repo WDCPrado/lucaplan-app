@@ -111,6 +111,43 @@ sincronización posterior SHALL NOT duplicar movimientos ya importados.
 
 ## MODIFIED Requirements
 
+### Requirement: Operaciones internas fuera del presupuesto
+
+El sistema MUST excluir del ingreso, gasto categorizable y presupuesto los pagos de
+tarjeta/línea/crédito, y SHALL descartar por completo los avisos de dinero entrante (abonos y
+transferencias recibidas) sin crear movimiento alguno. Cuando el correo de un pago interno
+identifique inequívocamente monto, moneda e instrumento, el sistema MAY conservarlo como movimiento
+`isInternal` para actualizar una proyección de balance. Cartolas, intereses y ajustes/reversos
+ambiguos SHALL ser ignorados.
+
+El descarte de los abonos SHALL usar un motivo propio, distinto del de un correo que no pudo
+procesarse: no es un fallo, es una decisión. El correo de una transferencia recibida es idéntico
+venga de un sueldo o de una devolución entre amigos, y crear el movimiento obligaría a decidir cuál
+es sin datos para hacerlo. El dinero que entra se declara en el módulo de Ingresos, que además ya
+mueve el saldo: procesarlo también desde el correo lo sumaría dos veces.
+
+#### Scenario: Abono recibido
+- **WHEN** llega `Aviso de transferencia de fondos`, `Notificación de abono` o un equivalente que representa dinero transferido al usuario
+- **THEN** el sistema lo descarta con el motivo `abono_ignorado`, sin crear movimiento ni mover saldo, y sin contarlo como omisión por plantilla rota
+
+#### Scenario: Pago o ajuste interno
+- **WHEN** llega un comprobante inequívoco de pago de línea de crédito, tarjeta o crédito
+- **THEN** reduce la deuda estimada del bucket aplicable, queda interno y no cuenta en presupuesto
+
+#### Scenario: Pago de cuota de crédito de consumo
+- **WHEN** llega desde `serviciodetransferencias@bancochile.cl` un `Comprobante Pago Credito Consumo` con `Monto Pagado` y una cuenta de cargo identificable en `Datos de Origen`
+- **THEN** el sistema genera un **gasto** CLP por el monto pagado (nunca el interés como monto total) que reduce la caja de esa cuenta corriente, cuenta en presupuesto y se envía al categorizador de IA
+- **AND** SHALL NOT tratarse como movimiento interno: a diferencia del pago de tarjeta —cuya compra ya se registró el día que ocurrió— el consumo financiado por el crédito nunca ingresó al sistema, y la cuota incluye intereses
+- **AND** SHALL NOT mapearse a un bucket de tarjeta ni de sobregiro; el N° de crédito SHALL NOT persistirse ni registrarse; sin `Monto Pagado` o sin cuenta identificable el correo se omite
+
+#### Scenario: Compra en USD
+- **WHEN** un correo permitido representa una compra USD en una tarjeta mapeada
+- **THEN** crea un débito USD en `credit_international`, aumenta su usado y no mezcla el monto con presupuesto CLP
+
+#### Scenario: Ajuste ambiguo
+- **WHEN** llega una cartola, interés, ajuste o reverso sin identidad inequívoca del movimiento original
+- **THEN** el sistema lo ignora y conserva la proyección hasta que el usuario reconcilie saldos
+
 ### Requirement: Un único método activo por banco
 
 El sistema SHALL permitir que un banco use `email` como método de conexión y MUST mantener como

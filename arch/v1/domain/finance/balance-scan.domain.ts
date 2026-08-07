@@ -6,7 +6,7 @@
 // disponible pero no el cupo total; a veces muestra el usado; a veces solo el saldo. Por eso no hay
 // una fórmula sino una escalera: se usa la primera que se pueda armar con lo que llegó, y lo ya
 // guardado en la app solo rellena lo que la imagen no dice.
-import { Money, type CurrencyCode } from "./money.ts"
+import { CURRENCY_DECIMALS, Money, type CurrencyCode } from "./money.ts"
 
 // Lo que la IA pudo leer de un cupo/línea, en unidad mayor (CLP entero, USD con decimales).
 // `null` = no aparece en la imagen, que es distinto de cero.
@@ -55,6 +55,42 @@ export class BalanceScanError extends Error {
   }
 }
 
+// Un monto con más decimales de los que la moneda admite es la FIRMA de un error de lectura, no un
+// redondeo: en Chile el punto separa miles, así que "$1.334.697" leído como decimal da 1,334697 —y
+// Money, que en CLP no tiene decimales, lo redondearía a $1 sin que ninguna otra validación lo note.
+// Por eso se rechaza acá, antes de construir el Money.
+function amount(value: number, currency: CurrencyCode): Money {
+  const decimals = CURRENCY_DECIMALS[currency]
+  const text = String(value)
+  const dot = text.indexOf(".")
+  if (dot !== -1 && text.length - dot - 1 > decimals)
+    throw new BalanceScanError(
+      decimals === 0
+        ? `El monto ${text} tiene decimales y los pesos no los usan: se leyó mal el separador de miles`
+        : `El monto ${text} tiene más de ${decimals} decimales`
+    )
+  return Money.of(value, currency)
+}
+
+// Cuando la captura trae el cupo, el disponible Y el usado hay redundancia: los tres tienen que
+// cumplir `cupo = disponible + usado`. Si no cuadran, alguno se leyó mal.
+//
+// Es la ÚNICA forma automática de cazar un dígito mal leído: con solo dos valores, un $1.834.697 en
+// vez de $1.334.697 es aritméticamente impecable y no hay con qué contrastarlo. Devuelve la
+// diferencia (para poder decirla) o null si cuadra o si no vinieron los tres.
+export function bucketMismatch(
+  reading: BucketReading,
+  currency: CurrencyCode
+): Money | null {
+  const { limit, available, used } = reading
+  if (limit === null || available === null || used === null) return null
+  // Money opera en unidad mínima con BigInt: la comparación es exacta, sin tolerancia que calibrar.
+  const diff = amount(limit, currency).subtract(
+    amount(available, currency).add(amount(used, currency))
+  )
+  return diff.isZero ? null : diff
+}
+
 // Escalera de fórmulas para un bucket. Devuelve null cuando lo leído no alcanza para calcular nada
 // —ahí el bucket se deja intacto, que es mejor que inventar un saldo—. `currentLimit` es el cupo ya
 // guardado: solo se usa si la imagen no trae uno.
@@ -63,7 +99,7 @@ export function resolveBucket(
   currentLimit: Money | null,
   currency: CurrencyCode
 ): ResolvedBucket | null {
-  const money = (v: number | null) => (v === null ? null : Money.of(v, currency))
+  const money = (v: number | null) => (v === null ? null : amount(v, currency))
   const limit = money(reading.limit)
   const available = money(reading.available)
   const used = money(reading.used)
@@ -113,7 +149,7 @@ export function resolveChecking(
   currentOverdraftLimit: Money | null
 ): { cash: Money; overdraft: ResolvedBucket | null } | null {
   if (reading.cash === null) return null
-  const balance = Money.of(reading.cash, "CLP")
+  const balance = amount(reading.cash, "CLP")
   const cash = balance.isNegative ? Money.zero("CLP") : balance
   const overdraft = resolveBucket(
     {

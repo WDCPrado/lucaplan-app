@@ -18,10 +18,12 @@ import {
 import {
   BalanceScanError,
   EMPTY_BUCKET,
+  bucketMismatch,
   resolveBucket,
   resolveChecking,
   type BalanceReading,
   type BalanceScanReader,
+  type BucketReading,
   type ResolvedBucket,
 } from "../../domain/finance/balance-scan.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
@@ -61,7 +63,15 @@ const limitOf = (buckets: BalanceBucket[], kind: BucketKind): Money | null =>
 export type BalanceScanProposal = {
   reading: BalanceReading
   last4Matches: boolean // false ⇒ la captura es de OTRO instrumento (la UI corta ahí)
+  mismatches: BucketMismatch[] // cupos donde disponible + usado no dan el total
   preview: BalancePreview
+}
+
+// Descuadre detectado en un cupo: la diferencia en unidad mayor. Sin texto: la frase la arma la UI.
+export type BucketMismatch = {
+  kind: BucketKind
+  difference: number
+  currency: "CLP" | "USD"
 }
 
 export type BalancePreview = {
@@ -88,8 +98,29 @@ export async function scanAccountBalance(
     // Sin últimos 4 legibles no se puede afirmar que no coincide: se deja pasar y decide el usuario.
     last4Matches:
       !reading.last4 || !account.cardLast4 || reading.last4 === account.cardLast4,
+    mismatches: mismatchesIn(scannable(account), reading),
     preview: await previewFor(deps, account, reading),
   }
+}
+
+// Descuadres de la lectura: solo aparecen cuando la captura trajo cupo, disponible Y usado, porque
+// recién ahí hay con qué contrastar. NO bloquean —el usuario corrige el número en pantalla—, pero
+// son la única señal automática de que se leyó mal un dígito.
+function mismatchesIn(
+  accountType: ScannableType,
+  reading: BalanceReading
+): BucketMismatch[] {
+  const targets: [BucketKind, BucketReading, "CLP" | "USD"][] =
+    accountType === "checking"
+      ? [["overdraft", reading.overdraft, "CLP"]]
+      : [
+          ["credit_national", reading.national, "CLP"],
+          ["credit_international", reading.international, "USD"],
+        ]
+  return targets.flatMap(([kind, bucketReading, currency]) => {
+    const diff = bucketMismatch(bucketReading, currency)
+    return diff ? [{ kind, difference: diff.toMajor(), currency }] : []
+  })
 }
 
 // --- Paso 2: aplicar los montos confirmados ---

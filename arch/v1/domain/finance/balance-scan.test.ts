@@ -7,6 +7,7 @@ import { Money } from "./money.ts"
 import {
   EMPTY_BUCKET,
   BalanceScanError,
+  bucketMismatch,
   resolveBucket,
   resolveChecking,
   type BalanceReading,
@@ -109,6 +110,81 @@ test("un disponible mayor que el cupo es lectura mala ⇒ lanza", () => {
       ),
     BalanceScanError
   )
+})
+
+// --- Coherencia: el separador de miles y la suma de los tres valores ---
+
+// El error de lectura más caro: "$1.334.697" interpretado como decimal da 1,334697, que en pesos
+// Money redondearía a $1 y ninguna otra validación notaría.
+test("un monto en pesos con decimales se rechaza como lectura mala", () => {
+  assert.throws(
+    () =>
+      resolveBucket(
+        { limit: null, available: 1.334697, used: null },
+        Money.of(3_000_000, "CLP"),
+        "CLP"
+      ),
+    BalanceScanError
+  )
+})
+
+test("en dólares los dos decimales son legítimos", () => {
+  const r = resolveBucket(
+    { limit: null, available: 2_069.55, used: null },
+    Money.of(2_500, "USD"),
+    "USD"
+  )
+  assert.equal(r?.available.toDecimalString(), "2069.55")
+  assert.equal(r?.used.toDecimalString(), "430.45")
+})
+
+test("más decimales de los que la moneda admite se rechazan", () => {
+  assert.throws(
+    () =>
+      resolveBucket(
+        { limit: null, available: 2_069.5551, used: null },
+        Money.of(2_500, "USD"),
+        "USD"
+      ),
+    BalanceScanError
+  )
+})
+
+test("con los tres valores, la suma que no cuadra delata un dígito mal leído", () => {
+  // 1.334.697 + 1.665.303 = 3.000.000 exacto.
+  assert.equal(
+    bucketMismatch(
+      { limit: 3_000_000, available: 1_334_697, used: 1_665_303 },
+      "CLP"
+    ),
+    null
+  )
+  // El mismo caso con un 8 en vez del 3: aritméticamente válido, pero ya no suma.
+  const diff = bucketMismatch(
+    { limit: 3_000_000, available: 1_834_697, used: 1_665_303 },
+    "CLP"
+  )
+  assert.equal(diff?.toMajor(), -500_000)
+})
+
+test("sin los tres valores no hay con qué contrastar ⇒ null", () => {
+  assert.equal(
+    bucketMismatch({ limit: 3_000_000, available: 1_334_697, used: null }, "CLP"),
+    null
+  )
+  assert.equal(bucketMismatch(EMPTY_BUCKET, "CLP"), null)
+})
+
+test("la comparación en dólares es exacta hasta el centavo", () => {
+  assert.equal(
+    bucketMismatch({ limit: 2_500, available: 2_069.55, used: 430.45 }, "USD"),
+    null
+  )
+  const diff = bucketMismatch(
+    { limit: 2_500, available: 2_069.55, used: 430.44 },
+    "USD"
+  )
+  assert.equal(diff?.toDecimalString(), "0.01")
 })
 
 // --- resolveChecking: caja y línea desde el saldo ---

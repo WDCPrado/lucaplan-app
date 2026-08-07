@@ -65,10 +65,33 @@ const CARD_FIELDS: Field[] = [
 
 type Values = Partial<Record<FieldKey, string>>
 
-// "1.334.697" → 1334697; "2.069,00" → 2069; "-25650" → -25650. Vacío ⇒ null (el campo no se envía).
+// Descuadre que reporta el servidor: llega estructurado y la frase se arma acá.
+type MismatchDTO = {
+  kind: string
+  difference: number
+  currency: "CLP" | "USD"
+}
+
+const BUCKET_LABEL: Record<string, string> = {
+  overdraft: "la línea de crédito",
+  credit_national: "el cupo nacional",
+  credit_international: "el cupo internacional",
+}
+
+// "1.334.697" → 1334697; "2.069,00" → 2069; "2069.50" → 2069.5; "-25650" → -25650.
+// Vacío ⇒ null (el campo no se envía y el servidor decide qué se puede calcular sin él).
+//
+// El punto es ambiguo en Chile: separa miles ($1.334.697) pero mucha gente lo teclea como decimal en
+// dólares (2069.50). Borrarlo siempre convertiría 2069.50 en 206.950 —cien veces más—, así que un
+// punto solitario con una o dos cifras detrás se trata como decimal y el resto, como miles.
 function toNumber(raw: string | undefined): number | null {
-  const clean = (raw ?? "").trim().replace(/\./g, "").replace(",", ".")
-  if (!clean || clean === "-") return null
+  const text = (raw ?? "").trim()
+  if (!text || text === "-") return null
+  const clean = text.includes(",")
+    ? text.replace(/\./g, "").replace(",", ".") // con coma, la coma es el decimal
+    : /^-?\d+\.\d{1,2}$/.test(text)
+      ? text
+      : text.replace(/\./g, "")
   const n = Number(clean)
   return Number.isFinite(n) ? n : null
 }
@@ -94,6 +117,7 @@ export function BalanceScanPanel({
   const [values, setValues] = useState<Values | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [mismatches, setMismatches] = useState<MismatchDTO[]>([])
 
   const isCard = account.accountType === "credit_card"
   const fields = isCard ? CARD_FIELDS : CHECKING_FIELDS
@@ -103,6 +127,7 @@ export function BalanceScanPanel({
     setBusy("reading")
     setError(null)
     setWarning(null)
+    setMismatches([])
     try {
       const image = await downscaleToDataUrl(file)
       const res = await fetch(`/api/accounts/${account.id}/balance-scan`, {
@@ -127,6 +152,7 @@ export function BalanceScanPanel({
         )
         return
       }
+      setMismatches(data.mismatches ?? [])
       setValues(prefill(data.reading))
       haptic("light")
     } catch {
@@ -240,6 +266,23 @@ export function BalanceScanPanel({
           <p className="text-sm text-muted-foreground">
             Revisa que los montos coincidan con la captura antes de guardar.
           </p>
+          {/* Descuadre aritmético: la captura traía los tres valores y no suman. Es la única pista
+              automática de que se leyó mal un dígito, así que se señala fuerte pero no bloquea. */}
+          {mismatches.map((m) => (
+            <p
+              key={m.kind}
+              className="flex items-start gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
+            >
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <span>
+                En {BUCKET_LABEL[m.kind] ?? "este cupo"} el disponible y el usado
+                no suman el total: faltan{" "}
+                {format(Math.abs(m.difference), m.currency)}{" "}
+                {m.currency === "USD" ? "USD" : "pesos"}. Revisa los montos
+                contra la captura.
+              </span>
+            </p>
+          ))}
           {fields.map((f) => (
             <div key={f.key} className="flex flex-col gap-1.5">
               <Label htmlFor={f.key}>

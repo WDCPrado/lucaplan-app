@@ -13,10 +13,11 @@
 //   - Si falla, el seed base lo registra y sigue (no tumba el deploy), pero la feature queda sin
 //     datos. Pruébalo antes con `SEED_PR_FORCE=1 pnpm seed:pr` contra una base local.
 //
-// --- PR actual: multi-buzón y multi-banco en la conexión por correo ---
+// --- PR actual: Banco BICE, sobre el modelo multi-buzón y multi-banco ---
 // Para revisar la pantalla de conexión hace falta ver los dos niveles llenos: correos y, dentro de
-// cada uno, sus bancos. Se siembran DOS buzones con el mismo banco (personal y empresa), que es el
-// caso que estrena la etiqueta y el badge, más el banco del seed base ya migrado al modelo nuevo.
+// cada uno, sus bancos. Se siembran DOS buzones: el personal con DOS bancos distintos (Banco de
+// Chile y Banco BICE, que es lo que estrena este PR) y el de empresa con el mismo Banco de Chile
+// bajo etiqueta, que es el caso del badge.
 //
 // Los tokens son basura deliberada: sirven para dibujar la UI, no para hablar con Microsoft. Tocar
 // "Sincronizar ahora" con estos buzones falla (token inválido) — es lo esperado en el entorno de PR.
@@ -179,7 +180,65 @@ export default async function seedFeature({
     },
   })
 
+  // Banco BICE en el MISMO correo personal: dos bancos distintos bajo un buzón, cada uno con sus
+  // cuentas. Sus correos no cuentan como omitidos del otro porque el enrutado es por remitente.
+  const biceBank = await prisma.bank.create({
+    data: {
+      userId,
+      name: "Banco BICE",
+      provider: "bice",
+      connectionMethod: "email",
+      lastSyncedAt: asOf,
+    },
+  })
+  const biceAccount = await prisma.financialAccount.create({
+    data: {
+      userId,
+      bankId: biceBank.id,
+      name: "Cuenta Corriente",
+      accountType: "checking",
+      currency: "CLP",
+      balance: 318740,
+      cardLast4: "5678",
+      provider: "bice",
+      externalId: "email:bice:acct:12345678",
+      lastSyncedAt: asOf,
+    },
+  })
+  await prisma.balanceBucket.create({
+    data: {
+      userId,
+      accountId: biceAccount.id,
+      kind: "cash",
+      currency: "CLP",
+      limitAmount: 0,
+      used: 0,
+      available: 318740,
+      asOf,
+    },
+  })
+  await prisma.emailBankLink.create({
+    data: {
+      mailboxId: personal.id,
+      userId,
+      bankProvider: "bice",
+      label: null,
+      bankId: biceBank.id,
+      status: "active",
+      skippedCount: 0,
+      lastBalanceReconciledAt: asOf,
+    },
+  })
+  await prisma.bankConnectionMethod.create({
+    data: {
+      userId,
+      bankProvider: "bice",
+      mailboxId: personal.id,
+      method: "email",
+    },
+  })
+
   console.log(
-    "[seed:pr] dos correos conectados: personal (Banco de Chile) y empresa (Banco de Chile Empresa, con badge)."
+    "[seed:pr] dos correos conectados: personal (Banco de Chile + Banco BICE) y empresa (Banco de Chile Empresa, con badge)."
   )
 }

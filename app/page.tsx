@@ -519,7 +519,7 @@ const faqs = [
   },
   {
     q: "¿Qué bancos y correos funcionan?",
-    a: "Hoy, Banco de Chile con notificaciones a un buzón de Outlook. Gmail viene próximamente, y más bancos se irán sumando.",
+    a: "Hoy, Banco de Chile y Banco BICE con notificaciones a un buzón de Outlook. Un mismo correo puede alimentar varios bancos, y un banco puede llegarte a varios correos. Gmail viene próximamente, y más bancos se irán sumando.",
   },
   {
     q: "¿Puedo desconectarme cuando quiera?",

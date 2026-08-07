@@ -13,6 +13,7 @@ export const CARD_VARIANT_BG: Record<CardVariant, string> = {
 // Monograma propio por banco (sin logos de terceros). Fallback: iniciales del nombre.
 const BANK_MONOGRAMS: Record<string, string> = {
   "Banco de Chile": "Ch",
+  "Banco BICE": "Bi",
   BancoEstado: "BE",
   Santander: "S",
   Bci: "Bci",

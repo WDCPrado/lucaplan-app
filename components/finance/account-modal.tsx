@@ -124,7 +124,8 @@ export function AccountModal({
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
                 El alta manual es para bancos/medios sin conexión automática.
-                Banco de Chile se conecta por correo desde “Conectar banco”.
+                Los bancos con conexión por correo se agregan desde “Conectar
+                banco”.
               </p>
             </div>
             <div>

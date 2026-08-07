@@ -3,7 +3,7 @@
 // banco, cuentas, tarjetas, buckets o movimientos. Cargos CLP y USD con el mismo último 4 de
 // tarjeta de crédito se agrupan en UNA tarjeta con dos monedas (dos buckets), nunca en dos.
 import type { CurrencyCode } from "../../domain/finance/money.ts"
-import type { EmailSkipReason, ParsedEmail } from "./bancochile-email-map.ts"
+import type { EmailSkipReason, ParsedEmail } from "./bank-email-map.ts"
 
 export type CheckingCandidate = {
   kind: "checking"

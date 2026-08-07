@@ -1,6 +1,6 @@
 # Contrato de correo bancario
 
-Qué necesita un banco para funcionar en Luca Plan, y qué cubre hoy Banco de Chile.
+Qué necesita un banco para funcionar en Luca Plan, y qué cubren hoy Banco de Chile y Banco BICE.
 
 El sistema no lee saldos: reconstruye el movimiento desde las **notificaciones por correo**. Un
 banco se soporta cuando sus correos permiten extraer, sin adivinar, cuatro cosas: **cuánto**,
@@ -74,6 +74,32 @@ Remitentes permitidos (catálogo, clave `bancochile`): `enviodigital@bancochile.
 Los conteos por motivo se muestran en el escaneo inicial: son el termómetro de cuánto está
 quedando fuera.
 
+## Catálogo Banco BICE
+
+Remitente permitido (catálogo, clave `bice`): `reply@info.bice.cl`. Es el único que notifica
+movimientos; `beneficiosbice@info.bice.cl`, `newsletter-bicestore@bicestore.cl`,
+`experiencia@bancobice.cl` y el resto son marketing o servicio y no entran al catálogo.
+
+Sus plantillas son tablas de **etiqueta | valor** (`Monto`, `Número de cuenta`, `Cupo`, `Medio de
+pago`, `Número de operación`), así que el monto sale siempre de su etiqueta: la letra chica de las
+promociones va al pie de varias plantillas y trae cifras en pesos que un `$` suelto confundiría con
+el movimiento.
+
+| Asunto | `source` | Efecto | Instrumento | Qué se extrae |
+| --- | --- | --- | --- | --- |
+| Hicimos la transferencia | `transferencia` | Gasto | Cuenta corriente | Monto CLP, cuenta de origen, nombre del destinatario y N° de operación. Del destinatario **solo** el nombre: ni RUT, ni correo, ni su cuenta. |
+| Enviamos tu pago a *(comercio)* | `transferencia_fondos` | Gasto | Cuenta corriente | Igual que la anterior; el comercio sale del **asunto**, que es más estable que el cuerpo. |
+| Confirmación del pago de tarjeta de crédito | `pago_tarjeta` | Interno (dos patas) | Tarjeta + cuenta del medio de pago | Nacional e internacional comparten asunto: los distingue la etiqueta `Cupo`. Nacional cobra en pesos; internacional informa la deuda en dólares (`Monto`) y lo cargado en pesos (`Monto pagado`). Sin `Cupo` se omite por `plantilla_desconocida`. |
+| Recibiste una transferencia / Aviso de transferencia de fondos | — | **Descartado** (`abono_ignorado`) | — | Nada: la plata que entra se declara en Ingresos. |
+
+La identidad idempotente es el **N° de operación**, que BICE emite alfanumérico
+(`EXP0067420260790738557`) o numérico (`239167263`). La fecha viene al pie con el mes abreviado
+(`28 Jul 2026, 17:12`); cuando la plantilla no la trae se usa la de recepción.
+
+**Falta:** los cargos en cuenta y las compras con tarjeta (crédito y débito). No aparecieron
+ejemplos en una revisión de tres meses del buzón, así que hasta tenerlos se omiten como
+`asunto_desconocido` — inventar la plantilla sería peor que no cubrirla.
+
 ## Qué debe aportar un banco nuevo
 
 1. **Remitentes fijos.** Uno o varios, estables. Sin esto no hay allowlist y no hay fail-closed.
@@ -106,6 +132,11 @@ Agregar un banco es agregar su entrada y su archivo de parseo. Los use-cases no 
 parser por clave y enrutan cada correo **por remitente** antes de parsearlo. Ese enrutado es lo que
 permite que un mismo buzón alimente varios bancos sin que los correos de uno cuenten como omitidos
 del otro.
+
+Los tipos del evento y los helpers que no dependen del banco (HTML→texto, montos CLP/USD, últimos 4,
+cuentas, fechas, identidad idempotente) viven en `bank-email-map.ts`. Cada parser importa de ahí y
+**nunca** del parser de otro banco: lo propio de cada uno son sus remitentes, sus asuntos y las
+regex de sus plantillas.
 
 Variantes de la misma institución (por ejemplo, los avisos de una cuenta empresa) van como
 remitentes adicionales de la **misma** clave: el efecto financiero es idéntico. Lo que distingue

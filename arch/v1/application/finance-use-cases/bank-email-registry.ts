@@ -6,7 +6,9 @@
 // Eso es lo que permite que un mismo buzón alimente varios bancos sin que los correos de uno se
 // cuenten como omitidos del otro.
 import type { BankEmailMessage } from "../../domain/finance/email-connection.domain.ts"
-import { parseBancoChileEmail, type ParsedEmail } from "./bancochile-email-map.ts"
+import type { ParsedEmail } from "./bank-email-map.ts"
+import { parseBancoChileEmail } from "./bancochile-email-map.ts"
+import { BICE_SENDER, parseBiceEmail } from "./bice-email-map.ts"
 
 export type BankEmailDefinition = {
   key: string // identifica al banco en los datos del usuario (Bank.provider)
@@ -20,13 +22,23 @@ export type BankEmailDefinition = {
 export const BANCOCHILE: BankEmailDefinition = {
   key: "bancochile",
   name: "Banco de Chile",
-  senders: ["enviodigital@bancochile.cl", "serviciodetransferencias@bancochile.cl"],
+  senders: [
+    "enviodigital@bancochile.cl",
+    "serviciodetransferencias@bancochile.cl",
+  ],
   parse: parseBancoChileEmail,
+}
+
+export const BICE: BankEmailDefinition = {
+  key: "bice",
+  name: "Banco BICE",
+  senders: [BICE_SENDER],
+  parse: parseBiceEmail,
 }
 
 export type BankEmailRegistry = readonly BankEmailDefinition[]
 
-export const BANK_EMAIL_REGISTRY: BankEmailRegistry = [BANCOCHILE]
+export const BANK_EMAIL_REGISTRY: BankEmailRegistry = [BANCOCHILE, BICE]
 
 // Banco de una clave. Lanza si no existe: procesar correo con un parser ajeno sería peor que fallar.
 export function bankByKey(

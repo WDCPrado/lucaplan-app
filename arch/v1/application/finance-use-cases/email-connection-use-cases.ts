@@ -38,7 +38,7 @@ import {
   routeEmail,
   type BankEmailRegistry,
 } from "./bank-email-registry.ts"
-import type { EmailEvent, ParsedEmail } from "./bancochile-email-map.ts"
+import type { EmailEvent, ParsedEmail } from "./bank-email-map.ts"
 import {
   detectCandidates,
   type EmailScanSummary,

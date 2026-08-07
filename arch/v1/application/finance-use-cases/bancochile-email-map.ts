@@ -2,9 +2,25 @@
 // Fail-closed: solo remitentes y asuntos de la allowlist producen eventos; cualquier otro correo, o
 // una plantilla permitida a la que le falte un dato obligatorio (monto/instrumento), se OMITE con
 // un motivo sin contenido sensible. El cuerpo HTML se procesa solo en memoria: aquí no se persiste
-// ni se registra nada del correo. Sin dependencias de parseo (regex acotadas sobre el texto).
-import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
+// ni se registra nada del correo. Los tipos y los helpers comunes a todo banco viven en
+// bank-email-map.ts; aquí queda solo lo específico de estas plantillas.
 import type { BankEmailMessage } from "../../domain/finance/email-connection.domain.ts"
+import {
+  cleanupName,
+  emailEvent,
+  htmlToText,
+  normalizeSubject,
+  originSection,
+  parseAccountRef,
+  parseAmount,
+  parseCardLast4,
+  parseClp,
+  parseDate,
+  parseLabeledClp,
+  parseLabeledUsd,
+  parseTefId,
+  type ParsedEmail,
+} from "./bank-email-map.ts"
 
 // --- Allowlist (remitentes y asuntos EXACTOS o por prefijo) ---
 
@@ -32,180 +48,7 @@ const SUBJECT_PAGO_TARJETA =
 const SUBJECT_PAGO_TARJETA_BODY =
   /se ha efectuado el pago de la tarjeta de cr[eé]dito/i
 
-// --- Tipos del evento extraído ---
-
-// Instrumento referido por el correo: cuenta corriente (número completo o últimos 4) o tarjeta de
-// crédito (últimos 4). `ref` guarda solo dígitos.
-export type EmailInstrumentRef =
-  | { kind: "checking"; ref: string }
-  | { kind: "credit_card"; last4: string }
-
-// No existe una variante de ingreso, y es a propósito: del correo solo sale el gasto; toda entrada
-// de dinero es ajuste de saldo interno. Ver docs/bank-email-contract.md.
-export type EmailEventKind = "expense" | "internal_credit" | "internal_payment"
-
-export type EmailEventSource =
-  | "cargo_cuenta"
-  | "compra_tarjeta"
-  | "transferencia"
-  | "transferencia_fondos"
-  | "pago_tarjeta"
-  | "pago_linea"
-  | "pago_credito_consumo"
-
-export type EmailEvent = {
-  kind: EmailEventKind
-  source: EmailEventSource
-  amount: Money
-  date: Date // fecha del movimiento (del cuerpo si viene; si no, la de recepción, en UTC; granularidad día)
-  receivedAt: Date // instante de recepción del correo (para comparar contra el snapshot con precisión)
-  description: string // sin RUT/cuentas/correos; comercio o destinatario si el correo lo informa
-  instrument: EmailInstrumentRef | null // null = el correo no identifica el instrumento
-  // Bucket que ajusta un pago interno inequívoco (pago tarjeta CLP/USD o pago de línea).
-  paymentTarget: "credit_national" | "credit_international" | "overdraft" | null
-  // Segunda pata del pago de tarjeta: débito CLP en la cuenta corriente de origen. null salvo en el
-  // pago de tarjeta (nacional/internacional). El use-case lo expande a un segundo movimiento.
-  cashLeg: { ref: string; amount: Money } | null
-  tefId: string | null // ID TEF (identidad bancaria estable de transferencias)
-  externalId: string // identidad idempotente: email:txn:<Transacción> | email:tef:<id> | email:mid:<Message-ID> | email:gid:<id Graph>
-}
-
-export type EmailSkipReason =
-  | "remitente_desconocido"
-  | "asunto_desconocido"
-  | "sin_monto"
-  | "sin_instrumento"
-  | "plantilla_desconocida"
-  | "abono_ignorado" // entrada de dinero: se declara en Ingresos, no se deduce del correo
-
-export type ParsedEmail =
-  | { ok: true; event: EmailEvent }
-  | { ok: false; reason: EmailSkipReason }
-
-// --- HTML → texto plano (acotado; sin ejecutar contenido ni descargar recursos) ---
-
-const NAMED_ENTITIES: Record<string, string> = {
-  nbsp: " ",
-  amp: "&",
-  lt: "<",
-  gt: ">",
-  quot: '"',
-  apos: "'",
-  aacute: "á",
-  eacute: "é",
-  iacute: "í",
-  oacute: "ó",
-  uacute: "ú",
-  ntilde: "ñ",
-  Aacute: "Á",
-  Eacute: "É",
-  Iacute: "Í",
-  Oacute: "Ó",
-  Uacute: "Ú",
-  Ntilde: "Ñ",
-  uuml: "ü",
-  deg: "°",
-  ordm: "º",
-  middot: "·",
-}
-
-function decodeEntities(text: string): string {
-  return text
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, n) =>
-      String.fromCodePoint(parseInt(n, 16))
-    )
-    .replace(/&([a-zA-Z]+);/g, (m, name) => NAMED_ENTITIES[name] ?? m)
-}
-
-export function htmlToText(html: string): string {
-  return decodeEntities(
-    html
-      .replace(/<(style|script)[\s\S]*?<\/\1\s*>/gi, " ")
-      .replace(/<!--[\s\S]*?-->/g, " ")
-      .replace(/<\/(p|div|tr|td|th|li|h[1-6]|table)\s*>|<br\s*\/?>/gi, "\n")
-      .replace(/<[^>]+>/g, " ")
-  )
-    .replace(/[ \t ]+/g, " ")
-    .replace(/\s*\n\s*/g, "\n")
-    .trim()
-}
-
-// --- Extracción de campos (regex acotadas y tolerantes; faltante ⇒ se omite el correo) ---
-
-// CLP: "$ 1.234.567" (puntos de miles). El lookbehind evita confundir "US$".
-function parseClp(text: string): Money | null {
-  const m = text.match(/(?<![A-Z])\$\s*(\d{1,3}(?:\.\d{3})+|\d+)(?!\d)/)
-  if (!m) return null
-  const pesos = parseInt(m[1].replace(/\./g, ""), 10)
-  return Number.isFinite(pesos) && pesos > 0
-    ? Money.fromMinor(pesos, "CLP")
-    : null
-}
-
-// USD: "US$ 12,34" | "USD 1.234,56" | "US$1,234.56" | "USD$142,05". El último separador con 2
-// dígitos es decimal.
-function parseUsd(text: string): Money | null {
-  const m = text.match(/(?:US\$|USD\$?)\s*(\d[\d.,]*)/i)
-  if (!m) return null
-  const raw = m[1]
-  const sep = Math.max(raw.lastIndexOf(","), raw.lastIndexOf("."))
-  let intDigits = raw
-  let frac = "00"
-  if (sep !== -1) {
-    const tail = raw.slice(sep + 1)
-    if (tail.length === 2) {
-      intDigits = raw.slice(0, sep)
-      frac = tail
-    } else if (tail.length !== 3) {
-      return null // ni decimal (2) ni separador de miles (3): plantilla desconocida
-    }
-  }
-  const digits = intDigits.replace(/[.,]/g, "")
-  if (!/^\d+$/.test(digits)) return null
-  const cents = parseInt(digits + frac, 10)
-  return Number.isFinite(cents) && cents > 0
-    ? Money.fromMinor(cents, "USD")
-    : null
-}
-
-// Monto con su moneda: USD primero (su patrón contiene "$"), luego CLP.
-function parseAmount(text: string): Money | null {
-  return parseUsd(text) ?? parseClp(text)
-}
-
-// Últimos 4 de una tarjeta: "terminada en 1234", "**** 1234", "Tarjeta ... 1234".
-function parseCardLast4(text: string): string | null {
-  const m =
-    text.match(/terminad[ao]\s+en\s+[*•Xx\s]*(\d{4})(?!\d)/i) ??
-    text.match(/[*•Xx]{2,}\s*(\d{4})(?!\d)/) ??
-    text.match(/tarjeta(?:\s+de\s+cr[eé]dito)?[^\d\n]{0,40}(\d{4})(?!\d)/i)
-  return m ? m[1] : null
-}
-
-// Cuenta corriente: número ("Cuenta N° 00-123-45678-09") o últimos 4 ("cuenta terminada en 1234").
-// Devuelve solo dígitos; 4 dígitos ⇒ últimos 4.
-function parseAccountRef(text: string): string | null {
-  const last4 = text.match(
-    /cuenta[^\d\n]{0,60}terminad[ao]\s+en\s+[*•Xx\s]*(\d{4})(?!\d)/i
-  )
-  if (last4) return last4[1]
-  const masked = text.match(/cuenta[^\d\n]{0,40}[*•Xx]{2,}\s*(\d{4})(?!\d)/i)
-  if (masked) return masked[1]
-  const full = text.match(
-    /cuenta(?:\s+corriente|\s+vista)?\s*(?:n[°º]?|nro\.?|n[uú]mero)?\s*[:.]?\s*(\d[\d-]{3,})/i
-  )
-  if (full) return full[1].replace(/\D/g, "")
-  return null
-}
-
-// ID TEF: "N° de operación 123456", "ID transacción: 123456", "Comprobante N° 123456".
-function parseTefId(text: string): string | null {
-  const m = text.match(
-    /(?:n[°º]?\s*(?:de\s*)?(?:operaci[oó]n|transacci[oó]n|comprobante)|id\s*(?:tef|de\s*)?(?:operaci[oó]n|transacci[oó]n)?)\s*[:#]?\s*(\d{5,})/i
-  )
-  return m ? m[1] : null
-}
+// --- Extracción específica de estas plantillas ---
 
 // Comercio de una compra. Cubre la plantilla real "compra por $X con Tarjeta de Crédito
 // ****NNNN en COMERCIO el <fecha>" y las variantes "compra por $X en COMERCIO el ..." |
@@ -237,52 +80,6 @@ function parseRecipient(text: string): string | null {
   return inline ? cleanupName(inline[1]) : null
 }
 
-function cleanupName(raw: string): string | null {
-  const name = raw.replace(/\s+/g, " ").trim()
-  return name.length >= 2 ? name : null
-}
-
-// Fecha del movimiento en el cuerpo ("dd/mm/yyyy" o "dd-mm-yyyy"); si no viene, la de recepción.
-function parseDate(text: string, receivedAt: Date): Date {
-  const m = text.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b/)
-  if (m) {
-    const [, d, mo, y] = m
-    const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)))
-    if (!Number.isNaN(date.getTime())) return date
-  }
-  return new Date(
-    Date.UTC(
-      receivedAt.getUTCFullYear(),
-      receivedAt.getUTCMonth(),
-      receivedAt.getUTCDate()
-    )
-  )
-}
-
-// Sección de "Origen" del comprobante de pago (acota de dónde sale la cuenta de cargo, para no
-// confundirla con la tarjeta/crédito de destino). Cubre "Datos de Origen … Datos de Destino" (crédito
-// de consumo) y "Origen … Destino" (pago de tarjeta). Sin sección, se busca en todo el texto.
-function originSection(text: string): string {
-  const m = text.match(
-    /(?:datos de )?origen([\s\S]*?)(?=(?:datos de )?destino|$)/i
-  )
-  return m ? m[1] : text
-}
-
-// Monto CLP de una etiqueta concreta ("Monto Pagado: $265.708"). Obligatorio en plantillas con
-// varias cifras (interés, utilizado, tipo de cambio): el primer "$" del texto NO es el monto pagado.
-function parseLabeledClp(text: string, label: RegExp): Money | null {
-  const m = text.match(label)
-  return m ? parseClp(m[1]) : null
-}
-
-// Monto USD de una etiqueta concreta ("Monto pagado USD$142,05"). El grupo 1 incluye el prefijo
-// USD$/US$ para que parseUsd lo interprete.
-function parseLabeledUsd(text: string, label: RegExp): Money | null {
-  const m = text.match(label)
-  return m ? parseUsd(m[1]) : null
-}
-
 // ID de "Transacción" del comprobante (alfanumérico: BCAMOVIL01…, INTERNET_P…). Identidad estable
 // por operación; presente porque el remitente es el de transferencias (parseTefId solo acepta
 // dígitos, no sirve para esto).
@@ -304,24 +101,7 @@ function parseInstallment(text: string): string | null {
   return m ? m[1] : null
 }
 
-// Identidad idempotente del movimiento: Transacción > ID TEF > Message-ID > id inmutable de Graph.
-export function emailExternalId(
-  txnId: string | null,
-  tefId: string | null,
-  internetMessageId: string | null,
-  graphId: string
-): string {
-  if (txnId) return `email:txn:${txnId}`
-  if (tefId) return `email:tef:${tefId}`
-  if (internetMessageId) return `email:mid:${internetMessageId}`
-  return `email:gid:${graphId}`
-}
-
 // --- Parser principal ---
-
-function normalizeSubject(subject: string): string {
-  return subject.replace(/\s+/g, " ").trim().toLowerCase()
-}
 
 export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
   const from = msg.from.trim().toLowerCase()
@@ -341,7 +121,7 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
       if (!amount) return { ok: false, reason: "sin_monto" }
       const ref = parseAccountRef(text)
       if (!ref) return { ok: false, reason: "sin_instrumento" }
-      return event({
+      return emailEvent({
         ...base,
         kind: "expense",
         source: "cargo_cuenta",
@@ -357,7 +137,7 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
       if (!amount) return { ok: false, reason: "sin_monto" }
       const last4 = parseCardLast4(text)
       if (!last4) return { ok: false, reason: "sin_instrumento" }
-      return event({
+      return emailEvent({
         ...base,
         kind: "expense",
         source: "compra_tarjeta",
@@ -373,7 +153,7 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
       const amount = parseAmount(text)
       if (!amount) return { ok: false, reason: "sin_monto" }
       const last4 = parseCardLast4(text)
-      return event({
+      return emailEvent({
         ...base,
         kind: "internal_payment",
         source: "pago_tarjeta",
@@ -391,7 +171,7 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
       const amount = parseClp(text)
       if (!amount) return { ok: false, reason: "sin_monto" }
       const ref = parseAccountRef(text)
-      return event({
+      return emailEvent({
         ...base,
         kind: "internal_payment",
         source: "pago_linea",
@@ -425,7 +205,7 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
         )
       : null
     const recipient = subjectMerchant ?? parseRecipient(text)
-    return event({
+    return emailEvent({
       date: base.date,
       tefId,
       kind: "expense",
@@ -469,7 +249,7 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
     if (!last4) return { ok: false, reason: "sin_instrumento" }
     const ref = parseAccountRef(originSection(text))
     if (!ref) return { ok: false, reason: "sin_instrumento" }
-    return event({
+    return emailEvent({
       date: base.date,
       txnId: parseTransaccionId(text),
       tefId: null,
@@ -498,7 +278,7 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
     const ref = parseAccountRef(originSection(text))
     if (!ref) return { ok: false, reason: "sin_instrumento" }
     const cuota = parseInstallment(text)
-    return event({
+    return emailEvent({
       date: parseLabeledDate(text, base.date),
       tefId: parseTefId(text),
       kind: "expense",
@@ -513,45 +293,4 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
     })
   }
   return { ok: false, reason: "asunto_desconocido" }
-}
-
-function event(input: {
-  kind: EmailEventKind
-  source: EmailEventSource
-  amount: Money
-  date: Date
-  description: string
-  instrument: EmailInstrumentRef | null
-  paymentTarget: EmailEvent["paymentTarget"]
-  cashLeg?: { ref: string; amount: Money } | null
-  txnId?: string | null
-  tefId: string | null
-  msg: BankEmailMessage
-}): ParsedEmail {
-  return {
-    ok: true,
-    event: {
-      kind: input.kind,
-      source: input.source,
-      amount: input.amount,
-      date: input.date,
-      receivedAt: input.msg.receivedAt,
-      description: input.description,
-      instrument: input.instrument,
-      paymentTarget: input.paymentTarget,
-      cashLeg: input.cashLeg ?? null,
-      tefId: input.tefId,
-      externalId: emailExternalId(
-        input.txnId ?? null,
-        input.tefId,
-        input.msg.internetMessageId,
-        input.msg.id
-      ),
-    },
-  }
-}
-
-// ¿La moneda corresponde a un CurrencyCode soportado? (guard para llamadores)
-export function isSupportedCurrency(c: string): c is CurrencyCode {
-  return c === "CLP" || c === "USD"
 }

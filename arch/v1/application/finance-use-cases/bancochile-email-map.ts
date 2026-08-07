@@ -36,6 +36,8 @@ export type EmailInstrumentRef =
   | { kind: "checking"; ref: string }
   | { kind: "credit_card"; last4: string }
 
+// No existe una variante de ingreso, y es a propósito: del correo solo sale el gasto; toda entrada
+// de dinero es ajuste de saldo interno. Ver docs/bank-email-contract.md.
 export type EmailEventKind = "expense" | "internal_credit" | "internal_payment"
 
 export type EmailEventSource =

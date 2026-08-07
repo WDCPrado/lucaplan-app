@@ -284,8 +284,18 @@ function resolveCashLeg(
   return { accountId: target.id, bucketId: cash?.id ?? null }
 }
 
+// INVARIANTE, vale para CUALQUIER banco: un correo bancario nunca crea un ingreso. Del correo solo
+// sale el gasto (`expense`); toda entrada de dinero — abono recibido, pago de tarjeta o de línea —
+// es ajuste de saldo interno. El correo no distingue un sueldo de una devolución entre amigos, y
+// adivinarlo inflaría el presupuesto con plata que no es ingreso. Los ingresos se declaran en el
+// módulo de Ingresos, que es independiente del banco. Por eso `EmailEventKind` no tiene una variante
+// de ingreso: la regla es estructural, no una decisión por banco.
+function isInternalEvent(event: EmailEvent): boolean {
+  return event.kind !== "expense"
+}
+
 function directionOf(event: EmailEvent): Direction {
-  return event.kind === "expense" ? "debit" : "credit"
+  return isInternalEvent(event) ? "credit" : "debit"
 }
 
 // --- OAuth: alta / reconexión ---
@@ -543,7 +553,7 @@ export async function confirmEmailSetup(
       amount: event.amount,
       direction: directionOf(event),
       status: "confirmed",
-      isInternal: event.kind !== "expense",
+      isInternal: isInternalEvent(event),
     })
     if (posterior) applyEventToProjection(projected, target.accountId, event)
     if (event.cashLeg && cashTarget) {
@@ -788,7 +798,7 @@ export async function syncEmailConnection(
       description: event.description,
       amount: event.amount,
       direction: directionOf(event),
-      isInternal: event.kind !== "expense",
+      isInternal: isInternalEvent(event),
     })
     byExternalId.set(debtExternalId, event)
     if (event.cashLeg && cashTarget) {

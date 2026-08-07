@@ -13,6 +13,10 @@ import { PushToggle } from "@/components/pwa/push-toggle"
 import { AppShell } from "./app-shell"
 import { Button } from "@/components/ui/button"
 import type { BudgetAlert } from "@/arch/v1/domain/notifications/budget-alert.domain"
+import type {
+  AccountDTO,
+  CategoryDTO,
+} from "@/arch/v1/application/finance-use-cases/finance-read"
 
 // Umbrales ofrecidos. Son los que la gente usa: elegir "aviso al 80%" es una decisión discreta,
 // no un continuo, y un slider de 700px para eso se lee como barra de progreso, no como control.
@@ -24,12 +28,17 @@ export function SettingsView({
   alerts: initialAlerts,
   dueDays,
   paceFrequency,
+  accounts,
+  categories,
   vapidPublicKey,
 }: {
   user: { name: string; email: string; initial: string }
   alerts: BudgetAlert[]
   dueDays: number
   paceFrequency: PaceFrequency
+  // Solo para el "+" de ingreso rápido del shell.
+  accounts: AccountDTO[]
+  categories: CategoryDTO[]
   // Vacío = sin claves VAPID en el servidor: no hay push posible, la sección ni se ofrece.
   vapidPublicKey: string
 }) {
@@ -45,6 +54,7 @@ export function SettingsView({
       user={{ name: user.name || user.email, initial: user.initial, email: user.email }}
       active="configuracion"
       onSignOut={signOut}
+      quickAdd={{ accounts, categories }}
       title="Configuración"
     >
       <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">

@@ -850,9 +850,11 @@ const syncDepsForCardPayment = (
   },
   captured: {
     seen: Set<string>
-    upserted: string[]
+    upserted: { externalId: string; direction: string; isInternal: boolean }[]
     byId: Map<string, EmailStoredBucket>
-  }
+    notified?: string[]
+  },
+  messages: BankEmailMessage[] = [pagoTarjetaNac()]
 ) =>
   ({
     emailConnections: {
@@ -871,10 +873,7 @@ const syncDepsForCardPayment = (
     mail: {
       listMessagesSince: async () => [],
       startDelta: async () => "delta-2",
-      runDelta: async () => ({
-        messages: [pagoTarjetaNac()],
-        deltaLink: "delta-2",
-      }),
+      runDelta: async () => ({ messages, deltaLink: "delta-2" }),
       fetchMessage: async () => null,
       ensureSubscription: async () => null,
       deleteSubscription: async () => {},
@@ -889,9 +888,13 @@ const syncDepsForCardPayment = (
       listInstruments: async () => instruments,
       upsertMovements: async (
         _userId: string,
-        movements: { externalId: string }[]
+        movements: {
+          externalId: string
+          direction: string
+          isInternal: boolean
+        }[]
       ) => {
-        captured.upserted.push(...movements.map((m) => m.externalId))
+        captured.upserted.push(...movements)
         const createdExternalIds = movements
           .filter((m) => !captured.seen.has(m.externalId))
           .map((m) => m.externalId)
@@ -911,6 +914,9 @@ const syncDepsForCardPayment = (
       setAccountBalance: async () => {},
       markBankSynced: async () => {},
       deleteBank: async () => {},
+    },
+    notify: async (_userId: string, movements: { description: string }[]) => {
+      captured.notified?.push(...movements.map((m) => m.description))
     },
   }) satisfies EmailConnectionDeps
 
@@ -937,7 +943,11 @@ test("pago de tarjeta: sync expande dos patas (caja + deuda) y es idempotente", 
   ]
   const captured = {
     seen: new Set<string>(),
-    upserted: [] as string[],
+    upserted: [] as {
+      externalId: string
+      direction: string
+      isInternal: boolean
+    }[],
     byId: new Map(buckets.map((b) => [b.id, b])),
   }
   const deps = syncDepsForCardPayment(
@@ -996,7 +1006,11 @@ test("pago de tarjeta: sin la cuenta de origen confirmada se omite el pago compl
   ]
   const captured = {
     seen: new Set<string>(),
-    upserted: [] as string[],
+    upserted: [] as {
+      externalId: string
+      direction: string
+      isInternal: boolean
+    }[],
     byId: new Map(buckets.map((b) => [b.id, b])),
   }
   const deps = syncDepsForCardPayment(
@@ -1021,4 +1035,74 @@ test("pago de tarjeta: sin la cuenta de origen confirmada se omite el pago compl
 
   assert.deepEqual(captured.upserted, []) // ninguna pata
   assert.equal(captured.byId.get("b-nat")!.used.toMajor(), 800000) // deuda intacta
+})
+
+// INVARIANTE del contrato de correo bancario (vale para todo banco, no solo Banco de Chile): del
+// correo solo sale el gasto. Toda entrada de dinero — te transfirieron, te devolvieron un préstamo —
+// sube el saldo como ajuste interno y NUNCA como ingreso: los ingresos se declaran en su módulo.
+// Este test falla si alguien deja escapar un `credit` no interno desde el correo.
+test("una transferencia recibida sube el saldo pero nunca cuenta como ingreso", async () => {
+  const abono = message({
+    id: "abono-1",
+    internetMessageId: "<abono-1@example.test>",
+    from: "serviciodetransferencias@bancochile.cl",
+    subject: "Aviso de transferencia de fondos",
+    receivedAt: new Date("2026-07-14T11:00:00Z"),
+    htmlBody:
+      "Abono por $ 50.000 en cuenta terminada en 1100. N° de operación 555111.",
+  })
+  const buckets: EmailStoredBucket[] = [
+    {
+      id: "b-cash",
+      accountId: "acct-cta",
+      kind: "cash",
+      currency: "CLP",
+      limitAmount: Money.zero("CLP"),
+      used: Money.zero("CLP"),
+      available: Money.of(10000, "CLP"),
+    },
+  ]
+  const captured = {
+    seen: new Set<string>(),
+    upserted: [] as {
+      externalId: string
+      direction: string
+      isInternal: boolean
+    }[],
+    byId: new Map(buckets.map((b) => [b.id, b])),
+    notified: [] as string[],
+  }
+  const deps = syncDepsForCardPayment(
+    {
+      accounts: [
+        {
+          id: "acct-cta",
+          accountType: "checking",
+          currency: "CLP",
+          externalRef: "009991111100",
+          cardLast4: "1100",
+        },
+      ],
+      buckets,
+    },
+    captured,
+    [abono]
+  )
+
+  await syncEmailConnection(deps, "user-1", {
+    now: new Date("2026-07-14T13:00:00Z"),
+  })
+
+  // Entra como crédito, pero marcado interno: fuera de ingresos, gastos, presupuesto y push.
+  assert.equal(captured.upserted.length, 1)
+  assert.equal(captured.upserted[0].direction, "credit")
+  assert.equal(captured.upserted[0].isInternal, true)
+  assert.deepEqual(captured.notified, [])
+  // Y el saldo sí sube: la plata llegó a la cuenta.
+  assert.equal(captured.byId.get("b-cash")!.available.toMajor(), 60000)
+  // Ningún movimiento de correo puede ser un crédito NO interno, sea cual sea el banco.
+  assert.equal(
+    captured.upserted.some((m) => m.direction === "credit" && !m.isInternal),
+    false
+  )
 })

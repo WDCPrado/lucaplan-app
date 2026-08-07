@@ -37,6 +37,12 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
+import { AddTransactionSheet } from "./add-transaction-sheet"
+import { AccountModal } from "./account-modal"
+import type {
+  AccountDTO,
+  CategoryDTO,
+} from "@/arch/v1/application/finance-use-cases/finance-read"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -87,7 +93,9 @@ type AppShellProps = {
   active?: NavKey
   onNavigate?: (key: NavKey) => void
   onSignOut?: () => void
-  onAdd?: () => void // si se pasa, muestra el FAB "agregar" flotante abajo-derecha
+  // Datos del FAB "+": es el acceso rápido a registrar un ingreso a mano, igual en toda la app.
+  // Crear recurrentes/cuotas NO va aquí: eso es un botón "Nuevo" en la cabecera de su página.
+  quickAdd?: { accounts: AccountDTO[]; categories: CategoryDTO[] }
   onSearch?: () => void // si se pasa, muestra la lupa "Buscar" abajo en el sidebar
   title?: string
   actions?: React.ReactNode // topbar derecha: selector de mes u otros
@@ -101,12 +109,24 @@ export function AppShell({
   active,
   onNavigate,
   onSignOut,
-  onAdd,
+  quickAdd,
   onSearch,
   title,
   actions,
   children,
 }: AppShellProps) {
+  const [addOpen, setAddOpen] = React.useState(false)
+  const [accountOpen, setAccountOpen] = React.useState(false)
+
+  // Cuentas que aceptan movimientos a mano: manuales (todo) y corrientes conectadas por correo
+  // (solo abonos: el banco no notifica ingresos por correo; los cargos llegan solos).
+  const addable =
+    quickAdd?.accounts.filter(
+      (a) =>
+        a.provider === "manual" ||
+        (a.connectionMethod === "email" && a.accountType === "checking")
+    ) ?? []
+
   return (
     <TooltipProvider delayDuration={0}>
       <SidebarProvider>
@@ -191,7 +211,7 @@ export function AppShell({
           <div
             className={cn(
               "min-w-0 flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]",
-              onAdd || onSearch
+              quickAdd || onSearch
                 ? "max-md:pb-[calc(8.5rem+env(safe-area-inset-bottom))] md:pb-28"
                 : "md:pb-0"
             )}
@@ -207,7 +227,7 @@ export function AppShell({
         {/* FABs flotantes abajo-derecha: lupa + crear, juntos (misma fila en escritorio).
             En móvil suben por encima de la barra de navegación y la lupa no va aquí: vive
             arriba a la izquierda, para que "agregar" sea el único botón flotante. */}
-        {(onAdd || onSearch) && (
+        {(quickAdd || onSearch) && (
           <div className="fixed right-5 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 md:bottom-[max(1.25rem,env(safe-area-inset-bottom))] lg:right-8 lg:bottom-8">
             {onSearch && (
               <Button
@@ -223,20 +243,36 @@ export function AppShell({
                 <Search className="size-6" />
               </Button>
             )}
-            {onAdd && (
+            {quickAdd && (
               <Button
                 onClick={() => {
                   haptic("medium")
-                  onAdd()
+                  setAddOpen(true)
                 }}
                 size="icon"
-                aria-label="Agregar movimiento"
+                aria-label="Registrar un ingreso"
                 className="size-14 rounded-full shadow-lg"
               >
                 <Plus className="size-6" />
               </Button>
             )}
           </div>
+        )}
+
+        {quickAdd && (
+          <>
+            <AddTransactionSheet
+              open={addOpen}
+              onOpenChange={setAddOpen}
+              accounts={addable}
+              categories={quickAdd.categories}
+              onCreateAccount={() => {
+                setAddOpen(false)
+                setAccountOpen(true)
+              }}
+            />
+            <AccountModal open={accountOpen} onOpenChange={setAccountOpen} />
+          </>
         )}
       </SidebarProvider>
     </TooltipProvider>

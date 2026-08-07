@@ -115,7 +115,7 @@ export function InstallmentsView({
       }}
       active="cuotas"
       onSignOut={signOut}
-      onAdd={() => setCreating(true)}
+      quickAdd={{ accounts, categories }}
       title="Cuotas"
     >
       {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para
@@ -132,9 +132,11 @@ export function InstallmentsView({
                 <h2 className="font-heading text-lg font-bold">
                   Compras en cuotas
                 </h2>
+                {/* Crear un plan vive acá, en la cabecera de su lista: el FAB "+" flotante es el
+                    ingreso rápido y es igual en toda la app. */}
                 <Button
                   onClick={() => setCreating(true)}
-                  className="hidden shrink-0 rounded-full lg:inline-flex"
+                  className="shrink-0 rounded-full"
                 >
                   <Plus className="size-4" />
                   Nuevo

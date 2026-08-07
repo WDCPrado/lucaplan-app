@@ -21,11 +21,9 @@ import { IncomeRow, PlanSheet } from "./plan-sheet"
 import { AccountCard } from "./account-card"
 import { MovementsList } from "./movements-list"
 import { CategoryIcon } from "./category-icons"
-import { AddTransactionSheet } from "./add-transaction-sheet"
 import { CategoryModal } from "./category-modal"
 import { BudgetLimitModal } from "./budget-limit-modal"
 import { CategoryDetailSheet } from "./category-detail-sheet"
-import { AccountModal } from "./account-modal"
 import { AccountInfoModal } from "./account-info-modal"
 import { SyncBancoChileButton } from "./sync-bancochile-button"
 import { UncategorizedTriage } from "./uncategorized-triage"
@@ -88,8 +86,6 @@ export function Dashboard({
   // Primera conexión de correo (callback OAuth ?outlook=setup, aún sin banco): onboarding fullscreen.
   const [onboarding, setOnboarding] = useState(outlookResult === "setup")
   const [showBalance, setShowBalance] = useState(true)
-  const [addOpen, setAddOpen] = useState(false)
-  const [accountOpen, setAccountOpen] = useState(false)
   const [detail, setDetail] = useState<CategoryDTO | null>(null)
   const [detailTx, setDetailTx] = useState<TransactionDTO | null>(
     () => transactions.find((t) => t.id === openTxId) ?? null
@@ -128,13 +124,6 @@ export function Dashboard({
   const [triageDismissed, setTriageDismissed] = useState(false)
   const triageOpen = uncategorized.transactions.length > 0 && !triageDismissed
 
-  // Cuentas que aceptan movimientos a mano: manuales (todo) y corrientes conectadas por correo
-  // (solo abonos: el banco no notifica ingresos por correo; los cargos llegan solos).
-  const addableAccounts = accounts.filter(
-    (a) =>
-      a.provider === "manual" ||
-      (a.connectionMethod === "email" && a.accountType === "checking")
-  )
   // "Mes en curso" según el calendario del usuario, no el de UTC (ver APP_TZ).
   const today = currentPeriod()
   const isCurrentMonth =
@@ -252,7 +241,7 @@ export function Dashboard({
     <AppShell
       user={user}
       onSignOut={signOut}
-      onAdd={() => setAddOpen(true)}
+      quickAdd={{ accounts, categories: budget.categories }}
       onSearch={() => setSearchOpen(true)}
       title="Resumen"
       actions={
@@ -518,18 +507,9 @@ export function Dashboard({
         </div>
       </div>
 
-      {/* Superficies (adaptativas: dialog en escritorio, sheet en móvil) */}
-      <AddTransactionSheet
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        accounts={addableAccounts}
-        categories={budget.categories}
-        onCreateAccount={() => {
-          setAddOpen(false)
-          setAccountOpen(true)
-        }}
-      />
-      <AccountModal open={accountOpen} onOpenChange={setAccountOpen} />
+      {/* Superficies (adaptativas: dialog en escritorio, sheet en móvil).
+          El de "nuevo ingreso" (FAB +) y el de crear tarjeta viven en el AppShell: son los mismos
+          en toda la app. */}
       <AccountInfoModal
         account={infoAccount}
         onOpenChange={(o) => !o && setInfoAccount(null)}

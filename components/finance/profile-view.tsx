@@ -13,6 +13,10 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import type {
+  AccountDTO,
+  CategoryDTO,
+} from "@/arch/v1/application/finance-use-cases/finance-read"
 
 // Etiqueta en español para el rol; desconocido cae en el valor crudo.
 const ROLE_LABEL: Record<string, string> = {
@@ -23,8 +27,13 @@ const ROLE_LABEL: Record<string, string> = {
 
 export function ProfileView({
   user,
+  accounts,
+  categories,
 }: {
   user: { name: string; email: string; role: string; initial: string }
+  // Solo para el "+" de ingreso rápido del shell.
+  accounts: AccountDTO[]
+  categories: CategoryDTO[]
 }) {
   const router = useRouter()
 
@@ -38,6 +47,7 @@ export function ProfileView({
       user={{ name: user.name || user.email, initial: user.initial, email: user.email }}
       active="perfil"
       onSignOut={signOut}
+      quickAdd={{ accounts, categories }}
       title="Mi perfil"
     >
       {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para

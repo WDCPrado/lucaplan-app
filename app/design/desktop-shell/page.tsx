@@ -11,8 +11,6 @@ import { AppShell, type NavKey } from "@/components/finance/app-shell"
 import { MovementRow } from "@/components/finance/movement-row"
 import { ProgressRing } from "@/components/finance/progress-ring"
 import { CategoryIcon } from "@/components/finance/category-icons"
-import { AddTransactionSheet } from "@/components/finance/add-transaction-sheet"
-import { AccountModal } from "@/components/finance/account-modal"
 import { CategoryModal } from "@/components/finance/category-modal"
 import { CategoryDetailSheet } from "@/components/finance/category-detail-sheet"
 import { formatCLP, formatCompact, monthName } from "@/lib/finance-format"
@@ -250,8 +248,6 @@ export default function DesktopShellMock() {
   const [active, setActive] = useState<NavKey>("inicio")
   const [month, setMonth] = useState(7)
   const [showBalance, setShowBalance] = useState(true)
-  const [addOpen, setAddOpen] = useState(false)
-  const [accountOpen, setAccountOpen] = useState(false)
   const [detail, setDetail] = useState<CategoryDTO | null>(null)
   const [editCat, setEditCat] = useState<CategoryDTO | null | undefined>(
     undefined
@@ -264,7 +260,7 @@ export default function DesktopShellMock() {
       active={active}
       onNavigate={setActive}
       onSignOut={() => alert("Cerrar sesión (mock)")}
-      onAdd={() => setAddOpen(true)}
+      quickAdd={{ accounts: ACCOUNTS, categories: CATEGORIES }}
       title="Resumen"
       actions={
         <div className="flex items-center gap-1 rounded-full bg-secondary px-1.5 py-1">
@@ -336,7 +332,7 @@ export default function DesktopShellMock() {
               </div>
             ))}
             <button
-              onClick={() => setAccountOpen(true)}
+              onClick={() => alert("Nueva cuenta (mock)")}
               className="flex min-h-40 w-72 shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
             >
               <span className="text-2xl">＋</span>
@@ -412,18 +408,8 @@ export default function DesktopShellMock() {
         </div>
       </div>
 
-      {/* Superficies (adaptativas: dialog en escritorio, sheet en móvil) */}
-      <AddTransactionSheet
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        accounts={ACCOUNTS}
-        categories={CATEGORIES}
-        onCreateAccount={() => {
-          setAddOpen(false)
-          setAccountOpen(true)
-        }}
-      />
-      <AccountModal open={accountOpen} onOpenChange={setAccountOpen} />
+      {/* Superficies (adaptativas: dialog en escritorio, sheet en móvil). El "+" de ingreso y el
+          modal de tarjeta los pone el AppShell. */}
       <CategoryDetailSheet
         category={detail}
         transactions={TX}

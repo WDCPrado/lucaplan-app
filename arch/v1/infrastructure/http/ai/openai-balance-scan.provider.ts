@@ -28,9 +28,12 @@ const SYSTEM =
   "Formato chileno: el punto separa miles y la coma decimales, así que $1.334.697 es 1334697 y " +
   "USD 2.069,00 es 2069.00. Devuelve números sin símbolos ni separadores. " +
   "Un monto en rojo, entre paréntesis o con signo menos es NEGATIVO. " +
-  "Usa null en todo campo que no aparezca EXPLÍCITAMENTE en la imagen: nunca lo calcules, lo " +
-  "estimes ni lo deduzcas de otro. Si la captura muestra varias tarjetas o cuentas, usa solo la que " +
-  "está en primer plano."
+  "Usa null en todo campo que no aparezca EXPLÍCITAMENTE en las imágenes: nunca lo calcules, lo " +
+  "estimes ni lo deduzcas de otro. Si una captura muestra varias tarjetas o cuentas, usa solo la que " +
+  "está en primer plano.\n" +
+  "Pueden venir VARIAS capturas: son pantallas distintas del MISMO instrumento (el banco reparte los " +
+  "datos, por ejemplo el cupo internacional en otra vista). Combínalas en una sola respuesta y toma " +
+  "cada dato de la captura donde aparezca."
 
 // Un campo del schema: número o null (strict exige el tipo explícito).
 const num = (description: string) => ({
@@ -121,7 +124,7 @@ function hasAmounts(r: BalanceReading): boolean {
 }
 
 async function ask(
-  imageDataUrl: string,
+  imageDataUrls: string[],
   accountType: "checking" | "credit_card",
   detail: "low" | "high"
 ): Promise<BalanceReading | null> {
@@ -143,10 +146,13 @@ async function ask(
         messages: [
           { role: "system", content: SYSTEM },
           {
+            // Todas las capturas en UN solo mensaje: una llamada, un system prompt y una respuesta
+            // ya combinada. Leerlas por separado multiplicaría el prompt y obligaría a fusionar acá.
             role: "user",
-            content: [
-              { type: "image_url", image_url: { url: imageDataUrl, detail } },
-            ],
+            content: imageDataUrls.map((url) => ({
+              type: "image_url",
+              image_url: { url, detail },
+            })),
           },
         ],
       }),
@@ -165,11 +171,11 @@ async function ask(
 }
 
 export const openaiBalanceScanReader: BalanceScanReader = {
-  async read({ imageDataUrl, accountType }) {
-    if (!openaiConfigured()) return null
-    const cheap = await ask(imageDataUrl, accountType, "low")
+  async read({ imageDataUrls, accountType }) {
+    if (!openaiConfigured() || imageDataUrls.length === 0) return null
+    const cheap = await ask(imageDataUrls, accountType, "low")
     if (cheap && hasAmounts(cheap)) return cheap
-    // La captura no se leyó en baja: recién ahí vale la pena pagar el detalle alto.
-    return ask(imageDataUrl, accountType, "high")
+    // Las capturas no se leyeron en baja: recién ahí vale la pena pagar el detalle alto.
+    return ask(imageDataUrls, accountType, "high")
   },
 }

@@ -2,12 +2,13 @@
 
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Camera, Loader2, TriangleAlert } from "lucide-react"
+import { Camera, Loader2, Plus, TriangleAlert, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { downscaleToDataUrl } from "@/lib/image-downscale"
 import { haptic } from "@/lib/haptics"
+import { MAX_SCAN_IMAGES } from "@/arch/v1/domain/finance/balance-scan.domain"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 // "Actualizar saldo" con una captura de la app del banco: se sube, la IA lee los montos y el usuario
@@ -125,6 +126,11 @@ export function BalanceScanPanel({
 }) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
+  // Capturas elegidas, ya reescaladas. El banco reparte los datos entre pantallas (nacional en una,
+  // internacional en otra), así que se juntan todas y se leen de una sola pasada.
+  const [shots, setShots] = useState<{ id: string; name: string; url: string }[]>(
+    []
+  )
   const [busy, setBusy] = useState<"reading" | "saving" | null>(null)
   const [values, setValues] = useState<Values | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
@@ -135,17 +141,39 @@ export function BalanceScanPanel({
   const fields = isCard ? CARD_FIELDS : CHECKING_FIELDS
   const bucket = (kind: string) => account.buckets?.find((b) => b.kind === kind)
 
-  async function pick(file: File) {
+  // Agrega capturas a la lista (sin leer todavía): así se pueden juntar varias pantallas del banco.
+  async function add(files: File[]) {
+    setError(null)
+    const free = MAX_SCAN_IMAGES - shots.length
+    if (free <= 0) return
+    if (files.length > free)
+      setError(`Se leen hasta ${MAX_SCAN_IMAGES} capturas; se agregaron las primeras.`)
+    try {
+      const added = await Promise.all(
+        files.slice(0, free).map(async (file, i) => ({
+          id: `${file.name}-${file.lastModified}-${i}`,
+          name: file.name,
+          url: await downscaleToDataUrl(file),
+        }))
+      )
+      setShots((prev) => [...prev, ...added])
+      haptic("light")
+    } catch {
+      setError("No se pudo procesar alguna imagen")
+    }
+  }
+
+  async function scan() {
+    if (shots.length === 0) return
     setBusy("reading")
     setError(null)
     setWarning(null)
     setMismatches([])
     try {
-      const image = await downscaleToDataUrl(file)
       const res = await fetch(`/api/accounts/${account.id}/balance-scan`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ image }),
+        body: JSON.stringify({ images: shots.map((s) => s.url) }),
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) {
@@ -241,35 +269,88 @@ export function BalanceScanPanel({
         ref={fileRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
+        multiple
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0]
-          e.target.value = "" // permite reintentar con la misma imagen
-          if (file) pick(file)
+          const files = Array.from(e.target.files ?? [])
+          e.target.value = "" // permite volver a elegir el mismo archivo
+          if (files.length) add(files)
         }}
       />
 
       {!values && (
-        <div className="flex flex-col items-center gap-3 py-2 text-center">
-          <p className="text-sm text-muted-foreground">
-            Sube una captura de la app de tu banco y se leen los saldos. La imagen
-            no se guarda.
+        <div className="flex flex-col gap-3 py-2">
+          <p className="text-center text-sm text-muted-foreground">
+            Sube capturas de la app de tu banco y se leen los saldos. Puedes juntar
+            hasta {MAX_SCAN_IMAGES} si el cupo internacional está en otra pantalla.
+            No se guardan.
           </p>
-          <Button
-            onClick={() => {
-              haptic("light")
-              fileRef.current?.click()
-            }}
-            disabled={busy !== null}
-            className="h-12 rounded-full px-6"
-          >
-            {busy === "reading" ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Camera className="size-4" />
+
+          {shots.length > 0 && (
+            <ul className="flex flex-col gap-2">
+              {shots.map((shot) => (
+                <li
+                  key={shot.id}
+                  className="flex items-center gap-3 rounded-lg border border-border/60 p-2"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- data: URL local, sin optimización que hacer */}
+                  <img
+                    src={shot.url}
+                    alt=""
+                    className="size-12 shrink-0 rounded-md object-cover object-top"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {shot.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShots((prev) => prev.filter((s) => s.id !== shot.id))
+                    }
+                    disabled={busy !== null}
+                    aria-label={`Quitar ${shot.name}`}
+                    className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="flex flex-col items-center gap-2">
+            <Button
+              variant={shots.length > 0 ? "outline" : "default"}
+              onClick={() => {
+                haptic("light")
+                fileRef.current?.click()
+              }}
+              disabled={busy !== null || shots.length >= MAX_SCAN_IMAGES}
+              className="h-12 rounded-full px-6"
+            >
+              {shots.length > 0 ? (
+                <Plus className="size-4" />
+              ) : (
+                <Camera className="size-4" />
+              )}
+              {shots.length > 0 ? "Agregar otra captura" : "Elegir capturas"}
+            </Button>
+
+            {shots.length > 0 && (
+              <Button
+                onClick={scan}
+                disabled={busy !== null}
+                className="h-12 w-full rounded-full"
+              >
+                {busy === "reading" && (
+                  <Loader2 className="size-4 animate-spin" />
+                )}
+                {busy === "reading"
+                  ? "Leyendo…"
+                  : `Leer ${shots.length === 1 ? "la captura" : `las ${shots.length} capturas`}`}
+              </Button>
             )}
-            {busy === "reading" ? "Leyendo captura…" : "Elegir captura"}
-          </Button>
+          </div>
         </div>
       )}
 
@@ -332,10 +413,13 @@ export function BalanceScanPanel({
           </Button>
           <Button
             variant="ghost"
-            onClick={() => fileRef.current?.click()}
+            onClick={() => {
+              setValues(null) // vuelve a la lista: ahí se agregan, se quitan y se relee
+              setMismatches([])
+            }}
             disabled={busy !== null}
           >
-            Usar otra captura
+            Volver a las capturas
           </Button>
         </>
       )}

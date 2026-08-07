@@ -98,6 +98,10 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
 Abres la tarjeta, **Actualizar saldo**, subes una captura de la app de tu banco y la IA lee los
 montos. No hay que ordenar la captura ni recortarla: el navegador la reescala solo antes de subirla.
 
+- **Hasta 5 capturas de una vez.** El banco reparte los datos entre pantallas —el cupo
+  internacional suele estar aparte del nacional—, así que se juntan todas y se leen en una sola
+  llamada: un prompt, una respuesta ya combinada.
+
 - **Se adapta a lo que muestre la pantalla.** Casi ninguna app del banco muestra todas las
   variables: si trae el cupo y el disponible, el usado sale de la resta; si trae solo el disponible,
   se completa con el cupo que ya tienes guardado; y si la cuenta corriente está en rojo, ese saldo

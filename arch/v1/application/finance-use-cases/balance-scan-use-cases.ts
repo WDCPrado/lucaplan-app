@@ -81,11 +81,11 @@ export async function scanAccountBalance(
   deps: Deps,
   userId: string,
   accountId: string,
-  imageDataUrl: string
+  imageDataUrls: string[]
 ): Promise<BalanceScanProposal | null> {
   const account = await requireAccount(deps, userId, accountId)
   const reading = await deps.balanceScan.read({
-    imageDataUrl,
+    imageDataUrls,
     accountType: scannable(account),
   })
   if (!reading) return null

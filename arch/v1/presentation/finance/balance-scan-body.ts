@@ -2,22 +2,32 @@
 // las invariantes viven en el dominio.
 import {
   BalanceScanError,
+  MAX_SCAN_IMAGES,
   type BalanceReading,
   type BucketReading,
 } from "../../domain/finance/balance-scan.domain.ts"
 
-// Tope del data: URL de la captura. El cliente la reescala antes de subir (~150 KB); esto es la red
-// de seguridad para un cliente que no lo haga, no el tamaño esperado.
+// Tope del data: URL de cada captura. El cliente las reescala antes de subir (~150 KB); esto es la
+// red de seguridad para un cliente que no lo haga, no el tamaño esperado.
 const MAX_IMAGE_CHARS = 8_000_000
 const DATA_URL = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/
 
-export function parseImageBody(body: unknown): string {
-  const url = (body as { image?: unknown })?.image
-  if (typeof url !== "string" || !DATA_URL.test(url))
-    throw new BalanceScanError("La imagen debe ser JPEG, PNG o WebP")
-  if (url.length > MAX_IMAGE_CHARS)
-    throw new BalanceScanError("La imagen es demasiado grande")
-  return url
+export function parseImagesBody(body: unknown): string[] {
+  const raw = (body as { images?: unknown })?.images
+  const images = Array.isArray(raw) ? raw : []
+  if (images.length === 0)
+    throw new BalanceScanError("Falta la captura que hay que leer")
+  if (images.length > MAX_SCAN_IMAGES)
+    throw new BalanceScanError(
+      `Se pueden leer hasta ${MAX_SCAN_IMAGES} capturas a la vez`
+    )
+  return images.map((url) => {
+    if (typeof url !== "string" || !DATA_URL.test(url))
+      throw new BalanceScanError("Las capturas deben ser JPEG, PNG o WebP")
+    if (url.length > MAX_IMAGE_CHARS)
+      throw new BalanceScanError("Hay una captura demasiado grande")
+    return url
+  })
 }
 
 // number finito → valor; ausente, null o basura → null. Un campo que no viene NO es cero: significa

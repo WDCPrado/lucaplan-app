@@ -43,10 +43,16 @@ export type ResolvedBucket = {
 // Devuelve null cuando no reconoció nada: ahí no se toca ningún saldo.
 export interface BalanceScanReader {
   read(input: {
-    imageDataUrl: string // data: URL con la captura (no se persiste en ningún lado)
+    // Una o varias capturas del MISMO instrumento, que se leen juntas: el banco reparte los datos
+    // entre pantallas (el cupo internacional suele estar aparte del nacional). No se persisten.
+    imageDataUrls: string[]
     accountType: "checking" | "credit_card" // acota qué campos tiene sentido buscar
   }): Promise<BalanceReading | null>
 }
+
+// Tope de capturas por lectura. Cada imagen cuesta, y más de esto ya no es "el dato está repartido"
+// sino un álbum: con 5 pantallas se cubren nacional, internacional, línea y detalle.
+export const MAX_SCAN_IMAGES = 5
 
 export class BalanceScanError extends Error {
   constructor(message: string) {

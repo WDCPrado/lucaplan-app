@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Unlink } from "lucide-react"
+import { Camera, Unlink } from "lucide-react"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { AccountCard } from "./account-card"
+import { BalanceScanPanel } from "./balance-scan-panel"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
@@ -41,6 +42,9 @@ export function AccountInfoModal({
 }) {
   const router = useRouter()
   const [disconnecting, setDisconnecting] = useState(false)
+  // "scan" reemplaza el contenido del modal en vez de abrir otro encima: un diálogo dentro de otro
+  // en móvil deja al usuario sin saber qué cierra cada gesto.
+  const [mode, setMode] = useState<"info" | "scan">("info")
   const connected = account?.provider === "bancochile"
   const buckets = account?.buckets ?? []
   const nat = buckets.find((b) => b.kind === "credit_national")
@@ -61,13 +65,28 @@ export function AccountInfoModal({
     }
   }
 
+  const scannable =
+    account?.accountType === "checking" || account?.accountType === "credit_card"
+
   return (
     <ResponsiveModal
       open={account !== null}
-      onOpenChange={onOpenChange}
-      title="Detalle de la cuenta"
+      onOpenChange={(open) => {
+        if (!open) setMode("info") // al reabrir siempre parte en el detalle
+        onOpenChange(open)
+      }}
+      title={mode === "scan" ? "Actualizar saldo" : "Detalle de la cuenta"}
     >
-      {account && (
+      {account && mode === "scan" && (
+        <div className="flex flex-col gap-4 px-4 pb-6">
+          <BalanceScanPanel account={account} onDone={() => onOpenChange(false)} />
+          <Button variant="ghost" onClick={() => setMode("info")}>
+            Volver al detalle
+          </Button>
+        </div>
+      )}
+
+      {account && mode === "info" && (
         <div className="flex flex-col gap-5 px-4 pb-6">
           <AccountCard account={account} />
 
@@ -110,6 +129,17 @@ export function AccountInfoModal({
               />
             )}
           </dl>
+
+          {scannable && (
+            <Button
+              variant="outline"
+              onClick={() => setMode("scan")}
+              className="h-12 rounded-full"
+            >
+              <Camera className="size-4" />
+              Actualizar saldo
+            </Button>
+          )}
 
           {connected && (
             <div className="flex flex-col gap-1.5">

@@ -1,0 +1,210 @@
+// "Actualizar saldo" desde una captura de la app del banco: leer la imagen (IA) y, tras la
+// confirmación del usuario, aplicar los saldos a la cuenta y sus buckets.
+//
+// Son dos pasos a propósito. La IA puede leer mal un dígito y devolver un monto perfectamente
+// válido —$1.334.697 → $1.834.697—, algo que ninguna validación puede detectar. Por eso leer NO
+// persiste: devuelve una propuesta que el usuario revisa y corrige. El paso que guarda recibe los
+// montos confirmados y vuelve a correr las mismas fórmulas: los saldos derivados (usado, cupo) se
+// calculan siempre en el servidor, nunca se aceptan del cliente.
+import {
+  AccountNotFoundError,
+  NotOwnerError,
+  type Account,
+  type AccountRepository,
+  type BalanceBucket,
+  type BalanceBucketRepository,
+  type BucketKind,
+} from "../../domain/finance/finance.domain.ts"
+import {
+  BalanceScanError,
+  EMPTY_BUCKET,
+  resolveBucket,
+  resolveChecking,
+  type BalanceReading,
+  type BalanceScanReader,
+  type ResolvedBucket,
+} from "../../domain/finance/balance-scan.domain.ts"
+import { Money } from "../../domain/finance/money.ts"
+
+type Deps = {
+  accounts: AccountRepository
+  balanceBuckets: BalanceBucketRepository
+  balanceScan: BalanceScanReader
+}
+
+// Tipos de cuenta que la captura sabe leer: los que tienen saldos que el banco muestra en pantalla.
+type ScannableType = "checking" | "credit_card"
+
+function scannable(account: Account): ScannableType {
+  if (account.accountType === "checking" || account.accountType === "credit_card")
+    return account.accountType
+  throw new BalanceScanError(
+    "Solo se pueden leer saldos de una cuenta corriente o una tarjeta de crédito"
+  )
+}
+
+async function requireAccount(
+  deps: Deps,
+  userId: string,
+  accountId: string
+): Promise<Account> {
+  const account = await deps.accounts.findById(accountId)
+  if (!account) throw new AccountNotFoundError(accountId)
+  if (account.userId !== userId) throw new NotOwnerError()
+  return account
+}
+
+const limitOf = (buckets: BalanceBucket[], kind: BucketKind): Money | null =>
+  buckets.find((b) => b.kind === kind)?.limitAmount ?? null
+
+// Lo que ve el usuario antes de confirmar: qué se leyó y cómo quedaría cada saldo.
+export type BalanceScanProposal = {
+  reading: BalanceReading
+  last4Matches: boolean // false ⇒ la captura es de OTRO instrumento (la UI corta ahí)
+  preview: BalancePreview
+}
+
+export type BalancePreview = {
+  cash: number | null
+  buckets: { kind: BucketKind; limit: number; used: number; available: number }[]
+}
+
+// --- Paso 1: leer la captura (no persiste nada) ---
+
+export async function scanAccountBalance(
+  deps: Deps,
+  userId: string,
+  accountId: string,
+  imageDataUrl: string
+): Promise<BalanceScanProposal | null> {
+  const account = await requireAccount(deps, userId, accountId)
+  const reading = await deps.balanceScan.read({
+    imageDataUrl,
+    accountType: scannable(account),
+  })
+  if (!reading) return null
+  return {
+    reading,
+    // Sin últimos 4 legibles no se puede afirmar que no coincide: se deja pasar y decide el usuario.
+    last4Matches:
+      !reading.last4 || !account.cardLast4 || reading.last4 === account.cardLast4,
+    preview: await previewFor(deps, account, reading),
+  }
+}
+
+// --- Paso 2: aplicar los montos confirmados ---
+
+export async function applyAccountBalance(
+  deps: Deps,
+  userId: string,
+  accountId: string,
+  confirmed: BalanceReading
+): Promise<{ updatedBuckets: number }> {
+  const account = await requireAccount(deps, userId, accountId)
+  const buckets = await deps.balanceBuckets.listByAccount(accountId)
+  const plan = resolveFor(scannable(account), confirmed, buckets)
+  if (!plan.cash && plan.buckets.length === 0)
+    throw new BalanceScanError(
+      "Los montos no alcanzan para calcular ningún saldo"
+    )
+
+  const asOf = new Date()
+  let updated = 0
+  for (const { kind, amounts } of plan.buckets) {
+    const bucket = buckets.find((b) => b.kind === kind)
+    if (!bucket) continue // la cuenta no lleva ese cupo: no se inventa uno
+    await deps.balanceBuckets.updateAmounts(bucket.id, { ...amounts, asOf })
+    updated++
+  }
+  if (plan.cash) {
+    const cash = buckets.find((b) => b.kind === "cash")
+    if (cash) {
+      await deps.balanceBuckets.updateAmounts(cash.id, {
+        limitAmount: Money.zero("CLP"),
+        used: Money.zero("CLP"),
+        available: plan.cash,
+        asOf,
+      })
+      updated++
+    }
+    await deps.accounts.setBalance(accountId, plan.cash)
+  }
+  // La tarjeta no tiene caja: su saldo es la deuda nacional en negativo (misma regla que el correo).
+  const national = plan.buckets.find((b) => b.kind === "credit_national")
+  if (national) await deps.accounts.setBalance(accountId, national.amounts.used.negate())
+  return { updatedBuckets: updated }
+}
+
+// --- Fórmulas: qué se puede calcular con lo leído + lo ya guardado ---
+
+type Plan = {
+  cash: Money | null
+  buckets: { kind: BucketKind; amounts: ResolvedBucket }[]
+}
+
+function resolveFor(
+  accountType: ScannableType,
+  reading: BalanceReading,
+  buckets: BalanceBucket[]
+): Plan {
+  const out: Plan = { cash: null, buckets: [] }
+  const push = (kind: BucketKind, amounts: ResolvedBucket | null) => {
+    if (amounts) out.buckets.push({ kind, amounts })
+  }
+
+  if (accountType === "checking") {
+    const checking = resolveChecking(reading, limitOf(buckets, "overdraft"))
+    if (checking) {
+      out.cash = checking.cash
+      push("overdraft", checking.overdraft)
+    } else {
+      // Sin saldo legible todavía puede venir la línea sola.
+      push(
+        "overdraft",
+        resolveBucket(reading.overdraft, limitOf(buckets, "overdraft"), "CLP")
+      )
+    }
+    return out
+  }
+
+  push(
+    "credit_national",
+    resolveBucket(reading.national, limitOf(buckets, "credit_national"), "CLP")
+  )
+  push(
+    "credit_international",
+    resolveBucket(
+      reading.international,
+      limitOf(buckets, "credit_international"),
+      "USD"
+    )
+  )
+  return out
+}
+
+async function previewFor(
+  deps: Deps,
+  account: Account,
+  reading: BalanceReading
+): Promise<BalancePreview> {
+  const buckets = await deps.balanceBuckets.listByAccount(account.id)
+  const plan = resolveFor(scannable(account), reading, buckets)
+  return {
+    cash: plan.cash?.toMajor() ?? null,
+    buckets: plan.buckets.map(({ kind, amounts }) => ({
+      kind,
+      limit: amounts.limitAmount.toMajor(),
+      used: amounts.used.toMajor(),
+      available: amounts.available.toMajor(),
+    })),
+  }
+}
+
+// Lectura vacía: base para lo que arma el cliente al confirmar.
+export const emptyReading = (): BalanceReading => ({
+  last4: null,
+  cash: null,
+  overdraft: EMPTY_BUCKET,
+  national: EMPTY_BUCKET,
+  international: EMPTY_BUCKET,
+})

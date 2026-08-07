@@ -195,7 +195,7 @@ test("compra con tarjeta usa el comercio de la plantilla real como descripción,
   })
 })
 
-test("parser extrae TEF y trata abonos/pagos como eventos internos", () => {
+test("parser extrae TEF, descarta abonos y trata pagos como eventos internos", () => {
   const transfer = parseBancoChileEmail(
     message({
       from: "serviciodetransferencias@bancochile.cl",
@@ -210,6 +210,7 @@ test("parser extrae TEF y trata abonos/pagos como eventos internos", () => {
     assert.equal(transfer.event.kind, "expense")
   }
 
+  // Un abono se reconoce para DESCARTARLO: la plata que entra se declara en Ingresos.
   const credit = parseBancoChileEmail(
     message({
       from: "serviciodetransferencias@bancochile.cl",
@@ -218,8 +219,7 @@ test("parser extrae TEF y trata abonos/pagos como eventos internos", () => {
         "Abono por $ 9.000 en cuenta terminada en 2345. N° de operación 876543.",
     })
   )
-  assert.equal(credit.ok, true)
-  if (credit.ok) assert.equal(credit.event.kind, "internal_credit")
+  assert.deepEqual(credit, { ok: false, reason: "abono_ignorado" })
 
   const payment = parseBancoChileEmail(
     message({
@@ -1033,10 +1033,11 @@ test("pago de tarjeta: sin la cuenta de origen confirmada se omite el pago compl
 })
 
 // INVARIANTE del contrato de correo bancario (vale para todo banco, no solo Banco de Chile): del
-// correo solo sale el gasto. Toda entrada de dinero — te transfirieron, te devolvieron un préstamo —
-// sube el saldo como ajuste interno y NUNCA como ingreso: los ingresos se declaran en su módulo.
-// Este test falla si alguien deja escapar un `credit` no interno desde el correo.
-test("una transferencia recibida sube el saldo pero nunca cuenta como ingreso", async () => {
+// correo solo sale el gasto. La plata que ENTRA no se deduce del correo — el aviso de una
+// transferencia recibida es idéntico venga del sueldo o de un amigo devolviendo un préstamo—, así
+// que el abono se descarta y el dinero se declara en el módulo de Ingresos.
+// Este test falla si alguien vuelve a dejar que un correo cree un movimiento de entrada.
+test("una transferencia recibida no crea ningún movimiento", async () => {
   const abono = message({
     id: "abono-1",
     internetMessageId: "<abono-1@example.test>",
@@ -1088,16 +1089,14 @@ test("una transferencia recibida sube el saldo pero nunca cuenta como ingreso", 
     now: new Date("2026-07-14T13:00:00Z"),
   })
 
-  // Entra como crédito, pero marcado interno: fuera de ingresos, gastos, presupuesto y push.
-  assert.equal(captured.upserted.length, 1)
-  assert.equal(captured.upserted[0].direction, "credit")
-  assert.equal(captured.upserted[0].isInternal, true)
+  // Ni movimiento ni notificación: el correo no alcanza para decidir qué es esa plata.
+  assert.deepEqual(captured.upserted, [])
   assert.deepEqual(captured.notified, [])
-  // Y el saldo sí sube: la plata llegó a la cuenta.
-  assert.equal(captured.byId.get("b-cash")!.available.toMajor(), 60000)
-  // Ningún movimiento de correo puede ser un crédito NO interno, sea cual sea el banco.
-  assert.equal(
-    captured.upserted.some((m) => m.direction === "credit" && !m.isInternal),
-    false
+  // Y el saldo queda intacto: lo mueve el ingreso que el usuario declara, no el correo.
+  assert.equal(captured.byId.get("b-cash")!.available.toMajor(), 10000)
+  // El motivo es propio y no se confunde con un correo roto: el descarte es a propósito.
+  assert.deepEqual(
+    parseBancoChileEmail(abono),
+    { ok: false, reason: "abono_ignorado" }
   )
 })

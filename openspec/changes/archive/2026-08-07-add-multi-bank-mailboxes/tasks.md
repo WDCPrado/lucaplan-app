@@ -10,7 +10,7 @@
 - [x] 2.1 Modelar `EmailMailbox` (autorización, token cifrado, `deltaLink`, suscripción, estado, correos descartados) y `EmailBankLink` (buzón, `bankProvider`, `bankId`, etiqueta, snapshot, omitidos, estado de setup) en `prisma/schema.prisma`
 - [x] 2.2 Cambiar la unicidad de `bank_connection_method` a `(userId, bankProvider, mailboxId)` y añadir unicidad `(mailboxId, bankProvider)` en el vínculo (un banco no se repite dentro de un buzón)
 - [x] 2.3 Escribir la migración transaccional: una fila de buzón y una de vínculo por cada `email_connection`; reescritura de `external_id` de las cuentas importadas al formato con banco; drop de `email_connection`
-- [ ] 2.4 Ensayar la migración contra un clon de producción (`pnpm clone:db`) y verificar que tras migrar el refresco manual sincroniza sin reautorizar y sin duplicar movimientos
+- [x] 2.4 Ensayar la migración contra un clon de producción (`pnpm clone:db`) y verificar que tras migrar el refresco manual sincroniza sin reautorizar y sin duplicar movimientos
 
 ## 3. Dominio
 

@@ -15,6 +15,10 @@ const SUBJECT_CARGO = "cargo en cuenta"
 const SUBJECT_COMPRA = "compra con tarjeta de crédito"
 const SUBJECT_TRANSFERENCIA = "transferencia a terceros"
 const SUBJECT_TRANSFERENCIA_FONDOS_PREFIX = "transferencias de fondos a "
+// Abonos recibidos: se RECONOCEN para descartarlos con un motivo propio, no se procesan. El correo
+// de una transferencia recibida es idéntico venga de tu sueldo o de un amigo devolviéndote plata —
+// mismo remitente, misma plantilla— y crear el movimiento obligaría a decidir cuál es sin datos.
+// La plata que entra se declara en el módulo de Ingresos, que sí sabe cuál es cuál.
 const SUBJECT_ABONOS = [
   "aviso de transferencia de fondos",
   "notificación de abono",
@@ -45,7 +49,6 @@ export type EmailEventSource =
   | "compra_tarjeta"
   | "transferencia"
   | "transferencia_fondos"
-  | "abono"
   | "pago_tarjeta"
   | "pago_linea"
   | "pago_credito_consumo"
@@ -73,6 +76,7 @@ export type EmailSkipReason =
   | "sin_monto"
   | "sin_instrumento"
   | "plantilla_desconocida"
+  | "abono_ignorado" // entrada de dinero: se declara en Ingresos, no se deduce del correo
 
 export type ParsedEmail =
   | { ok: true; event: EmailEvent }
@@ -398,9 +402,8 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
         msg,
       })
     }
-    if (SUBJECT_ABONOS.includes(subject)) {
-      return parseAbono(text, base.date, msg)
-    }
+    if (SUBJECT_ABONOS.includes(subject))
+      return { ok: false, reason: "abono_ignorado" }
     return { ok: false, reason: "asunto_desconocido" }
   }
 
@@ -436,9 +439,8 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
       msg,
     })
   }
-  if (SUBJECT_ABONOS.includes(subject)) {
-    return parseAbono(text, base.date, msg)
-  }
+  if (SUBJECT_ABONOS.includes(subject))
+    return { ok: false, reason: "abono_ignorado" }
   // Pago de tarjeta de crédito (nacional/internacional): movimiento INTERNO de dos patas. La pata de
   // deuda baja el Utilizado de la tarjeta (libera cupo); la pata de caja (cashLeg) baja la cuenta
   // corriente de origen. Nada de esto es gasto/ingreso/presupuesto. El monto sale de la etiqueta
@@ -511,30 +513,6 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
     })
   }
   return { ok: false, reason: "asunto_desconocido" }
-}
-
-// Abono recibido: SOLO movimiento interno de balance (no ingreso/presupuesto). Exige monto y
-// cuenta destino inequívoca; si falta la cuenta, se omite (nunca se adivina).
-function parseAbono(
-  text: string,
-  date: Date,
-  msg: BankEmailMessage
-): ParsedEmail {
-  const amount = parseClp(text)
-  if (!amount) return { ok: false, reason: "sin_monto" }
-  const ref = parseAccountRef(text)
-  if (!ref) return { ok: false, reason: "sin_instrumento" }
-  return event({
-    date,
-    tefId: parseTefId(text),
-    kind: "internal_credit",
-    source: "abono",
-    amount,
-    description: "Abono recibido",
-    instrument: { kind: "checking", ref },
-    paymentTarget: null,
-    msg,
-  })
 }
 
 function event(input: {

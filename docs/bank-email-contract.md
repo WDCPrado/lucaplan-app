@@ -12,20 +12,23 @@ Cualquier otro correo se descarta con un motivo sin contenido sensible.
 
 ## Regla universal: del correo solo sale el gasto
 
-**Un correo bancario nunca crea un ingreso.** Vale para Banco de Chile y para cualquier banco que se
-integre después. Del correo salen exactamente dos efectos:
+**Un correo bancario nunca crea una entrada de dinero.** Vale para Banco de Chile y para cualquier
+banco que se integre después. Del correo salen exactamente dos efectos:
 
 - **Gasto** — entra al presupuesto y se categoriza.
-- **Ajuste de saldo interno** — mueve saldo o cupo y nada más: fuera de ingresos, gastos,
-  presupuesto, categorización y notificaciones push.
+- **Ajuste de saldo interno** — mueve saldo o cupo entre bolsillos propios y nada más: fuera de
+  ingresos, gastos, presupuesto, categorización y notificaciones push. Son los pagos de tarjeta y
+  de línea de crédito, donde la plata no entra ni sale, solo cambia de lugar.
 
-Toda entrada de dinero cae en el segundo grupo. Que te transfieran, que te devuelvan un préstamo o
-que te llegue un reembolso **sube el saldo** de la cuenta, porque la plata efectivamente llegó, pero
-no cuenta como ingreso del mes.
+La plata que **entra** no está en ninguno de los dos: el abono se descarta. Que te transfieran, que
+te devuelvan un préstamo o que te llegue un reembolso no crea movimiento — el dinero que entra se
+declara en el módulo de Ingresos.
 
 El motivo es que el correo no alcanza para decidirlo: un abono de $500.000 puede ser un sueldo, la
 devolución de un préstamo entre amigos o plata que alguien te pidió guardar, y el aviso del banco se
-ve idéntico en los tres casos. Adivinar infla el presupuesto con plata que no es para gastar.
+ve idéntico en los tres casos —mismo remitente, misma plantilla—. Adivinar infla el presupuesto con
+plata que no es para gastar, y sumarlo al saldo lo duplica cuando el mismo dinero ya se declaró como
+ingreso.
 
 Los ingresos se declaran en el **módulo de Ingresos**, que es independiente del banco y del método de
 conexión. Es la única fuente de verdad de cuánto entra al mes: así funciona igual con un banco
@@ -33,8 +36,10 @@ integrado, con cinco o con ninguno. Un banco nuevo no puede cambiar esta regla n
 
 En el código la regla es **estructural**, no una decisión por banco: `EmailEventKind` no tiene una
 variante de ingreso (`expense | internal_credit | internal_payment`) y `isInternalEvent` marca como
-interno todo lo que no sea gasto, en un único punto que atraviesa importación inicial y sync. En la
-UI estos movimientos llevan el badge **"Ajuste de saldo"** y no suman en el total del día.
+interno todo lo que no sea gasto, en un único punto que atraviesa importación inicial y sync. Los
+abonos se reconocen solo para descartarlos, con el motivo `abono_ignorado`, que los separa de los
+correos que se omiten por estar rotos. En la UI los movimientos internos llevan el badge **"Ajuste
+de saldo"** y no suman en el total del día.
 
 ## Catálogo Banco de Chile
 
@@ -50,7 +55,7 @@ Remitentes permitidos (catálogo, clave `bancochile`): `enviodigital@bancochile.
 | Comprobante pago crédito consumo | `pago_credito_consumo` | Gasto | Cuenta corriente (origen) | Monto pagado, fecha y N° de cuota. Es gasto real: el consumo financiado nunca entró a la app, así que la cuota es la única vez que ese dinero aparece. |
 | Pago de tarjeta de crédito nacional / internacional | `pago_tarjeta` | Interno (dos patas) | Tarjeta + cuenta de origen | Monto de la deuda (CLP o USD) y monto en caja. Baja el utilizado de la tarjeta y descuenta de la cuenta corriente. Ni gasto ni ingreso. |
 | Pago de línea de crédito | `pago_linea` | Interno | Cuenta corriente | Monto CLP; ajusta el sobregiro. |
-| Aviso de transferencia de fondos / Notificación de abono | `abono` | Interno | Cuenta corriente | Monto CLP. Sube el saldo y **nunca** cuenta como ingreso, por la regla universal de arriba. |
+| Aviso de transferencia de fondos / Notificación de abono | — | **Descartado** (`abono_ignorado`) | — | Nada: la plata que entra se declara en Ingresos. Ver la regla universal de arriba. |
 
 **Gasto** entra al presupuesto y se categoriza (con IA si no lo reclama una plantilla recurrente).
 **Interno** solo mueve saldos: fuera del presupuesto, fuera de la categorización.
@@ -64,6 +69,7 @@ Remitentes permitidos (catálogo, clave `bancochile`): `enviodigital@bancochile.
 | `sin_monto` | La plantilla no expone el monto en el formato esperado. |
 | `sin_instrumento` | No se identifica la cuenta o la tarjeta. |
 | `plantilla_desconocida` | Asunto correcto pero el cuerpo no coincide con la plantilla conocida. |
+| `abono_ignorado` | Aviso de plata que entra. No es un fallo: se descarta a propósito. |
 
 Los conteos por motivo se muestran en el escaneo inicial: son el termómetro de cuánto está
 quedando fuera.
@@ -73,9 +79,9 @@ quedando fuera.
 1. **Remitentes fijos.** Uno o varios, estables. Sin esto no hay allowlist y no hay fail-closed.
 2. **Asuntos reconocibles por tipo de operación**, idealmente exactos o por prefijo. Un asunto
    genérico para todo obliga a clasificar por cuerpo, que es mucho más frágil.
-3. **Cobertura de los tres efectos:** gasto, abono interno y pago interno. Si el banco no notifica
-   los pagos de tarjeta, los saldos se desalinean y hay que reconciliar a mano. Ningún efecto es
-   un ingreso: ver la regla universal de arriba, que el banco nuevo no puede cambiar.
+3. **Cobertura de los dos efectos:** gasto y pago interno. Si el banco no notifica los pagos de
+   tarjeta, los saldos se desalinean y hay que reconciliar a mano. Sus avisos de dinero entrante se
+   descartan: ver la regla universal de arriba, que el banco nuevo no puede cambiar.
 4. **Monto con moneda inequívoca.** Hoy se soportan CLP (`$ 1.234.567`, puntos de miles) y USD
    (`US$ 12,34`, `USD 1.234,56`). Cuando la plantilla trae varias cifras (interés, utilizado, tipo
    de cambio), el monto **debe** salir de una etiqueta concreta, nunca del primer `$` del texto.

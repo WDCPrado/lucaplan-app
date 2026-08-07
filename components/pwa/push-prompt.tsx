@@ -31,7 +31,8 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
   // useEffect justificado: el estado vive en el navegador (permiso + suscripción del service
   // worker), no en el servidor.
   useEffect(() => {
-    if (!vapidPublicKey) return
+    // ponytail: en local estorba en cada recarga; el flujo se prueba en preview/producción.
+    if (!vapidPublicKey || process.env.NODE_ENV === "development") return
     isPushEnabled()
       .then((enabled) => setOpen(!enabled && permissionUndecided()))
       .catch(() => {})

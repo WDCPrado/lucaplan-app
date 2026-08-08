@@ -46,6 +46,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 export type OutlookBankDTO = {
   id: string // id del vínculo correo↔banco
   bankProvider: string
+  bankId: string | null // null mientras el banco está en setup
   bankName: string // nombre del catálogo + etiqueta
   label: string | null
   pendingSetup: boolean
@@ -198,11 +199,10 @@ export function OutlookBankConnection({
   const [checking, setChecking] = useState<CheckingForm | null>(null)
   const [cards, setCards] = useState<CardForm[]>([])
   // Banco en curso: el que está en setup (escaneo → snapshot) o el que se está reconciliando.
-  const [reconcilingLinkId, setReconcilingLinkId] = useState<string | null>(null)
+  const [reconciling, setReconciling] = useState<OutlookBankDTO | null>(null)
   const [scanError, setScanError] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const [importStepIdx, setImportStepIdx] = useState(0)
-  const [addingTo, setAddingTo] = useState<string | null>(null) // buzón al que se agrega un banco
   const automaticScanStarted = useRef(false)
   const invalidSnapshot = snapshotInvalid(checking, cards)
 
@@ -245,7 +245,6 @@ export function OutlookBankConnection({
       haptic("error")
       return toast.error(data.error ?? "No se pudo agregar el banco")
     }
-    setAddingTo(null)
     automaticScanStarted.current = false
     await onReload()
   }
@@ -420,7 +419,7 @@ export function OutlookBankConnection({
     }
     haptic("success")
     toast.success("Saldos actualizados")
-    setReconcilingLinkId(null)
+    setReconciling(null)
     await onReload()
   }
 
@@ -476,10 +475,11 @@ export function OutlookBankConnection({
   }
 
   // Reconciliación de un banco concreto ("Actualizar saldos").
-  if (reconcilingLinkId) {
+  if (reconciling) {
     return (
       <div className="space-y-5">
         <SnapshotForm
+          bankName={reconciling.bankName}
           snapshotAt={snapshotAt}
           setSnapshotAt={setSnapshotAt}
           checking={checking}
@@ -490,13 +490,13 @@ export function OutlookBankConnection({
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={() => setReconcilingLinkId(null)}
+            onClick={() => setReconciling(null)}
             className="h-11 flex-1 rounded-full"
           >
             Cancelar
           </Button>
           <Button
-            onClick={() => saveReconcile(reconcilingLinkId)}
+            onClick={() => saveReconcile(reconciling.id)}
             disabled={busy || invalidSnapshot}
             className="h-11 flex-1 rounded-full"
           >
@@ -559,6 +559,7 @@ export function OutlookBankConnection({
           </span>
         </div>
         <SnapshotForm
+          bankName={pending.bankName}
           snapshotAt={snapshotAt}
           setSnapshotAt={setSnapshotAt}
           checking={checking}
@@ -592,10 +593,9 @@ export function OutlookBankConnection({
           Luca Plan solo leerá notificaciones de tu banco con el permiso
           Mail.Read. No puede enviar ni borrar correos.
         </Notice>
-        <BankPicker
+        <FirstBankPicker
           banks={status.availableBanks}
           busy={busy}
-          cta="Conectar Outlook"
           onSubmit={(bank) => connect(bank)}
         />
       </div>
@@ -608,21 +608,18 @@ export function OutlookBankConnection({
         <MailboxCard
           key={mailbox.id}
           mailbox={mailbox}
-          availableBanks={status.availableBanks}
-          allBanks={banks}
           busy={busy}
-          adding={addingTo === mailbox.id}
-          onToggleAdd={() =>
-            setAddingTo(addingTo === mailbox.id ? null : mailbox.id)
-          }
-          onAddBank={(bank, label) => addBank(mailbox.id, bank, label)}
           onReconnect={() => connect(mailbox.banks[0]?.bankProvider ?? "")}
           onReconcile={(bank) => {
-            const forms = formsFromAccounts(accounts)
+            // Solo las cuentas de ESTE banco: con varios conectados, cargar todas metía en el
+            // formulario las tarjetas de otro banco.
+            const forms = formsFromAccounts(
+              accounts.filter((a) => a.bankId === bank.bankId)
+            )
             setChecking(forms.checking)
             setCards(forms.cards)
             setSnapshotAt(nowLocal())
-            setReconcilingLinkId(bank.id)
+            setReconciling(bank)
           }}
           onDisconnectBank={(bank) => disconnect({ linkId: bank.id })}
           onDisconnectMailbox={() => disconnect({ mailboxId: mailbox.id })}
@@ -637,14 +634,160 @@ export function OutlookBankConnection({
         <RefreshCw /> Sincronizar ahora
       </Button>
 
-      <BankPicker
-        banks={status.availableBanks}
+      <AddBankSection
+        availableBanks={status.availableBanks}
+        mailboxes={mailboxes}
+        allBanks={banks}
         busy={busy}
-        cta="Conectar otro correo"
-        variant="outline"
-        onSubmit={(bank, label) => connect(bank, label)}
-        needsLabel={(bank) => banks.some((b) => b.bankProvider === bank)}
+        onAdd={addBank}
+        onConnect={connect}
       />
+    </div>
+  )
+}
+
+// Agregar un banco: se elige el banco Y de qué correo llegan sus avisos, en un solo lugar. Antes
+// eran dos entradas separadas —un botón dentro de cada correo y otra lista al pie— y desde el
+// segundo banco del catálogo se veían dos selectores casi idénticos sin decir a cuál correo iba
+// cada uno. Un correo ya autorizado no vuelve a pasar por OAuth; uno nuevo sí.
+function AddBankSection({
+  availableBanks,
+  mailboxes,
+  allBanks,
+  busy,
+  onAdd,
+  onConnect,
+}: {
+  availableBanks: { key: string; name: string }[]
+  mailboxes: OutlookMailboxDTO[]
+  allBanks: OutlookBankDTO[]
+  busy: boolean
+  onAdd: (mailboxId: string, bankProvider: string, label: string | null) => void
+  onConnect: (bankProvider: string, label: string | null) => void
+}) {
+  const NEW_MAILBOX = "__new__"
+  const [bank, setBank] = useState(availableBanks[0]?.key ?? "")
+  const [target, setTarget] = useState<string>(mailboxes[0]?.id ?? NEW_MAILBOX)
+  const [label, setLabel] = useState("")
+
+  // El mismo banco no se repite dentro de un correo: el enrutado por remitente no sabría a cuál
+  // vínculo imputar el movimiento.
+  const taken = (mailboxId: string, bankKey: string) =>
+    mailboxes
+      .find((m) => m.id === mailboxId)
+      ?.banks.some((b) => b.bankProvider === bankKey) ?? false
+  // Ese banco ya viene de otro correo ⇒ la etiqueta es la que los distingue en toda la app.
+  const requiresLabel = allBanks.some((b) => b.bankProvider === bank)
+
+  // El correo elegido puede ya tener ese banco (el primero de cada lista suele ser justo la
+  // combinación que ya existe, y cambiar de banco puede invalidar el correo elegido antes): en ese
+  // caso el destino real es un correo nuevo, sin necesidad de sincronizar estados entre sí.
+  const effectiveTarget = taken(target, bank) ? NEW_MAILBOX : target
+  const targetMailbox = mailboxes.find((m) => m.id === effectiveTarget)
+  const bankName = availableBanks.find((b) => b.key === bank)?.name ?? "banco"
+
+  return (
+    <div className="space-y-4 rounded-xl border p-4">
+      <p className="text-sm font-medium">Agregar un banco</p>
+
+      {availableBanks.length > 1 && (
+        <OptionList
+          options={availableBanks.map((b) => ({ value: b.key, label: b.name }))}
+          selected={bank}
+          onSelect={setBank}
+        />
+      )}
+
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          ¿A qué correo llegan sus avisos?
+        </p>
+        <OptionList
+          options={[
+            ...mailboxes.map((m) => ({
+              value: m.id,
+              label: m.emailAddress,
+              disabled: taken(m.id, bank),
+              hint: taken(m.id, bank) ? "ya conectado aquí" : undefined,
+            })),
+            { value: NEW_MAILBOX, label: "Conectar un correo nuevo" },
+          ]}
+          selected={effectiveTarget}
+          onSelect={setTarget}
+        />
+      </div>
+
+      {requiresLabel && (
+        <div className="space-y-1">
+          <Input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Etiqueta: Empresa, Personal…"
+            maxLength={24}
+            className="h-11"
+          />
+          <p className="text-xs text-muted-foreground">
+            Ya tienes {bankName} conectado desde otro correo: la etiqueta los
+            distingue en toda la app.
+          </p>
+        </div>
+      )}
+
+      <Button
+        onClick={() =>
+          targetMailbox
+            ? onAdd(targetMailbox.id, bank, label.trim() || null)
+            : onConnect(bank, label.trim() || null)
+        }
+        disabled={busy || !bank || (requiresLabel && !label.trim())}
+        className="h-12 w-full rounded-full"
+      >
+        {busy ? <Loader2 className="animate-spin" /> : <Plus />}
+        {targetMailbox ? `Agregar ${bankName}` : "Conectar otro correo"}
+      </Button>
+    </div>
+  )
+}
+
+// Lista de opciones en una columna (banco, correo destino): toque grande, sin desplegables.
+function OptionList({
+  options,
+  selected,
+  onSelect,
+}: {
+  options: {
+    value: string
+    label: string
+    disabled?: boolean
+    hint?: string
+  }[]
+  selected: string
+  onSelect: (value: string) => void
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          disabled={option.disabled}
+          onClick={() => onSelect(option.value)}
+          className={cn(
+            "flex h-12 items-center justify-between gap-3 rounded-xl border px-4 text-left transition-colors",
+            selected === option.value && !option.disabled
+              ? "border-primary bg-primary/10"
+              : "border-border",
+            option.disabled && "opacity-45"
+          )}
+        >
+          <span className="min-w-0 truncate font-medium">{option.label}</span>
+          {option.hint && (
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {option.hint}
+            </span>
+          )}
+        </button>
+      ))}
     </div>
   )
 }
@@ -653,24 +796,14 @@ export function OutlookBankConnection({
 // bancos lo heredan: una sola reconexión los arregla a todos.
 function MailboxCard({
   mailbox,
-  availableBanks,
-  allBanks,
   busy,
-  adding,
-  onToggleAdd,
-  onAddBank,
   onReconnect,
   onReconcile,
   onDisconnectBank,
   onDisconnectMailbox,
 }: {
   mailbox: OutlookMailboxDTO
-  availableBanks: { key: string; name: string }[]
-  allBanks: OutlookBankDTO[]
   busy: boolean
-  adding: boolean
-  onToggleAdd: () => void
-  onAddBank: (bankProvider: string, label: string | null) => void
   onReconnect: () => void
   onReconcile: (bank: OutlookBankDTO) => void
   onDisconnectBank: (bank: OutlookBankDTO) => void
@@ -683,12 +816,9 @@ function MailboxCard({
         ? "Requiere reconexión"
         : "Error de sincronización"
   const tone =
-    mailbox.status === "active" ? "border-success/40 bg-success/5" : "border-destructive/40 bg-destructive/5"
-  // Un banco ya vinculado a ESTE correo no se puede repetir aquí (el enrutado sería ambiguo).
-  const addable = availableBanks.filter(
-    (b) => !mailbox.banks.some((linked) => linked.bankProvider === b.key)
-  )
-
+    mailbox.status === "active"
+      ? "border-success/40 bg-success/5"
+      : "border-destructive/40 bg-destructive/5"
   return (
     <div className={cn("space-y-3 rounded-xl border p-4 text-sm", tone)}>
       <div className="flex items-center gap-2 font-medium">
@@ -755,26 +885,6 @@ function MailboxCard({
         ))}
       </ul>
 
-      {addable.length > 0 &&
-        (adding ? (
-          <BankPicker
-            banks={addable}
-            busy={busy}
-            cta="Agregar a este correo"
-            onSubmit={onAddBank}
-            needsLabel={(bank) => allBanks.some((b) => b.bankProvider === bank)}
-          />
-        ) : (
-          <Button
-            variant="outline"
-            onClick={onToggleAdd}
-            disabled={busy}
-            className="h-10 w-full rounded-full"
-          >
-            <Plus /> Agregar banco a este correo
-          </Button>
-        ))}
-
       <DisconnectButton
         busy={busy}
         label="Desconectar este correo"
@@ -786,69 +896,35 @@ function MailboxCard({
   )
 }
 
-// Selector de banco (+ etiqueta cuando ese banco ya viene de otro correo, para distinguirlos).
-function BankPicker({
+// Primer correo: solo se elige el banco. No hay etiqueta que pedir (no existe todavía otro correo
+// del que distinguirlo) ni destino que elegir.
+function FirstBankPicker({
   banks,
   busy,
-  cta,
-  variant = "default",
-  needsLabel,
   onSubmit,
 }: {
   banks: { key: string; name: string }[]
   busy: boolean
-  cta: string
-  variant?: "default" | "outline"
-  needsLabel?: (bankProvider: string) => boolean
-  onSubmit: (bankProvider: string, label: string | null) => void
+  onSubmit: (bankProvider: string) => void
 }) {
   const [selected, setSelected] = useState(banks[0]?.key ?? "")
-  const [label, setLabel] = useState("")
-  const requiresLabel = needsLabel?.(selected) ?? false
 
   return (
     <div className="space-y-3">
       {banks.length > 1 && (
-        <div className="flex flex-col gap-2">
-          {banks.map((bank) => (
-            <button
-              key={bank.key}
-              type="button"
-              onClick={() => setSelected(bank.key)}
-              className={cn(
-                "flex h-12 items-center gap-3 rounded-xl border px-4 text-left transition-colors",
-                selected === bank.key
-                  ? "border-primary bg-primary/10"
-                  : "border-border"
-              )}
-            >
-              <span className="font-medium">{bank.name}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      {requiresLabel && (
-        <div className="space-y-1">
-          <Input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="Etiqueta: Empresa, Personal…"
-            maxLength={24}
-            className="h-11"
-          />
-          <p className="text-xs text-muted-foreground">
-            Ya tienes ese banco conectado desde otro correo: la etiqueta los
-            distingue en toda la app.
-          </p>
-        </div>
+        <OptionList
+          options={banks.map((b) => ({ value: b.key, label: b.name }))}
+          selected={selected}
+          onSelect={setSelected}
+        />
       )}
       <Button
-        variant={variant}
-        onClick={() => onSubmit(selected, label.trim() || null)}
-        disabled={busy || !selected || (requiresLabel && !label.trim())}
+        onClick={() => onSubmit(selected)}
+        disabled={busy || !selected}
         className="h-12 w-full rounded-full"
       >
-        {busy ? <Loader2 className="animate-spin" /> : <Mail />} {cta}
+        {busy ? <Loader2 className="animate-spin" /> : <Mail />} Conectar
+        Outlook
       </Button>
     </div>
   )
@@ -962,6 +1038,7 @@ function DisconnectButton({
 }
 
 export function SnapshotForm({
+  bankName,
   snapshotAt,
   setSnapshotAt,
   checking,
@@ -969,6 +1046,7 @@ export function SnapshotForm({
   cards,
   setCards,
 }: {
+  bankName: string // el banco que se está configurando: da nombre y monograma a las tarjetas
   snapshotAt: string
   setSnapshotAt: (value: string) => void
   checking: CheckingForm | null
@@ -1007,6 +1085,7 @@ export function SnapshotForm({
       </Field>
       {checking ? (
         <CandidateCard
+          bankName={bankName}
           variant="debito"
           typeLabel="Débito"
           movementCount={checking.movementCount}
@@ -1088,6 +1167,7 @@ export function SnapshotForm({
       {cards.map((card) => (
         <CandidateCard
           key={card.id}
+          bankName={bankName}
           variant="credito"
           typeLabel="Crédito"
           movementCount={card.movementCount}
@@ -1344,6 +1424,7 @@ function CardField({
 // Superficie editable con el mismo arte y jerarquía del AccountCard del dashboard: banco arriba,
 // datos al centro, últimos 4 + tipo abajo; el isotipo del banco queda como marca de agua.
 function CandidateCard({
+  bankName,
   variant,
   typeLabel,
   movementCount,
@@ -1355,6 +1436,7 @@ function CandidateCard({
   refMaxLength,
   children,
 }: {
+  bankName: string
   variant: CardVariant
   typeLabel: string
   movementCount?: number
@@ -1367,7 +1449,7 @@ function CandidateCard({
   children: React.ReactNode
 }) {
   const art = resolveCardArt(
-    "Banco de Chile",
+    bankName,
     variant === "debito" ? "checking" : "credit_card"
   )
   return (
@@ -1386,7 +1468,7 @@ function CandidateCard({
       )}
       <div className="relative flex items-start justify-between gap-2">
         <div className="text-lg font-semibold tracking-tight [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
-          Banco de Chile
+          {bankName}
         </div>
         <button
           type="button"

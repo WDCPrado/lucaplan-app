@@ -1381,6 +1381,7 @@ export async function findWebhookMailbox(
 export type EmailBankLinkDTO = {
   id: string
   bankProvider: string
+  bankId: string | null // banco creado por este vínculo; null mientras está en setup
   bankName: string // nombre del catálogo + etiqueta
   label: string | null
   pendingSetup: boolean
@@ -1430,6 +1431,7 @@ export async function getEmailConnectionView(
           return {
             id: l.id,
             bankProvider: l.bankProvider,
+            bankId: l.bankId,
             bankName: bankDisplayName(bank?.name ?? l.bankProvider, l.label),
             label: l.label,
             pendingSetup: !l.bankId,

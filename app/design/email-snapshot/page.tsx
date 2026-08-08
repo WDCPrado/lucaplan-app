@@ -55,6 +55,7 @@ export default function EmailSnapshotMock() {
             </span>
           </div>
           <SnapshotForm
+            bankName="Banco de Chile"
             snapshotAt={snapshotAt}
             setSnapshotAt={setSnapshotAt}
             checking={checking}

@@ -2,10 +2,13 @@
 // de cuentas conectadas; también sirve para los manuales. Valida ownership del movimiento
 // y de la categoría. No toca el saldo.
 //
-// Aprendizaje: toda asignación no-null registra/actualiza la corrección del usuario (texto
-// normalizado → categoría) de forma best-effort (un fallo del registro nunca bloquea la
-// asignación) y devuelve cuántos otros movimientos con el mismo texto cambiarían al propagar.
-// Asignar null (quitar categoría) no registra ni borra correcciones.
+// Aprendizaje: una asignación no-null registra la corrección del usuario (texto normalizado →
+// categoría) SOLO si ese texto todavía no tenía una: una recategorización puntual no puede pisar
+// en silencio lo ya aprendido, porque suele ser la excepción y no la regla nueva. Cuando ya había
+// otra categoría aprendida se devuelve en `learnedCategoryId` y la memoria queda intacta hasta que
+// el usuario lo decida explícitamente en el follow-up (annotateCorrection con applyToSameText).
+// Todo el bloque es best-effort: un fallo del aprendizaje nunca bloquea la asignación. Asignar null
+// (quitar categoría) no registra ni borra correcciones.
 import {
   AccountNotFoundError,
   NotOwnerError,
@@ -44,6 +47,9 @@ export async function categorizeTransaction(
   // Categoría que tenía ANTES: de null a una, el movimiento entra al presupuesto (y puede cruzar
   // un umbral de alerta). Lo decide el llamador; aquí no se notifica nada.
   previousCategoryId: string | null
+  // Categoría que este texto ya tenía aprendida y que NO se pisó (null si no había o si coincide
+  // con la elegida). La UI la usa para avisar que "solo este" deja la regla como estaba.
+  learnedCategoryId: string | null
 }> {
   const tx = await deps.transactions.findById(transactionId)
   if (!tx) throw new AccountNotFoundError(transactionId)
@@ -80,17 +86,29 @@ export async function categorizeTransaction(
     await deps.installments.setCategory(plan.id, categoryId)
 
   let sameTextCount = 0
+  let learnedCategoryId: string | null = null
   if (categoryId && deps.corrections) {
     try {
       const normalizedText = normalizeMovementText(tx.description)
       if (normalizedText) {
-        await deps.corrections.upsertByText({
+        const learned = await deps.corrections.findByText(
           userId,
-          direction: tx.direction,
-          normalizedText,
-          sampleText: tx.description,
-          categoryId,
-        })
+          tx.direction,
+          normalizedText
+        )
+        // Sin regla previa (o la misma que se eligió): se aprende al toque, como siempre. Con otra
+        // regla vigente NO se pisa: el follow-up decide si esto era la excepción o la regla nueva.
+        if (!learned || learned.categoryId === categoryId) {
+          await deps.corrections.upsertByText({
+            userId,
+            direction: tx.direction,
+            normalizedText,
+            sampleText: tx.description,
+            categoryId,
+          })
+        } else {
+          learnedCategoryId = learned.categoryId
+        }
         sameTextCount = await deps.corrections.countSameText(
           userId,
           tx.direction,
@@ -103,5 +121,10 @@ export async function categorizeTransaction(
       // best-effort: la categoría ya quedó asignada; el aprendizaje no bloquea la operación
     }
   }
-  return { transaction, sameTextCount, previousCategoryId: tx.categoryId }
+  return {
+    transaction,
+    sameTextCount,
+    previousCategoryId: tx.categoryId,
+    learnedCategoryId,
+  }
 }

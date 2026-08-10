@@ -9,14 +9,19 @@ import { Label } from "@/components/ui/label"
 // categoría a los N movimientos con la misma descripción. La categoría YA quedó persistida por el
 // caller (PATCH); este paso solo dispara el follow-up de aprendizaje vía `onFinish`. Compartido por
 // el modal de transacción y el triage de pendientes para no duplicar la UI ni el copy.
+//
+// `learnedCategoryName`: esta descripción ya tenía OTRA categoría aprendida y no se pisó. Aquí se
+// decide qué era este cambio — la regla nueva (aplicar a los demás) o una excepción (solo este).
 export function CorrectionLearnStep({
   description,
   sameTextCount,
+  learnedCategoryName,
   saving,
   onFinish,
 }: {
   description: string
   sameTextCount: number
+  learnedCategoryName?: string | null
   saving: boolean
   onFinish: (opts: { note: string; applyToSameText: boolean }) => void
 }) {
@@ -50,23 +55,42 @@ export function CorrectionLearnStep({
         </p>
       </div>
 
+      {learnedCategoryName && (
+        <p className="rounded-xl bg-muted/60 px-4 py-3 text-xs text-muted-foreground">
+          Esta descripción venía clasificándose como{" "}
+          <span className="font-medium text-foreground">
+            {learnedCategoryName}
+          </span>
+          . Si fue una excepción, elige «Solo este» y los próximos seguirán
+          yendo ahí.
+        </p>
+      )}
+
       <div className="flex flex-col gap-2">
-        {n > 0 && (
+        {(n > 0 || learnedCategoryName) && (
           <Button
             onClick={() => onFinish({ note, applyToSameText: true })}
             disabled={saving}
             className="h-12 rounded-full text-base"
           >
-            {saving ? "Guardando…" : `Aplicar a los ${n} con esta descripción`}
+            {saving
+              ? "Guardando…"
+              : n > 0
+                ? `Aplicar a los ${n} con esta descripción`
+                : "Usar esta categoría de aquí en adelante"}
           </Button>
         )}
         <Button
-          variant={n > 0 ? "outline" : "default"}
+          variant={n > 0 || learnedCategoryName ? "outline" : "default"}
           onClick={() => onFinish({ note, applyToSameText: false })}
           disabled={saving}
           className="h-12 rounded-full text-base"
         >
-          {saving ? "Guardando…" : n > 0 ? "Solo este" : "Listo"}
+          {saving
+            ? "Guardando…"
+            : n > 0 || learnedCategoryName
+              ? "Solo este"
+              : "Listo"}
         </Button>
       </div>
     </div>

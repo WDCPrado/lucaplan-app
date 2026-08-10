@@ -66,6 +66,19 @@ export const correctionRepository: CorrectionRepository = {
     return toCorrection(row)
   },
 
+  async findByText(
+    userId: string,
+    direction: Direction,
+    normalizedText: string
+  ): Promise<CategorizationCorrection | null> {
+    const row = await prisma.categorizationCorrection.findUnique({
+      where: {
+        userId_direction_normalizedText: { userId, direction, normalizedText },
+      },
+    })
+    return row ? toCorrection(row) : null
+  },
+
   async listByUserDirection(
     userId: string,
     direction: Direction

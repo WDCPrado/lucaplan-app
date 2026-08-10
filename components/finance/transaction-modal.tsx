@@ -483,7 +483,10 @@ function ConnectedDetail({
   const [saving, setSaving] = useState(false)
   // Paso de aprendizaje tras guardar: pregunta el "porqué" (opcional) y ofrece propagar la
   // categoría a los N movimientos con la misma descripción. La categoría ya quedó persistida.
-  const [learn, setLearn] = useState<{ sameTextCount: number } | null>(null)
+  const [learn, setLearn] = useState<{
+    sameTextCount: number
+    learnedCategoryId: string | null
+  } | null>(null)
   // Estado de la plantilla que generó este movimiento: llega resuelto en el DTO desde el servidor.
   // Optimista tras pausar/reanudar; `router.refresh()` trae el valor real.
   const [recurringActive, setRecurringActive] = useState(
@@ -545,7 +548,10 @@ function ConnectedDetail({
       return
     }
     const data = await res.json().catch(() => ({}))
-    setLearn({ sameTextCount: Number(data.sameTextCount) || 0 })
+    setLearn({
+      sameTextCount: Number(data.sameTextCount) || 0,
+      learnedCategoryId: data.learnedCategoryId ?? null,
+    })
   }
 
   // Pausa/reanuda la plantilla que generó este movimiento. Pausada no ejecuta los períodos
@@ -645,6 +651,10 @@ function ConnectedDetail({
         <CorrectionLearnStep
           description={tx.description}
           sameTextCount={learn.sameTextCount}
+          learnedCategoryName={
+            categories.find((c) => c.id === learn.learnedCategoryId)?.name ??
+            null
+          }
           saving={saving}
           onFinish={finishLearn}
         />

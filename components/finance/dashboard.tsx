@@ -365,12 +365,13 @@ export function Dashboard({
           </div>
         </section>
 
-        {/* Escritorio: Movimientos a la izquierda (2 col) y Presupuestos sticky a la derecha.
+        {/* Escritorio: Movimientos a la izquierda (2 col) y Presupuestos a la derecha; ambas
+            columnas scrollean con la página (nada fijo: perseguir al lector molesta).
             Móvil: una columna en el orden del DOM — Presupuestos → Movimientos. */}
         <div className="mt-8 grid gap-x-6 gap-y-8 lg:grid-cols-3 lg:items-start">
           <section
             id="presupuestos"
-            className="min-w-0 scroll-mt-20 lg:sticky lg:top-20 lg:order-2 lg:self-start"
+            className="min-w-0 scroll-mt-20 lg:order-2"
           >
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-baseline gap-2">

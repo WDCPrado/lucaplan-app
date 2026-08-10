@@ -62,6 +62,7 @@ export function UncategorizedTriage({
   const [learn, setLearn] = useState<{
     categoryId: string
     sameTextCount: number
+    learnedCategoryId: string | null
   } | null>(null)
   const drag = useRef({ active: false, startY: 0, dy: 0 })
 
@@ -92,6 +93,7 @@ export function UncategorizedTriage({
     setBusy(true)
     let ok = false
     let sameTextCount = 0
+    let learnedCategoryId: string | null = null
     try {
       const res = await fetch(`/api/transactions/${front.id}/category`, {
         method: "PATCH",
@@ -102,6 +104,7 @@ export function UncategorizedTriage({
       if (ok) {
         const data = await res.json().catch(() => ({}))
         sameTextCount = Number(data.sameTextCount) || 0
+        learnedCategoryId = data.learnedCategoryId ?? null
       }
     } catch {
       // red caída → mismo aviso que un error del servidor
@@ -113,7 +116,7 @@ export function UncategorizedTriage({
       return // la card sigue al frente
     }
     haptic("light")
-    setLearn({ categoryId, sameTextCount })
+    setLearn({ categoryId, sameTextCount, learnedCategoryId })
   }
 
   // "Sin categoría": el usuario decide dejar el movimiento sin clasificar. Persiste (categoryId null,
@@ -350,6 +353,11 @@ export function UncategorizedTriage({
                           <CorrectionLearnStep
                             description={t.description}
                             sameTextCount={learn.sameTextCount}
+                            learnedCategoryName={
+                              categories.find(
+                                (c) => c.id === learn.learnedCategoryId
+                              )?.name ?? null
+                            }
                             saving={busy}
                             onFinish={finishLearn}
                           />

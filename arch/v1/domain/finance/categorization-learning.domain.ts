@@ -28,6 +28,13 @@ export type CorrectionInput = {
 export interface CorrectionRepository {
   // Upsert por (userId, direction, normalizedText): la última corrección del mismo texto gana.
   upsertByText(input: CorrectionInput): Promise<CategorizationCorrection>
+  // La corrección vigente de ese texto, si existe. Sirve para NO pisar lo ya aprendido cuando el
+  // usuario está recategorizando una excepción puntual.
+  findByText(
+    userId: string,
+    direction: Direction,
+    normalizedText: string
+  ): Promise<CategorizationCorrection | null>
   listByUserDirection(
     userId: string,
     direction: Direction

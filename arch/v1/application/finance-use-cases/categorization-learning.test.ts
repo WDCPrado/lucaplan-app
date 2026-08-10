@@ -137,6 +137,9 @@ function fakeCorrections(overrides: Partial<CorrectionRepository> = {}) {
         sampleText: input.sampleText,
       } as unknown as CategorizationCorrection
     },
+    async findByText() {
+      return null // sin regla previa, salvo que el test la inyecte por override
+    },
     async listByUserDirection() {
       return []
     },
@@ -352,6 +355,108 @@ test("categorizeTransaction: asignar null no registra corrección", async () => 
   )
   assert.equal(out.transaction.categoryId, null)
   assert.equal(calls.upserts.length, 0)
+})
+
+// --- excepción puntual: no pisar la regla ya aprendida ---
+
+// Corrección vigente del texto, para simular "este comercio ya tiene regla".
+const learnedFor = (text: string, categoryId: string) =>
+  ({
+    id: "prev",
+    userId: "u1",
+    direction: "debit" as const,
+    normalizedText: normalizeMovementText(text),
+    sampleText: text,
+    categoryId,
+    note: null,
+  }) satisfies CategorizationCorrection
+
+test("categorizeTransaction: recategorizar puntual NO pisa la regla aprendida", async () => {
+  const tx = mov("t1", "debit", "Jumbo Costanera 12/07 N°123456")
+  const { repo, calls } = fakeCorrections({
+    async findByText() {
+      return learnedFor(tx.description, "gasto1")
+    },
+  })
+  const out = await categorizeTransaction(
+    {
+      transactions: fakeTransactions({ t1: tx }),
+      categories: fakeCategories([
+        cat("gasto1", "expense"),
+        cat("gasto2", "expense"),
+      ]),
+      corrections: repo,
+    },
+    "u1",
+    "t1",
+    "gasto2"
+  )
+  assert.equal(out.transaction.categoryId, "gasto2") // el movimiento sí cambia
+  assert.equal(calls.upserts.length, 0) // la memoria no
+  assert.equal(out.learnedCategoryId, "gasto1") // y la UI se entera
+})
+
+test("categorizeTransaction: sin regla previa aprende al toque", async () => {
+  const tx = mov("t1", "debit", "Jumbo Costanera 12/07")
+  const { repo, calls } = fakeCorrections()
+  const out = await categorizeTransaction(
+    {
+      transactions: fakeTransactions({ t1: tx }),
+      categories: fakeCategories([cat("gasto1", "expense")]),
+      corrections: repo,
+    },
+    "u1",
+    "t1",
+    "gasto1"
+  )
+  assert.equal(calls.upserts.length, 1)
+  assert.equal(out.learnedCategoryId, null)
+})
+
+test("annotateCorrection: aplicar a los demás sí reemplaza la regla aprendida", async () => {
+  const tx = {
+    ...mov("t1", "debit", "Jumbo Costanera 12/07"),
+    categoryId: "gasto2",
+  }
+  const { repo, calls } = fakeCorrections({
+    async findByText() {
+      return learnedFor(tx.description, "gasto1")
+    },
+  })
+  const out = await annotateCorrection(
+    { transactions: fakeTransactions({ t1: tx }), corrections: repo },
+    "u1",
+    "t1",
+    { note: "esto ahora es otra cosa", applyToSameText: true }
+  )
+  assert.equal(out.applied, 3)
+  assert.equal(calls.upserts.length, 1)
+  assert.equal(
+    (calls.upserts[0] as { categoryId: string }).categoryId,
+    "gasto2"
+  )
+  assert.equal(calls.notes.length, 1)
+})
+
+test("annotateCorrection: «solo este» deja intactas la regla y su nota", async () => {
+  const tx = {
+    ...mov("t1", "debit", "Jumbo Costanera 12/07"),
+    categoryId: "gasto2",
+  }
+  const { repo, calls } = fakeCorrections({
+    async findByText() {
+      return learnedFor(tx.description, "gasto1")
+    },
+  })
+  const out = await annotateCorrection(
+    { transactions: fakeTransactions({ t1: tx }), corrections: repo },
+    "u1",
+    "t1",
+    { note: "fue un regalo, no la compra semanal", applyToSameText: false }
+  )
+  assert.equal(out.applied, 0)
+  assert.equal(calls.upserts.length, 0)
+  assert.deepEqual(calls.notes, []) // la nota describe la excepción, no la regla
 })
 
 // --- follow-up: nota + propagación ---

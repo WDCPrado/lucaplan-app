@@ -15,17 +15,26 @@ export async function PATCH(
   const { id } = await ctx.params
   const body = await req.json()
   return withUser(req, async (userId) => {
-    const { transaction: t, sameTextCount, previousCategoryId } =
-      await categorizeTransaction(
-        financeDeps,
-        userId,
-        id,
-        body.categoryId ?? null
-      )
+    const {
+      transaction: t,
+      sameTextCount,
+      previousCategoryId,
+      learnedCategoryId,
+    } = await categorizeTransaction(
+      financeDeps,
+      userId,
+      id,
+      body.categoryId ?? null
+    )
     // El gasto entra al presupuesto de su nueva categoría (venga de "sin categoría" o de otra) y
     // puede cruzar un umbral. Best-effort: un fallo del push nunca rompe la categorización.
     if (t.categoryId && t.categoryId !== previousCategoryId)
       await notifyBudgetForCategorized(userId, t).catch(() => {})
-    return { id: t.id, categoryId: t.categoryId, sameTextCount }
+    return {
+      id: t.id,
+      categoryId: t.categoryId,
+      sameTextCount,
+      learnedCategoryId,
+    }
   })
 }

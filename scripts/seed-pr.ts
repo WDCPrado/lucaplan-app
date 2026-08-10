@@ -85,9 +85,9 @@ async function resolveUser() {
   }
   if (process.env.SEED_PR_FORCE !== "1") return { id: existing.id, fresh: false }
   // Re-siembra: borrar el banco arrastra en cascada cuentas, tarjetas, movimientos,
-  // ingresos, recurrentes y planes de cuotas; la categoría arrastra sus límites.
+  // ingresos, recurrentes y planes de cuotas. Las categorías (y sus límites) las borra la
+  // limpieza de más abajo, común a los dos caminos.
   await prisma.bank.deleteMany({ where: { userId: existing.id } })
-  await prisma.category.deleteMany({ where: { userId: existing.id } })
   await prisma.monthlyBudget.deleteMany({ where: { userId: existing.id } })
   return { id: existing.id, fresh: true }
 }
@@ -97,6 +97,11 @@ if (!fresh) {
   console.log(`[seed:pr] ${EMAIL} ya tiene datos — no se toca nada (SEED_PR_FORCE=1 para rehacerlo).`)
   process.exit(0)
 }
+
+// El alta por Better Auth siembra las categorías por defecto (seed-default-categories-use-case) y
+// este seed necesita SU set exacto: varios nombres coinciden y el unique (userId, name) reventaría.
+// Vale para los dos caminos: cuenta nueva (las por defecto) y re-siembra (las del seed anterior).
+await prisma.category.deleteMany({ where: { userId } })
 
 const bank = await prisma.bank.create({
   data: { userId, name: "Banco de Chile" },

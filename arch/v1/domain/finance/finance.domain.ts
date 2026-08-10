@@ -328,6 +328,9 @@ export interface CategoryRepository {
   listByUser(userId: string): Promise<Category[]>
   findById(id: string): Promise<Category | null>
   upsert(input: CategoryInput): Promise<Category>
+  /** Inserta varias de una vez, en una sola sentencia: o entran todas o no entra ninguna.
+   *  Los nombres ya existentes del usuario se omiten (unique userId+name). */
+  createMany(inputs: CategoryInput[]): Promise<void>
   /** Borra la categoría; los movimientos quedan sin categoría (FK SetNull) y los ingresos
    *  asignados se eliminan en cascada. */
   delete(categoryId: string): Promise<void>

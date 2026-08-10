@@ -350,6 +350,7 @@ class FakeCategories implements CategoryRepository {
   async upsert(): Promise<never> {
     throw new Error("no usado en este test")
   }
+  async createMany() {}
   async delete(id: string) {
     this.deleted.push(id)
   }

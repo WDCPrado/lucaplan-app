@@ -46,6 +46,11 @@ infrastructure → domain          (implementa sus ports)
 - `infrastructure` y `presentation` **nunca** son importadas por `domain`/`application`.
 - Inversión de dependencias vía **ports** definidos en `domain`. Las implementaciones
   concretas (Prisma, fetch a terceros) viven en `infrastructure` y se inyectan al use-case.
+- **Adaptadores conductores**: normalmente quien compone adapters e invoca use-cases es
+  `app/`, pero un adaptador que *recibe un evento externo* también puede hacerlo desde
+  `infrastructure` — el wiring de push (`database/prisma/push-deps.ts`, que consumen el cron y
+  `scripts/notify-due.ts`) y el hook de creación de usuario de Better Auth (`auth/auth.ts`).
+  Es composición, no negocio: el use-case sigue hablando solo con ports.
 - Lo puro y sin negocio va a `arch/shared/`, no al `_shared/` de una capa.
 
 ## Mapeo con Next.js (presentation)

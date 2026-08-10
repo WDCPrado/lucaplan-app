@@ -98,6 +98,10 @@ if (!fresh) {
   process.exit(0)
 }
 
+// El alta por Better Auth siembra las categorías por defecto (seed-default-categories-use-case).
+// Este seed necesita SU set exacto y varios nombres coinciden → el unique (userId, name) reventaría.
+await prisma.category.deleteMany({ where: { userId } })
+
 const bank = await prisma.bank.create({
   data: { userId, name: "Banco de Chile" },
 })

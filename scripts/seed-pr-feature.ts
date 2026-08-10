@@ -13,232 +13,27 @@
 //   - Si falla, el seed base lo registra y sigue (no tumba el deploy), pero la feature queda sin
 //     datos. Pruébalo antes con `SEED_PR_FORCE=1 pnpm seed:pr` contra una base local.
 //
-// --- PR actual: Banco BICE, sobre el modelo multi-buzón y multi-banco ---
-// Para revisar la pantalla de conexión hace falta ver los dos niveles llenos: correos y, dentro de
-// cada uno, sus bancos. Se siembran DOS buzones: el personal con DOS bancos distintos (Banco de
-// Chile y Banco BICE, que es lo que estrena este PR) y el de empresa con el mismo Banco de Chile
-// bajo etiqueta, que es el caso del badge.
-//
-// Los tokens son basura deliberada: sirven para dibujar la UI, no para hablar con Microsoft. Tocar
-// "Sincronizar ahora" con estos buzones falla (token inválido) — es lo esperado en el entorno de PR.
+// --- PR actual: categorías por defecto al crear la cuenta ---
+// Lo que hay que mirar es una cuenta RECIÉN creada, y el usuario demo del seed base no sirve: se le
+// borran las categorías por defecto para dejarle su set de demo. Así que se crea una segunda cuenta
+// por Better Auth (el mismo camino que un registro real, así dispara el hook) y se deja intacta:
+// entrando con ella se ve el estado inicial de verdad — las 10 categorías, sin presupuesto asignado.
 import type { FeatureSeedContext } from "./seed-pr.ts" // solo el tipo: no ejecuta el seed base
 
-export default async function seedFeature({
-  prisma,
-  userId,
-  checkingId,
-  creditCardId,
-}: FeatureSeedContext) {
-  const asOf = new Date()
+const EMAIL = "nueva@lucaplan.cl"
+const PASSWORD = "lucaplan1234"
 
-  // Instrumentos con últimos 4 y buckets, para que el banco conectado se vea como en producción.
-  await prisma.financialAccount.update({
-    where: { id: checkingId },
-    data: { cardLast4: "8900", balance: 842350, provider: "bancochile" },
-  })
-  await prisma.balanceBucket.createMany({
-    data: [
-      {
-        userId,
-        accountId: checkingId,
-        kind: "cash",
-        currency: "CLP",
-        limitAmount: 0,
-        used: 0,
-        available: 842350,
-        asOf,
-      },
-      {
-        userId,
-        accountId: checkingId,
-        kind: "overdraft",
-        currency: "CLP",
-        limitAmount: 1000000,
-        used: 0,
-        available: 1000000,
-        asOf,
-      },
-    ],
-  })
-  await prisma.financialAccount.update({
-    where: { id: creditCardId },
-    data: {
-      cardLast4: "2120",
-      name: "Visa Signature",
-      balance: -1900000,
-      provider: "bancochile",
-    },
-  })
+export default async function seedFeature({ prisma }: FeatureSeedContext) {
+  // El seed base ya forzó NEXT_PUBLIC_LANDING_ONLY=false antes de construir Better Auth, así que
+  // signUpEmail está habilitado aquí aunque el entorno tenga el registro cerrado.
+  const { auth } = await import("../arch/v1/infrastructure/auth/auth.ts")
+  const existing = await prisma.user.findUnique({ where: { email: EMAIL } })
+  if (existing) return
 
-  // El banco del seed base pasa a ser el que alimenta el buzón personal.
-  const personalBank = await prisma.financialAccount.findUnique({
-    where: { id: checkingId },
-    select: { bankId: true },
+  await auth.api.signUpEmail({
+    body: { name: "Cuenta nueva", email: EMAIL, password: PASSWORD },
   })
-  if (!personalBank) return
-
-  const fakeToken = { refreshTokenEnc: "seed-pr", refreshTokenIv: "seed-pr" }
-
-  const personal = await prisma.emailMailbox.create({
-    data: {
-      userId,
-      emailAddress: "demo.personal@example.test",
-      status: "active",
-      lastSyncedAt: asOf,
-      subscriptionId: "seed-pr-personal",
-      subscriptionExpiresAt: new Date(asOf.getTime() + 3 * 24 * 3600 * 1000),
-      ...fakeToken,
-    },
-  })
-  await prisma.emailBankLink.create({
-    data: {
-      mailboxId: personal.id,
-      userId,
-      bankProvider: "bancochile",
-      label: null, // único vínculo de este correo: sin etiqueta, se ve "Banco de Chile"
-      bankId: personalBank.bankId,
-      status: "active",
-      skippedCount: 3,
-      lastBalanceReconciledAt: asOf,
-    },
-  })
-  await prisma.bankConnectionMethod.create({
-    data: {
-      userId,
-      bankProvider: "bancochile",
-      mailboxId: personal.id,
-      method: "email",
-    },
-  })
-
-  // Segundo correo con el MISMO banco: es lo que exige la etiqueta y lo que muestra el badge
-  // ("Banco de Chile Empresa"). Su banco tiene cuentas propias, sin mezclarse con las del personal.
-  const empresaBank = await prisma.bank.create({
-    data: {
-      userId,
-      name: "Banco de Chile Empresa",
-      provider: "bancochile",
-      connectionMethod: "email",
-      lastSyncedAt: asOf,
-    },
-  })
-  const empresaAccount = await prisma.financialAccount.create({
-    data: {
-      userId,
-      bankId: empresaBank.id,
-      name: "Cuenta Corriente",
-      accountType: "checking",
-      currency: "CLP",
-      balance: 2450000,
-      cardLast4: "7412",
-      provider: "bancochile",
-      // La identidad externa lleva el banco: sin eso, dos cuentas con los mismos últimos 4
-      // colisionarían en el unique (userId, externalId).
-      externalId: "email:bancochile:acct:001234567412",
-      lastSyncedAt: asOf,
-    },
-  })
-  await prisma.balanceBucket.create({
-    data: {
-      userId,
-      accountId: empresaAccount.id,
-      kind: "cash",
-      currency: "CLP",
-      limitAmount: 0,
-      used: 0,
-      available: 2450000,
-      asOf,
-    },
-  })
-  const empresa = await prisma.emailMailbox.create({
-    data: {
-      userId,
-      emailAddress: "demo.empresa@example.test",
-      status: "active",
-      lastSyncedAt: asOf,
-      ...fakeToken,
-    },
-  })
-  await prisma.emailBankLink.create({
-    data: {
-      mailboxId: empresa.id,
-      userId,
-      bankProvider: "bancochile",
-      label: "Empresa",
-      bankId: empresaBank.id,
-      status: "active",
-      skippedCount: 0,
-      lastBalanceReconciledAt: asOf,
-    },
-  })
-  await prisma.bankConnectionMethod.create({
-    data: {
-      userId,
-      bankProvider: "bancochile",
-      mailboxId: empresa.id,
-      method: "email",
-    },
-  })
-
-  // Banco BICE en el MISMO correo personal: dos bancos distintos bajo un buzón, cada uno con sus
-  // cuentas. Sus correos no cuentan como omitidos del otro porque el enrutado es por remitente.
-  const biceBank = await prisma.bank.create({
-    data: {
-      userId,
-      name: "Banco BICE",
-      provider: "bice",
-      connectionMethod: "email",
-      lastSyncedAt: asOf,
-    },
-  })
-  const biceAccount = await prisma.financialAccount.create({
-    data: {
-      userId,
-      bankId: biceBank.id,
-      name: "Cuenta Corriente",
-      accountType: "checking",
-      currency: "CLP",
-      balance: 318740,
-      cardLast4: "5678",
-      provider: "bice",
-      externalId: "email:bice:acct:12345678",
-      lastSyncedAt: asOf,
-    },
-  })
-  await prisma.balanceBucket.create({
-    data: {
-      userId,
-      accountId: biceAccount.id,
-      kind: "cash",
-      currency: "CLP",
-      limitAmount: 0,
-      used: 0,
-      available: 318740,
-      asOf,
-    },
-  })
-  await prisma.emailBankLink.create({
-    data: {
-      mailboxId: personal.id,
-      userId,
-      bankProvider: "bice",
-      label: null,
-      bankId: biceBank.id,
-      status: "active",
-      skippedCount: 0,
-      lastBalanceReconciledAt: asOf,
-    },
-  })
-  await prisma.bankConnectionMethod.create({
-    data: {
-      userId,
-      bankProvider: "bice",
-      mailboxId: personal.id,
-      method: "email",
-    },
-  })
-
   console.log(
-    "[seed:pr] dos correos conectados: personal (Banco de Chile + Banco BICE) y empresa (Banco de Chile Empresa, con badge)."
+    `[seed:pr] cuenta recién creada para revisar la feature: ${EMAIL} / ${PASSWORD}`
   )
 }

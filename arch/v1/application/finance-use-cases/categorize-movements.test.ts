@@ -53,6 +53,7 @@ function makeDeps(provider: CategorizationProvider, categories: Category[]) {
       async upsert() {
         throw new Error("no usado")
       },
+      async createMany() {},
       async delete() {},
       async listLimitsByUser() {
         return []

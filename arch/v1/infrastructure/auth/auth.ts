@@ -6,6 +6,8 @@ import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { admin } from "better-auth/plugins"
 import { prisma } from "../database/prisma/client.ts"
+import { categoryRepository } from "../database/prisma/finance.infrastructure.ts"
+import { seedDefaultCategories } from "../../application/finance-use-cases/seed-default-categories-use-case.ts"
 import { prDemoAccount } from "../../../../lib/pr-demo.ts"
 
 export const auth = betterAuth({
@@ -33,6 +35,26 @@ export const auth = betterAuth({
     },
   },
   plugins: [admin({ defaultRole: "USER", adminRoles: ["ADMIN"] })],
+  // Cuenta nueva → categorías por defecto, si no el usuario aterriza sin nada contra qué
+  // categorizar (ni él en el triage, ni la IA). Auth actúa aquí como adaptador conductor: recibe
+  // un evento externo y llama a un use-case, igual que el wiring de push (push-deps.ts). Un fallo
+  // NO puede tumbar el registro: se loguea y la cuenta queda creada.
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          try {
+            await seedDefaultCategories(
+              { categories: categoryRepository },
+              user.id
+            )
+          } catch (e) {
+            console.error("[seed-categories]", (e as Error).message)
+          }
+        },
+      },
+    },
+  },
 })
 
 export type Session = typeof auth.$Infer.Session

@@ -3,9 +3,12 @@
 // ellos se decide acá.
 //
 // El problema real: las capturas casi nunca traen todas las variables. La app del banco muestra el
-// disponible pero no el cupo total; a veces muestra el usado; a veces solo el saldo. Por eso no hay
-// una fórmula sino una escalera: se usa la primera que se pueda armar con lo que llegó, y lo ya
-// guardado en la app solo rellena lo que la imagen no dice.
+// disponible pero no el usado; a veces al revés; a veces los dos. Por eso no hay una fórmula sino
+// una escalera: se usa la primera que se pueda armar con lo que llegó.
+//
+// El CUPO TOTAL no participa de esa escalera: lo fija el banco, vive en la cuenta y no cambia de una
+// captura a otra. Es el dato fijo con el que se despeja el que falta —y con el que se comprueba lo
+// leído (`limitMismatch`)—, nunca algo que la foto pueda sobrescribir.
 import { CURRENCY_DECIMALS, Money, type CurrencyCode } from "./money.ts"
 
 // Lo que la IA pudo leer de un cupo/línea, en unidad mayor (CLP entero, USD con decimales).
@@ -78,78 +81,77 @@ function amount(value: number, currency: CurrencyCode): Money {
   return Money.of(value, currency)
 }
 
-// Cuando la captura trae el cupo, el disponible Y el usado hay redundancia: los tres tienen que
-// cumplir `cupo = disponible + usado`. Si no cuadran, alguno se leyó mal.
+// Comprueba la captura contra el cupo total guardado, que es el que manda. Dos formas de contrastar,
+// la que alcance: si la imagen trae disponible Y usado tienen que sumar ese total; si trae el cupo
+// total, tiene que ser ese mismo.
 //
-// Es la ÚNICA forma automática de cazar un dígito mal leído: con solo dos valores, un $1.834.697 en
-// vez de $1.334.697 es aritméticamente impecable y no hay con qué contrastarlo. Devuelve la
-// diferencia (para poder decirla) o null si cuadra o si no vinieron los tres.
-export function bucketMismatch(
+// Es la ÚNICA forma automática de cazar un dígito mal leído: con un solo valor, un $1.834.697 en vez
+// de $1.334.697 es aritméticamente impecable y no hay con qué contrastarlo. Devuelve la diferencia
+// (guardado − leído, para poder decirla) o null si cuadra o si no hay con qué comparar.
+export function limitMismatch(
   reading: BucketReading,
+  savedLimit: Money | null,
   currency: CurrencyCode
 ): Money | null {
+  if (!savedLimit || !savedLimit.isPositive) return null
   const { limit, available, used } = reading
-  if (limit === null || available === null || used === null) return null
+  const seen =
+    available !== null && used !== null
+      ? amount(available, currency).add(amount(used, currency))
+      : limit !== null
+        ? amount(limit, currency)
+        : null
+  if (!seen) return null
   // Money opera en unidad mínima con BigInt: la comparación es exacta, sin tolerancia que calibrar.
-  const diff = amount(limit, currency).subtract(
-    amount(available, currency).add(amount(used, currency))
-  )
+  const diff = savedLimit.subtract(seen)
   return diff.isZero ? null : diff
 }
 
 // Escalera de fórmulas para un bucket. Devuelve null cuando lo leído no alcanza para calcular nada
-// —ahí el bucket se deja intacto, que es mejor que inventar un saldo—. `currentLimit` es el cupo ya
-// guardado: solo se usa si la imagen no trae uno.
+// —ahí el bucket se deja intacto, que es mejor que inventar un saldo—.
+//
+// `savedLimit` es el cupo de la cuenta y NO se toca: el disponible y el usado son complementos suyos,
+// así que basta con leer uno de los dos. El disponible va primero porque es el que la app del banco
+// muestra siempre; si además vino el usado, ese solo sirvió para comprobar (ver `limitMismatch`).
+// Única excepción: una cuenta que todavía no tiene cupo guardado —ahí no hay nada que proteger y la
+// captura lo estrena—.
 export function resolveBucket(
   reading: BucketReading,
-  currentLimit: Money | null,
+  savedLimit: Money | null,
   currency: CurrencyCode
 ): ResolvedBucket | null {
   const money = (v: number | null) => (v === null ? null : amount(v, currency))
-  const limit = money(reading.limit)
   const available = money(reading.available)
   const used = money(reading.used)
+  const limit = savedLimit?.isPositive
+    ? savedLimit
+    : available && used
+      ? available.add(used)
+      : money(reading.limit)
+  if (!limit) return null
 
-  // Orden deliberado: lo que la imagen dice explícitamente gana sobre lo derivado, y lo derivado de
-  // la imagen gana sobre el cupo guardado (que puede estar viejo).
-  const resolved = ((): ResolvedBucket | null => {
-    if (limit && available)
-      return { limitAmount: limit, available, used: limit.subtract(available) }
-    if (limit && used)
-      return { limitAmount: limit, used, available: limit.subtract(used) }
-    // Sin cupo en la imagen: el total es lo disponible más lo usado.
-    if (available && used)
-      return { limitAmount: available.add(used), available, used }
-    if (!currentLimit) return null
-    if (available)
-      return {
-        limitAmount: currentLimit,
-        available,
-        used: currentLimit.subtract(available),
-      }
-    if (used)
-      return {
-        limitAmount: currentLimit,
-        used,
-        available: currentLimit.subtract(used),
-      }
-    return null
-  })()
+  const resolved: ResolvedBucket | null = available
+    ? { limitAmount: limit, available, used: limit.subtract(available) }
+    : used
+      ? { limitAmount: limit, used, available: limit.subtract(used) }
+      : null
 
   if (!resolved) return null
-  // Un cupo negativo o un disponible mayor que el total significan que se leyó mal algo: es preferible
-  // fallar visible a guardar un saldo imposible.
-  if (resolved.limitAmount.isNegative || resolved.used.isNegative)
-    throw new BalanceScanError("Los montos leídos dan un cupo o un usado negativo")
-  if (resolved.available.isNegative)
+  // Un monto que se sale del cupo significa que se leyó mal algo: es preferible fallar visible a
+  // guardar un saldo imposible.
+  if (resolved.limitAmount.isNegative)
+    throw new BalanceScanError("Los montos leídos dan un cupo negativo")
+  if (resolved.used.isNegative)
     throw new BalanceScanError("El disponible leído supera el cupo total")
+  if (resolved.available.isNegative)
+    throw new BalanceScanError("El utilizado leído supera el cupo total")
   return resolved
 }
 
 // Cuenta corriente: caja + línea de crédito. Un saldo negativo NO es caja negativa: significa que la
 // caja está en cero y esa plata se debe a la línea. Ese mismo saldo es entonces el `usado` de la
-// línea, y con el disponible de la línea que muestra la captura el cupo total sale solo
-// (cupo = disponible + usado), sin depender de lo guardado.
+// línea —lo que permite resolverla aunque la captura no muestre el disponible—, y si la cuenta
+// todavía no tiene cupo guardado, disponible + usado lo estrenan.
 export function resolveChecking(
   reading: BalanceReading,
   currentOverdraftLimit: Money | null

@@ -8,69 +8,48 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { downscaleToDataUrl } from "@/lib/image-downscale"
 import { haptic } from "@/lib/haptics"
+import { formatMoney, groupByCurrency } from "@/lib/finance-format"
 import { MAX_SCAN_IMAGES } from "@/arch/v1/domain/finance/balance-scan.domain"
+import {
+  CURRENCY_DECIMALS,
+  type CurrencyCode,
+} from "@/arch/v1/domain/finance/money"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 // "Actualizar saldo" con una captura de la app del banco: se sube, la IA lee los montos y el usuario
 // CONFIRMA antes de guardar. La confirmación no es ceremonia: la lectura puede equivocarse en un
 // dígito y devolver un monto perfectamente válido, así que el ojo del usuario es la última
-// validación. Todo campo es editable y los saldos derivados los calcula el servidor.
+// validación.
+//
+// El CUPO TOTAL no se edita ni se lee de la foto: lo fija el banco, ya está en la cuenta y es
+// justamente la referencia con la que se despeja lo que la captura no mostró y se comprueba lo que
+// sí. Lo confirmable es el disponible y el utilizado, que son complementos: al escribir uno, el otro
+// se ajusta en pantalla.
 
-type FieldKey =
-  | "cash"
-  | "overdraftAvailable"
-  | "overdraftLimit"
-  | "nationalAvailable"
-  | "nationalLimit"
-  | "internationalAvailable"
-  | "internationalLimit"
+type BucketKind = "overdraft" | "credit_national" | "credit_international"
 
-type Field = {
-  key: FieldKey
-  label: string
-  hint?: string
-  currency: "CLP" | "USD"
-}
+type BucketField = { kind: BucketKind; label: string; currency: CurrencyCode }
 
-const CHECKING_FIELDS: Field[] = [
-  {
-    key: "cash",
-    label: "Saldo de la cuenta",
-    hint: "Negativo si estás usando la línea",
-    currency: "CLP",
-  },
-  { key: "overdraftAvailable", label: "Línea disponible", currency: "CLP" },
-  {
-    key: "overdraftLimit",
-    label: "Cupo total de la línea",
-    hint: "Se calcula solo si lo dejas vacío",
-    currency: "CLP",
-  },
+const CHECKING_BUCKETS: BucketField[] = [
+  { kind: "overdraft", label: "Línea de crédito", currency: "CLP" },
 ]
 
-const CARD_FIELDS: Field[] = [
-  { key: "nationalAvailable", label: "Cupo nacional disponible", currency: "CLP" },
-  {
-    key: "nationalLimit",
-    label: "Cupo nacional total",
-    hint: "Se usa el guardado si lo dejas vacío",
-    currency: "CLP",
-  },
-  {
-    key: "internationalAvailable",
-    label: "Cupo internacional disponible",
-    currency: "USD",
-  },
-  { key: "internationalLimit", label: "Cupo internacional total", currency: "USD" },
+const CARD_BUCKETS: BucketField[] = [
+  { kind: "credit_national", label: "Cupo nacional", currency: "CLP" },
+  { kind: "credit_international", label: "Cupo internacional", currency: "USD" },
 ]
 
-type Values = Partial<Record<FieldKey, string>>
+// Los dos montos de un cupo. `null` = "no lo sé", que NO es cero: con el campo vacío el servidor
+// calcula ese monto desde el otro.
+type Pair = { available: number | null; used: number | null }
+
+type Values = { cash: number | null; buckets: Record<BucketKind, Pair> }
 
 // Descuadre que reporta el servidor: llega estructurado y la frase se arma acá.
 type MismatchDTO = {
   kind: string
-  difference: number
-  currency: "CLP" | "USD"
+  difference: number // cupo guardado − lo leído
+  currency: CurrencyCode
 }
 
 const BUCKET_LABEL: Record<string, string> = {
@@ -79,43 +58,25 @@ const BUCKET_LABEL: Record<string, string> = {
   credit_international: "el cupo internacional",
 }
 
-// A qué cupo pertenece cada campo: al editarlo, el descuadre de ESE cupo deja de describir lo que
-// hay en pantalla y se retira. El saldo cuenta como línea porque su parte negativa es su deuda.
-const FIELD_BUCKET: Record<FieldKey, string> = {
-  cash: "overdraft",
-  overdraftAvailable: "overdraft",
-  overdraftLimit: "overdraft",
-  nationalAvailable: "credit_national",
-  nationalLimit: "credit_national",
-  internationalAvailable: "credit_international",
-  internationalLimit: "credit_international",
+// Entrada "cents-first", igual que el resto de la app: el usuario teclea dígitos y el separador de
+// miles aparece solo, así que no hay forma de tipear un punto ambiguo (en Chile separa miles, pero
+// en dólares mucha gente lo usa como decimal).
+const showAmount = (value: number | null, currency: CurrencyCode) =>
+  value === null ? "" : groupByCurrency(value, currency)
+
+function readAmount(raw: string, currency: CurrencyCode): number | null {
+  const digits = raw.replace(/\D/g, "").slice(0, 15)
+  if (!digits) return null
+  const value = Number(digits) / 10 ** CURRENCY_DECIMALS[currency]
+  // El signo lo conserva el texto que ya estaba en pantalla (el saldo de la corriente puede ser
+  // negativo); se cambia con el botón ±, no tecleando.
+  return raw.trim().startsWith("-") ? -value : value
 }
 
-// "1.334.697" → 1334697; "2.069,00" → 2069; "2069.50" → 2069.5; "-25650" → -25650.
-// Vacío ⇒ null (el campo no se envía y el servidor decide qué se puede calcular sin él).
-//
-// El punto es ambiguo en Chile: separa miles ($1.334.697) pero mucha gente lo teclea como decimal en
-// dólares (2069.50). Borrarlo siempre convertiría 2069.50 en 206.950 —cien veces más—, así que un
-// punto solitario con una o dos cifras detrás se trata como decimal y el resto, como miles.
-function toNumber(raw: string | undefined): number | null {
-  const text = (raw ?? "").trim()
-  if (!text || text === "-") return null
-  const clean = text.includes(",")
-    ? text.replace(/\./g, "").replace(",", ".") // con coma, la coma es el decimal
-    : /^-?\d+\.\d{1,2}$/.test(text)
-      ? text
-      : text.replace(/\./g, "")
-  const n = Number(clean)
-  return Number.isFinite(n) ? n : null
-}
-
-function format(value: number | null | undefined, currency: "CLP" | "USD"): string {
-  if (value === null || value === undefined) return ""
-  return value.toLocaleString("es-CL", {
-    minimumFractionDigits: currency === "USD" ? 2 : 0,
-    maximumFractionDigits: currency === "USD" ? 2 : 0,
-  })
-}
+// Complemento contra el cupo total. Se calcula solo para MOSTRARLO: lo que se guarda lo rehace el
+// servidor con enteros, sin float de por medio.
+const complement = (total: number, value: number, currency: CurrencyCode) =>
+  Number((total - value).toFixed(CURRENCY_DECIMALS[currency]))
 
 export function BalanceScanPanel({
   account,
@@ -138,8 +99,12 @@ export function BalanceScanPanel({
   const [mismatches, setMismatches] = useState<MismatchDTO[]>([])
 
   const isCard = account.accountType === "credit_card"
-  const fields = isCard ? CARD_FIELDS : CHECKING_FIELDS
-  const bucket = (kind: string) => account.buckets?.find((b) => b.kind === kind)
+  const bucketFields = isCard ? CARD_BUCKETS : CHECKING_BUCKETS
+
+  // Cupo total guardado. null (o cero) ⇒ la cuenta todavía no lo tiene: ahí no hay con qué despejar
+  // ni comprobar, y los dos montos se escriben sueltos.
+  const limitOf = (kind: BucketKind): number | null =>
+    account.buckets?.find((b) => b.kind === kind)?.limit || null
 
   // Agrega capturas a la lista (sin leer todavía): así se pueden juntar varias pantallas del banco.
   async function add(files: File[]) {
@@ -202,54 +167,78 @@ export function BalanceScanPanel({
     }
   }
 
-  // Prefill: lo leído manda; el cupo total cae al guardado para que el usuario lo vea y pueda
-  // corregirlo (si lo deja igual, el servidor recalcula lo mismo).
+  // Prefill: da igual cuál de los dos montos trajo la captura —disponible, utilizado o los dos—; con
+  // el cupo total guardado, uno despeja al otro y la pantalla muestra el par completo.
   function prefill(reading: ReadingDTO | null): Values {
-    return {
-      cash: format(reading?.cash ?? null, "CLP"),
-      overdraftAvailable: format(reading?.overdraft?.available ?? null, "CLP"),
-      overdraftLimit: format(
-        reading?.overdraft?.limit ?? bucket("overdraft")?.limit ?? null,
-        "CLP"
-      ),
-      nationalAvailable: format(reading?.national?.available ?? null, "CLP"),
-      nationalLimit: format(
-        reading?.national?.limit ?? bucket("credit_national")?.limit ?? null,
-        "CLP"
-      ),
-      internationalAvailable: format(
-        reading?.international?.available ?? null,
-        "USD"
-      ),
-      internationalLimit: format(
-        reading?.international?.limit ??
-          bucket("credit_international")?.limit ??
-          null,
-        "USD"
-      ),
+    const pair = (
+      kind: BucketKind,
+      currency: CurrencyCode,
+      read: BucketDTO | undefined
+    ): Pair => {
+      const total = limitOf(kind)
+      const available =
+        read?.available ??
+        (total !== null && read?.used != null
+          ? complement(total, read.used, currency)
+          : null)
+      const used =
+        total !== null && available !== null
+          ? complement(total, available, currency)
+          : (read?.used ?? null)
+      return { available, used }
     }
+    return {
+      cash: reading?.cash ?? null,
+      buckets: {
+        overdraft: pair("overdraft", "CLP", reading?.overdraft),
+        credit_national: pair("credit_national", "CLP", reading?.national),
+        credit_international: pair(
+          "credit_international",
+          "USD",
+          reading?.international
+        ),
+      },
+    }
+  }
+
+  function setPair(field: BucketField, side: "available" | "used", raw: string) {
+    const value = readAmount(raw, field.currency)
+    const total = limitOf(field.kind)
+    const other = side === "available" ? "used" : "available"
+    setValues((prev) =>
+      prev
+        ? {
+            ...prev,
+            buckets: {
+              ...prev.buckets,
+              [field.kind]: {
+                [side]: value,
+                [other]:
+                  total !== null && value !== null
+                    ? complement(total, value, field.currency)
+                    : prev.buckets[field.kind][other],
+              } as Pair,
+            },
+          }
+        : prev
+    )
+    // El aviso hablaba de los montos de la foto: al corregirlos deja de describir la pantalla.
+    setMismatches((ms) => ms.filter((m) => m.kind !== field.kind))
   }
 
   async function save() {
     if (!values) return
     setBusy("saving")
     setError(null)
-    const n = (k: FieldKey) => toNumber(values[k])
     const res = await fetch(`/api/accounts/${account.id}/balances`, {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         last4: account.cardLast4,
-        cash: isCard ? null : n("cash"),
-        overdraft: {
-          available: n("overdraftAvailable"),
-          limit: n("overdraftLimit"),
-        },
-        national: { available: n("nationalAvailable"), limit: n("nationalLimit") },
-        international: {
-          available: n("internationalAvailable"),
-          limit: n("internationalLimit"),
-        },
+        cash: isCard ? null : values.cash,
+        overdraft: values.buckets.overdraft,
+        national: values.buckets.credit_national,
+        international: values.buckets.credit_international,
       }),
     })
     setBusy(null)
@@ -357,10 +346,12 @@ export function BalanceScanPanel({
       {values && (
         <>
           <p className="text-sm text-muted-foreground">
-            Revisa que los montos coincidan con la captura antes de guardar.
+            Revisa que los montos coincidan con la captura antes de guardar. El cupo
+            total no se toca: es el que tiene la cuenta.
           </p>
-          {/* Descuadre aritmético: la captura traía los tres valores y no suman. Es la única pista
-              automática de que se leyó mal un dígito, así que se señala fuerte pero no bloquea. */}
+          {/* Descuadre aritmético contra el cupo total guardado. Es la única pista automática de que
+              se leyó mal un dígito (o de que el banco cambió el cupo), así que se señala fuerte pero
+              no bloquea. */}
           {mismatches.map((m) => (
             <p
               key={m.kind}
@@ -368,41 +359,105 @@ export function BalanceScanPanel({
             >
               <TriangleAlert className="mt-0.5 size-4 shrink-0" />
               <span>
-                En {BUCKET_LABEL[m.kind] ?? "este cupo"} el disponible y el usado
-                no suman el total: faltan{" "}
-                {format(Math.abs(m.difference), m.currency)}{" "}
-                {m.currency === "USD" ? "USD" : "pesos"}. Revisa los montos
-                contra la captura.
+                Lo leído en {BUCKET_LABEL[m.kind] ?? "este cupo"} no cuadra con el
+                cupo total guardado: {m.difference > 0 ? "faltan" : "sobran"}{" "}
+                {formatMoney(Math.abs(m.difference), m.currency)}. Revisa los montos
+                contra la captura; si el banco te cambió el cupo, actualízalo en la
+                cuenta.
               </span>
             </p>
           ))}
-          {fields.map((f) => (
-            <div key={f.key} className="flex flex-col gap-1.5">
-              <Label htmlFor={f.key}>
-                {f.label}
-                {f.currency === "USD" && (
-                  <span className="ml-1 text-muted-foreground">(USD)</span>
-                )}
-              </Label>
-              <Input
-                id={f.key}
-                inputMode="decimal"
-                value={values[f.key] ?? ""}
-                onChange={(e) => {
-                  setValues({ ...values, [f.key]: e.target.value })
-                  // El servidor recalcula los derivados al guardar; lo único que envejece acá es el
-                  // aviso, que hablaba de los montos de la foto.
-                  setMismatches((ms) =>
-                    ms.filter((m) => m.kind !== FIELD_BUCKET[f.key])
-                  )
-                }}
-                placeholder="—"
-              />
-              {f.hint && (
-                <p className="text-xs text-muted-foreground">{f.hint}</p>
-              )}
+
+          {!isCard && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="cash">Saldo de la cuenta</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="cash"
+                  inputMode="numeric"
+                  value={showAmount(values.cash, "CLP")}
+                  onChange={(e) =>
+                    setValues({
+                      ...values,
+                      cash: readAmount(e.target.value, "CLP"),
+                    })
+                  }
+                  placeholder="—"
+                  className="tabular flex-1 text-right"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptic("light")
+                    setValues({
+                      ...values,
+                      cash: values.cash === null ? null : -values.cash,
+                    })
+                  }}
+                  disabled={values.cash === null}
+                  aria-label={
+                    (values.cash ?? 0) < 0
+                      ? "Está en negativo; cambiar a positivo"
+                      : "Está en positivo; cambiar a negativo"
+                  }
+                  className="size-10 shrink-0 rounded-full border text-xl disabled:opacity-40"
+                >
+                  {(values.cash ?? 0) < 0 ? "−" : "+"}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                En negativo si estás usando la línea.
+              </p>
             </div>
-          ))}
+          )}
+
+          {bucketFields.map((f) => {
+            const total = limitOf(f.kind)
+            const pair = values.buckets[f.kind]
+            return (
+              <div
+                key={f.kind}
+                className="flex flex-col gap-3 rounded-lg border border-border/60 p-3"
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-sm font-medium">
+                    {f.label}
+                    {f.currency === "USD" && (
+                      <span className="ml-1 text-muted-foreground">(USD)</span>
+                    )}
+                  </span>
+                  <span className="tabular text-xs text-muted-foreground">
+                    {total === null
+                      ? "Sin cupo total guardado"
+                      : `Cupo total ${formatMoney(total, f.currency)}`}
+                  </span>
+                </div>
+
+                {(["available", "used"] as const).map((side) => (
+                  <div key={side} className="flex flex-col gap-1.5">
+                    <Label htmlFor={`${f.kind}-${side}`}>
+                      {side === "available" ? "Disponible" : "Utilizado"}
+                    </Label>
+                    <Input
+                      id={`${f.kind}-${side}`}
+                      inputMode="numeric"
+                      value={showAmount(pair[side], f.currency)}
+                      onChange={(e) => setPair(f, side, e.target.value)}
+                      placeholder="—"
+                      className="tabular text-right"
+                    />
+                  </div>
+                ))}
+
+                <p className="text-xs text-muted-foreground">
+                  {total === null
+                    ? "Escribe los dos: sin cupo total guardado, de su suma sale el de la cuenta."
+                    : "Escribe el que muestre la captura; el otro sale del cupo total."}
+                </p>
+              </div>
+            )
+          })}
+
           <Button
             onClick={save}
             disabled={busy !== null}
@@ -436,11 +491,14 @@ export function BalanceScanPanel({
   )
 }
 
-// Lo que devuelve el endpoint de lectura (mismo shape que BalanceReading del dominio).
+// Lo que devuelve el endpoint de lectura. El `limit` que trae la lectura no se usa acá: el cupo total
+// es el de la cuenta, y el servidor ya lo comparó contra la captura (`mismatches`).
+type BucketDTO = { available: number | null; used: number | null }
+
 type ReadingDTO = {
   last4: string | null
   cash: number | null
-  overdraft: { limit: number | null; available: number | null }
-  national: { limit: number | null; available: number | null }
-  international: { limit: number | null; available: number | null }
+  overdraft: BucketDTO
+  national: BucketDTO
+  international: BucketDTO
 }

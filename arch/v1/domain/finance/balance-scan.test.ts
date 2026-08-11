@@ -7,7 +7,7 @@ import { Money } from "./money.ts"
 import {
   EMPTY_BUCKET,
   BalanceScanError,
-  bucketMismatch,
+  limitMismatch,
   resolveBucket,
   resolveChecking,
   type BalanceReading,
@@ -22,38 +22,10 @@ const reading = (over: Partial<BalanceReading> = {}): BalanceReading => ({
   ...over,
 })
 
-// --- resolveBucket: la escalera según lo que traiga la imagen ---
-
-test("cupo + disponible en la imagen ⇒ usado = cupo − disponible", () => {
-  const r = resolveBucket(
-    { limit: 3_000_000, available: 1_334_697, used: null },
-    null,
-    "CLP"
-  )
-  assert.equal(r?.used.toMajor(), 1_665_303)
-  assert.equal(r?.limitAmount.toMajor(), 3_000_000)
-})
-
-test("cupo + usado en la imagen ⇒ disponible = cupo − usado", () => {
-  const r = resolveBucket(
-    { limit: 3_000_000, available: null, used: 1_665_303 },
-    null,
-    "CLP"
-  )
-  assert.equal(r?.available.toMajor(), 1_334_697)
-})
-
-test("disponible + usado sin cupo ⇒ el cupo total sale de la suma", () => {
-  const r = resolveBucket(
-    { limit: null, available: 955_415, used: 25_650 },
-    null,
-    "CLP"
-  )
-  assert.equal(r?.limitAmount.toMajor(), 981_065)
-})
+// --- resolveBucket: el cupo guardado manda y despeja lo que la captura no trajo ---
 
 // Caso real de la tarjeta Signature: la app del banco solo muestra el disponible.
-test("solo disponible ⇒ completa con el cupo ya guardado", () => {
+test("solo disponible ⇒ usado = cupo guardado − disponible", () => {
   const r = resolveBucket(
     { limit: null, available: 1_334_697, used: null },
     Money.of(3_000_000, "CLP"),
@@ -63,22 +35,53 @@ test("solo disponible ⇒ completa con el cupo ya guardado", () => {
   assert.equal(r?.limitAmount.toMajor(), 3_000_000)
 })
 
-test("solo usado ⇒ completa con el cupo ya guardado", () => {
+test("solo usado ⇒ disponible = cupo guardado − usado", () => {
   const r = resolveBucket(
     { limit: null, available: null, used: 1_665_303 },
     Money.of(3_000_000, "CLP"),
     "CLP"
   )
   assert.equal(r?.available.toMajor(), 1_334_697)
+  assert.equal(r?.limitAmount.toMajor(), 3_000_000)
 })
 
-test("el cupo de la imagen le gana al guardado (el guardado puede estar viejo)", () => {
+// Con los dos leídos hay un grado de libertad de más: manda el disponible, que es el que la app del
+// banco muestra siempre. El usado solo sirvió para comprobar (ver limitMismatch).
+test("disponible y usado ⇒ manda el disponible y el usado se recalcula", () => {
+  const r = resolveBucket(
+    { limit: null, available: 1_334_697, used: 1_600_000 },
+    Money.of(3_000_000, "CLP"),
+    "CLP"
+  )
+  assert.equal(r?.used.toMajor(), 1_665_303)
+  assert.equal(r?.limitAmount.toMajor(), 3_000_000)
+})
+
+test("el cupo que trae la imagen NO reemplaza al guardado", () => {
   const r = resolveBucket(
     { limit: 3_500_000, available: 1_334_697, used: null },
     Money.of(3_000_000, "CLP"),
     "CLP"
   )
-  assert.equal(r?.limitAmount.toMajor(), 3_500_000)
+  assert.equal(r?.limitAmount.toMajor(), 3_000_000)
+  assert.equal(r?.used.toMajor(), 1_665_303)
+})
+
+// Única excepción: una cuenta que todavía no tiene cupo guardado. Ahí no hay nada que proteger.
+test("sin cupo guardado, la captura lo estrena", () => {
+  const suma = resolveBucket(
+    { limit: null, available: 955_415, used: 25_650 },
+    null,
+    "CLP"
+  )
+  assert.equal(suma?.limitAmount.toMajor(), 981_065)
+  const explicito = resolveBucket(
+    { limit: 3_000_000, available: 1_334_697, used: null },
+    Money.zero("CLP"),
+    "CLP"
+  )
+  assert.equal(explicito?.limitAmount.toMajor(), 3_000_000)
+  assert.equal(explicito?.used.toMajor(), 1_665_303)
 })
 
 test("USD conserva los decimales del cupo internacional", () => {
@@ -92,8 +95,8 @@ test("USD conserva los decimales del cupo internacional", () => {
 })
 
 test("sin datos suficientes ⇒ null (el bucket no se toca)", () => {
-  assert.equal(resolveBucket(EMPTY_BUCKET, null, "CLP"), null)
-  // Disponible sin cupo en la imagen NI guardado: no hay de dónde sacar el total.
+  assert.equal(resolveBucket(EMPTY_BUCKET, Money.of(3_000_000, "CLP"), "CLP"), null)
+  // Disponible sin cupo guardado NI cupo en la imagen: no hay de dónde sacar el total.
   assert.equal(
     resolveBucket({ limit: null, available: 1000, used: null }, null, "CLP"),
     null
@@ -112,7 +115,17 @@ test("un disponible mayor que el cupo es lectura mala ⇒ lanza", () => {
   )
 })
 
-// --- Coherencia: el separador de miles y la suma de los tres valores ---
+test("un utilizado mayor que el cupo es lectura mala ⇒ lanza", () => {
+  assert.throws(
+    () =>
+      resolveBucket(
+        { limit: null, available: null, used: 5_000_000 },
+        Money.of(3_000_000, "CLP"),
+        "CLP"
+      ),
+    BalanceScanError
+  )
+})
 
 // El error de lectura más caro: "$1.334.697" interpretado como decimal da 1,334697, que en pesos
 // Money redondearía a $1 y ninguna otra validación notaría.
@@ -150,38 +163,76 @@ test("más decimales de los que la moneda admite se rechazan", () => {
   )
 })
 
-test("con los tres valores, la suma que no cuadra delata un dígito mal leído", () => {
+// --- limitMismatch: la captura contra el cupo total guardado ---
+
+test("disponible + usado tienen que dar el cupo guardado", () => {
   // 1.334.697 + 1.665.303 = 3.000.000 exacto.
   assert.equal(
-    bucketMismatch(
-      { limit: 3_000_000, available: 1_334_697, used: 1_665_303 },
+    limitMismatch(
+      { limit: null, available: 1_334_697, used: 1_665_303 },
+      Money.of(3_000_000, "CLP"),
       "CLP"
     ),
     null
   )
   // El mismo caso con un 8 en vez del 3: aritméticamente válido, pero ya no suma.
-  const diff = bucketMismatch(
-    { limit: 3_000_000, available: 1_834_697, used: 1_665_303 },
+  const diff = limitMismatch(
+    { limit: null, available: 1_834_697, used: 1_665_303 },
+    Money.of(3_000_000, "CLP"),
     "CLP"
   )
   assert.equal(diff?.toMajor(), -500_000)
 })
 
-test("sin los tres valores no hay con qué contrastar ⇒ null", () => {
+test("el cupo que muestra la captura tiene que ser el guardado", () => {
   assert.equal(
-    bucketMismatch({ limit: 3_000_000, available: 1_334_697, used: null }, "CLP"),
+    limitMismatch(
+      { limit: 3_000_000, available: 1_334_697, used: null },
+      Money.of(3_000_000, "CLP"),
+      "CLP"
+    ),
     null
   )
-  assert.equal(bucketMismatch(EMPTY_BUCKET, "CLP"), null)
+  const diff = limitMismatch(
+    { limit: 2_500_000, available: 1_334_697, used: null },
+    Money.of(3_000_000, "CLP"),
+    "CLP"
+  )
+  assert.equal(diff?.toMajor(), 500_000)
+})
+
+test("sin cupo guardado o sin nada que contrastar ⇒ null", () => {
+  assert.equal(
+    limitMismatch(
+      { limit: null, available: 1_334_697, used: 1_665_303 },
+      null,
+      "CLP"
+    ),
+    null
+  )
+  assert.equal(
+    limitMismatch(
+      { limit: null, available: 1_334_697, used: null },
+      Money.of(3_000_000, "CLP"),
+      "CLP"
+    ),
+    null
+  )
+  assert.equal(limitMismatch(EMPTY_BUCKET, Money.of(3_000_000, "CLP"), "CLP"), null)
 })
 
 test("la comparación en dólares es exacta hasta el centavo", () => {
   assert.equal(
-    bucketMismatch({ limit: 2_500, available: 2_069.55, used: 430.45 }, "USD"),
+    limitMismatch(
+      { limit: null, available: 2_069.55, used: 430.45 },
+      Money.of(2_500, "USD"),
+      "USD"
+    ),
     null
   )
-  const diff = bucketMismatch(
-    { limit: 2_500, available: 2_069.55, used: 430.44 },
+  const diff = limitMismatch(
+    { limit: null, available: 2_069.55, used: 430.44 },
+    Money.of(2_500, "USD"),
     "USD"
   )
   assert.equal(diff?.toDecimalString(), "0.01")
@@ -189,8 +240,32 @@ test("la comparación en dólares es exacta hasta el centavo", () => {
 
 // --- resolveChecking: caja y línea desde el saldo ---
 
-// Captura real: "DISPONIBLE -$25.650" y "Línea disponible: $955.415", sin cupo total a la vista.
-test("saldo negativo ⇒ caja en cero, la deuda es de la línea y el cupo se deriva", () => {
+test("saldo negativo ⇒ caja en cero y la deuda es de la línea", () => {
+  const r = resolveChecking(
+    reading({ cash: -25_650, overdraft: EMPTY_BUCKET }),
+    Money.of(1_000_000, "CLP")
+  )
+  assert.equal(r?.cash.toMajor(), 0)
+  assert.equal(r?.overdraft?.used.toMajor(), 25_650)
+  assert.equal(r?.overdraft?.available.toMajor(), 974_350)
+  assert.equal(r?.overdraft?.limitAmount.toMajor(), 1_000_000)
+})
+
+// Captura real: "DISPONIBLE -$25.650" y "Línea disponible: $955.415". El disponible de la línea es
+// un dato del banco y manda sobre la deuda deducida del saldo.
+test("con la línea a la vista manda su disponible y el cupo guardado no se mueve", () => {
+  const r = resolveChecking(
+    reading({
+      cash: -25_650,
+      overdraft: { limit: null, available: 955_415, used: null },
+    }),
+    Money.of(1_000_000, "CLP")
+  )
+  assert.equal(r?.overdraft?.limitAmount.toMajor(), 1_000_000)
+  assert.equal(r?.overdraft?.used.toMajor(), 44_585)
+})
+
+test("sin cupo de línea guardado, saldo negativo + disponible lo estrenan", () => {
   const r = resolveChecking(
     reading({
       cash: -25_650,
@@ -198,13 +273,11 @@ test("saldo negativo ⇒ caja en cero, la deuda es de la línea y el cupo se der
     }),
     null
   )
-  assert.equal(r?.cash.toMajor(), 0)
-  assert.equal(r?.overdraft?.used.toMajor(), 25_650)
-  assert.equal(r?.overdraft?.available.toMajor(), 955_415)
   assert.equal(r?.overdraft?.limitAmount.toMajor(), 981_065)
+  assert.equal(r?.overdraft?.used.toMajor(), 25_650)
 })
 
-test("saldo positivo ⇒ es caja, y la línea se completa con el cupo guardado", () => {
+test("saldo positivo ⇒ es caja, y la línea sale del cupo guardado", () => {
   const r = resolveChecking(
     reading({
       cash: 842_350,
@@ -224,16 +297,4 @@ test("saldo sin línea a la vista ⇒ actualiza la caja y deja la línea intacta
 
 test("sin saldo en la imagen ⇒ null (no se toca la cuenta)", () => {
   assert.equal(resolveChecking(reading({ cash: null }), null), null)
-})
-
-test("el usado explícito de la imagen le gana al derivado del saldo negativo", () => {
-  const r = resolveChecking(
-    reading({
-      cash: -25_650,
-      overdraft: { limit: 1_000_000, available: null, used: 44_585 },
-    }),
-    null
-  )
-  assert.equal(r?.overdraft?.used.toMajor(), 44_585)
-  assert.equal(r?.overdraft?.available.toMajor(), 955_415)
 })

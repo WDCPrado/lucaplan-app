@@ -4,8 +4,9 @@
 // Son dos pasos a propósito. La IA puede leer mal un dígito y devolver un monto perfectamente
 // válido —$1.334.697 → $1.834.697—, algo que ninguna validación puede detectar. Por eso leer NO
 // persiste: devuelve una propuesta que el usuario revisa y corrige. El paso que guarda recibe los
-// montos confirmados y vuelve a correr las mismas fórmulas: los saldos derivados (usado, cupo) se
-// calculan siempre en el servidor, nunca se aceptan del cliente.
+// montos confirmados y vuelve a correr las mismas fórmulas: el saldo derivado se calcula siempre en
+// el servidor, sobre el cupo total que ya tiene la cuenta —ese no lo mueve ni la captura ni el
+// cliente—.
 import {
   AccountNotFoundError,
   NotOwnerError,
@@ -18,7 +19,7 @@ import {
 import {
   BalanceScanError,
   EMPTY_BUCKET,
-  bucketMismatch,
+  limitMismatch,
   resolveBucket,
   resolveChecking,
   type BalanceReading,
@@ -65,7 +66,7 @@ const limitOf = (buckets: BalanceBucket[], kind: BucketKind): Money | null =>
 export type BalanceScanProposal = {
   reading: BalanceReading
   last4Matches: boolean // false ⇒ la captura es de OTRO instrumento (la UI corta ahí)
-  mismatches: BucketMismatch[] // cupos donde disponible + usado no dan el total
+  mismatches: BucketMismatch[] // cupos donde lo leído no cuadra con el cupo total guardado
 }
 
 // Descuadre detectado en un cupo: la diferencia en unidad mayor. Sin texto: la frase la arma la UI.
@@ -89,21 +90,24 @@ export async function scanAccountBalance(
     accountType: scannable(account),
   })
   if (!reading) return null
+  const buckets = await deps.balanceBuckets.listByAccount(accountId)
   return {
     reading,
     // Sin últimos 4 legibles no se puede afirmar que no coincide: se deja pasar y decide el usuario.
     last4Matches:
       !reading.last4 || !account.cardLast4 || reading.last4 === account.cardLast4,
-    mismatches: mismatchesIn(scannable(account), reading),
+    mismatches: mismatchesIn(scannable(account), reading, buckets),
   }
 }
 
-// Descuadres de la lectura: solo aparecen cuando la captura trajo cupo, disponible Y usado, porque
-// recién ahí hay con qué contrastar. NO bloquean —el usuario corrige el número en pantalla—, pero
-// son la única señal automática de que se leyó mal un dígito.
+// Descuadres de la lectura contra el cupo total guardado: solo aparecen cuando la captura trajo con
+// qué contrastar (disponible + usado, o el cupo total). NO bloquean —el usuario corrige el número en
+// pantalla, o el cupo guardado quedó viejo—, pero son la única señal automática de un dígito mal
+// leído.
 function mismatchesIn(
   accountType: ScannableType,
-  reading: BalanceReading
+  reading: BalanceReading,
+  buckets: BalanceBucket[]
 ): BucketMismatch[] {
   const targets: [BucketKind, BucketReading, "CLP" | "USD"][] =
     accountType === "checking"
@@ -113,7 +117,7 @@ function mismatchesIn(
           ["credit_international", reading.international, "USD"],
         ]
   return targets.flatMap(([kind, bucketReading, currency]) => {
-    const diff = bucketMismatch(bucketReading, currency)
+    const diff = limitMismatch(bucketReading, limitOf(buckets, kind), currency)
     return diff ? [{ kind, difference: diff.toMajor(), currency }] : []
   })
 }

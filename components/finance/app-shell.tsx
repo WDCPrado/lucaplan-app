@@ -70,7 +70,12 @@ const NAV: {
   href: string
 }[] = [
   { key: "inicio", label: "Inicio", Icon: Home, href: "/dashboard" },
-  { key: "recurrentes", label: "Recurrentes", Icon: Repeat, href: "/recurring" },
+  {
+    key: "recurrentes",
+    label: "Recurrentes",
+    Icon: Repeat,
+    href: "/recurring",
+  },
   { key: "cuotas", label: "Cuotas", Icon: CreditCard, href: "/installments" },
   {
     key: "configuracion",
@@ -118,15 +123,6 @@ export function AppShell({
 }: AppShellProps) {
   const [addOpen, setAddOpen] = React.useState(false)
   const [accountOpen, setAccountOpen] = React.useState(false)
-
-  // Cuentas que aceptan movimientos a mano: manuales (todo) y corrientes conectadas por correo
-  // (solo abonos: el banco no notifica ingresos por correo; los cargos llegan solos).
-  const addable =
-    quickAdd?.accounts.filter(
-      (a) =>
-        a.provider === "manual" ||
-        (a.connectionMethod === "email" && a.accountType === "checking")
-    ) ?? []
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -262,10 +258,12 @@ export function AppShell({
 
         {quickAdd && (
           <>
+            {/* Van todas las cuentas: el sheet decide cuáles aceptan alta a mano y cuáles se leen
+                de una foto de la cartola (las conectadas, tarjeta de crédito incluida). */}
             <AddTransactionSheet
               open={addOpen}
               onOpenChange={setAddOpen}
-              accounts={addable}
+              accounts={quickAdd.accounts}
               categories={quickAdd.categories}
               onCreateAccount={() => {
                 setAddOpen(false)
@@ -292,20 +290,27 @@ function NavMenu({
   const pathname = usePathname()
   const { isMobile, setOpenMobile } = useSidebar()
   const activeKey =
-    active ?? NAV.find((n) => pathname === n.href || pathname.startsWith(n.href + "/"))?.key
+    active ??
+    NAV.find((n) => pathname === n.href || pathname.startsWith(n.href + "/"))
+      ?.key
 
   return (
     <SidebarMenu>
       {NAV.map(({ key, label, Icon, href }) => (
         <SidebarMenuItem key={key}>
-          <SidebarMenuButton asChild isActive={activeKey === key} tooltip={label}>
+          <SidebarMenuButton
+            asChild
+            isActive={activeKey === key}
+            tooltip={label}
+          >
             <Link
               href={href}
               onClick={() => {
                 haptic("light")
                 onNavigate?.(key)
                 if (isMobile) setOpenMobile(false)
-                if (pathname === href) window.scrollTo({ top: 0, behavior: "smooth" })
+                if (pathname === href)
+                  window.scrollTo({ top: 0, behavior: "smooth" })
               }}
             >
               <Icon />

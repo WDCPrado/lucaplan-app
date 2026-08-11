@@ -129,9 +129,9 @@ test("corriente en sobregiro: caja en cero, deuda a la línea y saldo negativo e
   assert.equal(d.accounts.balance?.toMajor(), 0)
   assert.equal(d.balanceBuckets.written.get("bk-cash")?.available.toMajor(), 0)
   const od = d.balanceBuckets.written.get("bk-overdraft")
-  assert.equal(od?.used.toMajor(), 25_650)
-  // El cupo sale de la propia captura (disponible + usado), no del guardado.
-  assert.equal(od?.limitAmount.toMajor(), 981_065)
+  // El cupo guardado no se toca: el usado es lo que le falta al disponible para llegar a él.
+  assert.equal(od?.limitAmount.toMajor(), 1_000_000)
+  assert.equal(od?.used.toMajor(), 44_585)
 })
 
 test("tarjeta: cada cupo va a su bucket y el saldo de la cuenta es la deuda nacional", async () => {
@@ -150,10 +150,27 @@ test("tarjeta: cada cupo va a su bucket y el saldo de la cuenta es la deuda naci
   )
   const nat = d.balanceBuckets.written.get("bk-credit_national")
   assert.equal(nat?.used.toMajor(), 1_665_303)
+  assert.equal(nat?.limitAmount.toMajor(), 3_000_000)
   const intl = d.balanceBuckets.written.get("bk-credit_international")
   assert.equal(intl?.used.toMajor(), 431)
   assert.equal(intl?.used.currency, "USD")
   assert.equal(d.accounts.balance?.toMajor(), -1_665_303)
+})
+
+// El cupo total vive en la cuenta: un cliente que mande otro no lo mueve.
+test("un cupo total en el body confirmado se ignora", async () => {
+  const d = deps(acc({ accountType: "credit_card", cardLast4: "2120" }), [
+    bucket("credit_national", 3_000_000, 1_900_000),
+  ])
+  await applyAccountBalance(
+    d,
+    "u1",
+    "a1",
+    reading({ national: { limit: 9_000_000, available: 1_334_697, used: null } })
+  )
+  const nat = d.balanceBuckets.written.get("bk-credit_national")
+  assert.equal(nat?.limitAmount.toMajor(), 3_000_000)
+  assert.equal(nat?.used.toMajor(), 1_665_303)
 })
 
 test("solo la línea legible: se actualiza ese bucket y la caja queda intacta", async () => {

@@ -15,24 +15,16 @@
 
 import type { FeatureSeedContext } from "./seed-pr.ts" // solo el tipo: no ejecuta el seed base
 
-// WDC-54 — "Del banco": registrar por foto los movimientos que el banco no avisó.
+// WDC-57 — "Actualizar saldo" por captura: el cupo total ya no se edita ni se lee de la foto.
 export default async function seedFeature({
-  prisma,
   userId,
+  prisma,
   checkingId,
-  creditCardId,
 }: FeatureSeedContext) {
-  // La feature solo tiene sentido en cuentas CONECTADAS: en una manual el alta normal ya acepta
-  // cargos. El seed base las crea manuales, así que acá se marcan como conectadas por correo — que
-  // es justo el caso donde el toggle − aparece bloqueado y el tab "Del banco" es la única vía.
-  await prisma.financialAccount.updateMany({
-    where: { id: { in: [checkingId, creditCardId] } },
-    data: { provider: "bancochile" },
-  })
-
-  // La corriente conectada proyecta su caja al registrar un movimiento (cargo consume caja, el
-  // exceso usa el sobregiro). Sin bucket de caja esa proyección es no-op y el reviewer no vería el
-  // efecto en el saldo; la tarjeta ya trae sus cupos del seed base.
+  // La tarjeta ya trae del seed base sus dos cupos con total guardado (CLP 3.000.000 y USD 1.500),
+  // que es justo lo que el panel usa de referencia. Lo que falta es la otra variante: la cuenta
+  // corriente con caja y una línea de crédito con cupo total, para probar ahí lo mismo (escribir el
+  // disponible y ver salir el utilizado, o al revés) sin que el total se mueva.
   const asOf = new Date()
   await prisma.balanceBucket.createMany({
     data: [
@@ -52,14 +44,14 @@ export default async function seedFeature({
         kind: "overdraft",
         currency: "CLP",
         limitAmount: 1500000,
-        used: 0,
-        available: 1500000,
+        used: 300000,
+        available: 1200000,
         asOf,
       },
     ],
   })
 
   console.log(
-    "[seed:pr] WDC-54: cuentas marcadas como conectadas + caja y sobregiro de la corriente."
+    "[seed:pr] WDC-57: caja y línea de crédito (cupo total $1.500.000) en la cuenta corriente."
   )
 }

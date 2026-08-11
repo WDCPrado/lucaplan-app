@@ -40,10 +40,12 @@ function num(value: unknown): number | null {
   return n
 }
 
+// El cupo total NO se acepta del cliente: vive en la cuenta y el escaneo solo mueve el disponible y
+// el usado. Lo que venga en `limit` se ignora aquí mismo, antes de llegar a las fórmulas.
 function bucket(raw: unknown): BucketReading {
   const b = (raw ?? {}) as Record<string, unknown>
   return {
-    limit: num(b.limit),
+    limit: null,
     available: num(b.available),
     used: num(b.used),
   }

@@ -193,8 +193,11 @@ export function Dashboard({
                     : "text-muted-foreground"
               )}
             >
-              {formatCLP(c.pace.spent)} de {formatCLP(c.pace.budget)}{" "}
-              {c.pace.frequency === "daily" ? "hoy" : "esta semana"}
+              {/* ponytail: se muestra lo que QUEDA (más accionable que lo gastado);
+                  pasado el ritmo se dice cuánto de más, que "$0 disponible" esconde. */}
+              {c.pace.budget - c.pace.spent >= 0
+                ? `${formatCLP(c.pace.budget - c.pace.spent)} disponible de ${formatCLP(c.pace.budget)} ${c.pace.frequency === "daily" ? "hoy" : "esta semana"}`
+                : `${formatCLP(c.pace.spent - c.pace.budget)} sobre el ritmo de ${c.pace.frequency === "daily" ? "hoy" : "esta semana"}`}
             </p>
           ) : (
             <p className="tabular text-xs text-destructive">

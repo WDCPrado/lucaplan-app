@@ -15,43 +15,46 @@
 
 import type { FeatureSeedContext } from "./seed-pr.ts" // solo el tipo: no ejecuta el seed base
 
-// WDC-57 — "Actualizar saldo" por captura: el cupo total ya no se edita ni se lee de la foto.
+// WDC-58 — la línea de ritmo de cada categoría muestra lo DISPONIBLE del período.
 export default async function seedFeature({
   userId,
   prisma,
   checkingId,
+  categoryId,
 }: FeatureSeedContext) {
-  // La tarjeta ya trae del seed base sus dos cupos con total guardado (CLP 3.000.000 y USD 1.500),
-  // que es justo lo que el panel usa de referencia. Lo que falta es la otra variante: la cuenta
-  // corriente con caja y una línea de crédito con cupo total, para probar ahí lo mismo (escribir el
-  // disponible y ver salir el utilizado, o al revés) sin que el total se mueva.
-  const asOf = new Date()
-  await prisma.balanceBucket.createMany({
+  // Los movimientos del seed base caen en días fijos del mes, así que el período en curso (hoy /
+  // esta semana, según Configuración) puede quedar sin gasto y la línea saldría siempre entera.
+  // Se siembran dos gastos de HOY para ver las dos caras del texto nuevo: Transporte gasta parte
+  // del ritmo (queda disponible, en gris) y Comida se lo pasa (línea roja "sobre el ritmo").
+  const today = new Date()
+  await prisma.transaction.createMany({
     data: [
       {
         userId,
         accountId: checkingId,
-        kind: "cash",
+        categoryId: categoryId.get("Transporte")!,
+        transactionDate: today,
+        description: "MERCPAGO*UBER TRIP",
+        amount: 4200,
         currency: "CLP",
-        limitAmount: 0,
-        used: 0,
-        available: 842350, // el mismo saldo con que el seed base crea la cuenta
-        asOf,
+        direction: "debit",
+        reviewed: true,
       },
       {
         userId,
         accountId: checkingId,
-        kind: "overdraft",
+        categoryId: categoryId.get("Comida")!,
+        transactionDate: today,
+        description: "Pago:pedidosya",
+        amount: 45900,
         currency: "CLP",
-        limitAmount: 1500000,
-        used: 300000,
-        available: 1200000,
-        asOf,
+        direction: "debit",
+        reviewed: true,
       },
     ],
   })
 
   console.log(
-    "[seed:pr] WDC-57: caja y línea de crédito (cupo total $1.500.000) en la cuenta corriente."
+    "[seed:pr] WDC-58: gastos de hoy en Transporte y Comida (ritmo con margen y ritmo excedido)."
   )
 }

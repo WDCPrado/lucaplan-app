@@ -215,6 +215,7 @@ cp .env.example .env
 | `DATABASE_URL`             | ✅        | Conexión PostgreSQL, ej. `postgresql://lucaplan:lucaplan@localhost:5432/lucaplan?schema=public` |
 | `BETTER_AUTH_SECRET`       | ✅        | Génerala con `npx @better-auth/cli secret`                                  |
 | `BETTER_AUTH_URL`          | ✅        | URL base de la app: `http://localhost:3005` en desarrollo                   |
+| `DEV_ANY_PASSWORD`         | opcional  | **Solo desarrollo local.** Con `true`, el login acepta cualquier contraseña siempre que el correo exista — cómodo para saltar entre cuentas sembradas. Se ignora salvo `NODE_ENV=development`, así que producción, Docker y los entornos de PR nunca la aplican. |
 | `OPENAI_API_KEY`           | opcional  | Habilita la categorización con IA y la lectura de saldos por captura ([crear key](https://platform.openai.com/api-keys)). Sin ella, la app funciona igual: los movimientos quedan sin categorizar y los saldos se escriben a mano. |
 | `OPENAI_MODEL`             | opcional  | Modelo a usar (default `gpt-4o-mini`)                                        |
 | `OUTLOOK_CLIENT_ID`        | opcional  | Conexión por correo — ver [guía paso a paso](#-conectar-outlook-banco-de-chile-paso-a-paso) |

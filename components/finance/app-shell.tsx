@@ -93,7 +93,8 @@ type AppShellProps = {
   active?: NavKey
   onNavigate?: (key: NavKey) => void
   onSignOut?: () => void
-  // Datos del FAB "+": es el acceso rápido a registrar un ingreso a mano, igual en toda la app.
+  // Datos del FAB "+": es el acceso rápido a registrar un movimiento a mano (gasto o ingreso,
+  // con el toggle ±), igual en toda la app.
   // Crear recurrentes/cuotas NO va aquí: eso es un botón "Nuevo" en la cabecera de su página.
   quickAdd?: { accounts: AccountDTO[]; categories: CategoryDTO[] }
   onSearch?: () => void // si se pasa, muestra la lupa "Buscar" abajo en el sidebar
@@ -250,7 +251,7 @@ export function AppShell({
                   setAddOpen(true)
                 }}
                 size="icon"
-                aria-label="Registrar un ingreso"
+                aria-label="Registrar un movimiento"
                 className="size-14 rounded-full shadow-lg"
               >
                 <Plus className="size-6" />

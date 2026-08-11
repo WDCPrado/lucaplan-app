@@ -54,6 +54,7 @@ import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
+import type { Direction } from "@/arch/v1/domain/finance/finance.domain"
 import type {
   AccountDTO,
   TransactionDTO,
@@ -303,31 +304,11 @@ function EditForm({
         className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
       />
       <div className="flex items-center gap-3">
-        <div className="flex overflow-hidden rounded-full border">
-          <button
-            type="button"
-            onClick={() => changeDirection("debit")}
-            disabled={isInstallment}
-            className={cn(
-              "size-11 text-xl disabled:opacity-50",
-              direction === "debit" &&
-                "bg-destructive text-destructive-foreground"
-            )}
-          >
-            −
-          </button>
-          <button
-            type="button"
-            onClick={() => changeDirection("credit")}
-            disabled={isInstallment}
-            className={cn(
-              "size-11 text-xl disabled:opacity-50",
-              direction === "credit" && "bg-success text-success-foreground"
-            )}
-          >
-            +
-          </button>
-        </div>
+        <DirectionToggle
+          value={direction}
+          onChange={changeDirection}
+          disabled={isInstallment}
+        />
         <Input
           inputMode="numeric"
           value={money.display}
@@ -1080,6 +1061,44 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
     <div className="flex items-center justify-between gap-3 border-b border-border/50 py-3 last:border-0">
       <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="text-right text-sm font-medium">{value}</dd>
+    </div>
+  )
+}
+
+// Toggle − / + del lado del movimiento (exportado: lo reutiliza el alta desde el FAB).
+export function DirectionToggle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: Direction
+  onChange: (d: Direction) => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="flex overflow-hidden rounded-full border">
+      {(["debit", "credit"] as const).map((d) => (
+        <button
+          key={d}
+          type="button"
+          onClick={() => {
+            haptic("light")
+            onChange(d)
+          }}
+          disabled={disabled}
+          aria-pressed={value === d}
+          aria-label={d === "debit" ? "Gasto" : "Ingreso"}
+          className={cn(
+            "size-11 text-xl disabled:opacity-50",
+            value === d &&
+              (d === "debit"
+                ? "bg-destructive text-destructive-foreground"
+                : "bg-success text-success-foreground")
+          )}
+        >
+          {d === "debit" ? "−" : "+"}
+        </button>
+      ))}
     </div>
   )
 }

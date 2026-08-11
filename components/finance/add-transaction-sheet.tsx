@@ -6,11 +6,18 @@ import { toast } from "sonner"
 import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
-import { Chip, DatePicker, toISODate } from "./transaction-modal"
+import {
+  Chip,
+  DatePicker,
+  DirectionToggle,
+  toISODate,
+} from "./transaction-modal"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
+import type { Direction } from "@/arch/v1/domain/finance/finance.domain"
 import type {
   AccountDTO,
   CategoryDTO,
@@ -32,6 +39,7 @@ export function AddTransactionSheet({
   const router = useRouter()
   const [description, setDescription] = useState("")
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "")
+  const [side, setSide] = useState<Direction>("debit")
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [date, setDate] = useState(() => toISODate(new Date()))
   const [saving, setSaving] = useState(false)
@@ -42,10 +50,19 @@ export function AddTransactionSheet({
   const amountNum = money.value
   const canSave = amountNum > 0 && !!account && !saving
 
-  // ponytail: el formulario crea SOLO ingresos por ahora — los gastos llegan solos por el correo
-  // del banco; reponer el toggle de lado si algún día vuelve el gasto manual.
+  // Cuenta conectada: el backend solo acepta abonos ahí (los cargos llegan por correo), así que
+  // el lado queda fijo en ingreso. Derivado, no sincronizado: cambiar de cuenta ya lo corrige.
   const connected = !!account && account.provider !== "manual"
-  const visibleCategories = categories.filter((c) => c.type === "income")
+  const direction = connected ? "credit" : side
+  const income = direction === "credit"
+  const visibleCategories = categories.filter(
+    (c) => c.type === (income ? "income" : "expense")
+  )
+  // La categoría elegida solo vale para el lado actual; si se cambió de lado (o de cuenta), se
+  // ignora sin tener que limpiarla a mano.
+  const validCategoryId = visibleCategories.some((c) => c.id === categoryId)
+    ? categoryId
+    : null
 
   async function save() {
     if (!canSave || !account) return
@@ -55,11 +72,11 @@ export function AddTransactionSheet({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         accountId: account.id,
-        categoryId,
+        categoryId: validCategoryId,
         amount: amountNum,
         currency: account.currency,
-        direction: "credit",
-        description: description || "Ingreso",
+        direction,
+        description: description || (income ? "Ingreso" : "Gasto"),
         date,
       }),
     })
@@ -68,7 +85,9 @@ export function AddTransactionSheet({
     // Sin esto, un fallo era invisible: el sheet quedaba abierto "sin pasar nada".
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      toast.error(data.error ?? "No se pudo registrar el ingreso")
+      toast.error(
+        data.error ?? `No se pudo registrar el ${income ? "ingreso" : "gasto"}`
+      )
       return
     }
     money.reset()
@@ -83,7 +102,7 @@ export function AddTransactionSheet({
     <ResponsiveModal
       open={open}
       onOpenChange={onOpenChange}
-      title="Nuevo ingreso"
+      title="Nuevo movimiento"
     >
       {accounts.length === 0 ? (
         <div className="flex flex-col items-center gap-4 px-4 py-10 text-center">
@@ -102,16 +121,25 @@ export function AddTransactionSheet({
             onChange={(e) => setDescription(e.target.value)}
             className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
           />
-          {/* Sin la insignia "+": imitaba el toggle ± del form de movimiento sin ser un control.
-              El verde del monto ya dice "entra dinero". */}
-          <Input
-            inputMode="numeric"
-            placeholder="0"
-            value={money.display}
-            onChange={(e) => money.onChange(e.target.value)}
-            aria-label="Monto del ingreso"
-            className="tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold text-success shadow-none focus-visible:ring-0"
-          />
+          <div className="flex items-center gap-3">
+            <DirectionToggle
+              value={direction}
+              onChange={setSide}
+              disabled={connected}
+            />
+            <Input
+              inputMode="numeric"
+              placeholder="0"
+              value={money.display}
+              onChange={(e) => money.onChange(e.target.value)}
+              aria-label="Monto del movimiento"
+              className={cn(
+                // Misma regla que el resto: ingreso verde, gasto neutro.
+                "tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0",
+                income ? "text-success" : "text-foreground"
+              )}
+            />
+          </div>
           {connected && (
             <p className="-mt-2 text-xs text-muted-foreground">
               Cuenta conectada: aquí registras abonos e ingresos — los cargos
@@ -138,15 +166,15 @@ export function AddTransactionSheet({
           <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
             {visibleCategories.length === 0 ? (
               <span className="text-sm text-muted-foreground">
-                Sin categorías de ingreso.
+                Sin categorías de {income ? "ingreso" : "gasto"}.
               </span>
             ) : (
               visibleCategories.map((c) => (
                 <Chip
                   key={c.id}
-                  active={c.id === categoryId}
+                  active={c.id === validCategoryId}
                   onClick={() =>
-                    setCategoryId(c.id === categoryId ? null : c.id)
+                    setCategoryId(c.id === validCategoryId ? null : c.id)
                   }
                 >
                   <CategoryIcon icon={c.icon} size={16} /> {c.name}

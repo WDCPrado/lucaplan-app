@@ -29,11 +29,18 @@ if (!dbUrl || !email) {
 }
 const password = argValue("--password") ?? randomBytes(9).toString("base64url")
 const name = argValue("--name") ?? email.split("@")[0]
-const host = new URL(dbUrl).hostname
+
+// El proxy público de Railway sirve un certificado autofirmado, y `pg` trata `sslmode=require` como
+// `verify-full` (verifica la CA y rechaza la conexión). `uselibpqcompat` le devuelve la semántica de
+// libpq —cifrar sin verificar la CA, lo mismo que hace psql— para pegar la URL de Railway tal cual.
+const url = new URL(dbUrl)
+if (url.searchParams.get("sslmode") === "require")
+  url.searchParams.set("uselibpqcompat", "true")
+const host = url.hostname
 
 // El adapter de Prisma y Better Auth se construyen AL IMPORTARSE leyendo el entorno, así que la base
 // de destino y el registro abierto tienen que estar puestos antes: de ahí los imports dinámicos.
-process.env.DATABASE_URL = dbUrl
+process.env.DATABASE_URL = url.toString()
 process.env.NEXT_PUBLIC_LANDING_ONLY = "false"
 const { prisma } = await import(
   "../arch/v1/infrastructure/database/prisma/client.ts"

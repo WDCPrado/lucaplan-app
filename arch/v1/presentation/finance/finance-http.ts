@@ -27,6 +27,7 @@ import {
 } from "../../domain/finance/income.domain.ts"
 import { InvalidPaceFrequencyError } from "../../domain/finance/pace.domain.ts"
 import { BalanceScanError } from "../../domain/finance/balance-scan.domain.ts"
+import { MovementScanError } from "../../domain/finance/movement-scan.domain.ts"
 import {
   InvalidRecurringTemplateError,
   RecurringCategoryRequiredError,
@@ -62,6 +63,7 @@ import { recurringTemplateRepository } from "../../infrastructure/database/prism
 import { installmentPlanRepository } from "../../infrastructure/database/prisma/installment.infrastructure.ts"
 import { openaiCategorizationProvider } from "../../infrastructure/http/ai/openai-categorization.provider.ts"
 import { openaiBalanceScanReader } from "../../infrastructure/http/ai/openai-balance-scan.provider.ts"
+import { openaiMovementScanReader } from "../../infrastructure/http/ai/openai-movement-scan.provider.ts"
 import { exchangeRateProvider } from "../../infrastructure/http/exchange/usd-clp.ts"
 
 // Todos los adapters, listos para inyectar en los use-cases.
@@ -77,6 +79,7 @@ export const financeDeps = {
   installments: installmentPlanRepository,
   categorization: openaiCategorizationProvider,
   balanceScan: openaiBalanceScanReader,
+  movementScan: openaiMovementScanReader,
   corrections: correctionRepository,
   exchangeRates: exchangeRateProvider,
 }
@@ -112,7 +115,8 @@ function errorStatus(e: unknown): number {
     e instanceof InstallmentAmountReadOnlyError ||
     e instanceof EmailReauthRequiredError ||
     e instanceof EmailSetupStateError ||
-    e instanceof BalanceScanError
+    e instanceof BalanceScanError ||
+    e instanceof MovementScanError
   )
     return 422
   if (

@@ -6,6 +6,8 @@ import { toast } from "sonner"
 import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { MovementScanPanel } from "./movement-scan-panel"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useMoneyInput } from "@/hooks/use-money-input"
@@ -64,6 +66,22 @@ export function AddTransactionSheet({
     ? categoryId
     : null
 
+  // Mismo selector en las dos pestañas: la cuenta elegida es tanto la del alta manual como la
+  // dueña de la cartola que se fotografía.
+  const accountPicker = accounts.length > 1 && (
+    <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
+      {accounts.map((a) => (
+        <Chip
+          key={a.id}
+          active={a.id === account?.id}
+          onClick={() => setAccountId(a.id)}
+        >
+          {a.name}
+        </Chip>
+      ))}
+    </div>
+  )
+
   async function save() {
     if (!canSave || !account) return
     setSaving(true)
@@ -114,87 +132,94 @@ export function AddTransactionSheet({
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col gap-5 px-4">
-          <Input
-            placeholder="Descripción"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
-          />
-          <div className="flex items-center gap-3">
-            <DirectionToggle
-              value={direction}
-              onChange={setSide}
-              disabled={connected}
-            />
+        <Tabs defaultValue="manual" className="gap-5 px-4">
+          {/* "Del banco" es una vía aparte, no una excepción escondida en el alta normal: ahí un
+              cargo en cuenta conectada se duplicaría cuando llegue el correo. Acá se lee de la foto
+              y se contrasta contra lo ya registrado antes de proponer nada. */}
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="manual">A mano</TabsTrigger>
+            <TabsTrigger value="bank">Del banco</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="manual" className="flex flex-col gap-5">
             <Input
-              inputMode="numeric"
-              placeholder="0"
-              value={money.display}
-              onChange={(e) => money.onChange(e.target.value)}
-              aria-label="Monto del movimiento"
-              className={cn(
-                // Misma regla que el resto: ingreso verde, gasto neutro.
-                "tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0",
-                income ? "text-success" : "text-foreground"
-              )}
+              placeholder="Descripción"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
             />
-          </div>
-          {connected && (
-            <p className="-mt-2 text-xs text-muted-foreground">
-              Cuenta conectada: aquí registras abonos e ingresos — los cargos
-              llegan solos desde el correo del banco.
-            </p>
-          )}
-
-          <DatePicker value={date} onChange={setDate} />
-
-          {accounts.length > 1 && (
-            <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
-              {accounts.map((a) => (
-                <Chip
-                  key={a.id}
-                  active={a.id === account?.id}
-                  onClick={() => setAccountId(a.id)}
-                >
-                  {a.name}
-                </Chip>
-              ))}
+            <div className="flex items-center gap-3">
+              <DirectionToggle
+                value={direction}
+                onChange={setSide}
+                disabled={connected}
+              />
+              <Input
+                inputMode="numeric"
+                placeholder="0"
+                value={money.display}
+                onChange={(e) => money.onChange(e.target.value)}
+                aria-label="Monto del movimiento"
+                className={cn(
+                  // Misma regla que el resto: ingreso verde, gasto neutro.
+                  "tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0",
+                  income ? "text-success" : "text-foreground"
+                )}
+              />
             </div>
-          )}
-
-          <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
-            {visibleCategories.length === 0 ? (
-              <span className="text-sm text-muted-foreground">
-                Sin categorías de {income ? "ingreso" : "gasto"}.
-              </span>
-            ) : (
-              visibleCategories.map((c) => (
-                <Chip
-                  key={c.id}
-                  active={c.id === validCategoryId}
-                  onClick={() =>
-                    setCategoryId(c.id === validCategoryId ? null : c.id)
-                  }
-                >
-                  <CategoryIcon icon={c.icon} size={16} /> {c.name}
-                </Chip>
-              ))
+            {connected && (
+              <p className="-mt-2 text-xs text-muted-foreground">
+                Cuenta conectada: aquí registras abonos e ingresos — los cargos
+                llegan solos desde el correo del banco.
+              </p>
             )}
-          </div>
 
-          <ModalFooter>
-            <Button
-              onClick={save}
-              disabled={!canSave}
-              className="h-12 flex-1 rounded-full text-base"
-            >
-              {saving ? "Guardando…" : "Guardar"}
-            </Button>
-          </ModalFooter>
-        </div>
+            <DatePicker value={date} onChange={setDate} />
+
+            {accountPicker}
+
+            <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
+              {visibleCategories.length === 0 ? (
+                <span className="text-sm text-muted-foreground">
+                  Sin categorías de {income ? "ingreso" : "gasto"}.
+                </span>
+              ) : (
+                visibleCategories.map((c) => (
+                  <Chip
+                    key={c.id}
+                    active={c.id === validCategoryId}
+                    onClick={() =>
+                      setCategoryId(c.id === validCategoryId ? null : c.id)
+                    }
+                  >
+                    <CategoryIcon icon={c.icon} size={16} /> {c.name}
+                  </Chip>
+                ))
+              )}
+            </div>
+
+            <ModalFooter>
+              <Button
+                onClick={save}
+                disabled={!canSave}
+                className="h-12 flex-1 rounded-full text-base"
+              >
+                {saving ? "Guardando…" : "Guardar"}
+              </Button>
+            </ModalFooter>
+          </TabsContent>
+
+          <TabsContent value="bank" className="flex flex-col gap-5">
+            {accountPicker}
+            {account && (
+              <MovementScanPanel
+                account={account}
+                onDone={() => onOpenChange(false)}
+              />
+            )}
+          </TabsContent>
+        </Tabs>
       )}
     </ResponsiveModal>
   )
 }
-

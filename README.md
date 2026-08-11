@@ -115,6 +115,21 @@ montos. No hay que ordenar la captura ni recortarla: el navegador la reescala so
   así que no hay reintentos por formato.
 - **La imagen no se guarda** en ninguna parte: se procesa y se descarta.
 
+### 🧾 Los movimientos que el banco no avisó
+
+A veces el aviso no llega y ese gasto queda fuera de la app. Escribirlo en el alta normal no se
+puede: en una cuenta conectada los cargos manuales se rechazan, porque se contarían dos veces cuando
+el correo aparezca. Para eso está la pestaña **Del banco** del nuevo movimiento.
+
+- **Una foto, varios movimientos.** Subes una captura de la cartola o del historial del banco y se
+  leen todos los movimientos que aparecen, no de a uno.
+- **Los que ya tienes llegan marcados.** Antes de mostrarte nada se comparan contra lo registrado
+  (mismo día, mismo monto, misma dirección) y los repetidos vienen destildados. Esa comparación es
+  lo que hace segura esta vía.
+- **Nada se guarda hasta que confirmas.** Fecha, descripción, monto y cargo/abono son editables, y
+  entras solo los que marques; lo que no se pudo leer se dice, no se inventa.
+- **También a mano.** Puedes agregar filas tú mismo, con o sin foto.
+
 ### 📬 Conexión por correo: tu banco ya te avisa, Luca Plan escucha
 
 ![Conexión por correo](docs/images/email-connection.png)

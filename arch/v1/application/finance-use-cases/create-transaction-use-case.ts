@@ -20,6 +20,10 @@ export type CreateTransactionInput = {
   direction: Direction
   description: string
   date: Date
+  // Vía por la que entra el movimiento. "bank-scan" es la única que puede registrar un cargo en una
+  // cuenta conectada: son los movimientos que el banco no avisó, leídos de una foto de la cartola y
+  // ya contrastados contra lo registrado. Por defecto "manual".
+  source?: "manual" | "bank-scan"
 }
 
 // Crea un movimiento: valida ownership + moneda vs. cuenta, y el adapter ajusta el saldo atómicamente
@@ -43,9 +47,12 @@ export async function createTransaction(
   if (!account) throw new AccountNotFoundError(input.accountId)
   if (account.userId !== userId) throw new NotOwnerError()
   const connected = account.provider !== "manual"
-  // Conectadas: solo abonos manuales a la corriente por correo; todo lo demás llega por sync.
+  // Conectadas: solo abonos manuales a la corriente por correo; todo lo demás llega por sync. La
+  // excepción es la foto de la cartola, que existe justo para lo que el banco NO avisó y ya pasó
+  // por la deduplicación contra lo registrado.
   if (
     connected &&
+    input.source !== "bank-scan" &&
     (input.direction !== "credit" || account.accountType !== "checking")
   )
     throw new ConnectedAccountReadOnlyError()
@@ -68,7 +75,7 @@ export async function createTransaction(
       { accounts: deps.accounts, balanceBuckets: deps.balanceBuckets },
       account.id,
       Money.of(input.amount, input.currency),
-      "credit"
+      input.direction
     )
   }
   return tx

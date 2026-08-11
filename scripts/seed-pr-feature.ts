@@ -12,18 +12,54 @@
 //   - Nada de datos reales ni secretos: el entorno de PR es público.
 //   - Si falla, el seed base lo registra y sigue (no tumba el deploy), pero la feature queda sin
 //     datos. Pruébalo antes con `SEED_PR_FORCE=1 pnpm seed:pr` contra una base local.
-//
-// Ejemplo de lo que reemplaza a este cuerpo (un PR que agrega el aviso de sobregiro):
-//
-//   export default async function seedFeature({ prisma, checkingId }: FeatureSeedContext) {
-//     await prisma.financialAccount.update({
-//       where: { id: checkingId },
-//       data: { balance: -120000 },
-//     })
-//   }
 
 import type { FeatureSeedContext } from "./seed-pr.ts" // solo el tipo: no ejecuta el seed base
 
-export default async function seedFeature({ userId }: FeatureSeedContext) {
-  console.log(`[seed:pr] sin datos extra para esta rama (usuario ${userId}).`)
+// WDC-54 — "Del banco": registrar por foto los movimientos que el banco no avisó.
+export default async function seedFeature({
+  prisma,
+  userId,
+  checkingId,
+  creditCardId,
+}: FeatureSeedContext) {
+  // La feature solo tiene sentido en cuentas CONECTADAS: en una manual el alta normal ya acepta
+  // cargos. El seed base las crea manuales, así que acá se marcan como conectadas por correo — que
+  // es justo el caso donde el toggle − aparece bloqueado y el tab "Del banco" es la única vía.
+  await prisma.financialAccount.updateMany({
+    where: { id: { in: [checkingId, creditCardId] } },
+    data: { provider: "bancochile" },
+  })
+
+  // La corriente conectada proyecta su caja al registrar un movimiento (cargo consume caja, el
+  // exceso usa el sobregiro). Sin bucket de caja esa proyección es no-op y el reviewer no vería el
+  // efecto en el saldo; la tarjeta ya trae sus cupos del seed base.
+  const asOf = new Date()
+  await prisma.balanceBucket.createMany({
+    data: [
+      {
+        userId,
+        accountId: checkingId,
+        kind: "cash",
+        currency: "CLP",
+        limitAmount: 0,
+        used: 0,
+        available: 842350, // el mismo saldo con que el seed base crea la cuenta
+        asOf,
+      },
+      {
+        userId,
+        accountId: checkingId,
+        kind: "overdraft",
+        currency: "CLP",
+        limitAmount: 1500000,
+        used: 0,
+        available: 1500000,
+        asOf,
+      },
+    ],
+  })
+
+  console.log(
+    "[seed:pr] WDC-54: cuentas marcadas como conectadas + caja y sobregiro de la corriente."
+  )
 }

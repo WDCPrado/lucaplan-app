@@ -400,6 +400,7 @@ los tokens ya cifrados dejan de poder descifrarse y habrá que reconectar el cor
 | `pnpm seed`            | Seed de ejemplo (Banco de Chile + categorías + movimientos)                |
 | `pnpm seed:pr`         | Datos falsos para un entorno de PR de Railway; fuera de ahí no hace nada   |
 | `pnpm seed:categories` | Set completo de categorías con contexto para la IA (idempotente)           |
+| `pnpm create:account`  | Crea una cuenta en la base que se le indique por `--db-prod`               |
 | `pnpm sync:email`      | Corre la sincronización del correo (para cron / tarea programada)          |
 | `pnpm notify:due`      | Notifica los pagos por vencer (recurrentes y cuotas); una corrida diaria    |
 

@@ -9,6 +9,16 @@ import { prisma } from "../database/prisma/client.ts"
 import { categoryRepository } from "../database/prisma/finance.infrastructure.ts"
 import { seedDefaultCategories } from "../../application/finance-use-cases/seed-default-categories-use-case.ts"
 import { prDemoAccount } from "../../../../lib/pr-demo.ts"
+import { devAnyPasswordEnabled } from "./dev-any-password.ts"
+
+// Atajo de desarrollo: cualquier contraseña entra si el correo existe. Se avisa fuerte en consola
+// porque es un login abierto, aunque solo pueda existir en local (ver dev-any-password.ts).
+const anyPassword = devAnyPasswordEnabled()
+if (anyPassword) {
+  console.warn(
+    "[auth] DEV_ANY_PASSWORD activo: cualquier contraseña entra si el correo existe. Solo desarrollo local."
+  )
+}
 
 export const auth = betterAuth({
   appName: "Luca Plan",
@@ -33,6 +43,8 @@ export const auth = betterAuth({
     sendResetPassword: async ({ url }) => {
       console.log("[reset-password]", url)
     },
+    // El hash real se sigue guardando y usando; en local solo se salta la comparación.
+    ...(anyPassword ? { password: { verify: async () => true } } : {}),
   },
   plugins: [admin({ defaultRole: "USER", adminRoles: ["ADMIN"] })],
   // Cuenta nueva → categorías por defecto, si no el usuario aterriza sin nada contra qué

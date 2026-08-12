@@ -3,7 +3,7 @@
 // circuito (permiso → service worker → VAPID → push service) funciona en ESE aparato.
 import { withUser } from "@/arch/v1/presentation/finance/finance-http"
 import {
-  sendPushToUser,
+  sendPushToDevice,
   subscribeToPush,
   unsubscribeFromPush,
 } from "@/arch/v1/application/notification-use-cases/push-use-cases"
@@ -38,12 +38,13 @@ export async function POST(req: Request) {
   return withUser(
     req,
     async (userId) => {
-      await subscribeToPush(pushDeps, userId, {
+      const device = await subscribeToPush(pushDeps, userId, {
         endpoint,
         keys: { p256dh, auth },
       })
-      // `sent` = dispositivos que recibieron el aviso de bienvenida (0 ⇒ VAPID mal configurado).
-      const sent = await sendPushToUser(pushDeps, userId, {
+      // La bienvenida va SOLO a este dispositivo: los demás ya sabían que están activados y no
+      // tienen por qué sonar. `sent` = si llegó (false ⇒ VAPID mal configurado o push service caído).
+      const sent = await sendPushToDevice(pushDeps, device, {
         title: "Notificaciones activadas",
         body: "Te avisaremos de tus movimientos y tu presupuesto.",
         url: "/dashboard",

@@ -15,46 +15,8 @@
 
 import type { FeatureSeedContext } from "./seed-pr.ts" // solo el tipo: no ejecuta el seed base
 
-// WDC-58 — la línea de ritmo de cada categoría muestra lo DISPONIBLE del período.
-export default async function seedFeature({
-  userId,
-  prisma,
-  checkingId,
-  categoryId,
-}: FeatureSeedContext) {
-  // Los movimientos del seed base caen en días fijos del mes, así que el período en curso (hoy /
-  // esta semana, según Configuración) puede quedar sin gasto y la línea saldría siempre entera.
-  // Se siembran dos gastos de HOY para ver las dos caras del texto nuevo: Transporte gasta parte
-  // del ritmo (queda disponible, en gris) y Comida se lo pasa (línea roja "sobre el ritmo").
-  const today = new Date()
-  await prisma.transaction.createMany({
-    data: [
-      {
-        userId,
-        accountId: checkingId,
-        categoryId: categoryId.get("Transporte")!,
-        transactionDate: today,
-        description: "MERCPAGO*UBER TRIP",
-        amount: 4200,
-        currency: "CLP",
-        direction: "debit",
-        reviewed: true,
-      },
-      {
-        userId,
-        accountId: checkingId,
-        categoryId: categoryId.get("Comida")!,
-        transactionDate: today,
-        description: "Pago:pedidosya",
-        amount: 45900,
-        currency: "CLP",
-        direction: "debit",
-        reviewed: true,
-      },
-    ],
-  })
-
-  console.log(
-    "[seed:pr] WDC-58: gastos de hoy en Transporte y Comida (ritmo con margen y ritmo excedido)."
-  )
+// WDC-59 — sin datos propios: las suscripciones push las crea el navegador al activar las
+// notificaciones (una por dispositivo), no se pueden sembrar desde la base.
+export default async function seedFeature({ userId }: FeatureSeedContext) {
+  console.log(`[seed:pr] sin datos extra para esta rama (usuario ${userId}).`)
 }

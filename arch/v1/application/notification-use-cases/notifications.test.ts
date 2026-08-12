@@ -16,7 +16,11 @@ import {
   dueSoonMessage,
   newMovementsMessage,
 } from "./notification-rules.ts"
-import { sendPushToUser, subscribeToPush } from "./push-use-cases.ts"
+import {
+  sendPushToDevice,
+  sendPushToUser,
+  subscribeToPush,
+} from "./push-use-cases.ts"
 
 const mov = (
   description: string,
@@ -266,6 +270,36 @@ test("solo se aceptan endpoints de push services conocidos (SSRF)", async () => 
       }),
     InvalidPushEndpointError
   )
+})
+
+test("la bienvenida suena solo en el dispositivo que se acaba de inscribir", async () => {
+  const fcm = (path: string) => `https://fcm.googleapis.com/fcm/send/${path}`
+  // El usuario ya tenía dos dispositivos activos; ahora inscribe el tercero.
+  const yaInscritos: PushSubscription[] = [
+    { userId: "u1", endpoint: fcm("viejo1"), keys: { p256dh: "a", auth: "b" } },
+    { userId: "u1", endpoint: fcm("viejo2"), keys: { p256dh: "a", auth: "b" } },
+  ]
+  const enviados: string[] = []
+  const deps = {
+    subscriptions: {
+      save: async () => {},
+      deleteByEndpoint: async () => {},
+      listByUser: async () => yaInscritos,
+    },
+    sender: {
+      send: async (sub: PushSubscription): Promise<PushSendResult> => {
+        enviados.push(sub.endpoint)
+        return "sent"
+      },
+    },
+  }
+  const device = await subscribeToPush(deps, "u1", {
+    endpoint: fcm("nuevo"),
+    keys: { p256dh: "a", auth: "b" },
+  })
+  const sent = await sendPushToDevice(deps, device, { title: "t", body: "b" })
+  assert.equal(sent, true)
+  assert.deepEqual(enviados, [fcm("nuevo")]) // los ya inscritos, en silencio
 })
 
 test("sendPushToUser borra las suscripciones muertas y no corta a las demás", async () => {

@@ -15,10 +15,10 @@
 
 import type { FeatureSeedContext } from "./seed-pr.ts" // solo el tipo: no ejecuta el seed base
 
-// WDC-63 — sin datos propios: lo que cambia es la ventana que se escanea al conectar un banco por
-// correo, y eso solo se ejercita con un buzón de Outlook autorizado con avisos reales. No hay estado
-// en la base que lo represente; la cobertura vive en los tests. Lo único visible en el entorno del
-// PR es el selector de bancos (BICE ya no aparece como "Próximamente"), que no necesita siembra.
+// WDC-67 — sin datos propios: el seed base ya deja movimientos sin categoría en el mes en curso
+// (los que alimentan el triage), que es lo que hace falta para ver el botón "Con IA". Lo que el
+// entorno del PR no puede mostrar es el camino feliz: sin `OPENAI_API_KEY` la respuesta es
+// "la categorización con IA no está configurada" — que también es uno de los casos a revisar.
 export default async function seedFeature({ userId }: FeatureSeedContext) {
   console.log(`[seed:pr] sin datos extra para esta rama (usuario ${userId}).`)
 }

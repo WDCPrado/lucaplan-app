@@ -3,7 +3,15 @@
 import * as React from "react"
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, CircleDashed, CreditCard, Plus, Undo2, X } from "lucide-react"
+import {
+  Check,
+  CircleDashed,
+  CreditCard,
+  Plus,
+  Sparkles,
+  Undo2,
+  X,
+} from "lucide-react"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -55,6 +63,7 @@ export function UncategorizedTriage({
   const [pending, setPending] = useState(transactions)
   const [done, setDone] = useState<TransactionDTO[]>([])
   const [busy, setBusy] = useState(false)
+  const [aiBusy, setAiBusy] = useState(false) // pasada de categorización con IA en curso
   const [exiting, setExiting] = useState(false) // card frontal animando su salida hacia arriba
   const [returningId, setReturningId] = useState<string | null>(null) // card recuperada (entra desde arriba)
   // Paso de aprendizaje sobre la card frontal (tras elegir categoría, antes de volarla): nota
@@ -84,6 +93,45 @@ export function UncategorizedTriage({
     if (busy || exiting) return
     if (dirty()) router.refresh()
     onCreateCategory()
+  }
+
+  // Reintento de la categorización con IA. La pasada automática corre al importar del correo y se
+  // traga sus errores: sin esto, lo que quedó sin categoría ahí solo se resuelve card por card.
+  // Alcanza a los pendientes de cualquier mes, no solo a los que están en pantalla.
+  async function categorizeWithAI() {
+    if (busy || exiting || aiBusy) return
+    setAiBusy(true)
+    try {
+      const res = await fetch("/api/categorization/run", { method: "POST" })
+      const data = (await res.json().catch(() => ({}))) as {
+        configured?: boolean
+        assigned?: number
+      }
+      if (!res.ok) {
+        toast.error("No se pudo categorizar con IA")
+        return
+      }
+      if (data.configured === false) {
+        toast.error("La categorización con IA no está configurada")
+        return
+      }
+      const assigned = data.assigned ?? 0
+      if (assigned === 0) {
+        toast("La IA no encontró categoría para estos movimientos")
+        return
+      }
+      // La lista llega del servidor: se recarga el dashboard y se sale del triage con lo hecho.
+      haptic("light")
+      toast.success(
+        `${assigned} movimiento${assigned === 1 ? "" : "s"} categorizado${assigned === 1 ? "" : "s"}`
+      )
+      router.refresh()
+      onClose()
+    } catch {
+      toast.error("No se pudo categorizar con IA")
+    } finally {
+      setAiBusy(false)
+    }
   }
 
   // Elegir categoría PERSISTE (PATCH) y abre el paso de aprendizaje sobre la card; recién al
@@ -249,17 +297,31 @@ export function UncategorizedTriage({
                 : "Todo categorizado"}
             </DialogDescription>
           </div>
-          <DialogClose asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-11 shrink-0 rounded-full"
-              aria-label="Cerrar"
-              disabled={busy || exiting}
-            >
-              <X className="size-5" />
-            </Button>
-          </DialogClose>
+          <div className="flex shrink-0 items-center gap-1">
+            {pending.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-11 gap-1.5 rounded-full px-3"
+                onClick={categorizeWithAI}
+                disabled={busy || exiting || aiBusy}
+              >
+                <Sparkles className="size-4" />
+                {aiBusy ? "Categorizando…" : "Con IA"}
+              </Button>
+            )}
+            <DialogClose asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-11 shrink-0 rounded-full"
+                aria-label="Cerrar"
+                disabled={busy || exiting || aiBusy}
+              >
+                <X className="size-5" />
+              </Button>
+            </DialogClose>
+          </div>
         </header>
 
         {/* Montón de hechas: mini-pila + contador + corregir (drag hacia abajo o botón). */}

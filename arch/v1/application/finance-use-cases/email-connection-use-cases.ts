@@ -36,6 +36,7 @@ import {
   BANK_EMAIL_REGISTRY,
   bankByKey,
   routeEmail,
+  type BankEmailDefinition,
   type BankEmailRegistry,
 } from "./bank-email-registry.ts"
 import {
@@ -450,6 +451,86 @@ export type ScanResult = EmailScanSummary & {
   since: string
 }
 
+// Cuántos meses hacia atrás se busca actividad del banco al conectarlo. Un banco que no notificó
+// nada en medio año no tiene nada que importar, y el tope mantiene la búsqueda acotada.
+const SCAN_LOOKBACK_MONTHS = 6
+
+function monthsBefore(date: Date, months: number): Date {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() - months, 1)
+  )
+}
+
+// Último instante del mes de `date`, para que la descarga se quede en ese mes.
+function endOfMonth(date: Date): Date {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1) - 1
+  )
+}
+
+// Ventana del escaneo inicial: el mes de la última notificación del banco que PRODUZCA movimientos,
+// hasta el instante del vínculo.
+//
+// El mes calendario no sirve: si el usuario no movió ese banco este mes, el escaneo vendría vacío y
+// no habría instrumentos que confirmar. Y la última notificación tampoco basta por sí sola —un
+// remitente puede mandar marketing, y los avisos de dinero entrante se descartan a propósito—, así
+// que se retrocede mes a mes CON actividad hasta dar con uno que traiga movimientos.
+//
+// Ambos use-cases del setup la comparten: si cada uno la calculara por su lado, la confirmación
+// podría importar un rango distinto del que el usuario revisó.
+async function resolveScanWindow(
+  deps: Pick<EmailConnectionDeps, "mail" | "registry">,
+  mailboxId: string,
+  bank: BankEmailDefinition,
+  scanUntil: Date
+): Promise<{ since: Date; parsed: ParsedEmail[] }> {
+  const floor = monthsBefore(scanUntil, SCAN_LOOKBACK_MONTHS)
+  let until = scanUntil
+  // La ventana más reciente con correos suyos, aunque ninguno haya producido movimiento: sus
+  // motivos de omisión son lo que se le muestra al usuario si no hay nada más.
+  let mostRecent: { since: Date; parsed: ParsedEmail[] } | null = null
+  for (let attempt = 0; attempt <= SCAN_LOOKBACK_MONTHS; attempt++) {
+    const last = await deps.mail.lastMessageDate(
+      mailboxId,
+      bank.senders,
+      floor,
+      until
+    )
+    if (!last) break
+    const since = firstDayOfMonth(last)
+    const monthEnd = endOfMonth(since)
+    const parsed = await parseBankMonth(
+      deps,
+      mailboxId,
+      bank,
+      since,
+      monthEnd.getTime() < scanUntil.getTime() ? monthEnd : scanUntil
+    )
+    mostRecent ??= { since, parsed }
+    if (parsed.some((p) => p.ok)) return { since, parsed }
+    until = new Date(since.getTime() - 1) // sigue buscando antes de este mes
+  }
+  return mostRecent ?? { since: firstDayOfMonth(scanUntil), parsed: [] }
+}
+
+// Correos de ESTE banco en la ventana, ya parseados. Los de otro banco del mismo buzón no son
+// candidatos suyos ni cuentan como omitidos.
+async function parseBankMonth(
+  deps: Pick<EmailConnectionDeps, "mail" | "registry">,
+  mailboxId: string,
+  bank: BankEmailDefinition,
+  since: Date,
+  until: Date
+): Promise<ParsedEmail[]> {
+  const messages = await deps.mail.listMessagesSince(mailboxId, since, until)
+  return messages
+    .filter((message) => message.receivedAt.getTime() <= until.getTime())
+    .filter(
+      (message) => routeEmail(message, registryOf(deps))?.key === bank.key
+    )
+    .map(bank.parse)
+}
+
 export async function scanEmailCandidates(
   deps: Pick<EmailConnectionDeps, "links" | "mail" | "registry">,
   userId: string,
@@ -465,16 +546,12 @@ export async function scanEmailCandidates(
   const now = opts.now ?? new Date()
   const scanUntil =
     link.createdAt.getTime() <= now.getTime() ? link.createdAt : now
-  const since = firstDayOfMonth(scanUntil)
-  const messages = await deps.mail.listMessagesSince(link.mailboxId, since)
-  // Solo los correos que este banco reclama: los de otro banco del mismo buzón no son candidatos
-  // suyos ni cuentan como omitidos.
-  const parsed = messages
-    .filter((message) => message.receivedAt.getTime() <= scanUntil.getTime())
-    .filter(
-      (message) => routeEmail(message, registryOf(deps))?.key === bank.key
-    )
-    .map(bank.parse)
+  const { since, parsed } = await resolveScanWindow(
+    deps,
+    link.mailboxId,
+    bank,
+    scanUntil
+  )
   return {
     ...detectCandidates(parsed),
     emailAddress: link.mailbox.emailAddress,
@@ -526,7 +603,6 @@ export async function confirmEmailSetup(
   const now = opts.now ?? new Date()
   const scanUntil =
     link.createdAt.getTime() <= now.getTime() ? link.createdAt : now
-  const since = firstDayOfMonth(scanUntil)
 
   // Instrumentos y buckets desde el snapshot ingresado (available = limit − used).
   const accounts: EmailAccountDef[] = []
@@ -609,15 +685,14 @@ export async function confirmEmailSetup(
     })
   }
 
-  // Releer el mes completo (refrescar obliga a reescanear; no hay modelo de borradores).
-  const messages = (
-    await deps.mail.listMessagesSince(link.mailboxId, since)
-  ).filter(
-    (message) =>
-      message.receivedAt.getTime() <= scanUntil.getTime() &&
-      routeEmail(message, registryOf(deps))?.key === bank.key
+  // Releer la MISMA ventana que vio el usuario en el escaneo (refrescar obliga a reescanear; no hay
+  // modelo de borradores). Se recalcula, no se guarda: parte del mismo `scanUntil`, que no cambia.
+  const { parsed } = await resolveScanWindow(
+    deps,
+    link.mailboxId,
+    bank,
+    scanUntil
   )
-  const parsed = messages.map(bank.parse)
 
   // Mapeo evento → cuenta/bucket confirmados, usando claves temporales (los ids reales nacen en la
   // transacción de confirmSetup). La proyección solo considera eventos POSTERIORES al snapshot.

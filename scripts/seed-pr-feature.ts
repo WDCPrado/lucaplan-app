@@ -15,84 +15,10 @@
 
 import type { FeatureSeedContext } from "./seed-pr.ts" // solo el tipo: no ejecuta el seed base
 
-// WDC-62 — MACHBANK, solo débito. Conectar Outlook de verdad no se puede en el entorno del PR, así
-// que se siembra el RESULTADO de sus tres plantillas: una cuenta principal con su Visa Débito y un
-// movimiento por caso (transferencia, compra internacional cobrada en pesos y pago directo). Sirve
-// para mirar que ninguno crea crédito, cupos ni sobregiro: el único bucket es `cash`.
-export default async function seedFeature({
-  prisma,
-  userId,
-  categoryId,
-}: FeatureSeedContext) {
-  const now = new Date()
-  const day = (d: number) =>
-    new Date(now.getFullYear(), now.getMonth(), Math.min(d, 28))
-
-  const bank = await prisma.bank.create({
-    data: { userId, name: "MACHBANK" },
-  })
-
-  const cuenta = await prisma.financialAccount.create({
-    data: {
-      userId,
-      bankId: bank.id,
-      name: "Cuenta Corriente",
-      accountType: "checking",
-      currency: "CLP",
-      balance: 128500,
-      cardLast4: "4321", // los últimos 4 de la Visa Débito, no de una tarjeta de crédito
-      color: "#5b21b6",
-    },
-  })
-
-  const cash = await prisma.balanceBucket.create({
-    data: {
-      userId,
-      accountId: cuenta.id,
-      kind: "cash",
-      currency: "CLP",
-      limitAmount: 0,
-      used: 0,
-      available: 128500,
-      asOf: now,
-    },
-  })
-
-  // Los tres gastos que producen las plantillas de MACHBANK. Ninguno es interno: los tres cuentan
-  // en el presupuesto, como cualquier cargo en cuenta corriente.
-  await prisma.transaction.createMany({
-    data: [
-      {
-        description: "Transferencia a Ana Pérez",
-        amount: 25000,
-        transactionDate: day(4),
-        externalId: "email:txn:112233445566",
-        categoryId: null, // como llega del correo: sin categoría, va al triage
-      },
-      {
-        description: "RAILWAY",
-        amount: 943, // compra de US$1: MACHBANK la cobra en pesos, sin cupo internacional
-        transactionDate: day(9),
-        externalId: "email:txn:346162814174956",
-        categoryId: categoryId.get("Suscripciones") ?? null,
-      },
-      {
-        description: "Pago a Ana Pérez",
-        amount: 15750,
-        transactionDate: day(14),
-        externalId: "email:mid:<demo-machbank@example.test>",
-        categoryId: null, // como llega del correo: sin categoría, va al triage
-      },
-    ].map((m) => ({
-      userId,
-      accountId: cuenta.id,
-      bucketId: cash.id,
-      currency: "CLP",
-      direction: "debit",
-      status: "confirmed",
-      ...m,
-    })),
-  })
-
-  console.log(`[seed:pr] MACHBANK sembrado para el usuario ${userId}.`)
+// WDC-63 — sin datos propios: lo que cambia es la ventana que se escanea al conectar un banco por
+// correo, y eso solo se ejercita con un buzón de Outlook autorizado con avisos reales. No hay estado
+// en la base que lo represente; la cobertura vive en los tests. Lo único visible en el entorno del
+// PR es el selector de bancos (BICE ya no aparece como "Próximamente"), que no necesita siembra.
+export default async function seedFeature({ userId }: FeatureSeedContext) {
+  console.log(`[seed:pr] sin datos extra para esta rama (usuario ${userId}).`)
 }

@@ -176,6 +176,19 @@ function depsFor(
     },
     mail: {
       listMessagesSince: async () => messages,
+      // Como el proveedor real: la fecha del último correo de esos remitentes, sin cuerpos.
+      lastMessageDate: async (
+        _id: string,
+        senders: string[],
+        since: Date,
+        until: Date
+      ) => {
+        const times = messages
+          .filter((m) => senders.includes(m.from.trim().toLowerCase()))
+          .map((m) => m.receivedAt.getTime())
+          .filter((t) => t >= since.getTime() && t <= until.getTime())
+        return times.length ? new Date(Math.max(...times)) : null
+      },
       startDelta: async () => "delta-2",
       runDelta: async () => ({ messages, deltaLink: "delta-2" }),
       fetchMessage: async () => null,
@@ -296,8 +309,11 @@ test("el correo que ningún banco reclama se descarta en el buzón, no en un ban
 // --- Alta de vínculos ---
 
 function linkDeps(existing: EmailBankLinkWithMailbox[]) {
-  const created: { mailboxId: string; bankProvider: string; label: string | null }[] =
-    []
+  const created: {
+    mailboxId: string
+    bankProvider: string
+    label: string | null
+  }[] = []
   return {
     created,
     deps: {

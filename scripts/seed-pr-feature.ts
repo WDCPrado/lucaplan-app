@@ -15,10 +15,10 @@
 
 import type { FeatureSeedContext } from "./seed-pr.ts" // solo el tipo: no ejecuta el seed base
 
-// WDC-66 — sin datos propios: el botón "Desconectar banco" solo aparece en cuentas importadas por
-// una conexión de correo, y sembrar una exigiría un buzón con su refresh token cifrado —un secreto
-// falso en un entorno público— para que el flujo llegue a borrar algo real. Se prueba en una cuenta
-// con Outlook conectado de verdad; la resolución del vínculo por banco está cubierta por tests.
+// WDC-67 — sin datos propios: el seed base ya deja movimientos sin categoría en el mes en curso
+// (los que alimentan el triage), que es lo que hace falta para ver el botón "Con IA". Lo que el
+// entorno del PR no puede mostrar es el camino feliz: sin `OPENAI_API_KEY` la respuesta es
+// "la categorización con IA no está configurada" — que también es uno de los casos a revisar.
 export default async function seedFeature({ userId }: FeatureSeedContext) {
   console.log(`[seed:pr] sin datos extra para esta rama (usuario ${userId}).`)
 }

@@ -42,6 +42,7 @@ export function AccountInfoModal({
 }) {
   const router = useRouter()
   const [disconnecting, setDisconnecting] = useState(false)
+  const [disconnectError, setDisconnectError] = useState<string | null>(null)
   // "scan" reemplaza el contenido del modal en vez de abrir otro encima: un diálogo dentro de otro
   // en móvil deja al usuario sin saber qué cierra cada gesto.
   const [mode, setMode] = useState<"info" | "scan">("info")
@@ -56,18 +57,35 @@ export function AccountInfoModal({
   async function disconnect() {
     if (!account) return
     setDisconnecting(true)
-    const res = await fetch("/api/email-connection/disconnect", {
-      method: "POST",
-    })
-    setDisconnecting(false)
-    if (res.ok) {
+    setDisconnectError(null)
+    try {
+      // El banco de ESTA cuenta: la conexión es multi-banco y multi-buzón, así que el endpoint
+      // necesita saber cuál desconectar. Sin esto no borraba nada y respondía igual.
+      const res = await fetch("/api/email-connection/disconnect", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ bankId: account.bankId }),
+      })
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean
+        error?: string
+      }
+      if (!res.ok || data.ok !== true) {
+        setDisconnectError(data.error ?? "No se pudo desconectar el banco")
+        return
+      }
       onOpenChange(false)
       router.refresh()
+    } catch {
+      setDisconnectError("No se pudo desconectar el banco")
+    } finally {
+      setDisconnecting(false)
     }
   }
 
   const scannable =
-    account?.accountType === "checking" || account?.accountType === "credit_card"
+    account?.accountType === "checking" ||
+    account?.accountType === "credit_card"
 
   return (
     <ResponsiveModal
@@ -80,7 +98,10 @@ export function AccountInfoModal({
     >
       {account && mode === "scan" && (
         <div className="flex flex-col gap-4 px-4 pb-6">
-          <BalanceScanPanel account={account} onDone={() => onOpenChange(false)} />
+          <BalanceScanPanel
+            account={account}
+            onDone={() => onOpenChange(false)}
+          />
           <Button variant="ghost" onClick={() => setMode("info")}>
             Volver al detalle
           </Button>
@@ -177,10 +198,19 @@ export function AccountInfoModal({
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-              <p className="text-center text-xs text-muted-foreground">
-                Elimina la conexión, sus credenciales y todos sus datos de Luca
-                Plan.
-              </p>
+              {disconnectError ? (
+                <p
+                  role="alert"
+                  className="text-center text-xs text-destructive"
+                >
+                  {disconnectError}
+                </p>
+              ) : (
+                <p className="text-center text-xs text-muted-foreground">
+                  Elimina la conexión, sus credenciales y todos sus datos de
+                  Luca Plan.
+                </p>
+              )}
             </div>
           )}
         </div>

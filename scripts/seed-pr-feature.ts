@@ -15,10 +15,10 @@
 
 import type { FeatureSeedContext } from "./seed-pr.ts" // solo el tipo: no ejecuta el seed base
 
-// WDC-63 — sin datos propios: lo que cambia es la ventana que se escanea al conectar un banco por
-// correo, y eso solo se ejercita con un buzón de Outlook autorizado con avisos reales. No hay estado
-// en la base que lo represente; la cobertura vive en los tests. Lo único visible en el entorno del
-// PR es el selector de bancos (BICE ya no aparece como "Próximamente"), que no necesita siembra.
+// WDC-66 — sin datos propios: el botón "Desconectar banco" solo aparece en cuentas importadas por
+// una conexión de correo, y sembrar una exigiría un buzón con su refresh token cifrado —un secreto
+// falso en un entorno público— para que el flujo llegue a borrar algo real. Se prueba en una cuenta
+// con Outlook conectado de verdad; la resolución del vínculo por banco está cubierta por tests.
 export default async function seedFeature({ userId }: FeatureSeedContext) {
   console.log(`[seed:pr] sin datos extra para esta rama (usuario ${userId}).`)
 }

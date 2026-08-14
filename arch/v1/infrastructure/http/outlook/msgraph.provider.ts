@@ -20,6 +20,7 @@ const GRAPH = "https://graph.microsoft.com/v1.0"
 const MESSAGE_SELECT = "id,subject,from,receivedDateTime,internetMessageId,body"
 const PAGE_SIZE = 50
 const MAX_PAGES = 40 // tope duro por sync (40×50 = 2000 mensajes; volumen personal sobra)
+const GRAPH_TIMEOUT_MS = 30_000 // por request; el escaneo encadena varias y no puede quedar colgado
 const SUBSCRIPTION_LIFETIME_MS = 2 * 24 * 60 * 60 * 1000 // 2 días (< límite de Outlook); se renueva a diario
 
 // clientState del webhook: DERIVADO del secreto maestro + id del buzón (no se guarda en la DB;
@@ -70,6 +71,9 @@ async function graphFetch(
   const token = await accessTokenFor(mailboxId)
   const res = await fetch(url, {
     ...init,
+    // Ninguna llamada a Graph puede dejar colgado el escaneo: sin tope, el route handler espera y el
+    // usuario se queda mirando el spinner sin saber que algo falló.
+    signal: init.signal ?? AbortSignal.timeout(GRAPH_TIMEOUT_MS),
     headers: {
       authorization: `Bearer ${token}`,
       // El parser trabaja sobre HTML; pedirlo explícito evita variantes de texto plano.
@@ -132,6 +136,43 @@ function receivedBetween(since: Date, until?: Date): string {
   return until ? `${from} and receivedDateTime le ${until.toISOString()}` : from
 }
 
+// Fecha del último mensaje de UN remitente en el rango. Una sola llamada: pide el más reciente ya
+// ordenado por Graph. Si el buzón rechaza ordenar y filtrar a la vez ("restriction or sort order is
+// too complex", 400), se reintenta sin orden sobre una página: el orden por defecto de `messages`
+// ya es por fecha descendente, y en el peor caso la ventana sale de un correo algo más viejo, que es
+// una degradación aceptable frente a colgar el escaneo.
+async function latestFromSender(
+  mailboxId: string,
+  sender: string,
+  since: Date,
+  until: Date
+): Promise<Date | null> {
+  const query = (ordered: boolean) => {
+    const url = new URL(`${GRAPH}/me/mailFolders/inbox/messages`)
+    url.searchParams.set(
+      "$filter",
+      `from/emailAddress/address eq '${sender.replace(/'/g, "''")}' and ${receivedBetween(since, until)}`
+    )
+    url.searchParams.set("$select", "receivedDateTime")
+    url.searchParams.set("$top", ordered ? "1" : String(PAGE_SIZE))
+    if (ordered) url.searchParams.set("$orderby", "receivedDateTime desc")
+    return url.toString()
+  }
+  const newestOf = (page: GraphPage) => {
+    const times = page.value
+      .map((m) => (m.receivedDateTime ? Date.parse(m.receivedDateTime) : NaN))
+      .filter((t) => Number.isFinite(t))
+    return times.length ? new Date(Math.max(...times)) : null
+  }
+  try {
+    return newestOf(await graphJson<GraphPage>(mailboxId, query(true)))
+  } catch (e) {
+    // Solo el rechazo de la consulta cae al plan B; un token vencido o un 429 deben propagarse.
+    if (!(e instanceof Error) || !e.message.includes("respondió 400")) throw e
+    return newestOf(await graphJson<GraphPage>(mailboxId, query(false)))
+  }
+}
+
 // --- Provider ---
 
 export const msgraphMailProvider: BankMailProvider = {
@@ -150,33 +191,15 @@ export const msgraphMailProvider: BankMailProvider = {
     return messages
   },
 
+  // Una consulta por remitente, pidiendo UN mensaje y sin paginar: el resultado es una fecha, no una
+  // lista. Paginar aquí fue un cuelgue real (Graph sigue devolviendo `nextLink` con páginas vacías
+  // cuando el filtro no le resulta eficiente, y esto se llama una vez por mes que se descarta).
   async lastMessageDate(mailboxId, senders, since, until) {
-    if (senders.length === 0) return null
-    // Sin `$orderby`: Graph rechaza ordenar por una propiedad y filtrar por otra ("restriction or
-    // sort order is too complex"). Como el filtro deja solo los avisos de ESE banco, son pocos y el
-    // máximo se calcula acá. Tampoco se pide `body`: esta consulta solo necesita fechas.
-    const from = senders
-      .map((s) => `from/emailAddress/address eq '${s.replace(/'/g, "''")}'`)
-      .join(" or ")
-    const first = new URL(`${GRAPH}/me/mailFolders/inbox/messages`)
-    first.searchParams.set(
-      "$filter",
-      `(${from}) and ${receivedBetween(since, until)}`
+    const dates = await Promise.all(
+      senders.map((sender) => latestFromSender(mailboxId, sender, since, until))
     )
-    first.searchParams.set("$select", "receivedDateTime")
-    first.searchParams.set("$top", String(PAGE_SIZE))
-    let latest: Date | null = null
-    let url: string | undefined = first.toString()
-    for (let page = 0; url && page < MAX_PAGES; page++) {
-      const data: GraphPage = await graphJson<GraphPage>(mailboxId, url)
-      for (const m of data.value) {
-        if (!m.receivedDateTime) continue
-        const at = new Date(m.receivedDateTime)
-        if (!latest || at.getTime() > latest.getTime()) latest = at
-      }
-      url = data["@odata.nextLink"]
-    }
-    return latest
+    const times = dates.filter((d) => d !== null).map((d) => d.getTime())
+    return times.length ? new Date(Math.max(...times)) : null
   },
 
   async startDelta(mailboxId, since) {

@@ -533,7 +533,7 @@ export function OutlookBankConnection({
               role="status"
             >
               <Loader2 className="size-4 animate-spin text-primary" />
-              Revisando notificaciones de este mes…
+              Revisando las notificaciones de tu banco…
             </div>
           )}
           <DisconnectButton

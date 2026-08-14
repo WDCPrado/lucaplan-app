@@ -126,15 +126,18 @@ type GraphPage = {
   "@odata.deltaLink"?: string
 }
 
+// Filtro OData de fecha: abierto hacia adelante, o acotado cuando se pide un rango cerrado.
+function receivedBetween(since: Date, until?: Date): string {
+  const from = `receivedDateTime ge ${since.toISOString()}`
+  return until ? `${from} and receivedDateTime le ${until.toISOString()}` : from
+}
+
 // --- Provider ---
 
 export const msgraphMailProvider: BankMailProvider = {
-  async listMessagesSince(mailboxId, since) {
+  async listMessagesSince(mailboxId, since, until) {
     const first = new URL(`${GRAPH}/me/mailFolders/inbox/messages`)
-    first.searchParams.set(
-      "$filter",
-      `receivedDateTime ge ${since.toISOString()}`
-    )
+    first.searchParams.set("$filter", receivedBetween(since, until))
     first.searchParams.set("$select", MESSAGE_SELECT)
     first.searchParams.set("$top", String(PAGE_SIZE))
     const messages: BankEmailMessage[] = []
@@ -145,6 +148,35 @@ export const msgraphMailProvider: BankMailProvider = {
       url = data["@odata.nextLink"]
     }
     return messages
+  },
+
+  async lastMessageDate(mailboxId, senders, since, until) {
+    if (senders.length === 0) return null
+    // Sin `$orderby`: Graph rechaza ordenar por una propiedad y filtrar por otra ("restriction or
+    // sort order is too complex"). Como el filtro deja solo los avisos de ESE banco, son pocos y el
+    // máximo se calcula acá. Tampoco se pide `body`: esta consulta solo necesita fechas.
+    const from = senders
+      .map((s) => `from/emailAddress/address eq '${s.replace(/'/g, "''")}'`)
+      .join(" or ")
+    const first = new URL(`${GRAPH}/me/mailFolders/inbox/messages`)
+    first.searchParams.set(
+      "$filter",
+      `(${from}) and ${receivedBetween(since, until)}`
+    )
+    first.searchParams.set("$select", "receivedDateTime")
+    first.searchParams.set("$top", String(PAGE_SIZE))
+    let latest: Date | null = null
+    let url: string | undefined = first.toString()
+    for (let page = 0; url && page < MAX_PAGES; page++) {
+      const data: GraphPage = await graphJson<GraphPage>(mailboxId, url)
+      for (const m of data.value) {
+        if (!m.receivedDateTime) continue
+        const at = new Date(m.receivedDateTime)
+        if (!latest || at.getTime() > latest.getTime()) latest = at
+      }
+      url = data["@odata.nextLink"]
+    }
+    return latest
   },
 
   async startDelta(mailboxId, since) {

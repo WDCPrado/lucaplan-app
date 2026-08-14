@@ -80,8 +80,22 @@ export type BankEmailMessage = {
 // mailboxId; la aplicación nunca ve credenciales. Todos los métodos pueden lanzar
 // EmailReauthRequiredError si Microsoft rechaza la renovación del token.
 export interface BankMailProvider {
-  // Mensajes del Inbox desde `since` hasta ahora (paginación interna).
-  listMessagesSince(mailboxId: string, since: Date): Promise<BankEmailMessage[]>
+  // Mensajes del Inbox desde `since` hasta ahora, o hasta `until` si se acota (paginación interna).
+  // Acotar importa cuando la ventana es un mes viejo: sin `until` se traería todo lo posterior, que
+  // además puede truncarse contra el tope de páginas y perder justo los correos buscados.
+  listMessagesSince(
+    mailboxId: string,
+    since: Date,
+    until?: Date
+  ): Promise<BankEmailMessage[]>
+  // Fecha del mensaje más reciente de esos remitentes dentro de [since, until]; null si no hay.
+  // Solo la fecha: NO descarga cuerpos. Sirve para ubicar qué mes escanear sin traerse el buzón.
+  lastMessageDate(
+    mailboxId: string,
+    senders: string[],
+    since: Date,
+    until: Date
+  ): Promise<Date | null>
   // Inicializa el estado delta del Inbox desde `since`; devuelve el deltaLink para la próxima sync.
   startDelta(mailboxId: string, since: Date): Promise<string>
   // Ejecuta el delta guardado; devuelve mensajes nuevos y el siguiente deltaLink.
@@ -123,7 +137,10 @@ export type EmailMailboxPatch = Partial<{
 export interface EmailMailboxRepository {
   listByUser(userId: string): Promise<EmailMailbox[]>
   findById(id: string): Promise<EmailMailbox | null>
-  findByAddress(userId: string, emailAddress: string): Promise<EmailMailbox | null>
+  findByAddress(
+    userId: string,
+    emailAddress: string
+  ): Promise<EmailMailbox | null>
   // Webhook: localiza el buzón dueño de la suscripción notificada. Null si no existe.
   findBySubscriptionId(subscriptionId: string): Promise<EmailMailbox | null>
   // Buzones cuya suscripción vence antes de `before` (renovación programada).

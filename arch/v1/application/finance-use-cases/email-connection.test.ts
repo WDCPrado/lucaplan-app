@@ -39,6 +39,19 @@ const message = (over: Partial<BankEmailMessage> = {}): BankEmailMessage => ({
 
 // --- Fakes del buzón y su vínculo con un banco ---
 
+// El proveedor real pregunta a Graph por la fecha del último correo de esos remitentes; el fake la
+// deriva de los mismos mensajes que entrega, para que la ventana del escaneo salga de los datos del
+// test en vez de fijarse a mano.
+const lastDateFrom =
+  (messages: BankEmailMessage[]) =>
+  async (_id: string, senders: string[], since: Date, until: Date) => {
+    const times = messages
+      .filter((m) => senders.includes(m.from.trim().toLowerCase()))
+      .map((m) => m.receivedAt.getTime())
+      .filter((t) => t >= since.getTime() && t <= until.getTime())
+    return times.length ? new Date(Math.max(...times)) : null
+  }
+
 const mailbox = (over: Partial<EmailMailbox> = {}): EmailMailbox => ({
   id: "mbx-1",
   userId: "user-1",
@@ -630,20 +643,22 @@ test("mapeo ambiguo por last4 se omite", () => {
 test("carga inicial usa el mes e instante del OAuth y no persiste candidatos", async () => {
   const connectedAt = new Date("2026-06-30T23:00:00Z")
   const requestedSince: { value?: Date } = {}
+  const messages = [
+    message({ receivedAt: new Date("2026-06-30T22:00:00Z") }),
+    message({
+      id: "late",
+      receivedAt: new Date("2026-07-01T01:00:00Z"),
+    }),
+  ]
   const result = await scanEmailCandidates(
     {
       ...repos([link({ createdAt: connectedAt })]),
       mail: {
         listMessagesSince: async (_id, since) => {
           requestedSince.value = since
-          return [
-            message({ receivedAt: new Date("2026-06-30T22:00:00Z") }),
-            message({
-              id: "late",
-              receivedAt: new Date("2026-07-01T01:00:00Z"),
-            }),
-          ]
+          return messages
         },
+        lastMessageDate: lastDateFrom(messages),
         startDelta: async () => "delta",
         runDelta: async () => ({ messages: [], deltaLink: "delta" }),
         fetchMessage: async () => null,
@@ -671,14 +686,16 @@ test("confirmación vincula al bucket y no redescuenta movimientos anteriores al
       receivedAt: new Date(receivedAt),
       htmlBody: `Cargo por $ ${amount.toLocaleString("es-CL")} asociado a COMPRA PRUEBA. Cuenta terminada en 2345.`,
     })
+  const confirmMessages = [
+    checkingMessage("old", "2026-07-14T10:00:00Z", 1000),
+    checkingMessage("new", "2026-07-14T11:30:00Z", 2000),
+  ]
   const deps = {
     ...repos([link({ id: "link-confirm" })]),
     methods: methodsFake,
     mail: {
-      listMessagesSince: async () => [
-        checkingMessage("old", "2026-07-14T10:00:00Z", 1000),
-        checkingMessage("new", "2026-07-14T11:30:00Z", 2000),
-      ],
+      listMessagesSince: async () => confirmMessages,
+      lastMessageDate: lastDateFrom(confirmMessages),
       startDelta: async () => "delta",
       runDelta: async () => ({ messages: [], deltaLink: "delta" }),
       fetchMessage: async () => null,
@@ -766,6 +783,7 @@ test("sync repetido es idempotente: crea y proyecta una sola vez", async () => {
     methods: methodsFake,
     mail: {
       listMessagesSince: async () => [],
+      lastMessageDate: async () => null,
       startDelta: async () => "delta-2",
       runDelta: async () => ({ messages: [incoming], deltaLink: "delta-2" }),
       fetchMessage: async () => null,
@@ -867,6 +885,7 @@ const syncDepsForCardPayment = (
     methods: methodsFake,
     mail: {
       listMessagesSince: async () => [],
+      lastMessageDate: async () => null,
       startDelta: async () => "delta-2",
       runDelta: async () => ({ messages, deltaLink: "delta-2" }),
       fetchMessage: async () => null,
@@ -1166,4 +1185,146 @@ test("cuenta principal: no propone un candidato de cuenta con un número inventa
   // Pero el movimiento sí se contabiliza como gasto del escaneo.
   assert.equal(summary.expenseCount, 1)
   assert.equal(summary.skippedCount, 0)
+})
+
+// --- Ventana del escaneo: el mes de la última notificación CON movimientos ---
+
+const cargo = (id: string, receivedAt: string): BankEmailMessage =>
+  message({
+    id,
+    internetMessageId: `<${id}@example.test>`,
+    subject: "Cargo en Cuenta",
+    receivedAt: new Date(receivedAt),
+    htmlBody:
+      "Cargo por $ 12.345 asociado a COMPRA PRUEBA. Cuenta terminada en 2345.",
+  })
+
+// Correo del banco que no produce movimiento: el remitente es suyo, el asunto no está catalogado.
+const promo = (id: string, receivedAt: string): BankEmailMessage =>
+  message({
+    id,
+    subject: "Conoce los beneficios del mes",
+    receivedAt: new Date(receivedAt),
+    htmlBody: "<p>Promoción vigente hasta fin de mes.</p>",
+  })
+
+const mailWith = (messages: BankEmailMessage[]) => ({
+  listMessagesSince: async (_id: string, since: Date, until?: Date) =>
+    messages.filter(
+      (m) =>
+        m.receivedAt.getTime() >= since.getTime() &&
+        (!until || m.receivedAt.getTime() <= until.getTime())
+    ),
+  lastMessageDate: lastDateFrom(messages),
+  startDelta: async () => "delta",
+  runDelta: async () => ({ messages: [], deltaLink: "delta" }),
+  fetchMessage: async () => null,
+  ensureSubscription: async () => null,
+  deleteSubscription: async () => {},
+})
+
+const CONNECTED_AT = new Date("2026-08-14T12:00:00Z")
+
+const scanWith = (messages: BankEmailMessage[]) =>
+  scanEmailCandidates(
+    {
+      ...repos([link({ createdAt: CONNECTED_AT })]),
+      mail: mailWith(messages),
+    },
+    "user-1",
+    "link-1",
+    { now: CONNECTED_AT }
+  )
+
+test("sin movimientos este mes, el escaneo baja al mes de la última notificación", async () => {
+  const result = await scanWith([cargo("jun", "2026-06-20T10:00:00Z")])
+  assert.equal(result.since, "2026-06-01T00:00:00.000Z")
+  assert.equal(result.totalMessages, 1)
+  assert.equal(result.candidates.length, 1)
+})
+
+test("el mes de la última notificación sin movimientos no detiene la búsqueda", async () => {
+  // Lo último del banco es marketing: si la ventana se fijara ahí, el escaneo vendría vacío igual.
+  const result = await scanWith([
+    cargo("jun", "2026-06-20T10:00:00Z"),
+    promo("ago", "2026-08-10T10:00:00Z"),
+  ])
+  assert.equal(result.since, "2026-06-01T00:00:00.000Z")
+  assert.equal(result.expenseCount, 1)
+  assert.equal(result.candidates.length, 1)
+})
+
+test("un correo posterior al instante del vínculo no mueve la ventana", async () => {
+  const result = await scanEmailCandidates(
+    {
+      ...repos([link({ createdAt: CONNECTED_AT })]),
+      mail: mailWith([
+        cargo("jun", "2026-06-20T10:00:00Z"),
+        cargo("tarde", "2026-08-20T10:00:00Z"),
+      ]),
+    },
+    "user-1",
+    "link-1",
+    { now: new Date("2026-08-25T12:00:00Z") }
+  )
+  assert.equal(result.since, "2026-06-01T00:00:00.000Z")
+  assert.equal(result.totalMessages, 1)
+})
+
+test("sin correos del banco en el plazo, la ventana vuelve al mes en curso", async () => {
+  const vacio = await scanWith([])
+  assert.equal(vacio.since, "2026-08-01T00:00:00.000Z")
+  assert.equal(vacio.candidates.length, 0)
+  // Más viejo que el tope de búsqueda: tampoco se va a buscarlo hasta el fondo del buzón.
+  const viejo = await scanWith([cargo("2025", "2025-11-20T10:00:00Z")])
+  assert.equal(viejo.since, "2026-08-01T00:00:00.000Z")
+  assert.equal(viejo.candidates.length, 0)
+})
+
+test("la confirmación importa la misma ventana que mostró el escaneo", async () => {
+  const messages = [
+    cargo("jun-1", "2026-06-20T10:00:00Z"),
+    cargo("jun-2", "2026-06-25T10:00:00Z"),
+    promo("ago", "2026-08-10T10:00:00Z"),
+  ]
+  const scanned = await scanWith(messages)
+  let persisted: EmailConfirmPersistInput | null = null
+  await confirmEmailSetup(
+    {
+      ...repos([link({ id: "link-1", createdAt: CONNECTED_AT })]),
+      methods: methodsFake,
+      mail: mailWith(messages),
+      store: {
+        confirmSetup: async (input: EmailConfirmPersistInput) => {
+          persisted = input
+          return {
+            bankId: "bank-1",
+            accounts: 1,
+            cards: 0,
+            movements: input.movements.length,
+          }
+        },
+        listInstruments: async () => ({ accounts: [], buckets: [] }),
+        upsertMovements: async () => ({ createdExternalIds: [] }),
+        updateBucketAmounts: async () => {},
+        setAccountBalance: async () => {},
+        markBankSynced: async () => {},
+        countBankDependents: async () => noDependents,
+        deleteBank: async () => {},
+      },
+    } satisfies EmailConnectionDeps,
+    "user-1",
+    "link-1",
+    {
+      snapshotAt: new Date("2026-08-14T11:00:00Z"),
+      checking: { ref: "2345", cash: Money.of(50000, "CLP"), overdraft: null },
+      cards: [],
+    },
+    { now: CONNECTED_AT }
+  )
+  const saved = persisted as EmailConfirmPersistInput | null
+  assert.ok(saved)
+  // Los dos cargos de junio, ni más ni menos: el mismo rango que revisó el usuario.
+  assert.equal(scanned.expenseCount, 2)
+  assert.equal(saved!.movements.length, 2)
 })

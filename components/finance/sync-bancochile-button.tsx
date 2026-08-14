@@ -20,7 +20,6 @@ const COMING_SOON = [
   "Itaú",
   "Banco Falabella",
   "Scotiabank",
-  "BICE",
 ]
 
 export function SyncBancoChileButton({

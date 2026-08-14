@@ -1448,6 +1448,27 @@ export async function disconnectBankLink(
   if (remaining.length === 0) await removeMailbox(deps, link.mailboxId)
 }
 
+// Igual que la anterior, pero identificando el banco por su id en los datos del usuario. La UI de
+// una cuenta conoce su banco, no el vínculo que lo alimenta: pedirle el vínculo la obligaría a
+// cruzar el estado de la conexión por su cuenta.
+export async function disconnectBankById(
+  deps: Pick<
+    EmailConnectionDeps,
+    "mailboxes" | "links" | "methods" | "mail" | "store"
+  >,
+  userId: string,
+  bankId: string
+): Promise<void> {
+  const link = (await deps.links.listByUser(userId)).find(
+    (l) => l.bankId === bankId
+  )
+  if (!link)
+    throw new EmailConnectionNotFoundError(
+      "Ese banco no tiene una conexión de correo"
+    )
+  await disconnectBankLink(deps, userId, link.id)
+}
+
 // Desconecta un buzón completo: equivale a desconectar todos sus bancos.
 export async function disconnectMailbox(
   deps: Pick<

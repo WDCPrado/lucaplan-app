@@ -19,6 +19,7 @@ import {
 } from "./email-projection.ts"
 import {
   confirmEmailSetup,
+  disconnectBankById,
   resolveEventTarget,
   scanEmailCandidates,
   syncMailbox,
@@ -1356,4 +1357,54 @@ test("el escaneo le pide al proveedor solo los correos del banco, no el mes ente
     { now: CONNECTED_AT }
   )
   assert.deepEqual(asked, [BANCOCHILE.senders])
+})
+
+// --- Desconexión desde la cuenta (la UI conoce el banco, no el vínculo) ---
+
+const disconnectDeps = (
+  links: EmailBankLinkWithMailbox[],
+  deletedBanks: string[]
+) => ({
+  ...repos(links),
+  methods: methodsFake,
+  mail: mailWith([]),
+  store: {
+    confirmSetup: async () => ({
+      bankId: "b",
+      accounts: 0,
+      cards: 0,
+      movements: 0,
+    }),
+    listInstruments: async () => ({ accounts: [], buckets: [] }),
+    upsertMovements: async () => ({ createdExternalIds: [] }),
+    updateBucketAmounts: async () => {},
+    setAccountBalance: async () => {},
+    markBankSynced: async () => {},
+    countBankDependents: async () => noDependents,
+    deleteBank: async (bankId: string) => {
+      deletedBanks.push(bankId)
+    },
+  },
+})
+
+test("desconectar por banco borra ese banco y no otro del mismo correo", async () => {
+  const deleted: string[] = []
+  const links = [
+    link({ id: "link-chile", bankId: "bank-chile" }),
+    link({ id: "link-mach", bankId: "bank-mach", bankProvider: "machbank" }),
+  ]
+  await disconnectBankById(
+    disconnectDeps(links, deleted),
+    "user-1",
+    "bank-mach"
+  )
+  assert.deepEqual(deleted, ["bank-mach"])
+})
+
+test("desconectar un banco sin conexión de correo falla explícito", async () => {
+  const links = [link({ id: "link-chile", bankId: "bank-chile" })]
+  await assert.rejects(
+    () => disconnectBankById(disconnectDeps(links, []), "user-1", "bank-ajeno"),
+    /conexión de correo/
+  )
 })

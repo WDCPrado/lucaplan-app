@@ -134,7 +134,8 @@ el correo aparezca. Para eso está la pestaña **Del banco** del nuevo movimient
 
 ![Conexión por correo](docs/images/email-connection.png)
 
-- Hoy: **Banco de Chile** vía **Outlook** (Microsoft Graph). Gmail, próximamente.
+- Hoy: **Banco de Chile**, **Banco BICE** y **MACHBANK** (solo débito) vía **Outlook**
+  (Microsoft Graph) — un mismo correo puede alimentar varios bancos. Gmail, próximamente.
 - OAuth 2.0 con PKCE y permiso delegado **mínimo** (`Mail.Read`): Luca Plan no puede
   enviar, mover ni borrar correos.
 - Solo se procesan los remitentes oficiales del banco; el resto de tu correo no se lee

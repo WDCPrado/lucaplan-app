@@ -51,6 +51,9 @@ export function detectCandidates(parsed: ParsedEmail[]): EmailScanSummary {
     if (e.kind === "expense") expenseCount++
     else internalCount++
     if (!e.instrument) continue
+    // "Cuenta principal" no numera nada: no hay candidato que proponer. La cuenta sale de los
+    // correos que sí identifican el instrumento, o la agrega el usuario en la confirmación.
+    if (e.instrument.kind === "primary_checking") continue
     if (e.instrument.kind === "checking") {
       checkingCounts.set(
         e.instrument.ref,

@@ -8,6 +8,7 @@ import type {
   EmailMailbox,
 } from "../../domain/finance/email-connection.domain.ts"
 import { parseBancoChileEmail } from "./bancochile-email-map.ts"
+import { parseMachbankEmail } from "./machbank-email-map.ts"
 import { detectCandidates } from "./bancochile-email-candidates.ts"
 import {
   applyCreditPurchase,
@@ -1095,8 +1096,74 @@ test("una transferencia recibida no crea ningún movimiento", async () => {
   // Y el saldo queda intacto: lo mueve el ingreso que el usuario declara, no el correo.
   assert.equal(captured.byId.get("b-cash")!.available.toMajor(), 10000)
   // El motivo es propio y no se confunde con un correo roto: el descarte es a propósito.
-  assert.deepEqual(
-    parseBancoChileEmail(abono),
-    { ok: false, reason: "abono_ignorado" }
-  )
+  assert.deepEqual(parseBancoChileEmail(abono), {
+    ok: false,
+    reason: "abono_ignorado",
+  })
+})
+
+// --- Cuenta principal: el correo no la numera (MACHBANK) ---
+
+const transferenciaMach = (): BankEmailMessage => ({
+  id: "graph-mach-1",
+  internetMessageId: "<mach-1@example.test>",
+  from: "no-reply@mail.machbank.cl",
+  subject: "Realizaste una transferencia a Ana Pérez",
+  receivedAt: new Date("2026-07-14T12:00:00Z"),
+  htmlBody: `<p>Acabas de hacer una transferencia desde tu cuenta principal MACHBANK.</p>
+    <table><tr><td>Monto</td><td>$1.000</td></tr>
+    <tr><td>Código de confirmación</td><td>112233445566</td></tr></table>`,
+})
+
+const checkingAccount = (id: string, ref: string) => ({
+  id,
+  accountType: "checking",
+  currency: "CLP" as const,
+  externalRef: ref,
+  cardLast4: ref.slice(-4),
+})
+
+const cashBucketOf = (accountId: string): EmailStoredBucket => ({
+  id: `cash-${accountId}`,
+  accountId,
+  kind: "cash",
+  currency: "CLP",
+  limitAmount: Money.zero("CLP"),
+  used: Money.zero("CLP"),
+  available: Money.of(50000, "CLP"),
+})
+
+test("cuenta principal: con una sola cuenta corriente resuelve y descuenta su caja", () => {
+  const parsed = parseMachbankEmail(transferenciaMach())
+  assert.equal(parsed.ok, true)
+  if (!parsed.ok) return
+  const accounts = [checkingAccount("acct-1", "4321")]
+  const buckets = [cashBucketOf("acct-1")]
+  assert.deepEqual(resolveEventTarget(parsed.event, accounts, buckets), {
+    accountId: "acct-1",
+    bucketId: "cash-acct-1",
+  })
+  const res = applyDebitToCash(buckets[0], null, parsed.event.amount)
+  assert.equal(res.cash.available.toMajor(), 49000)
+})
+
+test("cuenta principal: con cero o dos cuentas corrientes se omite en vez de adivinar", () => {
+  const parsed = parseMachbankEmail(transferenciaMach())
+  assert.equal(parsed.ok, true)
+  if (!parsed.ok) return
+  assert.equal(resolveEventTarget(parsed.event, [], []), null)
+  const dos = [
+    checkingAccount("acct-1", "4321"),
+    checkingAccount("acct-2", "8765"),
+  ]
+  const buckets = [cashBucketOf("acct-1"), cashBucketOf("acct-2")]
+  assert.equal(resolveEventTarget(parsed.event, dos, buckets), null)
+})
+
+test("cuenta principal: no propone un candidato de cuenta con un número inventado", () => {
+  const summary = detectCandidates([parseMachbankEmail(transferenciaMach())])
+  assert.deepEqual(summary.candidates, [])
+  // Pero el movimiento sí se contabiliza como gasto del escaneo.
+  assert.equal(summary.expenseCount, 1)
+  assert.equal(summary.skippedCount, 0)
 })

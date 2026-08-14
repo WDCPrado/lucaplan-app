@@ -8,11 +8,16 @@ import type { BankEmailMessage } from "../../domain/finance/email-connection.dom
 
 // --- Tipos del evento extraído ---
 
-// Instrumento referido por el correo: cuenta corriente (número completo o últimos 4) o tarjeta de
-// crédito (últimos 4). `ref` guarda solo dígitos.
+// Instrumento referido por el correo: cuenta corriente (número completo o últimos 4), tarjeta de
+// crédito (últimos 4) o la cuenta principal del vínculo. `ref` guarda solo dígitos.
+//
+// `primary_checking` existe porque hay plantillas que nombran la cuenta de cargo solo como "tu
+// cuenta principal", sin número: el parser la refiere tal cual en vez de inventar dígitos, y quien
+// resuelve contra los instrumentos confirmados decide si es inequívoca.
 export type EmailInstrumentRef =
   | { kind: "checking"; ref: string }
   | { kind: "credit_card"; last4: string }
+  | { kind: "primary_checking" }
 
 // No existe una variante de ingreso, y es a propósito: del correo solo sale el gasto; toda entrada
 // de dinero es ajuste de saldo interno. Ver docs/bank-email-contract.md.
@@ -109,7 +114,26 @@ export function normalizeSubject(subject: string): string {
   return subject.replace(/\s+/g, " ").trim().toLowerCase()
 }
 
+// ¿El cargo va contra una cuenta corriente? Cubre la referida por número/últimos 4 y la cuenta
+// principal del vínculo: las dos descuentan caja igual, solo cambia cómo se resuelve la cuenta.
+export function isCheckingInstrument(
+  instrument: EmailInstrumentRef | null
+): boolean {
+  return (
+    instrument?.kind === "checking" || instrument?.kind === "primary_checking"
+  )
+}
+
 // --- Extracción de campos (regex acotadas y tolerantes; faltante ⇒ se omite el correo) ---
+
+// Valor que sigue a una etiqueta en las plantillas de tabla ("Monto | $1.000"). Tras htmlToText
+// cada celda queda en su línea, así que el separador tolera el salto, ":", "|", "*" y los guiones
+// de la fila de encabezado. `label` se interpola como fragmento de regex: sirve para tolerar
+// tildes ("c[oó]digo").
+export function labeled(text: string, label: string): string | null {
+  const m = text.match(new RegExp(`${label}[\\s:|*-]*([^\\n]+)`, "i"))
+  return m ? m[1].trim() : null
+}
 
 // CLP: "$ 1.234.567" (puntos de miles). El lookbehind evita confundir "US$".
 export function parseClp(text: string): Money | null {

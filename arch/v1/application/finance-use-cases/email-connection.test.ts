@@ -10,6 +10,7 @@ import type {
 import { parseBancoChileEmail } from "./bancochile-email-map.ts"
 import { parseMachbankEmail } from "./machbank-email-map.ts"
 import { detectCandidates } from "./bancochile-email-candidates.ts"
+import { BANCOCHILE } from "./bank-email-registry.ts"
 import {
   applyCreditPurchase,
   applyDebitToCash,
@@ -1327,4 +1328,32 @@ test("la confirmación importa la misma ventana que mostró el escaneo", async (
   // Los dos cargos de junio, ni más ni menos: el mismo rango que revisó el usuario.
   assert.equal(scanned.expenseCount, 2)
   assert.equal(saved!.movements.length, 2)
+})
+
+test("el escaneo le pide al proveedor solo los correos del banco, no el mes entero", async () => {
+  // Filtrar en memoria significa descargar todo el buzón de ese mes con sus cuerpos para quedarse
+  // con un puñado de avisos: en buzones con volumen, eso deja el escaneo colgado.
+  const asked: (string[] | undefined)[] = []
+  const messages = [cargo("jun", "2026-06-20T10:00:00Z")]
+  await scanEmailCandidates(
+    {
+      ...repos([link({ createdAt: CONNECTED_AT })]),
+      mail: {
+        ...mailWith(messages),
+        listMessagesSince: async (
+          _id: string,
+          _since: Date,
+          _until?: Date,
+          senders?: string[]
+        ) => {
+          asked.push(senders)
+          return messages
+        },
+      },
+    },
+    "user-1",
+    "link-1",
+    { now: CONNECTED_AT }
+  )
+  assert.deepEqual(asked, [BANCOCHILE.senders])
 })

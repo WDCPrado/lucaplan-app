@@ -83,10 +83,16 @@ export interface BankMailProvider {
   // Mensajes del Inbox desde `since` hasta ahora, o hasta `until` si se acota (paginación interna).
   // Acotar importa cuando la ventana es un mes viejo: sin `until` se traería todo lo posterior, que
   // además puede truncarse contra el tope de páginas y perder justo los correos buscados.
+  //
+  // `senders` acota a esos remitentes DEL LADO DEL PROVEEDOR. Con él, el setup de un banco baja de
+  // "todo el buzón de ese mes, con cuerpos" a "los avisos de ese banco": en un buzón real la
+  // diferencia es de miles de correos a unos pocos. Se omite en la sincronización, donde una pasada
+  // trae todo el correo nuevo para repartirlo entre los bancos del buzón.
   listMessagesSince(
     mailboxId: string,
     since: Date,
-    until?: Date
+    until?: Date,
+    senders?: string[]
   ): Promise<BankEmailMessage[]>
   // Fecha del mensaje más reciente de esos remitentes dentro de [since, until]; null si no hay.
   // Solo la fecha: NO descarga cuerpos. Sirve para ubicar qué mes escanear sin traerse el buzón.

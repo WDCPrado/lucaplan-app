@@ -136,6 +136,16 @@ function receivedBetween(since: Date, until?: Date): string {
   return until ? `${from} and receivedDateTime le ${until.toISOString()}` : from
 }
 
+// Filtro OData por remitentes (vacío = sin filtro). Va entre paréntesis: `and` liga más fuerte que
+// `or` y sin ellos el rango de fechas solo aplicaría al último remitente.
+function fromAnyOf(senders?: string[]): string {
+  if (!senders?.length) return ""
+  const each = senders.map(
+    (s) => `from/emailAddress/address eq '${s.replace(/'/g, "''")}'`
+  )
+  return `(${each.join(" or ")})`
+}
+
 // Fecha del último mensaje de UN remitente en el rango. Una sola llamada: pide el más reciente ya
 // ordenado por Graph. Si el buzón rechaza ordenar y filtrar a la vez ("restriction or sort order is
 // too complex", 400), se reintenta sin orden sobre una página: el orden por defecto de `messages`
@@ -176,9 +186,14 @@ async function latestFromSender(
 // --- Provider ---
 
 export const msgraphMailProvider: BankMailProvider = {
-  async listMessagesSince(mailboxId, since, until) {
+  async listMessagesSince(mailboxId, since, until, senders) {
     const first = new URL(`${GRAPH}/me/mailFolders/inbox/messages`)
-    first.searchParams.set("$filter", receivedBetween(since, until))
+    first.searchParams.set(
+      "$filter",
+      [fromAnyOf(senders), receivedBetween(since, until)]
+        .filter(Boolean)
+        .join(" and ")
+    )
     first.searchParams.set("$select", MESSAGE_SELECT)
     first.searchParams.set("$top", String(PAGE_SIZE))
     const messages: BankEmailMessage[] = []

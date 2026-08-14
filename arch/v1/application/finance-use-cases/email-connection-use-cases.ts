@@ -515,6 +515,11 @@ async function resolveScanWindow(
 
 // Correos de ESTE banco en la ventana, ya parseados. Los de otro banco del mismo buzón no son
 // candidatos suyos ni cuentan como omitidos.
+//
+// El filtro por remitentes viaja al proveedor: pedir el mes entero y descartar en memoria significa
+// descargar miles de correos con sus cuerpos para quedarse con un puñado, y eso es lo que dejaba el
+// escaneo colgado en buzones con volumen. El enrutado se vuelve a aplicar acá igual, porque el
+// proveedor puede no soportar el filtro y devolver de más.
 async function parseBankMonth(
   deps: Pick<EmailConnectionDeps, "mail" | "registry">,
   mailboxId: string,
@@ -522,7 +527,12 @@ async function parseBankMonth(
   since: Date,
   until: Date
 ): Promise<ParsedEmail[]> {
-  const messages = await deps.mail.listMessagesSince(mailboxId, since, until)
+  const messages = await deps.mail.listMessagesSince(
+    mailboxId,
+    since,
+    until,
+    bank.senders
+  )
   return messages
     .filter((message) => message.receivedAt.getTime() <= until.getTime())
     .filter(

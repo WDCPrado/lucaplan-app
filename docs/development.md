@@ -97,12 +97,10 @@ Método para construir vistas nuevas (síguelo siempre):
 2. **Vive en `app/design/`.** Cada vista mock en `app/design/<slug>/page.tsx`; regístrala
    en el índice `app/design/page.tsx`. La home (`app/page.tsx`) queda limpia — **no mezcles
    mocks con la app real**.
-3. **Comprueba y MUESTRA.** Levanta `pnpm dev` (puerto libre, ej. 3007) y prueba la interacción en
-   **escritorio (~1440px) y móvil (~420px)** (desktop-first, sin regresión móvil). **El último paso
-   de cada iteración es siempre un screenshot del resultado final, GUARDADO en la carpeta del
-   feature como `app/design/<slug>/preview.png`** (no lo borres — es la referencia visual del mock,
-   y se versiona junto a su `page.tsx`) y mostrado al usuario. Las capturas intermedias sí se
-   borran. Cierra el dev server al terminar.
+3. **Verifica con `lint` y `typecheck`, y entrega.** No levantes `pnpm dev` ni tomes screenshots
+   para "comprobar" la vista: la revisión visual la hace el usuario en el entorno de PR, que es
+   donde la va a mirar igual. Escribe desktop-first y sin regresión móvil (~1440px / ~420px) por
+   criterio, no verificándolo a mano.
 4. **Itera en código** hasta que el usuario apruebe ("me gustó").
 5. **Pasar a Figma solo si es necesario y si el usuario lo pide.** Recién cuando lo apruebe,
    trasladar la vista al archivo Figma (página `Screens`) usando las variables/tokens del
@@ -110,11 +108,12 @@ Método para construir vistas nuevas (síguelo siempre):
 
 ### Notas de verificación
 
+Solo aplican cuando **el usuario pide** levantar algo; por tu cuenta no se levanta nada.
+
 - **Nunca dejes procesos colgando al terminar.** Todo dev server (`pnpm dev`) u otro proceso que
   se levante (foreground o background) se mata al cerrar la tarea, y se confirma que el puerto
   quedó libre (`netstat`). Si queda tomado, el `pnpm dev` del usuario falla con `EADDRINUSE`. Solo
   se deja corriendo lo que ya estaba corriendo del usuario.
-- Antes de navegar, **espera a que el dev server responda** (poll a la URL); Next compila on-demand.
 - **Turbopack + rutas nuevas:** crear o borrar carpetas de ruta en `app/` con el dev server
   corriendo puede corromper el caché incremental de Turbopack (panic
   `directory_tree_to_loader_tree` → recarga en bucle en `/login` u otras). Si pasa: mata el
@@ -126,6 +125,10 @@ Método para construir vistas nuevas (síguelo siempre):
 ```bash
 pnpm lint && pnpm typecheck && node --test "arch/**/*.test.ts"
 ```
+
+Las tres son estáticas: **ninguna necesita Postgres**. No corras `docker compose`, `pnpm setup:db`,
+migraciones ni seeds para abrir un PR — el entorno de Railway construye su propia imagen y su
+propia base al subirlo. Repetirlo en local no verifica nada extra y solo atrasa la entrega.
 
 Sin commit/push, instalación de dependencias, cambios en secretos o `.env`, deploys ni operaciones
 destructivas sin autorización explícita del usuario.

@@ -14,6 +14,7 @@ export const CARD_VARIANT_BG: Record<CardVariant, string> = {
 const BANK_MONOGRAMS: Record<string, string> = {
   "Banco de Chile": "Ch",
   "Banco BICE": "Bi",
+  MACHBANK: "Mh",
   BancoEstado: "BE",
   Santander: "S",
   Bci: "Bci",

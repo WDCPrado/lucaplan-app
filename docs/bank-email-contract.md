@@ -1,6 +1,7 @@
 # Contrato de correo bancario
 
-Qué necesita un banco para funcionar en Luca Plan, y qué cubren hoy Banco de Chile y Banco BICE.
+Qué necesita un banco para funcionar en Luca Plan, y qué cubren hoy Banco de Chile, Banco BICE y
+MACHBANK.
 
 El sistema no lee saldos: reconstruye el movimiento desde las **notificaciones por correo**. Un
 banco se soporta cuando sus correos permiten extraer, sin adivinar, cuatro cosas: **cuánto**,
@@ -100,6 +101,44 @@ La identidad idempotente es el **N° de operación**, que BICE emite alfanuméri
 ejemplos en una revisión de tres meses del buzón, así que hasta tenerlos se omiten como
 `asunto_desconocido` — inventar la plantilla sería peor que no cubrirla.
 
+## Catálogo MACHBANK — solo débito
+
+Remitentes permitidos (catálogo, clave `machbank`): `no-reply@mail.machbank.cl` (transferencias),
+`contacto@mail.machbank.cl` (compras y pagos, **también marketing**) y `noreply@somosmach.com`
+(dominio anterior, solo abonos). Que uno de ellos mande promociones no debilita nada: cada plantilla
+exige asunto de la allowlist **y** confirmación en el cuerpo.
+
+MACHBANK se modela como **una cuenta principal CLP con su tarjeta Visa Débito**. No hay tarjeta de
+crédito, cupos, cuotas, pago de tarjeta ni sobregiro: ninguna plantilla los produce, así que el
+único bucket que nace de este banco es `cash`.
+
+| Asunto | `source` | Efecto | Instrumento | Qué se extrae |
+| --- | --- | --- | --- | --- |
+| Realizaste una transferencia a *(destinatario)* | `transferencia` | Gasto | Cuenta principal | Monto CLP (etiqueta `Monto`), destinatario del **asunto** y `Código de confirmación`. Del destinatario solo el nombre: ni RUT, ni banco, ni su cuenta. |
+| Tu compra con MACHBANK 📲 | `cargo_cuenta` | Gasto | Cuenta corriente (últimos 4 de la Visa Débito) | `Comercio`, `Monto CLP`, últimos 4 e `Identificador Visa`. |
+| Le pagaste a *(destinatario)* | `transferencia` | Gasto | Cuenta principal | Monto CLP de la frase `Le pagaste <monto> a <destinatario>` y el destinatario del asunto. Sin fecha ni ID propios: recepción y `Message-ID`. |
+| Recibiste una transferencia de *(remitente)* | — | **Descartado** (`abono_ignorado`) | — | Nada: la plata que entra se declara en Ingresos. |
+
+Dos cosas que esta plantilla obliga a hacer bien:
+
+- **El monto sale de su etiqueta.** La compra informa `Monto (moneda original) $ 1 USD` **antes** que
+  `Monto CLP $ 943`, y al pie menciona "un cargo de $500 a $1.500 para validar tu tarjeta". Una
+  compra en dólares con débito se cobra en pesos: el gasto es el `Monto CLP`, nunca un cargo USD.
+- **El aviso de la plata que entra usa la misma maqueta que el saliente.** Lo único que los separa
+  es el verbo (`Acabas de hacer` vs `Acabas de recibir`), así que la transferencia saliente exige esa
+  frase en el cuerpo además del asunto.
+
+### La cuenta principal, un instrumento sin número
+
+La transferencia y el pago directo nombran el origen solo como "tu cuenta principal MACHBANK". El
+parser lo refiere tal cual (`primary_checking`) en vez de inventar dígitos, y la resolución contra
+los instrumentos confirmados exige que el vínculo tenga **exactamente una** cuenta corriente. Con
+cero o varias el movimiento se omite y suma a los omitidos del vínculo: elegir una escribiría el
+gasto en la cuenta equivocada.
+
+Como esa referencia no numera nada, tampoco propone candidatos en el escaneo: la cuenta sale de las
+compras con débito —que sí traen los últimos 4— o la agrega el usuario al confirmar.
+
 ## Qué debe aportar un banco nuevo
 
 1. **Remitentes fijos.** Uno o varios, estables. Sin esto no hay allowlist y no hay fail-closed.
@@ -112,6 +151,9 @@ ejemplos en una revisión de tres meses del buzón, así que hasta tenerlos se o
    (`US$ 12,34`, `USD 1.234,56`). Cuando la plantilla trae varias cifras (interés, utilizado, tipo
    de cambio), el monto **debe** salir de una etiqueta concreta, nunca del primer `$` del texto.
 5. **Instrumento identificable:** cuenta por número completo o últimos 4; tarjeta por últimos 4.
+   Si la plantilla solo dice "tu cuenta principal", existe la referencia sin número, que se resuelve
+   cuando el vínculo tiene una sola cuenta corriente (ver MACHBANK). Lo que no se hace nunca es
+   inventar el número ni tomar los últimos 4 de otro dato del correo.
 6. **Identidad estable por operación**, para que reprocesar un correo no duplique el movimiento.
    Orden de preferencia: ID de transacción del banco → ID TEF → `Message-ID` → id del proveedor de
    correo. Los tres primeros sobreviven a que el correo se reenvíe o se reindexe; el último no.

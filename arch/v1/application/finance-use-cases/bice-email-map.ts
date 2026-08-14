@@ -12,6 +12,7 @@ import {
   dayOf,
   emailEvent,
   htmlToText,
+  labeled,
   normalizeSubject,
   originSection,
   parseAccountRef,
@@ -41,13 +42,6 @@ const SUBJECT_ABONOS = [
 ]
 
 // --- Extracción de estas plantillas ---
-
-// Valor que sigue a una etiqueta de la tabla. Tras htmlToText cada celda queda en su línea, así que
-// el separador tolera el salto, ":", "|", "*" y los guiones de la fila de encabezado.
-function labeled(text: string, label: string): string | null {
-  const m = text.match(new RegExp(`${label}[\\s:|*-]*([^\\n]+)`, "i"))
-  return m ? m[1].trim() : null
-}
 
 // Número de operación: alfanumérico ("EXP0067420260790738557") o solo dígitos ("239167263").
 function parseOperacionId(text: string): string | null {

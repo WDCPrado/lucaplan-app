@@ -38,7 +38,11 @@ import {
   routeEmail,
   type BankEmailRegistry,
 } from "./bank-email-registry.ts"
-import type { EmailEvent, ParsedEmail } from "./bank-email-map.ts"
+import {
+  isCheckingInstrument,
+  type EmailEvent,
+  type ParsedEmail,
+} from "./bank-email-map.ts"
 import {
   detectCandidates,
   type EmailScanSummary,
@@ -306,6 +310,13 @@ function resolveChecking(
   event: EmailEvent,
   accounts: EmailStoredAccount[]
 ): EmailStoredAccount | null {
+  // "Tu cuenta principal": el correo no la numera, así que solo se resuelve si el vínculo tiene UNA
+  // cuenta corriente. Con cero o varias se omite el movimiento — elegir una sería escribir el gasto
+  // en la cuenta equivocada.
+  if (event.instrument?.kind === "primary_checking") {
+    const checking = accounts.filter((a) => a.accountType === "checking")
+    return checking.length === 1 ? checking[0] : null
+  }
   if (!event.instrument || event.instrument.kind !== "checking") return null
   return resolveCheckingByRef(event.instrument.ref, accounts)
 }
@@ -353,7 +364,10 @@ export async function connectMailbox(
   userId: string,
   input: ConnectMailboxInput
 ): Promise<{ mailbox: EmailMailbox; reconnected: boolean }> {
-  const existing = await deps.mailboxes.findByAddress(userId, input.emailAddress)
+  const existing = await deps.mailboxes.findByAddress(
+    userId,
+    input.emailAddress
+  )
   if (existing) {
     const mailbox = await deps.mailboxes.update(existing.id, {
       refreshToken: input.refreshToken,
@@ -449,14 +463,17 @@ export async function scanEmailCandidates(
     )
   const bank = bankByKey(link.bankProvider, registryOf(deps))
   const now = opts.now ?? new Date()
-  const scanUntil = link.createdAt.getTime() <= now.getTime() ? link.createdAt : now
+  const scanUntil =
+    link.createdAt.getTime() <= now.getTime() ? link.createdAt : now
   const since = firstDayOfMonth(scanUntil)
   const messages = await deps.mail.listMessagesSince(link.mailboxId, since)
   // Solo los correos que este banco reclama: los de otro banco del mismo buzón no son candidatos
   // suyos ni cuentan como omitidos.
   const parsed = messages
     .filter((message) => message.receivedAt.getTime() <= scanUntil.getTime())
-    .filter((message) => routeEmail(message, registryOf(deps))?.key === bank.key)
+    .filter(
+      (message) => routeEmail(message, registryOf(deps))?.key === bank.key
+    )
     .map(bank.parse)
   return {
     ...detectCandidates(parsed),
@@ -499,14 +516,16 @@ export async function confirmEmailSetup(
   opts: { now?: Date } = {}
 ): Promise<ConfirmResult> {
   const link = await requireLink(deps, userId, linkId)
-  if (link.bankId) throw new EmailSetupStateError("Ese banco ya fue configurado")
+  if (link.bankId)
+    throw new EmailSetupStateError("Ese banco ya fue configurado")
   if (!input.checking && input.cards.length === 0)
     throw new EmailSetupStateError(
       "Confirma al menos un instrumento (cuenta o tarjeta)"
     )
   const bank = bankByKey(link.bankProvider, registryOf(deps))
   const now = opts.now ?? new Date()
-  const scanUntil = link.createdAt.getTime() <= now.getTime() ? link.createdAt : now
+  const scanUntil =
+    link.createdAt.getTime() <= now.getTime() ? link.createdAt : now
   const since = firstDayOfMonth(scanUntil)
 
   // Instrumentos y buckets desde el snapshot ingresado (available = limit − used).
@@ -786,7 +805,7 @@ function applyEventToProjection(
     if (prev) projected.set(`${accountKey}:${kind}`, { ...prev, ...amounts })
   }
 
-  if (event.kind === "expense" && event.instrument?.kind === "checking") {
+  if (event.kind === "expense" && isCheckingInstrument(event.instrument)) {
     const cash = get("cash")
     if (!cash) return
     const res = applyDebitToCash(cash, get("overdraft"), event.amount)
@@ -851,7 +870,8 @@ export async function syncMailbox(
   opts: { now?: Date; messages?: BankEmailMessage[] } = {}
 ): Promise<EmailSyncResult> {
   const mailbox = await deps.mailboxes.findById(mailboxId)
-  if (!mailbox) throw new EmailConnectionNotFoundError("No existe ese correo conectado")
+  if (!mailbox)
+    throw new EmailConnectionNotFoundError("No existe ese correo conectado")
   const links = (await deps.links.listByMailbox(mailboxId)).filter(
     (l) => l.bankId !== null
   )
@@ -1135,7 +1155,7 @@ function applyEventToStoredBuckets(
     if (bucket) bucketById.set(bucket.id, { ...bucket, ...amounts })
   }
 
-  if (event.kind === "expense" && event.instrument?.kind === "checking") {
+  if (event.kind === "expense" && isCheckingInstrument(event.instrument)) {
     const cash = ofKind("cash")
     if (!cash) return
     const od = ofKind("overdraft")
@@ -1313,7 +1333,13 @@ export async function describeBankRemoval(
 ): Promise<BankDependents> {
   const link = await requireLink(deps, userId, linkId)
   if (!link.bankId)
-    return { accounts: 0, movements: 0, recurring: 0, installments: 0, incomes: 0 }
+    return {
+      accounts: 0,
+      movements: 0,
+      recurring: 0,
+      installments: 0,
+      incomes: 0,
+    }
   return deps.store.countBankDependents(link.bankId)
 }
 

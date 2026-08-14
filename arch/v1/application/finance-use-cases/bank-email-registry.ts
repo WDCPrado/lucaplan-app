@@ -9,6 +9,7 @@ import type { BankEmailMessage } from "../../domain/finance/email-connection.dom
 import type { ParsedEmail } from "./bank-email-map.ts"
 import { parseBancoChileEmail } from "./bancochile-email-map.ts"
 import { BICE_SENDER, parseBiceEmail } from "./bice-email-map.ts"
+import { MACHBANK_SENDERS, parseMachbankEmail } from "./machbank-email-map.ts"
 
 export type BankEmailDefinition = {
   key: string // identifica al banco en los datos del usuario (Bank.provider)
@@ -36,9 +37,22 @@ export const BICE: BankEmailDefinition = {
   parse: parseBiceEmail,
 }
 
+// Solo débito: una cuenta principal CLP con su tarjeta Visa Débito. Sus correos no producen
+// crédito, cuotas ni sobregiro (docs/bank-email-contract.md).
+export const MACHBANK: BankEmailDefinition = {
+  key: "machbank",
+  name: "MACHBANK",
+  senders: MACHBANK_SENDERS,
+  parse: parseMachbankEmail,
+}
+
 export type BankEmailRegistry = readonly BankEmailDefinition[]
 
-export const BANK_EMAIL_REGISTRY: BankEmailRegistry = [BANCOCHILE, BICE]
+export const BANK_EMAIL_REGISTRY: BankEmailRegistry = [
+  BANCOCHILE,
+  BICE,
+  MACHBANK,
+]
 
 // Banco de una clave. Lanza si no existe: procesar correo con un parser ajeno sería peor que fallar.
 export function bankByKey(

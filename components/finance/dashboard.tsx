@@ -17,6 +17,7 @@ import { useCardCarousel } from "@/hooks/use-card-carousel"
 import { AppShell } from "./app-shell"
 import { MonthPicker } from "./month-picker"
 import { MonthStatus } from "./month-status"
+import { OverspendBanner } from "./overspend-banner"
 import { IncomeRow, PlanSheet } from "./plan-sheet"
 import { AccountCard } from "./account-card"
 import { MovementsList } from "./movements-list"
@@ -296,6 +297,16 @@ export function Dashboard({
           committed={totalCommitted}
           remainingToAllocate={budget.remainingToAllocate}
           onOpenPlan={() => setPlanOpen(true)}
+        />
+
+        {/* Cuánto te pasaste, junto: el excedente del mes (contra el presupuesto global) y el de
+            los topes por categoría, que no son la misma cifra. Con ambos en $0 no se renderiza. */}
+        <OverspendBanner
+          period={period}
+          globalLimit={budget.globalLimit}
+          capsOverspend={budget.capsOverspend}
+          monthOverspend={budget.monthOverspend}
+          categories={budget.categories}
         />
 
         {/* Cuentas */}

@@ -15,6 +15,10 @@ import {
  * debajo. Las tres cifras de apoyo (gastado, comprometido y lo que queda libre) y la barra
  * completan el detalle. Si aún queda plata sin repartir entre categorías, se avisa con un nudge
  * que abre el plan ("por presupuestar" ya no vive en el panel ni en el modal).
+ *
+ * Este card NO dice "te pasaste": ese aviso vive entero en la banda de excedente que va justo
+ * debajo (WDC-73). Acá el mes es cuánto es y cuánto llevas; el "Libre" en negativo ya marca solo
+ * cuando la cuenta no da.
  */
 export function MonthStatus({
   period,
@@ -60,9 +64,6 @@ export function MonthStatus({
   const spentPct = Math.min(100, usedPct)
   // El comprometido ocupa lo que queda de barra: si ya no cabe, el mes está excedido igual.
   const commPct = Math.min(100 - spentPct, (committed / globalLimit) * 100)
-  // "Te pasaste" mira solo el gasto contra el presupuesto (sin el comprometido): es la pregunta
-  // del titular ("presupuesto de gasto"), no la del disponible.
-  const spentOver = spent > globalLimit
 
   return (
     <section className="glass relative rounded-2xl p-5 lg:p-6">
@@ -76,15 +77,8 @@ export function MonthStatus({
           <p className="tabular mt-1 text-3xl font-bold sm:text-4xl lg:text-5xl">
             {formatCLP(globalLimit)}
           </p>
-          <p
-            className={cn(
-              "mt-1 text-sm text-muted-foreground",
-              spentOver && "text-destructive"
-            )}
-          >
-            {spentOver
-              ? `Te pasaste por ${formatCLP(spent - globalLimit)}`
-              : `Llevas gastado ${formatCLP(spent)} · ${Math.round(usedPct)}%`}
+          <p className="mt-1 text-sm text-muted-foreground">
+            {`Llevas gastado ${formatCLP(spent)} · ${Math.round(usedPct)}%`}
           </p>
         </div>
 

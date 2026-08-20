@@ -130,3 +130,23 @@ export function quartileVar(percent: number): string {
   if (percent < 75) return "var(--warning)"
   return "var(--destructive)"
 }
+
+/**
+ * Porcentaje usado de un límite, para MOSTRARLO como cifra. `null` con límite 0, que es un estado
+ * válido (`setMonthlyBudget` acepta entero ≥ 0): ahí no hay proporción que calcular — gastar sobre
+ * un tope de cero es "te pasaste", no un %. Sin ese null la división imprimía `Infinity%` con
+ * gasto y `NaN%` sin él.
+ */
+export function usagePct(amount: number, limit: number): number | null {
+  return limit > 0 ? (amount / limit) * 100 : null
+}
+
+/**
+ * Cuánto de la barra ocupa `amount` sobre `limit`, acotado a 0–100. La barra sí necesita un número
+ * aunque el límite sea 0: se llena si hay algo gastado y queda vacía si no. Es el mismo criterio
+ * que `categoryStatus` aplica a las categorías con tope 0 (excedido con uso, bueno sin él), y por
+ * eso `quartileVar` de esta cifra da los mismos colores.
+ */
+export function usageBarPct(amount: number, limit: number): number {
+  return Math.min(100, usagePct(amount, limit) ?? (amount > 0 ? 100 : 0))
+}

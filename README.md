@@ -408,6 +408,7 @@ los tokens ya cifrados dejan de poder descifrarse y habrá que reconectar el cor
 | `pnpm start`           | Sirve el build                                                             |
 | `pnpm lint`            | ESLint                                                                     |
 | `pnpm typecheck`       | `tsc --noEmit`                                                             |
+| `pnpm test`            | Tests con `node --test` (`arch/`, `lib/` y `scripts/`)                     |
 | `pnpm format`          | Prettier                                                                   |
 | `pnpm setup:db`        | ⚠️ Levanta Postgres en Docker + migra + seed (**destructivo**, solo local) |
 | `pnpm setup:prisma`    | `prisma generate` + `prisma migrate deploy` (aditivo)                      |
@@ -502,7 +503,7 @@ entorno queda con los datos base en vez de caerse el deploy. Cómo escribirlo, e
 2. Lee [docs/development.md](docs/development.md): las features nuevas siguen el flujo
    [OpenSpec](openspec/) del repo (propuesta → implementación → verificación); para fixes
    pequeños y documentación basta el PR directo.
-3. Antes de abrir el PR: `pnpm lint && pnpm typecheck && node --test "arch/**/*.test.ts"`.
+3. Antes de abrir el PR: `pnpm lint && pnpm typecheck && pnpm test`.
 4. Respeta la regla de dependencias de `arch/` y los primitivos de UI (shadcn/ui — si
    falta un componente, se instala con `pnpm dlx shadcn@latest add <componente>`).
 

@@ -50,6 +50,8 @@ import {
   computeCategoryCommitted,
   computeCategoryPace,
   categoryStatus,
+  computeCapsOverspend,
+  computeMonthOverspend,
   effectiveLimit,
   effectiveGlobalLimit,
   paceStatus,
@@ -170,6 +172,10 @@ export type BudgetViewDTO = {
   globalLimit: number | null // límite global efectivo del mes (carry); null = no definido
   allocated: number // Σ límites efectivos de las categorías de GASTO
   remainingToAllocate: number | null // globalLimit − allocated; null sin límite global
+  // Los dos excedentes del mes, que NO son lo mismo y pueden convivir (la UI no los suma):
+  // descuadre entre categorías vs. plata que de verdad no había. 0 = nadie se pasó.
+  capsOverspend: number // Σ max(0, usado − tope) de las categorías de gasto con tope
+  monthOverspend: number // max(0, gasto del mes − límite global); 0 sin límite global
 }
 
 function txToDTO(
@@ -626,76 +632,86 @@ export async function getBudgetView(
     const prev = incomeGoal.get(inc.categoryId)
     incomeGoal.set(inc.categoryId, prev ? prev.add(amount) : amount)
   }
-  const categories = withLimit.map(
-    ({ category, limit: catLimit }): CategoryDTO => {
-      const direction = category.type === "income" ? "credit" : "debit"
-      const limit =
-        category.type === "income"
-          ? (incomeGoal.get(category.id) ?? Money.zero(CLP))
-          : catLimit
-      const { used, available } = computeCategoryUsage(
-        category.id,
-        limit,
-        clpTxs,
-        year,
-        month,
-        direction
-      )
-      const fromInstallments = installmentCommitted.get(category.id)
-      const committed = computeCategoryCommitted(
-        category.id,
-        limit.currency,
-        clpTxs,
-        year,
-        month,
-        direction
-      ).add(
-        // Solo si coinciden la moneda de la categoría y la del plan (el comprometido es por moneda).
-        fromInstallments && fromInstallments.currency === limit.currency
-          ? fromInstallments
-          : Money.zero(limit.currency)
-      )
-      // Ritmo del período: solo gasto con tope y solo si la vista mira el mes de "hoy". El DTO
-      // se recalcula en cada lectura (router.refresh tras registrar un gasto lo actualiza solo).
-      const paceDTO =
-        pace &&
-        category.type === "expense" &&
-        limit.isPositive &&
-        pace.today.year === year &&
-        pace.today.month === month
-          ? (() => {
-              const p = computeCategoryPace(
-                category.id,
-                available,
-                clpTxs,
-                pace.today,
-                pace.frequency
-              )
-              return {
-                frequency: pace.frequency,
-                spent: p.spent.toMajor(),
-                budget: p.budget.toMajor(),
-                status: paceStatus(p.spent, p.budget),
-              }
-            })()
-          : null
-      return {
-        id: category.id,
-        name: category.name,
-        type: category.type,
-        icon: category.icon,
-        color: category.color,
-        description: category.description,
-        limit: limit.toMajor(),
-        used: used.toMajor(),
-        committed: committed.toMajor(),
-        available: available.toMajor(),
-        // Ingreso: llegar a la meta es bueno, no "excedido" — el semáforo es solo de gastos.
-        status:
-          category.type === "income" ? "bueno" : categoryStatus(used, limit),
-        pace: paceDTO,
-      }
-    }
+  // Cifras por categoría en Money, ANTES de bajarlas al DTO: los excedentes del mes se suman
+  // desde acá en vez de recalcular el uso o reconstruir montos desde los números del DTO.
+  const computed = withLimit.map(({ category, limit: catLimit }) => {
+    const direction = category.type === "income" ? "credit" : "debit"
+    const limit =
+      category.type === "income"
+        ? (incomeGoal.get(category.id) ?? Money.zero(CLP))
+        : catLimit
+    const { used, available } = computeCategoryUsage(
+      category.id,
+      limit,
+      clpTxs,
+      year,
+      month,
+      direction
+    )
+    const fromInstallments = installmentCommitted.get(category.id)
+    const committed = computeCategoryCommitted(
+      category.id,
+      limit.currency,
+      clpTxs,
+      year,
+      month,
+      direction
+    ).add(
+      // Solo si coinciden la moneda de la categoría y la del plan (el comprometido es por moneda).
+      fromInstallments && fromInstallments.currency === limit.currency
+        ? fromInstallments
+        : Money.zero(limit.currency)
+    )
+    // Ritmo del período: solo gasto con tope y solo si la vista mira el mes de "hoy". El DTO
+    // se recalcula en cada lectura (router.refresh tras registrar un gasto lo actualiza solo).
+    const paceDTO =
+      pace &&
+      category.type === "expense" &&
+      limit.isPositive &&
+      pace.today.year === year &&
+      pace.today.month === month
+        ? (() => {
+            const p = computeCategoryPace(
+              category.id,
+              available,
+              clpTxs,
+              pace.today,
+              pace.frequency
+            )
+            return {
+              frequency: pace.frequency,
+              spent: p.spent.toMajor(),
+              budget: p.budget.toMajor(),
+              status: paceStatus(p.spent, p.budget),
+            }
+          })()
+        : null
+    return { category, limit, used, available, committed, paceDTO }
+  })
+  const categories = computed.map(
+    ({
+      category,
+      limit,
+      used,
+      available,
+      committed,
+      paceDTO,
+    }): CategoryDTO => ({
+      id: category.id,
+      name: category.name,
+      type: category.type,
+      icon: category.icon,
+      color: category.color,
+      description: category.description,
+      limit: limit.toMajor(),
+      used: used.toMajor(),
+      committed: committed.toMajor(),
+      available: available.toMajor(),
+      // Ingreso: llegar a la meta es bueno, no "excedido" — el semáforo es solo de gastos.
+      status:
+        category.type === "income" ? "bueno" : categoryStatus(used, limit),
+      pace: paceDTO,
+    })
   )
   // Orden (WDC-13): categoría con la transacción más reciente del mes primero. `txs` viene
   // más-nuevo primero, así que el primer encuentro de cada categoría marca su recencia; las sin
@@ -715,11 +731,25 @@ export async function getBudgetView(
     .reduce((s, x) => s.add(x.limit), Money.zero(CLP))
   const globalLimit = effectiveGlobalLimit(budgets, year, month)
   const remaining = remainingToAllocate(globalLimit, allocated)
+  // Gasto del mes: el mismo Σ usado de las categorías de GASTO que la UI muestra como "Gastado"
+  // (los límites de categoría no llevan moneda: siempre CLP). Con él se mide el excedente del mes.
+  const spent = computed
+    .filter(({ category }) => category.type === "expense")
+    .reduce((s, { used }) => s.add(used), Money.zero(CLP))
   return {
     categories,
     globalLimit: globalLimit === null ? null : globalLimit.toMajor(),
     allocated: allocated.toMajor(),
     remainingToAllocate: remaining === null ? null : remaining.toMajor(),
+    capsOverspend: computeCapsOverspend(
+      computed.map(({ category, used, limit }) => ({
+        type: category.type,
+        used,
+        limit,
+      })),
+      CLP
+    ).toMajor(),
+    monthOverspend: computeMonthOverspend(spent, globalLimit).toMajor(),
   }
 }
 

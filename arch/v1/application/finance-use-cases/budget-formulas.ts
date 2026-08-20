@@ -6,6 +6,7 @@
 import type {
   Account,
   CategoryLimit,
+  CategoryType,
   MonthlyBudget,
   Transaction,
   CategoryStatus,
@@ -278,4 +279,45 @@ export function remainingToAllocate(
   allocated: Money
 ): Money | null {
   return globalLimit === null ? null : globalLimit.subtract(allocated)
+}
+
+/**
+ * Excedente de TOPES del mes = Σ max(0, usado − tope) de las categorías de GASTO con tope > 0.
+ * Junta en una cifra lo que hoy solo se ve categoría por categoría. Solo cuenta lo confirmado
+ * (`used`), no el comprometido: son dos capas distintas. Sin tope no hay de qué pasarse, así que
+ * las categorías sin límite no participan.
+ *
+ * Es un DESCUADRE ENTRE CATEGORÍAS, no plata que falte: puede ser positivo con presupuesto del mes
+ * de sobra. La plata que de verdad no había la mide `computeMonthOverspend`.
+ */
+export function computeCapsOverspend(
+  categories: { type: CategoryType; used: Money; limit: Money }[],
+  currency: CurrencyCode
+): Money {
+  return categories
+    .filter(
+      (c) =>
+        c.type === "expense" &&
+        c.limit.isPositive &&
+        c.limit.currency === currency
+    )
+    .reduce((sum, c) => {
+      const over = c.used.subtract(c.limit)
+      return over.isPositive ? sum.add(over) : sum
+    }, Money.zero(currency))
+}
+
+/**
+ * Excedente del MES = max(0, gasto del mes − límite global). Esta sí es plata que no había: lo
+ * gastado de más sale del mes siguiente. Sin límite global definido no hay de qué pasarse → 0.
+ * Mide contra el presupuesto GLOBAL, así que vale 0 mientras quede presupuesto libre aunque haya
+ * categorías reventadas (para eso está `computeCapsOverspend`).
+ */
+export function computeMonthOverspend(
+  spent: Money,
+  globalLimit: Money | null
+): Money {
+  if (globalLimit === null) return Money.zero(spent.currency)
+  const over = spent.subtract(globalLimit)
+  return over.isPositive ? over : Money.zero(spent.currency)
 }

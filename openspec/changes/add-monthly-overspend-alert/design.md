@@ -81,3 +81,12 @@ suyo. La banda va fuera, pegada abajo.
 El DTO expone solo los dos totales. El front ya recibe `budget.categories` con `used` y `limit` por
 categoría, así que la lista de culpables sale de ahí con un filtro. Un segundo campo con el
 desglose sería el mismo dato dos veces, con el riesgo de que se contradigan.
+
+## Riesgos
+
+**El seed del entorno de PR no se ejecutó contra una base real.** `scripts/seed-pr-feature.ts` se
+verificó de forma estática (el `tsconfig` incluye `scripts/`, así que `tsc` compila sus consultas
+contra el cliente Prisma generado), pero no se corrió: hacerlo re-siembra desde cero al usuario
+demo de la base local. Si la siembra fallara en Railway, el seed base lo registra y el deploy
+sigue, así que el entorno queda navegable pero sin las categorías por sobre su tope — y la banda
+no se vería. Es lo primero que hay que descartar si el entorno del PR no la muestra.

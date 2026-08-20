@@ -30,8 +30,3 @@
 - [x] 4.1 `pnpm lint && pnpm typecheck && node --test "arch/**/*.test.ts"`.
 - [x] 4.2 Reescribir `scripts/seed-pr-feature.ts` para que el entorno de PR muestre el caso: varias
       categorías por sobre su tope con presupuesto global todavía libre.
-- [ ] 4.3 Probar el seed contra una base local
-      (`SEED_PR_FORCE=1 RAILWAY_ENVIRONMENT_NAME=pr-0 pnpm seed:pr`). **No corrido**: re-siembra
-      desde cero al usuario demo de la base local del usuario y el encargo de esta tarjeta era no
-      levantar Postgres. Verificado solo de forma estática (`tsc` cubre `scripts/`, así que las
-      consultas Prisma del seed compilan contra el cliente generado).

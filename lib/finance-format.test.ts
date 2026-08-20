@@ -4,9 +4,12 @@ import assert from "node:assert/strict"
 import {
   daysLeftInMonth,
   quartileVar,
+  statusVar,
   usageBarPct,
   usagePct,
 } from "./finance-format.ts"
+import { categoryStatus } from "../arch/v1/application/finance-use-cases/budget-formulas.ts"
+import { Money } from "../arch/v1/domain/finance/money.ts"
 
 // Divisor del gasto diario por categoría, así que el off-by-one importa: hoy todavía se puede
 // gastar y por eso cuenta. Instantes de mediodía UTC para que el día civil en Santiago (APP_TZ) sea
@@ -48,9 +51,19 @@ test("la barra nunca pasa del 100%", () => {
   assert.equal(usageBarPct(50_000, 200_000), 25)
 })
 
-// El color sale de la cifra de la barra, así que con límite 0 termina en el mismo criterio que
-// `categoryStatus` usa para los topes en 0: excedido con gasto, bueno sin él.
+// El color sale de la cifra de la barra, así que con límite 0 tiene que dar lo mismo que el
+// criterio de `categoryStatus` para los topes en 0. Se afirma contra esa fuente y no contra los
+// literales del token a propósito: si mañana cambia la regla en `budget-formulas.ts`, este test
+// cae en vez de quedarse verde mientras el card diverge en silencio.
 test("con límite 0 el color sigue el criterio de categoryStatus", () => {
-  assert.equal(quartileVar(usageBarPct(45_000, 0)), "var(--destructive)")
-  assert.equal(quartileVar(usageBarPct(0, 0)), "var(--success)")
+  const cero = Money.zero("CLP")
+  const gasto = Money.of(45_000, "CLP")
+  assert.equal(
+    quartileVar(usageBarPct(45_000, 0)),
+    statusVar(categoryStatus(gasto, cero))
+  )
+  assert.equal(
+    quartileVar(usageBarPct(0, 0)),
+    statusVar(categoryStatus(cero, cero))
+  )
 })

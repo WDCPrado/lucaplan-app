@@ -123,8 +123,12 @@ Solo aplican cuando **el usuario pide** levantar algo; por tu cuenta no se levan
 ## Antes del PR
 
 ```bash
-pnpm lint && pnpm typecheck && node --test "arch/**/*.test.ts"
+pnpm lint && pnpm typecheck && pnpm test
 ```
+
+`pnpm test` corre `node --test` sobre los tres directorios que tienen tests (`arch/`, `lib/` y
+`scripts/`). Antes el glob iba escrito a mano y solo cubría `arch/`: los de `lib/` y `scripts/` no
+los corría nadie.
 
 Las tres son estáticas: **ninguna necesita Postgres**. No corras `docker compose`, `pnpm setup:db`,
 migraciones ni seeds para abrir un PR — el entorno de Railway construye su propia imagen y su

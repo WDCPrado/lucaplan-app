@@ -37,3 +37,16 @@
 - [x] 5.1 `pnpm lint && pnpm typecheck && node --test "arch/**/*.test.ts"` en verde.
 - [x] 5.2 Reescribir `scripts/seed-pr-feature.ts` para que el mes anterior cierre por sobre su
       presupuesto por un monto fijo, y el mes actual muestre el descuento en el plan.
+
+## 6. Correcciones de revisión
+
+- [x] 6.1 `.catch(() => 0)` en la lectura de la deuda (`app/dashboard/page.tsx`): un dato cosmético
+      de un modal no puede tener poder de veto sobre el dashboard entero.
+- [x] 6.2 Con el total en 0 no se ofrece el botón: dejar el presupuesto del mes en cero de un clic
+      es decisión del usuario, no una sugerencia. Queda solo la explicación.
+- [x] 6.3 Extraer el trío (total, condición de la sugerencia, número que se POSTea) a
+      `lib/plan-total.ts`, con tests en `node --test` y verificados por mutación. Mismo patrón que
+      `lib/income-schedule.ts`, sin dependencias nuevas.
+- [x] 6.4 Sacar la explicación del descuento fuera del gate de la sugerencia: aplicar el ajuste
+      apagaba `suggest` y borraba el porqué justo cuando el presupuesto queda más chico.
+- [x] 6.5 Nombrar el año cuando el mes anterior cae en otro ("diciembre de 2025", no "diciembre").

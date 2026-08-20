@@ -51,9 +51,11 @@ Ninguna.
 
 - **Application**: una lectura más en `finance-read.ts` (`getPreviousMonthDebt`) que reusa
   `getBudgetView` del mes anterior. Sin fórmula nueva: `computeMonthOverspend` ya existe.
-- **UI**: `app/dashboard/page.tsx` pide la deuda junto al resto de la vista;
-  `components/finance/dashboard.tsx` la pasa a `components/finance/plan-sheet.tsx`, que es donde
-  cambian el número sugerido, el texto y la etiqueta del botón.
+- **UI**: `app/dashboard/page.tsx` pide la deuda junto al resto de la vista, degradando a 0 si esa
+  lectura falla; `components/finance/dashboard.tsx` la pasa a `components/finance/plan-sheet.tsx`,
+  que es donde cambian el número sugerido, el texto y la etiqueta del botón. El total, la condición
+  de la sugerencia y la etiqueta del mes anterior viven en `lib/plan-total.ts`, módulo puro con sus
+  tests en `node --test`.
 - **API**: sin cambios. `GET /api/budgets` no gana campos; la deuda se resuelve en el server
   component, que es el único que la necesita.
 - **Sin migración ni cambios de schema**: la deuda es derivada, como el uso y el comprometido.

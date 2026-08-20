@@ -17,6 +17,7 @@ import {
   formatMoney,
   monthName,
 } from "@/lib/finance-format"
+import { planTotal, previousMonthLabel, shouldSuggest } from "@/lib/plan-total"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
   CategoryDTO,
@@ -65,19 +66,16 @@ export function PlanSheet({
 }) {
   const router = useRouter()
   const [applying, setApplying] = useState(false)
-  // Lo que el mes anterior gastó de más ya salió del colchón o de la tarjeta: ofrecer repartirlo
-  // otra vez sería repartir plata que no está. Piso en 0 — un presupuesto negativo no existe, y el
-  // endpoint exige un entero ≥ 0.
+  // El total a repartir y la decisión de ofrecerlo viven en `lib/plan-total.ts`: son el mismo
+  // número visto tres veces (lo que se muestra, lo que habilita el botón y lo que se POSTea), y
+  // acá dentro no habría cómo fijarlos con tests.
   // (Con `globalLimit === null` la deuda es 0 por construcción: el límite global hereda por
-  // carry-forward, así que un mes sin límite implica que tampoco lo hubo antes. Sin rama propia.)
-  const toAllocate = Math.max(0, activeIncomeTotal - previousMonthDebt)
+  // carry-forward, así que un mes sin límite implica que tampoco lo hubo antes.)
+  const toAllocate = planTotal(activeIncomeTotal, previousMonthDebt)
   // Los ingresos cambiaron y ya no calzan con el presupuesto: se ofrece igualarlos, nunca se
   // hace solo (el presupuesto es una decisión, no un cálculo).
-  const suggest =
-    globalLimit !== null && activeIncomeTotal > 0 && toAllocate !== globalLimit
-  const previousMonthName = monthName(
-    period.month === 1 ? 12 : period.month - 1
-  ).toLowerCase()
+  const suggest = shouldSuggest(toAllocate, globalLimit)
+  const previousMonth = previousMonthLabel(period.year, period.month)
 
   async function applySuggested() {
     setApplying(true)
@@ -143,6 +141,34 @@ export function PlanSheet({
             </button>
           )}
 
+          {/* De dónde sale el descuento. Va FUERA de la sugerencia a propósito: aplicarla apaga
+              `suggest`, y si el porqué viviera ahí adentro desaparecería justo en el momento en
+              que el presupuesto queda más chico —sin ningún rastro de por qué—. También es lo
+              único que queda cuando la deuda se comió el ingreso y no hay botón que ofrecer. */}
+          {previousMonthDebt > 0 && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              En {previousMonth} se gastó{" "}
+              <span className="tabular font-semibold text-foreground">
+                {formatMoney(previousMonthDebt, "CLP")}
+              </span>{" "}
+              por sobre el presupuesto.{" "}
+              {toAllocate > 0 ? (
+                <>
+                  Esa plata ya salió, así que quedan{" "}
+                  <span className="tabular font-semibold text-foreground">
+                    {formatMoney(toAllocate, "CLP")}
+                  </span>{" "}
+                  para repartir este mes.
+                </>
+              ) : (
+                <>
+                  Esa plata ya salió y se lleva todo el ingreso de este mes, así
+                  que no queda nada por repartir.
+                </>
+              )}
+            </p>
+          )}
+
           {suggest && (
             <div className="mt-3 flex flex-col gap-2 rounded-xl bg-secondary/50 p-3">
               <p className="text-sm">
@@ -152,19 +178,6 @@ export function PlanSheet({
                 </span>{" "}
                 · presupuesto en {formatMoney(globalLimit ?? 0, "CLP")}
               </p>
-              {previousMonthDebt > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  En {previousMonthName} se gastó{" "}
-                  <span className="tabular font-semibold text-foreground">
-                    {formatMoney(previousMonthDebt, "CLP")}
-                  </span>{" "}
-                  por sobre el presupuesto. Esa plata ya salió, así que quedan{" "}
-                  <span className="tabular font-semibold text-foreground">
-                    {formatMoney(toAllocate, "CLP")}
-                  </span>{" "}
-                  para repartir.
-                </p>
-              )}
               <Button
                 onClick={applySuggested}
                 disabled={applying}

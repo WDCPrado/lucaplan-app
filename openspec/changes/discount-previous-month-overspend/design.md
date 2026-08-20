@@ -77,12 +77,45 @@ propio ni heredado), es porque no existe ningún registro anterior — luego el 
 lo tenía y la deuda es 0 por definición. No hace falta una rama de UI para ese estado: sería código
 inalcanzable.
 
-### 5. El texto cambia solo cuando hay deuda
+### 5. La lectura del mes anterior degrada a 0, no tumba la página
+
+`getPreviousMonthDebt(...).catch(() => 0)`. Antes de este cambio el dashboard nunca leía el mes
+anterior; sin el `catch`, cualquier fallo en esa lectura convertiría una pista dentro de un modal
+en un 500 de la pantalla principal. El costo/beneficio no cuadra: degradando a 0, el plan se
+comporta exactamente como antes de que existiera el descuento, que es el modo de fallo correcto.
+
+### 6. Con el total en 0 no se ofrece botón
+
+Cuando la deuda se lleva el ingreso entero, `planTotal` da 0 y la sugerencia **no se muestra**: un
+botón que deja el presupuesto del mes en cero de un clic no es una sugerencia, es una decisión del
+usuario. Queda solo la explicación de lo que pasó. Es lo coherente con "avisa, no bloquea": la app
+nombra el problema y no decide por él.
+
+### 7. El trío del plan vive en `lib/plan-total.ts`
+
+`planTotal()`, `shouldSuggest()` y `previousMonthLabel()` son un módulo puro con sus tests en
+`node --test`. `Math.max(0, a − b)` por sí solo no ameritaría un archivo; lo que lo amerita es que
+son **tres decisiones que se mueven juntas** —el total que se muestra, la condición que habilita el
+botón y el número que se manda a `POST /api/budgets`— y dentro de un `.tsx` ninguna queda cubierta:
+el repo corre `node --test` y no tiene infraestructura de tests de componentes. Mismo patrón que
+`lib/income-schedule.ts` y `lib/bank-cards.ts`, sin dependencias nuevas.
+
+`shouldSuggest` no necesita preguntar por los ingresos: sin ingresos el total es 0, y `total > 0`
+ya lo descarta.
+
+### 8. La explicación del descuento no depende de la sugerencia
+
+Vive fuera del gate de `suggest`, condicionada solo a que haya deuda. Anidada adentro desaparecía
+al aplicar el ajuste —justo cuando el presupuesto queda más chico y el usuario más necesita saber
+por qué— y tampoco se veía en el caso sin botón.
+
+### 9. El texto cambia solo cuando hay deuda
 
 Sin deuda, la sugerencia queda literalmente como hoy (mismo texto, misma etiqueta de botón), para
-que el caso normal no se vuelva más ruidoso. Con deuda se agrega una línea que nombra el mes
+que el caso normal no se vuelva más ruidoso. Con deuda se agrega la línea que nombra el mes
 anterior y el monto, y la etiqueta del botón deja de decir "al ingreso" — el número ya no es el
-ingreso, y un botón que promete otra cosa que la que hace se lee como un bug.
+ingreso, y un botón que promete otra cosa que la que hace se lee como un bug. En enero la línea
+nombra el año: "diciembre" a secas no dice si es el que pasó o el que viene.
 
 ## Risks / Trade-offs
 

@@ -60,6 +60,9 @@ type Props = {
   uncategorized: UncategorizedDTO
   incomes: IncomeDTO[]
   amountBounds: AmountBoundsDTO
+  // Excedente del mes ANTERIOR: plata ya gastada que el plan descuenta del total a repartir.
+  // Llega resuelta del servidor; el front no la recalcula. 0 = el mes pasado cerró en regla.
+  previousMonthDebt: number
   user: { name: string; initial: string; email: string }
   outlookResult: string | null
   outlookReason: string | null
@@ -78,6 +81,7 @@ export function Dashboard({
   uncategorized,
   incomes,
   amountBounds,
+  previousMonthDebt,
   user,
   outlookResult,
   outlookReason,
@@ -587,6 +591,7 @@ export function Dashboard({
         incomes={incomes}
         incomeCategories={incomeCategories}
         activeIncomeTotal={activeIncomeTotal}
+        previousMonthDebt={previousMonthDebt}
         onEditBudget={() => {
           setPlanOpen(false)
           setBudgetLimitOpen(true)

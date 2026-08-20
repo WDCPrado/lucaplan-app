@@ -15,26 +15,21 @@
 
 import type { FeatureSeedContext } from "./seed-pr.ts" // solo el tipo: no ejecuta el seed base
 
-// WDC-73 — la banda de excedente necesita un mes con VARIAS categorías por sobre su tope y el
-// presupuesto global todavía sin agotar: ese es el caso que hoy no se puede leer en el dashboard
-// (te pasaste $68.120 de los topes, pero no debes $68.120). El seed base deja como mucho una
-// categoría rozando el tope, y cuál depende del día en que corra.
+// WDC-74 — el plan del mes descuenta lo que el mes ANTERIOR gastó por sobre su presupuesto. El
+// seed base deja ese mes muy por debajo del suyo (límite $950.000 contra ~$265.000 gastados), así
+// que sin esto la deuda es 0 y la feature no se ve por ninguna parte.
 //
-// Los TOPES no se tocan: quedan los que siembra `seed-pr.ts`. Lo que se fija es el EXCESO, por
-// diferencia: se lee lo que la categoría lleva gastado y se carga un movimiento que la deja
-// exactamente en `tope + exceso`. Así los montos de la banda son los mismos corra el seed el día 1
-// o el 28 —que es lo que permite escribir el guion de prueba— sin duplicar acá los topes del seed
-// base, que se leen de la propia base.
-//
-// "Compras" entra a la lista aunque no haga falta para el caso: el seed base la deja sobre su tope
-// o no según el día, y como quinta culpable con exceso fijo deja de ensuciar la suma.
-const EXCESOS: [categoria: string, exceso: number, glosa: string][] = [
-  ["Compras", 35000, "Pago:paris parque arauco"],
-  ["Supermercado", 12480, "Pago:tottus la reina"],
-  ["Cuentas", 8900, "Pago:gastos comunes edificio"],
-  ["Suscripciones", 6500, "NETFLIX.COM"],
-  ["Salud", 5240, "Pago:clinica alemana consulta"],
-]
+// Se fija la DEUDA, no el gasto: se lee lo que el mes anterior lleva gastado con el mismo criterio
+// del presupuesto (Σ usado de las categorías de GASTO —confirmado, no interno, en CLP—) y se carga
+// un movimiento por la diferencia que falta para dejarlo exactamente en `límite global + DEUDA`.
+// Así el monto es el mismo corra el seed el día que corra, que es lo que permite escribirlo en el
+// guion de prueba. El límite se lee de la base en vez de duplicar acá el del seed base.
+const DEUDA = 150000
+
+// Un cargo grande y creíble explica solo por qué el mes se pasó; "Compras" es la categoría que le
+// corresponde y ya viene del seed base.
+const CATEGORIA = "Compras"
+const GLOSA = "Pago:falabella refrigerador y lavadora"
 
 export default async function seedFeature({
   prisma,
@@ -42,54 +37,74 @@ export default async function seedFeature({
   checkingId,
   categoryId,
 }: FeatureSeedContext) {
+  // Mes anterior en UTC, igual que el resto de la app (las fechas de movimiento son días civiles).
   const now = new Date()
-  const year = now.getUTCFullYear()
-  const month = now.getUTCMonth() + 1
-  // Mes en UTC, igual que el resto de la app (las fechas de movimiento son días civiles).
+  const prev = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+  const year = prev.getUTCFullYear()
+  const month = prev.getUTCMonth() + 1
   const desde = new Date(Date.UTC(year, month - 1, 1))
   const hasta = new Date(Date.UTC(year, month, 1))
 
-  for (const [nombre, exceso, glosa] of EXCESOS) {
-    const catId = categoryId.get(nombre)
-    if (!catId) continue
-    const cap = await prisma.categoryLimit.findUnique({
-      where: { categoryId_year_month: { categoryId: catId, year, month } },
-    })
-    if (!cap) continue // sin tope no hay de qué pasarse: esa categoría no participa
-    const tope = Number(cap.limitAmount)
-    // Mismo criterio que el uso por categoría del presupuesto: gasto confirmado, no interno.
-    const { _sum } = await prisma.transaction.aggregate({
-      _sum: { amount: true },
-      where: {
-        userId,
-        categoryId: catId,
-        direction: "debit",
-        status: "confirmed",
-        isInternal: false,
-        currency: "CLP",
-        transactionDate: { gte: desde, lt: hasta },
-      },
-    })
-    const falta = tope + exceso - Number(_sum.amount ?? 0)
-    if (falta <= 0) continue // ya venía más pasada que el exceso buscado: no se toca
-    await prisma.transaction.create({
-      data: {
-        userId,
-        accountId: checkingId,
-        categoryId: catId,
-        transactionDate: desde,
-        description: glosa,
-        amount: falta,
-        currency: "CLP",
-        direction: "debit",
-        reviewed: true,
-      },
-    })
+  const presupuesto = await prisma.monthlyBudget.findUnique({
+    where: { userId_year_month: { userId, year, month } },
+  })
+  // Sin límite global no hay de qué pasarse: la deuda sería 0 y el movimiento no probaría nada.
+  if (!presupuesto) {
+    console.log(
+      `[seed:pr] WDC-74: el mes ${month}/${year} no tiene presupuesto — sin límite no hay deuda que mostrar.`
+    )
+    return
+  }
+  const limite = Number(presupuesto.globalLimit)
+
+  const catId = categoryId.get(CATEGORIA)
+  if (!catId) {
+    console.log(`[seed:pr] WDC-74: no existe la categoría "${CATEGORIA}".`)
+    return
   }
 
-  const total = EXCESOS.reduce((s, [, exceso]) => s + exceso, 0)
+  // Gasto del mes con el mismo criterio que el presupuesto: débitos confirmados, no internos, en
+  // CLP y de categorías de GASTO (un ingreso o un movimiento sin categoría no gastan).
+  const gasto = await prisma.category.findMany({
+    where: { userId, type: "expense" },
+    select: { id: true },
+  })
+  const { _sum } = await prisma.transaction.aggregate({
+    _sum: { amount: true },
+    where: {
+      userId,
+      categoryId: { in: gasto.map((c) => c.id) },
+      direction: "debit",
+      status: "confirmed",
+      isInternal: false,
+      currency: "CLP",
+      transactionDate: { gte: desde, lt: hasta },
+    },
+  })
+  const falta = limite + DEUDA - Number(_sum.amount ?? 0)
+  if (falta <= 0) {
+    console.log(
+      `[seed:pr] WDC-74: el mes ${month}/${year} ya venía más pasado que $${DEUDA} — no se toca.`
+    )
+    return
+  }
+
+  await prisma.transaction.create({
+    data: {
+      userId,
+      accountId: checkingId,
+      categoryId: catId,
+      transactionDate: new Date(Date.UTC(year, month - 1, 15)),
+      description: GLOSA,
+      amount: falta,
+      currency: "CLP",
+      direction: "debit",
+      reviewed: true,
+    },
+  })
+
   console.log(
-    `[seed:pr] WDC-73: ${EXCESOS.length} categorías sobre su tope (excedente de topes $${total}), ` +
-      `con el presupuesto global del mes todavía sin agotar (usuario ${userId}).`
+    `[seed:pr] WDC-74: ${month}/${year} cerró $${DEUDA} sobre su presupuesto de $${limite} ` +
+      `(cargo de $${falta} en "${CATEGORIA}"). El plan del mes actual debe ofrecer ese descuento (usuario ${userId}).`
   )
 }

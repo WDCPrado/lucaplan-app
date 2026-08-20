@@ -17,6 +17,7 @@ import {
   formatMoney,
   monthName,
 } from "@/lib/finance-format"
+import { planTotal, previousMonthLabel, shouldSuggest } from "@/lib/plan-total"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
   CategoryDTO,
@@ -39,6 +40,7 @@ export function PlanSheet({
   incomes,
   incomeCategories,
   activeIncomeTotal,
+  previousMonthDebt,
   onEditBudget,
   onAddIncome,
   onEditIncome,
@@ -54,6 +56,8 @@ export function PlanSheet({
   incomes: IncomeDTO[]
   incomeCategories: CategoryDTO[]
   activeIncomeTotal: number
+  // Lo que el mes anterior gastó por sobre su presupuesto global. Ya resuelto en el servidor.
+  previousMonthDebt: number
   onEditBudget: () => void
   onAddIncome: () => void
   onEditIncome: (income: IncomeDTO) => void
@@ -62,14 +66,18 @@ export function PlanSheet({
 }) {
   const router = useRouter()
   const [applying, setApplying] = useState(false)
+  // El total a repartir y la decisión de ofrecerlo viven en `lib/plan-total.ts`: son el mismo
+  // número visto tres veces (lo que se muestra, lo que habilita el botón y lo que se POSTea), y
+  // acá dentro no habría cómo fijarlos con tests.
+  // (Con `globalLimit === null` la deuda es 0 por construcción: el límite global hereda por
+  // carry-forward, así que un mes sin límite implica que tampoco lo hubo antes.)
+  const toAllocate = planTotal(activeIncomeTotal, previousMonthDebt)
   // Los ingresos cambiaron y ya no calzan con el presupuesto: se ofrece igualarlos, nunca se
   // hace solo (el presupuesto es una decisión, no un cálculo).
-  const suggest =
-    globalLimit !== null &&
-    activeIncomeTotal > 0 &&
-    activeIncomeTotal !== globalLimit
+  const suggest = shouldSuggest(toAllocate, globalLimit)
+  const previousMonth = previousMonthLabel(period.year, period.month)
 
-  async function applyIncomeTotal() {
+  async function applySuggested() {
     setApplying(true)
     const res = await fetch("/api/budgets", {
       method: "POST",
@@ -77,7 +85,7 @@ export function PlanSheet({
       body: JSON.stringify({
         year: period.year,
         month: period.month,
-        globalLimit: activeIncomeTotal,
+        globalLimit: toAllocate,
       }),
     })
     setApplying(false)
@@ -133,6 +141,34 @@ export function PlanSheet({
             </button>
           )}
 
+          {/* De dónde sale el descuento. Va FUERA de la sugerencia a propósito: aplicarla apaga
+              `suggest`, y si el porqué viviera ahí adentro desaparecería justo en el momento en
+              que el presupuesto queda más chico —sin ningún rastro de por qué—. También es lo
+              único que queda cuando la deuda se comió el ingreso y no hay botón que ofrecer. */}
+          {previousMonthDebt > 0 && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              En {previousMonth} se gastó{" "}
+              <span className="tabular font-semibold text-foreground">
+                {formatMoney(previousMonthDebt, "CLP")}
+              </span>{" "}
+              por sobre el presupuesto.{" "}
+              {toAllocate > 0 ? (
+                <>
+                  Esa plata ya salió, así que quedan{" "}
+                  <span className="tabular font-semibold text-foreground">
+                    {formatMoney(toAllocate, "CLP")}
+                  </span>{" "}
+                  para repartir este mes.
+                </>
+              ) : (
+                <>
+                  Esa plata ya salió y se lleva todo el ingreso de este mes, así
+                  que no queda nada por repartir.
+                </>
+              )}
+            </p>
+          )}
+
           {suggest && (
             <div className="mt-3 flex flex-col gap-2 rounded-xl bg-secondary/50 p-3">
               <p className="text-sm">
@@ -143,11 +179,15 @@ export function PlanSheet({
                 · presupuesto en {formatMoney(globalLimit ?? 0, "CLP")}
               </p>
               <Button
-                onClick={applyIncomeTotal}
+                onClick={applySuggested}
                 disabled={applying}
                 className="h-10 self-start rounded-full"
               >
-                {applying ? "Actualizando…" : "Igualar al ingreso"}
+                {applying
+                  ? "Actualizando…"
+                  : previousMonthDebt > 0
+                    ? `Ajustar a ${formatMoney(toAllocate, "CLP")}`
+                    : "Igualar al ingreso"}
               </Button>
             </div>
           )}

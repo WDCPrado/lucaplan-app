@@ -16,6 +16,7 @@ import type {
 } from "../../domain/finance/finance.domain.ts"
 import {
   getBudgetView,
+  getPreviousMonthDebt,
   listUncategorized,
   searchTransactions,
 } from "./finance-read.ts"
@@ -372,4 +373,145 @@ test("getBudgetView: sin categorías pasadas de tope ambos excedentes quedan en 
   const view = await getBudgetView(deps, "u1", 2026, 8)
   assert.equal(view.capsOverspend, 0)
   assert.equal(view.monthOverspend, 0)
+})
+
+// --- getPreviousMonthDebt: la deuda que un mes hereda del anterior ---
+// La fórmula (`computeMonthOverspend`) ya se prueba en finance.test.ts, y el excedente del mes con
+// su cableado en los tests de arriba. Lo que se fija acá es que la deuda salga del mes ANTERIOR y
+// no del que está en pantalla, que enero mire a diciembre del año pasado, y que siga siendo el
+// excedente del MES —gasto contra presupuesto global— sin que los ingresos participen.
+
+const DEBT_CATS: Category[] = [
+  cat("c-super", "expense", "Supermercado"),
+  cat("c-sueldo", "income", "Sueldo"),
+]
+
+// Julio 2026 gastó 1.100.000 y recibió 1.350.000 de sueldo; agosto 2026 lleva 100.000.
+const DEBT_TXS: Record<string, Transaction[]> = {
+  "2026-7": [
+    budgetTx({
+      id: "d1",
+      categoryId: "c-super",
+      amount: Money.of(1100000, "CLP"),
+      date: new Date(Date.UTC(2026, 6, 12)),
+    }),
+    budgetTx({
+      id: "d2",
+      categoryId: "c-sueldo",
+      amount: Money.of(1350000, "CLP"),
+      direction: "credit",
+      date: new Date(Date.UTC(2026, 6, 5)),
+    }),
+  ],
+  "2026-8": [
+    budgetTx({
+      id: "d3",
+      categoryId: "c-super",
+      amount: Money.of(100000, "CLP"),
+      date: new Date(Date.UTC(2026, 7, 3)),
+    }),
+  ],
+  "2025-12": [
+    budgetTx({
+      id: "d4",
+      categoryId: "c-super",
+      amount: Money.of(800000, "CLP"),
+      date: new Date(Date.UTC(2025, 11, 20)),
+    }),
+  ],
+}
+
+// `listByUserPeriod` respeta (year, month) a propósito: si el cableado pidiera el mes equivocado,
+// unos deps que devuelven siempre lo mismo lo taparían.
+function debtDeps(budgets: MonthlyBudget[]) {
+  return {
+    categories: {
+      async listByUser() {
+        return DEBT_CATS
+      },
+      async listLimitsByUser() {
+        return [] // sin topes por categoría: acá solo se mide contra el presupuesto global
+      },
+    },
+    transactions: {
+      async listByUserPeriod(_userId: string, year: number, month: number) {
+        return DEBT_TXS[`${year}-${month}`] ?? []
+      },
+    },
+    monthlyBudgets: {
+      async listByUser() {
+        return budgets
+      },
+    },
+    exchangeRates: {
+      async clpPerUsdAt(): Promise<never> {
+        throw new Error("no usado: todo el fixture es CLP")
+      },
+    },
+  } as unknown as Parameters<typeof getPreviousMonthDebt>[0]
+}
+
+const monthBudget = (
+  year: number,
+  month: number,
+  amount: number
+): MonthlyBudget => ({
+  id: `mb-${year}-${month}`,
+  userId: "u1",
+  year,
+  month,
+  globalLimit: Money.of(amount, "CLP"),
+})
+
+test("getPreviousMonthDebt: el mes anterior excedido deja su exceso como deuda", async () => {
+  const debt = await getPreviousMonthDebt(
+    debtDeps([monthBudget(2026, 7, 950000), monthBudget(2026, 8, 1000000)]),
+    "u1",
+    2026,
+    8
+  )
+  // Julio gastó 1.100.000 de 950.000. El sueldo de 1.350.000 no entra: si se sumara al gasto la
+  // deuda sería 1.500.000, y si se restara del gasto sería 0.
+  assert.equal(debt, 150000)
+})
+
+test("getPreviousMonthDebt: el mes anterior dentro de su presupuesto no debe nada", async () => {
+  const debt = await getPreviousMonthDebt(
+    debtDeps([monthBudget(2026, 7, 1500000), monthBudget(2026, 8, 1000000)]),
+    "u1",
+    2026,
+    8
+  )
+  assert.equal(debt, 0)
+})
+
+test("getPreviousMonthDebt: sin presupuesto en el mes anterior no hay de qué pasarse", async () => {
+  // Solo agosto tiene presupuesto: julio no lo hereda (el carry-forward mira hacia atrás, no hacia
+  // adelante), así que sus 1.100.000 de gasto no generan deuda.
+  const debt = await getPreviousMonthDebt(
+    debtDeps([monthBudget(2026, 8, 1000000)]),
+    "u1",
+    2026,
+    8
+  )
+  assert.equal(debt, 0)
+})
+
+test("getPreviousMonthDebt: la deuda es del mes anterior, no del que se está mirando", async () => {
+  const budgets = [monthBudget(2026, 7, 1500000), monthBudget(2026, 8, 50000)]
+  // Agosto sí está excedido (100.000 de 50.000)…
+  const agosto = await getBudgetView(debtDeps(budgets), "u1", 2026, 8)
+  assert.equal(agosto.monthOverspend, 50000)
+  // …pero la deuda que hereda mira a julio, que cerró holgado.
+  assert.equal(await getPreviousMonthDebt(debtDeps(budgets), "u1", 2026, 8), 0)
+})
+
+test("getPreviousMonthDebt: en enero el mes anterior es diciembre del año pasado", async () => {
+  const debt = await getPreviousMonthDebt(
+    debtDeps([monthBudget(2025, 12, 600000)]),
+    "u1",
+    2026,
+    1
+  )
+  assert.equal(debt, 200000) // 800.000 − 600.000 de diciembre 2025
 })

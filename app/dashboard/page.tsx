@@ -8,6 +8,7 @@ import {
   getMonthlySummary,
   listAccounts,
   getBudgetView,
+  getPreviousMonthDebt,
   listTransactions,
   listUncategorized,
   listIncomesView,
@@ -55,6 +56,7 @@ export default async function DashboardPage({
     uncategorized,
     incomes,
     amountBounds,
+    previousMonthDebt,
   ] = await Promise.all([
     getMonthlySummary(financeDeps, userId, year, month),
     listAccounts(financeDeps, userId),
@@ -66,6 +68,14 @@ export default async function DashboardPage({
     listUncategorized(financeDeps, userId, year, month),
     listIncomesView(financeDeps, userId, year, month),
     getAmountBounds(financeDeps, userId),
+    // Lo que el mes anterior gastó por sobre su presupuesto: el plan del mes lo descuenta del
+    // total que ofrece repartir. Va acá y no en `getBudgetView` porque el único que la necesita es
+    // el plan; meterla al DTO se la cobraría a todos los consumidores de la vista.
+    // El `.catch` no es decorativo: esto es una pista dentro de un modal, y sin él un fallo
+    // leyendo el mes anterior convertiría un dato cosmético en un 500 de la pantalla principal.
+    // Degradando a 0 el plan se comporta como antes de existir el descuento, que es el modo de
+    // fallo correcto.
+    getPreviousMonthDebt(financeDeps, userId, year, month).catch(() => 0),
   ])
 
   const user = {
@@ -90,6 +100,7 @@ export default async function DashboardPage({
         uncategorized={uncategorized}
         incomes={incomes}
         amountBounds={amountBounds}
+        previousMonthDebt={previousMonthDebt}
         user={user}
         outlookResult={sp.outlook ?? null}
         outlookReason={sp.reason ?? null}

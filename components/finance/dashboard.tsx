@@ -303,6 +303,7 @@ export function Dashboard({
             los topes por categoría, que no son la misma cifra. Con ambos en $0 no se renderiza. */}
         <OverspendBanner
           period={period}
+          globalLimit={budget.globalLimit}
           capsOverspend={budget.capsOverspend}
           monthOverspend={budget.monthOverspend}
           categories={budget.categories}

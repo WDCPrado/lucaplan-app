@@ -72,11 +72,33 @@ caso en el que igual no se muestra.
 Alternativa descartada: **mostrar siempre las dos cifras con el mismo peso**. Dos montos grandes
 lado a lado se leen como sumables, que es justo el error que la banda viene a evitar.
 
+Sin límite global definido, `monthOverspend` vale 0 y la banda entra por la rama de topes — pero
+ahí la frase de tranquilidad sería falsa: no hay presupuesto contra el cual medir, y el card de
+arriba está justo pidiendo definirlo. Por eso la banda recibe `globalLimit` y en ese estado dice
+solo qué mide la cifra. Es la contradicción más cara de la banda, porque la tranquilidad mal dada
+es precisamente lo que esta feature vino a arreglar.
+
 Alternativa descartada: **poner la cifra dentro de `MonthStatus`**. Ese card responde "¿cuánto
 puedo gastar?" con el presupuesto como titular; meterle un segundo titular en rojo competía con el
 suyo. La banda va fuera, pegada abajo.
 
-### 6. Las categorías culpables se derivan en el front
+### 6. Un solo lugar dice "te pasaste"
+
+`MonthStatus` ya imprimía `Te pasaste por $X` con esa misma cifra. Dejarlo puesto significaba el
+mismo aviso dos veces, uno encima del otro, con texto casi idéntico. Se saca de `MonthStatus`, que
+vuelve a ser cuánto es el mes y cuánto llevas gastado; su "Libre" en negativo sigue avisando por su
+cuenta cuando la cuenta no da. El aviso de excedente queda entero en la banda.
+
+### 7. El color del estado no va en la cifra
+
+`text-warning` sobre `bg-warning/10` da **1.95:1** en tema claro: bajo el mínimo de 3:1 para texto
+grande, y es el contenido principal de la banda en su estado más frecuente. La cifra va en
+`foreground` (**15.81:1** claro / **14.27:1** oscuro) y el ámbar o el rojo se quedan en el ícono y
+el borde, que es donde el color trabaja sin cargar la legibilidad. El ícono va `aria-hidden`: el
+texto ya dice todo lo que el color insinúa, así que no es un componente cuyo significado dependa
+del color.
+
+### 8. Las categorías culpables se derivan en el front
 
 El DTO expone solo los dos totales. El front ya recibe `budget.categories` con `used` y `limit` por
 categoría, así que la lista de culpables sale de ahí con un filtro. Un segundo campo con el

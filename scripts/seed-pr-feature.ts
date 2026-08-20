@@ -17,28 +17,23 @@ import type { FeatureSeedContext } from "./seed-pr.ts" // solo el tipo: no ejecu
 
 // WDC-73 — la banda de excedente necesita un mes con VARIAS categorías por sobre su tope y el
 // presupuesto global todavía sin agotar: ese es el caso que hoy no se puede leer en el dashboard
-// (te pasaste $31.259 de los topes, pero no debes $31.259). El seed base deja como mucho una
+// (te pasaste $68.120 de los topes, pero no debes $68.120). El seed base deja como mucho una
 // categoría rozando el tope, y cuál depende del día en que corra.
 //
-// El excedente se fija por diferencia, no por monto: se lee lo que la categoría lleva gastado y se
-// carga un movimiento que la deja EXACTAMENTE en `tope + exceso`. Así los montos de la banda son
-// los mismos corra el seed el día 1 o el 28, que es lo que permite escribir el guion de prueba.
-const EXCESOS: [
-  categoria: string,
-  tope: number,
-  exceso: number,
-  glosa: string,
-][] = [
-  ["Supermercado", 250000, 12480, "Pago:tottus la reina"],
-  ["Cuentas", 180000, 8900, "Pago:gastos comunes edificio"],
-  ["Suscripciones", 45000, 6500, "NETFLIX.COM"],
-  ["Salud", 70000, 3379, "Pago:clinica alemana consulta"],
-]
-
-// Categorías que el seed base puede dejar pasadas de tope según el día, y que ensuciarían la suma:
-// se les sube el tope por encima de su gasto máximo posible para que no participen.
-const TOPES_HOLGADOS: [categoria: string, tope: number][] = [
-  ["Compras", 150000],
+// Los TOPES no se tocan: quedan los que siembra `seed-pr.ts`. Lo que se fija es el EXCESO, por
+// diferencia: se lee lo que la categoría lleva gastado y se carga un movimiento que la deja
+// exactamente en `tope + exceso`. Así los montos de la banda son los mismos corra el seed el día 1
+// o el 28 —que es lo que permite escribir el guion de prueba— sin duplicar acá los topes del seed
+// base, que se leen de la propia base.
+//
+// "Compras" entra a la lista aunque no haga falta para el caso: el seed base la deja sobre su tope
+// o no según el día, y como quinta culpable con exceso fijo deja de ensuciar la suma.
+const EXCESOS: [categoria: string, exceso: number, glosa: string][] = [
+  ["Compras", 35000, "Pago:paris parque arauco"],
+  ["Supermercado", 12480, "Pago:tottus la reina"],
+  ["Cuentas", 8900, "Pago:gastos comunes edificio"],
+  ["Suscripciones", 6500, "NETFLIX.COM"],
+  ["Salud", 5240, "Pago:clinica alemana consulta"],
 ]
 
 export default async function seedFeature({
@@ -54,22 +49,14 @@ export default async function seedFeature({
   const desde = new Date(Date.UTC(year, month - 1, 1))
   const hasta = new Date(Date.UTC(year, month, 1))
 
-  const setTope = (catId: string, limitAmount: number) =>
-    prisma.categoryLimit.upsert({
-      where: { categoryId_year_month: { categoryId: catId, year, month } },
-      create: { categoryId: catId, year, month, limitAmount },
-      update: { limitAmount },
-    })
-
-  for (const [nombre, tope] of TOPES_HOLGADOS) {
-    const catId = categoryId.get(nombre)
-    if (catId) await setTope(catId, tope)
-  }
-
-  for (const [nombre, tope, exceso, glosa] of EXCESOS) {
+  for (const [nombre, exceso, glosa] of EXCESOS) {
     const catId = categoryId.get(nombre)
     if (!catId) continue
-    await setTope(catId, tope)
+    const cap = await prisma.categoryLimit.findUnique({
+      where: { categoryId_year_month: { categoryId: catId, year, month } },
+    })
+    if (!cap) continue // sin tope no hay de qué pasarse: esa categoría no participa
+    const tope = Number(cap.limitAmount)
     // Mismo criterio que el uso por categoría del presupuesto: gasto confirmado, no interno.
     const { _sum } = await prisma.transaction.aggregate({
       _sum: { amount: true },
@@ -83,8 +70,7 @@ export default async function seedFeature({
         transactionDate: { gte: desde, lt: hasta },
       },
     })
-    const gastado = Number(_sum.amount ?? 0)
-    const falta = tope + exceso - gastado
+    const falta = tope + exceso - Number(_sum.amount ?? 0)
     if (falta <= 0) continue // ya venía más pasada que el exceso buscado: no se toca
     await prisma.transaction.create({
       data: {
@@ -101,7 +87,7 @@ export default async function seedFeature({
     })
   }
 
-  const total = EXCESOS.reduce((s, [, , exceso]) => s + exceso, 0)
+  const total = EXCESOS.reduce((s, [, exceso]) => s + exceso, 0)
   console.log(
     `[seed:pr] WDC-73: ${EXCESOS.length} categorías sobre su tope (excedente de topes $${total}), ` +
       `con el presupuesto global del mes todavía sin agotar (usuario ${userId}).`

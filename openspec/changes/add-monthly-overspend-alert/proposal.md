@@ -28,12 +28,14 @@ de presupuesto libre.
   panorama: la cifra grande es la que duele (el excedente del mes cuando existe, el de topes en
   caso contrario), y las categorías culpables van como detalle. Con ambos en $0 no se renderiza.
 - Cuando el excedente del mes es 0 pero el de topes no, la banda dice explícitamente que el
-  presupuesto del mes todavía alcanza — es el caso que más se malinterpreta.
+  presupuesto del mes todavía alcanza — es el caso que más se malinterpreta. Si el mes todavía no
+  tiene presupuesto definido, esa tranquilidad no se afirma: no hay contra qué medirla.
+- El bloque "Presupuesto de \<mes\>" **deja de imprimir su "Te pasaste por $X"** y se queda con el
+  avance de lo gastado. El aviso queda en un solo lugar: repetido dos veces, uno encima del otro,
+  no avisa el doble.
 
 Fuera de alcance:
 
-- `MonthStatus` **no cambia**: su "Te pasaste por $X" ya es el excedente del mes y no se duplica
-  ahí. La banda es la que junta las dos cifras.
 - No se arrastra el excedente al mes siguiente ni se reserva nada automáticamente: la banda
   informa, no mueve plata.
 - La banda no es accionable (no abre el plan ni el detalle de categoría). Es un titular, no un
@@ -53,7 +55,7 @@ Fuera de alcance:
   `BudgetViewDTO` (`getBudgetView`). El cálculo por categoría se reordena para conservar los montos
   en `Money` antes de bajarlos al DTO, en vez de reconstruirlos desde los números.
 - **UI**: componente nuevo `components/finance/overspend-banner.tsx`, montado en el dashboard entre
-  `MonthStatus` y "Cuentas".
+  `MonthStatus` y "Cuentas". `MonthStatus` pierde su línea de excedente.
 - **API**: `GET /api/budgets` devuelve dos campos más. Cambio aditivo: ningún consumidor existente
   se rompe.
 - **Sin migración ni cambios de schema**: los dos valores son derivados, como el uso y el

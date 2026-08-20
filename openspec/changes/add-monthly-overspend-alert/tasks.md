@@ -23,10 +23,23 @@
 - [x] 3.1 `components/finance/overspend-banner.tsx`: jerarquía por caso, colores del sistema
       (`destructive` / `warning`), categorías culpables ordenadas por exceso y scroll-x sin wrap.
 - [x] 3.2 Montarla en `components/finance/dashboard.tsx` entre `MonthStatus` y la sección
-      "Cuentas". `MonthStatus` no se toca.
+      "Cuentas".
 
-## 4. Verificación
+## 4. Correcciones de revisión
 
-- [x] 4.1 `pnpm lint && pnpm typecheck && node --test "arch/**/*.test.ts"`.
-- [x] 4.2 Reescribir `scripts/seed-pr-feature.ts` para que el entorno de PR muestre el caso: varias
+- [x] 4.1 La banda recibe `globalLimit`: sin presupuesto del mes no afirma que "todavía alcanza"
+      —no hay contra qué medir— y no contradice al card que está pidiendo definirlo.
+- [x] 4.2 Sacar `Te pasaste por $X` de `MonthStatus`: el aviso de excedente vive solo en la banda.
+- [x] 4.3 La cifra principal pasa a `foreground` (1.95:1 → 15.81:1 en claro); el color del estado
+      queda en ícono y borde, con el ícono `aria-hidden`.
+- [x] 4.4 Tests de `getBudgetView` en `finance-read.test.ts` que cubren el cableado: `used` y no
+      `committed`, categorías de ingreso fuera del gasto del mes, categorías sin tope dentro del
+      gasto pero fuera del excedente de topes, internos fuera de ambos, y el mes sin presupuesto.
+- [x] 4.5 Quitar `"use client"` de la banda (no tiene hooks ni handlers) y alinear los topes del
+      seed de PR con los que siembra `seed-pr.ts` (se leen de la base, no se hardcodean).
+
+## 5. Verificación
+
+- [x] 5.1 `pnpm lint && pnpm typecheck && node --test "arch/**/*.test.ts"`.
+- [x] 5.2 Reescribir `scripts/seed-pr-feature.ts` para que el entorno de PR muestre el caso: varias
       categorías por sobre su tope con presupuesto global todavía libre.

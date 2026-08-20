@@ -18,8 +18,8 @@ presupuesto global libre, y NO SHALL interpretarse como plata faltante.
 
 #### Scenario: Una categoría excedida aporta solo su exceso
 
-- **WHEN** Salud tiene tope 60.000 y usado 63.379, y el resto está bajo su tope
-- **THEN** el excedente de topes del mes es 3.379
+- **WHEN** Salud tiene tope 60.000 y usado 65.240, y el resto está bajo su tope
+- **THEN** el excedente de topes del mes es 5.240
 
 #### Scenario: El margen de una categoría no compensa el exceso de otra
 

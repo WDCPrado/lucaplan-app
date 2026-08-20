@@ -8,6 +8,8 @@ import {
   formatCompact,
   monthName,
   quartileVar,
+  usageBarPct,
+  usagePct,
 } from "@/lib/finance-format"
 
 /**
@@ -60,10 +62,14 @@ export function MonthStatus({
   }
 
   const free = globalLimit - spent - committed
-  const usedPct = (spent / globalLimit) * 100
-  const spentPct = Math.min(100, usedPct)
+  // Un presupuesto de $0 es válido, y ahí no hay porcentaje: gastar sobre un tope de cero es "te
+  // pasaste", no una proporción (mismo criterio que `categoryStatus` para los topes en 0). El
+  // texto y la leyenda omiten el % (`usedPct === null`); la barra igual necesita un número, y con
+  // límite 0 se llena si hay gasto y queda vacía si no.
+  const usedPct = usagePct(spent, globalLimit)
+  const spentPct = usageBarPct(spent, globalLimit)
   // El comprometido ocupa lo que queda de barra: si ya no cabe, el mes está excedido igual.
-  const commPct = Math.min(100 - spentPct, (committed / globalLimit) * 100)
+  const commPct = Math.min(100 - spentPct, usageBarPct(committed, globalLimit))
 
   return (
     <section className="glass relative rounded-2xl p-5 lg:p-6">
@@ -78,7 +84,9 @@ export function MonthStatus({
             {formatCLP(globalLimit)}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {`Llevas gastado ${formatCLP(spent)} · ${Math.round(usedPct)}%`}
+            {usedPct === null
+              ? `Llevas gastado ${formatCLP(spent)}`
+              : `Llevas gastado ${formatCLP(spent)} · ${Math.round(usedPct)}%`}
           </p>
         </div>
 
@@ -120,7 +128,7 @@ export function MonthStatus({
       <div className="mt-5 flex h-3 w-full overflow-hidden rounded-full bg-success/20">
         <div
           className="h-full transition-[width] duration-500 ease-out"
-          style={{ width: `${spentPct}%`, background: quartileVar(usedPct) }}
+          style={{ width: `${spentPct}%`, background: quartileVar(spentPct) }}
         />
         <div
           className="bg-committed h-full border-l border-background transition-[width] duration-500 ease-out"
@@ -131,9 +139,9 @@ export function MonthStatus({
         <li className="flex items-center gap-1.5">
           <span
             className="size-2.5 rounded-[3px]"
-            style={{ background: quartileVar(usedPct) }}
+            style={{ background: quartileVar(spentPct) }}
           />
-          Gastado {Math.round(usedPct)}%
+          {usedPct === null ? "Gastado" : `Gastado ${Math.round(usedPct)}%`}
         </li>
         <Legend className="bg-committed">
           Comprometido (recurrentes y cuotas por cobrar)

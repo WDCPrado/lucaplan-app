@@ -39,6 +39,7 @@ export function PlanSheet({
   incomes,
   incomeCategories,
   activeIncomeTotal,
+  previousMonthDebt,
   onEditBudget,
   onAddIncome,
   onEditIncome,
@@ -54,6 +55,8 @@ export function PlanSheet({
   incomes: IncomeDTO[]
   incomeCategories: CategoryDTO[]
   activeIncomeTotal: number
+  // Lo que el mes anterior gastó por sobre su presupuesto global. Ya resuelto en el servidor.
+  previousMonthDebt: number
   onEditBudget: () => void
   onAddIncome: () => void
   onEditIncome: (income: IncomeDTO) => void
@@ -62,14 +65,21 @@ export function PlanSheet({
 }) {
   const router = useRouter()
   const [applying, setApplying] = useState(false)
+  // Lo que el mes anterior gastó de más ya salió del colchón o de la tarjeta: ofrecer repartirlo
+  // otra vez sería repartir plata que no está. Piso en 0 — un presupuesto negativo no existe, y el
+  // endpoint exige un entero ≥ 0.
+  // (Con `globalLimit === null` la deuda es 0 por construcción: el límite global hereda por
+  // carry-forward, así que un mes sin límite implica que tampoco lo hubo antes. Sin rama propia.)
+  const toAllocate = Math.max(0, activeIncomeTotal - previousMonthDebt)
   // Los ingresos cambiaron y ya no calzan con el presupuesto: se ofrece igualarlos, nunca se
   // hace solo (el presupuesto es una decisión, no un cálculo).
   const suggest =
-    globalLimit !== null &&
-    activeIncomeTotal > 0 &&
-    activeIncomeTotal !== globalLimit
+    globalLimit !== null && activeIncomeTotal > 0 && toAllocate !== globalLimit
+  const previousMonthName = monthName(
+    period.month === 1 ? 12 : period.month - 1
+  ).toLowerCase()
 
-  async function applyIncomeTotal() {
+  async function applySuggested() {
     setApplying(true)
     const res = await fetch("/api/budgets", {
       method: "POST",
@@ -77,7 +87,7 @@ export function PlanSheet({
       body: JSON.stringify({
         year: period.year,
         month: period.month,
-        globalLimit: activeIncomeTotal,
+        globalLimit: toAllocate,
       }),
     })
     setApplying(false)
@@ -142,12 +152,29 @@ export function PlanSheet({
                 </span>{" "}
                 · presupuesto en {formatMoney(globalLimit ?? 0, "CLP")}
               </p>
+              {previousMonthDebt > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  En {previousMonthName} se gastó{" "}
+                  <span className="tabular font-semibold text-foreground">
+                    {formatMoney(previousMonthDebt, "CLP")}
+                  </span>{" "}
+                  por sobre el presupuesto. Esa plata ya salió, así que quedan{" "}
+                  <span className="tabular font-semibold text-foreground">
+                    {formatMoney(toAllocate, "CLP")}
+                  </span>{" "}
+                  para repartir.
+                </p>
+              )}
               <Button
-                onClick={applyIncomeTotal}
+                onClick={applySuggested}
                 disabled={applying}
                 className="h-10 self-start rounded-full"
               >
-                {applying ? "Actualizando…" : "Igualar al ingreso"}
+                {applying
+                  ? "Actualizando…"
+                  : previousMonthDebt > 0
+                    ? `Ajustar a ${formatMoney(toAllocate, "CLP")}`
+                    : "Igualar al ingreso"}
               </Button>
             </div>
           )}

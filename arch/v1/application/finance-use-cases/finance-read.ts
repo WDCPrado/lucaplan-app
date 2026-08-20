@@ -753,6 +753,35 @@ export async function getBudgetView(
   }
 }
 
+/**
+ * Deuda que el mes anterior le deja a (year, month): su EXCEDENTE DEL MES, o sea
+ * `max(0, gasto − límite global)` del mes anterior. Es plata que ya se gastó —salió del colchón o
+ * de la tarjeta— y que por lo tanto este mes no está disponible para repartir. Vale 0 si ese mes
+ * cerró dentro de su presupuesto y también si no tenía presupuesto definido: no se puede pasar de
+ * un límite que no existe.
+ *
+ * El excedente de TOPES no participa: pasarse de un tope con presupuesto global libre no debe
+ * nada, porque la plata existía y solo estaba asignada a otra cosa.
+ *
+ * ponytail: lee el mes anterior entero con `getBudgetView` para quedarse con un solo número. Es a
+ * propósito — así el monto que el plan descuenta es IDÉNTICAMENTE el que ese mes reporta como
+ * excedente, sin una segunda definición de "gasto del mes" que se pueda desincronizar. El techo es
+ * la latencia del dashboard (corre en paralelo con las demás lecturas); si algún día molesta, se
+ * extrae de `getBudgetView` la porción "gasto del mes + límite global efectivo" y la comparten las
+ * dos, en vez de escribir otra fórmula.
+ */
+export async function getPreviousMonthDebt(
+  deps: ReadDeps,
+  userId: string,
+  year: number,
+  month: number
+): Promise<number> {
+  const prevYear = month === 1 ? year - 1 : year
+  const prevMonth = month === 1 ? 12 : month - 1
+  const previous = await getBudgetView(deps, userId, prevYear, prevMonth)
+  return previous.monthOverspend
+}
+
 export type IncomeDTO = {
   id: string
   name: string

@@ -52,6 +52,13 @@ infrastructure → domain          (implementa sus ports)
   `scripts/notify-due.ts`) y el hook de creación de usuario de Better Auth (`auth/auth.ts`).
   Es composición, no negocio: el use-case sigue hablando solo con ports.
 - Lo puro y sin negocio va a `arch/shared/`, no al `_shared/` de una capa.
+- **Las lecturas de `financeDeps` van memoizadas por request** (`presentation/finance/request-memo.ts`):
+  dentro de una misma carga, la misma lectura con los mismos argumentos golpea la base una vez.
+  El ámbito lo da `cache` de React, así que solo aplica al render de un server component; en Route
+  Handlers, scripts y cron no memoiza y todo se comporta como antes. Si agregas una vista que lee lo
+  mismo que otra, no tienes que hacer nada. Si agregas una lectura NUEVA que un render vaya a pedir
+  dos veces, súmala a la tabla de ese archivo — y si esa lectura acompaña a una escritura dentro del
+  mismo render, déjala fuera: es el único caso que podría servir datos viejos.
 
 ## Mapeo con Next.js (presentation)
 

@@ -1,6 +1,8 @@
 // Helpers HTTP para los Route Handlers financieros: resuelve el actor desde la sesión, inyecta los
 // adapters, y mapea errores de dominio a status (401 sin sesión, 404 ownership/no-encontrado, 422
 // regla de negocio). Sin lógica de negocio.
+import { cache } from "react"
+
 import { sessionGateway } from "../../infrastructure/auth/session.gateway.ts"
 import {
   NotOwnerError,
@@ -65,24 +67,36 @@ import { openaiCategorizationProvider } from "../../infrastructure/http/ai/opena
 import { openaiBalanceScanReader } from "../../infrastructure/http/ai/openai-balance-scan.provider.ts"
 import { openaiMovementScanReader } from "../../infrastructure/http/ai/openai-movement-scan.provider.ts"
 import { exchangeRateProvider } from "../../infrastructure/http/exchange/usd-clp.ts"
+import { memoizeReads, type MemoStore } from "./request-memo.ts"
 
-// Todos los adapters, listos para inyectar en los use-cases.
-export const financeDeps = {
-  accounts: accountRepository,
-  banks: bankRepository,
-  balanceBuckets: balanceBucketRepository,
-  categories: categoryRepository,
-  transactions: transactionRepository,
-  monthlyBudgets: monthlyBudgetRepository,
-  incomes: incomeRepository,
-  recurring: recurringTemplateRepository,
-  installments: installmentPlanRepository,
-  categorization: openaiCategorizationProvider,
-  balanceScan: openaiBalanceScanReader,
-  movementScan: openaiMovementScanReader,
-  corrections: correctionRepository,
-  exchangeRates: exchangeRateProvider,
-}
+// Un almacén de memoización por request. `cache` de React le entrega uno nuevo a cada render de
+// servidor y lo comparte entre todas las lecturas de ESE render: es lo que Next 16 documenta para
+// deduplicar consultas a un ORM dentro de una misma carga. Fuera de un render —Route Handlers,
+// scripts, cron— devuelve uno nuevo en cada llamada, así que no memoiza nada y todo sigue igual.
+const requestStore = cache((): MemoStore => new Map())
+
+// Todos los adapters, listos para inyectar en los use-cases. Las lecturas que varias vistas de una
+// misma carga piden idénticas van memoizadas por request (ver `request-memo.ts`): las firmas no
+// cambian y los use-cases no se enteran.
+export const financeDeps = memoizeReads(
+  {
+    accounts: accountRepository,
+    banks: bankRepository,
+    balanceBuckets: balanceBucketRepository,
+    categories: categoryRepository,
+    transactions: transactionRepository,
+    monthlyBudgets: monthlyBudgetRepository,
+    incomes: incomeRepository,
+    recurring: recurringTemplateRepository,
+    installments: installmentPlanRepository,
+    categorization: openaiCategorizationProvider,
+    balanceScan: openaiBalanceScanReader,
+    movementScan: openaiMovementScanReader,
+    corrections: correctionRepository,
+    exchangeRates: exchangeRateProvider,
+  },
+  requestStore
+)
 
 function errorStatus(e: unknown): number {
   if (e instanceof WebhookSignatureError || e instanceof OAuthStateError)

@@ -1325,38 +1325,38 @@ export async function reconcileEmailBalances(
       "Ese banco aún no completa su configuración inicial"
     )
   const { accounts, buckets } = await deps.store.listInstruments(link.bankId)
-  let updated = 0
 
-  const apply = async (
-    accountId: string,
-    kind: BucketKind,
-    limitAmount: Money,
-    used: Money
-  ) => {
-    const bucket = buckets.find(
-      (b) => b.accountId === accountId && b.kind === kind
-    )
-    if (!bucket) return false
-    await deps.store.updateBucketAmounts(bucket.id, {
-      limitAmount,
-      used,
-      available: limitAmount.subtract(used),
-      asOf: input.snapshotAt,
-    })
-    updated++
-    return true
-  }
+  const bucketOf = (accountId: string, kind: BucketKind) =>
+    buckets.find((b) => b.accountId === accountId && b.kind === kind) ?? null
+
+  // Todo o nada (WDC-81): primero se resuelve contra qué bucket va CADA dato que el usuario
+  // ingresó, y recién cuando todo calzó se escribe. Si algo ingresado no calza —o calza con más de
+  // una cuenta, o no tiene bucket donde caer— se corta acá, antes de la primera escritura: cero
+  // saldos tocados y el cursor intacto. Antes la corriente podía quedar escrita (y el cursor
+  // avanzado) aunque una tarjeta no calzara, y los movimientos de esa tarjeta entre el cursor
+  // viejo y el snapshot quedaban fuera de la proyección para siempre, sin aviso.
+  //
+  // Omitir sigue siendo legítimo y no exige calce: no ingresar cuenta corriente, o mandar una
+  // tarjeta con los dos cupos apagados ("esta no la actualices"), no es un dato ingresado.
+  const rechazo = (detalle: string) =>
+    new EmailSetupStateError(`No se guardó ningún saldo: ${detalle}`)
+
+  let corriente: {
+    datos: NonNullable<EmailSnapshotInput["checking"]>
+    accountId: string
+    cajaId: string
+    sobregiroId: string | null
+  } | null = null
 
   if (input.checking) {
     const ref = input.checking.ref.replace(/\D/g, "")
     // Sin dígitos de los dos lados no hay nada que comparar: `"loQueSea".endsWith("")` es true, así
     // que un ref vacío emparejaría con la primera corriente, y una cuenta guardada sin externalId
     // (externalRef === "") emparejaría con cualquier ref. En ambos casos el saldo caería sobre la
-    // cuenta equivocada, sin error.
+    // cuenta equivocada, sin error (WDC-80).
     //
-    // Y con más de una coincidencia se omite, igual que `resolveCheckingByRef`: `find` se quedaba
-    // con la primera, pero `listInstruments` consulta sin `orderBy`, así que "la primera" ni
-    // siquiera está definida. Ambigüedad = omitir.
+    // Y "más de una coincidencia" no elige: `listInstruments` consulta sin `orderBy`, así que
+    // quedarse con "la primera" ni siquiera está definido. Ambigüedad = rechazar.
     const matches = accounts.filter(
       (a) =>
         a.accountType === "checking" &&
@@ -1366,84 +1366,145 @@ export async function reconcileEmailBalances(
           a.externalRef.endsWith(ref) ||
           ref.endsWith(a.externalRef))
     )
-    const account = matches.length === 1 ? matches[0] : null
-    if (account) {
-      const cash = buckets.find(
-        (b) => b.accountId === account.id && b.kind === "cash"
+    if (matches.length === 0)
+      throw rechazo(
+        `el número de cuenta «${input.checking.ref}» no calza con ninguna cuenta corriente de este banco`
       )
-      if (cash) {
-        await deps.store.updateBucketAmounts(cash.id, {
-          limitAmount: Money.zero("CLP"),
-          used: Money.zero("CLP"),
-          available: input.checking.cash,
-          asOf: input.snapshotAt,
-        })
-        updated++
-        // El balance de la cuenta es un espejo del bucket, así que solo se escribe cuando el
-        // bucket se escribió — la misma regla que usa la proyección. Si el instrumento calza pero
-        // no tiene bucket, esto no es "se guardó a medias": no se guardó, y el guardián de abajo
-        // tiene que verlo como cero.
-        await deps.store.setAccountBalance(account.id, input.checking.cash)
-      }
-      if (input.checking.overdraft) {
-        await apply(
-          account.id,
-          "overdraft",
-          input.checking.overdraft.limit,
-          input.checking.overdraft.used
+    if (matches.length > 1)
+      throw rechazo(
+        `el número de cuenta «${input.checking.ref}» calza con más de una cuenta corriente; escribe más dígitos`
+      )
+    const account = matches[0]
+    // Una cuenta creada a mano existe sin buckets: calza, pero no hay caja donde escribir el
+    // saldo, y escribir solo su `balance` (el espejo del bucket) sería guardar a medias.
+    const caja = bucketOf(account.id, "cash")
+    if (!caja)
+      throw rechazo(
+        `la cuenta corriente «${input.checking.ref}» no tiene dónde llevar el saldo en este banco`
+      )
+    let sobregiro = null
+    if (input.checking.overdraft) {
+      sobregiro = bucketOf(account.id, "overdraft")
+      if (!sobregiro)
+        throw rechazo(
+          `la cuenta corriente «${input.checking.ref}» no tiene línea de sobregiro en este banco; apágala para guardar`
         )
-      }
+    }
+    corriente = {
+      datos: input.checking,
+      accountId: account.id,
+      cajaId: caja.id,
+      sobregiroId: sobregiro?.id ?? null,
     }
   }
+
+  const tarjetas: {
+    datos: EmailSnapshotInput["cards"][number]
+    accountId: string
+    nacionalId: string | null
+    internacionalId: string | null
+  }[] = []
   for (const card of input.cards) {
+    // Los dos cupos apagados = "esta no la actualices": no hay dato que escribir, así que tampoco
+    // se le exige calzar.
+    if (!card.national && !card.international) continue
     const last4 = card.last4.replace(/\D/g, "")
-    // Mismo motivo que arriba: sin dígitos no se identifica ninguna tarjeta. Aquí la comparación es
-    // por igualdad, así que un vacío solo calzaría con una tarjeta guardada sin last4 — igual de
-    // equivocado, y el cupo quedaría escrito sobre ella.
-    if (last4 === "") continue
-    // Ambigüedad = omitir, igual que `resolveEventTarget` para tarjetas.
+    // `last4 !== ""` por el mismo motivo que arriba: la comparación acá es por igualdad, y un
+    // vacío solo calzaría con una tarjeta guardada sin last4 — igual de equivocado.
     const matches = accounts.filter(
-      (a) => a.accountType === "credit_card" && a.cardLast4 === last4
+      (a) =>
+        a.accountType === "credit_card" && last4 !== "" && a.cardLast4 === last4
     )
-    if (matches.length !== 1) continue
-    const account = matches[0]
-    if (card.national) {
-      const escrito = await apply(
-        account.id,
-        "credit_national",
-        card.national.limit,
-        card.national.used
+    if (matches.length === 0)
+      throw rechazo(
+        `la tarjeta «${card.last4}» no calza con ninguna tarjeta de este banco`
       )
-      if (escrito)
-        await deps.store.setAccountBalance(
-          account.id,
-          card.national.used.negate()
-        )
-    }
-    if (card.international)
-      await apply(
-        account.id,
-        "credit_international",
-        card.international.limit,
-        card.international.used
+    if (matches.length > 1)
+      throw rechazo(
+        `hay más de una tarjeta terminada en «${card.last4}» y no se sabe cuál actualizar`
+      )
+    const account = matches[0]
+    const nacional = card.national
+      ? bucketOf(account.id, "credit_national")
+      : null
+    if (card.national && !nacional)
+      throw rechazo(
+        `la tarjeta «${card.last4}» no tiene cupo nacional en este banco; apágalo para guardar`
+      )
+    const internacional = card.international
+      ? bucketOf(account.id, "credit_international")
+      : null
+    if (card.international && !internacional)
+      throw rechazo(
+        `la tarjeta «${card.last4}» no tiene cupo internacional en este banco; apágalo para guardar`
+      )
+    tarjetas.push({
+      datos: card,
+      accountId: account.id,
+      nacionalId: nacional?.id ?? null,
+      internacionalId: internacional?.id ?? null,
+    })
+  }
+
+  // Nada ingresado, nada que escribir — y avanzar el cursor sin escribir es peor que no hacer
+  // nada: `lastBalanceReconciledAt` gobierna la proyección (los eventos con
+  // `receivedAt <= reconciledAt` ya no mueven buckets), así que moverlo dejaría FUERA para siempre
+  // todo lo ocurrido entre el cursor viejo y este snapshot — los movimientos se importan, pero los
+  // saldos quedan desviados sin manera de recuperarlos. El 422 sale por el toast de la pantalla.
+  if (!corriente && tarjetas.length === 0)
+    throw new EmailSetupStateError(
+      "No hay ningún saldo que actualizar: ingresa tu cuenta corriente o enciende al menos un cupo"
+    )
+
+  // Fase de escritura: de aquí para abajo todo dato ingresado ya tiene su bucket resuelto.
+  let updated = 0
+  const write = async (bucketId: string, limitAmount: Money, used: Money) => {
+    await deps.store.updateBucketAmounts(bucketId, {
+      limitAmount,
+      used,
+      available: limitAmount.subtract(used),
+      asOf: input.snapshotAt,
+    })
+    updated++
+  }
+
+  if (corriente) {
+    await deps.store.updateBucketAmounts(corriente.cajaId, {
+      limitAmount: Money.zero("CLP"),
+      used: Money.zero("CLP"),
+      available: corriente.datos.cash,
+      asOf: input.snapshotAt,
+    })
+    updated++
+    // El balance de la cuenta es un espejo del bucket, así que se escribe junto con él — la misma
+    // regla que usa la proyección.
+    await deps.store.setAccountBalance(
+      corriente.accountId,
+      corriente.datos.cash
+    )
+    if (corriente.sobregiroId && corriente.datos.overdraft)
+      await write(
+        corriente.sobregiroId,
+        corriente.datos.overdraft.limit,
+        corriente.datos.overdraft.used
       )
   }
 
-  // Si no se escribió un solo saldo, avanzar el cursor es peor que no hacer nada:
-  // `lastBalanceReconciledAt` gobierna la proyección (los eventos con `receivedAt <= reconciledAt`
-  // ya no mueven buckets), así que moverlo dejaría FUERA para siempre todo lo ocurrido entre el
-  // cursor viejo y este snapshot — los movimientos se importan, pero los saldos quedan desviados
-  // sin manera de recuperarlos.
-  //
-  // La cuenta es de BUCKETS escritos, que es lo que el cursor gobierna. No basta con reconocer el
-  // instrumento: una tarjeta que calza pero llega con los dos cupos apagados ("este no lo
-  // actualices"), o un instrumento que calza pero no tiene bucket, no escriben nada — y ese
-  // snapshot no tiene por qué mover el cursor. Misma política que la importación: ante la duda no
-  // se adivina, se avisa. El 422 sale por el toast de la pantalla.
-  if (updated === 0)
-    throw new EmailSetupStateError(
-      "No se actualizó ningún saldo: revisa que los números calcen con tus cuentas y tarjetas, y que al menos un cupo esté encendido"
-    )
+  for (const t of tarjetas) {
+    if (t.nacionalId && t.datos.national) {
+      await write(t.nacionalId, t.datos.national.limit, t.datos.national.used)
+      await deps.store.setAccountBalance(
+        t.accountId,
+        t.datos.national.used.negate()
+      )
+    }
+    if (t.internacionalId && t.datos.international)
+      await write(
+        t.internacionalId,
+        t.datos.international.limit,
+        t.datos.international.used
+      )
+  }
 
   await deps.links.update(link.id, {
     lastBalanceReconciledAt: input.snapshotAt,

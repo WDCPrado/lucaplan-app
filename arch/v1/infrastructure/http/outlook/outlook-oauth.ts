@@ -1,18 +1,13 @@
-// OAuth 2.0 de Microsoft (cuentas personales Outlook) con Authorization Code + PKCE y estado
-// firmado. Permiso delegado mínimo: Mail.Read (+ openid/email para conocer la dirección). Ningún
-// token se expone al cliente ni se registra en logs; el refresh token se persiste cifrado en la
-// capa de datos. Todo con `fetch` nativo, sin SDK.
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto"
-import {
-  OAuthStateError,
-  EmailReauthRequiredError,
-} from "../../../domain/finance/email-connection.domain.ts"
-import { deriveVerifier, EMAIL_PURPOSE } from "../../crypto/secret-crypto.ts"
-
-const STATE_TTL_MS = 10 * 60 * 1000 // el callback debe volver dentro de 10 minutos
-
-// Cookie httpOnly de corta vida que transporta el verifier PKCE entre /connect y /callback.
-export const PKCE_COOKIE = "outlook_pkce"
+// OAuth 2.0 de Microsoft (cuentas personales Outlook) con Authorization Code + PKCE. Permiso
+// delegado mínimo: Mail.Read (+ openid/email para conocer la dirección). Ningún token se expone al
+// cliente ni se registra en logs; el refresh token se persiste cifrado en la capa de datos. Todo
+// con `fetch` nativo, sin SDK.
+//
+// Lo específico de Microsoft termina en `outlookOAuth` (al final del archivo): es lo único que ven
+// las rutas, y su forma es la que el registry de proveedores espera de cualquier proveedor. El
+// estado firmado que viaja hasta el callback es común a todos y vive en `../email/oauth-state.ts`.
+import { createHash, randomBytes } from "node:crypto"
+import { EmailReauthRequiredError } from "../../../domain/finance/email-connection.domain.ts"
 
 // Scopes: lectura de correo + identidad mínima para conocer la dirección + offline (refresh token).
 const SCOPES =
@@ -55,70 +50,6 @@ function b64url(buf: Buffer): string {
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "")
-}
-
-// --- Estado firmado (HMAC derivado del secreto maestro; nada que guardar server-side) ---
-
-const STATE_PURPOSE = `${EMAIL_PURPOSE}:oauth-state`
-
-// El banco elegido y su etiqueta viajan FIRMADOS en el estado: al volver del OAuth hay que saber
-// qué vincular a este buzón, y el estado es lo único que sobrevive el viaje a Microsoft.
-export type OAuthIntent = { bankProvider?: string; label?: string | null }
-
-export function signOAuthState(
-  userId: string,
-  intent: OAuthIntent = {},
-  now = new Date()
-): string {
-  const payload = b64url(
-    Buffer.from(
-      JSON.stringify({
-        u: userId,
-        e: now.getTime() + STATE_TTL_MS,
-        n: b64url(randomBytes(8)),
-        b: intent.bankProvider,
-        l: intent.label ?? undefined,
-      })
-    )
-  )
-  return `${payload}.${deriveVerifier(STATE_PURPOSE, payload)}`
-}
-
-// Verifica firma, expiración y que el estado pertenezca al usuario de la sesión; devuelve la
-// intención (banco a vincular) que viajó dentro.
-export function verifyOAuthState(
-  state: string,
-  userId: string,
-  now = new Date()
-): OAuthIntent {
-  const [payload, sig] = state.split(".")
-  const expected = payload ? deriveVerifier(STATE_PURPOSE, payload) : ""
-  if (
-    !payload ||
-    !sig ||
-    sig.length !== expected.length ||
-    !timingSafeEqual(Buffer.from(sig), Buffer.from(expected))
-  ) {
-    throw new OAuthStateError()
-  }
-  let decoded: { u?: string; e?: number; b?: string; l?: string }
-  try {
-    decoded = JSON.parse(
-      Buffer.from(
-        payload.replace(/-/g, "+").replace(/_/g, "/"),
-        "base64"
-      ).toString("utf8")
-    )
-  } catch {
-    throw new OAuthStateError()
-  }
-  if (
-    decoded.u !== userId ||
-    typeof decoded.e !== "number" ||
-    decoded.e < now.getTime()
-  )
-    throw new OAuthStateError()
-  return { bankProvider: decoded.b, label: decoded.l ?? null }
 }
 
 // --- PKCE ---
@@ -238,4 +169,40 @@ export function emailFromIdToken(idToken: string | null): string | null {
   } catch {
     return null
   }
+}
+
+// --- Módulo OAuth del proveedor ---
+
+// Fachada de lo que las rutas necesitan de un proveedor de correo, sin nombrar a Microsoft. El
+// registry (`../email/provider-registry.ts`) la tipa; acá no se importa nada de él para no cerrar
+// un ciclo de imports.
+export const outlookOAuth = {
+  isConfigured: isOutlookConfigured,
+
+  // Arranca el flujo: URL a la que mandar al usuario + el verifier PKCE que la ruta guarda en la
+  // cookie httpOnly hasta que vuelva el callback.
+  authorization(state: string) {
+    const cfg = outlookConfig()
+    const { verifier, challenge } = createPkcePair()
+    return {
+      url: buildAuthorizeUrl(cfg, state, challenge),
+      pkceVerifier: verifier,
+      // La cookie va `secure` solo si el redirect es HTTPS: en local (http) marcarla la descartaría.
+      secureCookie: cfg.redirectUri.startsWith("https"),
+    }
+  },
+
+  // Canje del código por tokens. Devuelve lo único que el callback persiste: el refresh token y la
+  // dirección del buzón. El access token se queda acá; nunca sale de la infraestructura.
+  async exchangeCode(code: string, pkceVerifier: string) {
+    const tokens = await exchangeCodeForTokens(
+      outlookConfig(),
+      code,
+      pkceVerifier
+    )
+    return {
+      refreshToken: tokens.refreshToken,
+      emailAddress: emailFromIdToken(tokens.idToken),
+    }
+  },
 }

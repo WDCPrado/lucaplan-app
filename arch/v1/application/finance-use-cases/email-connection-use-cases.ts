@@ -354,12 +354,16 @@ function directionOf(event: EmailEvent): Direction {
 // --- OAuth: alta / reconexión del BUZÓN ---
 
 export type ConnectMailboxInput = {
+  emailProvider: string // clave del proveedor por el que se autorizó (viene del estado OAuth firmado)
   emailAddress: string
   refreshToken: string
 }
 
 // Tras el intercambio OAuth: crea el buzón o, si ese correo ya estaba autorizado, rota el token y lo
 // reactiva SIN borrar datos (caso reauth_required). Los bancos que alimenta no se tocan.
+//
+// El proveedor se reescribe también al reconectar: la misma dirección puede volver por otro
+// proveedor, y la fila tiene que decir con cuál se habla ahora o el router elegiría el adapter viejo.
 export async function connectMailbox(
   deps: Pick<EmailConnectionDeps, "mailboxes">,
   userId: string,
@@ -371,6 +375,7 @@ export async function connectMailbox(
   )
   if (existing) {
     const mailbox = await deps.mailboxes.update(existing.id, {
+      emailProvider: input.emailProvider,
       refreshToken: input.refreshToken,
       status: "active",
       lastError: null,
@@ -379,7 +384,7 @@ export async function connectMailbox(
   }
   const mailbox = await deps.mailboxes.create({
     userId,
-    emailProvider: "outlook",
+    emailProvider: input.emailProvider,
     emailAddress: input.emailAddress,
     refreshToken: input.refreshToken,
   })
@@ -1523,6 +1528,7 @@ export type EmailBankLinkDTO = {
 
 export type EmailMailboxDTO = {
   id: string
+  emailProvider: string // clave; el nombre visible lo resuelve la UI con la lista de /status
   emailAddress: string
   status: string
   lastSyncedAt: string | null
@@ -1550,6 +1556,7 @@ export async function getEmailConnectionView(
   return {
     mailboxes: mailboxes.map((m) => ({
       id: m.id,
+      emailProvider: m.emailProvider,
       emailAddress: m.emailAddress,
       status: m.status,
       lastSyncedAt: m.lastSyncedAt?.toISOString() ?? null,

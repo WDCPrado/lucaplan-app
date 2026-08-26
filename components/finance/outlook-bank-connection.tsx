@@ -66,6 +66,7 @@ export type OutlookBankDTO = {
 
 export type OutlookMailboxDTO = {
   id: string
+  emailProvider: string // clave del proveedor; el nombre visible sale de OutlookStatus.providers
   emailAddress: string
   status: string
   lastSyncedAt: string | null
@@ -76,7 +77,10 @@ export type OutlookMailboxDTO = {
 }
 
 export type OutlookStatus = {
-  configured: boolean
+  // Catálogo de proveedores de correo con si el servidor tiene credenciales de cada uno. Se ofrece
+  // conectar solo los configurados; la lista completa sirve además para nombrar el proveedor de un
+  // buzón ya conectado.
+  providers: { key: string; name: string; configured: boolean }[]
   mailboxes: OutlookMailboxDTO[]
   availableBanks: { key: string; name: string }[]
 }
@@ -240,23 +244,35 @@ export function OutlookBankConnection({
   const reconcileHint = reconcileBlocker(setupForm)
 
   const mailboxes = status?.mailboxes ?? []
+  // Solo los que el servidor puede autorizar. El nombre se busca en el catálogo completo: un buzón
+  // conectado con un proveedor que después se desconfiguró igual tiene que poder nombrarse.
+  const providers = status?.providers ?? []
+  const configuredProviders = providers.filter((p) => p.configured)
+  const providerName = (key: string) =>
+    providers.find((p) => p.key === key)?.name ?? key
   const banks = mailboxes.flatMap((m) =>
     m.banks.map((b) => ({ ...b, mailbox: m }))
   )
   const pending = banks.find((b) => b.pendingSetup) ?? null
 
-  // Conectar un CORREO nuevo (pasa por OAuth) trayendo consigo el banco elegido.
-  async function connect(bankProvider: string, label?: string | null) {
+  // Conectar un CORREO nuevo (pasa por OAuth) trayendo consigo el proveedor y el banco elegidos.
+  // Al reconectar un buzón existente se le pasa SU proveedor: la autorización tiene que renovarse
+  // con el mismo con el que se creó, no con el que esté por defecto.
+  async function connect(
+    bankProvider: string,
+    label?: string | null,
+    provider?: string
+  ) {
     setBusy(true)
     const res = await fetch("/api/email-connection/connect", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ bankProvider, label }),
+      body: JSON.stringify({ provider, bankProvider, label }),
     })
     const data = await res.json().catch(() => ({}))
     setBusy(false)
     if (!res.ok || !data.url)
-      return toast.error(data.error ?? "No se pudo iniciar Outlook")
+      return toast.error(data.error ?? "No se pudo iniciar la conexión")
     window.location.assign(data.url)
   }
 
@@ -497,15 +513,6 @@ export function OutlookBankConnection({
         <Loader2 className="size-5 animate-spin text-primary" />
       </div>
     )
-  if (!status.configured) {
-    return (
-      <Notice icon={CircleAlert}>
-        Outlook aún no está configurado en el servidor. Revisa la guía de
-        Microsoft Entra.
-      </Notice>
-    )
-  }
-
   // Reconciliación de un banco concreto ("Actualizar saldos").
   if (reconciling) {
     return (
@@ -639,11 +646,16 @@ export function OutlookBankConnection({
           Luca Plan solo leerá notificaciones de tu banco con el permiso
           Mail.Read. No puede enviar ni borrar correos.
         </Notice>
-        <FirstBankPicker
-          banks={status.availableBanks}
-          busy={busy}
-          onSubmit={(bank) => connect(bank)}
-        />
+        {configuredProviders.length === 0 ? (
+          <NotConfiguredNotice />
+        ) : (
+          <FirstBankPicker
+            banks={status.availableBanks}
+            providers={configuredProviders}
+            busy={busy}
+            onSubmit={(bank, provider) => connect(bank, null, provider)}
+          />
+        )}
       </div>
     )
   }
@@ -654,8 +666,18 @@ export function OutlookBankConnection({
         <MailboxCard
           key={mailbox.id}
           mailbox={mailbox}
+          providerName={providerName(mailbox.emailProvider)}
+          canReconnect={configuredProviders.some(
+            (p) => p.key === mailbox.emailProvider
+          )}
           busy={busy}
-          onReconnect={() => connect(mailbox.banks[0]?.bankProvider ?? "")}
+          onReconnect={() =>
+            connect(
+              mailbox.banks[0]?.bankProvider ?? "",
+              null,
+              mailbox.emailProvider
+            )
+          }
           onReconcile={(bank) => {
             // Solo las cuentas de ESTE banco: con varios conectados, cargar todas metía en el
             // formulario las tarjetas de otro banco.
@@ -682,6 +704,7 @@ export function OutlookBankConnection({
 
       <AddBankSection
         availableBanks={status.availableBanks}
+        providers={configuredProviders}
         mailboxes={mailboxes}
         allBanks={banks}
         busy={busy}
@@ -692,12 +715,24 @@ export function OutlookBankConnection({
   )
 }
 
+// El servidor no tiene credenciales del proveedor, así que no se puede INICIAR una conexión. Los
+// correos ya conectados se siguen mostrando: rotularlos no necesita credenciales.
+function NotConfiguredNotice() {
+  return (
+    <Notice icon={CircleAlert}>
+      Outlook aún no está configurado en el servidor (falta OUTLOOK_CLIENT_ID).
+      Revisa la guía en docs/email-connection-outlook.md.
+    </Notice>
+  )
+}
+
 // Agregar un banco: se elige el banco Y de qué correo llegan sus avisos, en un solo lugar. Antes
 // eran dos entradas separadas —un botón dentro de cada correo y otra lista al pie— y desde el
 // segundo banco del catálogo se veían dos selectores casi idénticos sin decir a cuál correo iba
 // cada uno. Un correo ya autorizado no vuelve a pasar por OAuth; uno nuevo sí.
 function AddBankSection({
   availableBanks,
+  providers,
   mailboxes,
   allBanks,
   busy,
@@ -705,15 +740,21 @@ function AddBankSection({
   onConnect,
 }: {
   availableBanks: { key: string; name: string }[]
+  providers: { key: string; name: string }[] // solo los configurados en el servidor
   mailboxes: OutlookMailboxDTO[]
   allBanks: OutlookBankDTO[]
   busy: boolean
   onAdd: (mailboxId: string, bankProvider: string, label: string | null) => void
-  onConnect: (bankProvider: string, label: string | null) => void
+  onConnect: (
+    bankProvider: string,
+    label: string | null,
+    provider: string
+  ) => void
 }) {
   const NEW_MAILBOX = "__new__"
   const [bank, setBank] = useState(availableBanks[0]?.key ?? "")
   const [target, setTarget] = useState<string>(mailboxes[0]?.id ?? NEW_MAILBOX)
+  const [provider, setProvider] = useState(providers[0]?.key ?? "")
   const [label, setLabel] = useState("")
 
   // El mismo banco no se repite dentro de un correo: el enrutado por remitente no sabría a cuál
@@ -763,6 +804,23 @@ function AddBankSection({
         />
       </div>
 
+      {/* Conectar un correo nuevo pasa por OAuth; agregar un banco a uno ya autorizado, no. */}
+      {!targetMailbox && providers.length === 0 && <NotConfiguredNotice />}
+
+      {/* De qué proveedor es el correo nuevo. Con uno solo configurado no hay nada que preguntar. */}
+      {!targetMailbox && providers.length > 1 && (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            ¿De qué proveedor es el correo nuevo?
+          </p>
+          <OptionList
+            options={providers.map((p) => ({ value: p.key, label: p.name }))}
+            selected={provider}
+            onSelect={setProvider}
+          />
+        </div>
+      )}
+
       {requiresLabel && (
         <div className="space-y-1">
           <Input
@@ -783,9 +841,14 @@ function AddBankSection({
         onClick={() =>
           targetMailbox
             ? onAdd(targetMailbox.id, bank, label.trim() || null)
-            : onConnect(bank, label.trim() || null)
+            : onConnect(bank, label.trim() || null, provider)
         }
-        disabled={busy || !bank || (requiresLabel && !label.trim())}
+        disabled={
+          busy ||
+          !bank ||
+          (!targetMailbox && !provider) ||
+          (requiresLabel && !label.trim())
+        }
         className="h-12 w-full rounded-full"
       >
         {busy ? <Loader2 className="animate-spin" /> : <Plus />}
@@ -842,6 +905,8 @@ function OptionList({
 // bancos lo heredan: una sola reconexión los arregla a todos.
 function MailboxCard({
   mailbox,
+  providerName,
+  canReconnect,
   busy,
   onReconnect,
   onReconcile,
@@ -849,6 +914,8 @@ function MailboxCard({
   onDisconnectMailbox,
 }: {
   mailbox: OutlookMailboxDTO
+  providerName: string
+  canReconnect: boolean // el servidor tiene credenciales del proveedor de ESTE buzón
   busy: boolean
   onReconnect: () => void
   onReconcile: (bank: OutlookBankDTO) => void
@@ -867,8 +934,12 @@ function MailboxCard({
       : "border-destructive/40 bg-destructive/5"
   return (
     <div className={cn("space-y-3 rounded-xl border p-4 text-sm", tone)}>
-      <div className="flex items-center gap-2 font-medium">
+      <div className="flex flex-wrap items-center gap-2 font-medium">
         <Mail className="size-4 text-primary" /> {mailbox.emailAddress}
+        {/* De qué proveedor es este correo: con varios conectados es lo que los distingue. */}
+        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          {providerName}
+        </span>
       </div>
       <div className="space-y-1 text-xs text-muted-foreground">
         <p>Estado: {statusLabel}</p>
@@ -883,15 +954,18 @@ function MailboxCard({
       {mailbox.lastError && (
         <Notice icon={CircleAlert}>{mailbox.lastError}</Notice>
       )}
-      {mailbox.status === "reauth_required" && (
-        <Button
-          onClick={onReconnect}
-          disabled={busy}
-          className="h-11 w-full rounded-full"
-        >
-          <Mail /> Reconectar este correo
-        </Button>
-      )}
+      {mailbox.status === "reauth_required" &&
+        (canReconnect ? (
+          <Button
+            onClick={onReconnect}
+            disabled={busy}
+            className="h-11 w-full rounded-full"
+          >
+            <Mail /> Reconectar este correo
+          </Button>
+        ) : (
+          <NotConfiguredNotice />
+        ))}
 
       <ul className="space-y-2">
         {mailbox.banks.map((bank) => (
@@ -946,14 +1020,18 @@ function MailboxCard({
 // del que distinguirlo) ni destino que elegir.
 function FirstBankPicker({
   banks,
+  providers,
   busy,
   onSubmit,
 }: {
   banks: { key: string; name: string }[]
+  providers: { key: string; name: string }[] // solo los configurados en el servidor
   busy: boolean
-  onSubmit: (bankProvider: string) => void
+  onSubmit: (bankProvider: string, provider: string) => void
 }) {
   const [selected, setSelected] = useState(banks[0]?.key ?? "")
+  const [provider, setProvider] = useState(providers[0]?.key ?? "")
+  const providerLabel = providers.find((p) => p.key === provider)?.name ?? ""
 
   return (
     <div className="space-y-3">
@@ -964,13 +1042,27 @@ function FirstBankPicker({
           onSelect={setSelected}
         />
       )}
+      {/* Con un solo proveedor configurado el botón ya dice cuál es; preguntarlo sería una lista
+          de un elemento. */}
+      {providers.length > 1 && (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            ¿De qué proveedor es tu correo?
+          </p>
+          <OptionList
+            options={providers.map((p) => ({ value: p.key, label: p.name }))}
+            selected={provider}
+            onSelect={setProvider}
+          />
+        </div>
+      )}
       <Button
-        onClick={() => onSubmit(selected)}
-        disabled={busy || !selected}
+        onClick={() => onSubmit(selected, provider)}
+        disabled={busy || !selected || !provider}
         className="h-12 w-full rounded-full"
       >
-        {busy ? <Loader2 className="animate-spin" /> : <Mail />} Conectar
-        Outlook
+        {busy ? <Loader2 className="animate-spin" /> : <Mail />} Conectar{" "}
+        {providerLabel}
       </Button>
     </div>
   )

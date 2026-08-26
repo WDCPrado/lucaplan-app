@@ -1326,7 +1326,7 @@ export async function reconcileEmailBalances(
     )
   const { accounts, buckets } = await deps.store.listInstruments(link.bankId)
   let updated = 0
-  let resueltos = 0 // instrumentos que SÍ se identificaron (cuenta o tarjeta)
+  let escrituras = 0 // saldos realmente escritos (buckets + balances de cuenta)
 
   const apply = async (
     accountId: string,
@@ -1345,6 +1345,7 @@ export async function reconcileEmailBalances(
       asOf: input.snapshotAt,
     })
     updated++
+    escrituras++
   }
 
   if (input.checking) {
@@ -1368,7 +1369,6 @@ export async function reconcileEmailBalances(
     )
     const account = matches.length === 1 ? matches[0] : null
     if (account) {
-      resueltos++
       const cash = buckets.find(
         (b) => b.accountId === account.id && b.kind === "cash"
       )
@@ -1380,6 +1380,7 @@ export async function reconcileEmailBalances(
           asOf: input.snapshotAt,
         })
         updated++
+        escrituras++
       }
       if (input.checking.overdraft) {
         await apply(
@@ -1390,6 +1391,7 @@ export async function reconcileEmailBalances(
         )
       }
       await deps.store.setAccountBalance(account.id, input.checking.cash)
+      escrituras++
     }
   }
   for (const card of input.cards) {
@@ -1404,7 +1406,6 @@ export async function reconcileEmailBalances(
     )
     if (matches.length !== 1) continue
     const account = matches[0]
-    resueltos++
     if (card.national) {
       await apply(
         account.id,
@@ -1416,6 +1417,7 @@ export async function reconcileEmailBalances(
         account.id,
         card.national.used.negate()
       )
+      escrituras++
     }
     if (card.international)
       await apply(
@@ -1426,13 +1428,17 @@ export async function reconcileEmailBalances(
       )
   }
 
-  // Sin un solo instrumento identificado no se escribió ningún saldo, y avanzar el cursor sería
-  // peor que no hacer nada: `lastBalanceReconciledAt` gobierna la proyección (los eventos con
-  // `receivedAt <= reconciledAt` ya no mueven buckets), así que moverlo dejaría FUERA para siempre
-  // todo lo ocurrido entre el cursor viejo y este snapshot — los movimientos se importan, pero los
-  // saldos quedan desviados sin manera de recuperarlos. Misma política que la importación: ante la
-  // duda no se adivina, se avisa. El 422 sale por el toast de la pantalla.
-  if (resueltos === 0)
+  // Si no se escribió un solo saldo, avanzar el cursor es peor que no hacer nada:
+  // `lastBalanceReconciledAt` gobierna la proyección (los eventos con `receivedAt <= reconciledAt`
+  // ya no mueven buckets), así que moverlo dejaría FUERA para siempre todo lo ocurrido entre el
+  // cursor viejo y este snapshot — los movimientos se importan, pero los saldos quedan desviados
+  // sin manera de recuperarlos.
+  //
+  // La cuenta es de ESCRITURAS, no de instrumentos reconocidos: una tarjeta que calza pero llega
+  // con los dos cupos apagados ("este no lo actualices") se reconoce y no escribe nada, y ese
+  // snapshot no tiene por qué mover el cursor. Misma política que la importación: ante la duda no
+  // se adivina, se avisa. El 422 sale por el toast de la pantalla.
+  if (escrituras === 0)
     throw new EmailSetupStateError(
       "No se actualizó ningún saldo: ninguna cuenta ni tarjeta calzó con los números ingresados"
     )

@@ -1662,6 +1662,18 @@ test("actualizar saldos: un número válido que no calza con nada no avanza el c
   )
 })
 
+test("actualizar saldos: una tarjeta reconocida con los dos cupos apagados no avanza el cursor", async () => {
+  // Apagar los cupos es legítimo ("este no lo actualices"), pero entonces no se escribe nada. La
+  // guarda cuenta ESCRITURAS, no instrumentos reconocidos: contando instrumentos, esta tarjeta
+  // habría bastado para mover el cursor sin haber tocado un solo saldo. Y es alcanzable desde la
+  // pantalla, porque el formulario manda siempre todas las tarjetas del banco.
+  await assertNoEscribeNiAvanza([tarjetaGuardada("tj-a", "7734")], {
+    snapshotAt: SNAPSHOT,
+    checking: null,
+    cards: [{ last4: "7734", national: null, international: null }],
+  })
+})
+
 test("actualizar saldos: sin instrumentos en el formulario tampoco avanza el cursor", async () => {
   await assertNoEscribeNiAvanza([corriente("acct-real", "009991111100")], {
     snapshotAt: SNAPSHOT,

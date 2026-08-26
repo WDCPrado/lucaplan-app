@@ -1485,7 +1485,10 @@ const reconcileDeps = (
     links: {
       ...base.links,
       // El cursor de la proyección: lo que estos tests vigilan es que NO se mueva en falso.
-      update: async (_id: string, patch: { lastBalanceReconciledAt?: Date }) => {
+      update: async (
+        _id: string,
+        patch: { lastBalanceReconciledAt?: Date }
+      ) => {
         escrito.cursor.push(patch.lastBalanceReconciledAt ?? null)
         return base.links.update()
       },
@@ -1591,11 +1594,13 @@ const snapshotDeTarjeta = (
   cards: [cupoNacional(last4)],
 })
 
-// Lo que tiene que pasar cuando no se resuelve NADA, venga de donde venga: ni un saldo escrito, ni
-// el cursor movido, y un error que la pantalla pueda mostrar en vez de un "listo" que miente.
+// Lo que tiene que pasar cuando algo ingresado no se resuelve: ni un saldo escrito —tampoco los
+// que sí calzaban, es todo o nada (WDC-81)—, ni el cursor movido, y un error que nombre qué falló
+// en vez de un "listo" que miente.
 const assertNoEscribeNiAvanza = async (
   accounts: EmailStoredAccount[],
   input: Parameters<typeof reconcileEmailBalances>[3],
+  mensaje: RegExp,
   storedBuckets?: EmailStoredBucket[]
 ) => {
   const escrito = sinEscribir()
@@ -1608,7 +1613,7 @@ const assertNoEscribeNiAvanza = async (
         error instanceof EmailSetupStateError,
         `se esperaba EmailSetupStateError, llegó ${(error as Error)?.name}`
       )
-      assert.match((error as Error).message, /no se actualizó ningún saldo/i)
+      assert.match((error as Error).message, mensaje)
       return true
     }
   )
@@ -1622,7 +1627,8 @@ test("actualizar saldos: una referencia vacía no empareja ninguna cuenta", asyn
   // Sin la guarda, `"009991111100".endsWith("")` es true y acct-1 se llevaba un saldo ajeno.
   await assertNoEscribeNiAvanza(
     [corriente("acct-1", "009991111100"), corriente("acct-2", "008882222200")],
-    snapshotDe("")
+    snapshotDe(""),
+    /no calza con ninguna cuenta corriente/i
   )
 })
 
@@ -1658,7 +1664,8 @@ test("actualizar saldos: una tarjeta sin últimos 4 no escribe cupo en ninguna",
   // La tarjeta guardada también quedó sin last4: por igualdad, `"" === ""` calzaba.
   await assertNoEscribeNiAvanza(
     [tarjetaGuardada("acct-tj", "")],
-    snapshotDeTarjeta("")
+    snapshotDeTarjeta(""),
+    /no calza con ninguna tarjeta/i
   )
 })
 
@@ -1671,20 +1678,26 @@ test("actualizar saldos: un número válido que no calza con nada no avanza el c
   // todo lo anterior al snapshot quedaba excluido de la proyección para siempre.
   await assertNoEscribeNiAvanza(
     [corriente("acct-real", "009991111100")],
-    snapshotDe("4821")
+    snapshotDe("4821"),
+    // El error nombra el dato que falló, no un genérico: es lo que el toast le muestra al usuario.
+    /«4821» no calza con ninguna cuenta corriente/i
   )
 })
 
 test("actualizar saldos: una tarjeta reconocida con los dos cupos apagados no avanza el cursor", async () => {
-  // Apagar los cupos es legítimo ("este no lo actualices"), pero entonces no se escribe nada. La
-  // guarda cuenta ESCRITURAS, no instrumentos reconocidos: contando instrumentos, esta tarjeta
-  // habría bastado para mover el cursor sin haber tocado un solo saldo. Y es alcanzable desde la
-  // pantalla, porque el formulario manda siempre todas las tarjetas del banco.
-  await assertNoEscribeNiAvanza([tarjetaGuardada("tj-a", "7734")], {
-    snapshotAt: SNAPSHOT,
-    checking: null,
-    cards: [{ last4: "7734", national: null, international: null }],
-  })
+  // Apagar los cupos es legítimo ("este no lo actualices"), pero entonces no es un dato ingresado:
+  // no se le exige calzar y no escribe nada. Y como acá no se ingresó nada más, no hay guardado
+  // que hacer — mover el cursor sin escribir cerraría la ventana de la proyección en falso. Es
+  // alcanzable desde la pantalla, porque el formulario manda siempre todas las tarjetas del banco.
+  await assertNoEscribeNiAvanza(
+    [tarjetaGuardada("tj-a", "7734")],
+    {
+      snapshotAt: SNAPSHOT,
+      checking: null,
+      cards: [{ last4: "7734", national: null, international: null }],
+    },
+    /no hay ningún saldo que actualizar/i
+  )
 })
 
 test("actualizar saldos: una cuenta que calza pero no tiene bucket no avanza el cursor", async () => {
@@ -1695,6 +1708,7 @@ test("actualizar saldos: una cuenta que calza pero no tiene bucket no avanza el 
   await assertNoEscribeNiAvanza(
     [corriente("acct-real", "009991111100")],
     snapshotDe("1100"),
+    /no tiene dónde llevar el saldo/i,
     [] // el instrumento existe; sus buckets no
   )
 })
@@ -1703,32 +1717,144 @@ test("actualizar saldos: una tarjeta que calza pero no tiene bucket no avanza el
   await assertNoEscribeNiAvanza(
     [tarjetaGuardada("tj-a", "7734")],
     snapshotDeTarjeta("7734"),
+    /no tiene cupo nacional/i,
     []
   )
 })
 
 test("actualizar saldos: sin instrumentos en el formulario tampoco avanza el cursor", async () => {
-  await assertNoEscribeNiAvanza([corriente("acct-real", "009991111100")], {
-    snapshotAt: SNAPSHOT,
-    checking: null,
-    cards: [],
-  })
+  await assertNoEscribeNiAvanza(
+    [corriente("acct-real", "009991111100")],
+    {
+      snapshotAt: SNAPSHOT,
+      checking: null,
+      cards: [],
+    },
+    /no hay ningún saldo que actualizar/i
+  )
 })
 
-// --- Ambigüedad = omitir (el patrón que ya usan resolveCheckingByRef y resolveEventTarget) ---
+// --- Ambigüedad = rechazar (la variante manual del patrón de resolveCheckingByRef) ---
 
 test("actualizar saldos: dos cuentas que calzan con el mismo sufijo no se tocan", async () => {
   // Ambas terminan en 1100. Quedarse con la primera sería escribir en la cuenta equivocada, y sin
   // `orderBy` en `listInstruments` ni siquiera hay una "primera" estable.
   await assertNoEscribeNiAvanza(
     [corriente("acct-a", "009991111100"), corriente("acct-b", "007771111100")],
-    snapshotDe("1100")
+    snapshotDe("1100"),
+    /calza con más de una cuenta corriente/i
   )
 })
 
 test("actualizar saldos: dos tarjetas con los mismos últimos 4 no se tocan", async () => {
   await assertNoEscribeNiAvanza(
     [tarjetaGuardada("tj-a", "2120"), tarjetaGuardada("tj-b", "2120")],
-    snapshotDeTarjeta("2120")
+    snapshotDeTarjeta("2120"),
+    /más de una tarjeta terminada en «2120»/i
+  )
+})
+
+// --- Todo o nada (WDC-81): un dato ingresado que no calza anula el guardado entero ---
+
+const mixto = (
+  ref: string,
+  last4: string
+): Parameters<typeof reconcileEmailBalances>[3] => ({
+  snapshotAt: SNAPSHOT,
+  checking: { ref, cash: Money.of(500000, "CLP"), overdraft: null },
+  cards: [cupoNacional(last4)],
+})
+
+const dosInstrumentos = () => [
+  corriente("acct-real", "009991111100"),
+  tarjetaGuardada("tj-a", "7734"),
+]
+
+test("actualizar saldos: si la corriente no calza, la tarjeta que sí calza tampoco se escribe", async () => {
+  // El caso que abrió esta tarjeta: la tarjeta calzaba y se escribía, la corriente no calzaba y se
+  // omitía — y el cursor avanzaba para el banco entero con toast verde. Los movimientos de la
+  // corriente entre el cursor viejo y el snapshot quedaban fuera de la proyección para siempre.
+  await assertNoEscribeNiAvanza(
+    dosInstrumentos(),
+    mixto("9999", "7734"),
+    /«9999» no calza con ninguna cuenta corriente/i
+  )
+})
+
+test("actualizar saldos: si la tarjeta no calza, la corriente que sí calza tampoco se escribe", async () => {
+  // Simétrico, y antes era peor: la corriente quedaba ESCRITA antes de descubrir que la tarjeta no
+  // calzaba — guardado a medias además de cursor movido.
+  await assertNoEscribeNiAvanza(
+    dosInstrumentos(),
+    mixto("1100", "4821"),
+    /«4821» no calza con ninguna tarjeta/i
+  )
+})
+
+test("actualizar saldos: cuando todo calza se escribe todo y el cursor avanza una vez", async () => {
+  const escrito = sinEscribir()
+  const res = await reconcile(dosInstrumentos(), escrito, mixto("1100", "7734"))
+  assert.equal(res.updatedBuckets, 2)
+  assert.deepEqual(escrito.buckets, ["bucket-acct-real", "bucket-tj-a"])
+  assert.deepEqual(escrito.balances, ["acct-real", "tj-a"])
+  assert.deepEqual(escrito.cursor, [SNAPSHOT])
+})
+
+test("actualizar saldos: apagar los cupos de una tarjeta no bloquea el guardado del resto", async () => {
+  // La omisión deliberada sigue siendo legítima: no es un dato ingresado, no se le exige calzar, y
+  // la fecha avanza porque lo demás sí se escribió.
+  const escrito = sinEscribir()
+  const res = await reconcile(dosInstrumentos(), escrito, {
+    snapshotAt: SNAPSHOT,
+    checking: { ref: "1100", cash: Money.of(500000, "CLP"), overdraft: null },
+    cards: [{ last4: "7734", national: null, international: null }],
+  })
+  assert.equal(res.updatedBuckets, 1)
+  assert.deepEqual(escrito.buckets, ["bucket-acct-real"])
+  assert.deepEqual(escrito.balances, ["acct-real"])
+  assert.deepEqual(escrito.cursor, [SNAPSHOT])
+})
+
+test("actualizar saldos: un sobregiro encendido sin bucket de sobregiro anula el guardado", async () => {
+  // El formulario deja encender la línea aunque el banco no la tenga configurada: antes la caja se
+  // escribía, el sobregiro se descartaba en silencio y el cursor avanzaba igual.
+  await assertNoEscribeNiAvanza(
+    [corriente("acct-real", "009991111100")],
+    {
+      snapshotAt: SNAPSHOT,
+      checking: {
+        ref: "1100",
+        cash: Money.of(500000, "CLP"),
+        overdraft: { limit: Money.of(1000000, "CLP"), used: Money.zero("CLP") },
+      },
+      cards: [],
+    },
+    /línea de sobregiro/i
+  )
+})
+
+test("actualizar saldos: un cupo internacional encendido sin su bucket anula el guardado", async () => {
+  // `bucketsFor` solo crea el cupo nacional: el internacional encendido no tiene dónde caer, y
+  // antes se descartaba en silencio después de escribir el nacional.
+  await assertNoEscribeNiAvanza(
+    [tarjetaGuardada("tj-a", "7734")],
+    {
+      snapshotAt: SNAPSHOT,
+      checking: null,
+      cards: [
+        {
+          last4: "7734",
+          national: {
+            limit: Money.of(2000000, "CLP"),
+            used: Money.of(800000, "CLP"),
+          },
+          international: {
+            limit: Money.of(1000, "USD"),
+            used: Money.of(200, "USD"),
+          },
+        },
+      ],
+    },
+    /cupo internacional/i
   )
 })

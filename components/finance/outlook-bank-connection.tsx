@@ -535,8 +535,8 @@ export function OutlookBankConnection({
             >
               Cancelar
             </Button>
-            {/* Con la referencia vacía reconcileEmailBalances no empareja ninguna cuenta (WDC-80):
-                guardar no rompería nada, pero tampoco haría nada. Se bloquea para decirlo. */}
+            {/* Con la referencia vacía reconcileEmailBalances rechaza el guardado entero (es todo
+                o nada desde WDC-81): no rompería nada, pero volvería con 422. Se bloquea antes. */}
             <Button
               onClick={() => saveReconcile(reconciling.id)}
               disabled={busy || invalidSnapshot || Boolean(reconcileHint)}

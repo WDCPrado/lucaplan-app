@@ -2,6 +2,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import {
+  categoryUsageLine,
   daysLeftInMonth,
   quartileVar,
   statusVar,
@@ -55,6 +56,54 @@ test("la barra nunca pasa del 100%", () => {
 // criterio de `categoryStatus` para los topes en 0. Se afirma contra esa fuente y no contra los
 // literales del token a propósito: si mañana cambia la regla en `budget-formulas.ts`, este test
 // cae en vez de quedarse verde mientras el card diverge en silencio.
+// Línea de presupuesto del modal de movimiento (WDC-82): color y texto salen de la lógica
+// existente (statusVar + formatCLP), acá se afirma el ruteo — qué categoría muestra qué.
+test("la línea de uso del modal: gasto con tope lleva semáforo", () => {
+  assert.deepEqual(
+    categoryUsageLine({
+      type: "expense",
+      used: 50_000,
+      limit: 200_000,
+      status: "bueno",
+    }),
+    // Contra statusVar y no contra el literal del token: misma razón que el test de abajo.
+    { text: "$50.000 de $200.000", color: statusVar("bueno") }
+  )
+  assert.deepEqual(
+    categoryUsageLine({
+      type: "expense",
+      used: 250_000,
+      limit: 200_000,
+      status: "excedido",
+    }),
+    { text: "$250.000 de $200.000", color: statusVar("excedido") }
+  )
+})
+
+test("la línea de uso del modal: sin tope solo el monto, sin alerta", () => {
+  assert.deepEqual(
+    categoryUsageLine({
+      type: "expense",
+      used: 45_000,
+      limit: 0,
+      status: "excedido", // con tope 0, categoryStatus marca excedido; la línea igual no alerta
+    }),
+    { text: "sin tope · $45.000", color: null }
+  )
+})
+
+test("la línea de uso del modal: ingreso no consume presupuesto", () => {
+  assert.equal(
+    categoryUsageLine({
+      type: "income",
+      used: 800_000,
+      limit: 1_000_000,
+      status: "moderado",
+    }),
+    null
+  )
+})
+
 test("con límite 0 el color sigue el criterio de categoryStatus", () => {
   const cero = Money.zero("CLP")
   const gasto = Money.of(45_000, "CLP")

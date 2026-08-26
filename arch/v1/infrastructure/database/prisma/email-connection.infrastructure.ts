@@ -30,7 +30,7 @@ import type {
   ResolvedEmailMovement,
 } from "../../../application/finance-use-cases/email-connection-use-cases.ts"
 import { encryptSecret, EMAIL_PURPOSE } from "../../crypto/secret-crypto.ts"
-import { msgraphMailProvider } from "../../http/outlook/msgraph.provider.ts"
+import { emailMailRouter } from "../../http/email/provider-registry.ts"
 import { categorizePendingMovements } from "./categorize-pending.infrastructure.ts"
 import { matchRecurringForImported } from "./match-recurring.ts"
 import { runInstallmentsForImported } from "./run-installments.ts"
@@ -501,7 +501,7 @@ export function makeEmailConnectionDeps(): EmailConnectionDeps {
     mailboxes: emailMailboxRepository,
     links: emailBankLinkRepository,
     methods: connectionMethodRepository,
-    mail: msgraphMailProvider,
+    mail: emailMailRouter,
     store: emailSetupStore,
     matchRecurring: matchRecurringForImported,
     runInstallments: runInstallmentsForImported,

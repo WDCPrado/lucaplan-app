@@ -34,7 +34,7 @@ export type EmailLinkStatus = (typeof EMAIL_LINK_STATUSES)[number]
 export type EmailMailbox = {
   id: string
   userId: string
-  emailProvider: string // "outlook"
+  emailProvider: string // clave del proveedor en el catálogo ("outlook", …)
   emailAddress: string
   status: EmailMailboxStatus
   createdAt: Date
@@ -130,7 +130,8 @@ export type NewEmailMailbox = {
 }
 
 export type EmailMailboxPatch = Partial<{
-  refreshToken: string // rotación: Microsoft devuelve uno nuevo en cada refresh
+  emailProvider: string // reconectar por otro proveedor no puede dejar la fila mintiendo
+  refreshToken: string // rotación: el proveedor puede devolver uno nuevo en cada refresh
   status: EmailMailboxStatus
   deltaLink: string | null
   subscriptionId: string | null

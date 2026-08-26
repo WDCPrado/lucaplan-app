@@ -46,7 +46,7 @@ export function SyncBancoChileButton({
       setOutlookStatus(await res.json())
     } catch {
       setOutlookStatus({
-        configured: false,
+        providers: [],
         mailboxes: [],
         availableBanks: [],
       })

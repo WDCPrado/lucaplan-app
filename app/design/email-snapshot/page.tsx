@@ -4,58 +4,177 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import {
+  ScanGuidance,
+  ScanSummary,
   SnapshotForm,
   type CardForm,
   type CheckingForm,
 } from "@/components/finance/outlook-bank-connection"
+import { confirmBlocker } from "@/lib/bank-setup-guidance"
 
-// Mock funcional del paso "revisar candidatos + snapshot" de la conexión Outlook: mismas
-// tarjetas editables y validación que el flujo real, con datos en memoria (sin API).
+// Mock funcional del paso "revisar candidatos + snapshot" de la conexión Outlook: mismas tarjetas,
+// mismos avisos y misma validación que el flujo real, con datos en memoria (sin API ni buzón).
+//
+// Los tres escenarios existen porque el flujo real NO se puede mirar en el entorno de PR: el
+// escaneo consulta Microsoft Graph con el token del buzón, que ahí no existe. Este mock es dónde se
+// revisa cómo se ve cada resultado del escaneo, incluido el que llega sin nada que proponer.
+
+type Escenario = {
+  slug: string
+  label: string
+  desc: string
+  bankName: string
+  scan: {
+    totalMessages: number
+    expenseCount: number
+    internalCount: number
+    primaryCheckingCount: number
+    skippedCount: number
+    since: string
+  }
+  checking: CheckingForm | null
+  cards: CardForm[]
+}
+
+const CHECKING_VACIA: CheckingForm = {
+  ref: "", // el correo no trae los dígitos: los completa el usuario
+  cash: 0,
+  hasOverdraft: false,
+  overdraftLimit: 0,
+  overdraftAvailable: 0,
+  movementCount: 7,
+}
+
+const ESCENARIOS: Escenario[] = [
+  {
+    slug: "candidatos",
+    label: "Con candidatos",
+    desc: "El escaneo propone la cuenta y la tarjeta: no hace falta ningún aviso.",
+    bankName: "Banco de Chile",
+    scan: {
+      totalMessages: 123,
+      expenseCount: 105,
+      internalCount: 6,
+      primaryCheckingCount: 0,
+      skippedCount: 12,
+      since: "2026-07-01T00:00:00.000Z",
+    },
+    checking: {
+      ref: "8900",
+      cash: 0,
+      hasOverdraft: true,
+      overdraftLimit: 1_000_000,
+      overdraftAvailable: 886_453,
+      movementCount: 31,
+    },
+    cards: [
+      {
+        id: "mock-2120",
+        last4: "2120",
+        national: true,
+        nationalLimit: 3_272_200,
+        nationalAvailable: 992_926,
+        international: true,
+        internationalLimit: 2_100,
+        internationalAvailable: 1_694.62,
+        movementCount: 74,
+      },
+    ],
+  },
+  {
+    slug: "cuenta-principal",
+    label: "Solo cuenta principal",
+    desc: "MACHBANK no numera la cuenta en sus transferencias: la cuenta se propone vacía.",
+    bankName: "MACHBANK",
+    scan: {
+      totalMessages: 19,
+      expenseCount: 7,
+      internalCount: 0,
+      primaryCheckingCount: 7,
+      skippedCount: 12,
+      since: "2026-07-01T00:00:00.000Z",
+    },
+    checking: CHECKING_VACIA,
+    cards: [],
+  },
+  {
+    slug: "sin-nada",
+    label: "Sin nada que proponer",
+    desc: "Correos del banco que no identifican ningún instrumento.",
+    bankName: "MACHBANK",
+    scan: {
+      totalMessages: 14,
+      expenseCount: 0,
+      internalCount: 0,
+      primaryCheckingCount: 0,
+      skippedCount: 14,
+      since: "2026-07-01T00:00:00.000Z",
+    },
+    checking: null,
+    cards: [],
+  },
+]
+
 export default function EmailSnapshotMock() {
   const [open, setOpen] = useState(true)
+  const [escenario, setEscenario] = useState(ESCENARIOS[1])
   const [snapshotAt, setSnapshotAt] = useState("2026-07-15T00:39")
-  const [checking, setChecking] = useState<CheckingForm | null>({
-    ref: "8900",
-    cash: 0,
-    hasOverdraft: true,
-    overdraftLimit: 1_000_000,
-    overdraftAvailable: 886_453,
-    movementCount: 31,
+  const [checking, setChecking] = useState<CheckingForm | null>(
+    ESCENARIOS[1].checking
+  )
+  const [cards, setCards] = useState<CardForm[]>(ESCENARIOS[1].cards)
+
+  const elegir = (siguiente: Escenario) => {
+    setEscenario(siguiente)
+    setChecking(siguiente.checking)
+    setCards(siguiente.cards)
+    setOpen(true)
+  }
+
+  const blocker = confirmBlocker({
+    checkingRef: checking ? checking.ref : null,
+    cardRefs: cards.map((card) => card.last4),
   })
-  const [cards, setCards] = useState<CardForm[]>([
-    {
-      id: "mock-2120",
-      last4: "2120",
-      national: true,
-      nationalLimit: 3_272_200,
-      nationalAvailable: 992_926,
-      international: true,
-      internationalLimit: 2_100,
-      internationalAvailable: 1_694.62,
-      movementCount: 74,
-    },
-  ])
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-background p-6 text-foreground">
-      <Button onClick={() => setOpen(true)} className="h-11 rounded-full">
-        Abrir revisión de Outlook
-      </Button>
+    <main className="min-h-dvh bg-background p-6 text-foreground">
+      <div className="mx-auto max-w-md space-y-3">
+        <h1 className="font-heading text-2xl font-bold tracking-tight">
+          Outlook · Revisión y snapshot
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Qué muestra la revisión según lo que el escaneo haya encontrado.
+        </p>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {ESCENARIOS.map((e) => (
+            <Button
+              key={e.slug}
+              variant={e.slug === escenario.slug ? "default" : "outline"}
+              onClick={() => elegir(e)}
+              className="h-11 shrink-0 rounded-full"
+            >
+              {e.label}
+            </Button>
+          ))}
+        </div>
+        <p className="text-sm text-muted-foreground">{escenario.desc}</p>
+      </div>
+
       <ResponsiveModal
         open={open}
         onOpenChange={setOpen}
         title="Conectar banco"
       >
         <div className="space-y-5 px-6 pb-6">
-          <div className="rounded-xl bg-muted/50 p-3 text-sm">
-            <span className="font-medium">105 gastos detectados</span>
-            <span className="text-muted-foreground">
-              {" "}
-              · 6 ajustes internos · 12 omitidos
-            </span>
-          </div>
+          <ScanSummary scan={escenario.scan} bankName={escenario.bankName} />
+          <ScanGuidance
+            scan={escenario.scan}
+            bankName={escenario.bankName}
+            checking={checking}
+            cards={cards}
+          />
           <SnapshotForm
-            bankName="Banco de Chile"
+            bankName={escenario.bankName}
             snapshotAt={snapshotAt}
             setSnapshotAt={setSnapshotAt}
             checking={checking}
@@ -63,12 +182,23 @@ export default function EmailSnapshotMock() {
             cards={cards}
             setCards={setCards}
           />
-          <Button
-            onClick={() => setOpen(false)}
-            className="h-12 w-full rounded-full"
-          >
-            Validar e importar movimientos
-          </Button>
+          <div className="space-y-2">
+            <Button
+              onClick={() => setOpen(false)}
+              disabled={Boolean(blocker)}
+              className="h-12 w-full rounded-full"
+            >
+              Validar e importar movimientos
+            </Button>
+            {blocker && (
+              <p
+                className="text-center text-xs text-muted-foreground"
+                role="status"
+              >
+                {blocker}
+              </p>
+            )}
+          </div>
         </div>
       </ResponsiveModal>
     </main>

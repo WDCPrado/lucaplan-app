@@ -1187,6 +1187,39 @@ test("cuenta principal: no propone un candidato de cuenta con un número inventa
   // Pero el movimiento sí se contabiliza como gasto del escaneo.
   assert.equal(summary.expenseCount, 1)
   assert.equal(summary.skippedCount, 0)
+  // Y queda contado aparte: es lo que la revisión usa para explicar por qué llega vacía.
+  assert.equal(summary.primaryCheckingCount, 1)
+})
+
+test("cuenta principal: se cuentan los movimientos sin número, no los correos omitidos", () => {
+  const promoMach = message({
+    from: "no-reply@mail.machbank.cl",
+    subject: "Conoce los beneficios del mes",
+    htmlBody: "<p>Promoción vigente hasta fin de mes.</p>",
+  })
+  const summary = detectCandidates([
+    parseMachbankEmail(transferenciaMach()),
+    parseMachbankEmail(transferenciaMach()),
+    parseMachbankEmail(promoMach),
+  ])
+  assert.equal(summary.primaryCheckingCount, 2)
+  assert.equal(summary.skippedCount, 1)
+})
+
+test("cuenta principal: un instrumento numerado no entra en el conteo sin número", () => {
+  const compraMach = message({
+    from: "no-reply@mail.machbank.cl",
+    subject: "Tu compra con MACHBANK 📲",
+    htmlBody: `<p>Compraste con tu Visa D&eacute;bito.</p>
+      <table><tr><td>Monto CLP</td><td>$9.990</td></tr>
+      <tr><td>Comercio</td><td>UBER EATS</td></tr>
+      <tr><td>Últimos 4 dígitos de la tarjeta</td><td>4321</td></tr></table>`,
+  })
+  const summary = detectCandidates([parseMachbankEmail(compraMach)])
+  assert.equal(summary.primaryCheckingCount, 0)
+  assert.deepEqual(summary.candidates, [
+    { kind: "checking", ref: "4321", last4: "4321", movementCount: 1 },
+  ])
 })
 
 // --- Ventana del escaneo: el mes de la última notificación CON movimientos ---

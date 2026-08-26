@@ -26,6 +26,11 @@ export type EmailScanSummary = {
   totalMessages: number
   expenseCount: number
   internalCount: number
+  // Movimientos que el correo refiere solo como "tu cuenta principal", sin número. No producen
+  // candidato —no hay dígitos que proponer— pero sí se importan si el usuario confirma UNA cuenta
+  // corriente. Se cuentan aparte para poder explicarle por qué la revisión llega vacía y qué se
+  // pierde si no agrega esa cuenta.
+  primaryCheckingCount: number
   skippedCount: number
   skippedReasons: Partial<Record<EmailSkipReason, number>>
 }
@@ -38,6 +43,7 @@ export function detectCandidates(parsed: ParsedEmail[]): EmailScanSummary {
   >()
   let expenseCount = 0
   let internalCount = 0
+  let primaryCheckingCount = 0
   let skippedCount = 0
   const skippedReasons: Partial<Record<EmailSkipReason, number>> = {}
 
@@ -53,7 +59,10 @@ export function detectCandidates(parsed: ParsedEmail[]): EmailScanSummary {
     if (!e.instrument) continue
     // "Cuenta principal" no numera nada: no hay candidato que proponer. La cuenta sale de los
     // correos que sí identifican el instrumento, o la agrega el usuario en la confirmación.
-    if (e.instrument.kind === "primary_checking") continue
+    if (e.instrument.kind === "primary_checking") {
+      primaryCheckingCount++
+      continue
+    }
     if (e.instrument.kind === "checking") {
       checkingCounts.set(
         e.instrument.ref,
@@ -109,6 +118,7 @@ export function detectCandidates(parsed: ParsedEmail[]): EmailScanSummary {
     totalMessages: parsed.length,
     expenseCount,
     internalCount,
+    primaryCheckingCount,
     skippedCount,
     skippedReasons,
   }

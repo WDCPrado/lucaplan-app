@@ -34,7 +34,14 @@ import {
   resolveCardArt,
   type CardVariant,
 } from "@/lib/bank-cards"
-import { formatMoney } from "@/lib/finance-format"
+import {
+  confirmBlocker,
+  plural,
+  refComplete,
+  scanGuidance,
+  type SetupForm,
+} from "@/lib/bank-setup-guidance"
+import { formatMoney, monthName } from "@/lib/finance-format"
 import { importStep } from "@/lib/import-progress"
 import { cn } from "@/lib/utils"
 import { ImportProgressTimeline } from "./import-progress-timeline"
@@ -84,7 +91,11 @@ type Scan = {
   totalMessages: number
   expenseCount: number
   internalCount: number
+  // Movimientos que el banco refiere solo como "tu cuenta principal", sin número: no producen
+  // candidato, pero sí se importan si el usuario confirma UNA cuenta corriente.
+  primaryCheckingCount: number
   skippedCount: number
+  since: string // primer día del mes escaneado (ISO)
   bankName: string
 }
 export type CheckingForm = {
@@ -164,6 +175,24 @@ function formsFromAccounts(accounts: AccountDTO[]): {
   return { checking, cards }
 }
 
+// Lo que el formulario le muestra al usuario (avisos y qué le falta) vive en lib/, para que se
+// pruebe sin montar la UI.
+const formOf = (
+  checking: CheckingForm | null,
+  cards: CardForm[]
+): SetupForm => ({
+  checkingRef: checking ? checking.ref : null,
+  cardRefs: cards.map((card) => card.last4),
+})
+
+// Mes de la ventana escaneada, en la voz de la app: "julio de 2026". Vacío si el escaneo no lo trae.
+function scanMonthLabel(sinceIso: string): string {
+  const since = new Date(sinceIso)
+  if (Number.isNaN(since.getTime())) return ""
+  const name = monthName(since.getUTCMonth() + 1).toLowerCase()
+  return name ? `${name} de ${since.getUTCFullYear()}` : ""
+}
+
 const bucketInvalid = (limit: number, available: number) =>
   available < 0 || available > limit
 
@@ -205,6 +234,8 @@ export function OutlookBankConnection({
   const [importStepIdx, setImportStepIdx] = useState(0)
   const automaticScanStarted = useRef(false)
   const invalidSnapshot = snapshotInvalid(checking, cards)
+  // Solo aplica al setup inicial: la reconciliación edita instrumentos que ya existen.
+  const blockingHint = confirmBlocker(formOf(checking, cards))
 
   const mailboxes = status?.mailboxes ?? []
   const banks = mailboxes.flatMap((m) =>
@@ -269,6 +300,9 @@ export function OutlookBankConnection({
         (c): c is Extract<Candidate, { kind: "checking" }> =>
           c.kind === "checking"
       )
+      // Sin candidato numerado pero con movimientos contra "tu cuenta principal", la cuenta se
+      // propone igual, VACÍA: el correo no trae los dígitos y no se inventan, pero dejar el
+      // formulario en blanco escondía que esos movimientos dependen de que el usuario la agregue.
       setChecking(
         foundChecking
           ? {
@@ -279,7 +313,16 @@ export function OutlookBankConnection({
               overdraftAvailable: 0,
               movementCount: foundChecking.movementCount,
             }
-          : null
+          : data.primaryCheckingCount > 0
+            ? {
+                ref: "",
+                cash: 0,
+                hasOverdraft: false,
+                overdraftLimit: 0,
+                overdraftAvailable: 0,
+                movementCount: data.primaryCheckingCount,
+              }
+            : null
       )
       setCards(
         data.candidates
@@ -548,16 +591,13 @@ export function OutlookBankConnection({
     }
     return (
       <div className="space-y-5">
-        <div className="rounded-xl bg-muted/50 p-3 text-sm">
-          <span className="font-medium">
-            {scan.expenseCount} gastos detectados
-          </span>
-          <span className="text-muted-foreground">
-            {" "}
-            · {scan.internalCount} ajustes internos · {scan.skippedCount}{" "}
-            omitidos
-          </span>
-        </div>
+        <ScanSummary scan={scan} bankName={pending.bankName} />
+        <ScanGuidance
+          scan={scan}
+          bankName={pending.bankName}
+          checking={checking}
+          cards={cards}
+        />
         <SnapshotForm
           bankName={pending.bankName}
           snapshotAt={snapshotAt}
@@ -567,13 +607,24 @@ export function OutlookBankConnection({
           cards={cards}
           setCards={setCards}
         />
-        <Button
-          onClick={() => startInitialImport(pending.id)}
-          disabled={busy || invalidSnapshot}
-          className="h-12 w-full rounded-full"
-        >
-          Validar e importar movimientos
-        </Button>
+        <div className="space-y-2">
+          <Button
+            onClick={() => startInitialImport(pending.id)}
+            disabled={busy || invalidSnapshot || Boolean(blockingHint)}
+            className="h-12 w-full rounded-full"
+          >
+            Validar e importar movimientos
+          </Button>
+          {/* Por qué el botón está apagado: un disabled sin motivo deja al usuario probando clics. */}
+          {blockingHint && (
+            <p
+              className="text-center text-xs text-muted-foreground"
+              role="status"
+            >
+              {blockingHint}
+            </p>
+          )}
+        </div>
         <DisconnectButton
           busy={busy}
           label="Cancelar conexión"
@@ -1448,6 +1499,8 @@ function CandidateCard({
   refMaxLength?: number
   children: React.ReactNode
 }) {
+  // Un instrumento sin sus 4 dígitos no se puede crear: se marca en el campo, donde se arregla.
+  const refInvalid = !refComplete(refValue)
   const art = resolveCardArt(
     bankName,
     variant === "debito" ? "checking" : "credit_card"
@@ -1488,6 +1541,7 @@ function CandidateCard({
             value={refValue}
             placeholder={refPlaceholder}
             aria-label={refLabel}
+            aria-invalid={refInvalid || undefined}
             onChange={(e) => onRef(e.target.value)}
             style={boxedInputStyle}
             className="tabular h-8 w-24 rounded-lg border-white/20 px-2 text-sm tracking-widest text-white selection:bg-white/25 selection:text-white placeholder:text-white/40 focus-visible:border-white/40 focus-visible:ring-white/20"
@@ -1519,15 +1573,93 @@ function Field({
 
 function Notice({
   icon: Icon,
+  tone = "info",
   children,
 }: {
   icon: typeof Mail
+  // "warning" separa el aviso que pide una acción del texto informativo: mismo bloque, otro peso.
+  tone?: "info" | "warning"
   children: React.ReactNode
 }) {
+  const warn = tone === "warning"
   return (
-    <div className="flex items-start gap-2 rounded-xl border bg-muted/30 p-3 text-sm text-muted-foreground">
-      <Icon className="mt-0.5 size-4 shrink-0 text-primary" />
+    <div
+      className={cn(
+        "flex items-start gap-2 rounded-xl border p-3 text-sm",
+        warn
+          ? "border-warning/40 bg-warning/10 text-foreground"
+          : "bg-muted/30 text-muted-foreground"
+      )}
+    >
+      <Icon
+        className={cn(
+          "mt-0.5 size-4 shrink-0",
+          warn ? "text-warning" : "text-primary"
+        )}
+      />
       <span>{children}</span>
     </div>
+  )
+}
+
+// Qué se leyó y qué salió de ahí. La procedencia —cuántos correos, de qué mes— va junto al dato:
+// sin ella, una revisión que llega sin candidatos parece un error de la app.
+export function ScanSummary({
+  scan,
+  bankName,
+}: {
+  scan: Pick<
+    Scan,
+    | "expenseCount"
+    | "internalCount"
+    | "skippedCount"
+    | "totalMessages"
+    | "since"
+  >
+  bankName: string
+}) {
+  const mes = scanMonthLabel(scan.since)
+  return (
+    <div className="rounded-xl bg-muted/50 p-3 text-sm">
+      <p>
+        <span className="font-medium">
+          {plural(scan.expenseCount, "gasto detectado", "gastos detectados")}
+        </span>
+        <span className="text-muted-foreground">
+          {" · "}
+          {plural(
+            scan.internalCount,
+            "ajuste interno",
+            "ajustes internos"
+          )} · {scan.skippedCount} omitidos
+        </span>
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {plural(scan.totalMessages, "correo", "correos")} de {bankName}{" "}
+        {mes ? `revisados · ${mes}` : "revisados"}
+      </p>
+    </div>
+  )
+}
+
+// Por qué la revisión llega como llega y qué tiene que hacer el usuario. El texto se decide en
+// lib/bank-setup-guidance; acá solo se pinta cuando hay algo que decir.
+export function ScanGuidance({
+  scan,
+  bankName,
+  checking,
+  cards,
+}: {
+  scan: Pick<Scan, "totalMessages" | "primaryCheckingCount">
+  bankName: string
+  checking: CheckingForm | null
+  cards: CardForm[]
+}) {
+  const aviso = scanGuidance({ bankName, ...scan }, formOf(checking, cards))
+  if (!aviso) return null
+  return (
+    <Notice icon={CircleAlert} tone="warning">
+      {aviso}
+    </Notice>
   )
 }

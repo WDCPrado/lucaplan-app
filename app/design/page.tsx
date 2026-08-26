@@ -16,7 +16,7 @@ const mocks = [
   {
     slug: "email-snapshot",
     title: "Outlook · Revisión y snapshot",
-    desc: "Tarjetas editables de candidatos con saldos total/disponible",
+    desc: "Candidatos, snapshot y qué se ve cuando el banco no propone nada",
   },
   {
     slug: "ux-audit",

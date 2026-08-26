@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
 import {
   Check,
   CircleAlert,
@@ -34,7 +34,17 @@ import {
   resolveCardArt,
   type CardVariant,
 } from "@/lib/bank-cards"
-import { formatMoney } from "@/lib/finance-format"
+import {
+  confirmBlocker,
+  plural,
+  proposedChecking,
+  reconcileBlocker,
+  refComplete,
+  scanGuidance,
+  type ScanCandidate,
+  type SetupForm,
+} from "@/lib/bank-setup-guidance"
+import { formatMoney, monthName } from "@/lib/finance-format"
 import { importStep } from "@/lib/import-progress"
 import { cn } from "@/lib/utils"
 import { ImportProgressTimeline } from "./import-progress-timeline"
@@ -71,20 +81,16 @@ export type OutlookStatus = {
   availableBanks: { key: string; name: string }[]
 }
 
-type Candidate =
-  | { kind: "checking"; ref: string; last4: string; movementCount: number }
-  | {
-      kind: "credit_card"
-      last4: string
-      currencies: ("CLP" | "USD")[]
-      movementCount: number
-    }
 type Scan = {
-  candidates: Candidate[]
+  candidates: ScanCandidate[]
   totalMessages: number
   expenseCount: number
   internalCount: number
+  // Movimientos que el banco refiere solo como "tu cuenta principal", sin número: no producen
+  // candidato, pero sí se importan si el usuario confirma UNA cuenta corriente.
+  primaryCheckingCount: number
   skippedCount: number
+  since: string // primer día del mes escaneado (ISO)
   bankName: string
 }
 export type CheckingForm = {
@@ -164,6 +170,28 @@ function formsFromAccounts(accounts: AccountDTO[]): {
   return { checking, cards }
 }
 
+// Lo que el formulario le muestra al usuario (qué se le propone, los avisos y qué le falta) vive
+// en lib/, para que se pruebe sin montar la UI.
+const formOf = (
+  checking: CheckingForm | null,
+  cards: CardForm[]
+): SetupForm => ({
+  checkingRef: checking ? checking.ref : null,
+  cards: cards.map((card) => ({
+    ref: card.last4,
+    national: card.national,
+    international: card.international,
+  })),
+})
+
+// Mes de la ventana escaneada, en la voz de la app: "julio de 2026". Vacío si el escaneo no lo trae.
+function scanMonthLabel(sinceIso: string): string {
+  const since = new Date(sinceIso)
+  if (Number.isNaN(since.getTime())) return ""
+  const name = monthName(since.getUTCMonth() + 1).toLowerCase()
+  return name ? `${name} de ${since.getUTCFullYear()}` : ""
+}
+
 const bucketInvalid = (limit: number, available: number) =>
   available < 0 || available > limit
 
@@ -205,6 +233,11 @@ export function OutlookBankConnection({
   const [importStepIdx, setImportStepIdx] = useState(0)
   const automaticScanStarted = useRef(false)
   const invalidSnapshot = snapshotInvalid(checking, cards)
+  // Qué falta para poder confirmar. La conexión inicial CREA instrumentos y exige más que la
+  // reconciliación, que solo actualiza saldos de los que ya existen.
+  const setupForm = formOf(checking, cards)
+  const blockingHint = confirmBlocker(setupForm)
+  const reconcileHint = reconcileBlocker(setupForm)
 
   const mailboxes = status?.mailboxes ?? []
   const banks = mailboxes.flatMap((m) =>
@@ -265,26 +298,25 @@ export function OutlookBankConnection({
         return
       }
       setScan(data)
-      const foundChecking = data.candidates.find(
-        (c): c is Extract<Candidate, { kind: "checking" }> =>
-          c.kind === "checking"
-      )
+      // Qué cuenta se propone —incluida la vacía cuando el banco no la numera— lo decide
+      // proposedChecking, que se prueba aparte.
+      const propuesta = proposedChecking(data)
       setChecking(
-        foundChecking
+        propuesta
           ? {
-              ref: foundChecking.ref,
+              ref: propuesta.ref,
               cash: 0,
               hasOverdraft: false,
               overdraftLimit: 0,
               overdraftAvailable: 0,
-              movementCount: foundChecking.movementCount,
+              movementCount: propuesta.movementCount,
             }
           : null
       )
       setCards(
         data.candidates
           .filter(
-            (c): c is Extract<Candidate, { kind: "credit_card" }> =>
+            (c): c is Extract<ScanCandidate, { kind: "credit_card" }> =>
               c.kind === "credit_card"
           )
           .map((c) => ({
@@ -487,21 +519,28 @@ export function OutlookBankConnection({
           cards={cards}
           setCards={setCards}
         />
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setReconciling(null)}
-            className="h-11 flex-1 rounded-full"
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={() => saveReconcile(reconciling.id)}
-            disabled={busy || invalidSnapshot}
-            className="h-11 flex-1 rounded-full"
-          >
-            Guardar saldos
-          </Button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setReconciling(null)}
+              className="h-11 flex-1 rounded-full"
+            >
+              Cancelar
+            </Button>
+            {/* Con la referencia vacía, reconcileEmailBalances resuelve por endsWith("") y
+                sobrescribe el saldo de la primera cuenta corriente que encuentre. */}
+            <Button
+              onClick={() => saveReconcile(reconciling.id)}
+              disabled={busy || invalidSnapshot || Boolean(reconcileHint)}
+              className="h-11 flex-1 rounded-full"
+            >
+              Guardar saldos
+            </Button>
+          </div>
+          {reconcileHint && (
+            <p className="text-center text-sm">{reconcileHint}</p>
+          )}
         </div>
       </div>
     )
@@ -518,7 +557,9 @@ export function OutlookBankConnection({
           </Notice>
           {scanError ? (
             <>
-              <Notice icon={CircleAlert}>{scanError}</Notice>
+              <Notice icon={CircleAlert} tone="warning">
+                {scanError}
+              </Notice>
               <Button
                 onClick={() => detect(pending.id)}
                 disabled={busy}
@@ -548,16 +589,13 @@ export function OutlookBankConnection({
     }
     return (
       <div className="space-y-5">
-        <div className="rounded-xl bg-muted/50 p-3 text-sm">
-          <span className="font-medium">
-            {scan.expenseCount} gastos detectados
-          </span>
-          <span className="text-muted-foreground">
-            {" "}
-            · {scan.internalCount} ajustes internos · {scan.skippedCount}{" "}
-            omitidos
-          </span>
-        </div>
+        <ScanSummary scan={scan} bankName={pending.bankName} />
+        <ScanGuidance
+          scan={scan}
+          bankName={pending.bankName}
+          checking={checking}
+          cards={cards}
+        />
         <SnapshotForm
           bankName={pending.bankName}
           snapshotAt={snapshotAt}
@@ -567,13 +605,21 @@ export function OutlookBankConnection({
           cards={cards}
           setCards={setCards}
         />
-        <Button
-          onClick={() => startInitialImport(pending.id)}
-          disabled={busy || invalidSnapshot}
-          className="h-12 w-full rounded-full"
-        >
-          Validar e importar movimientos
-        </Button>
+        <div className="space-y-2">
+          <Button
+            onClick={() => startInitialImport(pending.id)}
+            disabled={busy || invalidSnapshot || Boolean(blockingHint)}
+            className="h-12 w-full rounded-full"
+          >
+            Validar e importar movimientos
+          </Button>
+          {/* Por qué el botón está apagado: un disabled sin motivo deja al usuario probando clics.
+              El mismo motivo viaja además en el campo que lo causa (aria-describedby), que es donde
+              se arregla y donde sí lo alcanza un lector de pantalla. */}
+          {blockingHint && (
+            <p className="text-center text-sm">{blockingHint}</p>
+          )}
+        </div>
         <DisconnectButton
           busy={busy}
           label="Cancelar conexión"
@@ -1448,6 +1494,13 @@ function CandidateCard({
   refMaxLength?: number
   children: React.ReactNode
 }) {
+  // Un instrumento sin sus 4 dígitos no se puede crear, pero la cuenta se propone vacía a
+  // propósito: marcarla en rojo de entrada culpa al usuario de algo que todavía no hizo. El campo
+  // se marca recién cuando lo dejó incompleto, y el motivo viaja con él (aria-describedby) porque
+  // el botón deshabilitado no recibe foco y su explicación queda fuera del alcance del teclado.
+  const [refTouched, setRefTouched] = useState(false)
+  const refInvalid = refTouched && !refComplete(refValue)
+  const refErrorId = useId()
   const art = resolveCardArt(
     bankName,
     variant === "debito" ? "checking" : "credit_card"
@@ -1479,24 +1532,34 @@ function CandidateCard({
         </button>
       </div>
       <div className="relative flex-1 space-y-3">{children}</div>
-      <div className="relative flex items-center justify-between gap-2 text-sm text-white/85">
-        <span className="flex items-center gap-1.5">
-          <span className="tracking-widest">••••</span>
-          <Input
-            inputMode="numeric"
-            maxLength={refMaxLength}
-            value={refValue}
-            placeholder={refPlaceholder}
-            aria-label={refLabel}
-            onChange={(e) => onRef(e.target.value)}
-            style={boxedInputStyle}
-            className="tabular h-8 w-24 rounded-lg border-white/20 px-2 text-sm tracking-widest text-white selection:bg-white/25 selection:text-white placeholder:text-white/40 focus-visible:border-white/40 focus-visible:ring-white/20"
-          />
-        </span>
-        <span className="shrink-0">
-          {typeLabel}
-          {movementCount ? ` · ${movementCount} movs` : ""}
-        </span>
+      <div className="relative space-y-1.5">
+        <div className="flex items-center justify-between gap-2 text-sm text-white/85">
+          <span className="flex items-center gap-1.5">
+            <span className="tracking-widest">••••</span>
+            <Input
+              inputMode="numeric"
+              maxLength={refMaxLength}
+              value={refValue}
+              placeholder={refPlaceholder}
+              aria-label={refLabel}
+              aria-invalid={refInvalid || undefined}
+              aria-describedby={refInvalid ? refErrorId : undefined}
+              onChange={(e) => onRef(e.target.value)}
+              onBlur={() => setRefTouched(true)}
+              style={boxedInputStyle}
+              className="tabular h-10 w-24 rounded-lg border-white/20 px-2 text-sm tracking-widest text-white selection:bg-white/25 selection:text-white placeholder:text-white/40 focus-visible:border-white/70 focus-visible:ring-white/60"
+            />
+          </span>
+          <span className="shrink-0">
+            {typeLabel}
+            {movementCount ? ` · ${movementCount} movs` : ""}
+          </span>
+        </div>
+        {refInvalid && (
+          <p id={refErrorId} className="text-sm text-red-200">
+            Faltan los últimos 4 dígitos.
+          </p>
+        )}
       </div>
     </div>
   )
@@ -1519,15 +1582,97 @@ function Field({
 
 function Notice({
   icon: Icon,
+  tone = "info",
   children,
 }: {
   icon: typeof Mail
+  // "warning" separa el aviso que pide una acción del texto informativo: mismo bloque, otro peso.
+  tone?: "info" | "warning"
   children: React.ReactNode
 }) {
+  const warn = tone === "warning"
   return (
-    <div className="flex items-start gap-2 rounded-xl border bg-muted/30 p-3 text-sm text-muted-foreground">
-      <Icon className="mt-0.5 size-4 shrink-0 text-primary" />
+    <div
+      className={cn(
+        "flex items-start gap-2 rounded-xl border p-3 text-sm",
+        warn
+          ? "border-warning/40 bg-warning/10 text-foreground"
+          : "bg-muted/30 text-muted-foreground"
+      )}
+    >
+      <Icon
+        className={cn(
+          "mt-0.5 size-4 shrink-0",
+          warn ? "text-warning" : "text-primary"
+        )}
+      />
       <span>{children}</span>
     </div>
+  )
+}
+
+// Qué se leyó y qué salió de ahí. La procedencia —cuántos correos, de qué mes— va junto al dato:
+// sin ella, una revisión que llega sin candidatos parece un error de la app.
+export function ScanSummary({
+  scan,
+  bankName,
+}: {
+  scan: Pick<
+    Scan,
+    | "expenseCount"
+    | "internalCount"
+    | "skippedCount"
+    | "totalMessages"
+    | "since"
+  >
+  bankName: string
+}) {
+  const mes = scanMonthLabel(scan.since)
+  // Con el buzón sin avisos del banco, "0 correos revisados" cuenta una lectura que no ocurrió.
+  const leidos =
+    scan.totalMessages === 0
+      ? `Sin correos de ${bankName}`
+      : `${plural(scan.totalMessages, "correo revisado", "correos revisados")} de ${bankName}`
+  return (
+    <div className="rounded-xl bg-muted/50 p-3 text-sm">
+      <p>
+        <span className="font-medium">
+          {plural(scan.expenseCount, "gasto detectado", "gastos detectados")}
+        </span>
+        <span className="text-muted-foreground">
+          {" · "}
+          {plural(scan.internalCount, "ajuste interno", "ajustes internos")}
+          {" · "}
+          {plural(scan.skippedCount, "omitido", "omitidos")}
+        </span>
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {leidos}
+        {mes ? ` · ${mes}` : ""}
+      </p>
+    </div>
+  )
+}
+
+// Por qué la revisión llega como llega y qué tiene que hacer el usuario. El texto se decide en
+// lib/bank-setup-guidance; acá solo se pinta cuando hay algo que decir.
+export function ScanGuidance({
+  scan,
+  bankName,
+  checking,
+  cards,
+}: {
+  scan: Pick<Scan, "totalMessages" | "primaryCheckingCount">
+  bankName: string
+  checking: CheckingForm | null
+  cards: CardForm[]
+}) {
+  // bankName va DESPUÉS del spread: el `scan` de producción trae el suyo y pisaría la prop.
+  const aviso = scanGuidance({ ...scan, bankName }, formOf(checking, cards))
+  if (!aviso) return null
+  return (
+    <Notice icon={CircleAlert} tone="warning">
+      {aviso}
+    </Notice>
   )
 }

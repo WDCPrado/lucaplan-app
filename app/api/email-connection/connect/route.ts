@@ -22,16 +22,15 @@ export async function POST(req: Request) {
   }
   return withUser(req, async (userId) => {
     // Proveedor desconocido o sin credenciales en el servidor: se responde igual que antes, sin
-    // mandar al usuario a una pantalla de consentimiento que va a fallar.
-    const key = body.provider ?? DEFAULT_EMAIL_PROVIDER
-    const provider = EMAIL_PROVIDER_REGISTRY.find((p) => p.key === key)
+    // mandar al usuario a una pantalla de consentimiento que va a fallar. El mensaje NO repite la
+    // clave que mandó el cliente: es entrada de usuario y no hay nada que ganar devolviéndola.
+    const provider = EMAIL_PROVIDER_REGISTRY.find(
+      (p) => p.key === (body.provider ?? DEFAULT_EMAIL_PROVIDER)
+    )
     if (!provider)
-      return { ok: false, error: `Proveedor de correo no soportado: ${key}` }
+      return { ok: false, error: "Proveedor de correo no soportado" }
     if (!provider.oauth.isConfigured())
-      return {
-        ok: false,
-        error: `${provider.name} no está configurado en el servidor`,
-      }
+      return { ok: false, error: provider.notConfiguredError }
     // Falla acá si el banco no existe, antes de mandar al usuario al proveedor.
     const bank = bankByKey(body.bankProvider ?? "bancochile")
     const state = signOAuthState(userId, {
@@ -39,9 +38,8 @@ export async function POST(req: Request) {
       bankProvider: bank.key,
       label: body.label?.trim() || null,
     })
-    const { url, pkceVerifier, secureCookie } = provider.oauth.authorization(
-      state
-    )
+    const { url, pkceVerifier, secureCookie } =
+      provider.oauth.authorization(state)
     const cookieStore = await cookies()
     cookieStore.set(PKCE_COOKIE, pkceVerifier, {
       httpOnly: true,

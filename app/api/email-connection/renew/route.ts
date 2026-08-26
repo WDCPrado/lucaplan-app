@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto"
 import { emailMailboxRepository } from "@/arch/v1/infrastructure/database/prisma/email-connection.infrastructure"
-import { emailMailRouter } from "@/arch/v1/infrastructure/http/email/provider-registry"
+import { makeEmailMailRouter } from "@/arch/v1/infrastructure/http/email/provider-registry"
 
 function authorized(req: Request): boolean {
   const secret = process.env.OUTLOOK_RENEW_SECRET
@@ -21,11 +21,12 @@ export async function POST(req: Request) {
   const renewBefore = new Date(Date.now() + 24 * 60 * 60 * 1000)
   const mailboxes =
     await emailMailboxRepository.listForSubscriptionRenewal(renewBefore)
+  const mail = makeEmailMailRouter()
   let renewed = 0
   let failed = 0
   for (const mailbox of mailboxes) {
     try {
-      const subscription = await emailMailRouter.ensureSubscription(mailbox.id)
+      const subscription = await mail.ensureSubscription(mailbox.id)
       if (subscription) {
         await emailMailboxRepository.update(mailbox.id, {
           subscriptionId: subscription.subscriptionId,

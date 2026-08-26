@@ -23,6 +23,8 @@ import {
 export const OUTLOOK: EmailProviderDefinition = {
   key: "outlook",
   name: "Outlook",
+  notConfiguredError:
+    "Outlook no está configurado en el servidor (falta OUTLOOK_CLIENT_ID)",
   oauth: outlookOAuth,
   mail: msgraphMailProvider,
 }
@@ -43,9 +45,7 @@ export function emailProviders() {
   return availableEmailProviders(EMAIL_PROVIDER_REGISTRY)
 }
 
-// Clave del proveedor de un buzón. Se lee en cada llamada en vez de cachearse: reconectar un correo
-// por otro proveedor cambia esta columna, y una caché serviría el adapter viejo hasta reiniciar.
-// Es un lookup por PK contra la misma fila que el adapter consulta después para el token.
+// Clave del proveedor de un buzón, por PK.
 async function providerKeyFromDb(mailboxId: string): Promise<string> {
   const row = await prisma.emailMailbox.findUnique({
     where: { id: mailboxId },
@@ -55,7 +55,10 @@ async function providerKeyFromDb(mailboxId: string): Promise<string> {
   return row.emailProvider
 }
 
-export const emailMailRouter: BankMailProvider = makeMailRouter(
-  providerKeyFromDb,
-  EMAIL_PROVIDER_REGISTRY
-)
+// Un router NUEVO por operación (una petición, un lote de webhook, una pasada del cron). Su caché
+// de proveedores vive lo que vive el router: dentro de la operación no repite la consulta, y entre
+// operaciones no puede quedar vieja si el buzón se reconectó por otro proveedor. Por eso no hay un
+// singleton de módulo — sería una caché de por vida del proceso.
+export function makeEmailMailRouter(): BankMailProvider {
+  return makeMailRouter(providerKeyFromDb, EMAIL_PROVIDER_REGISTRY)
+}

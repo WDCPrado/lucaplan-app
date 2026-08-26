@@ -10,9 +10,8 @@ process.env.BANCOCHILE_ENC_KEY =
   "llave-de-prueba-solo-para-tests-32-chars-minimo"
 
 const { signOAuthState, verifyOAuthState } = await import("./oauth-state.ts")
-const { OAuthStateError } = await import(
-  "../../../domain/finance/email-connection.domain.ts"
-)
+const { OAuthStateError } =
+  await import("../../../domain/finance/email-connection.domain.ts")
 
 test("el proveedor viaja en el estado y vuelve intacto junto al banco y la etiqueta", () => {
   const state = signOAuthState("user-1", {

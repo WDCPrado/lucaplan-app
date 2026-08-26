@@ -23,6 +23,9 @@ export type EmailOAuthModule = {
 export type EmailProviderDefinition = {
   key: string // se persiste en email_mailbox.emailProvider; cambiarla rompería los buzones ya creados
   name: string // nombre visible en la UI
+  // Qué falta cuando `oauth.isConfigured()` da false. Va acá y no armado en la ruta para que el
+  // mensaje nombre la variable concreta: "no está configurado" sin decir cuál no resuelve nada.
+  notConfiguredError: string
   oauth: EmailOAuthModule
   mail: BankMailProvider
 }
@@ -58,12 +61,33 @@ export function availableEmailProviders(
 //
 // Funciona sin discriminador nuevo porque todos los métodos del port ya reciben `mailboxId` como
 // primer argumento: el buzón es el que sabe de qué proveedor es.
+//
+// `providerKeyOf` se resuelve UNA VEZ por buzón y por router, no por llamada: el adapter cachea su
+// token en memoria y normalmente ya no vuelve a leer la fila, así que preguntarla en cada método
+// sería costo neto — en un lote de webhook son hasta 100 consultas extra donde antes no había
+// ninguna. La caché no se vuelve vieja porque el router se crea por operación (ver
+// `makeEmailMailRouter` en provider-registry.ts): reconectar un correo por otro proveedor pasa en
+// otra petición, con un router nuevo.
 export function makeMailRouter(
   providerKeyOf: (mailboxId: string) => Promise<string>,
   registry: EmailProviderRegistry
 ): BankMailProvider {
+  const resolving = new Map<string, Promise<string>>()
+  // Se memoiza la PROMESA, no el resultado: dos llamadas en paralelo sobre el mismo buzón (el
+  // webhook procesa varios mensajes a la vez) comparten una sola consulta.
+  const keyOf = (mailboxId: string) => {
+    const cached = resolving.get(mailboxId)
+    if (cached) return cached
+    // Un fallo no se cachea: la siguiente llamada lo reintenta en vez de arrastrar el error.
+    const pending = providerKeyOf(mailboxId).catch((e) => {
+      resolving.delete(mailboxId)
+      throw e
+    })
+    resolving.set(mailboxId, pending)
+    return pending
+  }
   const mailFor = async (mailboxId: string) =>
-    emailProviderByKey(await providerKeyOf(mailboxId), registry).mail
+    emailProviderByKey(await keyOf(mailboxId), registry).mail
 
   return {
     async listMessagesSince(mailboxId, since, until, senders) {

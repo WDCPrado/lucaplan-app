@@ -64,12 +64,14 @@ const registryOf = (calls: string[]): EmailProviderDefinition[] => [
   {
     key: "outlook",
     name: "Outlook",
+    notConfiguredError: "falta OUTLOOK_CLIENT_ID",
     oauth: oauth(true),
     mail: spyMail("outlook", calls),
   },
   {
     key: "gmailish",
     name: "Proveedor sin webhook",
+    notConfiguredError: "falta GMAIL_CLIENT_ID",
     oauth: oauth(false),
     mail: spyMail("gmailish", calls),
   },
@@ -100,7 +102,12 @@ test("el buzón manda en TODOS los métodos del port, no solo en el primero", as
   const calls: string[] = []
   const mail = router(calls)
   await mail.listMessagesSince("mbx-gm", new Date("2026-07-01"))
-  await mail.lastMessageDate("mbx-gm", ["banco@example.test"], new Date(), new Date())
+  await mail.lastMessageDate(
+    "mbx-gm",
+    ["banco@example.test"],
+    new Date(),
+    new Date()
+  )
   await mail.runDelta("mbx-gm", "delta")
   await mail.fetchMessage("mbx-gm", "msg-1")
   await mail.ensureSubscription("mbx-gm")
@@ -136,7 +143,10 @@ test("un buzón con un proveedor fuera del catálogo falla en vez de caer en otr
 
 test("emailProviderByKey devuelve el del catálogo y lanza con una clave desconocida", () => {
   const registry = registryOf([])
-  assert.equal(emailProviderByKey("gmailish", registry).name, "Proveedor sin webhook")
+  assert.equal(
+    emailProviderByKey("gmailish", registry).name,
+    "Proveedor sin webhook"
+  )
   assert.throws(
     () => emailProviderByKey("yahoo", registry),
     UnknownEmailProviderError
@@ -150,4 +160,81 @@ test("availableEmailProviders marca cuáles tiene configurados el servidor", () 
     { key: "outlook", name: "Outlook", configured: true },
     { key: "gmailish", name: "Proveedor sin webhook", configured: false },
   ])
+})
+
+// El adapter cachea su token en memoria y ya no relee la fila, así que preguntar el proveedor en
+// cada método sería costo neto. En un lote de webhook (hasta 100 mensajes de un buzón) esto es la
+// diferencia entre 1 consulta y 100.
+test("el proveedor del buzón se consulta UNA vez por router, no por llamada", async () => {
+  const calls: string[] = []
+  let consultas = 0
+  const mail = makeMailRouter(async (id) => {
+    consultas++
+    return providerOf[id]
+  }, registryOf(calls))
+
+  await mail.fetchMessage("mbx-out", "m1")
+  await mail.fetchMessage("mbx-out", "m2")
+  await mail.fetchMessage("mbx-out", "m3")
+  assert.equal(consultas, 1)
+
+  // Otro buzón sí se consulta: la caché es por buzón, no una global.
+  await mail.fetchMessage("mbx-gm", "m4")
+  assert.equal(consultas, 2)
+})
+
+test("llamadas en paralelo sobre el mismo buzón comparten una sola consulta", async () => {
+  const calls: string[] = []
+  let consultas = 0
+  const mail = makeMailRouter(async (id) => {
+    consultas++
+    await new Promise((r) => setTimeout(r, 5))
+    return providerOf[id]
+  }, registryOf(calls))
+
+  await Promise.all([
+    mail.fetchMessage("mbx-out", "m1"),
+    mail.fetchMessage("mbx-out", "m2"),
+    mail.fetchMessage("mbx-out", "m3"),
+  ])
+  assert.equal(consultas, 1)
+})
+
+// La caché no puede sobrevivir a la operación: si el buzón se reconecta por otro proveedor, el
+// router siguiente tiene que ver el nuevo. Por eso se crea uno por operación y no hay singleton.
+test("un router nuevo vuelve a consultar: la caché no cruza operaciones", async () => {
+  const calls: string[] = []
+  let proveedor = "outlook"
+  let consultas = 0
+  const nuevoRouter = () =>
+    makeMailRouter(async () => {
+      consultas++
+      return proveedor
+    }, registryOf(calls))
+
+  await nuevoRouter().startDelta("mbx-out", new Date())
+  proveedor = "gmailish" // el correo se reconectó por otro proveedor
+  await nuevoRouter().startDelta("mbx-out", new Date())
+
+  assert.equal(consultas, 2)
+  assert.deepEqual(calls, [
+    "outlook:startDelta:mbx-out",
+    "gmailish:startDelta:mbx-out",
+  ])
+})
+
+// Un fallo no se memoiza: si se cacheara la promesa rechazada, un error transitorio dejaría el
+// buzón roto para el resto de la operación.
+test("una consulta que falla no queda cacheada", async () => {
+  const calls: string[] = []
+  let intentos = 0
+  const mail = makeMailRouter(async () => {
+    intentos++
+    if (intentos === 1) throw new Error("la base no respondió")
+    return "outlook"
+  }, registryOf(calls))
+
+  await assert.rejects(() => mail.startDelta("mbx-out", new Date()))
+  assert.equal(await mail.startDelta("mbx-out", new Date()), "outlook-delta")
+  assert.equal(intentos, 2)
 })

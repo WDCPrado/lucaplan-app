@@ -15,6 +15,16 @@ const STATE_TTL_MS = 10 * 60 * 1000 // el callback debe volver dentro de 10 minu
 // sola para todos los proveedores: solo hay un flujo OAuth en vuelo por navegador.
 export const PKCE_COOKIE = "email_pkce"
 
+// El nombre anterior, cuando la conexión era solo de Outlook. El callback la sigue LEYENDO para no
+// romper a quien apretó "Conectar" justo antes del deploy: su cookie se llama así y sin esto
+// volvería del OAuth a un error de estado. Vive 10 minutos, así que se puede borrar de acá un
+// release después de este.
+export const LEGACY_PKCE_COOKIE = "outlook_pkce"
+
+// Ámbito de la cookie. El borrado tiene que repetirlo: sin `path`, `delete` apunta a "/" y no
+// alcanza a la que se fijó bajo /api/email-connection, que sobreviviría sus 600 segundos.
+export const PKCE_COOKIE_PATH = "/api/email-connection"
+
 const STATE_PURPOSE = `${EMAIL_PURPOSE}:oauth-state`
 
 function b64url(buf: Buffer): string {

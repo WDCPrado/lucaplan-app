@@ -481,15 +481,6 @@ export function OutlookBankConnection({
         <Loader2 className="size-5 animate-spin text-primary" />
       </div>
     )
-  if (configuredProviders.length === 0) {
-    return (
-      <Notice icon={CircleAlert}>
-        Ningún proveedor de correo está configurado en el servidor. Revisa la
-        guía de configuración.
-      </Notice>
-    )
-  }
-
   // Reconciliación de un banco concreto ("Actualizar saldos").
   if (reconciling) {
     return (
@@ -609,12 +600,16 @@ export function OutlookBankConnection({
           Luca Plan solo leerá notificaciones de tu banco con el permiso
           Mail.Read. No puede enviar ni borrar correos.
         </Notice>
-        <FirstBankPicker
-          banks={status.availableBanks}
-          providers={configuredProviders}
-          busy={busy}
-          onSubmit={(bank, provider) => connect(bank, null, provider)}
-        />
+        {configuredProviders.length === 0 ? (
+          <NotConfiguredNotice />
+        ) : (
+          <FirstBankPicker
+            banks={status.availableBanks}
+            providers={configuredProviders}
+            busy={busy}
+            onSubmit={(bank, provider) => connect(bank, null, provider)}
+          />
+        )}
       </div>
     )
   }
@@ -626,6 +621,9 @@ export function OutlookBankConnection({
           key={mailbox.id}
           mailbox={mailbox}
           providerName={providerName(mailbox.emailProvider)}
+          canReconnect={configuredProviders.some(
+            (p) => p.key === mailbox.emailProvider
+          )}
           busy={busy}
           onReconnect={() =>
             connect(
@@ -668,6 +666,17 @@ export function OutlookBankConnection({
         onConnect={connect}
       />
     </div>
+  )
+}
+
+// El servidor no tiene credenciales del proveedor, así que no se puede INICIAR una conexión. Los
+// correos ya conectados se siguen mostrando: rotularlos no necesita credenciales.
+function NotConfiguredNotice() {
+  return (
+    <Notice icon={CircleAlert}>
+      Outlook aún no está configurado en el servidor (falta OUTLOOK_CLIENT_ID).
+      Revisa la guía en docs/email-connection-outlook.md.
+    </Notice>
   )
 }
 
@@ -717,7 +726,6 @@ function AddBankSection({
   const effectiveTarget = taken(target, bank) ? NEW_MAILBOX : target
   const targetMailbox = mailboxes.find((m) => m.id === effectiveTarget)
   const bankName = availableBanks.find((b) => b.key === bank)?.name ?? "banco"
-  const providerLabel = providers.find((p) => p.key === provider)?.name ?? ""
 
   return (
     <div className="space-y-4 rounded-xl border p-4">
@@ -750,8 +758,10 @@ function AddBankSection({
         />
       </div>
 
-      {/* De qué proveedor es el correo nuevo. Con uno solo configurado no hay nada que preguntar:
-          el botón ya lo nombra. */}
+      {/* Conectar un correo nuevo pasa por OAuth; agregar un banco a uno ya autorizado, no. */}
+      {!targetMailbox && providers.length === 0 && <NotConfiguredNotice />}
+
+      {/* De qué proveedor es el correo nuevo. Con uno solo configurado no hay nada que preguntar. */}
       {!targetMailbox && providers.length > 1 && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
@@ -796,11 +806,7 @@ function AddBankSection({
         className="h-12 w-full rounded-full"
       >
         {busy ? <Loader2 className="animate-spin" /> : <Plus />}
-        {targetMailbox
-          ? `Agregar ${bankName}`
-          : providerLabel
-            ? `Conectar otro correo de ${providerLabel}`
-            : "Conectar otro correo"}
+        {targetMailbox ? `Agregar ${bankName}` : "Conectar otro correo"}
       </Button>
     </div>
   )
@@ -854,6 +860,7 @@ function OptionList({
 function MailboxCard({
   mailbox,
   providerName,
+  canReconnect,
   busy,
   onReconnect,
   onReconcile,
@@ -862,6 +869,7 @@ function MailboxCard({
 }: {
   mailbox: OutlookMailboxDTO
   providerName: string
+  canReconnect: boolean // el servidor tiene credenciales del proveedor de ESTE buzón
   busy: boolean
   onReconnect: () => void
   onReconcile: (bank: OutlookBankDTO) => void
@@ -900,15 +908,18 @@ function MailboxCard({
       {mailbox.lastError && (
         <Notice icon={CircleAlert}>{mailbox.lastError}</Notice>
       )}
-      {mailbox.status === "reauth_required" && (
-        <Button
-          onClick={onReconnect}
-          disabled={busy}
-          className="h-11 w-full rounded-full"
-        >
-          <Mail /> Reconectar este correo
-        </Button>
-      )}
+      {mailbox.status === "reauth_required" &&
+        (canReconnect ? (
+          <Button
+            onClick={onReconnect}
+            disabled={busy}
+            className="h-11 w-full rounded-full"
+          >
+            <Mail /> Reconectar este correo
+          </Button>
+        ) : (
+          <NotConfiguredNotice />
+        ))}
 
       <ul className="space-y-2">
         {mailbox.banks.map((bank) => (

@@ -17,7 +17,9 @@ import {
   emailMailboxRepository,
 } from "@/arch/v1/infrastructure/database/prisma/email-connection.infrastructure"
 import {
+  LEGACY_PKCE_COOKIE,
   PKCE_COOKIE,
+  PKCE_COOKIE_PATH,
   verifyOAuthState,
 } from "@/arch/v1/infrastructure/http/email/oauth-state"
 import {
@@ -46,8 +48,13 @@ export async function GET(req: Request) {
     return redirectTo(req, { outlook: "error", reason: "denied" })
 
   const cookieStore = await cookies()
-  const verifier = cookieStore.get(PKCE_COOKIE)?.value
-  cookieStore.delete(PKCE_COOKIE)
+  // Se leen las dos: un flujo iniciado antes de este deploy guardó la cookie con el nombre viejo.
+  const verifier =
+    cookieStore.get(PKCE_COOKIE)?.value ??
+    cookieStore.get(LEGACY_PKCE_COOKIE)?.value
+  // Con `path`, o el borrado no alcanza a la cookie real y el verifier sobrevive sus 600 segundos.
+  for (const name of [PKCE_COOKIE, LEGACY_PKCE_COOKIE])
+    cookieStore.delete({ name, path: PKCE_COOKIE_PATH })
   if (!verifier) return redirectTo(req, { outlook: "error", reason: "state" })
 
   try {
@@ -77,9 +84,7 @@ export async function GET(req: Request) {
     if (!intent.bankProvider) return redirectTo(req, { outlook: "reconnected" })
 
     const existing = await emailBankLinkRepository.listByMailbox(mailbox.id)
-    const already = existing.find(
-      (l) => l.bankProvider === intent.bankProvider
-    )
+    const already = existing.find((l) => l.bankProvider === intent.bankProvider)
     // Volver a autorizar un correo que ya alimenta ese banco no crea un vínculo nuevo: si su setup
     // quedó a medias, se retoma; si estaba andando, se sigue.
     if (already)

@@ -7,11 +7,16 @@
 // rechazan antes el botón (WDC-65) y el parseo del body. Por eso la escena siembra justo esto —
 // dos cuentas corrientes en el mismo banco conectado por correo:
 //
-//   1. la IMPOSTORA, creada a mano y sin número (`externalId` null), primera en la lista;
+//   1. la IMPOSTORA, creada a mano y sin número (`externalId` null);
 //   2. la REAL, con su número de cuenta, que es la que debe recibir el saldo.
 //
 // Escribiendo `1100` en el formulario, el saldo tiene que caer en la REAL. Antes del fix caía en la
 // impostora, que ni siquiera tiene ese número.
+//
+// El resultado NO depende de en qué orden las devuelva la base (`listInstruments` consulta sin
+// `orderBy`): tras el fix solo una de las dos puede calzar con `1100`. Lo único que sí depende del
+// orden es qué número aparece precargado en el formulario, y por eso el guion de prueba dice que
+// se borre y se escriba el número a mano.
 //
 // El buzón va sembrado porque en el entorno de PR no se puede conectar de verdad: el OAuth de
 // Microsoft exige que la redirect URI esté registrada en Entra y cada PR estrena subdominio. El
@@ -72,6 +77,26 @@ export async function seed({ prisma, userId, checkingId }: EscenaContext) {
     data: {
       name: "Cuenta corriente antigua (sin número)",
       balance: SALDO_IMPOSTORA,
+    },
+  })
+
+  // El usuario base solo trae buckets para la tarjeta de crédito, así que esta cuenta llegaba sin
+  // `cash` — y sin él las dos corrientes no se pueden comparar: el formulario y el dashboard leen
+  // el `available` del bucket, no el `balance`. Se lo damos para que el "antes" se vea donde el
+  // guion de prueba dice que se ve.
+  await prisma.balanceBucket.deleteMany({
+    where: { userId, accountId: checkingId, kind: "cash" },
+  })
+  await prisma.balanceBucket.create({
+    data: {
+      userId,
+      accountId: checkingId,
+      kind: "cash",
+      currency: "CLP",
+      limitAmount: 0,
+      used: 0,
+      available: SALDO_IMPOSTORA,
+      asOf: new Date(),
     },
   })
 

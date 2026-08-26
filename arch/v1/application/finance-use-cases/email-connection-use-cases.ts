@@ -1326,6 +1326,7 @@ export async function reconcileEmailBalances(
     )
   const { accounts, buckets } = await deps.store.listInstruments(link.bankId)
   let updated = 0
+  let resueltos = 0 // instrumentos que SÍ se identificaron (cuenta o tarjeta)
 
   const apply = async (
     accountId: string,
@@ -1352,7 +1353,11 @@ export async function reconcileEmailBalances(
     // que un ref vacío emparejaría con la primera corriente, y una cuenta guardada sin externalId
     // (externalRef === "") emparejaría con cualquier ref. En ambos casos el saldo caería sobre la
     // cuenta equivocada, sin error.
-    const account = accounts.find(
+    //
+    // Y con más de una coincidencia se omite, igual que `resolveCheckingByRef`: `find` se quedaba
+    // con la primera, pero `listInstruments` consulta sin `orderBy`, así que "la primera" ni
+    // siquiera está definida. Ambigüedad = omitir.
+    const matches = accounts.filter(
       (a) =>
         a.accountType === "checking" &&
         ref !== "" &&
@@ -1361,7 +1366,9 @@ export async function reconcileEmailBalances(
           a.externalRef.endsWith(ref) ||
           ref.endsWith(a.externalRef))
     )
+    const account = matches.length === 1 ? matches[0] : null
     if (account) {
+      resueltos++
       const cash = buckets.find(
         (b) => b.accountId === account.id && b.kind === "cash"
       )
@@ -1391,10 +1398,13 @@ export async function reconcileEmailBalances(
     // por igualdad, así que un vacío solo calzaría con una tarjeta guardada sin last4 — igual de
     // equivocado, y el cupo quedaría escrito sobre ella.
     if (last4 === "") continue
-    const account = accounts.find(
+    // Ambigüedad = omitir, igual que `resolveEventTarget` para tarjetas.
+    const matches = accounts.filter(
       (a) => a.accountType === "credit_card" && a.cardLast4 === last4
     )
-    if (!account) continue
+    if (matches.length !== 1) continue
+    const account = matches[0]
+    resueltos++
     if (card.national) {
       await apply(
         account.id,
@@ -1415,6 +1425,17 @@ export async function reconcileEmailBalances(
         card.international.used
       )
   }
+
+  // Sin un solo instrumento identificado no se escribió ningún saldo, y avanzar el cursor sería
+  // peor que no hacer nada: `lastBalanceReconciledAt` gobierna la proyección (los eventos con
+  // `receivedAt <= reconciledAt` ya no mueven buckets), así que moverlo dejaría FUERA para siempre
+  // todo lo ocurrido entre el cursor viejo y este snapshot — los movimientos se importan, pero los
+  // saldos quedan desviados sin manera de recuperarlos. Misma política que la importación: ante la
+  // duda no se adivina, se avisa. El 422 sale por el toast de la pantalla.
+  if (resueltos === 0)
+    throw new EmailSetupStateError(
+      "No se actualizó ningún saldo: ninguna cuenta ni tarjeta calzó con los números ingresados"
+    )
 
   await deps.links.update(link.id, {
     lastBalanceReconciledAt: input.snapshotAt,

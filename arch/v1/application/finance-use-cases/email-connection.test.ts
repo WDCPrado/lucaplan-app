@@ -1448,8 +1448,13 @@ test("desconectar un banco sin conexión de correo falla explícito", async () =
 
 // El emparejamiento de "Actualizar saldos" compara dígitos por sufijo. Un identificador vacío no
 // identifica nada, pero `endsWith("")` es true contra cualquier texto: sin guarda, el saldo entra
-// igual y cae sobre la cuenta que estuviera primera. Estos tests fijan que el vacío nunca empareje,
-// de los dos lados, y que con dígitos el comportamiento no cambie.
+// igual y cae sobre la cuenta que estuviera primera. Y con dos candidatos, quedarse con el primero
+// es lo mismo por otra puerta — `listInstruments` consulta sin `orderBy`, así que ni hay "primero".
+//
+// El tercer camino es el que no se ve: cuando no se resuelve ningún instrumento no se escribe un
+// solo saldo, y avanzar `lastBalanceReconciledAt` ahí deja fuera de la proyección todo lo ocurrido
+// entre el cursor viejo y el snapshot. Por eso varios de estos tests miran el cursor, no los
+// saldos.
 
 const bucketsFor = (accounts: EmailStoredAccount[]): EmailStoredBucket[] =>
   accounts.map((a) => ({
@@ -1462,14 +1467,27 @@ const bucketsFor = (accounts: EmailStoredAccount[]): EmailStoredBucket[] =>
     available: Money.of(1, "CLP"),
   }))
 
-type ReconcileWrites = { buckets: string[]; balances: string[] }
+type ReconcileWrites = {
+  buckets: string[]
+  balances: string[]
+  cursor: (Date | null)[] // cada avance de lastBalanceReconciledAt
+}
 
 const reconcileDeps = (
   accounts: EmailStoredAccount[],
   escrito: ReconcileWrites
-) =>
-  ({
-    ...repos([link({ id: "link-rec", bankId: "bank-1" })]),
+) => {
+  const base = repos([link({ id: "link-rec", bankId: "bank-1" })])
+  return {
+    ...base,
+    links: {
+      ...base.links,
+      // El cursor de la proyección: lo que estos tests vigilan es que NO se mueva en falso.
+      update: async (_id: string, patch: { lastBalanceReconciledAt?: Date }) => {
+        escrito.cursor.push(patch.lastBalanceReconciledAt ?? null)
+        return base.links.update()
+      },
+    },
     methods: methodsFake,
     mail: {
       listMessagesSince: async () => [],
@@ -1503,7 +1521,8 @@ const reconcileDeps = (
       deleteBank: async () => {},
     },
     categorize: async () => 0,
-  }) satisfies EmailConnectionDeps
+  } satisfies EmailConnectionDeps
+}
 
 const corriente = (id: string, externalRef: string): EmailStoredAccount => ({
   id,
@@ -1511,6 +1530,28 @@ const corriente = (id: string, externalRef: string): EmailStoredAccount => ({
   currency: "CLP",
   externalRef,
   cardLast4: externalRef.slice(-4) || null,
+})
+
+const tarjetaGuardada = (
+  id: string,
+  cardLast4: string
+): EmailStoredAccount => ({
+  id,
+  accountType: "credit_card",
+  currency: "CLP",
+  externalRef: cardLast4,
+  cardLast4,
+})
+
+const SNAPSHOT = new Date("2026-07-14T12:00:00Z")
+
+const cupoNacional = (last4: string) => ({
+  last4,
+  national: {
+    limit: Money.of(2000000, "CLP"),
+    used: Money.of(800000, "CLP"),
+  },
+  international: null,
 })
 
 const reconcile = (
@@ -1525,23 +1566,51 @@ const reconcile = (
     input
   )
 
-const sinEscribir = (): ReconcileWrites => ({ buckets: [], balances: [] })
+const sinEscribir = (): ReconcileWrites => ({
+  buckets: [],
+  balances: [],
+  cursor: [],
+})
 
-test("actualizar saldos: una referencia vacía no empareja ninguna cuenta", async () => {
+const snapshotDe = (
+  ref: string
+): Parameters<typeof reconcileEmailBalances>[3] => ({
+  snapshotAt: SNAPSHOT,
+  checking: { ref, cash: Money.of(500000, "CLP"), overdraft: null },
+  cards: [],
+})
+
+const snapshotDeTarjeta = (
+  last4: string
+): Parameters<typeof reconcileEmailBalances>[3] => ({
+  snapshotAt: SNAPSHOT,
+  checking: null,
+  cards: [cupoNacional(last4)],
+})
+
+// Lo que tiene que pasar cuando no se resuelve NADA, venga de donde venga: ni un saldo escrito, ni
+// el cursor movido, y un error que la pantalla pueda mostrar en vez de un "listo" que miente.
+const assertNoEscribeNiAvanza = async (
+  accounts: EmailStoredAccount[],
+  input: Parameters<typeof reconcileEmailBalances>[3]
+) => {
   const escrito = sinEscribir()
-  const res = await reconcile(
-    [corriente("acct-1", "009991111100"), corriente("acct-2", "008882222200")],
-    escrito,
-    {
-      snapshotAt: new Date("2026-07-14T12:00:00Z"),
-      checking: { ref: "", cash: Money.of(999999, "CLP"), overdraft: null },
-      cards: [],
-    }
+  await assert.rejects(
+    () => reconcile(accounts, escrito, input),
+    /ninguna cuenta ni tarjeta calzó/i
   )
-  // Sin la guarda, `"009991111100".endsWith("")` es true y acct-1 se llevaba un saldo ajeno.
-  assert.equal(res.updatedBuckets, 0)
   assert.deepEqual(escrito.buckets, [])
   assert.deepEqual(escrito.balances, [])
+  // Lo que de verdad importa: el cursor de la proyección NO se movió.
+  assert.deepEqual(escrito.cursor, [])
+}
+
+test("actualizar saldos: una referencia vacía no empareja ninguna cuenta", async () => {
+  // Sin la guarda, `"009991111100".endsWith("")` es true y acct-1 se llevaba un saldo ajeno.
+  await assertNoEscribeNiAvanza(
+    [corriente("acct-1", "009991111100"), corriente("acct-2", "008882222200")],
+    snapshotDe("")
+  )
 })
 
 test("actualizar saldos: una cuenta guardada sin número no intercepta el saldo de otra", async () => {
@@ -1551,71 +1620,70 @@ test("actualizar saldos: una cuenta guardada sin número no intercepta el saldo 
   const res = await reconcile(
     [corriente("acct-sin-numero", ""), corriente("acct-real", "009991111100")],
     escrito,
-    {
-      snapshotAt: new Date("2026-07-14T12:00:00Z"),
-      checking: { ref: "1100", cash: Money.of(50000, "CLP"), overdraft: null },
-      cards: [],
-    }
+    snapshotDe("1100")
   )
   assert.equal(res.updatedBuckets, 1)
   assert.deepEqual(escrito.buckets, ["bucket-acct-real"])
   assert.deepEqual(escrito.balances, ["acct-real"])
+  // Acá SÍ se escribió, así que el cursor avanza — y al snapshot que se pidió.
+  assert.deepEqual(escrito.cursor, [SNAPSHOT])
 })
 
 test("actualizar saldos: con dígitos empareja igual que siempre", async () => {
   const cuentas = [corriente("acct-real", "009991111100")]
 
   const porUltimos4 = sinEscribir()
-  await reconcile(cuentas, porUltimos4, {
-    snapshotAt: new Date("2026-07-14T12:00:00Z"),
-    checking: { ref: "1100", cash: Money.of(50000, "CLP"), overdraft: null },
-    cards: [],
-  })
+  await reconcile(cuentas, porUltimos4, snapshotDe("1100"))
   assert.deepEqual(porUltimos4.balances, ["acct-real"])
 
   const porNumeroCompleto = sinEscribir()
-  await reconcile(cuentas, porNumeroCompleto, {
-    snapshotAt: new Date("2026-07-14T12:00:00Z"),
-    checking: {
-      ref: "00-999-1111100",
-      cash: Money.of(50000, "CLP"),
-      overdraft: null,
-    },
-    cards: [],
-  })
+  await reconcile(cuentas, porNumeroCompleto, snapshotDe("00-999-1111100"))
   assert.deepEqual(porNumeroCompleto.balances, ["acct-real"])
 })
 
 test("actualizar saldos: una tarjeta sin últimos 4 no escribe cupo en ninguna", async () => {
-  const escrito = sinEscribir()
   // La tarjeta guardada también quedó sin last4: por igualdad, `"" === ""` calzaba.
-  const res = await reconcile(
-    [
-      {
-        id: "acct-tj",
-        accountType: "credit_card",
-        currency: "CLP",
-        externalRef: "2120",
-        cardLast4: "",
-      },
-    ],
-    escrito,
-    {
-      snapshotAt: new Date("2026-07-14T12:00:00Z"),
-      checking: null,
-      cards: [
-        {
-          last4: "",
-          national: {
-            limit: Money.of(2000000, "CLP"),
-            used: Money.of(800000, "CLP"),
-          },
-          international: null,
-        },
-      ],
-    }
+  await assertNoEscribeNiAvanza(
+    [tarjetaGuardada("acct-tj", "")],
+    snapshotDeTarjeta("")
   )
-  assert.equal(res.updatedBuckets, 0)
-  assert.deepEqual(escrito.buckets, [])
-  assert.deepEqual(escrito.balances, [])
+})
+
+// --- El cursor de la proyección no se mueve en falso ---
+
+test("actualizar saldos: un número válido que no calza con nada no avanza el cursor", async () => {
+  // El estado más fácil de alcanzar: el formulario precarga la referencia desde otra cuenta y el
+  // usuario aprieta guardar sin editarla. Antes devolvía cero escrituras con cara de éxito Y movía
+  // `lastBalanceReconciledAt`, que es lo que decide qué eventos siguen contando para los buckets:
+  // todo lo anterior al snapshot quedaba excluido de la proyección para siempre.
+  await assertNoEscribeNiAvanza(
+    [corriente("acct-real", "009991111100")],
+    snapshotDe("4821")
+  )
+})
+
+test("actualizar saldos: sin instrumentos en el formulario tampoco avanza el cursor", async () => {
+  await assertNoEscribeNiAvanza([corriente("acct-real", "009991111100")], {
+    snapshotAt: SNAPSHOT,
+    checking: null,
+    cards: [],
+  })
+})
+
+// --- Ambigüedad = omitir (el patrón que ya usan resolveCheckingByRef y resolveEventTarget) ---
+
+test("actualizar saldos: dos cuentas que calzan con el mismo sufijo no se tocan", async () => {
+  // Ambas terminan en 1100. Quedarse con la primera sería escribir en la cuenta equivocada, y sin
+  // `orderBy` en `listInstruments` ni siquiera hay una "primera" estable.
+  await assertNoEscribeNiAvanza(
+    [corriente("acct-a", "009991111100"), corriente("acct-b", "007771111100")],
+    snapshotDe("1100")
+  )
+})
+
+test("actualizar saldos: dos tarjetas con los mismos últimos 4 no se tocan", async () => {
+  await assertNoEscribeNiAvanza(
+    [tarjetaGuardada("tj-a", "2120"), tarjetaGuardada("tj-b", "2120")],
+    snapshotDeTarjeta("2120")
+  )
 })

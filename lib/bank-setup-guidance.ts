@@ -56,8 +56,9 @@ export function confirmBlocker(form: SetupForm): string | null {
  * Lo que impide actualizar saldos. Solo mira las referencias, que es con lo que se resuelve contra
  * qué cuenta escribir: apagar un cupo acá significa "este no lo actualices", que es legítimo.
  *
- * Con la referencia vacía, `reconcileEmailBalances` resuelve por `endsWith("")` —verdadero para
- * cualquier cuenta— y sobrescribe el saldo de la primera cuenta corriente que encuentre.
+ * Con la referencia vacía `reconcileEmailBalances` ya no empareja nada (WDC-80), así que el saldo
+ * no se escribiría en la cuenta equivocada. Este bloqueo sigue porque en ese caso la actualización
+ * no haría nada en silencio: acá se dice qué falta en vez de dejar al usuario creyendo que guardó.
  */
 export function reconcileBlocker(form: SetupForm): string | null {
   return refsIncompletos(form) ? FALTAN_DIGITOS : null

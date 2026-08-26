@@ -1336,7 +1336,7 @@ export async function reconcileEmailBalances(
     const bucket = buckets.find(
       (b) => b.accountId === accountId && b.kind === kind
     )
-    if (!bucket) return
+    if (!bucket) return false
     await deps.store.updateBucketAmounts(bucket.id, {
       limitAmount,
       used,
@@ -1344,17 +1344,29 @@ export async function reconcileEmailBalances(
       asOf: input.snapshotAt,
     })
     updated++
+    return true
   }
 
   if (input.checking) {
     const ref = input.checking.ref.replace(/\D/g, "")
-    const account = accounts.find(
+    // Sin dígitos de los dos lados no hay nada que comparar: `"loQueSea".endsWith("")` es true, así
+    // que un ref vacío emparejaría con la primera corriente, y una cuenta guardada sin externalId
+    // (externalRef === "") emparejaría con cualquier ref. En ambos casos el saldo caería sobre la
+    // cuenta equivocada, sin error.
+    //
+    // Y con más de una coincidencia se omite, igual que `resolveCheckingByRef`: `find` se quedaba
+    // con la primera, pero `listInstruments` consulta sin `orderBy`, así que "la primera" ni
+    // siquiera está definida. Ambigüedad = omitir.
+    const matches = accounts.filter(
       (a) =>
         a.accountType === "checking" &&
+        ref !== "" &&
+        a.externalRef !== "" &&
         (a.externalRef === ref ||
           a.externalRef.endsWith(ref) ||
           ref.endsWith(a.externalRef))
     )
+    const account = matches.length === 1 ? matches[0] : null
     if (account) {
       const cash = buckets.find(
         (b) => b.accountId === account.id && b.kind === "cash"
@@ -1367,6 +1379,11 @@ export async function reconcileEmailBalances(
           asOf: input.snapshotAt,
         })
         updated++
+        // El balance de la cuenta es un espejo del bucket, así que solo se escribe cuando el
+        // bucket se escribió — la misma regla que usa la proyección. Si el instrumento calza pero
+        // no tiene bucket, esto no es "se guardó a medias": no se guardó, y el guardián de abajo
+        // tiene que verlo como cero.
+        await deps.store.setAccountBalance(account.id, input.checking.cash)
       }
       if (input.checking.overdraft) {
         await apply(
@@ -1376,26 +1393,32 @@ export async function reconcileEmailBalances(
           input.checking.overdraft.used
         )
       }
-      await deps.store.setAccountBalance(account.id, input.checking.cash)
     }
   }
   for (const card of input.cards) {
     const last4 = card.last4.replace(/\D/g, "")
-    const account = accounts.find(
+    // Mismo motivo que arriba: sin dígitos no se identifica ninguna tarjeta. Aquí la comparación es
+    // por igualdad, así que un vacío solo calzaría con una tarjeta guardada sin last4 — igual de
+    // equivocado, y el cupo quedaría escrito sobre ella.
+    if (last4 === "") continue
+    // Ambigüedad = omitir, igual que `resolveEventTarget` para tarjetas.
+    const matches = accounts.filter(
       (a) => a.accountType === "credit_card" && a.cardLast4 === last4
     )
-    if (!account) continue
+    if (matches.length !== 1) continue
+    const account = matches[0]
     if (card.national) {
-      await apply(
+      const escrito = await apply(
         account.id,
         "credit_national",
         card.national.limit,
         card.national.used
       )
-      await deps.store.setAccountBalance(
-        account.id,
-        card.national.used.negate()
-      )
+      if (escrito)
+        await deps.store.setAccountBalance(
+          account.id,
+          card.national.used.negate()
+        )
     }
     if (card.international)
       await apply(
@@ -1405,6 +1428,22 @@ export async function reconcileEmailBalances(
         card.international.used
       )
   }
+
+  // Si no se escribió un solo saldo, avanzar el cursor es peor que no hacer nada:
+  // `lastBalanceReconciledAt` gobierna la proyección (los eventos con `receivedAt <= reconciledAt`
+  // ya no mueven buckets), así que moverlo dejaría FUERA para siempre todo lo ocurrido entre el
+  // cursor viejo y este snapshot — los movimientos se importan, pero los saldos quedan desviados
+  // sin manera de recuperarlos.
+  //
+  // La cuenta es de BUCKETS escritos, que es lo que el cursor gobierna. No basta con reconocer el
+  // instrumento: una tarjeta que calza pero llega con los dos cupos apagados ("este no lo
+  // actualices"), o un instrumento que calza pero no tiene bucket, no escriben nada — y ese
+  // snapshot no tiene por qué mover el cursor. Misma política que la importación: ante la duda no
+  // se adivina, se avisa. El 422 sale por el toast de la pantalla.
+  if (updated === 0)
+    throw new EmailSetupStateError(
+      "No se actualizó ningún saldo: revisa que los números calcen con tus cuentas y tarjetas, y que al menos un cupo esté encendido"
+    )
 
   await deps.links.update(link.id, {
     lastBalanceReconciledAt: input.snapshotAt,

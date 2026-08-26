@@ -535,8 +535,8 @@ export function OutlookBankConnection({
             >
               Cancelar
             </Button>
-            {/* Con la referencia vacía, reconcileEmailBalances resuelve por endsWith("") y
-                sobrescribe el saldo de la primera cuenta corriente que encuentre. */}
+            {/* Con la referencia vacía reconcileEmailBalances no empareja ninguna cuenta (WDC-80):
+                guardar no rompería nada, pero tampoco haría nada. Se bloquea para decirlo. */}
             <Button
               onClick={() => saveReconcile(reconciling.id)}
               disabled={busy || invalidSnapshot || Boolean(reconcileHint)}

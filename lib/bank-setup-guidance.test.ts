@@ -86,8 +86,8 @@ test("con todos los instrumentos completos no hay nada que bloquee", () => {
   )
 })
 
-// Actualizar saldos resuelve la cuenta por su referencia: con el campo vacío, el endsWith del
-// use-case da verdadero para cualquiera y sobrescribe el saldo de la primera que encuentre.
+// Actualizar saldos resuelve la cuenta por su referencia. Con el campo vacío el use-case ya no
+// empareja nada (WDC-80) y responde con un error; el botón se apaga antes para decirlo acá.
 test("actualizar saldos se bloquea con la referencia vacía", () => {
   assert.equal(
     reconcileBlocker({ checkingRef: "", cards: [] }),

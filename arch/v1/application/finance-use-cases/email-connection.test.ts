@@ -7,6 +7,7 @@ import type {
   EmailBankLinkWithMailbox,
   EmailMailbox,
 } from "../../domain/finance/email-connection.domain.ts"
+import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
 import { parseBancoChileEmail } from "./bancochile-email-map.ts"
 import { parseMachbankEmail } from "./machbank-email-map.ts"
 import { detectCandidates } from "./bancochile-email-candidates.ts"
@@ -20,11 +21,13 @@ import {
 import {
   confirmEmailSetup,
   disconnectBankById,
+  reconcileEmailBalances,
   resolveEventTarget,
   scanEmailCandidates,
   syncMailbox,
   type EmailConfirmPersistInput,
   type EmailConnectionDeps,
+  type EmailStoredAccount,
   type EmailStoredBucket,
 } from "./email-connection-use-cases.ts"
 
@@ -1439,5 +1442,293 @@ test("desconectar un banco sin conexión de correo falla explícito", async () =
   await assert.rejects(
     () => disconnectBankById(disconnectDeps(links, []), "user-1", "bank-ajeno"),
     /conexión de correo/
+  )
+})
+
+// --- Actualizar saldos: contra qué cuenta se escribe (WDC-80) ---
+
+// El emparejamiento de "Actualizar saldos" compara dígitos por sufijo. Un identificador vacío no
+// identifica nada, pero `endsWith("")` es true contra cualquier texto: sin guarda, el saldo entra
+// igual y cae sobre la cuenta que estuviera primera. Y con dos candidatos, quedarse con el primero
+// es lo mismo por otra puerta — `listInstruments` consulta sin `orderBy`, así que ni hay "primero".
+//
+// El tercer camino es el que no se ve: cuando no se resuelve ningún instrumento no se escribe un
+// solo saldo, y avanzar `lastBalanceReconciledAt` ahí deja fuera de la proyección todo lo ocurrido
+// entre el cursor viejo y el snapshot. Por eso varios de estos tests miran el cursor, no los
+// saldos.
+
+const bucketsFor = (accounts: EmailStoredAccount[]): EmailStoredBucket[] =>
+  accounts.map((a) => ({
+    id: `bucket-${a.id}`,
+    accountId: a.id,
+    kind: a.accountType === "credit_card" ? "credit_national" : "cash",
+    currency: "CLP",
+    limitAmount: Money.zero("CLP"),
+    used: Money.zero("CLP"),
+    available: Money.of(1, "CLP"),
+  }))
+
+type ReconcileWrites = {
+  buckets: string[]
+  balances: string[]
+  cursor: (Date | null)[] // cada avance de lastBalanceReconciledAt
+}
+
+const reconcileDeps = (
+  accounts: EmailStoredAccount[],
+  escrito: ReconcileWrites,
+  storedBuckets?: EmailStoredBucket[]
+) => {
+  const base = repos([link({ id: "link-rec", bankId: "bank-1" })])
+  return {
+    ...base,
+    links: {
+      ...base.links,
+      // El cursor de la proyección: lo que estos tests vigilan es que NO se mueva en falso.
+      update: async (_id: string, patch: { lastBalanceReconciledAt?: Date }) => {
+        escrito.cursor.push(patch.lastBalanceReconciledAt ?? null)
+        return base.links.update()
+      },
+    },
+    methods: methodsFake,
+    mail: {
+      listMessagesSince: async () => [],
+      lastMessageDate: async () => null,
+      startDelta: async () => "delta",
+      runDelta: async () => ({ messages: [], deltaLink: "delta" }),
+      fetchMessage: async () => null,
+      ensureSubscription: async () => null,
+      deleteSubscription: async () => {},
+    },
+    store: {
+      confirmSetup: async () => ({
+        bankId: "bank-1",
+        accounts: 0,
+        cards: 0,
+        movements: 0,
+      }),
+      listInstruments: async () => ({
+        accounts,
+        buckets: storedBuckets ?? bucketsFor(accounts),
+      }),
+      upsertMovements: async () => ({ createdExternalIds: [] }),
+      updateBucketAmounts: async (bucketId: string) => {
+        escrito.buckets.push(bucketId)
+      },
+      setAccountBalance: async (accountId: string) => {
+        escrito.balances.push(accountId)
+      },
+      markBankSynced: async () => {},
+      countBankDependents: async () => noDependents,
+      deleteBank: async () => {},
+    },
+    categorize: async () => 0,
+  } satisfies EmailConnectionDeps
+}
+
+const corriente = (id: string, externalRef: string): EmailStoredAccount => ({
+  id,
+  accountType: "checking",
+  currency: "CLP",
+  externalRef,
+  cardLast4: externalRef.slice(-4) || null,
+})
+
+const tarjetaGuardada = (
+  id: string,
+  cardLast4: string
+): EmailStoredAccount => ({
+  id,
+  accountType: "credit_card",
+  currency: "CLP",
+  externalRef: cardLast4,
+  cardLast4,
+})
+
+const SNAPSHOT = new Date("2026-07-14T12:00:00Z")
+
+const cupoNacional = (last4: string) => ({
+  last4,
+  national: {
+    limit: Money.of(2000000, "CLP"),
+    used: Money.of(800000, "CLP"),
+  },
+  international: null,
+})
+
+const reconcile = (
+  accounts: EmailStoredAccount[],
+  escrito: ReconcileWrites,
+  input: Parameters<typeof reconcileEmailBalances>[3],
+  storedBuckets?: EmailStoredBucket[]
+) =>
+  reconcileEmailBalances(
+    reconcileDeps(accounts, escrito, storedBuckets),
+    "user-1",
+    "link-rec",
+    input
+  )
+
+const sinEscribir = (): ReconcileWrites => ({
+  buckets: [],
+  balances: [],
+  cursor: [],
+})
+
+const snapshotDe = (
+  ref: string
+): Parameters<typeof reconcileEmailBalances>[3] => ({
+  snapshotAt: SNAPSHOT,
+  checking: { ref, cash: Money.of(500000, "CLP"), overdraft: null },
+  cards: [],
+})
+
+const snapshotDeTarjeta = (
+  last4: string
+): Parameters<typeof reconcileEmailBalances>[3] => ({
+  snapshotAt: SNAPSHOT,
+  checking: null,
+  cards: [cupoNacional(last4)],
+})
+
+// Lo que tiene que pasar cuando no se resuelve NADA, venga de donde venga: ni un saldo escrito, ni
+// el cursor movido, y un error que la pantalla pueda mostrar en vez de un "listo" que miente.
+const assertNoEscribeNiAvanza = async (
+  accounts: EmailStoredAccount[],
+  input: Parameters<typeof reconcileEmailBalances>[3],
+  storedBuckets?: EmailStoredBucket[]
+) => {
+  const escrito = sinEscribir()
+  await assert.rejects(
+    () => reconcile(accounts, escrito, input, storedBuckets),
+    (error: unknown) => {
+      // La CLASE importa tanto como el texto: `finance-http.ts` traduce EmailSetupStateError a
+      // 422, y cualquier otro Error se iría como 500 con la pantalla mostrando un fallo genérico.
+      assert.ok(
+        error instanceof EmailSetupStateError,
+        `se esperaba EmailSetupStateError, llegó ${(error as Error)?.name}`
+      )
+      assert.match((error as Error).message, /no se actualizó ningún saldo/i)
+      return true
+    }
+  )
+  assert.deepEqual(escrito.buckets, [])
+  assert.deepEqual(escrito.balances, [])
+  // Lo que de verdad importa: el cursor de la proyección NO se movió.
+  assert.deepEqual(escrito.cursor, [])
+}
+
+test("actualizar saldos: una referencia vacía no empareja ninguna cuenta", async () => {
+  // Sin la guarda, `"009991111100".endsWith("")` es true y acct-1 se llevaba un saldo ajeno.
+  await assertNoEscribeNiAvanza(
+    [corriente("acct-1", "009991111100"), corriente("acct-2", "008882222200")],
+    snapshotDe("")
+  )
+})
+
+test("actualizar saldos: una cuenta guardada sin número no intercepta el saldo de otra", async () => {
+  const escrito = sinEscribir()
+  // Caso simétrico: una cuenta creada a mano no tiene externalId, así que su externalRef es "".
+  // Va primera a propósito — sin la guarda, `"1100".endsWith("")` la elegía a ella.
+  const res = await reconcile(
+    [corriente("acct-sin-numero", ""), corriente("acct-real", "009991111100")],
+    escrito,
+    snapshotDe("1100")
+  )
+  assert.equal(res.updatedBuckets, 1)
+  assert.deepEqual(escrito.buckets, ["bucket-acct-real"])
+  assert.deepEqual(escrito.balances, ["acct-real"])
+  // Acá SÍ se escribió, así que el cursor avanza — y al snapshot que se pidió.
+  assert.deepEqual(escrito.cursor, [SNAPSHOT])
+})
+
+test("actualizar saldos: con dígitos empareja igual que siempre", async () => {
+  const cuentas = [corriente("acct-real", "009991111100")]
+
+  const porUltimos4 = sinEscribir()
+  await reconcile(cuentas, porUltimos4, snapshotDe("1100"))
+  assert.deepEqual(porUltimos4.balances, ["acct-real"])
+
+  const porNumeroCompleto = sinEscribir()
+  await reconcile(cuentas, porNumeroCompleto, snapshotDe("00-999-1111100"))
+  assert.deepEqual(porNumeroCompleto.balances, ["acct-real"])
+})
+
+test("actualizar saldos: una tarjeta sin últimos 4 no escribe cupo en ninguna", async () => {
+  // La tarjeta guardada también quedó sin last4: por igualdad, `"" === ""` calzaba.
+  await assertNoEscribeNiAvanza(
+    [tarjetaGuardada("acct-tj", "")],
+    snapshotDeTarjeta("")
+  )
+})
+
+// --- El cursor de la proyección no se mueve en falso ---
+
+test("actualizar saldos: un número válido que no calza con nada no avanza el cursor", async () => {
+  // El estado más fácil de alcanzar: el formulario precarga la referencia desde otra cuenta y el
+  // usuario aprieta guardar sin editarla. Antes devolvía cero escrituras con cara de éxito Y movía
+  // `lastBalanceReconciledAt`, que es lo que decide qué eventos siguen contando para los buckets:
+  // todo lo anterior al snapshot quedaba excluido de la proyección para siempre.
+  await assertNoEscribeNiAvanza(
+    [corriente("acct-real", "009991111100")],
+    snapshotDe("4821")
+  )
+})
+
+test("actualizar saldos: una tarjeta reconocida con los dos cupos apagados no avanza el cursor", async () => {
+  // Apagar los cupos es legítimo ("este no lo actualices"), pero entonces no se escribe nada. La
+  // guarda cuenta ESCRITURAS, no instrumentos reconocidos: contando instrumentos, esta tarjeta
+  // habría bastado para mover el cursor sin haber tocado un solo saldo. Y es alcanzable desde la
+  // pantalla, porque el formulario manda siempre todas las tarjetas del banco.
+  await assertNoEscribeNiAvanza([tarjetaGuardada("tj-a", "7734")], {
+    snapshotAt: SNAPSHOT,
+    checking: null,
+    cards: [{ last4: "7734", national: null, international: null }],
+  })
+})
+
+test("actualizar saldos: una cuenta que calza pero no tiene bucket no avanza el cursor", async () => {
+  // `createAccount` exige `cardLast4` y NO crea ningún bucket, así que una cuenta hecha a mano en
+  // el banco conectado sale en el formulario y calza. Escribirle el `balance` sin poder escribir su
+  // caja sería guardar a medias: el dato que el usuario tecleó no queda en el bucket que la
+  // proyección lee, y encima el cursor cerraría la ventana del vínculo entero.
+  await assertNoEscribeNiAvanza(
+    [corriente("acct-real", "009991111100")],
+    snapshotDe("1100"),
+    [] // el instrumento existe; sus buckets no
+  )
+})
+
+test("actualizar saldos: una tarjeta que calza pero no tiene bucket no avanza el cursor", async () => {
+  await assertNoEscribeNiAvanza(
+    [tarjetaGuardada("tj-a", "7734")],
+    snapshotDeTarjeta("7734"),
+    []
+  )
+})
+
+test("actualizar saldos: sin instrumentos en el formulario tampoco avanza el cursor", async () => {
+  await assertNoEscribeNiAvanza([corriente("acct-real", "009991111100")], {
+    snapshotAt: SNAPSHOT,
+    checking: null,
+    cards: [],
+  })
+})
+
+// --- Ambigüedad = omitir (el patrón que ya usan resolveCheckingByRef y resolveEventTarget) ---
+
+test("actualizar saldos: dos cuentas que calzan con el mismo sufijo no se tocan", async () => {
+  // Ambas terminan en 1100. Quedarse con la primera sería escribir en la cuenta equivocada, y sin
+  // `orderBy` en `listInstruments` ni siquiera hay una "primera" estable.
+  await assertNoEscribeNiAvanza(
+    [corriente("acct-a", "009991111100"), corriente("acct-b", "007771111100")],
+    snapshotDe("1100")
+  )
+})
+
+test("actualizar saldos: dos tarjetas con los mismos últimos 4 no se tocan", async () => {
+  await assertNoEscribeNiAvanza(
+    [tarjetaGuardada("tj-a", "2120"), tarjetaGuardada("tj-b", "2120")],
+    snapshotDeTarjeta("2120")
   )
 })

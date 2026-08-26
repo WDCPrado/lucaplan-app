@@ -1,6 +1,6 @@
-// Qué se le dice al usuario en la revisión previa a crear un banco conectado por correo, y qué le
-// falta para poder confirmarla. Vive acá —y no dentro del componente— porque son decisiones de
-// texto con reglas, y así se prueban sin montar la UI (mismo patrón que lib/import-progress.ts).
+// Qué se le dice al usuario en la revisión previa a crear un banco conectado por correo, qué se le
+// propone y qué le falta para poder confirmarla. Vive acá —y no dentro del componente— porque son
+// decisiones con reglas, y así se prueban sin montar la UI (mismo patrón que lib/import-progress.ts).
 //
 // El caso que las hizo necesarias: hay bancos cuyos avisos de transferencia no numeran la cuenta
 // ("tu cuenta principal"), así que el escaneo termina sin nada que proponer y el formulario llegaba
@@ -15,25 +15,82 @@ export function refComplete(value: string): boolean {
   return value.replace(/\D/g, "").length >= 4
 }
 
+/** Una tarjeta del formulario: sus últimos 4 y qué cupos dejó encendidos el usuario. */
+export type SetupCard = {
+  ref: string
+  national: boolean
+  international: boolean
+}
+
 /** Lo que hay en el formulario de confirmación: `checkingRef` null = no hay cuenta corriente. */
 export type SetupForm = {
   checkingRef: string | null
-  cardRefs: string[]
+  cards: SetupCard[]
 }
 
-/** Lo que impide confirmar la conexión, en las palabras del usuario. `null` = se puede importar. */
-export function confirmBlocker({
-  checkingRef,
-  cardRefs,
-}: SetupForm): string | null {
-  if (checkingRef === null && cardRefs.length === 0)
-    return "Agrega tu cuenta corriente o tu tarjeta para poder importar."
-  const incompleto =
+function refsIncompletos({ checkingRef, cards }: SetupForm): boolean {
+  return (
     (checkingRef !== null && !refComplete(checkingRef)) ||
-    cardRefs.some((ref) => !refComplete(ref))
-  return incompleto
-    ? "Escribe los últimos 4 dígitos de cada cuenta y tarjeta."
-    : null
+    cards.some((card) => !refComplete(card.ref))
+  )
+}
+
+const FALTAN_DIGITOS = "Escribe los últimos 4 dígitos de cada cuenta y tarjeta."
+
+/**
+ * Lo que impide confirmar la conexión inicial, en las palabras del usuario. `null` = se puede
+ * importar. Los tres casos terminan en el mismo error del servidor, y ese error solo aparecía
+ * después del overlay de importación: acá se dicen antes, con el botón apagado.
+ */
+export function confirmBlocker(form: SetupForm): string | null {
+  if (form.checkingRef === null && form.cards.length === 0)
+    return "Agrega tu cuenta corriente o tu tarjeta para poder importar."
+  if (refsIncompletos(form)) return FALTAN_DIGITOS
+  // Una tarjeta sin ningún cupo no se puede crear: no tendría bucket que llevar la deuda.
+  if (form.cards.some((card) => !card.national && !card.international))
+    return "Enciende el cupo nacional o el internacional de cada tarjeta."
+  return null
+}
+
+/**
+ * Lo que impide actualizar saldos. Solo mira las referencias, que es con lo que se resuelve contra
+ * qué cuenta escribir: apagar un cupo acá significa "este no lo actualices", que es legítimo.
+ *
+ * Con la referencia vacía, `reconcileEmailBalances` resuelve por `endsWith("")` —verdadero para
+ * cualquier cuenta— y sobrescribe el saldo de la primera cuenta corriente que encuentre.
+ */
+export function reconcileBlocker(form: SetupForm): string | null {
+  return refsIncompletos(form) ? FALTAN_DIGITOS : null
+}
+
+/** Un candidato de instrumento, tal como lo devuelve el escaneo. */
+export type ScanCandidate =
+  | { kind: "checking"; ref: string; last4: string; movementCount: number }
+  | {
+      kind: "credit_card"
+      last4: string
+      currencies: ("CLP" | "USD")[]
+      movementCount: number
+    }
+
+/**
+ * La cuenta corriente que se le propone al usuario, o `null` si no hay ninguna que proponer.
+ *
+ * El caso que resuelve WDC-65: sin candidato numerado pero con movimientos contra "tu cuenta
+ * principal", se propone igual una cuenta VACÍA. Los dígitos no se inventan —el correo no los
+ * trae—, pero dejar el formulario en blanco escondía que esos movimientos dependen de que el
+ * usuario la agregue.
+ */
+export function proposedChecking(scan: {
+  candidates: readonly ScanCandidate[]
+  primaryCheckingCount: number
+}): { ref: string; movementCount: number } | null {
+  const numerada = scan.candidates.find((c) => c.kind === "checking")
+  if (numerada)
+    return { ref: numerada.ref, movementCount: numerada.movementCount }
+  if (scan.primaryCheckingCount > 0)
+    return { ref: "", movementCount: scan.primaryCheckingCount }
+  return null
 }
 
 /** Lo que el escaneo encontró, sin los candidatos: solo lo que hace falta para explicarlo. */
@@ -53,7 +110,7 @@ export type ScanFacts = {
  */
 export function scanGuidance(
   scan: ScanFacts,
-  { checkingRef, cardRefs }: SetupForm
+  { checkingRef, cards }: SetupForm
 ): string | null {
   // Los movimientos sin número se importan solo si termina existiendo UNA cuenta corriente
   // confirmada: mientras le falten los últimos 4, hay algo concreto en juego.
@@ -68,15 +125,19 @@ export function scanGuidance(
       `Sin una cuenta confirmada esos movimientos se omiten y no se categorizan.`
     )
   }
-  if (checkingRef !== null || cardRefs.length > 0) return null
+  if (checkingRef !== null || cards.length > 0) return null
   if (scan.totalMessages === 0)
     return (
       `Todavía no hay avisos de ${scan.bankName} en este correo. Agrega igual tu cuenta o ` +
       `tarjeta: los movimientos que lleguen después quedan asociados.`
     )
+  const ninguno =
+    scan.totalMessages === 1
+      ? "El único correo revisado no identifica"
+      : `Ninguno de los ${scan.totalMessages} correos revisados identifica`
   return (
-    `Ninguno de los ${scan.totalMessages} correos revisados identifica una cuenta o tarjeta de ` +
-    `${scan.bankName}. Agrégala con sus últimos 4 dígitos para que sus movimientos se importen.`
+    `${ninguno} una cuenta o tarjeta de ${scan.bankName}. Agrégala con sus últimos 4 dígitos ` +
+    `para que sus movimientos se importen.`
   )
 }
 

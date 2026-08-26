@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
 import {
   Check,
   CircleAlert,
@@ -37,8 +37,11 @@ import {
 import {
   confirmBlocker,
   plural,
+  proposedChecking,
+  reconcileBlocker,
   refComplete,
   scanGuidance,
+  type ScanCandidate,
   type SetupForm,
 } from "@/lib/bank-setup-guidance"
 import { formatMoney, monthName } from "@/lib/finance-format"
@@ -78,16 +81,8 @@ export type OutlookStatus = {
   availableBanks: { key: string; name: string }[]
 }
 
-type Candidate =
-  | { kind: "checking"; ref: string; last4: string; movementCount: number }
-  | {
-      kind: "credit_card"
-      last4: string
-      currencies: ("CLP" | "USD")[]
-      movementCount: number
-    }
 type Scan = {
-  candidates: Candidate[]
+  candidates: ScanCandidate[]
   totalMessages: number
   expenseCount: number
   internalCount: number
@@ -175,14 +170,18 @@ function formsFromAccounts(accounts: AccountDTO[]): {
   return { checking, cards }
 }
 
-// Lo que el formulario le muestra al usuario (avisos y qué le falta) vive en lib/, para que se
-// pruebe sin montar la UI.
+// Lo que el formulario le muestra al usuario (qué se le propone, los avisos y qué le falta) vive
+// en lib/, para que se pruebe sin montar la UI.
 const formOf = (
   checking: CheckingForm | null,
   cards: CardForm[]
 ): SetupForm => ({
   checkingRef: checking ? checking.ref : null,
-  cardRefs: cards.map((card) => card.last4),
+  cards: cards.map((card) => ({
+    ref: card.last4,
+    national: card.national,
+    international: card.international,
+  })),
 })
 
 // Mes de la ventana escaneada, en la voz de la app: "julio de 2026". Vacío si el escaneo no lo trae.
@@ -234,8 +233,11 @@ export function OutlookBankConnection({
   const [importStepIdx, setImportStepIdx] = useState(0)
   const automaticScanStarted = useRef(false)
   const invalidSnapshot = snapshotInvalid(checking, cards)
-  // Solo aplica al setup inicial: la reconciliación edita instrumentos que ya existen.
-  const blockingHint = confirmBlocker(formOf(checking, cards))
+  // Qué falta para poder confirmar. La conexión inicial CREA instrumentos y exige más que la
+  // reconciliación, que solo actualiza saldos de los que ya existen.
+  const setupForm = formOf(checking, cards)
+  const blockingHint = confirmBlocker(setupForm)
+  const reconcileHint = reconcileBlocker(setupForm)
 
   const mailboxes = status?.mailboxes ?? []
   const banks = mailboxes.flatMap((m) =>
@@ -296,38 +298,25 @@ export function OutlookBankConnection({
         return
       }
       setScan(data)
-      const foundChecking = data.candidates.find(
-        (c): c is Extract<Candidate, { kind: "checking" }> =>
-          c.kind === "checking"
-      )
-      // Sin candidato numerado pero con movimientos contra "tu cuenta principal", la cuenta se
-      // propone igual, VACÍA: el correo no trae los dígitos y no se inventan, pero dejar el
-      // formulario en blanco escondía que esos movimientos dependen de que el usuario la agregue.
+      // Qué cuenta se propone —incluida la vacía cuando el banco no la numera— lo decide
+      // proposedChecking, que se prueba aparte.
+      const propuesta = proposedChecking(data)
       setChecking(
-        foundChecking
+        propuesta
           ? {
-              ref: foundChecking.ref,
+              ref: propuesta.ref,
               cash: 0,
               hasOverdraft: false,
               overdraftLimit: 0,
               overdraftAvailable: 0,
-              movementCount: foundChecking.movementCount,
+              movementCount: propuesta.movementCount,
             }
-          : data.primaryCheckingCount > 0
-            ? {
-                ref: "",
-                cash: 0,
-                hasOverdraft: false,
-                overdraftLimit: 0,
-                overdraftAvailable: 0,
-                movementCount: data.primaryCheckingCount,
-              }
-            : null
+          : null
       )
       setCards(
         data.candidates
           .filter(
-            (c): c is Extract<Candidate, { kind: "credit_card" }> =>
+            (c): c is Extract<ScanCandidate, { kind: "credit_card" }> =>
               c.kind === "credit_card"
           )
           .map((c) => ({
@@ -530,21 +519,28 @@ export function OutlookBankConnection({
           cards={cards}
           setCards={setCards}
         />
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setReconciling(null)}
-            className="h-11 flex-1 rounded-full"
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={() => saveReconcile(reconciling.id)}
-            disabled={busy || invalidSnapshot}
-            className="h-11 flex-1 rounded-full"
-          >
-            Guardar saldos
-          </Button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setReconciling(null)}
+              className="h-11 flex-1 rounded-full"
+            >
+              Cancelar
+            </Button>
+            {/* Con la referencia vacía, reconcileEmailBalances resuelve por endsWith("") y
+                sobrescribe el saldo de la primera cuenta corriente que encuentre. */}
+            <Button
+              onClick={() => saveReconcile(reconciling.id)}
+              disabled={busy || invalidSnapshot || Boolean(reconcileHint)}
+              className="h-11 flex-1 rounded-full"
+            >
+              Guardar saldos
+            </Button>
+          </div>
+          {reconcileHint && (
+            <p className="text-center text-sm">{reconcileHint}</p>
+          )}
         </div>
       </div>
     )
@@ -561,7 +557,9 @@ export function OutlookBankConnection({
           </Notice>
           {scanError ? (
             <>
-              <Notice icon={CircleAlert}>{scanError}</Notice>
+              <Notice icon={CircleAlert} tone="warning">
+                {scanError}
+              </Notice>
               <Button
                 onClick={() => detect(pending.id)}
                 disabled={busy}
@@ -615,14 +613,11 @@ export function OutlookBankConnection({
           >
             Validar e importar movimientos
           </Button>
-          {/* Por qué el botón está apagado: un disabled sin motivo deja al usuario probando clics. */}
+          {/* Por qué el botón está apagado: un disabled sin motivo deja al usuario probando clics.
+              El mismo motivo viaja además en el campo que lo causa (aria-describedby), que es donde
+              se arregla y donde sí lo alcanza un lector de pantalla. */}
           {blockingHint && (
-            <p
-              className="text-center text-xs text-muted-foreground"
-              role="status"
-            >
-              {blockingHint}
-            </p>
+            <p className="text-center text-sm">{blockingHint}</p>
           )}
         </div>
         <DisconnectButton
@@ -1499,8 +1494,13 @@ function CandidateCard({
   refMaxLength?: number
   children: React.ReactNode
 }) {
-  // Un instrumento sin sus 4 dígitos no se puede crear: se marca en el campo, donde se arregla.
-  const refInvalid = !refComplete(refValue)
+  // Un instrumento sin sus 4 dígitos no se puede crear, pero la cuenta se propone vacía a
+  // propósito: marcarla en rojo de entrada culpa al usuario de algo que todavía no hizo. El campo
+  // se marca recién cuando lo dejó incompleto, y el motivo viaja con él (aria-describedby) porque
+  // el botón deshabilitado no recibe foco y su explicación queda fuera del alcance del teclado.
+  const [refTouched, setRefTouched] = useState(false)
+  const refInvalid = refTouched && !refComplete(refValue)
+  const refErrorId = useId()
   const art = resolveCardArt(
     bankName,
     variant === "debito" ? "checking" : "credit_card"
@@ -1532,25 +1532,34 @@ function CandidateCard({
         </button>
       </div>
       <div className="relative flex-1 space-y-3">{children}</div>
-      <div className="relative flex items-center justify-between gap-2 text-sm text-white/85">
-        <span className="flex items-center gap-1.5">
-          <span className="tracking-widest">••••</span>
-          <Input
-            inputMode="numeric"
-            maxLength={refMaxLength}
-            value={refValue}
-            placeholder={refPlaceholder}
-            aria-label={refLabel}
-            aria-invalid={refInvalid || undefined}
-            onChange={(e) => onRef(e.target.value)}
-            style={boxedInputStyle}
-            className="tabular h-8 w-24 rounded-lg border-white/20 px-2 text-sm tracking-widest text-white selection:bg-white/25 selection:text-white placeholder:text-white/40 focus-visible:border-white/40 focus-visible:ring-white/20"
-          />
-        </span>
-        <span className="shrink-0">
-          {typeLabel}
-          {movementCount ? ` · ${movementCount} movs` : ""}
-        </span>
+      <div className="relative space-y-1.5">
+        <div className="flex items-center justify-between gap-2 text-sm text-white/85">
+          <span className="flex items-center gap-1.5">
+            <span className="tracking-widest">••••</span>
+            <Input
+              inputMode="numeric"
+              maxLength={refMaxLength}
+              value={refValue}
+              placeholder={refPlaceholder}
+              aria-label={refLabel}
+              aria-invalid={refInvalid || undefined}
+              aria-describedby={refInvalid ? refErrorId : undefined}
+              onChange={(e) => onRef(e.target.value)}
+              onBlur={() => setRefTouched(true)}
+              style={boxedInputStyle}
+              className="tabular h-10 w-24 rounded-lg border-white/20 px-2 text-sm tracking-widest text-white selection:bg-white/25 selection:text-white placeholder:text-white/40 focus-visible:border-white/70 focus-visible:ring-white/60"
+            />
+          </span>
+          <span className="shrink-0">
+            {typeLabel}
+            {movementCount ? ` · ${movementCount} movs` : ""}
+          </span>
+        </div>
+        {refInvalid && (
+          <p id={refErrorId} className="text-sm text-red-200">
+            Faltan los últimos 4 dígitos.
+          </p>
+        )}
       </div>
     </div>
   )
@@ -1619,6 +1628,11 @@ export function ScanSummary({
   bankName: string
 }) {
   const mes = scanMonthLabel(scan.since)
+  // Con el buzón sin avisos del banco, "0 correos revisados" cuenta una lectura que no ocurrió.
+  const leidos =
+    scan.totalMessages === 0
+      ? `Sin correos de ${bankName}`
+      : `${plural(scan.totalMessages, "correo revisado", "correos revisados")} de ${bankName}`
   return (
     <div className="rounded-xl bg-muted/50 p-3 text-sm">
       <p>
@@ -1627,16 +1641,14 @@ export function ScanSummary({
         </span>
         <span className="text-muted-foreground">
           {" · "}
-          {plural(
-            scan.internalCount,
-            "ajuste interno",
-            "ajustes internos"
-          )} · {scan.skippedCount} omitidos
+          {plural(scan.internalCount, "ajuste interno", "ajustes internos")}
+          {" · "}
+          {plural(scan.skippedCount, "omitido", "omitidos")}
         </span>
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
-        {plural(scan.totalMessages, "correo", "correos")} de {bankName}{" "}
-        {mes ? `revisados · ${mes}` : "revisados"}
+        {leidos}
+        {mes ? ` · ${mes}` : ""}
       </p>
     </div>
   )
@@ -1655,7 +1667,8 @@ export function ScanGuidance({
   checking: CheckingForm | null
   cards: CardForm[]
 }) {
-  const aviso = scanGuidance({ bankName, ...scan }, formOf(checking, cards))
+  // bankName va DESPUÉS del spread: el `scan` de producción trae el suyo y pisaría la prop.
+  const aviso = scanGuidance({ ...scan, bankName }, formOf(checking, cards))
   if (!aviso) return null
   return (
     <Notice icon={CircleAlert} tone="warning">

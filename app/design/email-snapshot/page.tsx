@@ -10,7 +10,11 @@ import {
   type CardForm,
   type CheckingForm,
 } from "@/components/finance/outlook-bank-connection"
-import { confirmBlocker } from "@/lib/bank-setup-guidance"
+import {
+  confirmBlocker,
+  proposedChecking,
+  type ScanCandidate,
+} from "@/lib/bank-setup-guidance"
 
 // Mock funcional del paso "revisar candidatos + snapshot" de la conexión Outlook: mismas tarjetas,
 // mismos avisos y misma validación que el flujo real, con datos en memoria (sin API ni buzón).
@@ -18,6 +22,10 @@ import { confirmBlocker } from "@/lib/bank-setup-guidance"
 // Los tres escenarios existen porque el flujo real NO se puede mirar en el entorno de PR: el
 // escaneo consulta Microsoft Graph con el token del buzón, que ahí no existe. Este mock es dónde se
 // revisa cómo se ve cada resultado del escaneo, incluido el que llega sin nada que proponer.
+//
+// Cada escenario declara lo que DEVUELVE EL ESCANEO, no el formulario resultante: la cuenta sale de
+// proposedChecking igual que en producción, así que lo que se mira acá ejercita ese camino en vez
+// de imitar su salida.
 
 type Escenario = {
   slug: string
@@ -25,6 +33,7 @@ type Escenario = {
   desc: string
   bankName: string
   scan: {
+    candidates: ScanCandidate[]
     totalMessages: number
     expenseCount: number
     internalCount: number
@@ -32,17 +41,6 @@ type Escenario = {
     skippedCount: number
     since: string
   }
-  checking: CheckingForm | null
-  cards: CardForm[]
-}
-
-const CHECKING_VACIA: CheckingForm = {
-  ref: "", // el correo no trae los dígitos: los completa el usuario
-  cash: 0,
-  hasOverdraft: false,
-  overdraftLimit: 0,
-  overdraftAvailable: 0,
-  movementCount: 7,
 }
 
 const ESCENARIOS: Escenario[] = [
@@ -52,6 +50,15 @@ const ESCENARIOS: Escenario[] = [
     desc: "El escaneo propone la cuenta y la tarjeta: no hace falta ningún aviso.",
     bankName: "Banco de Chile",
     scan: {
+      candidates: [
+        { kind: "checking", ref: "8900", last4: "8900", movementCount: 31 },
+        {
+          kind: "credit_card",
+          last4: "2120",
+          currencies: ["CLP", "USD"],
+          movementCount: 74,
+        },
+      ],
       totalMessages: 123,
       expenseCount: 105,
       internalCount: 6,
@@ -59,27 +66,6 @@ const ESCENARIOS: Escenario[] = [
       skippedCount: 12,
       since: "2026-07-01T00:00:00.000Z",
     },
-    checking: {
-      ref: "8900",
-      cash: 0,
-      hasOverdraft: true,
-      overdraftLimit: 1_000_000,
-      overdraftAvailable: 886_453,
-      movementCount: 31,
-    },
-    cards: [
-      {
-        id: "mock-2120",
-        last4: "2120",
-        national: true,
-        nationalLimit: 3_272_200,
-        nationalAvailable: 992_926,
-        international: true,
-        internationalLimit: 2_100,
-        internationalAvailable: 1_694.62,
-        movementCount: 74,
-      },
-    ],
   },
   {
     slug: "cuenta-principal",
@@ -87,6 +73,7 @@ const ESCENARIOS: Escenario[] = [
     desc: "MACHBANK no numera la cuenta en sus transferencias: la cuenta se propone vacía.",
     bankName: "MACHBANK",
     scan: {
+      candidates: [],
       totalMessages: 19,
       expenseCount: 7,
       internalCount: 0,
@@ -94,8 +81,6 @@ const ESCENARIOS: Escenario[] = [
       skippedCount: 12,
       since: "2026-07-01T00:00:00.000Z",
     },
-    checking: CHECKING_VACIA,
-    cards: [],
   },
   {
     slug: "sin-nada",
@@ -103,6 +88,7 @@ const ESCENARIOS: Escenario[] = [
     desc: "Correos del banco que no identifican ningún instrumento.",
     bankName: "MACHBANK",
     scan: {
+      candidates: [],
       totalMessages: 14,
       expenseCount: 0,
       internalCount: 0,
@@ -110,30 +96,70 @@ const ESCENARIOS: Escenario[] = [
       skippedCount: 14,
       since: "2026-07-01T00:00:00.000Z",
     },
-    checking: null,
-    cards: [],
   },
 ]
 
+// El mismo armado que hace `detect()` con la respuesta del escaneo: la cuenta la decide
+// proposedChecking y las tarjetas salen de los candidatos de crédito.
+function formularioDe(escenario: Escenario): {
+  checking: CheckingForm | null
+  cards: CardForm[]
+} {
+  const propuesta = proposedChecking(escenario.scan)
+  return {
+    checking: propuesta
+      ? {
+          ref: propuesta.ref,
+          cash: 0,
+          hasOverdraft: false,
+          overdraftLimit: 0,
+          overdraftAvailable: 0,
+          movementCount: propuesta.movementCount,
+        }
+      : null,
+    cards: escenario.scan.candidates
+      .filter((c) => c.kind === "credit_card")
+      .map((c) => ({
+        id: `mock-${c.last4}`,
+        last4: c.last4,
+        national: c.currencies.includes("CLP"),
+        nationalLimit: 0,
+        nationalAvailable: 0,
+        international: c.currencies.includes("USD"),
+        internationalLimit: 0,
+        internationalAvailable: 0,
+        movementCount: c.movementCount,
+      })),
+  }
+}
+
+const INICIAL = ESCENARIOS[1] // el caso de la tarjeta: la revisión que llegaba vacía
+
 export default function EmailSnapshotMock() {
   const [open, setOpen] = useState(true)
-  const [escenario, setEscenario] = useState(ESCENARIOS[1])
+  const [escenario, setEscenario] = useState(INICIAL)
   const [snapshotAt, setSnapshotAt] = useState("2026-07-15T00:39")
+  const inicial = formularioDe(INICIAL)
   const [checking, setChecking] = useState<CheckingForm | null>(
-    ESCENARIOS[1].checking
+    inicial.checking
   )
-  const [cards, setCards] = useState<CardForm[]>(ESCENARIOS[1].cards)
+  const [cards, setCards] = useState<CardForm[]>(inicial.cards)
 
   const elegir = (siguiente: Escenario) => {
+    const form = formularioDe(siguiente)
     setEscenario(siguiente)
-    setChecking(siguiente.checking)
-    setCards(siguiente.cards)
+    setChecking(form.checking)
+    setCards(form.cards)
     setOpen(true)
   }
 
   const blocker = confirmBlocker({
     checkingRef: checking ? checking.ref : null,
-    cardRefs: cards.map((card) => card.last4),
+    cards: cards.map((card) => ({
+      ref: card.last4,
+      national: card.national,
+      international: card.international,
+    })),
   })
 
   return (
@@ -190,14 +216,7 @@ export default function EmailSnapshotMock() {
             >
               Validar e importar movimientos
             </Button>
-            {blocker && (
-              <p
-                className="text-center text-xs text-muted-foreground"
-                role="status"
-              >
-                {blocker}
-              </p>
-            )}
+            {blocker && <p className="text-center text-sm">{blocker}</p>}
           </div>
         </div>
       </ResponsiveModal>

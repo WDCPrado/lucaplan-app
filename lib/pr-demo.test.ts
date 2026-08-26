@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { afterEach, describe, it } from "node:test"
 
-import { prDemoAccount } from "./pr-demo.ts"
+import { prDemoAccount, prDemoEmailDomain } from "./pr-demo.ts"
 
 const original = process.env.RAILWAY_ENVIRONMENT_NAME
 
@@ -33,5 +33,23 @@ describe("prDemoAccount", () => {
     assert.equal(withEnv(""), null)
     assert.equal(withEnv("pr-staging"), null)
     assert.equal(withEnv("pr-2-old"), null)
+  })
+})
+
+describe("prDemoEmailDomain", () => {
+  it("devuelve el dominio con el que el login lista las cuentas sembradas", () => {
+    assert.equal(prDemoEmailDomain("demo@lucaplan.cl"), "@lucaplan.cl")
+    assert.equal(prDemoEmailDomain("wdc-74@lucaplan.cl"), "@lucaplan.cl")
+    // Local part entre comillas: el dominio es lo que sigue al ÚLTIMO @.
+    assert.equal(prDemoEmailDomain('"a@b"@lucaplan.cl'), "@lucaplan.cl")
+  })
+
+  it("un correo malformado NO produce filtro: publicaría a todos los usuarios", () => {
+    // `endsWith: ""` matchea la base entera, y de este filtro sale lo que se muestra en el login,
+    // que es una página pública. Sin dominio claro, no se lista a nadie.
+    assert.equal(prDemoEmailDomain(""), null)
+    assert.equal(prDemoEmailDomain("demo"), null)
+    assert.equal(prDemoEmailDomain("demo@"), null)
+    assert.equal(prDemoEmailDomain("@lucaplan.cl"), null)
   })
 })

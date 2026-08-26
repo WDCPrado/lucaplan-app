@@ -77,14 +77,22 @@ async function resolveUser(email: string, password: string, nombre: string) {
     })
     return { id: user.id, fresh: true }
   }
-  if (process.env.SEED_PR_FORCE !== "1") return { id: existing.id, fresh: false }
+  // El título de la escena pudo cambiar desde la siembra anterior, y el login lo lee de acá.
+  await prisma.user.update({ where: { id: existing.id }, data: { name: nombre } })
+  // "Ya sembrado" se decide por EVIDENCIA de que la siembra terminó, no por la existencia de la
+  // fila `user`: esa se crea PRIMERO y las escrituras que siguen no van en una transacción, así
+  // que una siembra cortada a la mitad dejaría un usuario creado y vacío que el login lista igual
+  // y que nunca se reintentaría. Todo lo sembrado cuelga del banco, así que sin banco no hay nada:
+  // ese usuario se trata como fresco y el próximo deploy lo rehace.
+  const completo = await prisma.bank.count({ where: { userId: existing.id } })
+  if (completo > 0 && process.env.SEED_PR_FORCE !== "1") {
+    return { id: existing.id, fresh: false }
+  }
   // Re-siembra: borrar el banco arrastra en cascada cuentas, tarjetas, movimientos,
   // ingresos, recurrentes y planes de cuotas. Las categorías (y sus límites) las borra la
   // limpieza de más abajo, común a los dos caminos.
   await prisma.bank.deleteMany({ where: { userId: existing.id } })
   await prisma.monthlyBudget.deleteMany({ where: { userId: existing.id } })
-  // El título de la escena pudo cambiar desde la siembra anterior, y el login lo lee de acá.
-  await prisma.user.update({ where: { id: existing.id }, data: { name: nombre } })
   return { id: existing.id, fresh: true }
 }
 
@@ -101,13 +109,16 @@ export async function sembrarUsuario({
   password: string
   nombre: string
 }): Promise<EscenaContext | null> {
+  // TODO en UTC, igual que las escenas: las fechas de movimiento son días civiles (@db.Date) y
+  // mezclar getters locales acá con UTC allá hace que, corrido desde Chile el último día del mes
+  // pasadas las 20:00, "el mes anterior" sea un mes distinto en cada lado.
   const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth() + 1
-  const today = now.getDate()
-  const prev = new Date(year, month - 2, 1) // mes anterior (month-1 en base 0, menos 1 mes)
-  const prevYear = prev.getFullYear()
-  const prevMonth = prev.getMonth() + 1
+  const year = now.getUTCFullYear()
+  const month = now.getUTCMonth() + 1
+  const today = now.getUTCDate()
+  const prev = new Date(Date.UTC(year, month - 2, 1)) // mes anterior (base 0, menos 1 mes)
+  const prevYear = prev.getUTCFullYear()
+  const prevMonth = prev.getUTCMonth() + 1
 
   const { id: userId, fresh } = await resolveUser(email, password, nombre)
   if (!fresh) {
@@ -235,7 +246,7 @@ export async function sembrarUsuario({
         userId,
         accountId: checking.id,
         categoryId: cat ? categoryId.get(cat)! : null,
-        transactionDate: new Date(year, month - 1, day),
+        transactionDate: new Date(Date.UTC(year, month - 1, day)),
         description,
         amount,
         currency: "CLP",
@@ -247,7 +258,7 @@ export async function sembrarUsuario({
       userId,
       accountId: checking.id,
       categoryId: cat ? categoryId.get(cat)! : null,
-      transactionDate: new Date(prevYear, prevMonth - 1, day),
+      transactionDate: new Date(Date.UTC(prevYear, prevMonth - 1, day)),
       description,
       amount: Math.round(amount * 0.92),
       currency: "CLP",
@@ -267,7 +278,7 @@ export async function sembrarUsuario({
       accountId: checking.id,
       categoryId: salaryCategory.id,
       incomeId: income.id,
-      transactionDate: new Date(y, m - 1, 5),
+      transactionDate: new Date(Date.UTC(y, m - 1, 5)),
       description: "Abono Sueldo",
       amount,
       currency: "CLP",
@@ -288,7 +299,7 @@ export async function sembrarUsuario({
         baseAmount,
         currency: "CLP",
         dayOfMonth,
-        startDate: new Date(prevYear, prevMonth - 1, 1),
+        startDate: new Date(Date.UTC(prevYear, prevMonth - 1, 1)),
       },
     })
   }
@@ -309,7 +320,7 @@ export async function sembrarUsuario({
     elapsed,
     cat,
   ] of plans) {
-    const start = new Date(year, month - 1 - elapsed, 5)
+    const start = new Date(Date.UTC(year, month - 1 - elapsed, 5))
     const amount = Math.round(totalAmount / count)
     await prisma.installmentPlan.create({
       data: {
@@ -326,7 +337,7 @@ export async function sembrarUsuario({
         items: {
           create: Array.from({ length: count }, (_, i) => ({
             index: i + 1,
-            dueDate: new Date(start.getFullYear(), start.getMonth() + i, 5),
+            dueDate: new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + i, 5)),
             // La última absorbe el redondeo para que la suma cuadre con el total.
             amount: i === count - 1 ? totalAmount - amount * (count - 1) : amount,
             paidOutsideApp: i < elapsed,

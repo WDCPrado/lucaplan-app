@@ -15,6 +15,9 @@ export type User = {
 // Port: implementado en infraestructura. Los use-cases lo reciben por inyección.
 export interface UserRepository {
   findById(id: string): Promise<User | null>
+  // Usuarios cuyo correo termina en `domain` ("@lucaplan.cl"), más antiguo primero y como mucho
+  // `take`. Lo usa el login de los entornos de PR para ofrecer las cuentas que sembró el seed.
+  listByEmailDomain(domain: string, take: number): Promise<User[]>
   setRole(id: string, role: Role): Promise<User>
   setBanned(id: string, banned: boolean): Promise<User>
 }

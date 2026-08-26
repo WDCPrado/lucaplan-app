@@ -32,6 +32,12 @@ export function prDemoAccount(): DemoAccount | null {
 // Las cuentas sembradas —la base y la de cada escena— comparten el dominio del correo base. Es lo
 // que le permite al login listarlas desde la base de datos sin una tabla ni una columna nuevas, y
 // la regla que debe respetar el `correo` de una escena nueva.
-export function prDemoEmailDomain(baseEmail: string): string {
-  return baseEmail.slice(baseEmail.indexOf("@"))
+//
+// `null` si SEED_PR_EMAIL viene sin `@`, o sin nada a alguno de sus lados: de este filtro salen los
+// correos que se PUBLICAN en el login, que es una página pública, y un dominio vacío haría que
+// `endsWith` matcheara a TODOS los usuarios de la base. Ante la duda no se lista a nadie.
+export function prDemoEmailDomain(baseEmail: string): string | null {
+  const at = baseEmail.lastIndexOf("@")
+  if (at <= 0 || at === baseEmail.length - 1) return null
+  return baseEmail.slice(at)
 }

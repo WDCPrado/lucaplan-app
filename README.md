@@ -480,10 +480,15 @@ descubre recorriendo la carpeta en orden alfabético. Cada escena exporta `corre
 `seed`, y recibe el usuario ya sembrado (`prisma`, `userId`, cuenta corriente, tarjeta y el mapa
 nombre → id de las categorías), así que son unas pocas líneas.
 
-Un usuario por escena es lo que hace que las escenas no se estorben: ninguna deforma los datos de
-otra ni los del usuario base, y ninguna se borra cuando llega el PR siguiente — las features
-viejas se siguen pudiendo probar. Como no hay archivo compartido (no hay `index.ts` a propósito),
-dos ramas en paralelo tampoco chocan.
+Un usuario por escena es lo que permite que no se estorben: ninguna deforma los datos de otra ni
+los del usuario base, y ninguna se borra cuando llega el PR siguiente — las features viejas se
+siguen pudiendo probar. Como no hay archivo compartido (no hay `index.ts` a propósito), dos ramas
+en paralelo tampoco chocan.
+
+Ojo con qué garantiza qué: la partición es el `userId`, pero el `prisma` que recibe una escena es
+el cliente normal, **sin límite por usuario**. El aislamiento es una **regla que cada escena
+cumple** filtrando por el `userId` de su contexto, no algo que la estructura imponga; un `where`
+sin él alcanza a los demás usuarios demo.
 
 El login del entorno de PR lista todas las cuentas con su título; elegir una rellena el formulario
 y entrar es un clic. Todas comparten la misma contraseña: lo que cambia es el correo.

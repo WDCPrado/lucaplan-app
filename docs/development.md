@@ -181,8 +181,12 @@ Reglas:
   recurrentes y planes: tómalos del contexto en vez de crear otros.
 - **Tu usuario es tuyo: siembra los montos que quieras.** No calcules contra los datos base para
   "encajar" — sobrescríbelos. Un número fijo es el que después va escrito en el guion de prueba.
-- **No toques al usuario base ni al de otra escena.** Ese es justamente el punto de tener uno por
-  escena.
+- **Filtra SIEMPRE por `userId` en cada query.** Acá está el único punto delicado: el `prisma` que
+  recibes es el cliente normal, **sin límite por usuario**. Que las escenas no se estorben no es
+  algo que la estructura garantice — depende de que cada `where` lleve el `userId` del contexto. Un
+  `deleteMany` sin él borra los datos de todos los usuarios demo, base incluido.
+- **No toques al usuario base ni al de otra escena.** Ese es el punto de tener uno por escena, y se
+  sostiene solo si respetas la regla de arriba.
 - **Nada de datos reales ni secretos** — el entorno de PR es público.
 - **Pruébala antes de abrir el PR**: `SEED_PR_FORCE=1 RAILWAY_ENVIRONMENT_NAME=pr-0 pnpm seed:pr`
   contra una base local (⚠️ re-siembra desde cero a todos los usuarios demo). Si una escena falla

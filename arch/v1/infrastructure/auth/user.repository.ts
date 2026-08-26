@@ -28,6 +28,14 @@ export const userRepository: UserRepository = {
     const u = await prisma.user.findUnique({ where: { id } })
     return u ? toDomain(u) : null
   },
+  async listByEmailDomain(domain, take) {
+    const rows = await prisma.user.findMany({
+      where: { email: { endsWith: domain } },
+      orderBy: { createdAt: "asc" },
+      take,
+    })
+    return rows.map(toDomain)
+  },
   async setRole(id, role) {
     return toDomain(await prisma.user.update({ where: { id }, data: { role } }))
   },

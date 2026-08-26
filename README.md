@@ -456,32 +456,46 @@ proyecto tiene varios servicios). En `production` (y en local, y en Docker Compo
 tocar la base. No hay nada que configurar.
 
 Cada PR queda entonces navegable de inmediato con un usuario demo y un mes de datos ya armado. El
-formulario de login de esos entornos muestra la cuenta, la trae escrita en los campos (entrar es un
-clic) y deja copiar cada dato por separado:
+formulario de login de esos entornos lista las cuentas sembradas, deja elegir una (los campos
+quedan escritos, entrar es un clic) y copiar la contraseña:
 
 | Variable            | Default            | Para qué                                                       |
 | ------------------- | ------------------ | -------------------------------------------------------------- |
-| `SEED_PR_EMAIL`     | `demo@lucaplan.cl` | Correo del usuario demo con el que entras al entorno del PR      |
-| `SEED_PR_PASSWORD`  | `lucaplan1234`     | Su contraseña                                                    |
-| `SEED_PR_FORCE`     | —                  | `1` borra los datos del demo y los vuelve a sembrar en el próximo deploy |
+| `SEED_PR_EMAIL`     | `demo@lucaplan.cl` | Correo del usuario base con el que entras al entorno del PR      |
+| `SEED_PR_PASSWORD`  | `lucaplan1234`     | La contraseña, común a todas las cuentas sembradas               |
+| `SEED_PR_FORCE`     | —                  | `1` borra los datos de los usuarios demo y los vuelve a sembrar en el próximo deploy |
 
-Es idempotente: si el usuario demo ya existe, los redeploys del PR no tocan nada (lo que probaste
-sigue ahí). Siembra 2 cuentas con cupos separados por moneda, 9 categorías con contexto para la IA,
-presupuesto global y por categoría, sueldo con carry-forward, movimientos del mes en curso y del
-anterior, 3 gastos recurrentes y 2 planes de cuotas (tarjeta y crédito de consumo).
+Es idempotente: si un usuario demo ya existe, los redeploys del PR no lo tocan (lo que probaste
+sigue ahí). A cada uno le siembra 2 cuentas con cupos separados por moneda, 9 categorías con
+contexto para la IA, presupuesto global y por categoría, sueldo con carry-forward, movimientos del
+mes en curso y del anterior, 3 gastos recurrentes y 2 planes de cuotas (tarjeta y crédito de
+consumo).
 
-#### Datos de la feature del PR
+#### Escenas: los datos de cada feature
 
-Ese seed base es el mismo para todos los PR. Lo que cambia de un PR a otro va en
-[`scripts/seed-pr-feature.ts`](scripts/seed-pr-feature.ts): un archivo que **se reescribe entero en
-cada feature, antes de abrir el PR**, con la data mínima para probar ese cambio y nada más. Lo llama
-el seed base al terminar, pasándole lo ya sembrado (`prisma`, `userId`, cuenta corriente, tarjeta y
-el mapa nombre → id de las categorías), así el seed de la feature son unas pocas líneas.
+Ese usuario base es el mismo para todos los PR y muestra la app en su estado normal. Lo que una
+feature necesita para poder mirarse va en una **escena**: un archivo en
+[`scripts/seed-pr/escenas/`](scripts/seed-pr/escenas/) con **su propio usuario demo**, que el seed
+descubre recorriendo la carpeta en orden alfabético. Cada escena exporta `correo`, `titulo` y
+`seed`, y recibe el usuario ya sembrado (`prisma`, `userId`, cuenta corriente, tarjeta y el mapa
+nombre → id de las categorías), así que son unas pocas líneas.
 
-Si el cambio no necesita datos propios, el archivo queda como no-op. Si falla —típicamente un seed
-de una feature anterior contra un esquema que ya cambió— el seed base lo registra y sigue: el
-entorno queda con los datos base en vez de caerse el deploy. Cómo escribirlo, en
-[docs/development.md](docs/development.md#antes-del-pr).
+Un usuario por escena es lo que permite que no se estorben: ninguna deforma los datos de otra ni
+los del usuario base, y ninguna se borra cuando llega el PR siguiente — las features viejas se
+siguen pudiendo probar. Como no hay archivo compartido (no hay `index.ts` a propósito), dos ramas
+en paralelo tampoco chocan.
+
+Ojo con qué garantiza qué: la partición es el `userId`, pero el `prisma` que recibe una escena es
+el cliente normal, **sin límite por usuario**. El aislamiento es una **regla que cada escena
+cumple** filtrando por el `userId` de su contexto, no algo que la estructura imponga; un `where`
+sin él alcanza a los demás usuarios demo.
+
+El login del entorno de PR lista todas las cuentas con su título; elegir una rellena el formulario
+y entrar es un clic. Todas comparten la misma contraseña: lo que cambia es el correo.
+
+Cada escena corre aislada: si una falla —típicamente una vieja contra un esquema que ya cambió— el
+seed lo registra y sigue con las demás, en vez de caerse el deploy. Cómo escribir una, en
+[docs/development.md](docs/development.md#sembrar-los-datos-de-la-feature).
 
 ## Mapa documental
 

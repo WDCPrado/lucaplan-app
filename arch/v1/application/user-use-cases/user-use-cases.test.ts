@@ -16,6 +16,11 @@ class InMemoryUserRepository implements UserRepository {
   async findById(id: string) {
     return this.users.get(id) ?? null
   }
+  async listByEmailDomain(domain: string, take: number) {
+    return [...this.users.values()]
+      .filter((u) => u.email.endsWith(domain))
+      .slice(0, take)
+  }
   async setRole(id: string, role: User["role"]) {
     const next = { ...this.users.get(id)!, role }
     this.users.set(id, next)

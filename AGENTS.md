@@ -13,7 +13,7 @@ Desde ahí abre lo que necesites, sobre todo:
 
 - [docs/development.md](docs/development.md) — flujo OpenSpec, reglas de UI, convenciones, qué
   correr antes del PR y cómo sembrar los datos con los que se prueba la feature en su entorno de PR
-  (`scripts/seed-pr-feature.ts`, se reescribe en cada cambio).
+  (una "escena" con su propio usuario demo en `scripts/seed-pr/escenas/`).
 - [openspec/README.md](openspec/README.md) — specs canónicas y cambios en curso.
 
 Este archivo no duplica reglas: si algo falta o se contradice, se corrige en el README o en

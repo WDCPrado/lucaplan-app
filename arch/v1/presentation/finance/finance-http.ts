@@ -1,6 +1,8 @@
 // Helpers HTTP para los Route Handlers financieros: resuelve el actor desde la sesión, inyecta los
 // adapters, y mapea errores de dominio a status (401 sin sesión, 404 ownership/no-encontrado, 422
 // regla de negocio). Sin lógica de negocio.
+import { cache } from "react"
+
 import { sessionGateway } from "../../infrastructure/auth/session.gateway.ts"
 import {
   NotOwnerError,
@@ -65,8 +67,10 @@ import { openaiCategorizationProvider } from "../../infrastructure/http/ai/opena
 import { openaiBalanceScanReader } from "../../infrastructure/http/ai/openai-balance-scan.provider.ts"
 import { openaiMovementScanReader } from "../../infrastructure/http/ai/openai-movement-scan.provider.ts"
 import { exchangeRateProvider } from "../../infrastructure/http/exchange/usd-clp.ts"
+import { memoizeReads, type MemoStore } from "./request-memo.ts"
 
-// Todos los adapters, listos para inyectar en los use-cases.
+// Todos los adapters, listos para inyectar en los use-cases. Crudos: cada lectura va a la base.
+// ESTE es el que usan los Route Handlers y cualquier camino que escriba.
 export const financeDeps = {
   accounts: accountRepository,
   banks: bankRepository,
@@ -83,6 +87,23 @@ export const financeDeps = {
   corrections: correctionRepository,
   exchangeRates: exchangeRateProvider,
 }
+
+// Un almacén de memoización por render. `cache` de React le entrega uno nuevo a cada render de
+// servidor y lo comparte entre todas las lecturas de ESE render: es lo que Next 16 documenta para
+// deduplicar consultas a un ORM dentro de una misma carga.
+const requestStore = cache((): MemoStore => new Map())
+
+// Las mismas deps con las lecturas repetidas memoizadas (ver `request-memo.ts`). ESTE es el que
+// usan los server components (`app/**/page.tsx`), que solo leen; las escrituras que ocurran en un
+// render —hoy solo `materializeUserPeriods`— siguen recibiendo `financeDeps` crudo.
+//
+// La separación es a propósito y es el invariante que sostiene todo esto: **lo que escribe nunca
+// lee de la memoria**. Antes eso dependía de que `cache` no tuviera ámbito fuera de un render, o
+// sea de un detalle de React y de dónde acabara corriendo el código; ahora lo garantiza qué objeto
+// importa cada archivo. Un camino que escriba y después lea —`updateIncome` seguido de
+// `seedGlobalLimitFromIncomes`, por ejemplo— no puede leer un ingreso previo a su propia escritura
+// aunque alguien lo mueva a una Server Action, porque no tiene de dónde.
+export const financePageDeps = memoizeReads(financeDeps, requestStore)
 
 function errorStatus(e: unknown): number {
   if (e instanceof WebhookSignatureError || e instanceof OAuthStateError)

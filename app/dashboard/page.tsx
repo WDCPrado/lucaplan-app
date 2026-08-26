@@ -3,7 +3,10 @@ import { redirect } from "next/navigation"
 
 import { auth } from "@/arch/v1/infrastructure/auth/auth"
 import { currentPeriod } from "@/lib/finance-format"
-import { financeDeps } from "@/arch/v1/presentation/finance/finance-http"
+import {
+  financeDeps,
+  financePageDeps,
+} from "@/arch/v1/presentation/finance/finance-http"
 import {
   getMonthlySummary,
   listAccounts,
@@ -44,6 +47,8 @@ export default async function DashboardPage({
 
   // Abre los períodos de las recurrentes activas antes de leer: el comprometido del mes debe verse
   // aunque el cron no haya corrido todavía. Idempotente y solo mes actual/futuro.
+  // Con las deps CRUDAS a propósito: esto escribe, y lo que escribe no lee de la memoización
+  // por render. Las lecturas de más abajo usan `financePageDeps` y ven lo que esto dejó.
   await materializeUserPeriods(financeDeps, userId, year, month).catch(() => {})
 
   // La frecuencia primero: getBudgetView la necesita para calcular el ritmo del período.
@@ -58,16 +63,16 @@ export default async function DashboardPage({
     amountBounds,
     previousMonthDebt,
   ] = await Promise.all([
-    getMonthlySummary(financeDeps, userId, year, month),
-    listAccounts(financeDeps, userId),
-    getBudgetView(financeDeps, userId, year, month, {
+    getMonthlySummary(financePageDeps, userId, year, month),
+    listAccounts(financePageDeps, userId),
+    getBudgetView(financePageDeps, userId, year, month, {
       frequency: paceFrequency,
       today: now,
     }),
-    listTransactions(financeDeps, userId, year, month),
-    listUncategorized(financeDeps, userId, year, month),
-    listIncomesView(financeDeps, userId, year, month),
-    getAmountBounds(financeDeps, userId),
+    listTransactions(financePageDeps, userId, year, month),
+    listUncategorized(financePageDeps, userId, year, month),
+    listIncomesView(financePageDeps, userId, year, month),
+    getAmountBounds(financePageDeps, userId),
     // Lo que el mes anterior gastó por sobre su presupuesto: el plan del mes lo descuenta del
     // total que ofrece repartir. Va acá y no en `getBudgetView` porque el único que la necesita es
     // el plan; meterla al DTO se la cobraría a todos los consumidores de la vista.
@@ -75,7 +80,7 @@ export default async function DashboardPage({
     // leyendo el mes anterior convertiría un dato cosmético en un 500 de la pantalla principal.
     // Degradando a 0 el plan se comporta como antes de existir el descuento, que es el modo de
     // fallo correcto.
-    getPreviousMonthDebt(financeDeps, userId, year, month).catch(() => 0),
+    getPreviousMonthDebt(financePageDeps, userId, year, month).catch(() => 0),
   ])
 
   const user = {

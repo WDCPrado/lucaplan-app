@@ -11,7 +11,7 @@ import {
 } from "@/arch/v1/infrastructure/database/prisma/push-deps"
 import { paceDeps } from "@/arch/v1/infrastructure/database/prisma/pace.infrastructure"
 import { currentPeriod } from "@/lib/finance-format"
-import { financeDeps } from "@/arch/v1/presentation/finance/finance-http"
+import { financePageDeps } from "@/arch/v1/presentation/finance/finance-http"
 import {
   listAccounts,
   getBudgetView,
@@ -29,8 +29,8 @@ export default async function SettingsPage() {
     listBudgetAlerts(budgetAlertDeps),
     getDueDays(dueReminderDeps),
     getPaceFrequency(paceDeps),
-    listAccounts(financeDeps, session.user.id),
-    getBudgetView(financeDeps, session.user.id, now.year, now.month),
+    listAccounts(financePageDeps, session.user.id),
+    getBudgetView(financePageDeps, session.user.id, now.year, now.month),
   ])
 
   const label = session.user.name || session.user.email || "Usuario"

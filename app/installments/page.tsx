@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 
 import { auth } from "@/arch/v1/infrastructure/auth/auth"
 import { currentPeriod } from "@/lib/finance-format"
-import { financeDeps } from "@/arch/v1/presentation/finance/finance-http"
+import { financePageDeps } from "@/arch/v1/presentation/finance/finance-http"
 import {
   listAccounts,
   listInstallmentsView,
@@ -18,10 +18,10 @@ export default async function InstallmentsPage() {
   const userId = session.user.id
   const now = currentPeriod()
   const [plans, accounts, budget] = await Promise.all([
-    listInstallmentsView(financeDeps, userId),
-    listAccounts(financeDeps, userId),
+    listInstallmentsView(financePageDeps, userId),
+    listAccounts(financePageDeps, userId),
     // Solo por las categorías (nombre/icono/color) para el selector del modal.
-    getBudgetView(financeDeps, userId, now.year, now.month),
+    getBudgetView(financePageDeps, userId, now.year, now.month),
   ])
 
   const label = session.user.name || session.user.email || "Usuario"

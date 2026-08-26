@@ -52,6 +52,28 @@ infrastructure → domain          (implementa sus ports)
   `scripts/notify-due.ts`) y el hook de creación de usuario de Better Auth (`auth/auth.ts`).
   Es composición, no negocio: el use-case sigue hablando solo con ports.
 - Lo puro y sin negocio va a `arch/shared/`, no al `_shared/` de una capa.
+- **Hay dos objetos de deps financieras, y la diferencia importa**
+  (`presentation/finance/finance-http.ts`):
+  - `financeDeps` — crudo. Lo usan los Route Handlers y **todo camino que escriba**.
+  - `financePageDeps` — el mismo, con las lecturas repetidas memoizadas por render
+    (`presentation/finance/request-memo.ts`). Lo usan los server components (`app/**/page.tsx`),
+    que solo leen.
+
+  El invariante es **lo que escribe nunca lee de la memoización**, y lo garantiza qué objeto
+  importa cada archivo, no dónde acabe corriendo el código. Un camino que escribe y después lee
+  (`updateIncome` seguido de `seedGlobalLimitFromIncomes`) sembraría datos con el estado previo a su
+  propia escritura si leyera de la memoria; con las deps crudas no tiene de dónde. No confíes en que
+  `cache` de React no tenga ámbito fuera de un render: eso es un detalle de React, no una garantía
+  nuestra, y una Server Action sí corre dentro de un render.
+
+  Si agregas una vista que lee lo mismo que otra, no tienes que hacer nada. Si agregas una lectura
+  NUEVA que un render vaya a pedir dos veces, súmala a la tabla `READS` de `request-memo.ts` (está
+  tipada contra los puertos: un renombre rompe el build).
+- **Dos lecturas del mismo render comparten LA MISMA INSTANCIA** del arreglo que devuelve el repo.
+  Un `.sort()`, `.push()` o cualquier mutación in-place sobre lo que devuelve un repositorio le
+  corrompe la vista a otro consumidor del mismo render, y es un bug carísimo de rastrear porque
+  aparece lejos de donde se causó. Hoy ningún use-case de lectura lo hace: todos derivan con `map`,
+  `filter` o un arreglo nuevo antes de ordenar. Mantenlo así.
 
 ## Mapeo con Next.js (presentation)
 

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 
 import { auth } from "@/arch/v1/infrastructure/auth/auth"
 import { currentPeriod } from "@/lib/finance-format"
-import { financeDeps } from "@/arch/v1/presentation/finance/finance-http"
+import { financePageDeps } from "@/arch/v1/presentation/finance/finance-http"
 import {
   listAccounts,
   listRecurringView,
@@ -18,10 +18,10 @@ export default async function RecurringPage() {
   const userId = session.user.id
   const now = currentPeriod()
   const [templates, accounts, budget] = await Promise.all([
-    listRecurringView(financeDeps, userId),
-    listAccounts(financeDeps, userId),
+    listRecurringView(financePageDeps, userId),
+    listAccounts(financePageDeps, userId),
     // Solo por las categorías (nombre/icono/color) para el selector del modal.
-    getBudgetView(financeDeps, userId, now.year, now.month),
+    getBudgetView(financePageDeps, userId, now.year, now.month),
   ])
 
   const label = session.user.name || session.user.email || "Usuario"

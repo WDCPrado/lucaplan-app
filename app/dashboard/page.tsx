@@ -22,6 +22,7 @@ import { getPaceFrequency } from "@/arch/v1/application/finance-use-cases/pace-u
 import { paceDeps } from "@/arch/v1/infrastructure/database/prisma/pace.infrastructure"
 import { Dashboard } from "@/components/finance/dashboard"
 import { PushPrompt } from "@/components/pwa/push-prompt"
+import { prDemoAccount } from "@/lib/pr-demo"
 
 export default async function DashboardPage({
   searchParams,
@@ -94,8 +95,11 @@ export default async function DashboardPage({
   return (
     <>
       {/* Entrada de la app (start_url de la PWA): aquí se ofrece activar los avisos mientras el
-          dispositivo no los tenga. Sin claves VAPID no se ofrece nada. */}
-      <PushPrompt vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? ""} />
+          dispositivo no los tenga. Sin claves VAPID no se ofrece nada. Tampoco en un entorno de
+          PR: es una demo pública y el aviso solo estorba la prueba manual. */}
+      {!prDemoAccount() && (
+        <PushPrompt vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? ""} />
+      )}
       <Dashboard
         period={{ year, month }}
         summary={summary}

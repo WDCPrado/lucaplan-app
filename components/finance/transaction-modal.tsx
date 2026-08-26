@@ -52,7 +52,12 @@ import { InstallmentModal } from "./installment-modal"
 import { AssignToInstallmentModal } from "./assign-to-installment-modal"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
-import { formatCLP, formatMoney } from "@/lib/finance-format"
+import {
+  categoryUsageLine,
+  formatCLP,
+  formatMoney,
+  usageBarPct,
+} from "@/lib/finance-format"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type { Direction } from "@/arch/v1/domain/finance/finance.domain"
 import type {
@@ -106,6 +111,51 @@ export function savedFirst(
 ): CategoryDTO[] {
   const saved = savedId ? list.find((c) => c.id === savedId) : undefined
   return saved ? [saved, ...list.filter((c) => c.id !== saved.id)] : list
+}
+
+// Uso del presupuesto del mes de la categoría SELECCIONADA en los chips, bajo el título del
+// movimiento: justo al categorizar es cuando sirve saber cómo viene la categoría. El dato llega
+// resuelto del servidor en CategoryDTO (used/limit/status del mes en vista); acá solo se pinta con
+// el semáforo y el texto que ya usa el dashboard (categoryUsageLine → statusVar/formatCLP). Sin
+// categoría seleccionada, o de ingreso (no consume presupuesto), no se muestra.
+function CategoryBudgetLine({
+  category,
+}: {
+  category: CategoryDTO | undefined
+}) {
+  const line = category ? categoryUsageLine(category) : null
+  if (!category || !line) return null
+  return (
+    <div className="w-full">
+      <div className="flex items-baseline justify-between gap-3 text-xs">
+        <span className="truncate text-muted-foreground">
+          {category.name} este mes
+        </span>
+        <span
+          className={cn(
+            "tabular shrink-0 font-medium",
+            !line.color && "text-muted-foreground"
+          )}
+          style={line.color ? { color: line.color } : undefined}
+        >
+          {line.text}
+        </span>
+      </div>
+      {/* Misma barra que las categorías del dashboard: pista muted, relleno del semáforo. Solo
+          con tope: sin límite no hay proporción que pintar. */}
+      {line.color && (
+        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full transition-[width] duration-500 ease-out"
+            style={{
+              width: `${usageBarPct(category.used, category.limit)}%`,
+              background: line.color,
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
 }
 
 // "Pago cuota 3 de crédito de consumo" → 3. Mismo patrón que usa el import (run-installments):
@@ -327,6 +377,10 @@ function EditForm({
           El monto de una cuota se edita en su plan de cuotas.
         </p>
       )}
+
+      <CategoryBudgetLine
+        category={categories.find((c) => c.id === categoryId)}
+      />
 
       {accountLabel(account) && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -663,6 +717,10 @@ function ConnectedDetail({
           {tx.description}
         </div>
       </div>
+
+      <CategoryBudgetLine
+        category={categories.find((c) => c.id === categoryId)}
+      />
 
       <dl className="flex flex-col">
         {account && (

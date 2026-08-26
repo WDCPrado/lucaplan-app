@@ -1348,9 +1348,15 @@ export async function reconcileEmailBalances(
 
   if (input.checking) {
     const ref = input.checking.ref.replace(/\D/g, "")
+    // Sin dígitos de los dos lados no hay nada que comparar: `"loQueSea".endsWith("")` es true, así
+    // que un ref vacío emparejaría con la primera corriente, y una cuenta guardada sin externalId
+    // (externalRef === "") emparejaría con cualquier ref. En ambos casos el saldo caería sobre la
+    // cuenta equivocada, sin error.
     const account = accounts.find(
       (a) =>
         a.accountType === "checking" &&
+        ref !== "" &&
+        a.externalRef !== "" &&
         (a.externalRef === ref ||
           a.externalRef.endsWith(ref) ||
           ref.endsWith(a.externalRef))
@@ -1381,6 +1387,10 @@ export async function reconcileEmailBalances(
   }
   for (const card of input.cards) {
     const last4 = card.last4.replace(/\D/g, "")
+    // Mismo motivo que arriba: sin dígitos no se identifica ninguna tarjeta. Aquí la comparación es
+    // por igualdad, así que un vacío solo calzaría con una tarjeta guardada sin last4 — igual de
+    // equivocado, y el cupo quedaría escrito sobre ella.
+    if (last4 === "") continue
     const account = accounts.find(
       (a) => a.accountType === "credit_card" && a.cardLast4 === last4
     )

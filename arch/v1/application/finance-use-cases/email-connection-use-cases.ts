@@ -1326,7 +1326,6 @@ export async function reconcileEmailBalances(
     )
   const { accounts, buckets } = await deps.store.listInstruments(link.bankId)
   let updated = 0
-  let escrituras = 0 // saldos realmente escritos (buckets + balances de cuenta)
 
   const apply = async (
     accountId: string,
@@ -1337,7 +1336,7 @@ export async function reconcileEmailBalances(
     const bucket = buckets.find(
       (b) => b.accountId === accountId && b.kind === kind
     )
-    if (!bucket) return
+    if (!bucket) return false
     await deps.store.updateBucketAmounts(bucket.id, {
       limitAmount,
       used,
@@ -1345,7 +1344,7 @@ export async function reconcileEmailBalances(
       asOf: input.snapshotAt,
     })
     updated++
-    escrituras++
+    return true
   }
 
   if (input.checking) {
@@ -1380,7 +1379,11 @@ export async function reconcileEmailBalances(
           asOf: input.snapshotAt,
         })
         updated++
-        escrituras++
+        // El balance de la cuenta es un espejo del bucket, así que solo se escribe cuando el
+        // bucket se escribió — la misma regla que usa la proyección. Si el instrumento calza pero
+        // no tiene bucket, esto no es "se guardó a medias": no se guardó, y el guardián de abajo
+        // tiene que verlo como cero.
+        await deps.store.setAccountBalance(account.id, input.checking.cash)
       }
       if (input.checking.overdraft) {
         await apply(
@@ -1390,8 +1393,6 @@ export async function reconcileEmailBalances(
           input.checking.overdraft.used
         )
       }
-      await deps.store.setAccountBalance(account.id, input.checking.cash)
-      escrituras++
     }
   }
   for (const card of input.cards) {
@@ -1407,17 +1408,17 @@ export async function reconcileEmailBalances(
     if (matches.length !== 1) continue
     const account = matches[0]
     if (card.national) {
-      await apply(
+      const escrito = await apply(
         account.id,
         "credit_national",
         card.national.limit,
         card.national.used
       )
-      await deps.store.setAccountBalance(
-        account.id,
-        card.national.used.negate()
-      )
-      escrituras++
+      if (escrito)
+        await deps.store.setAccountBalance(
+          account.id,
+          card.national.used.negate()
+        )
     }
     if (card.international)
       await apply(
@@ -1434,13 +1435,14 @@ export async function reconcileEmailBalances(
   // cursor viejo y este snapshot — los movimientos se importan, pero los saldos quedan desviados
   // sin manera de recuperarlos.
   //
-  // La cuenta es de ESCRITURAS, no de instrumentos reconocidos: una tarjeta que calza pero llega
-  // con los dos cupos apagados ("este no lo actualices") se reconoce y no escribe nada, y ese
+  // La cuenta es de BUCKETS escritos, que es lo que el cursor gobierna. No basta con reconocer el
+  // instrumento: una tarjeta que calza pero llega con los dos cupos apagados ("este no lo
+  // actualices"), o un instrumento que calza pero no tiene bucket, no escriben nada — y ese
   // snapshot no tiene por qué mover el cursor. Misma política que la importación: ante la duda no
   // se adivina, se avisa. El 422 sale por el toast de la pantalla.
-  if (escrituras === 0)
+  if (updated === 0)
     throw new EmailSetupStateError(
-      "No se actualizó ningún saldo: ninguna cuenta ni tarjeta calzó con los números ingresados"
+      "No se actualizó ningún saldo: revisa que los números calcen con tus cuentas y tarjetas, y que al menos un cupo esté encendido"
     )
 
   await deps.links.update(link.id, {

@@ -7,6 +7,7 @@ import type {
   EmailBankLinkWithMailbox,
   EmailMailbox,
 } from "../../domain/finance/email-connection.domain.ts"
+import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
 import { parseBancoChileEmail } from "./bancochile-email-map.ts"
 import { parseMachbankEmail } from "./machbank-email-map.ts"
 import { detectCandidates } from "./bancochile-email-candidates.ts"
@@ -1475,7 +1476,8 @@ type ReconcileWrites = {
 
 const reconcileDeps = (
   accounts: EmailStoredAccount[],
-  escrito: ReconcileWrites
+  escrito: ReconcileWrites,
+  storedBuckets?: EmailStoredBucket[]
 ) => {
   const base = repos([link({ id: "link-rec", bankId: "bank-1" })])
   return {
@@ -1507,7 +1509,7 @@ const reconcileDeps = (
       }),
       listInstruments: async () => ({
         accounts,
-        buckets: bucketsFor(accounts),
+        buckets: storedBuckets ?? bucketsFor(accounts),
       }),
       upsertMovements: async () => ({ createdExternalIds: [] }),
       updateBucketAmounts: async (bucketId: string) => {
@@ -1557,10 +1559,11 @@ const cupoNacional = (last4: string) => ({
 const reconcile = (
   accounts: EmailStoredAccount[],
   escrito: ReconcileWrites,
-  input: Parameters<typeof reconcileEmailBalances>[3]
+  input: Parameters<typeof reconcileEmailBalances>[3],
+  storedBuckets?: EmailStoredBucket[]
 ) =>
   reconcileEmailBalances(
-    reconcileDeps(accounts, escrito),
+    reconcileDeps(accounts, escrito, storedBuckets),
     "user-1",
     "link-rec",
     input
@@ -1592,12 +1595,22 @@ const snapshotDeTarjeta = (
 // el cursor movido, y un error que la pantalla pueda mostrar en vez de un "listo" que miente.
 const assertNoEscribeNiAvanza = async (
   accounts: EmailStoredAccount[],
-  input: Parameters<typeof reconcileEmailBalances>[3]
+  input: Parameters<typeof reconcileEmailBalances>[3],
+  storedBuckets?: EmailStoredBucket[]
 ) => {
   const escrito = sinEscribir()
   await assert.rejects(
-    () => reconcile(accounts, escrito, input),
-    /ninguna cuenta ni tarjeta calzó/i
+    () => reconcile(accounts, escrito, input, storedBuckets),
+    (error: unknown) => {
+      // La CLASE importa tanto como el texto: `finance-http.ts` traduce EmailSetupStateError a
+      // 422, y cualquier otro Error se iría como 500 con la pantalla mostrando un fallo genérico.
+      assert.ok(
+        error instanceof EmailSetupStateError,
+        `se esperaba EmailSetupStateError, llegó ${(error as Error)?.name}`
+      )
+      assert.match((error as Error).message, /no se actualizó ningún saldo/i)
+      return true
+    }
   )
   assert.deepEqual(escrito.buckets, [])
   assert.deepEqual(escrito.balances, [])
@@ -1672,6 +1685,26 @@ test("actualizar saldos: una tarjeta reconocida con los dos cupos apagados no av
     checking: null,
     cards: [{ last4: "7734", national: null, international: null }],
   })
+})
+
+test("actualizar saldos: una cuenta que calza pero no tiene bucket no avanza el cursor", async () => {
+  // `createAccount` exige `cardLast4` y NO crea ningún bucket, así que una cuenta hecha a mano en
+  // el banco conectado sale en el formulario y calza. Escribirle el `balance` sin poder escribir su
+  // caja sería guardar a medias: el dato que el usuario tecleó no queda en el bucket que la
+  // proyección lee, y encima el cursor cerraría la ventana del vínculo entero.
+  await assertNoEscribeNiAvanza(
+    [corriente("acct-real", "009991111100")],
+    snapshotDe("1100"),
+    [] // el instrumento existe; sus buckets no
+  )
+})
+
+test("actualizar saldos: una tarjeta que calza pero no tiene bucket no avanza el cursor", async () => {
+  await assertNoEscribeNiAvanza(
+    [tarjetaGuardada("tj-a", "7734")],
+    snapshotDeTarjeta("7734"),
+    []
+  )
 })
 
 test("actualizar saldos: sin instrumentos en el formulario tampoco avanza el cursor", async () => {

@@ -1,6 +1,11 @@
-// Cuenta las lecturas a repositorio que emite UNA carga del dashboard. Cada método de estos repos
-// es exactamente una consulta a la base (un findMany/aggregate en los adapters de Prisma), así que
-// contar llamadas es contar consultas.
+// Cuenta las LLAMADAS A REPOSITORIO que emite UNA carga del dashboard, y comprueba el contrato del
+// ámbito de memoización.
+//
+// No son consultas SQL y no se reportan como tales: la mayoría de estos métodos es un findMany o un
+// aggregate, pero los que usan `include` (planes de cuotas, ingresos) pueden emitir una consulta
+// extra con la estrategia por defecto de Prisma, y el fixture deja fuera `materializeUserPeriods` y
+// `getPaceFrequency`, que en una carga real también van a la base. La dirección y la proporción se
+// sostienen; la equivalencia una-a-una no.
 // Corre con: node --test arch/v1/presentation/finance/dashboard-reads.test.ts
 import { test } from "node:test"
 import assert from "node:assert/strict"
@@ -17,7 +22,13 @@ import type {
   Income,
   IncomeAmount,
 } from "../../domain/finance/income.domain.ts"
-import { memoizeReads } from "./request-memo.ts"
+import { cache } from "react"
+
+import {
+  memoizeReads,
+  type MemoizedPorts,
+  type MemoStore,
+} from "./request-memo.ts"
 import {
   getBudgetView,
   getMonthlySummary,
@@ -239,23 +250,34 @@ async function loadDashboard(deps: unknown) {
   }
 }
 
-const conMemo = () => {
-  const store = new Map<string, Promise<unknown>>()
+// Las deps del fixture traen solo los métodos que la carga usa, no los puertos completos: el tipo
+// se fuerza una vez acá en vez de escribir cuarenta stubs que nadie llama. Si a alguno le faltara
+// un método de la tabla, `memoizeReads` revienta — que es justo lo que queremos que pase.
+const memoizado = (deps: object, scope: () => MemoStore): MemoizedPorts =>
+  memoizeReads(deps as unknown as MemoizedPorts, scope)
+
+// Un ámbito compartido, como el de un render.
+const unAmbito = () => {
+  const store: MemoStore = new Map()
   return () => store
 }
 
+// Un ámbito nuevo por llamada: el modo degradado, que es como se comporta `cache` de React fuera de
+// un render de servidor.
+const sinAmbito = () => (): MemoStore => new Map()
+
 const distintas = (calls: string[]) => [...new Set(calls)].sort()
 
-test("la carga del dashboard repite consultas idénticas y la memoización las deja en una sola", async () => {
+test("la carga del dashboard repite lecturas idénticas y la memoización las deja en una sola", async () => {
   const sin = makeDeps()
   await loadDashboard(sin.deps)
   const con = makeDeps()
-  await loadDashboard(memoizeReads(con.deps, conMemo()))
+  await loadDashboard(memoizado(con.deps, unAmbito()))
 
-  // Se piden exactamente las mismas consultas: la memoización no se salta ninguna, solo evita
-  // repetirlas. Sin esta comparación, "menos consultas" también podría significar "leyó de menos".
+  // Se piden exactamente las mismas lecturas: la memoización no se salta ninguna, solo evita
+  // repetirlas. Sin esta comparación, "menos lecturas" también podría significar "leyó de menos".
   assert.deepEqual(distintas(con.calls), distintas(sin.calls))
-  // Con memoización, cada consulta distinta se emite una única vez.
+  // Con memoización, cada lectura distinta se emite una única vez.
   assert.equal(con.calls.length, distintas(con.calls).length)
   // Y sin ella se emiten bastantes más: es la repetición que esta tarjeta viene a sacar.
   assert.ok(
@@ -264,12 +286,71 @@ test("la carga del dashboard repite consultas idénticas y la memoización las d
   )
   if (process.env.PRINT_READS)
     console.log(
-      `lecturas — sin memo: ${sin.calls.length} · con memo: ${con.calls.length}`
+      `llamadas a repositorio — sin memo: ${sin.calls.length} · con memo: ${con.calls.length}`
     )
 })
 
 test("memoizar no cambia ninguna cifra del dashboard", async () => {
   const sin = await loadDashboard(makeDeps().deps)
-  const con = await loadDashboard(memoizeReads(makeDeps().deps, conMemo()))
+  const con = await loadDashboard(memoizado(makeDeps().deps, unAmbito()))
   assert.deepEqual(con, sin)
+})
+
+// --- El ámbito: es donde vive el riesgo, porque de él depende que dos lecturas se compartan ---
+
+test("con un ámbito nuevo por llamada no memoiza nada: el modo degradado sigue funcionando", async () => {
+  const crudo = makeDeps()
+  await loadDashboard(crudo.deps)
+  const degradado = makeDeps()
+  await loadDashboard(memoizado(degradado.deps, sinAmbito()))
+  // Mismas lecturas y las mismas veces que sin envolver nada. Es lo que corre en cualquier contexto
+  // donde `cache` de React no tiene ámbito, y tiene que comportarse como antes de esta tarjeta.
+  assert.deepEqual(degradado.calls, crudo.calls)
+})
+
+test("dos ámbitos distintos no se cruzan las claves", async () => {
+  const { deps, calls } = makeDeps()
+  const primero = memoizado(deps, unAmbito())
+  const segundo = memoizado(deps, unAmbito())
+
+  // La misma lectura, con los mismos argumentos, en dos ámbitos: dos llamadas de verdad.
+  await primero.categories.listByUser("u1")
+  await primero.categories.listByUser("u1")
+  await segundo.categories.listByUser("u1")
+
+  assert.deepEqual(calls, [
+    'categories.listByUser(["u1"])',
+    'categories.listByUser(["u1"])',
+  ])
+})
+
+test("un rechazo no se queda pegado al ámbito: el siguiente lector reintenta", async () => {
+  let intentos = 0
+  const deps = {
+    ...makeDeps().deps,
+    categories: {
+      listByUser: async () => {
+        intentos++
+        if (intentos === 1) throw new Error("caída transitoria")
+        return categories
+      },
+      listLimitsByUser: async () => limits,
+    },
+  }
+  const memo = memoizado(deps, unAmbito())
+
+  // Quien lee primero se come el fallo con su propio catch, como hace el dashboard con
+  // `getPreviousMonthDebt`...
+  await assert.rejects(() => memo.categories.listByUser("u1"))
+  // ...y no se lo impone al siguiente, que no tiene catch y antes de esta tarjeta habría ido solo.
+  assert.deepEqual(await memo.categories.listByUser("u1"), categories)
+  assert.equal(intentos, 2)
+})
+
+test("fuera de un render, `cache` de React entrega un almacén nuevo en cada llamada", () => {
+  // Es la red de seguridad de la que depende `requestStore` en finance-http.ts, y la razón por la
+  // que memoizar no puede filtrar datos entre requests ni entre usuarios. Se afirma contra el React
+  // real, no contra una suposición.
+  const store = cache((): MemoStore => new Map())
+  assert.notEqual(store(), store())
 })

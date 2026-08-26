@@ -16,7 +16,7 @@ import {
 } from "lucide-react"
 
 import { authClient } from "@/lib/auth-client"
-import type { DemoAccount } from "@/lib/pr-demo"
+import type { DemoLogin, DemoUser } from "@/lib/pr-demo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -122,25 +122,30 @@ function OpenSourceNotice() {
   )
 }
 
-// Solo en los entornos de PR: la cuenta que sembró scripts/seed-pr.ts. Los campos del formulario ya
-// vienen rellenos, así que esto es la referencia visible del dato y el atajo para copiarlo suelto.
-function DemoAccountNotice({ env, email, password }: DemoAccount) {
-  const [copied, setCopied] = useState<"email" | "password" | null>(null)
+// Solo en los entornos de PR: las cuentas que sembró scripts/seed-pr.ts. La base muestra la app en
+// su estado normal y cada una de las demás trae los datos de una feature (una "escena"). Elegir una
+// rellena los campos del formulario, así que entrar sigue siendo un clic.
+function DemoAccountNotice({
+  env,
+  password,
+  cuentas,
+  seleccionada,
+  onSeleccionar,
+}: DemoLogin & {
+  seleccionada: string
+  onSeleccionar: (cuenta: DemoUser) => void
+}) {
+  const [copied, setCopied] = useState(false)
 
-  const copy = async (field: "email" | "password", value: string) => {
+  const copy = async () => {
     try {
-      await navigator.clipboard.writeText(value)
-      setCopied(field)
-      setTimeout(() => setCopied(null), 1500)
+      await navigator.clipboard.writeText(password)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
     } catch {
       // Sin permiso de clipboard: el dato queda visible para copiarlo a mano.
     }
   }
-
-  const rows = [
-    { field: "email" as const, label: "Correo", value: email },
-    { field: "password" as const, label: "Contraseña", value: password },
-  ]
 
   return (
     <div className="mb-6 rounded-2xl border border-border bg-secondary/40 p-5">
@@ -154,34 +159,60 @@ function DemoAccountNotice({ env, email, password }: DemoAccount) {
         </span>
       </div>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">
-        Los campos ya vienen con la cuenta de demostración y sus datos de
-        ejemplo. Pulsa Ingresar, o copia un dato para pegarlo donde lo
-        necesites.
+        {cuentas.length > 1
+          ? "Cada cuenta trae los datos de un caso distinto. Elige una y pulsa Ingresar."
+          : "Los campos ya vienen con la cuenta de demostración y sus datos de ejemplo. Pulsa Ingresar."}
       </p>
-      <div className="mt-4 space-y-2">
-        {rows.map(({ field, label, value }) => (
-          <button
-            key={field}
-            type="button"
-            onClick={() => copy(field, value)}
-            aria-label={`Copiar ${label.toLowerCase()}`}
-            title={`Copiar ${label.toLowerCase()}`}
-            className="group/copy flex w-full items-center gap-3 rounded-xl border border-border bg-background px-3.5 py-2.5 text-left transition-[border-color,transform] duration-150 ease-out hover:border-foreground/25 active:scale-[0.99]"
-          >
-            <span className="w-24 shrink-0 text-xs text-muted-foreground">
-              {label}
-            </span>
-            <code className="flex-1 scrollbar-none overflow-x-auto font-mono text-xs whitespace-nowrap">
-              {value}
-            </code>
-            {copied === field ? (
-              <Check className="size-4 shrink-0 text-success" />
-            ) : (
-              <Copy className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/copy:text-foreground" />
-            )}
-          </button>
-        ))}
-      </div>
+
+      <ul className="mt-4 space-y-2">
+        {cuentas.map((cuenta) => {
+          const activa = cuenta.email === seleccionada
+          return (
+            <li key={cuenta.email}>
+              <button
+                type="button"
+                onClick={() => onSeleccionar(cuenta)}
+                aria-pressed={activa}
+                className={`flex w-full items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-[border-color,background-color,transform] duration-150 ease-out active:scale-[0.99] ${
+                  activa
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-background hover:border-foreground/25"
+                }`}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
+                    {cuenta.titulo}
+                  </span>
+                  <code className="block truncate font-mono text-xs text-muted-foreground">
+                    {cuenta.email}
+                  </code>
+                </span>
+                {activa && <Check className="size-4 shrink-0 text-primary" />}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+
+      <button
+        type="button"
+        onClick={copy}
+        aria-label="Copiar contraseña"
+        title="Copiar contraseña"
+        className="group/copy mt-2 flex w-full items-center gap-3 rounded-xl border border-border bg-background px-3.5 py-2.5 text-left transition-[border-color,transform] duration-150 ease-out hover:border-foreground/25 active:scale-[0.99]"
+      >
+        <span className="w-24 shrink-0 text-xs text-muted-foreground">
+          Contraseña
+        </span>
+        <code className="flex-1 scrollbar-none overflow-x-auto font-mono text-xs whitespace-nowrap">
+          {password}
+        </code>
+        {copied ? (
+          <Check className="size-4 shrink-0 text-success" />
+        ) : (
+          <Copy className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/copy:text-foreground" />
+        )}
+      </button>
     </div>
   )
 }
@@ -212,13 +243,13 @@ function GoogleIcon() {
 
 function AuthForm({
   mode,
-  demo,
+  prefill,
 }: {
   mode: "signin" | "signup"
-  // Entorno de PR: el ingreso arranca con la cuenta demo escrita (no controlado, solo valor inicial).
-  demo?: DemoAccount | null
+  // Entorno de PR: el ingreso arranca con la cuenta demo elegida escrita (no controlado, solo
+  // valor inicial — quien lo renderiza lo remonta con `key` al cambiar de cuenta).
+  prefill?: { email: string; password: string } | null
 }) {
-  const prefill = mode === "signin" ? demo : null
   const router = useRouter()
   const [showPw, setShowPw] = useState(false)
   const [pending, setPending] = useState(false)
@@ -376,8 +407,12 @@ function AuthForm({
   )
 }
 
-export function LoginForm({ demo }: { demo?: DemoAccount | null }) {
+export function LoginForm({ demo }: { demo?: DemoLogin | null }) {
   const [legal, setLegal] = useState<LegalKey | null>(null)
+  // Entorno de PR: la cuenta elegida arranca en la base (la primera que sembró el seed).
+  const [cuenta, setCuenta] = useState<DemoUser | null>(demo?.cuentas[0] ?? null)
+  const prefill =
+    cuenta && demo ? { email: cuenta.email, password: demo.password } : null
 
   return (
     <main className="relative grid min-h-dvh lg:grid-cols-2">
@@ -467,7 +502,7 @@ export function LoginForm({ demo }: { demo?: DemoAccount | null }) {
           </div>
 
           <div className="mt-0 lg:mt-8">
-            {demo && (
+            {demo && cuenta && (
               <div
                 className="animate-in duration-500 fade-in slide-in-from-bottom-2"
                 style={{
@@ -475,7 +510,11 @@ export function LoginForm({ demo }: { demo?: DemoAccount | null }) {
                   animationFillMode: "backwards",
                 }}
               >
-                <DemoAccountNotice {...demo} />
+                <DemoAccountNotice
+                  {...demo}
+                  seleccionada={cuenta.email}
+                  onSeleccionar={setCuenta}
+                />
               </div>
             )}
 
@@ -516,7 +555,13 @@ export function LoginForm({ demo }: { demo?: DemoAccount | null }) {
             >
               {LANDING_ONLY ? (
                 <>
-                  <AuthForm mode="signin" demo={demo} />
+                  {/* `key`: los campos son no controlados, así que cambiar de cuenta demo tiene
+                      que remontar el formulario para que el nuevo valor inicial se vea. */}
+                  <AuthForm
+                    key={cuenta?.email}
+                    mode="signin"
+                    prefill={prefill}
+                  />
                   <OpenSourceNotice />
                 </>
               ) : (
@@ -526,7 +571,11 @@ export function LoginForm({ demo }: { demo?: DemoAccount | null }) {
                     <TabsTrigger value="signup">Crear cuenta</TabsTrigger>
                   </TabsList>
                   <TabsContent value="signin" className="mt-6">
-                    <AuthForm mode="signin" demo={demo} />
+                    <AuthForm
+                      key={cuenta?.email}
+                      mode="signin"
+                      prefill={prefill}
+                    />
                   </TabsContent>
                   <TabsContent value="signup" className="mt-6">
                     <AuthForm mode="signup" />

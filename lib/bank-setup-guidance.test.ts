@@ -201,11 +201,31 @@ test("un solo correo revisado no se cuenta en plural", () => {
   assert.equal(aviso?.includes("1 correos"), false)
 })
 
+const sinCorreos = { ...mach, totalMessages: 0, primaryCheckingCount: 0 }
+
 test("un buzón sin avisos del banco no se explica con cero correos revisados", () => {
-  const sinCorreos = { ...mach, totalMessages: 0, primaryCheckingCount: 0 }
   const aviso = scanGuidance(sinCorreos, vacio)
-  assert.ok(aviso?.includes("Todavía no hay avisos de MACHBANK"))
+  assert.ok(aviso?.includes("No hay avisos de MACHBANK"))
   assert.equal(aviso?.includes("0 correos"), false)
+})
+
+test("sin avisos del banco se pone en duda el banco elegido, no solo lo que falta llenar", () => {
+  const aviso = scanGuidance(sinCorreos, vacio)
+  assert.ok(aviso?.includes("el banco correcto"))
+  // Y la salida de WDC-65 sigue ahí: quien recién activó las notificaciones puede seguir.
+  assert.ok(aviso?.includes("quedan asociados"))
+})
+
+test("llenar el formulario no apaga el aviso de un buzón sin avisos del banco", () => {
+  // Es cuando más importa: el usuario está por crear un banco que nunca le va a llegar nada.
+  assert.notEqual(
+    scanGuidance(sinCorreos, { checkingRef: "4321", cards: [] }),
+    null
+  )
+  assert.notEqual(
+    scanGuidance(sinCorreos, { checkingRef: null, cards: [tarjeta()] }),
+    null
+  )
 })
 
 test("con candidatos propuestos y nada en riesgo no se agrega ruido", () => {

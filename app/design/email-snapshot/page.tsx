@@ -97,6 +97,23 @@ const ESCENARIOS: Escenario[] = [
       since: "2026-07-01T00:00:00.000Z",
     },
   },
+  {
+    slug: "sin-avisos",
+    label: "Sin avisos del banco",
+    desc:
+      "Ni un correo del banco elegido: el banco equivocado, o uno recién " +
+      "activado. El aviso no se apaga al llenar el formulario.",
+    bankName: "Banco BICE",
+    scan: {
+      candidates: [],
+      totalMessages: 0,
+      expenseCount: 0,
+      internalCount: 0,
+      primaryCheckingCount: 0,
+      skippedCount: 0,
+      since: "2026-08-01T00:00:00.000Z",
+    },
+  },
 ]
 
 // El mismo armado que hace `detect()` con la respuesta del escaneo: la cuenta la decide

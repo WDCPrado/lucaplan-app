@@ -107,7 +107,9 @@ export type ScanFacts = {
  * cuando el escaneo se explica solo (hay instrumentos propuestos y nada en riesgo).
  *
  * Se decide contra el formulario en curso, no solo contra el escaneo: si el usuario quita la cuenta
- * propuesta, el aviso vuelve, porque los movimientos sin número vuelven a quedar sin destino.
+ * propuesta, el aviso vuelve, porque los movimientos sin número vuelven a quedar sin destino. La
+ * excepción es el buzón sin avisos del banco, que no depende del formulario: ahí lo que está en
+ * duda es el banco elegido.
  */
 export function scanGuidance(
   scan: ScanFacts,
@@ -126,12 +128,17 @@ export function scanGuidance(
       `Sin una cuenta confirmada esos movimientos se omiten y no se categorizan.`
     )
   }
-  if (checkingRef !== null || cards.length > 0) return null
+  // Va ANTES del corte por formulario: este aviso no habla de lo que falta llenar sino de si el
+  // banco elegido es el correcto, y esa duda no se resuelve escribiendo unos dígitos. Apagarlo al
+  // primer instrumento —como hacía— lo escondía justo cuando el usuario estaba por crear el banco
+  // equivocado (WDC-23).
   if (scan.totalMessages === 0)
     return (
-      `Todavía no hay avisos de ${scan.bankName} en este correo. Agrega igual tu cuenta o ` +
+      `No hay avisos de ${scan.bankName} en este correo. Revisa que sea el banco correcto y que ` +
+      `sus notificaciones por correo estén activadas. Si es el correcto, agrega tu cuenta o ` +
       `tarjeta: los movimientos que lleguen después quedan asociados.`
     )
+  if (checkingRef !== null || cards.length > 0) return null
   const ninguno =
     scan.totalMessages === 1
       ? "El único correo revisado no identifica"

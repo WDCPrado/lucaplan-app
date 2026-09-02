@@ -501,7 +501,7 @@ seed lo registra y sigue con las demás, en vez de caerse el deploy. Cómo escri
 
 | Tema                        | Dónde                                                                 |
 | --------------------------- | --------------------------------------------------------------------- |
-| Producto y experiencia      | [docs/product.md](docs/product.md) — propósito, personalidad de marca, principios de diseño y accesibilidad. |
+| Producto y experiencia      | [docs/product.md](docs/product.md) — usuarios, propósito, posicionamiento, reglas de dominio, compromisos de marca, evidencia real, principios de diseño y accesibilidad. |
 | Arquitectura                | [arch/clean-architecture.md](arch/clean-architecture.md) — capas y regla de dependencias. |
 | Desarrollo y contribución   | [docs/development.md](docs/development.md) — flujo OpenSpec, Next 16, reglas de UI, mocks, convenciones y verificaciones. |
 | Design system               | [docs/design/design-system.md](docs/design/design-system.md) — tokens, glass, dark/light. La fuente de verdad visual es [app/globals.css](app/globals.css). |

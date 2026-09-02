@@ -49,3 +49,6 @@ next-env.d.ts
 /arch/v1/infrastructure/database/prisma/generated
 
 /scripts/seed-categories.ts
+
+# config local de la skill impeccable
+/.impeccable

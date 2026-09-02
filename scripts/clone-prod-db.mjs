@@ -15,6 +15,7 @@
 // Nota de seguridad: la URL de prod va en la línea de comandos (queda en el historial del shell).
 import "dotenv/config";
 import { execFileSync } from "node:child_process";
+import { assertDocker } from "./docker.mjs";
 
 const CONTAINER = "lucaplan-postgres";
 // Imagen cliente: su versión mayor DEBE ser ≥ la de producción. Prod hoy es 18 (Railway) → 18.
@@ -79,16 +80,11 @@ const client = (cmd) =>
     ...cmd,
   ]);
 
-// ¿Contenedor local corriendo?
-let running = "";
-try {
-  running = execFileSync("docker", ["ps", "-q", "-f", `name=^${CONTAINER}$`])
-    .toString()
-    .trim();
-} catch {
-  console.error("✗ No se pudo hablar con Docker. ¿Está corriendo Docker Desktop?");
-  process.exit(1);
-}
+// ¿Docker responde? ¿Y el contenedor local está corriendo?
+assertDocker();
+const running = execFileSync("docker", ["ps", "-q", "-f", `name=^${CONTAINER}$`])
+  .toString()
+  .trim();
 if (!running) {
   console.error(
     `✗ El contenedor ${CONTAINER} no está corriendo.\n  Levántalo con: pnpm setup:db   (o: docker start ${CONTAINER})`

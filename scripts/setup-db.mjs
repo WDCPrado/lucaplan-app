@@ -5,6 +5,7 @@
 import "dotenv/config";
 import { execFileSync, execSync } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
+import { assertDocker } from "./docker.mjs";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -23,11 +24,14 @@ if (!["localhost", "127.0.0.1", ""].includes(hostname)) {
   console.warn(`⚠ DATABASE_URL apunta a ${hostname}, no a localhost; el Docker local igual escuchará en :${hostPort}`);
 }
 
+assertDocker();
+
 const dockerOut = (args) =>
   execFileSync("docker", args, { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
 
 // 1. Contenedor: reusar si existe, si no crearlo. Siempre con restart=unless-stopped para que
-// arranque solo con Docker Desktop / Windows (sin esto, la DB queda caída tras cada reinicio).
+// arranque solo con el daemon (Docker Desktop, o systemd en Linux con `docker` habilitado;
+// sin esto la DB queda caída tras cada reinicio).
 if (dockerOut(["ps", "-aq", "-f", `name=^${name}$`])) {
   console.log(`▶ ${name} ya existe → docker start (+ restart unless-stopped)`);
   execFileSync("docker", ["update", "--restart", "unless-stopped", name], { stdio: "ignore" });

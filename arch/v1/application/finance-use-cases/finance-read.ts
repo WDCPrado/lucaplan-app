@@ -872,6 +872,8 @@ export type RecurringDTO = {
   isActive: boolean
   nextExecution: string // ISO del próximo cobro esperado: lo que el usuario viene a mirar
   currentPeriodPaid: boolean // el cobro del período en curso ya llegó (transacción confirmed)
+  // Ese cobro lo marcó el usuario a mano, no el banco: es lo único que puede deshacerse.
+  currentPeriodPaidManually: boolean
 }
 
 // Plantillas recurrentes del usuario con nombres resueltos y el rango de tolerancia ya derivado,
@@ -929,6 +931,8 @@ export async function listRecurringView(
       isActive: t.isActive,
       nextExecution: next.toISOString(),
       currentPeriodPaid: periodTx?.status === "confirmed",
+      currentPeriodPaidManually:
+        periodTx?.status === "confirmed" && periodTx.isManual,
     }
   }))
 }

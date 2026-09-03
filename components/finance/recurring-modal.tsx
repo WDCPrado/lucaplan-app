@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Trash2 } from "lucide-react"
+import { Check, Trash2, Undo2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
@@ -156,6 +156,30 @@ export function RecurringModal({
     router.refresh()
   }
 
+  // "Ya lo pagué": confirma el comprometido del período sin esperar el aviso del banco. Cierra el
+  // modal como las demás acciones — el estado nuevo se ve en la fila, que sí se refresca.
+  async function togglePaid() {
+    if (!template || saving) return
+    setSaving(true)
+    const res = await fetch(`/api/recurring/${template.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ periodPaid: !template.currentPeriodPaid }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSaving(false)
+    if (!res.ok) {
+      haptic("error")
+      return toast.error(data.error ?? "No se pudo marcar el cobro")
+    }
+    haptic("success")
+    toast.success(
+      template.currentPeriodPaid ? "Marca deshecha" : "Cobro marcado como pagado"
+    )
+    onOpenChange(false)
+    router.refresh()
+  }
+
   async function remove() {
     if (!template || saving) return
     setSaving(true)
@@ -185,6 +209,41 @@ export function RecurringModal({
         </div>
       ) : (
         <div className="flex flex-col px-4">
+          {/* El banco avisa cuando quiere, y hasta entonces el gasto sigue como comprometido y el
+              presupuesto muestra plata que ya salió. Va arriba porque es el estado del período,
+              no un campo del formulario. Solo se deshace lo marcado a mano: un cargo del banco es
+              un hecho. */}
+          {template && template.isActive && !template.hasEnded && (
+            <div className="mt-4 flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2.5">
+              <span className="min-w-0 flex-1 text-sm">
+                {template.currentPeriodPaid
+                  ? "El cobro de este período ya está registrado."
+                  : "El cobro de este período todavía no llega."}
+              </span>
+              {(!template.currentPeriodPaid ||
+                template.currentPeriodPaidManually) && (
+                <Button
+                  variant="outline"
+                  onClick={togglePaid}
+                  disabled={saving}
+                  className="h-11 shrink-0 rounded-full text-sm"
+                >
+                  {template.currentPeriodPaid ? (
+                    <>
+                      <Undo2 className="size-4" />
+                      Deshacer
+                    </>
+                  ) : (
+                    <>
+                      <Check className="size-4" />
+                      Ya lo pagué
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          )}
+
           {/* 1 · Qué se cobra ------------------------------------------------ */}
           <Section title="Qué se cobra">
             <Input

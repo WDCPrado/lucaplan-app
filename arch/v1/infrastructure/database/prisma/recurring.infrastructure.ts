@@ -181,17 +181,41 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
   async findPeriodTransaction(templateId, periodKey) {
     const row = await prisma.transaction.findFirst({
       where: { recurringTemplateId: templateId, periodKey },
-      select: { id: true, status: true },
+      select: { id: true, status: true, externalId: true },
     })
-    return row ?? null
+    // Sin `externalId` no vino del banco: es la marca manual del usuario (o el movimiento de
+    // origen de la plantilla, que es la misma afirmación suya).
+    return row ? { id: row.id, status: row.status, isManual: row.externalId === null } : null
+  },
+  async setPeriodPaid(templateId, periodKey, paid) {
+    const { count } = await prisma.transaction.updateMany({
+      where: {
+        recurringTemplateId: templateId,
+        periodKey,
+        status: paid ? "pending" : "confirmed",
+        // Deshacer solo alcanza a lo confirmado a mano. La comprobación del use-case da el error
+        // legible; esta hace que una carrera no pueda revertir un cargo real igualmente.
+        ...(paid ? {} : { externalId: null }),
+      },
+      // Monto y fecha se conservan: el comprometido ya los tiene, y los reales los fija el correo.
+      data: { status: paid ? "confirmed" : "pending" },
+    })
+    return count > 0
   },
   async attachImportedMovement(transactionId, template, periodKey) {
     return prisma.$transaction(async (db) => {
       const committed = await db.transaction.findFirst({
         where: { recurringTemplateId: template.id, periodKey },
       })
-      // El período ya tiene ejecución: este cargo no es de la plantilla, sigue el flujo normal.
-      if (committed && committed.status !== "pending") return false
+      // El período ya lo cerró el BANCO: dos cargos reales no se pisan, este sigue el flujo normal.
+      if (
+        committed &&
+        committed.status !== "pending" &&
+        committed.externalId !== null
+      )
+        return false
+      // Queda el comprometido, o una ejecución confirmada A MANO por el usuario: el correo es el
+      // hecho y la reemplaza. Conservar las dos contaría dos veces el mismo gasto.
       if (committed && committed.id !== transactionId)
         await db.transaction.delete({ where: { id: committed.id } })
       const { count } = await db.transaction.updateMany({

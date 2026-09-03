@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Pause, Play, Plus, Repeat } from "lucide-react"
+import { Check, Pause, Play, Plus, Repeat, Undo2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
@@ -100,6 +100,23 @@ export function RecurringView({
     setOpen(true)
   }
 
+  // "Ya lo pagué": confirma el comprometido del período sin esperar el aviso del banco. Cuando el
+  // cargo real llegue por correo, reemplaza esta marca con su monto y su fecha.
+  async function togglePaid(t: RecurringDTO, periodPaid: boolean) {
+    haptic("light")
+    const res = await fetch(`/api/recurring/${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ periodPaid }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      return toast.error(data.error ?? "No se pudo marcar el cobro")
+    }
+    toast.success(periodPaid ? "Cobro marcado como pagado" : "Marca deshecha")
+    router.refresh()
+  }
+
   async function toggleActive(t: RecurringDTO, isActive: boolean) {
     haptic("light")
     const res = await fetch(`/api/recurring/${t.id}`, {
@@ -170,6 +187,7 @@ export function RecurringView({
                         template={t}
                         onEdit={() => edit(t)}
                         onToggle={() => toggleActive(t, false)}
+                        onTogglePaid={(paid) => togglePaid(t, paid)}
                       />
                     ))}
                   </ul>
@@ -187,6 +205,7 @@ export function RecurringView({
                           template={t}
                           onEdit={() => edit(t)}
                           onToggle={() => toggleActive(t, true)}
+                          onTogglePaid={(paid) => togglePaid(t, paid)}
                         />
                       ))}
                     </ul>
@@ -205,6 +224,7 @@ export function RecurringView({
                           template={t}
                           onEdit={() => edit(t)}
                           onToggle={() => toggleActive(t, true)}
+                          onTogglePaid={(paid) => togglePaid(t, paid)}
                         />
                       ))}
                     </ul>
@@ -304,12 +324,25 @@ function RecurringRow({
   template: t,
   onEdit,
   onToggle,
+  onTogglePaid,
 }: {
   template: RecurringDTO
   onEdit: () => void
   onToggle: () => void
+  onTogglePaid: (paid: boolean) => void
 }) {
   const inactive = !t.isActive || t.hasEnded
+  // Marcar el cobro solo tiene sentido con un período abierto. Y solo se deshace lo que marcó el
+  // usuario: un cargo que confirmó el banco es un hecho, no una afirmación que se pueda retirar.
+  const canMarkPaid = t.isActive && !t.hasEnded && !t.currentPeriodPaid
+  const canUndoPaid = t.isActive && !t.hasEnded && t.currentPeriodPaidManually
+  const paidLabel = canMarkPaid
+    ? "Ya lo pagué"
+    : canUndoPaid
+      ? "Deshacer"
+      : t.currentPeriodPaid
+        ? "Lo cobró el banco"
+        : "Sin cobros"
   return (
     <li className={cn("flex items-center gap-3 py-2.5", inactive && "opacity-60")}>
       <button
@@ -360,6 +393,25 @@ function RecurringRow({
           )}
         </span>
       </button>
+      {/* El banco a veces avisa días después: hasta entonces el gasto sigue como comprometido y el
+          presupuesto muestra plata que ya salió. Esto lo cierra sin salir de la lista.
+          El control se queda inerte —no desaparece— cuando no hay nada que marcar: escondiéndolo,
+          la columna de acciones se desalinearía fila por fila dentro de la misma lista. */}
+      <Button
+        variant="ghost"
+        size="icon"
+        disabled={!canMarkPaid && !canUndoPaid}
+        onClick={() => onTogglePaid(canMarkPaid)}
+        aria-label={`${paidLabel}: ${t.label}`}
+        title={paidLabel}
+        className="size-11 shrink-0 text-muted-foreground"
+      >
+        {canUndoPaid ? (
+          <Undo2 className="size-4" />
+        ) : (
+          <Check className="size-4" />
+        )}
+      </Button>
       {/* Pausar es lo excepcional: va como acción secundaria, no como el control más pesado de la
           fila (el switch azul competía con el monto por la atención). */}
       {/* Terminada: el control queda inerte. Reactivarla exige correr su fecha de fin (se edita

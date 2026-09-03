@@ -33,6 +33,7 @@ import { MovementScanError } from "../../domain/finance/movement-scan.domain.ts"
 import {
   InvalidRecurringTemplateError,
   RecurringCategoryRequiredError,
+  RecurringPeriodNotManualError,
   RecurringTemplateEndedError,
   RecurringTemplateNotFoundError,
 } from "../../domain/finance/recurring.domain.ts"
@@ -127,6 +128,7 @@ function errorStatus(e: unknown): number {
     e instanceof InvalidIncomeError ||
     e instanceof InvalidRecurringTemplateError ||
     e instanceof RecurringCategoryRequiredError ||
+    e instanceof RecurringPeriodNotManualError ||
     e instanceof RecurringTemplateEndedError ||
     e instanceof InvalidInstallmentPlanError ||
     e instanceof InstallmentAccountMismatchError ||

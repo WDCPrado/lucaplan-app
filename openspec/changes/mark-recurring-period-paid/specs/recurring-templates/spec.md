@@ -8,8 +8,9 @@ período en estado **confirmado**, de modo que cuente como gasto del mes igual q
 el período aún no tenía su movimiento comprometido, el sistema SHALL materializarlo en ese momento y
 dejarlo confirmado, sin producir un segundo movimiento del período.
 
-La marca SHALL crear el movimiento con el **monto base** de la plantilla y la fecha del día: el
-monto y la fecha reales los fija el correo cuando llega.
+La marca SHALL conservar el **monto base** y la **fecha de ejecución** que el comprometido del
+período ya tiene: el monto y la fecha reales los fija el correo cuando llega. Ambos caen dentro del
+mismo período, así que el gasto del mes es el mismo en cualquier caso.
 
 La marca SHALL poder **deshacerse**, devolviendo el movimiento a comprometido del período. El
 sistema SHALL rechazar deshacer un cobro que vino del banco: no es una afirmación del usuario sino

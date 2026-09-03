@@ -43,6 +43,10 @@ ya existe, sin tocar una línea del cálculo de presupuesto.
 Ahí es obligatorio porque el ítem no tiene movimiento propio hasta que se paga; acá lo tiene desde
 que se abre el período, y crear otro chocaría con el único `(recurringTemplateId, periodKey)`.
 
+Monto y fecha **no se tocan**. Re-fechar al día de hoy no ganaría nada —la fecha de ejecución y el
+día en que se marca caen en el mismo período, así que el gasto del mes es idéntico— y sí podría
+perder: mover la fecha es la única forma de que este cambio corra un gasto de mes por accidente.
+
 Si el período **aún no** tiene comprometido —`/recurring` no materializa, solo el dashboard lo
 hace—, se materializa primero (idempotente) y se confirma. Así marcar pagado funciona igual se haya
 abierto o no el dashboard ese día.
@@ -109,5 +113,9 @@ que marcar. La fila las muestra hoy con "Sin cobros" / "Terminó el …", y ahí
 - **Marcar pagado con un monto que no fue el real** → el gasto del mes queda con el monto base hasta
   que llegue el correo, que lo corrige. Sin correo, queda el estimado. Pedir el monto exacto habría
   cambiado un clic por un formulario para un dato que casi siempre se corrige solo.
+- **Una vigencia que termina a mitad de mes, antes del día de cobro, deja el botón visible y el
+  servidor lo rechaza** → la fila sabe si la plantilla terminó, no si el cobro de *este* período
+  cae fuera. Distinguirlo exigiría exportar la vigencia del período al DTO para un caso raro; el
+  error explica el motivo y no rompe nada. Si aparece de verdad, ese es el paso siguiente.
 - **Dos superficies para la misma acción** (fila y modal) → es lo que el usuario pidió y ambas
   llaman al mismo endpoint; el riesgo es de mantenimiento, no de comportamiento.

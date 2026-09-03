@@ -16,6 +16,7 @@ import {
   type RecurringTemplate,
   type RecurringTemplateRepository,
   InvalidRecurringTemplateError,
+  RecurringPeriodNotManualError,
   RecurringTemplateEndedError,
   RecurringTemplateNotFoundError,
   executionDateFor,
@@ -218,6 +219,64 @@ export async function materializePeriod(
   if (!periodIsWithinValidity(template, executionDate))
     return { transactionId: null, created: false }
   return deps.recurring.materializePeriod(template, periodKey, executionDate)
+}
+
+/**
+ * Marca manual del cobro del período en curso: el usuario afirma que ya pagó, sin esperar la
+ * notificación del banco. El comprometido `pending` pasa a `confirmed` y cuenta como gasto del mes.
+ *
+ * Existe porque el correo del banco llega cuando quiere —a veces días después— y en ese hueco el
+ * presupuesto miente por defecto: muestra como disponible plata que ya salió. Cuando el cargo real
+ * llegue, reemplaza esta marca (ver `attachImportedMovement`); si no llega nunca, la marca se
+ * queda y el usuario conserva el registro de lo que pagó.
+ *
+ * No crea un movimiento nuevo: el período ya tiene el suyo desde que se abrió, y otro chocaría con
+ * el único (plantilla, período). Tampoco toca monto ni fecha —el correo es quien los fija—, ni
+ * mueve saldos: en una cuenta conectada esa proyección la hace el correo, única fuente de esa
+ * medición.
+ */
+export async function setRecurringPeriodPaid(
+  deps: { recurring: RecurringTemplateRepository },
+  userId: string,
+  input: { id: string; paid: boolean },
+  today = new Date()
+): Promise<{ ok: true }> {
+  const template = await deps.recurring.findById(input.id)
+  if (!template) throw new RecurringTemplateNotFoundError(input.id)
+  if (template.userId !== userId) throw new NotOwnerError()
+  // Pausada o finalizada no tiene período que cobrar: no hay nada que marcar.
+  if (!template.isActive)
+    throw new InvalidRecurringTemplateError(
+      "La recurrente está pausada: reanúdala antes de marcar su cobro"
+    )
+  // Mensaje propio: `RecurringTemplateEndedError` habla de reactivar, que no es lo que se pidió.
+  if (hasEnded(template, today))
+    throw new InvalidRecurringTemplateError(
+      "La recurrente ya terminó: corre su fecha de fin para volver a cobrarla"
+    )
+
+  const periodKey = periodKeyFor(template, today)
+
+  if (input.paid) {
+    // El período puede no estar abierto: /recurring no materializa, solo el dashboard lo hace.
+    const { transactionId } = await materializePeriod(deps, template, today)
+    if (!transactionId)
+      throw new InvalidRecurringTemplateError(
+        "El período en curso queda fuera de la vigencia de la recurrente"
+      )
+    await deps.recurring.setPeriodPaid(template.id, periodKey, true)
+    return { ok: true }
+  }
+
+  const periodTx = await deps.recurring.findPeriodTransaction(
+    template.id,
+    periodKey
+  )
+  // Deshacer lo que confirmó el banco borraría un cargo real, no una afirmación del usuario.
+  if (periodTx && periodTx.status === "confirmed" && !periodTx.isManual)
+    throw new RecurringPeriodNotManualError()
+  await deps.recurring.setPeriodPaid(template.id, periodKey, false)
+  return { ok: true }
 }
 
 /**

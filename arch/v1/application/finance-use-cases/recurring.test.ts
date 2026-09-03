@@ -14,6 +14,7 @@ import {
   materializePeriod,
   materializeUserPeriods,
   setRecurringActive,
+  setRecurringPeriodPaid,
 } from "./recurring-use-cases.ts"
 import { listRecurringView } from "./finance-read.ts"
 
@@ -26,6 +27,7 @@ type Row = {
   status: "pending" | "confirmed"
   categoryId: string
   reviewed: boolean
+  externalId: string | null // id del banco; null = manual (marca del usuario o alta a mano)
 }
 
 function makeRepo(templates: RecurringTemplate[]) {
@@ -73,6 +75,7 @@ function makeRepo(templates: RecurringTemplate[]) {
         status: "pending",
         categoryId: template.categoryId,
         reviewed: false,
+        externalId: null,
       }
       rows.push(row)
       return { transactionId: row.id, created: true }
@@ -81,14 +84,29 @@ function makeRepo(templates: RecurringTemplate[]) {
       const row = rows.find(
         (r) => r.templateId === templateId && r.periodKey === periodKey
       )
-      return row ? { id: row.id, status: row.status } : null
+      return row
+        ? { id: row.id, status: row.status, isManual: row.externalId === null }
+        : null
+    },
+    setPeriodPaid: async (templateId, periodKey, paid) => {
+      const row = rows.find(
+        (r) => r.templateId === templateId && r.periodKey === periodKey
+      )
+      if (!row) return false
+      if (row.status !== (paid ? "pending" : "confirmed")) return false
+      // Deshacer solo alcanza a lo confirmado a mano, igual que el where del adapter real.
+      if (!paid && row.externalId !== null) return false
+      row.status = paid ? "confirmed" : "pending"
+      return true
     },
     attachImportedMovement: async (transactionId, template, periodKey) => {
       const committed = rows.find(
         (r) => r.templateId === template.id && r.periodKey === periodKey
       )
-      if (committed?.status === "confirmed") return false
-      // El importado toma el lugar del comprometido, que se consume.
+      // Lo que cerró el BANCO no se pisa; una marca manual del usuario sí la reemplaza el correo.
+      if (committed?.status === "confirmed" && committed.externalId !== null)
+        return false
+      // El importado toma el lugar de lo que hubiera: el comprometido o la marca manual.
       if (committed) rows.splice(rows.indexOf(committed), 1)
       rows.push({
         id: transactionId,
@@ -99,6 +117,7 @@ function makeRepo(templates: RecurringTemplate[]) {
         status: "confirmed",
         categoryId: template.categoryId,
         reviewed: true,
+        externalId: `ext-${transactionId}`,
       })
       return true
     },
@@ -111,6 +130,7 @@ function makeRepo(templates: RecurringTemplate[]) {
     row.amount = amount
     row.date = date
     row.reviewed = true
+    row.externalId = `ext-${row.id}` // vino del banco: eso es lo que lo hace irreversible
     return true
   }
   return { repo, rows, confirm }
@@ -500,4 +520,124 @@ test("acortar la vigencia no toca los cobros ya confirmados", async () => {
 
   assert.equal(dropped, 0, "un cobro real se conserva aunque hoy caiga fuera")
   assert.equal(rows.length, 1)
+})
+
+// --- marca manual del cobro del período (WDC-84) ---
+//
+// El banco avisa cuando quiere: hasta que llega el correo el gasto sigue como comprometido y el
+// presupuesto muestra plata que ya salió. La marca lo cierra; el correo, cuando llega, la corrige.
+
+const HOY = new Date(2026, 7, 12) // agosto: dentro de la vigencia de `arriendo`
+
+test("marcar pagado confirma el comprometido del período", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, HOY)
+  assert.equal(rows[0].status, "pending")
+
+  await setRecurringPeriodPaid({ recurring: repo }, "u1", { id: "arriendo", paid: true }, HOY)
+
+  assert.equal(rows.length, 1, "no se crea un segundo movimiento del período")
+  assert.equal(rows[0].status, "confirmed")
+  assert.equal(rows[0].periodKey, "2026-08")
+  assert.equal(rows[0].amount.toMajor(), 350_000, "conserva el monto base")
+})
+
+test("marcar pagado abre el período si aún no estaba materializado", async () => {
+  // /recurring no materializa (solo el dashboard): marcar desde ahí tiene que abrirlo igual.
+  const { repo, rows } = makeRepo([arriendo])
+  assert.equal(rows.length, 0)
+
+  await setRecurringPeriodPaid({ recurring: repo }, "u1", { id: "arriendo", paid: true }, HOY)
+
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].status, "confirmed")
+})
+
+test("deshacer la marca devuelve el movimiento a comprometido", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await setRecurringPeriodPaid({ recurring: repo }, "u1", { id: "arriendo", paid: true }, HOY)
+  await setRecurringPeriodPaid({ recurring: repo }, "u1", { id: "arriendo", paid: false }, HOY)
+
+  assert.equal(rows.length, 1, "el comprometido sigue existiendo: reserva la plata del mes")
+  assert.equal(rows[0].status, "pending")
+})
+
+test("un cobro confirmado por el banco no se deshace a mano", async () => {
+  const { repo, rows, confirm } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, HOY)
+  confirm(rows[0].id, Money.of(360_000, "CLP"), new Date(2026, 7, 5))
+
+  await assert.rejects(
+    setRecurringPeriodPaid({ recurring: repo }, "u1", { id: "arriendo", paid: false }, HOY),
+    /lo confirmó el banco/
+  )
+  assert.equal(rows[0].status, "confirmed")
+  assert.equal(rows[0].amount.toMajor(), 360_000, "el cargo real queda intacto")
+})
+
+test("una pausada o una terminada no se marcan", async () => {
+  const pausada = { ...arriendo, isActive: false }
+  await assert.rejects(
+    setRecurringPeriodPaid(
+      { recurring: makeRepo([pausada]).repo },
+      "u1",
+      { id: "arriendo", paid: true },
+      HOY
+    ),
+    /pausada/
+  )
+
+  const terminada = { ...arriendo, endDate: new Date(2026, 6, 31) }
+  await assert.rejects(
+    setRecurringPeriodPaid(
+      { recurring: makeRepo([terminada]).repo },
+      "u1",
+      { id: "arriendo", paid: true },
+      HOY
+    ),
+    /fecha de fin/
+  )
+})
+
+test("marcar la recurrente de otro usuario se rechaza", async () => {
+  const { repo } = makeRepo([{ ...arriendo, userId: "u2" }])
+  await assert.rejects(
+    setRecurringPeriodPaid({ recurring: repo }, "u1", { id: "arriendo", paid: true }, HOY)
+  )
+})
+
+test("el cargo del correo reemplaza la marca manual del período", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await setRecurringPeriodPaid({ recurring: repo }, "u1", { id: "arriendo", paid: true }, HOY)
+
+  const claimed = await confirmFromMovement({ recurring: repo }, [arriendo], {
+    id: "tx-banco",
+    description: "Arriendo Depto 08/26",
+    amount: Money.of(362_000, "CLP"),
+    direction: "debit",
+    date: new Date(2026, 7, 5),
+  })
+
+  assert.equal(claimed?.id, "arriendo")
+  assert.equal(rows.length, 1, "el período queda con un único movimiento")
+  assert.equal(rows[0].id, "tx-banco", "el del banco, no la marca manual")
+  assert.notEqual(rows[0].externalId, null)
+})
+
+test("el cargo del correo no pisa un cobro que ya venía del banco", async () => {
+  const { repo, rows, confirm } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, HOY)
+  confirm(rows[0].id, Money.of(360_000, "CLP"), new Date(2026, 7, 5))
+
+  const claimed = await confirmFromMovement({ recurring: repo }, [arriendo], {
+    id: "tx-segundo",
+    description: "Arriendo Depto 08/26",
+    amount: Money.of(358_000, "CLP"),
+    direction: "debit",
+    date: new Date(2026, 7, 20),
+  })
+
+  assert.equal(claimed, null, "sigue el flujo normal de categorización")
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].amount.toMajor(), 360_000)
 })

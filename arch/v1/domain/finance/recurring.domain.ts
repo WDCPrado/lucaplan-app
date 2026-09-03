@@ -288,11 +288,27 @@ export interface RecurringTemplateRepository {
     periodKey: string,
     date: Date
   ): Promise<{ transactionId: string; created: boolean }>
-  /** Movimiento del período (pendiente o ya confirmado), si existe. */
+  /**
+   * Movimiento del período (pendiente o ya confirmado), si existe. `isManual` = no tiene
+   * `externalId`: lo confirmó el usuario, no el banco. Es lo que distingue una marca de un cobro.
+   */
   findPeriodTransaction(
     templateId: string,
     periodKey: string
-  ): Promise<{ id: string; status: string } | null>
+  ): Promise<{ id: string; status: string; isManual: boolean } | null>
+  /**
+   * Marca manual del cobro del período: confirma el comprometido (`paid`) o lo devuelve a
+   * comprometido. Conserva monto y fecha — el monto y la fecha reales los fija el correo.
+   *
+   * Al deshacer solo toca lo confirmado A MANO (sin `externalId`): un cargo del banco es un hecho
+   * y revertirlo lo borraría. El use-case lo comprueba antes para dar el error; la condición vive
+   * además en la escritura para que una carrera no se lo salte.
+   */
+  setPeriodPaid(
+    templateId: string,
+    periodKey: string,
+    paid: boolean
+  ): Promise<boolean>
   /**
    * El cargo real ya se importó (trae su `externalId` y ya movió los buckets), así que
    * es ÉL quien queda como ejecución del período — toma la categoría de la plantilla, el vínculo y
@@ -345,5 +361,16 @@ export class RecurringTemplateNotFoundError extends Error {
   constructor(id: string) {
     super(`Plantilla recurrente no encontrada: ${id}`)
     this.name = "RecurringTemplateNotFoundError"
+  }
+}
+
+/**
+ * Deshacer el cobro de un período que confirmó el BANCO (→ 422): no es una marca del usuario sino
+ * un cargo real, y revertirlo borraría un hecho de su mes.
+ */
+export class RecurringPeriodNotManualError extends Error {
+  constructor() {
+    super("Ese cobro lo confirmó el banco: no se puede deshacer a mano")
+    this.name = "RecurringPeriodNotManualError"
   }
 }

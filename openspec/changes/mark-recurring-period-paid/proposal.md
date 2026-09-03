@@ -30,8 +30,8 @@ Fuera de alcance:
 - **Cuotas.** Ya tienen su marca manual desde el modal del plan; el reemplazo por correo en planes
   `loan` (donde hoy el pago importado queda como gasto suelto duplicado) es un problema distinto y
   va en su propio cambio.
-- Elegir monto o fecha al marcar: se usa el monto base de la plantilla y la fecha de hoy, igual que
-  el botón que ya existe en cuotas. El correo corrige ambos cuando llega.
+- Elegir monto o fecha al marcar: se conservan los del comprometido del período (monto base y día
+  de ejecución). El correo corrige ambos cuando llega.
 - Saldos y cupos: la marca no mueve buckets. El saldo de una cuenta conectada lo sigue proyectando
   el correo, que es su única fuente.
 

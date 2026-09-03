@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useId, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronDown, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   Collapsible,
   CollapsibleContent,
@@ -59,6 +60,9 @@ export function CategoryModal({
   )
   const [description, setDescription] = useState(category?.description ?? "")
   const limit = useMoneyInput("CLP", category?.limit ?? 0)
+  // Ritmo de gasto: activado por defecto, como el campo en la BD.
+  const [paceEnabled, setPaceEnabled] = useState(category?.paceEnabled ?? true)
+  const paceId = useId() // el label lo necesita; el Switch de Radix es un button, no un input
   const [icon, setIcon] = useState(category?.icon ?? "")
   const [color, setColor] = useState(category?.color ?? CATEGORY_COLORS[0])
   const [saving, setSaving] = useState(false)
@@ -102,6 +106,7 @@ export function CategoryModal({
         icon,
         color,
         description: description.trim(),
+        paceEnabled,
       }),
     })
     if (!catRes.ok) {
@@ -245,6 +250,28 @@ export function CategoryModal({
                   : `Quedan ${formatCLP(liveRemaining)} por presupuestar en ${monthName(period.month)}`}
               </p>
             )}
+
+            {/* El ritmo reparte el tope del mes entre los días (o las semanas) que quedan. En lo
+                que se paga de una vez —una suscripción se cobra un día y listo— ese reparto no
+                describe nada: el semáforo se ve excedido el día del cobro y en silencio el resto.
+                Vive junto al límite porque es una lectura DE ese límite, no otra cosa. */}
+            <div className="mt-3 flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <Label htmlFor={paceId} className="text-sm font-medium">
+                  Ritmo de gasto
+                </Label>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Compara lo que llevas gastado hoy o esta semana contra la parte
+                  del tope que toca. Apágalo si esta categoría se paga de una vez
+                  al mes.
+                </p>
+              </div>
+              <Switch
+                id={paceId}
+                checked={paceEnabled}
+                onCheckedChange={setPaceEnabled}
+              />
+            </div>
           </div>
         )}
 

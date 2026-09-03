@@ -166,6 +166,9 @@ export type Category = {
   icon: string | null // presentación (icono lucide o emoji)
   color: string | null // presentación
   description: string | null // contexto para la categorización con IA; no afecta cálculos
+  // ¿Muestra el ritmo de gasto (hoy / esta semana) en su tarjeta? Se apaga en las categorías que no
+  // se gastan de a poco —una suscripción se cobra un día del mes— donde el ritmo solo hace ruido.
+  paceEnabled: boolean
 }
 
 // Límite de una categoría para un mes concreto. El mes sin registro hereda el último previo (carry).
@@ -251,6 +254,7 @@ export type CategoryInput = {
   icon: string | null
   color: string | null
   description: string | null
+  paceEnabled?: boolean // omitido = lo decide el default de la BD (activado)
 }
 
 export type LimitInput = {

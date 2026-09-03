@@ -20,6 +20,8 @@ export async function POST(req: Request) {
           typeof body.description === "string" && body.description.trim()
             ? body.description.trim()
             : null,
+        paceEnabled:
+          typeof body.paceEnabled === "boolean" ? body.paceEnabled : undefined,
       })
       return { id: c.id }
     },

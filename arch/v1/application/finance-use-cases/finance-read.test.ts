@@ -172,6 +172,7 @@ const cat = (id: string, type: CategoryType, name = id): Category => ({
   icon: null,
   color: null,
   description: null,
+  paceEnabled: true,
 })
 
 const budgetTx = (
@@ -252,11 +253,11 @@ const TXS: Transaction[] = [
 
 // getBudgetView solo toca estos cuatro puertos; el resto de ReadDeps (cuentas, bancos) no se
 // invoca en esta vista, así que no se le escriben stubs que nadie llamaría.
-function budgetDeps(budgets: MonthlyBudget[]) {
+function budgetDeps(budgets: MonthlyBudget[], cats: Category[] = CATS) {
   return {
     categories: {
       async listByUser() {
-        return CATS
+        return cats
       },
       async listLimitsByUser() {
         return LIMITS
@@ -514,4 +515,50 @@ test("getPreviousMonthDebt: en enero el mes anterior es diciembre del año pasad
     1
   )
   assert.equal(debt, 200000) // 800.000 − 600.000 de diciembre 2025
+})
+
+// El ritmo reparte el tope del mes entre los días o las semanas que quedan. Hay categorías donde
+// ese reparto no describe nada —una suscripción se cobra un día y listo—, y ahí se apaga.
+test("getBudgetView: el ritmo se omite en la categoría que lo tiene apagado", async () => {
+  const cats: Category[] = [
+    { ...cat("c-super", "expense", "Supermercado"), paceEnabled: true },
+    { ...cat("c-comida", "expense", "Comida"), paceEnabled: false },
+  ]
+  const view = await getBudgetView(
+    budgetDeps(globalBudget(300000), cats),
+    "u1",
+    2026,
+    8,
+    { frequency: "weekly", today: { year: 2026, month: 8, day: 15 } }
+  )
+
+  assert.ok(
+    view.categories.find((c) => c.id === "c-super")!.pace,
+    "la que lo tiene activo sigue trayendo su ritmo"
+  )
+  assert.equal(view.categories.find((c) => c.id === "c-comida")!.pace, null)
+})
+
+test("getBudgetView: apagar el ritmo no toca las cifras del presupuesto", async () => {
+  const apagada: Category[] = [
+    { ...cat("c-super", "expense", "Supermercado"), paceEnabled: false },
+  ]
+  const encendida: Category[] = [
+    { ...cat("c-super", "expense", "Supermercado"), paceEnabled: true },
+  ]
+  const hoy = {
+    frequency: "weekly" as const,
+    today: { year: 2026, month: 8, day: 15 },
+  }
+  const off = await getBudgetView(budgetDeps(globalBudget(300000), apagada), "u1", 2026, 8, hoy)
+  const on = await getBudgetView(budgetDeps(globalBudget(300000), encendida), "u1", 2026, 8, hoy)
+
+  const a = off.categories[0]
+  const b = on.categories[0]
+  assert.deepEqual(
+    [a.limit, a.used, a.committed, a.available, a.status],
+    [b.limit, b.used, b.committed, b.available, b.status]
+  )
+  assert.equal(off.capsOverspend, on.capsOverspend)
+  assert.equal(off.monthOverspend, on.monthOverspend)
 })

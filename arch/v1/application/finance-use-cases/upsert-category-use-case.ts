@@ -24,6 +24,7 @@ export async function upsertCategory(
     icon: string | null
     color: string | null
     description: string | null
+    paceEnabled?: boolean // omitido = se conserva el actual; al crear, el default de la BD
   }
 ): Promise<Category> {
   if (input.id) {
@@ -39,6 +40,7 @@ export async function upsertCategory(
     icon: input.icon,
     color: input.color,
     description: input.description,
+    paceEnabled: input.paceEnabled,
   })
 }
 

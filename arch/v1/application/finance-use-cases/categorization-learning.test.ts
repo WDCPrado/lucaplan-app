@@ -30,6 +30,7 @@ const cat = (id: string, type: "income" | "expense"): Category => ({
   userId: "u1",
   name: id,
   type,
+  paceEnabled: true,
   icon: null,
   color: null,
   description: null,

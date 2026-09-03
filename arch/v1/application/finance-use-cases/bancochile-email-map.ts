@@ -41,12 +41,19 @@ const SUBJECT_ABONOS = [
 ]
 // Comprobante de pago de cuota de un crédito de consumo (exacto; tolera tildes).
 const SUBJECT_PAGO_CONSUMO = /^comprobante pago cr[eé]dito consumo$/
-// Comprobante de pago de tarjeta de crédito, nacional o internacional (asunto exacto; tolera
-// tildes). El cuerpo se valida además con SUBJECT_PAGO_TARJETA_BODY.
+// Comprobante de pago de tarjeta de crédito, nacional o internacional. Dos plantillas conviven:
+// la antigua ("Pago de Tarjeta de Crédito Nacional") y la vigente desde 2026 ("Comprobante Pago
+// Tarjeta"), cuyo asunto ya no nombra "de crédito" y omite "nacional" en el caso nacional —se
+// acepta igual por si el banco lo agrega, que es justo el cambio que dejó estos correos fuera. El
+// cuerpo se valida además con SUBJECT_PAGO_TARJETA_BODY.
 const SUBJECT_PAGO_TARJETA =
-  /^pago de tarjeta de cr[eé]dito (nacional|internacional)$/
+  /^(?:pago de tarjeta de cr[eé]dito (nacional|internacional)|comprobante pago tarjeta(?:\s+(nacional|internacional))?)$/
 const SUBJECT_PAGO_TARJETA_BODY =
-  /se ha efectuado el pago de la tarjeta de cr[eé]dito/i
+  /se\s+ha\s+(?:efectuado\s+el\s+pago\s+de|realizado\s+un\s+pago\s+a)\s+la\s+tarjeta\s+de\s+cr[eé]dito/i
+// La plantilla vigente no trae la tabla Origen/Destino: el detalle va en un párrafo y las cifras
+// se etiquetan "Monto Pagado" (deuda) y "Monto Pagado Pesos" (caja, solo en la internacional).
+const PAGO_TARJETA_V2 =
+  /se\s+ha\s+realizado\s+un\s+pago\s+a\s+la\s+tarjeta\s+de\s+cr[eé]dito/i
 
 // --- Extracción específica de estas plantillas ---
 
@@ -229,25 +236,42 @@ export function parseBancoChileEmail(msg: BankEmailMessage): ParsedEmail {
   if (pagoTarjeta) {
     if (!SUBJECT_PAGO_TARJETA_BODY.test(text))
       return { ok: false, reason: "plantilla_desconocida" }
-    const internacional = pagoTarjeta[1] === "internacional"
-    // Deuda en la moneda de la tarjeta: USD ("Monto pagado") o CLP ("Monto"). "Utilizado" es la
-    // deuda previa, no el pago.
+    // El sufijo "internacional" viene del asunto en cualquiera de sus dos formas; su ausencia
+    // significa nacional, que es como la plantilla vigente titula el caso en pesos.
+    const internacional =
+      (pagoTarjeta[1] ?? pagoTarjeta[2]) === "internacional"
+    const v2 = PAGO_TARJETA_V2.test(text)
+    // Deuda en la moneda de la tarjeta: USD ("Monto pagado") o CLP ("Monto" en la plantilla
+    // antigua, "Monto Pagado" en la vigente). "Utilizado" es la deuda previa, no el pago.
     const debtAmount = internacional
       ? parseLabeledUsd(
           text,
           /monto\s+pagado\s*[:.]?\s*((?:US\$|USD\$?)\s*[\d.,]+)/i
         )
-      : parseLabeledClp(text, /\bmonto\s*[:.]?\s*(\$\s*[\d.]+)/i)
+      : parseLabeledClp(
+          text,
+          v2
+            ? /monto\s+pagado\s*[:.]?\s*(\$\s*[\d.]+)/i
+            : /\bmonto\s*[:.]?\s*(\$\s*[\d.]+)/i
+        )
     if (!debtAmount) return { ok: false, reason: "sin_monto" }
-    // Caja: CLP cargado a la cuenta corriente. Nacional = mismo monto; internacional = etiqueta
-    // "Monto" en CLP. El requisito de "$" inmediato tras "Monto" evita capturar "Monto pagado" (USD).
+    // Caja: CLP cargado a la cuenta corriente. Nacional = mismo monto; internacional = su propia
+    // etiqueta en pesos. El requisito de "$" inmediato evita capturar el importe en USD, y en la
+    // plantilla vigente hay que exigir "Pesos" porque "Monto Pagado" a secas es el de USD.
     const cashAmount = internacional
-      ? parseLabeledClp(text, /\bmonto\s*[:.]?\s*(\$\s*[\d.]+)/i)
+      ? parseLabeledClp(
+          text,
+          v2
+            ? /monto\s+pagado\s+pesos\s*[:.]?\s*(\$\s*[\d.]+)/i
+            : /\bmonto\s*[:.]?\s*(\$\s*[\d.]+)/i
+        )
       : debtAmount
     if (!cashAmount) return { ok: false, reason: "sin_monto" }
     const last4 = parseCardLast4(text)
     if (!last4) return { ok: false, reason: "sin_instrumento" }
-    const ref = parseAccountRef(originSection(text))
+    // La plantilla vigente no tiene sección "Origen": la cuenta de cargo va en el párrafo, así que
+    // acotar la búsqueda ahí la perdería.
+    const ref = parseAccountRef(v2 ? text : originSection(text))
     if (!ref) return { ok: false, reason: "sin_instrumento" }
     return emailEvent({
       date: base.date,

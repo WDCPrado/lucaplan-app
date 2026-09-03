@@ -957,7 +957,16 @@ export type EmailSyncResult = {
 export async function syncMailbox(
   deps: EmailConnectionDeps,
   mailboxId: string,
-  opts: { now?: Date; messages?: BankEmailMessage[] } = {}
+  opts: {
+    now?: Date
+    messages?: BankEmailMessage[]
+    // Reproceso explícito desde una fecha: relee el buzón en vez de avanzar el delta, para
+    // recuperar correos que ya pasaron por el cursor y no dejaron movimiento (una plantilla que el
+    // parser todavía no reconocía). No toca el deltaLink, así que la sincronización normal sigue
+    // donde iba. Releer es seguro —`upsertMovements` no duplica y solo lo nuevo proyecta— pero
+    // traerse el buzón entero es caro: por eso la fecha es obligatoria en este modo.
+    reprocessSince?: Date
+  } = {}
 ): Promise<EmailSyncResult> {
   const mailbox = await deps.mailboxes.findById(mailboxId)
   if (!mailbox)
@@ -973,6 +982,18 @@ export async function syncMailbox(
   try {
     if (opts.messages) {
       messages = opts.messages
+    } else if (opts.reprocessSince) {
+      // Acotado a los remitentes de los bancos vinculados: releer el buzón entero para rescatar
+      // unos pocos avisos serían miles de correos con cuerpo.
+      const senders = links.flatMap(
+        (l) => bankByKey(l.bankProvider, registryOf(deps)).senders
+      )
+      messages = await deps.mail.listMessagesSince(
+        mailbox.id,
+        opts.reprocessSince,
+        undefined,
+        senders
+      )
     } else if (mailbox.deltaLink) {
       const res = await deps.mail.runDelta(mailbox.id, mailbox.deltaLink)
       messages = res.messages
@@ -1050,7 +1071,9 @@ export async function syncMailbox(
     subscriptionExpiresAt,
     lastSyncedAt: now,
     lastError,
-    discardedCount: mailbox.discardedCount + discarded,
+    // Un reproceso vuelve a ver los mismos correos ajenos: sumarlos otra vez falsearía el contador.
+    discardedCount:
+      mailbox.discardedCount + (opts.reprocessSince ? 0 : discarded),
   })
 
   if (created.length > 0) {
@@ -1072,7 +1095,7 @@ export async function syncMailbox(
 export async function syncUserMailboxes(
   deps: EmailConnectionDeps,
   userId: string,
-  opts: { now?: Date } = {}
+  opts: { now?: Date; reprocessSince?: Date } = {}
 ): Promise<EmailSyncResult> {
   const mailboxes = await deps.mailboxes.listByUser(userId)
   if (mailboxes.length === 0) throw new EmailConnectionNotFoundError()

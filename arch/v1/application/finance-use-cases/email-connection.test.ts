@@ -567,6 +567,123 @@ test("mismo remitente TEF, otro asunto, no se procesa como pago de tarjeta", () 
   )
 })
 
+// --- Plantilla NUEVA del comprobante de pago de tarjeta (vigente desde 2026) ---
+// El banco cambió asunto y cuerpo: el asunto ya no nombra "de crédito" ni dice "nacional", y el
+// detalle pasó de la tabla Origen/Destino a un párrafo con "Datos de Solicitud". Los datos son
+// ficticios; la estructura es la del correo real.
+const PAGO_TARJETA_NAC_V2_HTML = `
+<table><tr><td>
+  <p>Estimado(a) NOMBRE CLIENTE PRUEBA</p>
+  <p>Le informamos que el d&iacute;a 01 de septiembre de 2026 se ha realizado un pago a la
+  tarjeta de cr&eacute;dito Visa Signature Titular terminaci&oacute;n ****2120, por un monto
+  Nacional de $1.804.293 con cargo a su Cuenta Corriente 00-999-11111-00. El detalle puede
+  revisarlo a continuaci&oacute;n.</p>
+  <p>Datos de Origen</p>
+  <table><tr><td>Nombre</td><td>NOMBRE CLIENTE PRUEBA</td></tr>
+  <tr><td>RUT</td><td>11.111.111-1</td></tr>
+  <tr><td>Mail</td><td>correo@example.test</td></tr></table>
+  <p>Datos de Solicitud</p>
+  <table><tr><td>Fecha</td><td>01/09/2026</td></tr>
+  <tr><td>Hora</td><td>01:58</td></tr>
+  <tr><td>Monto Pagado</td><td>$1.804.293</td></tr>
+  <tr><td>ID</td><td>00</td></tr></table>
+</td></tr></table>`
+
+const PAGO_TARJETA_INT_V2_HTML = `
+<table><tr><td>
+  <p>Estimado(a) NOMBRE CLIENTE PRUEBA</p>
+  <p>Le informamos que el d&iacute;a 01 de septiembre de 2026 se ha realizado un pago a la
+  tarjeta de cr&eacute;dito Visa Signature Titular terminaci&oacute;n ****2120, por un monto
+  Internacional de USD 33,92 con cargo a su Cuenta Corriente 00-999-11111-00. El detalle puede
+  revisarlo a continuaci&oacute;n.</p>
+  <p>Datos de Origen</p>
+  <table><tr><td>Nombre</td><td>NOMBRE CLIENTE PRUEBA</td></tr>
+  <tr><td>RUT</td><td>11.111.111-1</td></tr>
+  <tr><td>Mail</td><td>correo@example.test</td></tr>
+  <tr><td>Tipo de Cambio</td><td>$ 951,35</td></tr></table>
+  <p>Datos de Solicitud</p>
+  <table><tr><td>Fecha</td><td>01/09/2026</td></tr>
+  <tr><td>Hora</td><td>01:58</td></tr>
+  <tr><td>Monto Pagado</td><td>USD 33,92</td></tr>
+  <tr><td>Monto Pagado Pesos</td><td>$ 32.270</td></tr>
+  <tr><td>ID</td><td>00</td></tr></table>
+</td></tr></table>`
+
+const pagoTarjetaNacV2 = (over: Partial<BankEmailMessage> = {}) =>
+  message({
+    id: "graph-tn2",
+    internetMessageId: "<pago-nac-v2@example.test>",
+    from: TEF,
+    subject: "Comprobante Pago Tarjeta",
+    htmlBody: PAGO_TARJETA_NAC_V2_HTML,
+    ...over,
+  })
+const pagoTarjetaIntV2 = (over: Partial<BankEmailMessage> = {}) =>
+  message({
+    id: "graph-ti2",
+    internetMessageId: "<pago-int-v2@example.test>",
+    from: TEF,
+    subject: "Comprobante Pago Tarjeta Internacional",
+    htmlBody: PAGO_TARJETA_INT_V2_HTML,
+    ...over,
+  })
+
+test("plantilla nueva nacional: toma Monto Pagado y la cuenta del párrafo", () => {
+  const parsed = parseBancoChileEmail(pagoTarjetaNacV2())
+  assert.equal(parsed.ok, true)
+  if (!parsed.ok) return
+  assert.equal(parsed.event.kind, "internal_payment")
+  assert.equal(parsed.event.source, "pago_tarjeta")
+  assert.equal(parsed.event.paymentTarget, "credit_national")
+  assert.deepEqual(parsed.event.instrument, {
+    kind: "credit_card",
+    last4: "2120",
+  })
+  assert.equal(parsed.event.amount.currency, "CLP")
+  assert.equal(parsed.event.amount.toMajor(), 1804293)
+  // La cuenta de origen viene en el párrafo, no en una sección "Origen".
+  assert.equal(parsed.event.cashLeg?.ref, "009991111100")
+  assert.equal(parsed.event.cashLeg?.amount.toMajor(), 1804293)
+  assert.equal(parsed.event.description, "Pago Tarjeta de Crédito ••••2120")
+  // "ID: 00" no identifica nada: la identidad cae al Message-ID.
+  assert.equal(parsed.event.externalId, "email:mid:<pago-nac-v2@example.test>")
+})
+
+test("plantilla nueva internacional: deuda USD y caja CLP separadas", () => {
+  const parsed = parseBancoChileEmail(pagoTarjetaIntV2())
+  assert.equal(parsed.ok, true)
+  if (!parsed.ok) return
+  assert.equal(parsed.event.paymentTarget, "credit_international")
+  assert.equal(parsed.event.amount.currency, "USD")
+  assert.equal(parsed.event.amount.toDecimalString(), "33.92")
+  // El tipo de cambio ($951,35) es ruido: no se convierte ni se suma.
+  assert.equal(parsed.event.cashLeg?.amount.currency, "CLP")
+  assert.equal(parsed.event.cashLeg?.amount.toMajor(), 32270)
+  assert.equal(parsed.event.cashLeg?.ref, "009991111100")
+})
+
+test("plantilla nueva sigue siendo fail-closed sin monto ni cuenta", () => {
+  assert.deepEqual(
+    parseBancoChileEmail(
+      pagoTarjetaNacV2({
+        htmlBody: PAGO_TARJETA_NAC_V2_HTML.replace(/Monto Pagado/g, "Total"),
+      })
+    ),
+    { ok: false, reason: "sin_monto" }
+  )
+  assert.deepEqual(
+    parseBancoChileEmail(
+      pagoTarjetaNacV2({
+        htmlBody: PAGO_TARJETA_NAC_V2_HTML.replace(
+          /00-999-11111-00/g,
+          "no-disponible"
+        ),
+      })
+    ),
+    { ok: false, reason: "sin_instrumento" }
+  )
+})
+
 test("detección agrupa cargos CLP/USD del mismo last4 en una tarjeta con dos monedas", () => {
   const parsed = [
     parseBancoChileEmail(message()),
@@ -847,6 +964,94 @@ test("sync repetido es idempotente: crea y proyecta una sola vez", async () => {
   assert.equal(bucket.available.toMajor(), 9000)
   assert.equal(seen.size, 1)
   assert.equal(categorized, 1)
+})
+
+test("reproceso: relee desde la fecha, acota por remitente y no mueve el cursor delta", async () => {
+  const base = repos([
+    link({
+      id: "link-reproc",
+      bankId: "bank-1",
+      status: "active",
+      mailbox: mailbox({ deltaLink: "delta-1" }),
+    }),
+  ])
+  let deltaCorrido = false
+  const releidos: { since: Date; senders?: string[] } = {
+    since: new Date(0),
+    senders: undefined,
+  }
+  let guardado: { deltaLink?: string | null; discardedCount?: number } = {}
+  // Un correo que ningún banco reclama: al releer no debe volver a sumarse al contador.
+  const ajeno = message({
+    id: "ajeno",
+    internetMessageId: "<ajeno@example.test>",
+    from: "newsletter@example.test",
+    subject: "Oferta",
+    htmlBody: "<p>nada que ver</p>",
+  })
+  const deps = {
+    ...base,
+    mailboxes: {
+      ...base.mailboxes,
+      update: async (_id: string, data: Record<string, unknown>) => {
+        guardado = data
+        return base.mailboxes.findById("mbx-1") as never
+      },
+    },
+    methods: methodsFake,
+    mail: {
+      listMessagesSince: async (
+        _id: string,
+        since: Date,
+        _until?: Date,
+        senders?: string[]
+      ) => {
+        releidos.since = since
+        releidos.senders = senders
+        return [ajeno]
+      },
+      lastMessageDate: async () => null,
+      startDelta: async () => "delta-nuevo",
+      runDelta: async () => {
+        deltaCorrido = true
+        return { messages: [], deltaLink: "delta-2" }
+      },
+      fetchMessage: async () => null,
+      ensureSubscription: async () => null,
+      deleteSubscription: async () => {},
+    },
+    store: {
+      confirmSetup: async () => ({
+        bankId: "bank-1",
+        accounts: 0,
+        cards: 0,
+        movements: 0,
+      }),
+      listInstruments: async () => ({ accounts: [], buckets: [] }),
+      upsertMovements: async () => ({ createdExternalIds: [] }),
+      updateBucketAmounts: async () => {},
+      setAccountBalance: async () => {},
+      markBankSynced: async () => {},
+      countBankDependents: async () => noDependents,
+      deleteBank: async () => {},
+    },
+    categorize: async () => 0,
+  } satisfies EmailConnectionDeps
+
+  const desde = new Date("2026-08-04T00:00:00Z")
+  await syncMailbox(deps, "mbx-1", {
+    now: new Date("2026-09-03T00:00:00Z"),
+    reprocessSince: desde,
+  })
+
+  // Relee desde la fecha pedida, no avanza el delta y conserva el cursor para la próxima sync.
+  assert.equal(deltaCorrido, false)
+  assert.equal(releidos.since.toISOString(), desde.toISOString())
+  assert.equal(guardado.deltaLink, "delta-1")
+  // Acotado a los remitentes del banco vinculado, no al buzón entero.
+  assert.equal(releidos.senders?.includes(TEF), true)
+  // El correo ajeno ya se había contado en su día: releerlo no infla el contador.
+  assert.equal(guardado.discardedCount, 0)
 })
 
 // Vínculo activo base para los tests de sync del pago de tarjeta.

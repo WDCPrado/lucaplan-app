@@ -213,6 +213,12 @@ function snapshotInvalid(checking: CheckingForm | null, cards: CardForm[]) {
   )
 }
 
+// Ventana que el refresco manual vuelve a leer, además de las novedades del delta. Corta a
+// propósito: cada relectura baja los avisos del banco CON cuerpo, y un mes de compras diarias son
+// cientos de correos en cada toque del botón. Para ir más atrás, el endpoint acepta su propia
+// fecha (hasta 90 días).
+const REPROCESO_DIAS = 7
+
 export function OutlookBankConnection({
   status,
   accounts,
@@ -473,7 +479,17 @@ export function OutlookBankConnection({
 
   async function refresh() {
     setBusy(true)
-    const res = await fetch("/api/email-connection/refresh", { method: "POST" })
+    // Además del delta, relee este último mes de avisos de los bancos vinculados: así vuelven los
+    // correos que pasaron por el cursor sin dejar movimiento porque su plantilla aún no se
+    // reconocía. La fecha acota el reproceso; el histórico anterior no se toca.
+    const since = new Date(
+      Date.now() - REPROCESO_DIAS * 86_400_000
+    ).toISOString()
+    const res = await fetch("/api/email-connection/refresh", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ since }),
+    })
     const data = await res.json().catch(() => ({}))
     setBusy(false)
     if (!res.ok) {

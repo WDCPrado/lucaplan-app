@@ -43,10 +43,11 @@ const SUBJECT_ABONOS = [
 const SUBJECT_PAGO_CONSUMO = /^comprobante pago cr[eé]dito consumo$/
 // Comprobante de pago de tarjeta de crédito, nacional o internacional. Dos plantillas conviven:
 // la antigua ("Pago de Tarjeta de Crédito Nacional") y la vigente desde 2026 ("Comprobante Pago
-// Tarjeta"), cuyo asunto ya no nombra "de crédito" y omite "nacional" en el caso nacional. El
+// Tarjeta"), cuyo asunto ya no nombra "de crédito" y omite "nacional" en el caso nacional —se
+// acepta igual por si el banco lo agrega, que es justo el cambio que dejó estos correos fuera. El
 // cuerpo se valida además con SUBJECT_PAGO_TARJETA_BODY.
 const SUBJECT_PAGO_TARJETA =
-  /^(?:pago de tarjeta de cr[eé]dito (nacional|internacional)|comprobante pago tarjeta(?:\s+(internacional))?)$/
+  /^(?:pago de tarjeta de cr[eé]dito (nacional|internacional)|comprobante pago tarjeta(?:\s+(nacional|internacional))?)$/
 const SUBJECT_PAGO_TARJETA_BODY =
   /se\s+ha\s+(?:efectuado\s+el\s+pago\s+de|realizado\s+un\s+pago\s+a)\s+la\s+tarjeta\s+de\s+cr[eé]dito/i
 // La plantilla vigente no trae la tabla Origen/Destino: el detalle va en un párrafo y las cifras

@@ -988,12 +988,16 @@ export async function syncMailbox(
       const senders = links.flatMap(
         (l) => bankByKey(l.bankProvider, registryOf(deps)).senders
       )
-      messages = await deps.mail.listMessagesSince(
-        mailbox.id,
-        opts.reprocessSince,
-        undefined,
-        senders
-      )
+      // Sin remitentes el filtro de Graph se cae y la consulta baja el buzón entero; como además
+      // no habría vínculo al que repartir nada, no hay nada que releer.
+      messages = senders.length
+        ? await deps.mail.listMessagesSince(
+            mailbox.id,
+            opts.reprocessSince,
+            undefined,
+            senders
+          )
+        : []
     } else if (mailbox.deltaLink) {
       const res = await deps.mail.runDelta(mailbox.id, mailbox.deltaLink)
       messages = res.messages

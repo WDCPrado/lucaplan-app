@@ -647,6 +647,13 @@ test("plantilla nueva nacional: toma Monto Pagado y la cuenta del párrafo", () 
   assert.equal(parsed.event.description, "Pago Tarjeta de Crédito ••••2120")
   // "ID: 00" no identifica nada: la identidad cae al Message-ID.
   assert.equal(parsed.event.externalId, "email:mid:<pago-nac-v2@example.test>")
+  // El banco omite "Nacional" en el asunto, pero si lo agregara debe seguir entrando.
+  const conSufijo = parseBancoChileEmail(
+    pagoTarjetaNacV2({ subject: "Comprobante Pago Tarjeta Nacional" })
+  )
+  assert.equal(conSufijo.ok, true)
+  if (conSufijo.ok)
+    assert.equal(conSufijo.event.paymentTarget, "credit_national")
 })
 
 test("plantilla nueva internacional: deuda USD y caja CLP separadas", () => {
@@ -1052,6 +1059,26 @@ test("reproceso: relee desde la fecha, acota por remitente y no mueve el cursor 
   assert.equal(releidos.senders?.includes(TEF), true)
   // El correo ajeno ya se había contado en su día: releerlo no infla el contador.
   assert.equal(guardado.discardedCount, 0)
+
+  // Buzón sin bancos vinculados: sin remitentes que filtrar, Graph bajaría el buzón entero para
+  // repartirlo entre cero vínculos. No debe consultarse.
+  let consultado = false
+  const sinBancos = {
+    ...deps,
+    ...repos([link({ id: "link-sin-banco", bankId: null })]),
+    mail: {
+      ...deps.mail,
+      listMessagesSince: async () => {
+        consultado = true
+        return []
+      },
+    },
+  } satisfies EmailConnectionDeps
+  await syncMailbox(sinBancos, "mbx-1", {
+    now: new Date("2026-09-03T00:00:00Z"),
+    reprocessSince: desde,
+  })
+  assert.equal(consultado, false)
 })
 
 // Vínculo activo base para los tests de sync del pago de tarjeta.

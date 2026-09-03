@@ -292,6 +292,9 @@ model Category {
   icon         String? // presentación: icono lucide o emoji (opcional)
   color        String? // presentación: color del anillo (opcional)
   description  String? // contexto para la categorización con IA (opcional); no afecta cálculos
+  // Ritmo de gasto (hoy / esta semana) en la tarjeta de la categoría. Se apaga en las que no se
+  // gastan de a poco —una suscripción se cobra un día del mes— y ahí el ritmo solo hace ruido.
+  paceEnabled  Boolean                    @default(true)
   isActive     Boolean                    @default(true)
   createdAt    DateTime                   @default(now())
   updatedAt    DateTime                   @updatedAt

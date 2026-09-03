@@ -150,6 +150,7 @@ export type CategoryDTO = {
   icon: string | null
   color: string | null
   description: string | null // contexto para la IA; se edita en el modal
+  paceEnabled: boolean // ¿muestra el ritmo del período? Se apaga por categoría en su modal
   limit: number
   used: number
   committed: number // comprometido: Σ pending del mes (recurrentes aún no cobradas); capa aparte del usado
@@ -667,6 +668,9 @@ export async function getBudgetView(
     const paceDTO =
       pace &&
       category.type === "expense" &&
+      // Apagado en esta categoría: se gasta de una vez (una suscripción se cobra un día del mes),
+      // así que repartir su tope por día o por semana solo produce un semáforo que miente.
+      category.paceEnabled &&
       limit.isPositive &&
       pace.today.year === year &&
       pace.today.month === month
@@ -703,6 +707,7 @@ export async function getBudgetView(
       icon: category.icon,
       color: category.color,
       description: category.description,
+      paceEnabled: category.paceEnabled,
       limit: limit.toMajor(),
       used: used.toMajor(),
       committed: committed.toMajor(),
@@ -985,6 +990,7 @@ export async function getCategoryDetail(
     icon: category.icon,
     color: category.color,
     description: category.description,
+    paceEnabled: category.paceEnabled,
     limit: limit.toMajor(),
     used: used.toMajor(),
     committed: computeCategoryCommitted(

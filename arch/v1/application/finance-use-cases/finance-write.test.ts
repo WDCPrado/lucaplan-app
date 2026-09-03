@@ -337,6 +337,7 @@ const category: Category = {
   icon: null,
   color: null,
   description: null,
+  paceEnabled: true,
 }
 
 class FakeCategories implements CategoryRepository {

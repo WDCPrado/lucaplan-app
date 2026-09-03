@@ -145,8 +145,8 @@ test("categorizar un movimiento lo mete al presupuesto y puede cruzar un umbral"
     transactions: { listByUserPeriod: async () => txs },
     categories: {
       listByUser: async () => [
-        { id: "cat1", userId: "u1", name: "Comida", type: "expense" as const, icon: null, color: null, description: null },
-        { id: "cat2", userId: "u1", name: "Transporte", type: "expense" as const, icon: null, color: null, description: null },
+        { id: "cat1", userId: "u1", name: "Comida", type: "expense" as const, icon: null, color: null, description: null, paceEnabled: true },
+        { id: "cat2", userId: "u1", name: "Transporte", type: "expense" as const, icon: null, color: null, description: null, paceEnabled: true },
       ],
       listLimitsByUser: async () => [
         { id: "l1", userId: "u1", categoryId: "cat1", year: 2026, month: 7, limit: clp(100_000) },

@@ -78,6 +78,7 @@ const categories: Category[] = [
     icon: null,
     color: null,
     description: null,
+    paceEnabled: true,
   },
   {
     id: "c-sueldo",
@@ -87,6 +88,7 @@ const categories: Category[] = [
     icon: null,
     color: null,
     description: null,
+    paceEnabled: true,
   },
 ]
 

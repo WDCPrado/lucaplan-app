@@ -61,6 +61,7 @@ function toCategory(row: any): Category {
     icon: row.icon ?? null,
     color: row.color ?? null,
     description: row.description ?? null,
+    paceEnabled: row.paceEnabled ?? true,
   }
 }
 
@@ -228,6 +229,10 @@ export const categoryRepository: CategoryRepository = {
       icon: input.icon,
       color: input.color,
       description: input.description,
+      // Omitido (seed, creación desde otra vista): lo resuelve el default de la BD.
+      ...(input.paceEnabled === undefined
+        ? {}
+        : { paceEnabled: input.paceEnabled }),
     }
     const row = input.id
       ? await prisma.category.update({ where: { id: input.id }, data })

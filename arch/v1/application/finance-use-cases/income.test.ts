@@ -52,6 +52,7 @@ const category = (over: Partial<Category> = {}): Category => ({
   userId: "u1",
   name: "Sueldo",
   type: "income",
+  paceEnabled: true,
   icon: null,
   color: null,
   description: null,

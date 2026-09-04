@@ -718,19 +718,25 @@ export async function getBudgetView(
       pace: paceDTO,
     })
   )
-  // Orden (WDC-13): categoría con la transacción más reciente del mes primero. `txs` viene
-  // más-nuevo primero, así que el primer encuentro de cada categoría marca su recencia; las sin
-  // movimiento este mes quedan al final en su orden original (sort estable).
+  // Orden, en dos niveles:
+  //  1) las que muestran RITMO del período arriba — son las accionables hoy; las que no lo tienen
+  //     (apagado, sin tope, o un mes que no es el actual) caen debajo sin mezclarse;
+  //  2) dentro de cada grupo, WDC-13: la de la transacción más reciente del mes primero. `txs`
+  //     viene más-nuevo primero, así que el primer encuentro de cada categoría marca su recencia;
+  //     las sin movimiento este mes quedan al final de su grupo (sort estable).
   const recencyRank = new Map<string, number>()
   txs.forEach((t, i) => {
     if (t.categoryId && !recencyRank.has(t.categoryId))
       recencyRank.set(t.categoryId, i)
   })
-  categories.sort(
-    (a, b) =>
+  categories.sort((a, b) => {
+    const byPace = Number(!!b.pace) - Number(!!a.pace)
+    if (byPace !== 0) return byPace
+    return (
       (recencyRank.get(a.id) ?? txs.length) -
       (recencyRank.get(b.id) ?? txs.length)
-  )
+    )
+  })
   const allocated = withLimit
     .filter((x) => x.category.type === "expense")
     .reduce((s, x) => s.add(x.limit), Money.zero(CLP))

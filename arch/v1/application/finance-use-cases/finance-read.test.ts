@@ -562,3 +562,45 @@ test("getBudgetView: apagar el ritmo no toca las cifras del presupuesto", async 
   assert.equal(off.capsOverspend, on.capsOverspend)
   assert.equal(off.monthOverspend, on.monthOverspend)
 })
+
+test("getBudgetView: las categorías con ritmo van primero, y dentro de cada grupo manda la recencia", async () => {
+  // c-super tiene la transacción más reciente del mes (t1, la primera de TXS) pero el ritmo
+  // apagado; c-comida no tiene ninguna, pero sí ritmo. El ritmo manda sobre la recencia.
+  const cats: Category[] = [
+    { ...cat("c-super", "expense", "Supermercado"), paceEnabled: false },
+    { ...cat("c-comida", "expense", "Comida"), paceEnabled: true },
+  ]
+  const view = await getBudgetView(
+    budgetDeps(globalBudget(300000), cats),
+    "u1",
+    2026,
+    8,
+    { frequency: "weekly", today: { year: 2026, month: 8, day: 15 } }
+  )
+
+  assert.deepEqual(
+    view.categories.map((c) => c.id),
+    ["c-comida", "c-super"]
+  )
+})
+
+test("getBudgetView: sin ritmo en ninguna, el orden es el de siempre (recencia)", async () => {
+  // Es el caso de un mes pasado o de todas apagadas: nada debe moverse respecto a hoy.
+  const cats: Category[] = [
+    { ...cat("c-comida", "expense", "Comida"), paceEnabled: false },
+    { ...cat("c-super", "expense", "Supermercado"), paceEnabled: false },
+  ]
+  const view = await getBudgetView(
+    budgetDeps(globalBudget(300000), cats),
+    "u1",
+    2026,
+    8,
+    { frequency: "weekly", today: { year: 2026, month: 8, day: 15 } }
+  )
+
+  // c-super primero: es la de la transacción más reciente del mes.
+  assert.deepEqual(
+    view.categories.map((c) => c.id),
+    ["c-super", "c-comida"]
+  )
+})

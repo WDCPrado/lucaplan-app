@@ -332,10 +332,7 @@ export function Dashboard({
       }
     >
       <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
-        {/* Primera pantalla, en escritorio con el alto exacto del viewport (topbar 4rem + padding
-            3rem): titular, avisos y las dos columnas —categorías y el día elegido— a la misma
-            altura, scrolleando por dentro si se alargan. Cuentas queda debajo del pliegue. */}
-        <div className="flex flex-col gap-5 lg:h-[calc(100dvh-7rem)] lg:min-h-[640px]">
+        <div className="flex flex-col gap-5">
           {/* Estado del mes: la respuesta a "¿cuánto puedo gastar hoy?" antes que cualquier
               detalle. Desde acá se abre el plan (ingresos y presupuesto), que es lo que lo
               determina. La tira de días vive adentro: es el mes que ese número reparte. */}
@@ -370,14 +367,12 @@ export function Dashboard({
             categories={budget.categories}
           />
 
-          {/* Escritorio: dos columnas de la misma altura. Móvil: primero el día (lo que acaba de
-              pasar), después el ritmo por categoría. */}
-          <div className="grid gap-x-6 gap-y-8 lg:min-h-0 lg:flex-1 lg:grid-cols-2">
-            <section
-              id="presupuestos"
-              className="flex min-w-0 flex-col lg:order-1 lg:min-h-0"
-            >
-              <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
+          {/* Escritorio: categorías a la izquierda y el día elegido a la derecha, cada columna
+              con su alto natural y scrolleando con la página (nada fijo). Móvil: una columna en
+              el orden del DOM — categorías → movimientos. */}
+          <div className="grid gap-x-6 gap-y-8 lg:grid-cols-2 lg:items-start">
+            <section id="presupuestos" className="min-w-0">
+              <div className="mb-3 flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-baseline gap-2">
                   <h2 className="font-heading text-lg font-bold">
                     Ritmo por categoría
@@ -400,7 +395,7 @@ export function Dashboard({
                   <Plus className="size-4" /> Agregar
                 </button>
               </div>
-              <div className="glass rounded-2xl p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+              <div className="glass rounded-2xl p-4">
                 {expenseCategories.length === 0 ? (
                   <button
                     onClick={() => {
@@ -477,11 +472,8 @@ export function Dashboard({
 
             {/* Los movimientos del día elegido en la tira. El mes completo se recorre día a día o
                 con la búsqueda (lupa). */}
-            <section
-              id="movimientos"
-              className="flex min-w-0 flex-col max-lg:-order-1 lg:order-2 lg:min-h-0"
-            >
-              <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+            <section id="movimientos" className="min-w-0">
+              <div className="mb-3 flex items-center justify-between gap-3">
                 <h2 className="truncate font-heading text-lg font-bold">
                   {formatDateHeader(dayIso)}
                 </h2>
@@ -493,11 +485,11 @@ export function Dashboard({
                 )}
               </div>
               {dayTransactions.length === 0 ? (
-                <p className="glass-strong rounded-2xl py-10 text-center text-sm text-muted-foreground lg:flex lg:flex-1 lg:items-center lg:justify-center">
+                <p className="glass-strong rounded-2xl py-10 text-center text-sm text-muted-foreground">
                   Sin movimientos ese día
                 </p>
               ) : (
-                <div className="glass flex flex-col gap-0.5 rounded-2xl p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+                <div className="glass flex flex-col gap-0.5 rounded-2xl p-2">
                   {dayTransactions.map((t) => (
                     <MovementRow
                       key={t.id}
@@ -517,7 +509,7 @@ export function Dashboard({
         </div>
 
         {/* Cuentas: al final, en una fila (escritorio) o carrusel (móvil). Es consulta, no
-            decisión diaria; por eso queda bajo el pliegue. */}
+            decisión diaria; por eso va después del día. */}
         <section className="mt-8">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-heading text-lg font-bold">Cuentas</h2>

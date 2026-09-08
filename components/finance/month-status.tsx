@@ -86,7 +86,7 @@ export function MonthStatus({
         <span className="max-sm:sr-only">Ajustar plan</span>
       </Button>
 
-      <div className="max-sm:pr-12">
+      <div className="max-sm:pr-12 sm:pr-40">
         {isCurrentMonth ? (
           <>
             <p className="text-sm text-muted-foreground">

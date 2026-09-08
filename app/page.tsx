@@ -580,11 +580,13 @@ export default function Home() {
         aria-hidden="true"
         className="landing-glow pointer-events-none absolute inset-x-0 top-0 -z-10 h-[52rem]"
       />
-      {/* Navbar: píldora flotante arriba; al scrollear se expande a barra full-width con fondo */}
+      {/* Navbar: píldora flotante arriba; al scrollear se expande a barra full-width con fondo.
+          pt safe-area: en iOS instalado (viewport-fit=cover) el sticky queda bajo la Dynamic
+          Island; en navegador env() = 0. Stuck lleva fondo para cubrir esa franja. */}
       <nav
         id="landing-nav"
         aria-label="Principal"
-        className="group sticky top-0 z-50 px-4 transition-[padding] duration-300 data-stuck:px-0 lg:px-6"
+        className="group sticky top-0 z-50 px-4 pt-[env(safe-area-inset-top)] transition-[padding] duration-300 data-stuck:bg-background/85 data-stuck:px-0 data-stuck:backdrop-blur-xl lg:px-6"
       >
         <div className="mx-auto mt-4 flex h-16 max-w-5xl items-center justify-between rounded-full border border-border/70 bg-background/85 px-6 shadow-lg shadow-black/5 backdrop-blur-xl transition-all duration-300 group-data-stuck:mt-0 group-data-stuck:h-18 group-data-stuck:max-w-[120rem] group-data-stuck:rounded-none group-data-stuck:border-x-0 group-data-stuck:border-t-0 group-data-stuck:shadow-sm">
           <Link

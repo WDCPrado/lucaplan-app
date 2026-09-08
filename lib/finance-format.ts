@@ -107,6 +107,11 @@ export function daysLeftInMonth(now: Date = new Date()): number {
 }
 
 /** Encabezado de grupo por fecha: "Hoy", "Ayer" o "Martes 9 de julio". */
+/** "lunes 8 de septiembre", siempre con la fecha (sin el atajo Hoy/Ayer de las cabeceras). */
+export function formatLongDate(iso: string): string {
+  return dateHeaderFmt.format(new Date(iso))
+}
+
 export function formatDateHeader(iso: string): string {
   const key = iso.slice(0, 10) // YYYY-MM-DD del @db.Date (día civil)
   const now = new Date()

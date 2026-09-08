@@ -23,11 +23,26 @@ design-system.
 - **WHEN** el usuario cambia el mes en el selector
 - **THEN** todas las vistas (resumen, presupuestos, movimientos) reflejan ese mes
 
-### Requirement: Pestaña Resumen
+### Requirement: Inicio
 
-La pestaña Resumen SHALL mostrar la(s) tarjeta(s) de cuenta (banco, tipo, saldo, color), el saldo
-bancario/caja activa con opción de ocultar, los totales de ingresos/gastos/presupuestado del mes, y
-la lista de movimientos recientes.
+El Inicio SHALL abrir con cuánto se puede gastar hoy: lo libre del mes (presupuesto − gastado −
+comprometido) repartido en los días que quedan, hoy incluido; en un mes pasado el titular es con
+cuánto cerró, y sin presupuesto pide definirlo. Debajo del titular SHALL ir el mes como tira de
+días, con lo gastado cada día, hoy marcado y los días futuros atenuados; tocar un día lista sus
+movimientos. Después, las categorías de gasto con su barra de gastado/comprometido, el ritmo del
+período y lo que queda del mes; y al final las cuentas (tarjetas con banco, tipo, saldo, color) y
+el saldo bancario con opción de ocultar. En escritorio las categorías y los movimientos del día
+SHALL compartir altura y llenar la pantalla, dejando las cuentas bajo el pliegue; en móvil todo va
+en una columna.
+
+#### Scenario: Libre hoy
+- **WHEN** el mes en curso tiene presupuesto, quedan 23 días y lo libre es $673.070
+- **THEN** el titular dice $29.264 libre hoy, y pasado el presupuesto dice $0 sin anunciar cuánto se
+  pasó (eso lo hace la banda de excedente)
+
+#### Scenario: Elegir un día
+- **WHEN** el usuario toca un día de la tira
+- **THEN** la sección de movimientos pasa a listar los de ese día, con su fecha y el neto del día
 
 #### Scenario: Ver saldo y ocultar
 - **WHEN** el usuario toca el ojo del saldo
@@ -277,14 +292,14 @@ sección repite esa cifra. La banda NO SHALL sumar los dos excedentes entre sí.
 - **THEN** la cifra principal cumple el contraste mínimo de texto, quedando el color del estado en
   elementos decorativos (ícono y borde) que no cargan la legibilidad
 
-### Requirement: El bloque de presupuesto del mes no anuncia el excedente
+### Requirement: El titular del Inicio no anuncia el excedente
 
-El bloque "Presupuesto de \<mes\>" del Resumen SHALL reportar el presupuesto del mes y el avance de
-lo gastado, y NO SHALL anunciar que el usuario se pasó: ese aviso pertenece a la banda de
-excedente. El "Libre" en negativo se mantiene como señal propia del bloque.
+El titular "libre hoy" del Inicio SHALL reportar cuánto se puede gastar hoy y NO SHALL anunciar que
+el usuario se pasó: ese aviso pertenece a la banda de excedente. Pasado el presupuesto el titular
+es $0 y dice que no queda presupuesto libre, sin la cifra.
 
 #### Scenario: Gasto por sobre el presupuesto
 
 - **WHEN** el gasto del mes supera el límite global
-- **THEN** el bloque de presupuesto sigue mostrando cuánto lleva gastado y su porcentaje, y es la
-  banda —una sola vez en la pantalla— la que anuncia por cuánto se pasó
+- **THEN** el titular muestra $0 libre hoy, y es la banda —una sola vez en la pantalla— la que
+  anuncia por cuánto se pasó

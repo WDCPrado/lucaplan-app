@@ -52,3 +52,6 @@ next-env.d.ts
 
 # config local de la skill impeccable
 /.impeccable
+
+# worktrees de Claude Code: carpetas de trabajo, no codigo del repo
+.claude/worktrees/

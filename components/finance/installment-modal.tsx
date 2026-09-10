@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { formatCLP } from "@/lib/finance-format"
 import { CategoryIcon } from "./category-icons"
+import { MonthPicker } from "./month-picker"
 import { Chip, savedFirst } from "./transaction-modal"
 import { DayOfMonthPicker } from "./income-modal"
 import { schedule } from "@/arch/v1/domain/finance/installment.domain"
@@ -296,9 +297,8 @@ export function InstallmentModal({
               ))}
             </ChipRow>
             <label className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-muted-foreground">
-                {kind === "loan" ? "Total del crédito" : "Total de cuotas"}
-              </span>
+              {/* "Total del crédito" junto a un "48" se leía como monto. */}
+              <span className="text-muted-foreground">Cuotas en total</span>
               <input
                 inputMode="numeric"
                 value={count}
@@ -387,12 +387,18 @@ export function InstallmentModal({
               <span className="text-muted-foreground">
                 {kind === "loan" ? `Mes de la cuota ${startIndex}` : "Primera cuota"}
               </span>
-              <input
-                type="month"
-                value={startMonth}
-                onChange={(e) => setStartMonth(e.target.value)}
-                aria-label="Mes de la primera cuota"
-                className="h-10 rounded-xl border border-border bg-transparent px-3 text-sm"
+              {/* El selector de mes de la app, no <input type="month">: el nativo salía en
+                  inglés ("October 2026") y con el icono del navegador. */}
+              <MonthPicker
+                period={{
+                  year: startDate.getFullYear(),
+                  month: startDate.getMonth() + 1,
+                }}
+                onSelect={(y, m) =>
+                  setStartMonth(`${y}-${String(m).padStart(2, "0")}`)
+                }
+                withYear
+                className="h-10 rounded-xl border border-border px-3 font-normal hover:bg-accent"
               />
             </label>
             <DayOfMonthPicker value={day} onChange={setDay} />

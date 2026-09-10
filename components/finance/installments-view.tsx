@@ -308,8 +308,16 @@ function PlanRow({
                 </span>
               )}
             </span>
-            <span className="tabular">
-              {completed ? "Pagada" : `quedan ${formatCLP(p.outstanding)}`}
+            {/* Prosa en Geist; solo la cifra en mono. */}
+            <span>
+              {completed ? (
+                "Pagada"
+              ) : (
+                <>
+                  quedan{" "}
+                  <span className="tabular">{formatCLP(p.outstanding)}</span>
+                </>
+              )}
             </span>
           </span>
           {/* El avance cierra la fila: puesto bajo el título parecía un subrayado del nombre. */}

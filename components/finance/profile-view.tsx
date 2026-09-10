@@ -213,6 +213,7 @@ function PasswordForm() {
 
   return (
     <Section title="Contraseña">
+      {/* Sin placeholder de puntos: tres campos con "••••••••" parecían contraseñas ya escritas. */}
       <form onSubmit={save} className="space-y-3">
         <div className="space-y-2">
           <Label htmlFor="current">Contraseña actual</Label>
@@ -223,7 +224,6 @@ function PasswordForm() {
             onChange={(e) => setCurrent(e.target.value)}
             autoComplete="current-password"
             required
-            placeholder="••••••••"
             className="h-11 text-base"
           />
         </div>
@@ -238,7 +238,6 @@ function PasswordForm() {
               autoComplete="new-password"
               required
               minLength={8}
-              placeholder="••••••••"
               className="h-11 pr-11 text-base"
             />
             <button
@@ -262,7 +261,6 @@ function PasswordForm() {
             autoComplete="new-password"
             required
             minLength={8}
-            placeholder="••••••••"
             className="h-11 text-base"
           />
         </div>

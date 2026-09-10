@@ -139,7 +139,9 @@ export function Dashboard({
   // Días que faltan (hoy incluido): el divisor del ritmo diario por categoría. Se anuncia una sola
   // vez en la cabecera del grupo — es un dato del mes, no de cada categoría.
   const daysLeft = isCurrentMonth ? daysLeftInMonth() : 0
-  const daysInMonth = new Date(Date.UTC(period.year, period.month, 0)).getUTCDate()
+  const daysInMonth = new Date(
+    Date.UTC(period.year, period.month, 0)
+  ).getUTCDate()
   const byDay = spendByDay(transactions, daysInMonth)
   // Día que se lista: hoy en el mes en curso; en otro mes, el último con movimientos. Al cambiar
   // de mes se vuelve al default ajustando el estado en render (mismo patrón que `openTxId`).
@@ -148,9 +150,28 @@ export function Dashboard({
     ? today.day
     : (transactions.map(dayOf).sort((a, b) => b - a)[0] ?? daysInMonth)
   const [dayState, setDayState] = useState({ key: periodKey, day: defaultDay })
-  if (dayState.key !== periodKey) setDayState({ key: periodKey, day: defaultDay })
+  if (dayState.key !== periodKey)
+    setDayState({ key: periodKey, day: defaultDay })
   const selectedDay = dayState.day
   const dayTransactions = transactions.filter((t) => dayOf(t) === selectedDay)
+  // Escritorio: los movimientos más recientes ANTES del día elegido, agrupados por fecha, para
+  // que la columna del día no quede vacía. Ocho filas bastan para llenar la primera pantalla.
+  const recentGroups: { key: string; header: string; txs: TransactionDTO[] }[] =
+    []
+  for (const t of transactions
+    .filter((t) => dayOf(t) < selectedDay)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 8)) {
+    const key = t.date.slice(0, 10)
+    const last = recentGroups[recentGroups.length - 1]
+    if (last?.key === key) last.txs.push(t)
+    else recentGroups.push({ key, header: formatDateHeader(t.date), txs: [t] })
+  }
+  // Tocar el arco de un movimiento abre el detalle de SU categoría (no el movimiento).
+  const openCategory = (id: string) => {
+    const cat = budget.categories.find((c) => c.id === id)
+    if (cat) setDetail(cat)
+  }
   const dayIso = `${period.year}-${String(period.month).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}T00:00:00.000Z`
   // Neto del día como en la cabecera de cada fecha: ingresos suman, cargos restan, internos no.
   const dayNet = dayTransactions.reduce((sum, t) => {
@@ -209,47 +230,77 @@ export function Dashboard({
             Semáforo silencioso: gris bajo 80%, alerta 80–100%, excedido >100%. `pace` solo viene
             en el mes en curso y con tope; sin margen de período se mantiene el aviso de siempre. */}
         <div className="flex items-baseline justify-between gap-2">
-        {c.pace ? (
-          c.pace.budget > 0 ? (
+          {c.pace ? (
+            c.pace.budget > 0 ? (
+              <p
+                className={cn(
+                  "text-xs",
+                  c.pace.status === "excedido"
+                    ? "text-destructive"
+                    : c.pace.status === "alerta"
+                      ? "text-warning"
+                      : "text-muted-foreground"
+                )}
+              >
+                {/* ponytail: se muestra lo que QUEDA (más accionable que lo gastado) y en una sola
+                  línea, sin el "de $X": en móvil partía la fila en cuatro líneas. Pasado el
+                  ritmo se dice cuánto de más, que "$0 libres" esconde. */}
+                {c.pace.budget - c.pace.spent >= 0 ? (
+                  <>
+                    <span className="tabular">
+                      {formatCLP(c.pace.budget - c.pace.spent)}
+                    </span>{" "}
+                    libres{" "}
+                    {c.pace.frequency === "daily" ? "hoy" : "esta semana"}
+                  </>
+                ) : (
+                  <>
+                    <span className="tabular">
+                      {formatCLP(c.pace.spent - c.pace.budget)}
+                    </span>{" "}
+                    sobre el ritmo{" "}
+                    {c.pace.frequency === "daily" ? "de hoy" : "semanal"}
+                  </>
+                )}
+              </p>
+            ) : (
+              <p className="text-xs text-destructive">
+                Sin margen
+                {c.available < 0 && (
+                  <>
+                    {" "}
+                    · <span className="tabular">
+                      {formatCLP(-c.available)}
+                    </span>{" "}
+                    sobre el tope
+                  </>
+                )}
+              </p>
+            )
+          ) : (
+            <span />
+          )}
+          {/* Derecha: lo que queda del mes (tope − gastado − comprometido). Sin tope no hay resto. */}
+          {c.limit > 0 && (
             <p
               className={cn(
-                "tabular text-xs",
-                c.pace.status === "excedido"
-                  ? "text-destructive"
-                  : c.pace.status === "alerta"
-                    ? "text-warning"
-                    : "text-muted-foreground"
+                "shrink-0 text-xs",
+                c.available < 0 ? "text-destructive" : "text-muted-foreground"
               )}
             >
-              {/* ponytail: se muestra lo que QUEDA (más accionable que lo gastado);
-                  pasado el ritmo se dice cuánto de más, que "$0 disponible" esconde. */}
-              {c.pace.budget - c.pace.spent >= 0
-                ? `${formatCLP(c.pace.budget - c.pace.spent)} disponible de ${formatCLP(c.pace.budget)} ${c.pace.frequency === "daily" ? "hoy" : "esta semana"}`
-                : `${formatCLP(c.pace.spent - c.pace.budget)} sobre el ritmo de ${c.pace.frequency === "daily" ? "hoy" : "esta semana"}`}
+              {c.available < 0 ? (
+                <>
+                  <span className="tabular">{formatCLP(-c.available)}</span>{" "}
+                  sobre el tope
+                </>
+              ) : (
+                <>
+                  quedan{" "}
+                  <span className="tabular">{formatCLP(c.available)}</span>
+                </>
+              )}
             </p>
-          ) : (
-            <p className="tabular text-xs text-destructive">
-              {c.available < 0
-                ? `Sin margen · ${formatCLP(-c.available)} sobre el tope`
-                : "Sin margen"}
-            </p>
-          )
-        ) : (
-          <span />
-        )}
-        {/* Derecha: lo que queda del mes (tope − gastado − comprometido). Sin tope no hay resto. */}
-        {c.limit > 0 && (
-          <p
-            className={cn(
-              "tabular shrink-0 text-xs",
-              c.available < 0 ? "text-destructive" : "text-muted-foreground"
-            )}
-          >
-            {c.available < 0
-              ? `${formatCLP(-c.available)} sobre el tope`
-              : `quedan ${formatCLP(c.available)}`}
-          </p>
-        )}
+          )}
         </div>
       </button>
     )
@@ -369,19 +420,62 @@ export function Dashboard({
 
           {/* Escritorio: categorías a la izquierda y el día elegido a la derecha, cada columna
               con su alto natural y scrolleando con la página (nada fijo). Móvil: una columna en
-              el orden del DOM — categorías → movimientos. */}
+              el orden del DOM — el día elegido primero, pegado a la tira que lo elige (si no,
+              tocar un día no cambiaba nada a la vista), y las categorías después. */}
           <div className="grid gap-x-6 gap-y-8 lg:grid-cols-2 lg:items-start">
-            <section id="presupuestos" className="min-w-0">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-baseline gap-2">
+            {/* Los movimientos del día elegido en la tira. El mes completo se recorre día a día o
+                con la búsqueda (lupa). */}
+            <section
+              id="movimientos"
+              className="min-w-0 lg:col-start-2 lg:row-start-1"
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="truncate font-heading text-lg font-bold">
+                  {formatDateHeader(dayIso)}
+                </h2>
+                {dayTransactions.length > 0 && (
+                  <span className="tabular shrink-0 text-sm text-muted-foreground">
+                    {dayNet >= 0 ? "+" : "−"}
+                    {formatCLP(Math.abs(dayNet))}
+                  </span>
+                )}
+              </div>
+              {dayTransactions.length === 0 ? (
+                <p className="glass-strong rounded-2xl py-10 text-center text-sm text-muted-foreground">
+                  Sin movimientos ese día
+                </p>
+              ) : (
+                <div className="glass flex flex-col gap-0.5 rounded-2xl p-2">
+                  {dayTransactions.map((t) => (
+                    <MovementRow
+                      key={t.id}
+                      tx={t}
+                      onOpen={setDetailTx}
+                      // Tocar el arco del movimiento abre el detalle de SU categoría (no el movimiento).
+                      onOpenCategory={openCategory}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section
+              id="presupuestos"
+              className="min-w-0 lg:col-start-1 lg:row-span-3 lg:row-start-1"
+            >
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                   <h2 className="font-heading text-lg font-bold">
                     Ritmo por categoría
                   </h2>
                   {/* Los días que faltan valen para todas las categorías: se dicen una vez acá,
-                      no repetidos en cada fila. */}
+                      no repetidos en cada fila. En angosto bajan a su propia línea: al lado del
+                      título partían el título en dos y se truncaban. */}
                   {daysLeft > 0 && (
-                    <span className="tabular truncate text-sm text-muted-foreground">
-                      {daysLeft === 1 ? "queda 1 día" : `quedan ${daysLeft} días`}
+                    <span className="basis-full text-sm text-muted-foreground sm:basis-auto">
+                      {daysLeft === 1
+                        ? "queda 1 día"
+                        : `quedan ${daysLeft} días`}
                     </span>
                   )}
                 </div>
@@ -470,113 +564,108 @@ export function Dashboard({
               </div>
             </section>
 
-            {/* Los movimientos del día elegido en la tira. El mes completo se recorre día a día o
-                con la búsqueda (lupa). */}
-            <section id="movimientos" className="min-w-0">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="truncate font-heading text-lg font-bold">
-                  {formatDateHeader(dayIso)}
-                </h2>
-                {dayTransactions.length > 0 && (
-                  <span className="tabular shrink-0 text-sm text-muted-foreground">
-                    {dayNet >= 0 ? "+" : "−"}
-                    {formatCLP(Math.abs(dayNet))}
-                  </span>
-                )}
+            {/* Cuentas: consulta, no decisión diaria. Escritorio: en la columna derecha bajo el
+                día, como tarjetas en dos columnas. Móvil: al final, como carrusel. */}
+            <section className="min-w-0 lg:col-start-2 lg:row-start-2">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-heading text-lg font-bold">Cuentas</h2>
+                <button
+                  onClick={() => setShowBalance((v) => !v)}
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground"
+                >
+                  {showBalance ? (
+                    <Eye className="size-4" />
+                  ) : (
+                    <EyeOff className="size-4" />
+                  )}
+                  {showBalance ? "Ocultar" : "Mostrar"}
+                </button>
               </div>
-              {dayTransactions.length === 0 ? (
-                <p className="glass-strong rounded-2xl py-10 text-center text-sm text-muted-foreground">
-                  Sin movimientos ese día
-                </p>
-              ) : (
-                <div className="glass flex flex-col gap-0.5 rounded-2xl p-2">
-                  {dayTransactions.map((t) => (
-                    <MovementRow
-                      key={t.id}
-                      tx={t}
-                      onOpen={setDetailTx}
-                      // Tocar el arco del movimiento abre el detalle de SU categoría (no el movimiento).
-                      onOpenCategory={(id) => {
-                        const cat = budget.categories.find((c) => c.id === id)
-                        if (cat) setDetail(cat)
-                      }}
+              <div
+                ref={cardsRef}
+                {...cardsHandlers}
+                onScroll={cardsScroll}
+                // Móvil: carrusel con snap y fade en los bordes (pt-1: aire para el hover
+                // -translate-y). Escritorio: grilla de cuatro sin scroll —resumen + tres cuentas es
+                // la fila típica; con más, envuelve—.
+                className="-mx-4 flex cursor-grab snap-x snap-mandatory scrollbar-none gap-4 overflow-x-auto mask-[linear-gradient(90deg,transparent,black_var(--fade-l,0rem),black_calc(100%-var(--fade-r,2.5rem)),transparent)] px-4 pt-1 pb-4 active:cursor-grabbing lg:mx-0 lg:grid lg:cursor-default lg:grid-cols-2 lg:overflow-visible lg:mask-none lg:px-0"
+              >
+                <div
+                  data-card
+                  className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-2xl p-5 lg:w-auto lg:snap-start"
+                >
+                  <div className="text-sm text-muted-foreground">
+                    Saldo bancario
+                  </div>
+                  <div className="tabular my-3 text-3xl font-bold">
+                    {showBalance ? formatCLP(summary.activeCash) : "••••••"}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-center">
+                    <Stat
+                      label="Ingresos"
+                      value={formatCompact(summary.income, true)}
+                      className="text-success"
                     />
+                    <Stat
+                      label="Gastos"
+                      value={formatCompact(-summary.expense)}
+                    />
+                    <Stat
+                      label="Presup."
+                      value={formatCompact(summary.totalBudget)}
+                    />
+                  </div>
+                </div>
+                {accounts.map((a) => (
+                  <div
+                    key={a.id}
+                    data-card
+                    className="flex w-72 shrink-0 snap-center snap-always lg:w-auto lg:snap-start"
+                  >
+                    <AccountCard
+                      account={a}
+                      hidden={!showBalance}
+                      onClick={() => setInfoAccount(a)}
+                    />
+                  </div>
+                ))}
+                <SyncBancoChileButton
+                  accounts={accounts}
+                  outlookResult={onboarding ? null : outlookResult}
+                  outlookReason={outlookReason}
+                />
+              </div>
+            </section>
+
+            {/* Solo escritorio: con un día de uno o dos movimientos la columna quedaba vacía
+                  frente a una lista de categorías de 900 px. Los días anteriores la completan con
+                  lo más reciente, agrupado por fecha como en la búsqueda. */}
+            {recentGroups.length > 0 && (
+              <section className="max-lg:hidden lg:col-start-2 lg:row-start-3">
+                <h3 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Días anteriores
+                </h3>
+                <div className="glass flex flex-col gap-0.5 rounded-2xl p-2">
+                  {recentGroups.map((g) => (
+                    <div key={g.key}>
+                      <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground">
+                        {g.header}
+                      </div>
+                      {g.txs.map((t) => (
+                        <MovementRow
+                          key={t.id}
+                          tx={t}
+                          onOpen={setDetailTx}
+                          onOpenCategory={openCategory}
+                        />
+                      ))}
+                    </div>
                   ))}
                 </div>
-              )}
-            </section>
+              </section>
+            )}
           </div>
         </div>
-
-        {/* Cuentas: al final, en una fila (escritorio) o carrusel (móvil). Es consulta, no
-            decisión diaria; por eso va después del día. */}
-        <section className="mt-8">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-heading text-lg font-bold">Cuentas</h2>
-            <button
-              onClick={() => setShowBalance((v) => !v)}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground"
-            >
-              {showBalance ? (
-                <Eye className="size-4" />
-              ) : (
-                <EyeOff className="size-4" />
-              )}
-              {showBalance ? "Ocultar" : "Mostrar"}
-            </button>
-          </div>
-          <div
-            ref={cardsRef}
-            {...cardsHandlers}
-            onScroll={cardsScroll}
-            // Móvil: carrusel con snap y fade en los bordes (pt-1: aire para el hover
-            // -translate-y). Escritorio: grilla de cuatro sin scroll —resumen + tres cuentas es
-            // la fila típica; con más, envuelve—.
-            className="-mx-4 flex cursor-grab snap-x snap-mandatory scrollbar-none gap-4 overflow-x-auto mask-[linear-gradient(90deg,transparent,black_var(--fade-l,0rem),black_calc(100%-var(--fade-r,2.5rem)),transparent)] px-4 pt-1 pb-4 active:cursor-grabbing lg:mx-0 lg:grid lg:cursor-default lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:mask-none"
-          >
-            <div
-              data-card
-              className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-2xl p-5 lg:w-auto lg:snap-start"
-            >
-              <div className="text-sm text-muted-foreground">
-                Saldo bancario
-              </div>
-              <div className="tabular my-3 text-3xl font-bold">
-                {showBalance ? formatCLP(summary.activeCash) : "••••••"}
-              </div>
-              <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-center">
-                <Stat
-                  label="Ingresos"
-                  value={formatCompact(summary.income, true)}
-                  className="text-success"
-                />
-                <Stat label="Gastos" value={formatCompact(-summary.expense)} />
-                <Stat
-                  label="Presup."
-                  value={formatCompact(summary.totalBudget)}
-                />
-              </div>
-            </div>
-            {accounts.map((a) => (
-              <div
-                key={a.id}
-                data-card
-                className="flex w-72 shrink-0 snap-center snap-always lg:w-auto lg:snap-start"
-              >
-                <AccountCard
-                  account={a}
-                  hidden={!showBalance}
-                  onClick={() => setInfoAccount(a)}
-                />
-              </div>
-            ))}
-            <SyncBancoChileButton
-              accounts={accounts}
-              outlookResult={onboarding ? null : outlookResult}
-              outlookReason={outlookReason}
-            />
-          </div>
-        </section>
       </div>
 
       {/* Superficies (adaptativas: dialog en escritorio, sheet en móvil).
@@ -724,7 +813,6 @@ export function Dashboard({
     </AppShell>
   )
 }
-
 
 function Stat({
   label,

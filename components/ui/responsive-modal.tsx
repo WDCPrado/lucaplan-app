@@ -35,7 +35,7 @@ export function ModalFooter({
       className={cn(
         // bg-popover, no bg-background: es la superficie del Dialog y de la tarjeta del Drawer.
         // Con background (más oscuro en dark) el footer se ve como una banda de otro color.
-        "sticky bottom-0 z-10 -mx-4 mt-2 flex flex-wrap items-center gap-2 border-t border-border/60 bg-popover px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+        "sticky bottom-0 z-10 -mx-4 mt-auto flex flex-wrap items-center gap-2 border-t border-border/60 bg-popover px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
         className
       )}
     >
@@ -107,7 +107,10 @@ export function ResponsiveModal({
           <DrawerHeader className={headerClassName}>
             <DrawerTitle>{title}</DrawerTitle>
           </DrawerHeader>
-          <div className="min-h-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] overflow-x-hidden overflow-y-auto">
+          {/* Columna flex y el hijo estirado: así el ModalFooter (mt-auto) queda pegado al borde
+              inferior cuando el contenido es más corto que el drawer. Con contenido largo el hijo
+              mide lo que mide y el área scrollea igual que antes. */}
+          <div className="flex min-h-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] flex-col overflow-x-hidden overflow-y-auto [&>*]:flex-1">
             {children}
           </div>
         </DrawerContent>

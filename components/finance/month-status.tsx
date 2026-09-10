@@ -100,12 +100,25 @@ export function MonthStatus({
                 libre hoy
               </span>
             </p>
-            <p className="tabular mt-2 text-sm text-pretty text-muted-foreground">
-              {free > 0
-                ? `${formatCLP(free)} libres para ${
-                    daysLeft === 1 ? "el día que queda" : `los ${daysLeft} días que quedan`
-                  }${committed > 0 ? `, ya descontado lo comprometido (${formatCLP(committed)})` : ""}. Cada día sin gastar suma al siguiente.`
-                : "No queda presupuesto libre este mes."}
+            {/* Prosa en la fuente de texto; solo los montos en mono (design system: mono = cifras). */}
+            <p className="mt-2 text-sm text-pretty text-muted-foreground">
+              {free > 0 ? (
+                <>
+                  <span className="tabular">{formatCLP(free)}</span> libres para{" "}
+                  {daysLeft === 1
+                    ? "el día que queda"
+                    : `los ${daysLeft} días que quedan`}
+                  {committed > 0 && (
+                    <>
+                      , ya descontado lo comprometido (
+                      <span className="tabular">{formatCLP(committed)}</span>)
+                    </>
+                  )}
+                  . Cada día sin gastar suma al siguiente.
+                </>
+              ) : (
+                "No queda presupuesto libre este mes."
+              )}
             </p>
           </>
         ) : (
@@ -121,10 +134,15 @@ export function MonthStatus({
                 sin gastar
               </span>
             </p>
-            <p className="tabular mt-2 text-sm text-muted-foreground">
-              {usedPct === null
-                ? `Gastaste ${formatCLP(spent)} de ${formatCLP(globalLimit)}`
-                : `Gastaste ${formatCLP(spent)} de ${formatCLP(globalLimit)} · ${Math.round(usedPct)}%`}
+            <p className="mt-2 text-sm text-muted-foreground">
+              Gastaste <span className="tabular">{formatCLP(spent)}</span> de{" "}
+              <span className="tabular">{formatCLP(globalLimit)}</span>
+              {usedPct !== null && (
+                <>
+                  {" "}
+                  · <span className="tabular">{Math.round(usedPct)}%</span>
+                </>
+              )}
             </p>
           </>
         )}

@@ -191,7 +191,9 @@ export function CategoryModal({
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={type === "income" ? "Abonos" : "Compras"}
+            placeholder={
+              type === "income" ? "Nombre (ej. Abonos)" : "Nombre (ej. Compras)"
+            }
             aria-label="Nombre"
             className="h-12 flex-1 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
           />
@@ -261,9 +263,9 @@ export function CategoryModal({
                   Ritmo de gasto
                 </Label>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Compara lo que llevas gastado hoy o esta semana contra la parte
-                  del tope que toca. Apágalo si esta categoría se paga de una vez
-                  al mes.
+                  Compara lo que llevas gastado hoy o esta semana contra la
+                  parte del tope que toca. Apágalo si esta categoría se paga de
+                  una vez al mes.
                 </p>
               </div>
               <Switch
@@ -374,10 +376,7 @@ export function CategoryModal({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={removeCategory}
-              variant="destructive"
-            >
+            <AlertDialogAction onClick={removeCategory} variant="destructive">
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>

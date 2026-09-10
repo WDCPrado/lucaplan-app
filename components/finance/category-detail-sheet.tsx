@@ -89,15 +89,16 @@ export function CategoryDetailSheet({
             {/* Mismo color que el anillo: en verde fijo, un disponible negativo se leía como
                 "vas bien". El estado manda sobre el texto igual que sobre el arco. */}
             <div
-              className="tabular text-sm font-medium"
+              className="text-sm font-medium"
               style={{ color: statusVar(category.status) }}
             >
-              {formatCLP(category.available)} disponible
+              <span className="tabular">{formatCLP(category.available)}</span>{" "}
+              disponible
             </div>
             {category.committed > 0 && (
-              <div className="tabular text-xs text-muted-foreground">
-                {formatCLP(category.committed)} comprometido (recurrentes y
-                cuotas por cobrar)
+              <div className="text-xs text-muted-foreground">
+                <span className="tabular">{formatCLP(category.committed)}</span>{" "}
+                comprometido (recurrentes y cuotas por cobrar)
               </div>
             )}
           </div>

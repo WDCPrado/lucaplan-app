@@ -2,6 +2,7 @@ import {
   ShoppingBag,
   ShoppingCart,
   Utensils,
+  UtensilsCrossed,
   Coffee,
   Car,
   Bus,
@@ -14,11 +15,13 @@ import {
   Shirt,
   Gift,
   Heart,
+  HeartPulse,
   Stethoscope,
   GraduationCap,
   BookOpen,
   Dumbbell,
   Film,
+  Popcorn,
   Music,
   Gamepad2,
   PiggyBank,
@@ -41,6 +44,7 @@ export const CATEGORY_ICONS: { name: string; Icon: LucideIcon }[] = [
   { name: "ShoppingBag", Icon: ShoppingBag },
   { name: "ShoppingCart", Icon: ShoppingCart },
   { name: "Utensils", Icon: Utensils },
+  { name: "UtensilsCrossed", Icon: UtensilsCrossed },
   { name: "Coffee", Icon: Coffee },
   { name: "Car", Icon: Car },
   { name: "Bus", Icon: Bus },
@@ -53,11 +57,13 @@ export const CATEGORY_ICONS: { name: string; Icon: LucideIcon }[] = [
   { name: "Shirt", Icon: Shirt },
   { name: "Gift", Icon: Gift },
   { name: "Heart", Icon: Heart },
+  { name: "HeartPulse", Icon: HeartPulse },
   { name: "Stethoscope", Icon: Stethoscope },
   { name: "GraduationCap", Icon: GraduationCap },
   { name: "BookOpen", Icon: BookOpen },
   { name: "Dumbbell", Icon: Dumbbell },
   { name: "Film", Icon: Film },
+  { name: "Popcorn", Icon: Popcorn },
   { name: "Music", Icon: Music },
   { name: "Gamepad2", Icon: Gamepad2 },
   { name: "PiggyBank", Icon: PiggyBank },
@@ -93,8 +99,9 @@ const MAP: Record<string, LucideIcon> = Object.fromEntries(
   CATEGORY_ICONS.map((i) => [i.name, i.Icon])
 )
 
-// Renderiza el icono de una categoría: lucide si `icon` es un nombre conocido; si no, lo trata como
-// emoji; si está vacío, muestra un icono por defecto (Tag). `size` en px, funciona para ambos.
+// Renderiza el icono de una categoría: lucide si `icon` es un nombre conocido; un emoji se pinta tal
+// cual; un nombre desconocido (icono retirado del catálogo, dato viejo) o vacío cae a Tag. Sin esa
+// guarda, "UtensilsCrossed" se pintaba como palabra encima del arco de la fila de movimiento.
 export function CategoryIcon({
   icon,
   size = 20,
@@ -106,7 +113,8 @@ export function CategoryIcon({
 }) {
   const Lucide = icon ? MAP[icon] : undefined
   if (Lucide) return <Lucide size={size} color={color} />
-  if (icon)
+  // Emoji = sin letras ni dígitos. Un nombre de icono siempre los tiene.
+  if (icon && !/[\p{L}\p{N}]/u.test(icon))
     return <span style={{ fontSize: size * 1.05, lineHeight: 1 }}>{icon}</span>
   const Fallback = Tag
   return <Fallback size={size} color={color} />

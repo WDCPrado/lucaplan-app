@@ -37,6 +37,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
+import { useScrollDirection } from "@/hooks/use-scroll-direction"
 import { AddTransactionSheet } from "./add-transaction-sheet"
 import { AccountModal } from "./account-modal"
 import type {
@@ -123,6 +124,33 @@ export function AppShell({
 }: AppShellProps) {
   const [addOpen, setAddOpen] = React.useState(false)
   const [accountOpen, setAccountOpen] = React.useState(false)
+  // Móvil: el FAB tapaba la columna de cifras de la derecha mientras se lee; se esconde al bajar
+  // y vuelve al subir o al llegar arriba.
+  const scrollDirection = useScrollDirection()
+  const canAdd = !!quickAdd
+
+  // Atajos de escritorio: "/" o Ctrl/⌘+K abre la búsqueda y "n" el nuevo movimiento. No actúan
+  // escribiendo en un campo ni con un diálogo abierto: ahí las teclas son del diálogo.
+  React.useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null
+      if (target?.closest("input, textarea, select, [contenteditable=true]"))
+        return
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]'))
+        return
+      const key = e.key.toLowerCase()
+      const mod = e.ctrlKey || e.metaKey
+      if (onSearch && (key === "/" || (key === "k" && mod))) {
+        e.preventDefault()
+        onSearch()
+      } else if (canAdd && key === "n" && !mod && !e.altKey) {
+        e.preventDefault()
+        setAddOpen(true)
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onSearch, canAdd])
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -159,7 +187,33 @@ export function AppShell({
                 {title}
               </h1>
             )}
-            <div className="ml-auto flex items-center gap-2">{actions}</div>
+            <div className="ml-auto flex items-center gap-2">
+              {actions}
+              {/* Escritorio: buscar y crear viven en el topbar, no flotando. Los FAB tapaban la
+                  esquina de la columna derecha (tarjetas de cuentas). */}
+              {onSearch && (
+                <Button
+                  onClick={onSearch}
+                  size="icon"
+                  variant="secondary"
+                  aria-label="Buscar movimientos"
+                  title="Buscar (/ o Ctrl K)"
+                  className="size-9 rounded-full"
+                >
+                  <Search className="size-4" />
+                </Button>
+              )}
+              {quickAdd && (
+                <Button
+                  onClick={() => setAddOpen(true)}
+                  title="Nuevo movimiento (N)"
+                  className="h-9 rounded-full"
+                >
+                  <Plus className="size-4" />
+                  Nuevo
+                </Button>
+              )}
+            </div>
           </header>
           {/* Móvil: fila flotante siempre visible — buscar | (selector u otras acciones) | usuario.
               items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar. */}
@@ -202,15 +256,12 @@ export function AppShell({
               />
             </div>
           </div>
-          {/* Aire inferior: en móvil siempre, por la barra de navegación fija (y el FAB encima
-              cuando lo hay); en escritorio solo cuando hay FABs, que tapaban el final de la
-              columna derecha (banner de presupuesto). */}
+          {/* Aire inferior solo en móvil, por la barra de navegación fija (y el FAB encima
+              cuando lo hay). En escritorio no flota nada. */}
           <div
             className={cn(
-              "min-w-0 flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]",
-              quickAdd || onSearch
-                ? "max-md:pb-[calc(8.5rem+env(safe-area-inset-bottom))] md:pb-28"
-                : "md:pb-0"
+              "min-w-0 flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0",
+              quickAdd && "max-md:pb-[calc(8.5rem+env(safe-area-inset-bottom))]"
             )}
           >
             {children}
@@ -221,38 +272,28 @@ export function AppShell({
             estando (mismo menú, con el resto de acciones); esto solo acorta el camino frecuente. */}
         <BottomNav active={active} onNavigate={onNavigate} />
 
-        {/* FABs flotantes abajo-derecha: lupa + crear, juntos (misma fila en escritorio).
-            En móvil suben por encima de la barra de navegación y la lupa no va aquí: vive
+        {/* FAB de crear, solo móvil: sube por encima de la barra de navegación. La lupa vive
             arriba a la izquierda, para que "agregar" sea el único botón flotante. */}
-        {(quickAdd || onSearch) && (
-          <div className="fixed right-5 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 md:bottom-[max(1.25rem,env(safe-area-inset-bottom))] lg:right-8 lg:bottom-8">
-            {onSearch && (
-              <Button
-                onClick={() => {
-                  haptic("light")
-                  onSearch()
-                }}
-                size="icon"
-                variant="secondary"
-                aria-label="Buscar movimientos"
-                className="inline-flex size-14 rounded-full shadow-lg max-md:hidden"
-              >
-                <Search className="size-6" />
-              </Button>
+        {quickAdd && (
+          <div
+            className={cn(
+              "fixed right-5 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 transition-[transform,opacity] duration-200 ease-out md:hidden",
+              scrollDirection === "down" &&
+                "pointer-events-none translate-y-24 opacity-0"
             )}
-            {quickAdd && (
-              <Button
-                onClick={() => {
-                  haptic("medium")
-                  setAddOpen(true)
-                }}
-                size="icon"
-                aria-label="Registrar un movimiento"
-                className="size-14 rounded-full shadow-lg"
-              >
-                <Plus className="size-6" />
-              </Button>
-            )}
+          >
+            <Button
+              onClick={() => {
+                haptic("medium")
+                setAddOpen(true)
+              }}
+              size="icon"
+              aria-label="Registrar un movimiento"
+              title="Nuevo movimiento (N)"
+              className="size-14 rounded-full shadow-lg"
+            >
+              <Plus className="size-6" />
+            </Button>
           </div>
         )}
 

@@ -37,7 +37,9 @@ export function DayStrip({
     <div
       role="listbox"
       aria-label="Días del mes"
-      className="-mx-4 flex gap-0.5 overflow-x-auto px-4 scrollbar-none sm:mx-0 sm:px-0"
+      // Móvil: la tira desborda y arranca centrada en hoy; el fade en los bordes insinúa que
+      // hay más días a los lados. En ancho caben todos y no hace falta.
+      className="-mx-4 flex scrollbar-none gap-0.5 overflow-x-auto mask-[linear-gradient(90deg,transparent,black_1.25rem,black_calc(100%-1.25rem),transparent)] px-4 sm:mx-0 sm:mask-none sm:px-0"
     >
       {amounts.map((amount, i) => {
         const day = i + 1
@@ -71,7 +73,7 @@ export function DayStrip({
             />
             <span
               className={cn(
-                "text-[11px] tabular-nums text-muted-foreground",
+                "text-[11px] text-muted-foreground tabular-nums",
                 isToday &&
                   "rounded-full bg-primary px-1.5 py-px font-semibold text-primary-foreground"
               )}

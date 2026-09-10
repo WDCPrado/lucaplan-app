@@ -84,8 +84,7 @@ export function TransactionSearch({
     amountBounds.max,
   ])
   const amountNarrowed =
-    showAmount &&
-    (amount[0] > amountBounds.min || amount[1] < amountBounds.max)
+    showAmount && (amount[0] > amountBounds.min || amount[1] < amountBounds.max)
 
   // Bancos únicos (deduplicados por nombre): si hay 2 "Banco de Chile", una sola opción.
   const banks = [...new Set(accounts.map((a) => a.bankName).filter(Boolean))]
@@ -109,17 +108,22 @@ export function TransactionSearch({
       params.set("amountMax", String(amount[1]))
 
     const ctrl = new AbortController()
-    const t = setTimeout(() => {
-      setLoading(true)
-      fetch(`/api/transactions/search?${params.toString()}`, {
-        signal: ctrl.signal,
-        cache: "no-store",
-      })
-        .then((r) => (r.ok ? r.json() : []))
-        .then((d) => setResults(Array.isArray(d) ? d : []))
-        .catch(() => {})
-        .finally(() => setLoading(false))
-    }, 300)
+    const t = setTimeout(
+      () => {
+        setLoading(true)
+        fetch(`/api/transactions/search?${params.toString()}`, {
+          signal: ctrl.signal,
+          cache: "no-store",
+        })
+          .then((r) => (r.ok ? r.json() : []))
+          .then((d) => setResults(Array.isArray(d) ? d : []))
+          .catch(() => {})
+          .finally(() => setLoading(false))
+        // Debounce solo mientras se escribe: al abrir (sin texto) se pide de inmediato, para que el
+        // buscador arranque con los últimos movimientos y no con un spinner.
+      },
+      q.trim() ? 300 : 0
+    )
     return () => {
       clearTimeout(t)
       ctrl.abort()
@@ -183,9 +187,10 @@ export function TransactionSearch({
           )}
         </div>
 
-        {/* Filtros combinados */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex overflow-hidden rounded-full border text-sm">
+        {/* Filtros combinados: una fila con scroll-x en móvil (cinco filas de filtros dejaban
+            los resultados bajo el pliegue); en ancho envuelven. */}
+        <div className="-mx-4 flex scrollbar-none items-center gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+          <div className="flex shrink-0 overflow-hidden rounded-full border text-sm">
             {DIRS.map((d) => (
               <button
                 key={d.label}
@@ -207,7 +212,7 @@ export function TransactionSearch({
           </div>
 
           <Select value={categoryId} onValueChange={setCategoryId}>
-            <SelectTrigger className="h-9 w-auto min-w-32 rounded-full">
+            <SelectTrigger className="h-9 w-auto min-w-32 shrink-0 rounded-full">
               <SelectValue placeholder="Categoría" />
             </SelectTrigger>
             <SelectContent>
@@ -221,7 +226,7 @@ export function TransactionSearch({
           </Select>
 
           <Select value={bank} onValueChange={setBank}>
-            <SelectTrigger className="h-9 w-auto min-w-28 rounded-full">
+            <SelectTrigger className="h-9 w-auto min-w-28 shrink-0 rounded-full">
               <SelectValue placeholder="Banco" />
             </SelectTrigger>
             <SelectContent>
@@ -233,16 +238,14 @@ export function TransactionSearch({
               ))}
             </SelectContent>
           </Select>
-        </div>
 
-        {/* Rango de fechas (shadcn Calendar en Popover) */}
-        <div className="flex items-center gap-2">
+          {/* Rango de fechas (shadcn Calendar en Popover) */}
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 className={cn(
-                  "h-9 justify-start gap-2 rounded-full font-normal",
+                  "h-9 shrink-0 justify-start gap-2 rounded-full font-normal",
                   !range?.from && "text-muted-foreground"
                 )}
               >

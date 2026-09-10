@@ -135,8 +135,9 @@ export function PlanSheet({
                 </span>
                 <Pencil className="size-4 shrink-0 text-muted-foreground opacity-60 transition-opacity group-hover:opacity-100" />
               </div>
-              <div className="tabular mt-1 text-xs text-muted-foreground">
-                Asignado {formatCLP(allocated)} de {formatCLP(globalLimit)}
+              <div className="mt-1 text-xs text-muted-foreground">
+                Asignado <span className="tabular">{formatCLP(allocated)}</span>{" "}
+                de <span className="tabular">{formatCLP(globalLimit)}</span>
               </div>
             </button>
           )}
@@ -261,8 +262,10 @@ export function PlanSheet({
                       <span className="block truncate text-xs font-medium">
                         {c.name}
                       </span>
+                      {/* Lo recibido en el mes: el "disponible" de una categoría de ingreso sin
+                          meta era $0 justo debajo de un sueldo ya recibido. */}
                       <span className="tabular block text-xs text-muted-foreground">
-                        {formatCLP(c.available)}
+                        {formatCLP(c.used)}
                       </span>
                     </span>
                   </button>

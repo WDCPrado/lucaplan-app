@@ -108,17 +108,22 @@ export function TransactionSearch({
       params.set("amountMax", String(amount[1]))
 
     const ctrl = new AbortController()
-    const t = setTimeout(() => {
-      setLoading(true)
-      fetch(`/api/transactions/search?${params.toString()}`, {
-        signal: ctrl.signal,
-        cache: "no-store",
-      })
-        .then((r) => (r.ok ? r.json() : []))
-        .then((d) => setResults(Array.isArray(d) ? d : []))
-        .catch(() => {})
-        .finally(() => setLoading(false))
-    }, 300)
+    const t = setTimeout(
+      () => {
+        setLoading(true)
+        fetch(`/api/transactions/search?${params.toString()}`, {
+          signal: ctrl.signal,
+          cache: "no-store",
+        })
+          .then((r) => (r.ok ? r.json() : []))
+          .then((d) => setResults(Array.isArray(d) ? d : []))
+          .catch(() => {})
+          .finally(() => setLoading(false))
+        // Debounce solo mientras se escribe: al abrir (sin texto) se pide de inmediato, para que el
+        // buscador arranque con los últimos movimientos y no con un spinner.
+      },
+      q.trim() ? 300 : 0
+    )
     return () => {
       clearTimeout(t)
       ctrl.abort()

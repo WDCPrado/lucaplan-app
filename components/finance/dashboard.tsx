@@ -457,38 +457,11 @@ export function Dashboard({
                   ))}
                 </div>
               )}
-              {/* Solo escritorio: con un día de uno o dos movimientos la columna quedaba vacía
-                  frente a una lista de categorías de 900 px. Los días anteriores la completan con
-                  lo más reciente, agrupado por fecha como en la búsqueda. */}
-              {recentGroups.length > 0 && (
-                <div className="mt-6 max-lg:hidden">
-                  <h3 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    Días anteriores
-                  </h3>
-                  <div className="glass flex flex-col gap-0.5 rounded-2xl p-2">
-                    {recentGroups.map((g) => (
-                      <div key={g.key}>
-                        <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground">
-                          {g.header}
-                        </div>
-                        {g.txs.map((t) => (
-                          <MovementRow
-                            key={t.id}
-                            tx={t}
-                            onOpen={setDetailTx}
-                            onOpenCategory={openCategory}
-                          />
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </section>
 
             <section
               id="presupuestos"
-              className="min-w-0 lg:col-start-1 lg:row-start-1"
+              className="min-w-0 lg:col-start-1 lg:row-span-3 lg:row-start-1"
             >
               <div className="mb-3 flex items-start justify-between gap-2">
                 <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
@@ -590,78 +563,109 @@ export function Dashboard({
                 </button>
               </div>
             </section>
+
+            {/* Cuentas: consulta, no decisión diaria. Escritorio: en la columna derecha bajo el
+                día, como tarjetas en dos columnas. Móvil: al final, como carrusel. */}
+            <section className="min-w-0 lg:col-start-2 lg:row-start-2">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-heading text-lg font-bold">Cuentas</h2>
+                <button
+                  onClick={() => setShowBalance((v) => !v)}
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground"
+                >
+                  {showBalance ? (
+                    <Eye className="size-4" />
+                  ) : (
+                    <EyeOff className="size-4" />
+                  )}
+                  {showBalance ? "Ocultar" : "Mostrar"}
+                </button>
+              </div>
+              <div
+                ref={cardsRef}
+                {...cardsHandlers}
+                onScroll={cardsScroll}
+                // Móvil: carrusel con snap y fade en los bordes (pt-1: aire para el hover
+                // -translate-y). Escritorio: grilla de cuatro sin scroll —resumen + tres cuentas es
+                // la fila típica; con más, envuelve—.
+                className="-mx-4 flex cursor-grab snap-x snap-mandatory scrollbar-none gap-4 overflow-x-auto mask-[linear-gradient(90deg,transparent,black_var(--fade-l,0rem),black_calc(100%-var(--fade-r,2.5rem)),transparent)] px-4 pt-1 pb-4 active:cursor-grabbing lg:mx-0 lg:grid lg:cursor-default lg:grid-cols-2 lg:overflow-visible lg:mask-none lg:px-0"
+              >
+                <div
+                  data-card
+                  className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-2xl p-5 lg:w-auto lg:snap-start"
+                >
+                  <div className="text-sm text-muted-foreground">
+                    Saldo bancario
+                  </div>
+                  <div className="tabular my-3 text-3xl font-bold">
+                    {showBalance ? formatCLP(summary.activeCash) : "••••••"}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-center">
+                    <Stat
+                      label="Ingresos"
+                      value={formatCompact(summary.income, true)}
+                      className="text-success"
+                    />
+                    <Stat
+                      label="Gastos"
+                      value={formatCompact(-summary.expense)}
+                    />
+                    <Stat
+                      label="Presup."
+                      value={formatCompact(summary.totalBudget)}
+                    />
+                  </div>
+                </div>
+                {accounts.map((a) => (
+                  <div
+                    key={a.id}
+                    data-card
+                    className="flex w-72 shrink-0 snap-center snap-always lg:w-auto lg:snap-start"
+                  >
+                    <AccountCard
+                      account={a}
+                      hidden={!showBalance}
+                      onClick={() => setInfoAccount(a)}
+                    />
+                  </div>
+                ))}
+                <SyncBancoChileButton
+                  accounts={accounts}
+                  outlookResult={onboarding ? null : outlookResult}
+                  outlookReason={outlookReason}
+                />
+              </div>
+            </section>
+
+            {/* Solo escritorio: con un día de uno o dos movimientos la columna quedaba vacía
+                  frente a una lista de categorías de 900 px. Los días anteriores la completan con
+                  lo más reciente, agrupado por fecha como en la búsqueda. */}
+            {recentGroups.length > 0 && (
+              <section className="max-lg:hidden lg:col-start-2 lg:row-start-3">
+                <h3 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Días anteriores
+                </h3>
+                <div className="glass flex flex-col gap-0.5 rounded-2xl p-2">
+                  {recentGroups.map((g) => (
+                    <div key={g.key}>
+                      <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground">
+                        {g.header}
+                      </div>
+                      {g.txs.map((t) => (
+                        <MovementRow
+                          key={t.id}
+                          tx={t}
+                          onOpen={setDetailTx}
+                          onOpenCategory={openCategory}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         </div>
-
-        {/* Cuentas: al final, en una fila (escritorio) o carrusel (móvil). Es consulta, no
-            decisión diaria; por eso va después del día. */}
-        <section className="mt-8">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-heading text-lg font-bold">Cuentas</h2>
-            <button
-              onClick={() => setShowBalance((v) => !v)}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground"
-            >
-              {showBalance ? (
-                <Eye className="size-4" />
-              ) : (
-                <EyeOff className="size-4" />
-              )}
-              {showBalance ? "Ocultar" : "Mostrar"}
-            </button>
-          </div>
-          <div
-            ref={cardsRef}
-            {...cardsHandlers}
-            onScroll={cardsScroll}
-            // Móvil: carrusel con snap y fade en los bordes (pt-1: aire para el hover
-            // -translate-y). Escritorio: grilla de cuatro sin scroll —resumen + tres cuentas es
-            // la fila típica; con más, envuelve—.
-            className="-mx-4 flex cursor-grab snap-x snap-mandatory scrollbar-none gap-4 overflow-x-auto mask-[linear-gradient(90deg,transparent,black_var(--fade-l,0rem),black_calc(100%-var(--fade-r,2.5rem)),transparent)] px-4 pt-1 pb-4 active:cursor-grabbing lg:mx-0 lg:grid lg:cursor-default lg:grid-cols-4 lg:overflow-visible lg:mask-none lg:px-0"
-          >
-            <div
-              data-card
-              className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-2xl p-5 lg:w-auto lg:snap-start"
-            >
-              <div className="text-sm text-muted-foreground">
-                Saldo bancario
-              </div>
-              <div className="tabular my-3 text-3xl font-bold">
-                {showBalance ? formatCLP(summary.activeCash) : "••••••"}
-              </div>
-              <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-center">
-                <Stat
-                  label="Ingresos"
-                  value={formatCompact(summary.income, true)}
-                  className="text-success"
-                />
-                <Stat label="Gastos" value={formatCompact(-summary.expense)} />
-                <Stat
-                  label="Presup."
-                  value={formatCompact(summary.totalBudget)}
-                />
-              </div>
-            </div>
-            {accounts.map((a) => (
-              <div
-                key={a.id}
-                data-card
-                className="flex w-72 shrink-0 snap-center snap-always lg:w-auto lg:snap-start"
-              >
-                <AccountCard
-                  account={a}
-                  hidden={!showBalance}
-                  onClick={() => setInfoAccount(a)}
-                />
-              </div>
-            ))}
-            <SyncBancoChileButton
-              accounts={accounts}
-              outlookResult={onboarding ? null : outlookResult}
-              outlookReason={outlookReason}
-            />
-          </div>
-        </section>
       </div>
 
       {/* Superficies (adaptativas: dialog en escritorio, sheet en móvil).

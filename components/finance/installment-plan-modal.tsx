@@ -76,8 +76,8 @@ function ItemEditor({
       </div>
       {over ? (
         <p className="pl-8 text-xs text-destructive">
-          Máximo {formatCLP(max)}: lo demás debe alcanzar para las cuotas
-          pendientes.
+          Máximo <span className="tabular">{formatCLP(max)}</span>: lo demás
+          debe alcanzar para las cuotas pendientes.
         </p>
       ) : (
         max !== null &&
@@ -206,7 +206,8 @@ export function InstallmentPlanModal({
             {formatCLP(plan.outstanding)}
           </span>
           <span className="block text-sm text-muted-foreground">
-            por pagar de {formatCLP(plan.totalAmount)}
+            por pagar de{" "}
+            <span className="tabular">{formatCLP(plan.totalAmount)}</span>
           </span>
           <span
             className="mt-3 block h-1.5 w-full overflow-hidden rounded-full bg-muted"
@@ -219,7 +220,8 @@ export function InstallmentPlanModal({
           </span>
           <span className="mt-1.5 block text-xs text-muted-foreground">
             {plan.settledCount} de {plan.installmentsCount} cuotas ·{" "}
-            {formatCLP(paidTotal)} pagados en {plan.accountName}
+            <span className="tabular">{formatCLP(paidTotal)}</span> pagados en{" "}
+            {plan.accountName}
           </span>
         </section>
 
@@ -384,9 +386,10 @@ export function InstallmentPlanModal({
             conserva para poder ver cuánto cobró el banco de una vez. */}
         {plan.sourceTransactionId && (
           <p className="border-t border-border/60 py-4 text-xs text-muted-foreground">
-            La compra original de {formatCLP(plan.totalAmount)} se conserva en
-            tus movimientos, pero ya no cuenta como gasto: ahora lo hace cada
-            cuota en su mes.
+            La compra original de{" "}
+            <span className="tabular">{formatCLP(plan.totalAmount)}</span> se
+            conserva en tus movimientos, pero ya no cuenta como gasto: ahora lo
+            hace cada cuota en su mes.
           </p>
         )}
 

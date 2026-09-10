@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Trash2, Undo2 } from "lucide-react"
+import { Check, Pause, Play, Trash2, Undo2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
@@ -156,28 +156,47 @@ export function RecurringModal({
     router.refresh()
   }
 
-  // "Ya lo pagué": confirma el comprometido del período sin esperar el aviso del banco. Cierra el
-  // modal como las demás acciones — el estado nuevo se ve en la fila, que sí se refresca.
-  async function togglePaid() {
+  // Cambio de estado de la plantilla. Cierra el modal como las demás acciones — el estado nuevo
+  // se ve en la fila, que sí se refresca.
+  async function patch(body: object, ok: string, fail: string) {
     if (!template || saving) return
     setSaving(true)
     const res = await fetch(`/api/recurring/${template.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ periodPaid: !template.currentPeriodPaid }),
+      body: JSON.stringify(body),
     })
     const data = await res.json().catch(() => ({}))
     setSaving(false)
     if (!res.ok) {
       haptic("error")
-      return toast.error(data.error ?? "No se pudo marcar el cobro")
+      return toast.error(data.error ?? fail)
     }
     haptic("success")
-    toast.success(
-      template.currentPeriodPaid ? "Marca deshecha" : "Cobro marcado como pagado"
-    )
+    toast.success(ok)
     onOpenChange(false)
     router.refresh()
+  }
+
+  // "Ya lo pagué": confirma el comprometido del período sin esperar el aviso del banco.
+  function togglePaid() {
+    if (!template) return
+    patch(
+      { periodPaid: !template.currentPeriodPaid },
+      template.currentPeriodPaid ? "Marca deshecha" : "Cobro marcado como pagado",
+      "No se pudo marcar el cobro"
+    )
+  }
+
+  // Pausar es lo excepcional: vive acá y no en la fila, donde su botón le comía el ancho al
+  // nombre en móvil. Terminada no se reanuda: hay que correr su fecha de fin.
+  function toggleActive() {
+    if (!template) return
+    patch(
+      { isActive: !template.isActive },
+      template.isActive ? "Recurrente pausada" : "Recurrente reanudada",
+      "No se pudo cambiar el estado"
+    )
   }
 
   async function remove() {
@@ -287,7 +306,8 @@ export function RecurringModal({
                 value={money.display}
                 onChange={(e) => money.onChange(e.target.value)}
                 aria-label="Monto base"
-                className="tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0"
+                // md:text-3xl: el Input trae md:text-sm y en escritorio dejaba el monto en 14 px.
+                className="tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0 md:text-3xl"
               />
             </div>
 
@@ -444,6 +464,23 @@ export function RecurringModal({
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+            )}
+            {template && !template.hasEnded && (
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={saving}
+                onClick={toggleActive}
+                aria-label={template.isActive ? "Pausar recurrente" : "Reanudar recurrente"}
+                title={template.isActive ? "Pausar" : "Reanudar"}
+                className="size-12 shrink-0 rounded-full"
+              >
+                {template.isActive ? (
+                  <Pause className="size-4" />
+                ) : (
+                  <Play className="size-4" />
+                )}
+              </Button>
             )}
             <Button
               onClick={save}

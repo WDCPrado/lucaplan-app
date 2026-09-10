@@ -16,9 +16,13 @@ import { currentPeriod, monthName } from "@/lib/finance-format"
 export function MonthPicker({
   period,
   onSelect,
+  withYear,
+  className,
 }: {
   period: { year: number; month: number }
   onSelect: (year: number, month: number) => void
+  withYear?: boolean // "octubre 2026" en vez de "octubre": fuera de la topbar el año no es obvio
+  className?: string // estilo del botón que abre el selector
 }) {
   const [open, setOpen] = useState(false)
   const [year, setYear] = useState(period.year)
@@ -33,8 +37,14 @@ export function MonthPicker({
       }}
     >
       <PopoverTrigger asChild>
-        <button className="h-8 min-w-20 rounded-full px-2 text-center text-sm font-semibold transition-colors hover:bg-background">
+        <button
+          className={cn(
+            "h-8 min-w-20 rounded-full px-2 text-center text-sm font-semibold transition-colors hover:bg-background",
+            className
+          )}
+        >
           {monthName(period.month)}
+          {withYear && <span className="tabular-nums"> {period.year}</span>}
         </button>
       </PopoverTrigger>
       <PopoverContent align="center" sideOffset={8} className="w-64 p-3">

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Pause, Play, Plus, Repeat, Undo2 } from "lucide-react"
+import { Check, Repeat, Undo2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
@@ -117,20 +117,6 @@ export function RecurringView({
     router.refresh()
   }
 
-  async function toggleActive(t: RecurringDTO, isActive: boolean) {
-    haptic("light")
-    const res = await fetch(`/api/recurring/${t.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive }),
-    })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      return toast.error(data.error ?? "No se pudo cambiar el estado")
-    }
-    router.refresh()
-  }
-
   return (
     <AppShell
       user={{
@@ -147,35 +133,20 @@ export function RecurringView({
           el enlace "Volver", que ya no está. En escritorio la topbar sí pide su margen. */}
       <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
         {templates.length === 0 ? (
-          <EmptyState
-            onCreate={() => {
-              setEditing(null)
-              setOpen(true)
-            }}
-          />
+          <EmptyState />
         ) : (
           // Escritorio: la lista manda y el resumen del mes acompaña; móvil: una columna con el
           // resumen al final (primero se decide sobre las filas, después se mira el total).
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start">
             <div className="min-w-0">
-              {/* min-h-9: la fila mide lo mismo con o sin el botón, así el título del panel
-                  derecho queda alineado con este. */}
-              <div className="mb-3 flex min-h-9 items-end justify-between gap-3">
+              {/* Sin botón "Nuevo": una recurrente solo nace de un movimiento (el use case rechaza
+                  el alta suelta), y el botón abría un formulario que nunca se podía guardar. El
+                  camino es abrir el movimiento y elegir "Hacer recurrente". min-h-9: la fila mide
+                  lo mismo que el título del panel derecho, para que queden alineados. */}
+              <div className="mb-3 flex min-h-9 items-end">
                 <h2 className="font-heading text-lg font-bold">
                   Gastos recurrentes
                 </h2>
-                {/* Crear una recurrente vive acá, en la cabecera de su lista: el FAB "+" flotante
-                    es el ingreso rápido y es igual en toda la app. */}
-                <Button
-                  onClick={() => {
-                    setEditing(null)
-                    setOpen(true)
-                  }}
-                  className="shrink-0 rounded-full"
-                >
-                  <Plus className="size-4" />
-                  Nuevo
-                </Button>
               </div>
 
               <div className="flex flex-col gap-6">
@@ -186,7 +157,6 @@ export function RecurringView({
                         key={t.id}
                         template={t}
                         onEdit={() => edit(t)}
-                        onToggle={() => toggleActive(t, false)}
                         onTogglePaid={(paid) => togglePaid(t, paid)}
                       />
                     ))}
@@ -204,7 +174,6 @@ export function RecurringView({
                           key={t.id}
                           template={t}
                           onEdit={() => edit(t)}
-                          onToggle={() => toggleActive(t, true)}
                           onTogglePaid={(paid) => togglePaid(t, paid)}
                         />
                       ))}
@@ -223,7 +192,6 @@ export function RecurringView({
                           key={t.id}
                           template={t}
                           onEdit={() => edit(t)}
-                          onToggle={() => toggleActive(t, true)}
                           onTogglePaid={(paid) => togglePaid(t, paid)}
                         />
                       ))}
@@ -306,9 +274,9 @@ export function RecurringView({
 
       {/* `key` por plantilla: el formulario guarda sus campos en useState, así que hay que
           remontarlo al cambiar de plantilla (o quedaría con los valores del anterior). */}
-      {open && (
+      {open && editing && (
         <RecurringModal
-          key={editing?.id ?? "nueva"}
+          key={editing.id}
           open
           onOpenChange={setOpen}
           accounts={accounts}
@@ -323,12 +291,10 @@ export function RecurringView({
 function RecurringRow({
   template: t,
   onEdit,
-  onToggle,
   onTogglePaid,
 }: {
   template: RecurringDTO
   onEdit: () => void
-  onToggle: () => void
   onTogglePaid: (paid: boolean) => void
 }) {
   const inactive = !t.isActive || t.hasEnded
@@ -412,36 +378,15 @@ function RecurringRow({
           <Check className="size-4" />
         )}
       </Button>
-      {/* Pausar es lo excepcional: va como acción secundaria, no como el control más pesado de la
-          fila (el switch azul competía con el monto por la atención). */}
-      {/* Terminada: el control queda inerte. Reactivarla exige correr su fecha de fin (se edita
-          tocando la fila), y el backend rechaza el intento de todos modos. */}
-      <Button
-        variant="ghost"
-        size="icon"
-        disabled={t.hasEnded}
-        onClick={onToggle}
-        aria-label={
-          t.isActive
-            ? `Pausar ${t.label}`
-            : `Reanudar ${t.label}`
-        }
-        title={t.isActive ? "Pausar" : "Reanudar"}
-        className="size-11 shrink-0 text-muted-foreground"
-      >
-        {t.isActive && !t.hasEnded ? (
-          <Pause className="size-4" />
-        ) : (
-          <Play className="size-4" />
-        )}
-      </Button>
+      {/* Pausar/reanudar vive en el modal (se abre tocando la fila): es lo excepcional, y su
+          botón acá le comía el ancho al nombre en móvil ("Interne…"). */}
     </li>
   )
 }
 
-// Empty state que enseña qué resuelve la función, en vez de anunciar el vacío. El camino
-// natural sigue siendo marcar un movimiento como recurrente; crearla a mano es la salida.
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+// Empty state que enseña qué resuelve la función y cuál es el único camino para crearla: desde
+// un movimiento. No hay alta a mano: la clave con la que se reconoce el cargo sale del cargo real.
+function EmptyState() {
   return (
     <div className="glass mx-auto max-w-2xl rounded-2xl px-6 py-10 text-center">
       <span
@@ -456,13 +401,9 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         presupuesto desde que empieza el mes, y se reconocen solos cuando el
         banco los cobra, aunque el monto cambie un poco.
       </p>
-      <Button onClick={onCreate} className="mt-5 rounded-full">
-        <Plus className="size-4" />
-        Nueva recurrente
-      </Button>
-      <p className="mx-auto mt-3 max-w-sm text-xs text-muted-foreground">
-        También puedes abrir un movimiento y elegir{" "}
-        <span className="font-medium text-foreground">Hacer recurrente</span>.
+      <p className="mx-auto mt-4 max-w-sm text-sm">
+        Para crear una, abre el movimiento del cargo y elige{" "}
+        <span className="font-medium">Hacer recurrente</span>.
       </p>
     </div>
   )

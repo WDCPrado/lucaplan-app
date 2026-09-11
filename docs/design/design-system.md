@@ -52,7 +52,8 @@ brillos, que sobre fondo plano se ven como recortes), `--glass-blur`, y para con
 - **Controles** (`input`, `tabs-list`, `tabs-trigger` activo): frosted automáticamente vía
   selectores `[data-slot=...]` definidos **fuera de `@layer`** (para ganar a las utilidades
   de Tailwind). Solo tocan `background` + `blur`, nunca el borde, para no romper el focus
-  ring ni `aria-invalid`.
+  ring ni `aria-invalid`. Un `Input` con `bg-transparent` queda fuera (los títulos y montos
+  grandes de los modales): sin esa excepción se veía desnudo en claro y con caja en oscuro.
 
 Accesibilidad: bajo `prefers-reduced-transparency: reduce` el blur se desactiva y todo cae
 a `--card` sólido (sigue legible). Ojo: **no** uses `prefers-reduced-motion` para esto

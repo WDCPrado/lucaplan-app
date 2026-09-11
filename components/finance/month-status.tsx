@@ -80,16 +80,18 @@ export function MonthStatus({
         variant="secondary"
         onClick={onOpenPlan}
         aria-label="Ajustar el plan del mes"
-        className="absolute top-5 right-5 z-10 rounded-full max-sm:size-10 max-sm:p-0 sm:h-10 lg:top-6 lg:right-6"
+        // Con nombre también en móvil: el icono de sliders solo no decía qué abría.
+        className="absolute top-5 right-5 z-10 rounded-full max-sm:h-9 max-sm:px-3 max-sm:text-xs sm:h-10 lg:top-6 lg:right-6"
       >
         <SlidersHorizontal className="size-4" />
-        <span className="max-sm:sr-only">Ajustar plan</span>
+        Ajustar plan
       </Button>
 
-      <div className="max-sm:pr-12 sm:pr-40">
+      <div className="sm:pr-40">
         {isCurrentMonth ? (
           <>
-            <p className="text-sm text-muted-foreground">
+            {/* Solo la fecha esquiva el botón; el titular usa el ancho entero. */}
+            <p className="text-sm text-muted-foreground max-sm:pr-32">
               Hoy, {formatLongDate(todayIso)}
             </p>
             <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
@@ -123,7 +125,7 @@ export function MonthStatus({
           </>
         ) : (
           <>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground max-sm:pr-32">
               {monthName(period.month)} {period.year} cerró con
             </p>
             <p className="mt-1 flex flex-wrap items-baseline gap-x-3">

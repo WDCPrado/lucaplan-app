@@ -351,7 +351,7 @@ function EditForm({
         placeholder="Descripción"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
-        className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
+        className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none placeholder:font-normal focus-visible:ring-0 md:text-2xl"
       />
       <div className="flex items-center gap-3">
         <DirectionToggle
@@ -359,15 +359,22 @@ function EditForm({
           onChange={changeDirection}
           disabled={isInstallment}
         />
+        <span
+          className="text-2xl font-semibold text-muted-foreground"
+          aria-hidden
+        >
+          $
+        </span>
         <Input
           inputMode="numeric"
           value={money.display}
           onChange={(e) => money.onChange(e.target.value)}
           disabled={isInstallment}
+          aria-label="Monto del movimiento"
           className={cn(
             // Misma regla que las filas del dashboard: ingreso verde, gasto neutro. Rojo queda
             // reservado para estados (vencido, error), no para "es un gasto".
-            "tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0",
+            "tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0 md:text-3xl",
             direction === "debit" ? "text-foreground" : "text-success"
           )}
         />

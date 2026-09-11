@@ -158,7 +158,7 @@ export function IncomeModal({
             placeholder="Nombre (ej. Sueldo)"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
+            className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0 md:text-2xl"
           />
 
           {/* Sin la insignia "+": imitaba el toggle ±  del form de movimiento sin ser un control.

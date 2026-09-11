@@ -132,6 +132,9 @@ export function RecurringView({
       {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para
           el enlace "Volver", que ya no está. En escritorio la topbar sí pide su margen. */}
       <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
+        <h1 className="mb-4 font-heading text-xl font-bold md:sr-only">
+          Recurrentes
+        </h1>
         {templates.length === 0 ? (
           <EmptyState />
         ) : (
@@ -365,18 +368,20 @@ function RecurringRow({
           la columna de acciones se desalinearía fila por fila dentro de la misma lista. */}
       <Button
         variant="ghost"
-        size="icon"
+        size="sm"
         disabled={!canMarkPaid && !canUndoPaid}
         onClick={() => onTogglePaid(canMarkPaid)}
         aria-label={`${paidLabel}: ${t.label}`}
         title={paidLabel}
-        className="size-11 shrink-0 text-muted-foreground"
+        // Escritorio: la acción con su nombre; en móvil solo el icono, que el ancho es del nombre.
+        className="h-11 shrink-0 rounded-full text-muted-foreground max-md:size-11 max-md:p-0"
       >
         {canUndoPaid ? (
           <Undo2 className="size-4" />
         ) : (
           <Check className="size-4" />
         )}
+        <span className="max-md:sr-only">{paidLabel}</span>
       </Button>
       {/* Pausar/reanudar vive en el modal (se abre tocando la fila): es lo excepcional, y su
           botón acá le comía el ancho al nombre en móvil ("Interne…"). */}

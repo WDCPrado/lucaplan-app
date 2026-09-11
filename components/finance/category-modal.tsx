@@ -195,7 +195,7 @@ export function CategoryModal({
               type === "income" ? "Nombre (ej. Abonos)" : "Nombre (ej. Compras)"
             }
             aria-label="Nombre"
-            className="h-12 flex-1 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
+            className="h-12 flex-1 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0 md:text-2xl"
           />
         </div>
 

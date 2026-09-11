@@ -342,7 +342,7 @@ export function Dashboard({
       onSignOut={signOut}
       quickAdd={{ accounts, categories: budget.categories }}
       onSearch={() => setSearchOpen(true)}
-      title="Resumen"
+      title="Inicio"
       actions={
         // Móvil: columna invertida → selector arriba y "Hoy" colgando debajo; escritorio: fila.
         <div className="flex flex-col-reverse items-center gap-2 md:flex-row">
@@ -442,7 +442,9 @@ export function Dashboard({
               </div>
               {dayTransactions.length === 0 ? (
                 <p className="glass-strong rounded-2xl py-10 text-center text-sm text-muted-foreground">
-                  Sin movimientos ese día
+                  {isCurrentMonth && selectedDay === today.day
+                    ? "Sin movimientos hoy"
+                    : "Sin movimientos ese día"}
                 </p>
               ) : (
                 <div className="glass flex flex-col gap-0.5 rounded-2xl p-2">
@@ -590,32 +592,35 @@ export function Dashboard({
                 // la fila típica; con más, envuelve—.
                 className="-mx-4 flex cursor-grab snap-x snap-mandatory scrollbar-none gap-4 overflow-x-auto mask-[linear-gradient(90deg,transparent,black_var(--fade-l,0rem),black_calc(100%-var(--fade-r,2.5rem)),transparent)] px-4 pt-1 pb-4 active:cursor-grabbing lg:mx-0 lg:grid lg:cursor-default lg:grid-cols-2 lg:overflow-visible lg:mask-none lg:px-0"
               >
-                <div
-                  data-card
-                  className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-2xl p-5 lg:w-auto lg:snap-start"
-                >
-                  <div className="text-sm text-muted-foreground">
-                    Saldo bancario
+                {/* Sin cuentas no hay nada que sumar: la tarjeta en $0 solo tapaba «Conectar banco». */}
+                {accounts.length > 0 && (
+                  <div
+                    data-card
+                    className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-2xl p-5 lg:w-auto lg:snap-start"
+                  >
+                    <div className="text-sm text-muted-foreground">
+                      Total en cuentas
+                    </div>
+                    <div className="tabular my-3 text-3xl font-bold">
+                      {showBalance ? formatCLP(summary.activeCash) : "••••••"}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-center">
+                      <Stat
+                        label="Ingresos"
+                        value={formatCompact(summary.income, true)}
+                        className="text-success"
+                      />
+                      <Stat
+                        label="Gastos"
+                        value={formatCompact(-summary.expense)}
+                      />
+                      <Stat
+                        label="Asignado"
+                        value={formatCompact(summary.totalBudget)}
+                      />
+                    </div>
                   </div>
-                  <div className="tabular my-3 text-3xl font-bold">
-                    {showBalance ? formatCLP(summary.activeCash) : "••••••"}
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-center">
-                    <Stat
-                      label="Ingresos"
-                      value={formatCompact(summary.income, true)}
-                      className="text-success"
-                    />
-                    <Stat
-                      label="Gastos"
-                      value={formatCompact(-summary.expense)}
-                    />
-                    <Stat
-                      label="Presup."
-                      value={formatCompact(summary.totalBudget)}
-                    />
-                  </div>
-                </div>
+                )}
                 {accounts.map((a) => (
                   <div
                     key={a.id}
@@ -730,6 +735,9 @@ export function Dashboard({
         isCurrentMonth={isCurrentMonth}
         globalLimit={budget.globalLimit}
         allocated={budget.allocated}
+        expenseCategories={budget.categories.filter(
+          (c) => c.type === "expense"
+        )}
         incomes={incomes}
         incomeCategories={incomeCategories}
         activeIncomeTotal={activeIncomeTotal}

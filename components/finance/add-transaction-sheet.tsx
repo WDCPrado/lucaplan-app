@@ -122,7 +122,8 @@ export function AddTransactionSheet({
         placeholder="Descripción"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
-        className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
+        // md:text-2xl: el Input trae md:text-sm y en escritorio dejaba el título en 14 px.
+        className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none placeholder:font-normal focus-visible:ring-0 md:text-2xl"
       />
       <div className="flex items-center gap-3">
         <DirectionToggle
@@ -130,6 +131,12 @@ export function AddTransactionSheet({
           onChange={setSide}
           disabled={connected}
         />
+        <span
+          className="text-2xl font-semibold text-muted-foreground"
+          aria-hidden
+        >
+          $
+        </span>
         <Input
           inputMode="numeric"
           placeholder="0"
@@ -138,7 +145,7 @@ export function AddTransactionSheet({
           aria-label="Monto del movimiento"
           className={cn(
             // Misma regla que el resto: ingreso verde, gasto neutro.
-            "tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0",
+            "tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0 md:text-3xl",
             income ? "text-success" : "text-foreground"
           )}
         />

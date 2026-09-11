@@ -121,6 +121,7 @@ export function InstallmentsView({
       {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para
           el enlace "Volver", que ya no está. En escritorio la topbar sí pide su margen. */}
       <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
+        <h1 className="mb-4 font-heading text-xl font-bold md:sr-only">Cuotas</h1>
         {plans.length === 0 ? (
           <EmptyState onCreate={() => setCreating(true)} />
         ) : (
@@ -139,7 +140,7 @@ export function InstallmentsView({
                   className="shrink-0 rounded-full"
                 >
                   <Plus className="size-4" />
-                  Nuevo
+                  Nueva compra
                 </Button>
               </div>
 

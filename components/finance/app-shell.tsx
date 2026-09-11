@@ -62,11 +62,9 @@ export type NavKey =
   | "configuracion"
   | "perfil"
 
-// `short`: etiqueta de la barra inferior, donde cada destino tiene ~1/5 del ancho de pantalla.
 const NAV: {
   key: NavKey
   label: string
-  short?: string
   Icon: typeof Home
   href: string
 }[] = [
@@ -78,20 +76,9 @@ const NAV: {
     href: "/recurring",
   },
   { key: "cuotas", label: "Cuotas", Icon: CreditCard, href: "/installments" },
-  {
-    key: "configuracion",
-    label: "Configuración",
-    short: "Ajustes",
-    Icon: Settings,
-    href: "/settings",
-  },
-  {
-    key: "perfil",
-    label: "Mi perfil",
-    short: "Perfil",
-    Icon: UserRound,
-    href: "/profile",
-  },
+  // Un solo nombre por sección: el mismo en la barra lateral, la inferior y el título.
+  { key: "configuracion", label: "Ajustes", Icon: Settings, href: "/settings" },
+  { key: "perfil", label: "Perfil", Icon: UserRound, href: "/profile" },
 ]
 
 type AppShellProps = {
@@ -210,7 +197,7 @@ export function AppShell({
                   className="h-9 rounded-full"
                 >
                   <Plus className="size-4" />
-                  Nuevo
+                  Movimiento
                 </Button>
               )}
             </div>
@@ -384,7 +371,7 @@ function BottomNav({
       aria-label="Navegación principal"
       className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border/60 bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
     >
-      {NAV.map(({ key, label, short, Icon, href }) => {
+      {NAV.map(({ key, label, Icon, href }) => {
         const isActive = activeKey === key
         return (
           <Link
@@ -404,7 +391,7 @@ function BottomNav({
           >
             <Icon className="size-5 shrink-0" />
             <span className="max-w-full truncate text-[10px] leading-none">
-              {short ?? label}
+              {label}
             </span>
           </Link>
         )

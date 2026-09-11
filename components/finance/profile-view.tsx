@@ -48,14 +48,14 @@ export function ProfileView({
       active="perfil"
       onSignOut={signOut}
       quickAdd={{ accounts, categories }}
-      title="Mi perfil"
+      title="Perfil"
     >
       {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para
           el enlace "Volver", que ya no está (la navegación vive en el shell). */}
       <div className="mx-auto w-full max-w-4xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
         {/* En escritorio el título ya está en la topbar; en móvil no hay, así que se muestra. */}
         <h1 className="mb-3 font-heading text-xl font-bold md:sr-only">
-          Mi perfil
+          Perfil
         </h1>
 
         {/* Cabecera: identidad (ancho completo) */}
@@ -72,9 +72,12 @@ export function ProfileView({
             <div className="truncate text-sm text-muted-foreground">
               {user.email}
             </div>
-            <Badge variant="secondary" className="mt-1.5">
-              {ROLE_LABEL[user.role] ?? user.role}
-            </Badge>
+            {/* «Usuario» no informa nada: el chip solo aparece cuando el rol dice algo. */}
+            {user.role !== "USER" && (
+              <Badge variant="secondary" className="mt-1.5">
+                {ROLE_LABEL[user.role] ?? user.role}
+              </Badge>
+            )}
           </div>
         </div>
 

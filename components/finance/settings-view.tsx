@@ -55,11 +55,11 @@ export function SettingsView({
       active="configuracion"
       onSignOut={signOut}
       quickAdd={{ accounts, categories }}
-      title="Configuración"
+      title="Ajustes"
     >
       <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
         <h1 className="font-heading text-xl font-bold md:sr-only">
-          Configuración
+          Ajustes
         </h1>
         <p className="mt-1 mb-6 text-sm text-muted-foreground">
           Preferencias de la app. Valen para todo Luca Plan, no para un mes en
@@ -292,7 +292,8 @@ function BudgetAlertsSection({
         100%, el aviso dice cuánto (125%, 180%…).
       </p>
 
-      <div className="flex flex-wrap gap-2">
+      {/* Grilla de tres y no wrap: seis chips en flex se partían 5 + 1. */}
+      <div className="grid grid-cols-3 gap-2">
         {percents.map((p) => {
           const on = alerts.some((a) => a.percent === p)
           return (
@@ -303,7 +304,7 @@ function BudgetAlertsSection({
               disabled={pending !== null}
               onClick={() => toggle(p)}
               className={cn(
-                "tabular h-11 rounded-full border px-4 text-sm transition-colors disabled:opacity-60",
+                "tabular h-11 rounded-full border px-3 text-sm transition-colors disabled:opacity-60",
                 on
                   ? "border-primary bg-primary/10 font-medium text-primary"
                   : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"

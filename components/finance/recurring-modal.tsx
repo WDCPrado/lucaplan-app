@@ -245,7 +245,7 @@ export function RecurringModal({
                   variant="outline"
                   onClick={togglePaid}
                   disabled={saving}
-                  className="h-11 shrink-0 rounded-full text-sm"
+                  className="h-11 shrink-0 text-sm"
                 >
                   {template.currentPeriodPaid ? (
                     <>
@@ -270,7 +270,7 @@ export function RecurringModal({
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               aria-label="Nombre"
-              className="h-11 rounded-xl text-base"
+              className="h-11 rounded-lg text-base"
             />
             <span className="block text-xs text-muted-foreground">
               Es solo el nombre para reconocerla aquí; cambiarlo no afecta la
@@ -437,7 +437,7 @@ export function RecurringModal({
                     variant="outline"
                     size="icon"
                     disabled={saving}
-                    className="size-12 shrink-0 rounded-full text-destructive hover:text-destructive"
+                    className="size-12 shrink-0 text-destructive hover:text-destructive"
                     aria-label="Eliminar recurrente"
                   >
                     <Trash2 className="size-4" />
@@ -473,7 +473,7 @@ export function RecurringModal({
                 onClick={toggleActive}
                 aria-label={template.isActive ? "Pausar recurrente" : "Reanudar recurrente"}
                 title={template.isActive ? "Pausar" : "Reanudar"}
-                className="size-12 shrink-0 rounded-full"
+                className="size-12 shrink-0"
               >
                 {template.isActive ? (
                   <Pause className="size-4" />
@@ -485,7 +485,7 @@ export function RecurringModal({
             <Button
               onClick={save}
               disabled={!canSave}
-              className="h-12 flex-1 rounded-full text-base"
+              className="h-12 flex-1 text-base"
             >
               {saving ? "Guardando…" : template ? "Guardar" : "Crear recurrente"}
             </Button>

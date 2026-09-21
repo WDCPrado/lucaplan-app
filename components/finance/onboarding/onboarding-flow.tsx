@@ -273,7 +273,7 @@ function Header({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <span className="grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary">
+      <span className="grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
         <Icon className="size-6" />
       </span>
       <div>
@@ -292,7 +292,7 @@ function Welcome({ onStart }: { onStart: () => void }) {
   return (
     <div className="flex flex-1 flex-col justify-center gap-8 text-center">
       <div className="flex flex-col items-center gap-4">
-        <span className="grid size-16 place-items-center rounded-3xl bg-primary/10 text-primary">
+        <span className="grid size-16 place-items-center rounded-full bg-primary/10 text-primary">
           <Sparkles className="size-8" />
         </span>
         <div>
@@ -305,7 +305,7 @@ function Welcome({ onStart }: { onStart: () => void }) {
           </p>
         </div>
       </div>
-      <Button onClick={onStart} className="h-12 w-full rounded-full text-base">
+      <Button onClick={onStart} className="h-12 w-full text-base">
         Comenzar <ArrowRight className="size-4" />
       </Button>
     </div>
@@ -353,7 +353,7 @@ function IncomeStep({
       <Button
         variant="outline"
         onClick={onAdd}
-        className="h-12 w-full rounded-full border-dashed"
+        className="h-12 w-full border-dashed"
       >
         + Agregar ingreso
       </Button>
@@ -361,7 +361,7 @@ function IncomeStep({
       <Button
         onClick={onContinue}
         disabled={incomes.length === 0}
-        className="h-12 w-full rounded-full text-base"
+        className="h-12 w-full text-base"
       >
         Continuar <ArrowRight className="size-4" />
       </Button>
@@ -401,7 +401,7 @@ function BudgetReady({
           )}
         </div>
       </div>
-      <Button onClick={onFinish} className="h-12 w-full rounded-full text-base">
+      <Button onClick={onFinish} className="h-12 w-full text-base">
         Ir al dashboard <ArrowRight className="size-4" />
       </Button>
     </div>

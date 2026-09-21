@@ -86,7 +86,7 @@ export function CategoryDetailSheet({
               variant="secondary"
               size="sm"
               onClick={() => onEdit(category)}
-              className="mt-2 rounded-full"
+              className="mt-2"
             >
               <Pencil className="size-3.5" />
               Editar categoría

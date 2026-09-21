@@ -298,7 +298,7 @@ export function BalanceScanPanel({
                     }
                     disabled={busy !== null}
                     aria-label={`Quitar ${shot.name}`}
-                    className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent"
+                    className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent"
                   >
                     <X className="size-4" />
                   </button>
@@ -315,7 +315,7 @@ export function BalanceScanPanel({
                 fileRef.current?.click()
               }}
               disabled={busy !== null || shots.length >= MAX_SCAN_IMAGES}
-              className="h-12 rounded-full px-6"
+              className="h-12 px-6"
             >
               {shots.length > 0 ? (
                 <Plus className="size-4" />
@@ -329,7 +329,7 @@ export function BalanceScanPanel({
               <Button
                 onClick={scan}
                 disabled={busy !== null}
-                className="h-12 w-full rounded-full"
+                className="h-12 w-full"
               >
                 {busy === "reading" && (
                   <Loader2 className="size-4 animate-spin" />
@@ -400,7 +400,7 @@ export function BalanceScanPanel({
                       ? "Está en negativo; cambiar a positivo"
                       : "Está en positivo; cambiar a negativo"
                   }
-                  className="size-10 shrink-0 rounded-full border text-xl disabled:opacity-40"
+                  className="size-10 shrink-0 rounded-lg border text-xl disabled:opacity-40"
                 >
                   {(values.cash ?? 0) < 0 ? "−" : "+"}
                 </button>
@@ -461,7 +461,7 @@ export function BalanceScanPanel({
           <Button
             onClick={save}
             disabled={busy !== null}
-            className="h-12 rounded-full"
+            className="h-12"
           >
             {busy === "saving" && <Loader2 className="size-4 animate-spin" />}
             {busy === "saving" ? "Guardando…" : "Guardar saldos"}

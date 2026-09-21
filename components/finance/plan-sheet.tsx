@@ -123,7 +123,7 @@ export function PlanSheet({
           {globalLimit === null ? (
             <button
               onClick={onEditBudget}
-              className="flex w-full items-center justify-between gap-3 rounded-xl border-2 border-dashed border-border px-4 py-3 text-left text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+              className="flex w-full items-center justify-between gap-3 rounded-lg border-2 border-dashed border-border px-4 py-3 text-left text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
             >
               <span className="min-w-0">
                 <span className="block text-sm font-medium">
@@ -139,7 +139,7 @@ export function PlanSheet({
             <button
               onClick={onEditBudget}
               aria-label="Editar presupuesto del mes"
-              className="group w-full rounded-xl bg-secondary/50 px-4 py-3 text-left transition-colors hover:bg-accent"
+              className="group w-full rounded-lg bg-secondary/50 px-4 py-3 text-left transition-colors hover:bg-accent"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="tabular text-2xl font-bold">
@@ -194,7 +194,7 @@ export function PlanSheet({
               <Button
                 onClick={applySuggested}
                 disabled={applying}
-                className="h-10 self-start rounded-full"
+                className="h-10 self-start"
               >
                 {applying
                   ? "Actualizando…"
@@ -229,7 +229,7 @@ export function PlanSheet({
               onClick={onAddIncome}
               className="flex w-full items-center gap-3 py-2.5 text-left text-muted-foreground transition-colors hover:text-foreground"
             >
-              <span className="grid size-11 shrink-0 place-items-center rounded-full border-2 border-dashed border-border text-lg">
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg border-2 border-dashed border-border text-lg">
                 +
               </span>
               {incomes.length > 0 ? (
@@ -288,7 +288,7 @@ export function PlanSheet({
                 className="flex w-20 shrink-0 flex-col items-center gap-1.5"
                 aria-label="Nueva categoría de ingreso"
               >
-                <span className="grid size-18 place-items-center rounded-full border-2 border-dashed border-border text-2xl text-muted-foreground">
+                <span className="grid size-18 place-items-center rounded-xl border-2 border-dashed border-border text-2xl text-muted-foreground">
                   +
                 </span>
                 <span className="text-xs text-muted-foreground">Nueva</span>
@@ -513,7 +513,7 @@ export function IncomeRow({
           disabled={busy}
           title={income.generated ? "Deshacer" : "Registrar el ingreso del mes"}
           className={cn(
-            "flex h-6 items-center gap-1 rounded-full px-2.5 text-xs font-medium transition duration-150 ease-out active:scale-[0.97] disabled:opacity-50",
+            "flex h-6 items-center gap-1 rounded-lg px-2.5 text-xs font-medium transition duration-150 ease-out active:scale-[0.97] disabled:opacity-50",
             income.generated
               ? "bg-success/10 text-success"
               : "bg-primary text-primary-foreground"

@@ -185,7 +185,7 @@ export function AppShell({
                   variant="secondary"
                   aria-label="Buscar movimientos"
                   title="Buscar (/ o Ctrl K)"
-                  className="size-9 rounded-full"
+                  className="size-9"
                 >
                   <Search className="size-4" />
                 </Button>
@@ -194,7 +194,7 @@ export function AppShell({
                 <Button
                   onClick={() => setAddOpen(true)}
                   title="Nuevo movimiento (N)"
-                  className="h-9 rounded-full"
+                  className="h-9"
                 >
                   <Plus className="size-4" />
                   Movimiento
@@ -216,7 +216,7 @@ export function AppShell({
                     onSearch()
                   }}
                   aria-label="Buscar movimientos"
-                  className="grid size-10 shrink-0 place-items-center rounded-full bg-secondary transition-colors hover:bg-accent"
+                  className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary transition-colors hover:bg-accent"
                 >
                   <Search className="size-4.5" />
                 </button>

@@ -315,7 +315,7 @@ export function InstallmentPlanModal({
                       type="button"
                       onClick={() => setEditingId(item.id)}
                       disabled={busy}
-                      className="shrink-0 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                      className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
                     >
                       Editar
                     </button>
@@ -327,7 +327,7 @@ export function InstallmentPlanModal({
                       type="button"
                       onClick={() => setLinking(item)}
                       disabled={busy}
-                      className="shrink-0 rounded-full border border-primary px-2.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+                      className="shrink-0 rounded-lg border border-primary px-2.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
                     >
                       Asignar
                     </button>
@@ -344,7 +344,7 @@ export function InstallmentPlanModal({
                         )
                       }
                       disabled={busy}
-                      className="shrink-0 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                      className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
                     >
                       Soltar
                     </button>
@@ -400,7 +400,7 @@ export function InstallmentPlanModal({
                 variant="outline"
                 size="icon"
                 aria-label="Eliminar plan"
-                className="size-12 shrink-0 rounded-full text-destructive hover:text-destructive"
+                className="size-12 shrink-0 text-destructive hover:text-destructive"
               >
                 <Trash2 className="size-4" />
               </Button>
@@ -429,7 +429,7 @@ export function InstallmentPlanModal({
           </AlertDialog>
           <Button
             onClick={() => onOpenChange(false)}
-            className="h-12 flex-1 rounded-full text-base"
+            className="h-12 flex-1 text-base"
           >
             Listo
           </Button>

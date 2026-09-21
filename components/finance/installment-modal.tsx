@@ -209,7 +209,7 @@ export function InstallmentModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               aria-label="Descripción"
-              className="h-11 rounded-xl text-base"
+              className="h-11 rounded-lg text-base"
             />
             {eligible.length > 1 && (
               <ChipRow>
@@ -226,7 +226,7 @@ export function InstallmentModal({
             )}
             {lockedCategory ? (
               <div>
-                <span className="inline-flex h-9 items-center gap-1.5 rounded-full border border-primary bg-primary/10 px-3 text-sm text-primary">
+                <span className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-primary bg-primary/10 px-3 text-sm text-primary">
                   <CategoryIcon
                     icon={lockedCategory.icon}
                     size={16}
@@ -307,7 +307,7 @@ export function InstallmentModal({
                   setCountAndReset(Math.min(n, 240))
                 }}
                 aria-label="Número total de cuotas"
-                className="tabular h-10 w-20 rounded-xl border border-border bg-transparent px-3 text-right text-sm"
+                className="tabular h-10 w-20 rounded-lg border border-border bg-transparent px-3 text-right text-sm"
               />
             </label>
             {/* Un crédito rara vez se registra desde la cuota 1: el banco dice "vas en la 5 de 49",
@@ -331,7 +331,7 @@ export function InstallmentModal({
                       setAmounts(null)
                     }}
                     aria-label="Número de la próxima cuota"
-                    className="tabular h-10 w-16 rounded-xl border border-border bg-transparent px-3 text-right text-sm"
+                    className="tabular h-10 w-16 rounded-lg border border-border bg-transparent px-3 text-right text-sm"
                   />
                   <span className="text-muted-foreground">de {count}</span>
                 </span>
@@ -398,7 +398,7 @@ export function InstallmentModal({
                   setStartMonth(`${y}-${String(m).padStart(2, "0")}`)
                 }
                 withYear
-                className="h-10 rounded-xl border border-border px-3 font-normal hover:bg-accent"
+                className="h-10 rounded-lg border border-border px-3 font-normal hover:bg-accent"
               />
             </label>
             <DayOfMonthPicker value={day} onChange={setDay} />
@@ -427,7 +427,7 @@ export function InstallmentModal({
                 return (
                   <li
                     key={index}
-                    className="flex items-center gap-3 rounded-xl px-1 py-1.5"
+                    className="flex items-center gap-3 rounded-lg px-1 py-1.5"
                   >
                     <span className="tabular w-6 shrink-0 text-xs text-muted-foreground">
                       {index}
@@ -458,7 +458,7 @@ export function InstallmentModal({
                         }}
                         aria-pressed={paid}
                         className={cn(
-                          "shrink-0 rounded-full border px-2.5 py-1 text-xs transition-colors",
+                          "shrink-0 rounded-lg border px-2.5 py-1 text-xs transition-colors",
                           paid
                             ? "border-primary bg-primary text-primary-foreground"
                             : "border-border text-muted-foreground"
@@ -485,7 +485,7 @@ export function InstallmentModal({
             <Button
               onClick={save}
               disabled={!canSave}
-              className="h-12 flex-1 rounded-full text-base"
+              className="h-12 flex-1 text-base"
             >
               {saving ? "Creando…" : "Crear plan"}
             </Button>

@@ -94,7 +94,6 @@ export function SyncBancoChileButton({
         onOpenChange={setOpen}
         dismissible={!locked}
         title="Conectar banco"
-        className="sm:max-w-2xl"
       >
         <div className="flex flex-col gap-5 px-4 pb-6">
           <OutlookBankConnection

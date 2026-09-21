@@ -91,6 +91,7 @@ export function InstallAppItem() {
 
       {iosHelp && (
         <ResponsiveModal
+          className="sm:max-w-md"
           open
           onOpenChange={(o) => !o && setIosHelp(false)}
           title="Instalar Luca Plan"

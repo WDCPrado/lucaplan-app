@@ -55,6 +55,7 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
 
   return (
     <ResponsiveModal
+      className="sm:max-w-md"
       open={open}
       onOpenChange={setOpen}
       title="Activa tus notificaciones"
@@ -74,8 +75,8 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
             <span aria-hidden>•</span> entra un movimiento nuevo desde tu banco,
           </li>
           <li className="flex gap-2">
-            <span aria-hidden>•</span> tu gasto del mes cruza un porcentaje de tu
-            presupuesto,
+            <span aria-hidden>•</span> tu gasto del mes cruza un porcentaje de
+            tu presupuesto,
           </li>
           <li className="flex gap-2">
             <span aria-hidden>•</span> se acerca el pago de una recurrente o una
@@ -86,11 +87,7 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
           Puedes cambiarlo cuando quieras en Configuración.
         </p>
         <ModalFooter>
-          <Button
-            onClick={activate}
-            disabled={pending}
-            className="h-11 flex-1"
-          >
+          <Button onClick={activate} disabled={pending} className="h-11 flex-1">
             {pending && <Loader2 className="size-4 animate-spin" />}
             Activar notificaciones
           </Button>

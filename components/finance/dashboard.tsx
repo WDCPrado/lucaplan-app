@@ -501,7 +501,6 @@ export function Dashboard({
                   <button
                     onClick={() => setPlanOpen(true)}
                     className="flex min-h-11 w-full items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-                    aria-label="Ver y editar los ingresos en el plan del mes"
                   >
                     <TrendingUp className="size-4 shrink-0" />
                     Ingresos

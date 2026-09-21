@@ -125,7 +125,7 @@ export function ResponsiveModal({
         onEscapeKeyDown={dismissible ? undefined : (e) => e.preventDefault()}
         onInteractOutside={dismissible ? undefined : (e) => e.preventDefault()}
         className={cn(
-          "max-h-[90dvh] [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto p-0 sm:max-w-lg [&>*]:min-w-0",
+          "max-h-[90dvh] [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto p-0 sm:max-w-2xl [&>*]:min-w-0",
           className
         )}
       >

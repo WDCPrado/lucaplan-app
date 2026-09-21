@@ -163,7 +163,6 @@ export function TransactionSearch({
       open={open}
       onOpenChange={onOpenChange}
       title="Buscar movimientos"
-      className="sm:max-w-2xl"
     >
       <div className="flex flex-col gap-3 px-4 pb-6">
         {/* Campo de búsqueda */}

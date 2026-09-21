@@ -418,7 +418,7 @@ function LimitRow({
 // (tocarla la edita); el resto de la fila edita el ingreso — son entidades separadas. "Generar"
 // crea el movimiento (idempotente en el backend); tocar "Recibido" lo deshace.
 // Exportada: el panel Presupuestos del dashboard muestra las mismas filas (misma acción, un tap menos).
-export function IncomeRow({
+function IncomeRow({
   income,
   period,
   isCurrentMonth,

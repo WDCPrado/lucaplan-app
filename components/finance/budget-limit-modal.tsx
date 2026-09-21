@@ -56,6 +56,7 @@ export function BudgetLimitModal({
 
   return (
     <ResponsiveModal
+      className="sm:max-w-md"
       open={open}
       onOpenChange={onOpenChange}
       title={`Presupuesto de ${monthName(period.month)}`}

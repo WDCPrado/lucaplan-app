@@ -734,8 +734,8 @@ export default function Home() {
                   />
                 </div>
                 <p className="tabular mt-2 text-xs text-muted-foreground">
-                  {formatCLP(demoUsed)} gastados ·{" "}
-                  {formatCLP(demoCommitted)} comprometidos
+                  {formatCLP(demoUsed)} gastados · {formatCLP(demoCommitted)}{" "}
+                  comprometidos
                 </p>
               </div>
             </div>
@@ -1517,7 +1517,7 @@ export default function Home() {
           title={LEGAL[legal].title}
           // force-light: el portal se monta fuera de [data-landing]; sin esto, con tema
           // dark el modal saldría oscuro sobre una landing siempre clara.
-          className="force-light sm:max-w-2xl"
+          className="force-light"
         >
           <ScrollArea className="max-h-[62dvh] px-6">
             <div className="pb-8">{LEGAL[legal].body}</div>

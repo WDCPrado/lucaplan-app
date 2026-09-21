@@ -113,6 +113,13 @@ un barrido aparte.
   (dialog en escritorio, drawer en móvil); `AlertDialog` para confirmar una acción al momento.
   Los dos cierran por X arriba y botón en el pie, además de Esc y fondo. El pie lleva las
   acciones (`ModalFooter`); el botón que envía va con `form="<id>"` del `<form>` del modal.
+  **Ancho en escritorio, una escala y nada inventado por modal:** contenido (formulario,
+  detalle, lista) hereda el default de `ResponsiveModal`, `sm:max-w-2xl`, sin pasar
+  `className`; denso (varias columnas, como el de cuenta) sube a `sm:max-w-3xl`; un solo campo
+  o un aviso de dos líneas baja a `sm:max-w-md`, porque estirado se ve vacío; una confirmación
+  (`AlertDialog`) queda angosta con su default. El triage a pantalla completa es la única
+  excepción (`max-w-none`). Ojo en móvil: el `className` sí llega al drawer, pero el default de
+  ancho no, porque vive solo en el diálogo de escritorio; el drawer sigue a 96dvh.
 - **Formularios.** Un `<form id>` por sección; error de cada campo debajo del campo con
   `aria-invalid` y `aria-describedby`; Guardar manda solo lo que cambió y queda deshabilitado
   sin cambios. Dinero con `useMoneyInput`/`formatCLP`, nunca `type="number"` ni formato a mano.

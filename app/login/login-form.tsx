@@ -619,7 +619,6 @@ export function LoginForm({ demo }: { demo?: DemoLogin | null }) {
           open
           onOpenChange={(o) => !o && setLegal(null)}
           title={LEGAL[legal].title}
-          className="sm:max-w-2xl"
         >
           <ScrollArea className="max-h-[62dvh] px-6">
             <div className="pb-8">{LEGAL[legal].body}</div>

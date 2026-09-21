@@ -9,6 +9,7 @@ import {
   Eye,
   EyeOff,
   Plus,
+  TrendingUp,
 } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
@@ -18,7 +19,7 @@ import { AppShell } from "./app-shell"
 import { MonthPicker } from "./month-picker"
 import { MonthStatus } from "./month-status"
 import { OverspendBanner } from "./overspend-banner"
-import { IncomeRow, PlanSheet } from "./plan-sheet"
+import { PlanSheet } from "./plan-sheet"
 import { AccountCard } from "./account-card"
 import { MovementRow } from "./movement-row"
 import { DayStrip } from "./day-strip"
@@ -442,25 +443,16 @@ export function Dashboard({
                     </span>
                   )}
                 </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <button
-                    onClick={() => {
-                      setNewCatType("expense")
-                      setEditCat(null)
-                    }}
-                    aria-label="Nueva categoría de gasto"
-                    className="flex items-center gap-1.5 text-sm text-primary"
-                  >
-                    <Plus className="size-4" /> Categoría
-                  </button>
-                  <button
-                    onClick={() => setEditIncome(null)}
-                    aria-label="Nueva fuente de ingreso"
-                    className="flex items-center gap-1.5 text-sm text-primary"
-                  >
-                    <Plus className="size-4" /> Ingreso
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    setNewCatType("expense")
+                    setEditCat(null)
+                  }}
+                  aria-label="Nueva categoría de gasto"
+                  className="flex shrink-0 items-center gap-1.5 text-sm text-primary"
+                >
+                  <Plus className="size-4" /> Categoría
+                </button>
               </div>
               <div className="glass rounded-xl p-4">
                 {expenseCategories.length === 0 ? (
@@ -503,37 +495,21 @@ export function Dashboard({
                     </button>
                   </div>
                 )}
-                {/* Ingresos del mes: las MISMAS filas del plan (fuente + botón Generar/Recibido),
-                    para registrar el ingreso sin pasar por "Ajustar plan". Un solo componente para
-                    ambas superficies: si cambia la fila, cambia en las dos. */}
-                <div className="mt-3 mb-1 px-1.5 text-xs font-medium text-muted-foreground">
-                  Ingresos
+                {/* Los ingresos se ven y editan en el plan del mes ("Ajustar plan"): acá solo la
+                    puerta, con el total activo, para no repetir las filas en dos superficies. */}
+                <div className="mt-2 border-t border-border/40 pt-2">
+                  <button
+                    onClick={() => setPlanOpen(true)}
+                    className="flex min-h-11 w-full items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                  >
+                    <TrendingUp className="size-4 shrink-0" />
+                    Ingresos
+                    <span className="tabular ml-auto text-foreground">
+                      {formatCLP(activeIncomeTotal)}
+                    </span>
+                    <ChevronRight className="size-4 shrink-0" />
+                  </button>
                 </div>
-                <div className="divide-y divide-border/40 px-1.5">
-                  {incomes.map((inc) => (
-                    <IncomeRow
-                      key={inc.id}
-                      income={inc}
-                      period={period}
-                      isCurrentMonth={isCurrentMonth}
-                      onEdit={() => setEditIncome(inc)}
-                      onOpenCategory={() => {
-                        const cat = incomeCategories.find(
-                          (c) => c.id === inc.categoryId
-                        )
-                        if (cat) setDetail(cat)
-                      }}
-                    />
-                  ))}
-                </div>
-                <button
-                  onClick={() => setEditIncome(null)}
-                  className="flex min-h-11 w-full items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-                  aria-label="Nueva fuente de ingreso"
-                >
-                  <CirclePlus className="size-4 shrink-0" />
-                  Nueva fuente de ingreso
-                </button>
               </div>
             </section>
 

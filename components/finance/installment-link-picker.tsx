@@ -116,7 +116,7 @@ export function InstallmentLinkPicker({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por descripción"
             aria-label="Buscar movimiento"
-            className="h-10 w-full rounded-xl border border-border bg-transparent pr-3 pl-9 text-sm outline-none focus:border-primary"
+            className="h-10 w-full rounded-lg border border-border bg-transparent pr-3 pl-9 text-sm outline-none focus:border-primary"
           />
         </div>
 
@@ -134,7 +134,7 @@ export function InstallmentLinkPicker({
                 onClick={() => setOnlyCategory(!onlyCategory)}
                 aria-pressed={onlyCategory}
                 className={cn(
-                  "h-9 shrink-0 rounded-full border px-3 text-xs whitespace-nowrap transition-colors",
+                  "h-9 shrink-0 rounded-lg border px-3 text-xs whitespace-nowrap transition-colors",
                   onlyCategory
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border text-muted-foreground"
@@ -204,7 +204,7 @@ export function InstallmentLinkPicker({
           <button
             type="button"
             onClick={onCreate}
-            className="mt-4 w-full rounded-xl border border-dashed border-border py-2.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            className="mt-4 w-full rounded-lg border border-dashed border-border py-2.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             El pago no está en mis movimientos · crear uno
           </button>

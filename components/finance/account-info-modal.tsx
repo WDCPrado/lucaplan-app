@@ -156,7 +156,7 @@ export function AccountInfoModal({
             <Button
               variant="outline"
               onClick={() => setMode("scan")}
-              className="h-12 rounded-full"
+              className="h-12"
             >
               <Camera className="size-4" />
               Actualizar saldo
@@ -170,7 +170,7 @@ export function AccountInfoModal({
                   <Button
                     variant="outline"
                     disabled={disconnecting}
-                    className="h-12 rounded-full text-destructive hover:text-destructive"
+                    className="h-12 text-destructive hover:text-destructive"
                   >
                     <Unlink className="size-4" />
                     {disconnecting ? "Desconectando…" : "Desconectar banco"}

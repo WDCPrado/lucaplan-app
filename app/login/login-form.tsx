@@ -76,12 +76,12 @@ function OpenSourceNotice() {
   }
 
   return (
-    <div className="mt-6 rounded-2xl border border-border bg-secondary/40 p-5">
+    <div className="mt-6 rounded-xl border border-border bg-secondary/40 p-5">
       <div className="flex items-start justify-between gap-3">
         <span className="grid size-10 place-items-center rounded-xl border border-border bg-background">
           <GitHubIcon />
         </span>
-        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+        <span className="rounded-lg bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
           Open source
         </span>
       </div>
@@ -97,7 +97,7 @@ function OpenSourceNotice() {
         onClick={copy}
         aria-label="Copiar comando"
         title="Copiar comando"
-        className="group/copy mt-4 flex w-full items-center gap-2.5 rounded-xl border border-border bg-background px-3.5 py-2.5 text-left transition-colors hover:border-foreground/25"
+        className="group/copy mt-4 flex w-full items-center gap-2.5 rounded-lg border border-border bg-background px-3.5 py-2.5 text-left transition-colors hover:border-foreground/25"
       >
         <code className="flex-1 scrollbar-none overflow-x-auto font-mono text-xs whitespace-nowrap text-muted-foreground">
           {cloneCmd}
@@ -111,7 +111,7 @@ function OpenSourceNotice() {
       <Button
         asChild
         variant="outline"
-        className="mt-3 h-11 w-full rounded-full text-base"
+        className="mt-3 h-11 w-full text-base"
       >
         <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
           <GitHubIcon />
@@ -148,13 +148,13 @@ function DemoAccountNotice({
   }
 
   return (
-    <div className="mb-6 rounded-2xl border border-border bg-secondary/40 p-5">
+    <div className="mb-6 rounded-xl border border-border bg-secondary/40 p-5">
       <div className="flex items-center justify-between gap-3">
         <span className="flex items-center gap-2 text-sm font-semibold">
           <FlaskConical className="size-4 text-primary" />
           Entorno de prueba
         </span>
-        <span className="rounded-full bg-primary/10 px-2.5 py-1 font-mono text-[11px] font-semibold text-primary">
+        <span className="rounded-lg bg-primary/10 px-2.5 py-1 font-mono text-[11px] font-semibold text-primary">
           {env}
         </span>
       </div>
@@ -173,7 +173,7 @@ function DemoAccountNotice({
                 type="button"
                 onClick={() => onSeleccionar(cuenta)}
                 aria-pressed={activa}
-                className={`flex w-full items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-[border-color,background-color,transform] duration-150 ease-out active:scale-[0.99] ${
+                className={`flex w-full items-center gap-3 rounded-lg border px-3.5 py-2.5 text-left transition-[border-color,background-color,transform] duration-150 ease-out active:scale-[0.99] ${
                   activa
                     ? "border-primary bg-primary/5"
                     : "border-border bg-background hover:border-foreground/25"
@@ -199,7 +199,7 @@ function DemoAccountNotice({
         onClick={copy}
         aria-label="Copiar contraseña"
         title="Copiar contraseña"
-        className="group/copy mt-2 flex w-full items-center gap-3 rounded-xl border border-border bg-background px-3.5 py-2.5 text-left transition-[border-color,transform] duration-150 ease-out hover:border-foreground/25 active:scale-[0.99]"
+        className="group/copy mt-2 flex w-full items-center gap-3 rounded-lg border border-border bg-background px-3.5 py-2.5 text-left transition-[border-color,transform] duration-150 ease-out hover:border-foreground/25 active:scale-[0.99]"
       >
         <span className="w-24 shrink-0 text-xs text-muted-foreground">
           Contraseña
@@ -398,7 +398,7 @@ function AuthForm({
       <Button
         type="submit"
         disabled={pending}
-        className="h-11 w-full rounded-full text-base shadow-lg shadow-primary/25 transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/30 active:translate-y-0 active:scale-[0.98]"
+        className="h-11 w-full text-base shadow-lg shadow-primary/25 transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/30 active:translate-y-0 active:scale-[0.98]"
       >
         {pending && <Loader2 className="size-4 animate-spin" />}
         {mode === "signup" ? "Crear cuenta" : "Ingresar"}
@@ -451,10 +451,10 @@ export function LoginForm({ demo }: { demo?: DemoLogin | null }) {
           className="relative max-w-sm animate-in duration-700 fade-in slide-in-from-bottom-4"
           style={{ animationDelay: "250ms", animationFillMode: "backwards" }}
         >
-          <div className="landing-float-a rounded-2xl border border-white/15 bg-white/10 p-5 backdrop-blur-sm">
+          <div className="landing-float-a rounded-xl border border-white/15 bg-white/10 p-5 backdrop-blur-sm">
             <div className="flex items-center justify-between gap-3 text-sm">
               <span className="text-white/75">Presupuesto del mes</span>
-              <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold">
+              <span className="rounded-lg bg-white/15 px-2.5 py-0.5 text-xs font-semibold">
                 Vas bien
               </span>
             </div>
@@ -479,7 +479,7 @@ export function LoginForm({ demo }: { demo?: DemoLogin | null }) {
         <div className="w-full max-w-md">
           {/* Branding compacto en móvil (en escritorio vive en el panel izquierdo) */}
           <div className="mb-8 flex animate-in flex-col items-center gap-3 text-center duration-500 fade-in slide-in-from-bottom-2 lg:hidden">
-            <span className="grid size-12 place-items-center rounded-2xl bg-primary text-lg font-bold text-primary-foreground shadow-sm">
+            <span className="grid size-12 place-items-center rounded-xl bg-primary text-lg font-bold text-primary-foreground shadow-sm">
               L
             </span>
             <div>
@@ -530,11 +530,11 @@ export function LoginForm({ demo }: { demo?: DemoLogin | null }) {
                 variant="outline"
                 disabled
                 title="Disponible pronto"
-                className="h-11 w-full rounded-full text-base"
+                className="h-11 w-full text-base"
               >
                 <GoogleIcon />
                 Continuar con Google
-                <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                <span className="rounded-lg bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
                   Pronto
                 </span>
               </Button>

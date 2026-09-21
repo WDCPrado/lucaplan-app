@@ -1,6 +1,7 @@
 # Design System — Luca Plan
 
-Estilo: **fintech moderno y sereno, con liquid glass**. Esquinas suaves, neutros
+Estilo: **fintech moderno y sereno, con liquid glass**. Esquinas sobrias (`--radius: 0.5rem`, ver
+[Formas y uso de componentes](../development.md#formas-y-uso-de-componentes)), neutros
 slate fríos, primario azul vibrante. Light + dark emparejados.
 Fuente de verdad: [app/globals.css](../../app/globals.css). No hardcodees valores en
 componentes — siempre tira de estos tokens (variables CSS / utilidades Tailwind v4).
@@ -52,7 +53,8 @@ brillos, que sobre fondo plano se ven como recortes), `--glass-blur`, y para con
 - **Controles** (`input`, `tabs-list`, `tabs-trigger` activo): frosted automáticamente vía
   selectores `[data-slot=...]` definidos **fuera de `@layer`** (para ganar a las utilidades
   de Tailwind). Solo tocan `background` + `blur`, nunca el borde, para no romper el focus
-  ring ni `aria-invalid`.
+  ring ni `aria-invalid`. Un `Input` con `bg-transparent` queda fuera (los títulos y montos
+  grandes de los modales): sin esa excepción se veía desnudo en claro y con caja en oscuro.
 
 Accesibilidad: bajo `prefers-reduced-transparency: reduce` el blur se desactiva y todo cae
 a `--card` sólido (sigue legible). Ojo: **no** uses `prefers-reduced-motion` para esto
@@ -60,7 +62,7 @@ a `--card` sólido (sigue legible). Ojo: **no** uses `prefers-reduced-motion` pa
 
 ## Forma y tipografía
 
-- `--radius: 0.625rem` (esquinas suaves, look moderno y amigable); escala `radius-sm…4xl` derivada.
+- `--radius: 0.5rem` (esquinas sobrias); escala `radius-sm…4xl` derivada.
 - Tipografía (cargada vía `next/font/google` en `app/layout.tsx`):
   - **Geist** (`--font-sans`) — UI y texto: moderna, neutra, muy legible en cuerpo pequeño.
   - **Space Grotesk** (`--font-heading`, utilidad `font-heading`) — headings y marca:

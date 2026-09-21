@@ -61,7 +61,7 @@ export function DayStrip({
             onClick={() => onSelect(day)}
             className={cn(
               "flex h-24 w-9 shrink-0 flex-col items-center justify-end gap-1.5 rounded-lg px-0.5 pt-1.5 pb-1 transition-colors hover:bg-glass sm:w-auto sm:flex-1",
-              selected && "bg-accent"
+              selected && "bg-accent ring-1 ring-primary/40"
             )}
           >
             <span
@@ -74,6 +74,7 @@ export function DayStrip({
             <span
               className={cn(
                 "text-[11px] text-muted-foreground tabular-nums",
+                selected && !isToday && "font-semibold text-foreground",
                 isToday &&
                   "rounded-full bg-primary px-1.5 py-px font-semibold text-primary-foreground"
               )}

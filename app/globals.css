@@ -88,7 +88,7 @@
     --chart-3: oklch(0.66 0.15 150);
     --chart-4: oklch(0.62 0.17 300);
     --chart-5: oklch(0.70 0.15 55);
-    --radius: 0.625rem;
+    --radius: 0.5rem;
     --sidebar: oklch(0.985 0.003 250);
     --sidebar-foreground: oklch(0.21 0.03 260);
     --sidebar-primary: oklch(0.54 0.19 262);
@@ -354,6 +354,13 @@ html:has(main[data-landing]) body {
   background-color: var(--glass-control);
   backdrop-filter: blur(10px) saturate(160%);
   -webkit-backdrop-filter: blur(10px) saturate(160%);
+}
+/* Los inputs grandes de los modales (descripción, monto) van desnudos a propósito: la regla de
+   arriba les ganaba a `bg-transparent` y en oscuro aparecían con caja, en claro sin ella. */
+[data-slot="input"].bg-transparent {
+  background-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 [data-slot="tabs-trigger"][data-state="active"] {
   background-color: var(--glass-control-active);

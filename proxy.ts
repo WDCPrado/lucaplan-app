@@ -15,6 +15,13 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isPublicAsset = /\.[^/]+$/.test(pathname)
 
+  // Con sesión viva la landing no aporta nada: a la app. Optimista por cookie, igual que el
+  // gating de abajo; si la cookie sobrevivió a la sesión, /dashboard valida la sesión real y
+  // manda a /login, que es pública — no cierra ciclo.
+  if (pathname === "/" && getSessionCookie(request)) {
+    return NextResponse.redirect(new URL("/dashboard", request.url))
+  }
+
   if (
     LANDING_ONLY &&
     !isPublicAsset &&

@@ -547,7 +547,7 @@ export function OutlookBankConnection({
             <Button
               variant="outline"
               onClick={() => setReconciling(null)}
-              className="h-11 flex-1 rounded-full"
+              className="h-11 flex-1"
             >
               Cancelar
             </Button>
@@ -556,7 +556,7 @@ export function OutlookBankConnection({
             <Button
               onClick={() => saveReconcile(reconciling.id)}
               disabled={busy || invalidSnapshot || Boolean(reconcileHint)}
-              className="h-11 flex-1 rounded-full"
+              className="h-11 flex-1"
             >
               Guardar saldos
             </Button>
@@ -586,14 +586,14 @@ export function OutlookBankConnection({
               <Button
                 onClick={() => detect(pending.id)}
                 disabled={busy}
-                className="h-12 w-full rounded-full"
+                className="h-12 w-full"
               >
                 <RefreshCw /> Reintentar revisión
               </Button>
             </>
           ) : (
             <div
-              className="flex items-center justify-center gap-2 rounded-2xl border bg-muted/30 p-5 text-sm text-muted-foreground"
+              className="flex items-center justify-center gap-2 rounded-xl border bg-muted/30 p-5 text-sm text-muted-foreground"
               role="status"
             >
               <Loader2 className="size-4 animate-spin text-primary" />
@@ -632,7 +632,7 @@ export function OutlookBankConnection({
           <Button
             onClick={() => startInitialImport(pending.id)}
             disabled={busy || invalidSnapshot || Boolean(blockingHint)}
-            className="h-12 w-full rounded-full"
+            className="h-12 w-full"
           >
             Validar e importar movimientos
           </Button>
@@ -710,11 +710,7 @@ export function OutlookBankConnection({
         />
       ))}
 
-      <Button
-        onClick={refresh}
-        disabled={busy}
-        className="h-12 w-full rounded-full"
-      >
+      <Button onClick={refresh} disabled={busy} className="h-12 w-full">
         <RefreshCw /> Sincronizar ahora
       </Button>
 
@@ -865,7 +861,7 @@ function AddBankSection({
           (!targetMailbox && !provider) ||
           (requiresLabel && !label.trim())
         }
-        className="h-12 w-full rounded-full"
+        className="h-12 w-full"
       >
         {busy ? <Loader2 className="animate-spin" /> : <Plus />}
         {targetMailbox ? `Agregar ${bankName}` : "Conectar otro correo"}
@@ -898,7 +894,7 @@ function OptionList({
           disabled={option.disabled}
           onClick={() => onSelect(option.value)}
           className={cn(
-            "flex h-12 items-center justify-between gap-3 rounded-xl border px-4 text-left transition-colors",
+            "flex h-12 items-center justify-between gap-3 rounded-lg border px-4 text-left transition-colors",
             selected === option.value && !option.disabled
               ? "border-primary bg-primary/10"
               : "border-border",
@@ -953,7 +949,7 @@ function MailboxCard({
       <div className="flex flex-wrap items-center gap-2 font-medium">
         <Mail className="size-4 text-primary" /> {mailbox.emailAddress}
         {/* De qué proveedor es este correo: con varios conectados es lo que los distingue. */}
-        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+        <span className="rounded-lg bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
           {providerName}
         </span>
       </div>
@@ -972,11 +968,7 @@ function MailboxCard({
       )}
       {mailbox.status === "reauth_required" &&
         (canReconnect ? (
-          <Button
-            onClick={onReconnect}
-            disabled={busy}
-            className="h-11 w-full rounded-full"
-          >
+          <Button onClick={onReconnect} disabled={busy} className="h-11 w-full">
             <Mail /> Reconectar este correo
           </Button>
         ) : (
@@ -990,7 +982,7 @@ function MailboxCard({
               <span className="font-medium">{bank.bankName}</span>
               {/* La etiqueta distingue este origen cuando el mismo banco viene de dos correos. */}
               {bank.label && (
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                <span className="rounded-lg bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                   {bank.label}
                 </span>
               )}
@@ -1007,7 +999,7 @@ function MailboxCard({
                 variant="outline"
                 onClick={() => onReconcile(bank)}
                 disabled={busy}
-                className="h-9 rounded-full"
+                className="h-9"
               >
                 Actualizar saldos
               </Button>
@@ -1075,7 +1067,7 @@ function FirstBankPicker({
       <Button
         onClick={() => onSubmit(selected, provider)}
         disabled={busy || !selected || !provider}
-        className="h-12 w-full rounded-full"
+        className="h-12 w-full"
       >
         {busy ? <Loader2 className="animate-spin" /> : <Mail />} Conectar{" "}
         {providerLabel}
@@ -1124,7 +1116,7 @@ function DisconnectBankButton({
         <Button
           variant="ghost"
           disabled={busy}
-          className="h-9 rounded-full text-destructive hover:text-destructive"
+          className="h-9 text-destructive hover:text-destructive"
         >
           <Unplug /> Desconectar
         </Button>
@@ -1170,7 +1162,7 @@ function DisconnectButton({
         <Button
           variant="ghost"
           disabled={busy}
-          className="h-10 w-full rounded-full text-destructive hover:text-destructive"
+          className="h-10 w-full text-destructive hover:text-destructive"
         >
           <Unplug /> {label}
         </Button>
@@ -1397,7 +1389,7 @@ export function SnapshotForm({
 // El fondo va inline porque el frost global de [data-slot="input"] (globals.css, fuera de
 // @layer) pisa las utilidades de Tailwind; inline le gana sin tocar el design system.
 const boxedMoneyInput =
-  "h-11 rounded-xl border-white/20 text-base text-white placeholder:text-white/40 selection:bg-white/25 selection:text-white focus-visible:border-white/40 focus-visible:ring-white/20 md:text-base"
+  "h-11 rounded-lg border-white/20 text-base text-white placeholder:text-white/40 selection:bg-white/25 selection:text-white focus-visible:border-white/40 focus-visible:ring-white/20 md:text-base"
 const primaryMoneyInput =
   "h-auto rounded-none border-0 px-0 py-0.5 text-3xl font-semibold text-white shadow-none placeholder:text-white/30 selection:bg-white/25 selection:text-white focus-visible:ring-0 md:text-3xl [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]"
 const boxedInputStyle: React.CSSProperties = {
@@ -1548,7 +1540,7 @@ function CardToggle({
       aria-pressed={pressed}
       onClick={() => onPressed(!pressed)}
       className={cn(
-        "flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+        "flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors",
         pressed
           ? "border-white/30 bg-white/20 text-white"
           : "border-white/15 text-white/60 hover:text-white/85"
@@ -1615,7 +1607,7 @@ function CandidateCard({
   )
   return (
     <div
-      className="relative flex min-h-40 w-full flex-col gap-4 overflow-hidden rounded-2xl p-5 text-white shadow-[0_1px_2px_rgb(0_0_0/0.08),0_8px_20px_-10px_rgb(0_0_0/0.25)]"
+      className="relative flex min-h-40 w-full flex-col gap-4 overflow-hidden rounded-xl p-5 text-white shadow-[0_1px_2px_rgb(0_0_0/0.08),0_8px_20px_-10px_rgb(0_0_0/0.25)]"
       style={{ background: CARD_VARIANT_BG[variant] }}
     >
       {art && (

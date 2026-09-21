@@ -121,6 +121,7 @@ export function InstallmentsView({
       {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para
           el enlace "Volver", que ya no está. En escritorio la topbar sí pide su margen. */}
       <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
+        <h1 className="mb-4 font-heading text-xl font-bold md:sr-only">Cuotas</h1>
         {plans.length === 0 ? (
           <EmptyState onCreate={() => setCreating(true)} />
         ) : (
@@ -136,16 +137,16 @@ export function InstallmentsView({
                     ingreso rápido y es igual en toda la app. */}
                 <Button
                   onClick={() => setCreating(true)}
-                  className="shrink-0 rounded-full"
+                  className="shrink-0"
                 >
                   <Plus className="size-4" />
-                  Nuevo
+                  Nueva compra
                 </Button>
               </div>
 
               <div className="flex flex-col gap-6">
                 {active.length > 0 && (
-                  <ul className="glass divide-y divide-border/50 rounded-2xl px-3">
+                  <ul className="glass divide-y divide-border/50 rounded-xl px-3">
                     {active.map((p) => (
                       <PlanRow
                         key={p.id}
@@ -160,7 +161,7 @@ export function InstallmentsView({
                     <h3 className="mb-2 text-xs font-medium text-muted-foreground">
                       Pagadas
                     </h3>
-                    <ul className="glass divide-y divide-border/50 rounded-2xl px-3">
+                    <ul className="glass divide-y divide-border/50 rounded-xl px-3">
                       {done.map((p) => (
                         <PlanRow
                           key={p.id}
@@ -179,7 +180,7 @@ export function InstallmentsView({
               <div className="mb-3 flex min-h-9 items-end">
                 <h2 className="font-heading text-lg font-bold">Este mes</h2>
               </div>
-              <section className="glass rounded-2xl p-4 lg:sticky lg:top-24">
+              <section className="glass rounded-xl p-4 lg:sticky lg:top-24">
                 <p className="text-sm text-muted-foreground">Pagas en cuotas</p>
                 <p className="tabular text-2xl font-bold">
                   {formatCLP(monthTotal)}
@@ -339,7 +340,7 @@ function PlanRow({
 // Empty state que explica qué problema resuelve, no que la lista está vacía.
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="glass mx-auto max-w-2xl rounded-2xl px-6 py-10 text-center">
+    <div className="glass mx-auto max-w-2xl rounded-xl px-6 py-10 text-center">
       <span
         className="mx-auto mb-3 grid size-11 place-items-center rounded-full bg-primary/10"
         aria-hidden
@@ -352,7 +353,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         Convertirla en un plan hace que cada mes cargue solo su cuota, y te dice
         cuánto falta de verdad.
       </p>
-      <Button onClick={onCreate} className="mt-5 rounded-full">
+      <Button onClick={onCreate} className="mt-5">
         <Plus className="size-4" />
         Registrar un crédito
       </Button>

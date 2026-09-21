@@ -63,7 +63,7 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
           para llegar a los bordes, así que fuera de un padre con ese padding sus botones se salen
           de la tarjeta (y el texto queda pegado al borde). Mismo patrón que el resto de modales. */}
       <div className="flex flex-col gap-4 px-4 pt-2">
-        <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10">
+        <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
           <BellRing className="size-6 text-primary" />
         </div>
         <p className="text-sm text-muted-foreground">
@@ -89,7 +89,7 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
           <Button
             onClick={activate}
             disabled={pending}
-            className="h-11 flex-1 rounded-full"
+            className="h-11 flex-1"
           >
             {pending && <Loader2 className="size-4 animate-spin" />}
             Activar notificaciones
@@ -98,7 +98,7 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
             variant="ghost"
             onClick={() => setOpen(false)}
             disabled={pending}
-            className="h-11 rounded-full"
+            className="h-11"
           >
             Ahora no
           </Button>

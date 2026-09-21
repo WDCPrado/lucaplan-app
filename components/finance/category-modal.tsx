@@ -195,7 +195,7 @@ export function CategoryModal({
               type === "income" ? "Nombre (ej. Abonos)" : "Nombre (ej. Compras)"
             }
             aria-label="Nombre"
-            className="h-12 flex-1 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
+            className="h-12 flex-1 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0 md:text-2xl"
           />
         </div>
 
@@ -210,7 +210,7 @@ export function CategoryModal({
                   type="button"
                   onClick={() => setType(t)}
                   className={cn(
-                    "h-11 flex-1 rounded-full border text-sm font-medium transition-colors",
+                    "h-11 flex-1 rounded-lg border text-sm font-medium transition-colors",
                     type === t
                       ? t === "income"
                         ? "border-success bg-success/10 text-success"
@@ -349,7 +349,7 @@ export function CategoryModal({
               onClick={() => setConfirmDelete(true)}
               disabled={saving}
               aria-label="Eliminar categoría"
-              className="size-12 shrink-0 rounded-full text-destructive hover:text-destructive"
+              className="size-12 shrink-0 text-destructive hover:text-destructive"
             >
               <Trash2 className="size-4" />
             </Button>
@@ -357,7 +357,7 @@ export function CategoryModal({
           <Button
             onClick={save}
             disabled={!canSave}
-            className="h-12 flex-1 rounded-full text-base"
+            className="h-12 flex-1 text-base"
           >
             {saving ? "Guardando…" : "Guardar"}
           </Button>

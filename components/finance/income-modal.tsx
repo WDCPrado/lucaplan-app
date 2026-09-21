@@ -158,7 +158,7 @@ export function IncomeModal({
             placeholder="Nombre (ej. Sueldo)"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
+            className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0 md:text-2xl"
           />
 
           {/* Sin la insignia "+": imitaba el toggle ±  del form de movimiento sin ser un control.
@@ -223,7 +223,7 @@ export function IncomeModal({
                     variant="outline"
                     size="icon"
                     disabled={saving}
-                    className="size-12 shrink-0 rounded-full text-destructive hover:text-destructive"
+                    className="size-12 shrink-0 text-destructive hover:text-destructive"
                     aria-label="Eliminar ingreso"
                   >
                     <Trash2 className="size-4" />
@@ -254,7 +254,7 @@ export function IncomeModal({
             <Button
               onClick={save}
               disabled={!canSave}
-              className="h-12 flex-1 rounded-full text-base"
+              className="h-12 flex-1 text-base"
             >
               {saving ? "Guardando…" : income ? "Guardar" : "Agregar ingreso"}
             </Button>

@@ -53,7 +53,7 @@ function ResetForm() {
         </p>
         <Button
           onClick={() => router.push("/login")}
-          className="h-11 w-full rounded-full text-base"
+          className="h-11 w-full text-base"
         >
           Ir a ingresar
         </Button>
@@ -115,7 +115,7 @@ function ResetForm() {
       <Button
         type="submit"
         disabled={pending}
-        className="h-11 w-full rounded-full text-base"
+        className="h-11 w-full text-base"
       >
         {pending && <Loader2 className="size-4 animate-spin" />}
         Restablecer contraseña

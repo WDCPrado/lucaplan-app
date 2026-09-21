@@ -1,8 +1,8 @@
 "use client"
 
+import { Pencil } from "lucide-react"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import { ProgressRing } from "./progress-ring"
 import { MovementRow } from "./movement-row"
 import { CategoryIcon } from "./category-icons"
@@ -39,47 +39,27 @@ export function CategoryDetailSheet({
       onOpenChange={onOpenChange}
       title={category?.name ?? ""}
       headerClassName="items-center"
-      // Solo escritorio (md:): cabecera fija y la lista absorbe el overflow (el mismo className
-      // llega al drawer móvil, que conserva su scroll full-height — por eso todo va con md:).
-      // Con movimientos, altura explícita: el área de lista (absolute) no aporta altura
-      // intrínseca y sin esto el dialog colapsaría al alto de la cabecera.
-      className={cn(
-        "md:flex md:flex-col md:overflow-hidden",
-        txs.length > 0 && "md:h-[82dvh]"
-      )}
     >
       {category && (
-        <div className="md:flex md:min-h-0 md:flex-1 md:flex-col">
+        <div>
           <div className="flex flex-col items-center gap-1 px-4">
-            {/* El aro ES el botón de editar: icono + "Editar" adentro. */}
-            <button
-              onClick={() => onEdit(category)}
-              aria-label="Editar categoría"
-              className="transition-transform duration-150 ease-out active:scale-[0.98]"
+            <ProgressRing
+              percent={pct}
+              committedPercent={
+                category.limit > 0
+                  ? (category.committed / category.limit) * 100
+                  : 0
+              }
+              status={category.status}
+              size={150}
+              stroke={11}
             >
-              <ProgressRing
-                percent={pct}
-                committedPercent={
-                  category.limit > 0
-                    ? (category.committed / category.limit) * 100
-                    : 0
-                }
-                status={category.status}
-                size={150}
-                stroke={11}
-              >
-                <span className="flex flex-col items-center gap-1">
-                  <CategoryIcon
-                    icon={category.icon}
-                    size={44}
-                    color={category.color ?? undefined}
-                  />
-                  <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                    Editar
-                  </span>
-                </span>
-              </ProgressRing>
-            </button>
+              <CategoryIcon
+                icon={category.icon}
+                size={44}
+                color={category.color ?? undefined}
+              />
+            </ProgressRing>
             <div className="tabular mt-2 text-3xl font-bold">
               {formatCLP(category.used)}{" "}
               <span className="text-lg font-normal text-muted-foreground">
@@ -101,8 +81,18 @@ export function CategoryDetailSheet({
                 comprometido (recurrentes y cuotas por cobrar)
               </div>
             )}
+            {/* Editar como acción con nombre, no como pastilla dentro del anillo. */}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onEdit(category)}
+              className="mt-2"
+            >
+              <Pencil className="size-3.5" />
+              Editar categoría
+            </Button>
           </div>
-          <div className="mt-4 px-4 pb-6 md:flex md:min-h-0 md:flex-1 md:flex-col md:pb-4">
+          <div className="mt-4 px-4 pb-6 md:pb-4">
             <div className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
               Movimientos del mes
             </div>
@@ -111,19 +101,12 @@ export function CategoryDetailSheet({
                 Sin movimientos
               </p>
             ) : (
-              // El viewport de Radix resuelve height:100% solo contra alturas definidas (la
-              // flex no le basta), y su Root trae position:relative INLINE (imposible volverlo
-              // absolute por clase) → el absolute inset-0 va en un div envolvente.
-              <div className="md:relative md:min-h-0 md:flex-1">
-                <div className="md:absolute md:inset-0">
-                  <ScrollArea className="md:h-full">
-                    <div className="divide-y">
-                      {txs.map((t) => (
-                        <MovementRow key={t.id} tx={t} onOpen={onOpenTx} />
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
+              // Escritorio: el diálogo mide lo que mide la lista, con un tope; sin él, dos
+              // movimientos dejaban el 40 % del modal vacío.
+              <div className="divide-y md:max-h-[45dvh] md:overflow-y-auto">
+                {txs.map((t) => (
+                  <MovementRow key={t.id} tx={t} onOpen={onOpenTx} />
+                ))}
               </div>
             )}
           </div>

@@ -132,6 +132,9 @@ export function RecurringView({
       {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para
           el enlace "Volver", que ya no está. En escritorio la topbar sí pide su margen. */}
       <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
+        <h1 className="mb-4 font-heading text-xl font-bold md:sr-only">
+          Recurrentes
+        </h1>
         {templates.length === 0 ? (
           <EmptyState />
         ) : (
@@ -151,7 +154,7 @@ export function RecurringView({
 
               <div className="flex flex-col gap-6">
                 {active.length > 0 && (
-                  <ul className="glass divide-y divide-border/50 rounded-2xl px-3">
+                  <ul className="glass divide-y divide-border/50 rounded-xl px-3">
                     {active.map((t) => (
                       <RecurringRow
                         key={t.id}
@@ -168,7 +171,7 @@ export function RecurringView({
                     <h3 className="mb-2 text-xs font-medium text-muted-foreground">
                       Pausadas
                     </h3>
-                    <ul className="glass divide-y divide-border/50 rounded-2xl px-3">
+                    <ul className="glass divide-y divide-border/50 rounded-xl px-3">
                       {paused.map((t) => (
                         <RecurringRow
                           key={t.id}
@@ -186,7 +189,7 @@ export function RecurringView({
                     <h3 className="mb-2 text-xs font-medium text-muted-foreground">
                       Finalizadas
                     </h3>
-                    <ul className="glass divide-y divide-border/50 rounded-2xl px-3">
+                    <ul className="glass divide-y divide-border/50 rounded-xl px-3">
                       {ended.map((t) => (
                         <RecurringRow
                           key={t.id}
@@ -206,7 +209,7 @@ export function RecurringView({
               <div className="mb-3 flex min-h-9 items-end">
                 <h2 className="font-heading text-lg font-bold">Este mes</h2>
               </div>
-              <section className="glass rounded-2xl p-4 lg:sticky lg:top-24">
+              <section className="glass rounded-xl p-4 lg:sticky lg:top-24">
                 <p className="text-sm text-muted-foreground">
                   Total recurrente
                 </p>
@@ -365,18 +368,20 @@ function RecurringRow({
           la columna de acciones se desalinearía fila por fila dentro de la misma lista. */}
       <Button
         variant="ghost"
-        size="icon"
+        size="sm"
         disabled={!canMarkPaid && !canUndoPaid}
         onClick={() => onTogglePaid(canMarkPaid)}
         aria-label={`${paidLabel}: ${t.label}`}
         title={paidLabel}
-        className="size-11 shrink-0 text-muted-foreground"
+        // Escritorio: la acción con su nombre; en móvil solo el icono, que el ancho es del nombre.
+        className="h-11 shrink-0 text-muted-foreground max-md:size-11 max-md:p-0"
       >
         {canUndoPaid ? (
           <Undo2 className="size-4" />
         ) : (
           <Check className="size-4" />
         )}
+        <span className="max-md:sr-only">{paidLabel}</span>
       </Button>
       {/* Pausar/reanudar vive en el modal (se abre tocando la fila): es lo excepcional, y su
           botón acá le comía el ancho al nombre en móvil ("Interne…"). */}
@@ -388,7 +393,7 @@ function RecurringRow({
 // un movimiento. No hay alta a mano: la clave con la que se reconoce el cargo sale del cargo real.
 function EmptyState() {
   return (
-    <div className="glass mx-auto max-w-2xl rounded-2xl px-6 py-10 text-center">
+    <div className="glass mx-auto max-w-2xl rounded-xl px-6 py-10 text-center">
       <span
         className="mx-auto mb-3 grid size-11 place-items-center rounded-full bg-primary/10"
         aria-hidden

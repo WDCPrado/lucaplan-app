@@ -82,7 +82,7 @@ export function BudgetLimitModal({
           <Button
             onClick={save}
             disabled={saving}
-            className="h-12 flex-1 rounded-full text-base"
+            className="h-12 flex-1 text-base"
           >
             {saving ? "Guardando…" : "Guardar"}
           </Button>

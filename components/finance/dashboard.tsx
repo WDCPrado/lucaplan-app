@@ -109,7 +109,7 @@ export function Dashboard({
     undefined
   ) // undefined=cerrado, null=crear
   // Tipo fijo al crear categoría: "Nueva" dentro de un grupo abre el modal ya fijado en ese tipo;
-  // el "Agregar" del header deja el selector libre (null).
+  // solo el triage deja el selector libre (null); el "+ Categoría" del header fija gasto.
   const [newCatType, setNewCatType] = useState<"income" | "expense" | null>(
     null
   )
@@ -342,7 +342,7 @@ export function Dashboard({
       onSignOut={signOut}
       quickAdd={{ accounts, categories: budget.categories }}
       onSearch={() => setSearchOpen(true)}
-      title="Resumen"
+      title="Inicio"
       actions={
         // Móvil: columna invertida → selector arriba y "Hoy" colgando debajo; escritorio: fila.
         <div className="flex flex-col-reverse items-center gap-2 md:flex-row">
@@ -352,15 +352,15 @@ export function Dashboard({
                 haptic("light")
                 router.push("/dashboard")
               }}
-              className="rounded-full bg-secondary px-3.5 py-1.5 text-sm font-semibold transition-colors hover:bg-accent"
+              className="rounded-lg bg-secondary px-3.5 py-1.5 text-sm font-semibold transition-colors hover:bg-accent"
             >
               Hoy
             </button>
           )}
-          <div className="flex items-center gap-1 rounded-full bg-secondary px-1.5 py-1">
+          <div className="flex items-center gap-1 rounded-lg bg-secondary px-1.5 py-1">
             <button
               onClick={() => goMonth(-1)}
-              className="grid size-8 place-items-center rounded-full hover:bg-background"
+              className="grid size-8 place-items-center rounded-md hover:bg-background"
               aria-label="Mes anterior"
             >
               <ChevronLeft className="size-4" />
@@ -373,7 +373,7 @@ export function Dashboard({
             />
             <button
               onClick={() => goMonth(1)}
-              className="grid size-8 place-items-center rounded-full hover:bg-background"
+              className="grid size-8 place-items-center rounded-md hover:bg-background"
               aria-label="Mes siguiente"
             >
               <ChevronRight className="size-4" />
@@ -418,50 +418,13 @@ export function Dashboard({
             categories={budget.categories}
           />
 
-          {/* Escritorio: categorías a la izquierda y el día elegido a la derecha, cada columna
-              con su alto natural y scrolleando con la página (nada fijo). Móvil: una columna en
-              el orden del DOM — el día elegido primero, pegado a la tira que lo elige (si no,
-              tocar un día no cambiaba nada a la vista), y las categorías después. */}
+          {/* Escritorio: categorías a la izquierda; el día elegido y los días anteriores a la
+              derecha; las cuentas abajo, a lo ancho. Móvil: una columna en el orden del DOM —
+              categorías, día elegido, cuentas—. Todo scrollea con la página (nada fijo). */}
           <div className="grid gap-x-6 gap-y-8 lg:grid-cols-2 lg:items-start">
-            {/* Los movimientos del día elegido en la tira. El mes completo se recorre día a día o
-                con la búsqueda (lupa). */}
-            <section
-              id="movimientos"
-              className="min-w-0 lg:col-start-2 lg:row-start-1"
-            >
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="truncate font-heading text-lg font-bold">
-                  {formatDateHeader(dayIso)}
-                </h2>
-                {dayTransactions.length > 0 && (
-                  <span className="tabular shrink-0 text-sm text-muted-foreground">
-                    {dayNet >= 0 ? "+" : "−"}
-                    {formatCLP(Math.abs(dayNet))}
-                  </span>
-                )}
-              </div>
-              {dayTransactions.length === 0 ? (
-                <p className="glass-strong rounded-2xl py-10 text-center text-sm text-muted-foreground">
-                  Sin movimientos ese día
-                </p>
-              ) : (
-                <div className="glass flex flex-col gap-0.5 rounded-2xl p-2">
-                  {dayTransactions.map((t) => (
-                    <MovementRow
-                      key={t.id}
-                      tx={t}
-                      onOpen={setDetailTx}
-                      // Tocar el arco del movimiento abre el detalle de SU categoría (no el movimiento).
-                      onOpenCategory={openCategory}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-
             <section
               id="presupuestos"
-              className="min-w-0 lg:col-start-1 lg:row-span-3 lg:row-start-1"
+              className="min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1"
             >
               <div className="mb-3 flex items-start justify-between gap-2">
                 <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
@@ -479,17 +442,27 @@ export function Dashboard({
                     </span>
                   )}
                 </div>
-                <button
-                  onClick={() => {
-                    setNewCatType(null)
-                    setEditCat(null)
-                  }}
-                  className="flex shrink-0 items-center gap-1.5 text-sm text-primary"
-                >
-                  <Plus className="size-4" /> Agregar
-                </button>
+                <div className="flex shrink-0 items-center gap-3">
+                  <button
+                    onClick={() => {
+                      setNewCatType("expense")
+                      setEditCat(null)
+                    }}
+                    aria-label="Nueva categoría de gasto"
+                    className="flex items-center gap-1.5 text-sm text-primary"
+                  >
+                    <Plus className="size-4" /> Categoría
+                  </button>
+                  <button
+                    onClick={() => setEditIncome(null)}
+                    aria-label="Nueva fuente de ingreso"
+                    className="flex items-center gap-1.5 text-sm text-primary"
+                  >
+                    <Plus className="size-4" /> Ingreso
+                  </button>
+                </div>
               </div>
-              <div className="glass rounded-2xl p-4">
+              <div className="glass rounded-xl p-4">
                 {expenseCategories.length === 0 ? (
                   <button
                     onClick={() => {
@@ -498,7 +471,7 @@ export function Dashboard({
                     }}
                     className="flex w-full flex-col items-center gap-2 py-6 text-muted-foreground"
                   >
-                    <span className="grid size-18 place-items-center rounded-full border-2 border-dashed border-border text-2xl">
+                    <span className="grid size-18 place-items-center rounded-xl border-2 border-dashed border-border text-2xl">
                       +
                     </span>
                     <span className="text-sm">Crear categoría</span>
@@ -564,9 +537,75 @@ export function Dashboard({
               </div>
             </section>
 
-            {/* Cuentas: consulta, no decisión diaria. Escritorio: en la columna derecha bajo el
-                día, como tarjetas en dos columnas. Móvil: al final, como carrusel. */}
-            <section className="min-w-0 lg:col-start-2 lg:row-start-2">
+            {/* Los movimientos del día elegido en la tira. El mes completo se recorre día a día o
+                con la búsqueda (lupa). */}
+            <section
+              id="movimientos"
+              className="min-w-0 lg:col-start-2 lg:row-start-1"
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="truncate font-heading text-lg font-bold">
+                  {formatDateHeader(dayIso)}
+                </h2>
+                {dayTransactions.length > 0 && (
+                  <span className="tabular shrink-0 text-sm text-muted-foreground">
+                    {dayNet >= 0 ? "+" : "−"}
+                    {formatCLP(Math.abs(dayNet))}
+                  </span>
+                )}
+              </div>
+              {dayTransactions.length === 0 ? (
+                <p className="glass-strong rounded-xl py-10 text-center text-sm text-muted-foreground">
+                  {isCurrentMonth && selectedDay === today.day
+                    ? "Sin movimientos hoy"
+                    : "Sin movimientos ese día"}
+                </p>
+              ) : (
+                <div className="glass flex flex-col gap-0.5 rounded-xl p-2">
+                  {dayTransactions.map((t) => (
+                    <MovementRow
+                      key={t.id}
+                      tx={t}
+                      onOpen={setDetailTx}
+                      // Tocar el arco del movimiento abre el detalle de SU categoría (no el movimiento).
+                      onOpenCategory={openCategory}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Solo escritorio: con un día de uno o dos movimientos la columna quedaba vacía
+                  frente a una lista de categorías de 900 px. Los días anteriores la completan con
+                  lo más reciente, agrupado por fecha como en la búsqueda. */}
+            {recentGroups.length > 0 && (
+              <section className="max-lg:hidden lg:col-start-2 lg:row-start-2">
+                <h3 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Días anteriores
+                </h3>
+                <div className="glass flex flex-col gap-0.5 rounded-xl p-2">
+                  {recentGroups.map((g) => (
+                    <div key={g.key}>
+                      <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground">
+                        {g.header}
+                      </div>
+                      {g.txs.map((t) => (
+                        <MovementRow
+                          key={t.id}
+                          tx={t}
+                          onOpen={setDetailTx}
+                          onOpenCategory={openCategory}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Cuentas: consulta, no decisión diaria. Escritorio: bajo las dos columnas, a lo
+                ancho, como grilla de tarjetas. Móvil: al final, como carrusel. */}
+            <section className="min-w-0 lg:col-span-2 lg:row-start-3">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="font-heading text-lg font-bold">Cuentas</h2>
                 <button
@@ -586,36 +625,39 @@ export function Dashboard({
                 {...cardsHandlers}
                 onScroll={cardsScroll}
                 // Móvil: carrusel con snap y fade en los bordes (pt-1: aire para el hover
-                // -translate-y). Escritorio: grilla de cuatro sin scroll —resumen + tres cuentas es
-                // la fila típica; con más, envuelve—.
-                className="-mx-4 flex cursor-grab snap-x snap-mandatory scrollbar-none gap-4 overflow-x-auto mask-[linear-gradient(90deg,transparent,black_var(--fade-l,0rem),black_calc(100%-var(--fade-r,2.5rem)),transparent)] px-4 pt-1 pb-4 active:cursor-grabbing lg:mx-0 lg:grid lg:cursor-default lg:grid-cols-2 lg:overflow-visible lg:mask-none lg:px-0"
+                // -translate-y). Escritorio: grilla sin scroll que llena el ancho —tres o cuatro
+                // tarjetas por fila según quepan; con más, envuelve—.
+                className="-mx-4 flex cursor-grab snap-x snap-mandatory scrollbar-none gap-4 overflow-x-auto mask-[linear-gradient(90deg,transparent,black_var(--fade-l,0rem),black_calc(100%-var(--fade-r,2.5rem)),transparent)] px-4 pt-1 pb-4 active:cursor-grabbing lg:mx-0 lg:grid lg:cursor-default lg:grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] lg:overflow-visible lg:mask-none lg:px-0"
               >
-                <div
-                  data-card
-                  className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-2xl p-5 lg:w-auto lg:snap-start"
-                >
-                  <div className="text-sm text-muted-foreground">
-                    Saldo bancario
+                {/* Sin cuentas no hay nada que sumar: la tarjeta en $0 solo tapaba «Conectar banco». */}
+                {accounts.length > 0 && (
+                  <div
+                    data-card
+                    className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-xl p-5 lg:w-auto lg:snap-start"
+                  >
+                    <div className="text-sm text-muted-foreground">
+                      Total en cuentas
+                    </div>
+                    <div className="tabular my-3 text-3xl font-bold">
+                      {showBalance ? formatCLP(summary.activeCash) : "••••••"}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-center">
+                      <Stat
+                        label="Ingresos"
+                        value={formatCompact(summary.income, true)}
+                        className="text-success"
+                      />
+                      <Stat
+                        label="Gastos"
+                        value={formatCompact(-summary.expense)}
+                      />
+                      <Stat
+                        label="Asignado"
+                        value={formatCompact(summary.totalBudget)}
+                      />
+                    </div>
                   </div>
-                  <div className="tabular my-3 text-3xl font-bold">
-                    {showBalance ? formatCLP(summary.activeCash) : "••••••"}
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-center">
-                    <Stat
-                      label="Ingresos"
-                      value={formatCompact(summary.income, true)}
-                      className="text-success"
-                    />
-                    <Stat
-                      label="Gastos"
-                      value={formatCompact(-summary.expense)}
-                    />
-                    <Stat
-                      label="Presup."
-                      value={formatCompact(summary.totalBudget)}
-                    />
-                  </div>
-                </div>
+                )}
                 {accounts.map((a) => (
                   <div
                     key={a.id}
@@ -636,34 +678,6 @@ export function Dashboard({
                 />
               </div>
             </section>
-
-            {/* Solo escritorio: con un día de uno o dos movimientos la columna quedaba vacía
-                  frente a una lista de categorías de 900 px. Los días anteriores la completan con
-                  lo más reciente, agrupado por fecha como en la búsqueda. */}
-            {recentGroups.length > 0 && (
-              <section className="max-lg:hidden lg:col-start-2 lg:row-start-3">
-                <h3 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Días anteriores
-                </h3>
-                <div className="glass flex flex-col gap-0.5 rounded-2xl p-2">
-                  {recentGroups.map((g) => (
-                    <div key={g.key}>
-                      <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground">
-                        {g.header}
-                      </div>
-                      {g.txs.map((t) => (
-                        <MovementRow
-                          key={t.id}
-                          tx={t}
-                          onOpen={setDetailTx}
-                          onOpenCategory={openCategory}
-                        />
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
           </div>
         </div>
       </div>
@@ -730,6 +744,9 @@ export function Dashboard({
         isCurrentMonth={isCurrentMonth}
         globalLimit={budget.globalLimit}
         allocated={budget.allocated}
+        expenseCategories={budget.categories.filter(
+          (c) => c.type === "expense"
+        )}
         incomes={incomes}
         incomeCategories={incomeCategories}
         activeIncomeTotal={activeIncomeTotal}

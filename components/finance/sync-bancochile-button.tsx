@@ -80,7 +80,7 @@ export function SyncBancoChileButton({
       <button
         onClick={openModal}
         data-card
-        className="flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col items-center justify-center gap-2 rounded-2xl border-2 border-primary/40 bg-primary/5 text-primary transition-colors hover:bg-primary/10 lg:snap-start"
+        className="flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col items-center justify-center gap-2 rounded-xl border-2 border-primary/40 bg-primary/5 text-primary transition-colors hover:bg-primary/10 lg:w-auto lg:snap-start"
       >
         <Landmark className="size-6" />
         <span className="text-sm font-medium">Conectar banco</span>
@@ -114,7 +114,7 @@ export function SyncBancoChileButton({
             {COMING_SOON.map((name) => (
               <div
                 key={name}
-                className="flex h-12 cursor-not-allowed items-center gap-3 rounded-xl border border-border px-4 text-left opacity-50"
+                className="flex h-12 cursor-not-allowed items-center gap-3 rounded-lg border border-border px-4 text-left opacity-50"
               >
                 <Landmark className="size-5 shrink-0 text-muted-foreground" />
                 <span className="font-medium">{name}</span>

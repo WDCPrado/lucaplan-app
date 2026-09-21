@@ -7,6 +7,8 @@ import { toast } from "sonner"
 
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { useMoneyInput } from "@/hooks/use-money-input"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { CategoryIcon } from "./category-icons"
@@ -39,6 +41,7 @@ export function PlanSheet({
   allocated,
   incomes,
   incomeCategories,
+  expenseCategories,
   activeIncomeTotal,
   previousMonthDebt,
   onEditBudget,
@@ -55,6 +58,7 @@ export function PlanSheet({
   allocated: number
   incomes: IncomeDTO[]
   incomeCategories: CategoryDTO[]
+  expenseCategories: CategoryDTO[]
   activeIncomeTotal: number
   // Lo que el mes anterior gastó por sobre su presupuesto global. Ya resuelto en el servidor.
   previousMonthDebt: number
@@ -66,6 +70,14 @@ export function PlanSheet({
 }) {
   const router = useRouter()
   const [applying, setApplying] = useState(false)
+  // Topes en edición (por id): lo que falta repartir se recalcula mientras se escribe, sin
+  // esperar el refresh que trae cada guardado.
+  const [drafts, setDrafts] = useState<Record<string, number>>({})
+  const assigned = expenseCategories.reduce(
+    (sum, c) => sum + (drafts[c.id] ?? c.limit),
+    0
+  )
+  const left = globalLimit === null ? null : globalLimit - assigned
   // El total a repartir y la decisión de ofrecerlo viven en `lib/plan-total.ts`: son el mismo
   // número visto tres veces (lo que se muestra, lo que habilita el botón y lo que se POSTea), y
   // acá dentro no habría cómo fijarlos con tests.
@@ -111,7 +123,7 @@ export function PlanSheet({
           {globalLimit === null ? (
             <button
               onClick={onEditBudget}
-              className="flex w-full items-center justify-between gap-3 rounded-xl border-2 border-dashed border-border px-4 py-3 text-left text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+              className="flex w-full items-center justify-between gap-3 rounded-lg border-2 border-dashed border-border px-4 py-3 text-left text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
             >
               <span className="min-w-0">
                 <span className="block text-sm font-medium">
@@ -127,7 +139,7 @@ export function PlanSheet({
             <button
               onClick={onEditBudget}
               aria-label="Editar presupuesto del mes"
-              className="group w-full rounded-xl bg-secondary/50 px-4 py-3 text-left transition-colors hover:bg-accent"
+              className="group w-full rounded-lg bg-secondary/50 px-4 py-3 text-left transition-colors hover:bg-accent"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="tabular text-2xl font-bold">
@@ -182,7 +194,7 @@ export function PlanSheet({
               <Button
                 onClick={applySuggested}
                 disabled={applying}
-                className="h-10 self-start rounded-full"
+                className="h-10 self-start"
               >
                 {applying
                   ? "Actualizando…"
@@ -217,7 +229,7 @@ export function PlanSheet({
               onClick={onAddIncome}
               className="flex w-full items-center gap-3 py-2.5 text-left text-muted-foreground transition-colors hover:text-foreground"
             >
-              <span className="grid size-11 shrink-0 place-items-center rounded-full border-2 border-dashed border-border text-lg">
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg border-2 border-dashed border-border text-lg">
                 +
               </span>
               {incomes.length > 0 ? (
@@ -276,7 +288,7 @@ export function PlanSheet({
                 className="flex w-20 shrink-0 flex-col items-center gap-1.5"
                 aria-label="Nueva categoría de ingreso"
               >
-                <span className="grid size-18 place-items-center rounded-full border-2 border-dashed border-border text-2xl text-muted-foreground">
+                <span className="grid size-18 place-items-center rounded-xl border-2 border-dashed border-border text-2xl text-muted-foreground">
                   +
                 </span>
                 <span className="text-xs text-muted-foreground">Nueva</span>
@@ -285,12 +297,120 @@ export function PlanSheet({
           </section>
         )}
 
-        <p className="pb-2 text-xs text-muted-foreground">
-          Los límites por categoría de gasto se ajustan tocando cada categoría
-          en el presupuesto.
-        </p>
+        {/* Topes por categoría: el aviso «Te falta repartir…» abre este plan, así que acá se
+            reparte. Un tope se guarda al salir del campo; el saldo se recalcula al escribir. */}
+        {expenseCategories.length > 0 && (
+          <section className="pb-2">
+            <div className="mb-1 flex items-baseline justify-between gap-3">
+              <h3 className="text-sm font-medium">Topes por categoría</h3>
+              {left !== null && (
+                <span
+                  className={cn(
+                    "tabular text-xs",
+                    left < 0 ? "text-destructive" : "text-muted-foreground"
+                  )}
+                >
+                  {left === 0
+                    ? "Todo repartido"
+                    : left > 0
+                      ? `Por repartir ${formatCLP(left)}`
+                      : `Sobre-asignado ${formatCLP(-left)}`}
+                </span>
+              )}
+            </div>
+            <div className="divide-y divide-border/40">
+              {expenseCategories.map((c) => (
+                <LimitRow
+                  // El tope guardado cambia con el refresh: la fila se rehace con el valor nuevo.
+                  key={`${c.id}-${c.limit}`}
+                  category={c}
+                  period={period}
+                  onDraft={(v) => setDrafts((d) => ({ ...d, [c.id]: v }))}
+                />
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </ResponsiveModal>
+  )
+}
+
+// Fila de tope de una categoría de gasto: el monto se edita en línea y se guarda al salir del
+// campo (POST /api/category-limits, un mes concreto). Vacío es «sin tope» (0).
+function LimitRow({
+  category,
+  period,
+  onDraft,
+}: {
+  category: CategoryDTO
+  period: { year: number; month: number }
+  onDraft: (value: number) => void
+}) {
+  const router = useRouter()
+  const money = useMoneyInput("CLP", category.limit)
+  const [saving, setSaving] = useState(false)
+
+  async function commit() {
+    if (money.value === category.limit || saving) return
+    setSaving(true)
+    const res = await fetch("/api/category-limits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        categoryId: category.id,
+        year: period.year,
+        month: period.month,
+        limit: money.value,
+      }),
+    })
+    setSaving(false)
+    if (!res.ok) {
+      haptic("error")
+      toast.error(`No se pudo guardar el tope de ${category.name}`)
+      money.reset(category.limit)
+      onDraft(category.limit)
+      return
+    }
+    haptic("success")
+    router.refresh()
+  }
+
+  return (
+    <label className="flex items-center gap-3 py-2">
+      <span
+        className="grid size-9 shrink-0 place-items-center rounded-full"
+        style={{
+          background: category.color ? `${category.color}1f` : "var(--muted)",
+        }}
+        aria-hidden
+      >
+        <CategoryIcon
+          icon={category.icon}
+          size={16}
+          color={category.color ?? undefined}
+        />
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">
+        {category.name}
+      </span>
+      <span className="flex items-baseline gap-1">
+        <span className="text-sm text-muted-foreground" aria-hidden>
+          $
+        </span>
+        <Input
+          inputMode="numeric"
+          placeholder="Sin tope"
+          aria-label={`Tope de ${category.name}`}
+          value={money.display}
+          disabled={saving}
+          onChange={(e) => onDraft(money.onChange(e.target.value))}
+          onBlur={commit}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          className="tabular h-9 w-28 text-right text-base md:text-base"
+        />
+      </span>
+    </label>
   )
 }
 
@@ -337,7 +457,7 @@ export function IncomeRow({
   const day = income.dayOfMonth
   let when: string
   if (income.generated) {
-    when = `Recibido · día ${day}`
+    when = `Llegó el ${day}`
   } else if (isCurrentMonth) {
     const diff = day - currentPeriod().day
     when =
@@ -393,7 +513,7 @@ export function IncomeRow({
           disabled={busy}
           title={income.generated ? "Deshacer" : "Registrar el ingreso del mes"}
           className={cn(
-            "flex h-6 items-center gap-1 rounded-full px-2.5 text-xs font-medium transition duration-150 ease-out active:scale-[0.97] disabled:opacity-50",
+            "flex h-6 items-center gap-1 rounded-lg px-2.5 text-xs font-medium transition duration-150 ease-out active:scale-[0.97] disabled:opacity-50",
             income.generated
               ? "bg-success/10 text-success"
               : "bg-primary text-primary-foreground"

@@ -190,7 +190,7 @@ export function TransactionSearch({
         {/* Filtros combinados: una fila con scroll-x en móvil (cinco filas de filtros dejaban
             los resultados bajo el pliegue); en ancho envuelven. */}
         <div className="-mx-4 flex scrollbar-none items-center gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
-          <div className="flex shrink-0 overflow-hidden rounded-full border text-sm">
+          <div className="flex shrink-0 overflow-hidden rounded-lg border text-sm">
             {DIRS.map((d) => (
               <button
                 key={d.label}
@@ -212,7 +212,7 @@ export function TransactionSearch({
           </div>
 
           <Select value={categoryId} onValueChange={setCategoryId}>
-            <SelectTrigger className="h-9 w-auto min-w-32 shrink-0 rounded-full">
+            <SelectTrigger className="h-9 w-auto min-w-32 shrink-0">
               <SelectValue placeholder="Categoría" />
             </SelectTrigger>
             <SelectContent>
@@ -226,7 +226,7 @@ export function TransactionSearch({
           </Select>
 
           <Select value={bank} onValueChange={setBank}>
-            <SelectTrigger className="h-9 w-auto min-w-28 shrink-0 rounded-full">
+            <SelectTrigger className="h-9 w-auto min-w-28 shrink-0">
               <SelectValue placeholder="Banco" />
             </SelectTrigger>
             <SelectContent>
@@ -245,7 +245,7 @@ export function TransactionSearch({
               <Button
                 variant="outline"
                 className={cn(
-                  "h-9 shrink-0 justify-start gap-2 rounded-full font-normal",
+                  "h-9 shrink-0 justify-start gap-2 font-normal",
                   !range?.from && "text-muted-foreground"
                 )}
               >

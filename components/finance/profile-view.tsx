@@ -48,20 +48,20 @@ export function ProfileView({
       active="perfil"
       onSignOut={signOut}
       quickAdd={{ accounts, categories }}
-      title="Mi perfil"
+      title="Perfil"
     >
       {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para
           el enlace "Volver", que ya no está (la navegación vive en el shell). */}
       <div className="mx-auto w-full max-w-4xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
         {/* En escritorio el título ya está en la topbar; en móvil no hay, así que se muestra. */}
         <h1 className="mb-3 font-heading text-xl font-bold md:sr-only">
-          Mi perfil
+          Perfil
         </h1>
 
         {/* Cabecera: identidad (ancho completo) */}
-        <div className="glass flex items-center gap-4 rounded-2xl p-5">
-          <Avatar className="size-14 rounded-2xl bg-primary">
-            <AvatarFallback className="rounded-2xl bg-primary text-xl font-semibold text-primary-foreground">
+        <div className="glass flex items-center gap-4 rounded-xl p-5">
+          <Avatar className="size-14 rounded-full bg-primary">
+            <AvatarFallback className="rounded-full bg-primary text-xl font-semibold text-primary-foreground">
               {user.initial}
             </AvatarFallback>
           </Avatar>
@@ -72,9 +72,12 @@ export function ProfileView({
             <div className="truncate text-sm text-muted-foreground">
               {user.email}
             </div>
-            <Badge variant="secondary" className="mt-1.5">
-              {ROLE_LABEL[user.role] ?? user.role}
-            </Badge>
+            {/* «Usuario» no informa nada: el chip solo aparece cuando el rol dice algo. */}
+            {user.role !== "USER" && (
+              <Badge variant="secondary" className="mt-1.5">
+                {ROLE_LABEL[user.role] ?? user.role}
+              </Badge>
+            )}
           </div>
         </div>
 
@@ -99,7 +102,7 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <section className="glass rounded-2xl p-5">
+    <section className="glass rounded-xl p-5">
       <h2 className="mb-4 font-heading text-base font-bold">{title}</h2>
       {children}
     </section>
@@ -148,7 +151,7 @@ function NameForm({ initialName }: { initialName: string }) {
         <Button
           type="submit"
           disabled={!dirty || pending}
-          className="h-11 rounded-full"
+          className="h-11"
         >
           {pending && <Loader2 className="size-4 animate-spin" />}
           Guardar
@@ -280,7 +283,7 @@ function PasswordForm() {
         <Button
           type="submit"
           disabled={pending}
-          className="h-11 rounded-full"
+          className="h-11"
         >
           {pending && <Loader2 className="size-4 animate-spin" />}
           Cambiar contraseña

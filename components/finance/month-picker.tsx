@@ -39,7 +39,7 @@ export function MonthPicker({
       <PopoverTrigger asChild>
         <button
           className={cn(
-            "h-8 min-w-20 rounded-full px-2 text-center text-sm font-semibold transition-colors hover:bg-background",
+            "h-8 min-w-20 rounded-lg px-2 text-center text-sm font-semibold transition-colors hover:bg-background",
             className
           )}
         >
@@ -51,7 +51,7 @@ export function MonthPicker({
         <div className="mb-2 flex items-center justify-between">
           <button
             onClick={() => setYear((y) => y - 1)}
-            className="grid size-9 place-items-center rounded-full transition-colors hover:bg-accent"
+            className="grid size-9 place-items-center rounded-lg transition-colors hover:bg-accent"
             aria-label="Año anterior"
           >
             <ChevronLeft className="size-4" />
@@ -59,7 +59,7 @@ export function MonthPicker({
           <span className="text-sm font-semibold tabular-nums">{year}</span>
           <button
             onClick={() => setYear((y) => y + 1)}
-            className="grid size-9 place-items-center rounded-full transition-colors hover:bg-accent"
+            className="grid size-9 place-items-center rounded-lg transition-colors hover:bg-accent"
             aria-label="Año siguiente"
           >
             <ChevronRight className="size-4" />

@@ -74,7 +74,7 @@ export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string }) {
         onClick={toggle}
         disabled={pending || enabled === null}
         variant={enabled ? "outline" : "default"}
-        className="h-11 rounded-full"
+        className="h-11"
       >
         {pending || enabled === null ? (
           <Loader2 className="size-4 animate-spin" />

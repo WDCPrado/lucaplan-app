@@ -35,7 +35,7 @@ export function PwaRefresh() {
       aria-hidden
       className="pwa-safe-top pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center"
     >
-      <div className="mt-2 rounded-full border bg-background/90 p-2 shadow-md backdrop-blur">
+      <div className="mt-2 rounded-lg border bg-background/90 p-2 shadow-md backdrop-blur">
         <Loader2 className="size-5 animate-spin" />
       </div>
     </div>

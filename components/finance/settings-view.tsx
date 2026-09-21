@@ -67,7 +67,7 @@ export function SettingsView({
         </p>
         <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
           {vapidPublicKey && (
-            <section className="glass rounded-2xl p-5 lg:col-span-2">
+            <section className="glass rounded-xl p-5 lg:col-span-2">
               <h2 className="mb-4 font-heading text-base font-bold">
                 Notificaciones
               </h2>
@@ -116,7 +116,7 @@ function DueReminderSection({ initialDays }: { initialDays: number }) {
   }
 
   return (
-    <section className="glass rounded-2xl p-5">
+    <section className="glass rounded-xl p-5">
       <div className="mb-1 flex items-center gap-2">
         <CalendarClock className="size-4 text-muted-foreground" />
         <h2 className="font-heading text-base font-bold">Pagos por vencer</h2>
@@ -131,7 +131,7 @@ function DueReminderSection({ initialDays }: { initialDays: number }) {
           disabled={pending || days === 0}
           onClick={() => change(days - 1)}
           aria-label="Avisar un día menos antes"
-          className="size-11 shrink-0 rounded-full"
+          className="size-11 shrink-0"
         >
           <Minus className="size-4" />
         </Button>
@@ -147,7 +147,7 @@ function DueReminderSection({ initialDays }: { initialDays: number }) {
           disabled={pending || days === DUE_MAX}
           onClick={() => change(days + 1)}
           aria-label="Avisar un día más antes"
-          className="size-11 shrink-0 rounded-full"
+          className="size-11 shrink-0"
         >
           <Plus className="size-4" />
         </Button>
@@ -196,7 +196,7 @@ function PaceSection({
   }
 
   return (
-    <section className="glass rounded-2xl p-5">
+    <section className="glass rounded-xl p-5">
       <div className="mb-1 flex items-center gap-2">
         <Gauge className="size-4 text-muted-foreground" />
         <h2 className="font-heading text-base font-bold">Ritmo de gasto</h2>
@@ -216,7 +216,7 @@ function PaceSection({
               disabled={pending}
               onClick={() => change(opt.value)}
               className={cn(
-                "flex h-11 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors disabled:opacity-60",
+                "flex h-11 items-center gap-1.5 rounded-lg px-4 text-sm font-medium transition-colors disabled:opacity-60",
                 active
                   ? "bg-primary text-primary-foreground"
                   : "bg-secondary hover:bg-accent"
@@ -278,7 +278,7 @@ function BudgetAlertsSection({
   }
 
   return (
-    <section className="glass rounded-2xl p-5">
+    <section className="glass rounded-xl p-5">
       <div className="mb-1 flex items-center gap-2">
         <BellRing className="size-4 text-muted-foreground" />
         <h2 className="font-heading text-base font-bold">
@@ -304,7 +304,7 @@ function BudgetAlertsSection({
               disabled={pending !== null}
               onClick={() => toggle(p)}
               className={cn(
-                "tabular h-11 rounded-full border px-3 text-sm transition-colors disabled:opacity-60",
+                "tabular h-11 rounded-lg border px-3 text-sm transition-colors disabled:opacity-60",
                 on
                   ? "border-primary bg-primary/10 font-medium text-primary"
                   : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"

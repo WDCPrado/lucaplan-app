@@ -218,7 +218,7 @@ export function MovementScanPanel({
                     }
                     disabled={busy !== null}
                     aria-label={`Quitar ${shot.name}`}
-                    className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent"
+                    className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent"
                   >
                     <X className="size-4" />
                   </button>
@@ -235,7 +235,7 @@ export function MovementScanPanel({
                 fileRef.current?.click()
               }}
               disabled={busy !== null || shots.length >= MAX_SCAN_IMAGES}
-              className="h-12 rounded-full px-6"
+              className="h-12 px-6"
             >
               {shots.length > 0 ? (
                 <Plus className="size-4" />
@@ -249,7 +249,7 @@ export function MovementScanPanel({
               <Button
                 onClick={scan}
                 disabled={busy !== null}
-                className="h-12 w-full rounded-full"
+                className="h-12 w-full"
               >
                 {busy === "reading" && (
                   <Loader2 className="size-4 animate-spin" />
@@ -326,7 +326,7 @@ export function MovementScanPanel({
                         : "Es un ingreso; cambiar a gasto"
                     }
                     className={cn(
-                      "size-9 shrink-0 rounded-full border text-xl",
+                      "size-9 shrink-0 rounded-lg border text-xl",
                       row.direction === "debit"
                         ? "text-destructive"
                         : "bg-success/10 text-success"
@@ -362,7 +362,7 @@ export function MovementScanPanel({
                       )
                     }
                     aria-label="Quitar de la lista"
-                    className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent"
+                    className="grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent"
                   >
                     <X className="size-4" />
                   </button>
@@ -384,7 +384,7 @@ export function MovementScanPanel({
           <Button
             onClick={save}
             disabled={busy !== null || selected.length === 0}
-            className="h-12 rounded-full"
+            className="h-12"
           >
             {busy === "saving" && <Loader2 className="size-4 animate-spin" />}
             {busy === "saving"

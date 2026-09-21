@@ -213,7 +213,7 @@ export function AccountModal({
           <Button
             onClick={save}
             disabled={!canSave}
-            className="h-12 flex-1 rounded-full text-base"
+            className="h-12 flex-1 text-base"
           >
             {saving ? "Guardando…" : "Crear tarjeta"}
           </Button>

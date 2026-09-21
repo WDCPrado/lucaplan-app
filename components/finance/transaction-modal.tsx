@@ -468,7 +468,7 @@ function EditForm({
               variant="outline"
               size="icon"
               disabled={busy !== null}
-              className="size-12 shrink-0 rounded-full text-destructive hover:text-destructive"
+              className="size-12 shrink-0 text-destructive hover:text-destructive"
               aria-label="Eliminar movimiento"
             >
               <Trash2 className="size-4" />
@@ -496,7 +496,7 @@ function EditForm({
         <Button
           onClick={save}
           disabled={!canSave}
-          className="h-12 flex-1 rounded-full text-base"
+          className="h-12 flex-1 text-base"
         >
           {busy === "save" ? "Guardando…" : "Guardar"}
         </Button>
@@ -887,7 +887,7 @@ function ConnectedDetail({
                 size="icon"
                 disabled={saving}
                 aria-label="Acciones de la recurrencia"
-                className="size-12 shrink-0 rounded-full"
+                className="size-12 shrink-0"
               >
                 <MoreHorizontal className="size-4" />
               </Button>
@@ -927,7 +927,7 @@ function ConnectedDetail({
                   setMakeRecurring(true)
                 }}
                 disabled={saving}
-                className="h-12 flex-1 rounded-full sm:flex-initial"
+                className="h-12 flex-1 sm:flex-initial"
               >
                 <Repeat className="size-4" />
                 Hacer recurrente
@@ -943,7 +943,7 @@ function ConnectedDetail({
                     setMakeInstallments(true)
                   }}
                   disabled={saving}
-                  className="h-12 flex-1 rounded-full sm:flex-initial"
+                  className="h-12 flex-1 sm:flex-initial"
                 >
                   <CreditCard className="size-4" />
                   Pasar a cuotas
@@ -956,7 +956,7 @@ function ConnectedDetail({
                     setAssignInstallment(true)
                   }}
                   disabled={saving}
-                  className="h-12 flex-1 rounded-full sm:flex-initial"
+                  className="h-12 flex-1 sm:flex-initial"
                 >
                   <CreditCard className="size-4" />
                   Es una cuota
@@ -978,7 +978,7 @@ function ConnectedDetail({
               onClick={() => setConfirmDeleteTx(true)}
               disabled={saving}
               aria-label={income ? "Eliminar ingreso" : "Eliminar gasto"}
-              className="size-12 shrink-0 rounded-full text-destructive hover:text-destructive"
+              className="size-12 shrink-0 text-destructive hover:text-destructive"
             >
               <Trash2 className="size-4" />
             </Button>
@@ -987,7 +987,7 @@ function ConnectedDetail({
           onClick={saveCategory}
           disabled={!changed || saving}
           className={cn(
-            "h-12 rounded-full text-base",
+            "h-12 text-base",
             // Con acciones de conversión, Guardar baja a su propia fila en móvil (basis-full
             // fuerza el salto de línea del flex-wrap del footer).
             showConversions ? "grow basis-full sm:basis-0" : "flex-1"
@@ -1141,7 +1141,7 @@ export function DirectionToggle({
   disabled?: boolean
 }) {
   return (
-    <div className="flex overflow-hidden rounded-full border">
+    <div className="flex overflow-hidden rounded-lg border">
       {(["debit", "credit"] as const).map((d) => (
         <button
           key={d}
@@ -1189,7 +1189,7 @@ export function Chip({
       }}
       disabled={disabled}
       className={cn(
-        "flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm whitespace-nowrap disabled:opacity-50",
+        "flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-4 text-sm whitespace-nowrap disabled:opacity-50",
         active
           ? "border-primary bg-primary/10 text-primary"
           : "text-muted-foreground"

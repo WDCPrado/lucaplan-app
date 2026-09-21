@@ -59,9 +59,9 @@ export function ProfileView({
         </h1>
 
         {/* Cabecera: identidad (ancho completo) */}
-        <div className="glass flex items-center gap-4 rounded-2xl p-5">
-          <Avatar className="size-14 rounded-2xl bg-primary">
-            <AvatarFallback className="rounded-2xl bg-primary text-xl font-semibold text-primary-foreground">
+        <div className="glass flex items-center gap-4 rounded-xl p-5">
+          <Avatar className="size-14 rounded-full bg-primary">
+            <AvatarFallback className="rounded-full bg-primary text-xl font-semibold text-primary-foreground">
               {user.initial}
             </AvatarFallback>
           </Avatar>
@@ -102,7 +102,7 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <section className="glass rounded-2xl p-5">
+    <section className="glass rounded-xl p-5">
       <h2 className="mb-4 font-heading text-base font-bold">{title}</h2>
       {children}
     </section>
@@ -151,7 +151,7 @@ function NameForm({ initialName }: { initialName: string }) {
         <Button
           type="submit"
           disabled={!dirty || pending}
-          className="h-11 rounded-full"
+          className="h-11"
         >
           {pending && <Loader2 className="size-4 animate-spin" />}
           Guardar
@@ -283,7 +283,7 @@ function PasswordForm() {
         <Button
           type="submit"
           disabled={pending}
-          className="h-11 rounded-full"
+          className="h-11"
         >
           {pending && <Loader2 className="size-4 animate-spin" />}
           Cambiar contraseña

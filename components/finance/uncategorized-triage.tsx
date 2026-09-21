@@ -302,7 +302,7 @@ export function UncategorizedTriage({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-11 gap-1.5 rounded-full px-3"
+                className="h-11 gap-1.5 px-3"
                 onClick={categorizeWithAI}
                 disabled={busy || exiting || aiBusy}
               >
@@ -314,7 +314,7 @@ export function UncategorizedTriage({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-11 shrink-0 rounded-full"
+                className="size-11 shrink-0"
                 aria-label="Cerrar"
                 disabled={busy || exiting || aiBusy}
               >
@@ -332,7 +332,7 @@ export function UncategorizedTriage({
               onPointerMove={onPileMove}
               onPointerUp={onPileUp}
               onPointerCancel={onPileUp}
-              className="flex cursor-grab touch-none items-center justify-between gap-3 rounded-2xl bg-secondary/60 py-1.5 pr-1.5 pl-4 transition-transform duration-200 ease-out select-none active:cursor-grabbing"
+              className="flex cursor-grab touch-none items-center justify-between gap-3 rounded-xl bg-secondary/60 py-1.5 pr-1.5 pl-4 transition-transform duration-200 ease-out select-none active:cursor-grabbing"
             >
               <div className="flex min-w-0 items-center gap-3">
                 <div className="relative h-9 w-12 shrink-0" aria-hidden>
@@ -351,7 +351,7 @@ export function UncategorizedTriage({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-11 shrink-0 gap-1.5 rounded-full px-3"
+                className="h-11 shrink-0 gap-1.5 px-3"
                 onClick={restoreLast}
                 disabled={busy || exiting}
               >
@@ -365,7 +365,7 @@ export function UncategorizedTriage({
           <div className="w-full max-w-md">
             {pending.length === 0 ? (
               // Estado final: resumen + cierre (el refresh va en handleClose).
-              <div className="glass-strong flex animate-in flex-col items-center gap-4 rounded-3xl p-8 text-center duration-300 fade-in-0">
+              <div className="glass-strong flex animate-in flex-col items-center gap-4 rounded-xl p-8 text-center duration-300 fade-in-0">
                 <span className="grid size-14 place-items-center rounded-full bg-success/15 text-success">
                   <Check className="size-7" />
                 </span>
@@ -379,10 +379,7 @@ export function UncategorizedTriage({
                     </p>
                   )}
                 </div>
-                <Button
-                  className="h-11 w-full rounded-full text-base"
-                  onClick={handleClose}
-                >
+                <Button className="h-11 w-full text-base" onClick={handleClose}>
                   Listo
                 </Button>
               </div>
@@ -395,7 +392,7 @@ export function UncategorizedTriage({
                     key={t.id}
                     aria-hidden={i > 0 || undefined}
                     className={cn(
-                      "glass-strong rounded-3xl transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-opacity motion-reduce:duration-150",
+                      "glass-strong rounded-xl transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-opacity motion-reduce:duration-150",
                       i === 0 && "relative z-3",
                       i === 0 &&
                         returningId === t.id &&

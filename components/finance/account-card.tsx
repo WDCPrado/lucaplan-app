@@ -96,7 +96,7 @@ export function AccountCard({
       }
       className={cn(
         // Sombra corta y contenida: una larga se recorta contra el borde del carrusel (overflow-x)
-        "relative flex min-h-40 w-full flex-col justify-between overflow-hidden rounded-2xl p-5 text-white shadow-[0_1px_2px_rgb(0_0_0/0.08),0_8px_20px_-10px_rgb(0_0_0/0.25)]",
+        "relative flex min-h-40 w-full flex-col justify-between overflow-hidden rounded-xl p-5 text-white shadow-[0_1px_2px_rgb(0_0_0/0.08),0_8px_20px_-10px_rgb(0_0_0/0.25)]",
         onClick && "cursor-pointer transition-transform hover:-translate-y-0.5"
       )}
       style={
@@ -120,7 +120,7 @@ export function AccountCard({
           {account.bankName || account.name}
         </div>
         {connected && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-medium backdrop-blur">
+          <span className="flex shrink-0 items-center gap-1 rounded-lg bg-white/15 px-2 py-0.5 text-[10px] font-medium backdrop-blur">
             <span className="size-1.5 rounded-full bg-emerald-400" />
             Conectado
           </span>
@@ -140,7 +140,7 @@ export function AccountCard({
           {/* El cupo secundario va DEBAJO, no al lado: en la misma línea, dos montos largos
               (CLP de siete dígitos + USD) se salen del ancho de la tarjeta. */}
           {chip && (
-            <span className="tabular mt-1.5 inline-block rounded-full bg-white/15 px-2 py-0.5 text-xs backdrop-blur">
+            <span className="tabular mt-1.5 inline-block rounded-lg bg-white/15 px-2 py-0.5 text-xs backdrop-blur">
               {hidden
                 ? "••••"
                 : formatMoney(chip.available, chip.currency as CurrencyCode)}

@@ -208,7 +208,7 @@ export function AssignToInstallmentModal({
           <Button
             variant="outline"
             onClick={onCreateLoan}
-            className="mt-4 h-11 rounded-full"
+            className="mt-4 h-11"
           >
             <Plus className="size-4" />
             Registrar un crédito nuevo

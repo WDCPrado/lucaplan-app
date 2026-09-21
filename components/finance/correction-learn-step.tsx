@@ -71,7 +71,7 @@ export function CorrectionLearnStep({
           <Button
             onClick={() => onFinish({ note, applyToSameText: true })}
             disabled={saving}
-            className="h-12 rounded-full text-base"
+            className="h-12 text-base"
           >
             {saving
               ? "Guardando…"
@@ -84,7 +84,7 @@ export function CorrectionLearnStep({
           variant={n > 0 || learnedCategoryName ? "outline" : "default"}
           onClick={() => onFinish({ note, applyToSameText: false })}
           disabled={saving}
-          className="h-12 rounded-full text-base"
+          className="h-12 text-base"
         >
           {saving
             ? "Guardando…"

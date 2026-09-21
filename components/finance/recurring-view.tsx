@@ -154,7 +154,7 @@ export function RecurringView({
 
               <div className="flex flex-col gap-6">
                 {active.length > 0 && (
-                  <ul className="glass divide-y divide-border/50 rounded-2xl px-3">
+                  <ul className="glass divide-y divide-border/50 rounded-xl px-3">
                     {active.map((t) => (
                       <RecurringRow
                         key={t.id}
@@ -171,7 +171,7 @@ export function RecurringView({
                     <h3 className="mb-2 text-xs font-medium text-muted-foreground">
                       Pausadas
                     </h3>
-                    <ul className="glass divide-y divide-border/50 rounded-2xl px-3">
+                    <ul className="glass divide-y divide-border/50 rounded-xl px-3">
                       {paused.map((t) => (
                         <RecurringRow
                           key={t.id}
@@ -189,7 +189,7 @@ export function RecurringView({
                     <h3 className="mb-2 text-xs font-medium text-muted-foreground">
                       Finalizadas
                     </h3>
-                    <ul className="glass divide-y divide-border/50 rounded-2xl px-3">
+                    <ul className="glass divide-y divide-border/50 rounded-xl px-3">
                       {ended.map((t) => (
                         <RecurringRow
                           key={t.id}
@@ -209,7 +209,7 @@ export function RecurringView({
               <div className="mb-3 flex min-h-9 items-end">
                 <h2 className="font-heading text-lg font-bold">Este mes</h2>
               </div>
-              <section className="glass rounded-2xl p-4 lg:sticky lg:top-24">
+              <section className="glass rounded-xl p-4 lg:sticky lg:top-24">
                 <p className="text-sm text-muted-foreground">
                   Total recurrente
                 </p>
@@ -374,7 +374,7 @@ function RecurringRow({
         aria-label={`${paidLabel}: ${t.label}`}
         title={paidLabel}
         // Escritorio: la acción con su nombre; en móvil solo el icono, que el ancho es del nombre.
-        className="h-11 shrink-0 rounded-full text-muted-foreground max-md:size-11 max-md:p-0"
+        className="h-11 shrink-0 text-muted-foreground max-md:size-11 max-md:p-0"
       >
         {canUndoPaid ? (
           <Undo2 className="size-4" />
@@ -393,7 +393,7 @@ function RecurringRow({
 // un movimiento. No hay alta a mano: la clave con la que se reconoce el cargo sale del cargo real.
 function EmptyState() {
   return (
-    <div className="glass mx-auto max-w-2xl rounded-2xl px-6 py-10 text-center">
+    <div className="glass mx-auto max-w-2xl rounded-xl px-6 py-10 text-center">
       <span
         className="mx-auto mb-3 grid size-11 place-items-center rounded-full bg-primary/10"
         aria-hidden

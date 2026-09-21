@@ -1,6 +1,7 @@
 # Design System — Luca Plan
 
-Estilo: **fintech moderno y sereno, con liquid glass**. Esquinas suaves, neutros
+Estilo: **fintech moderno y sereno, con liquid glass**. Esquinas sobrias (`--radius: 0.5rem`, ver
+[Formas y uso de componentes](../development.md#formas-y-uso-de-componentes)), neutros
 slate fríos, primario azul vibrante. Light + dark emparejados.
 Fuente de verdad: [app/globals.css](../../app/globals.css). No hardcodees valores en
 componentes — siempre tira de estos tokens (variables CSS / utilidades Tailwind v4).
@@ -61,7 +62,7 @@ a `--card` sólido (sigue legible). Ojo: **no** uses `prefers-reduced-motion` pa
 
 ## Forma y tipografía
 
-- `--radius: 0.625rem` (esquinas suaves, look moderno y amigable); escala `radius-sm…4xl` derivada.
+- `--radius: 0.5rem` (esquinas sobrias); escala `radius-sm…4xl` derivada.
 - Tipografía (cargada vía `next/font/google` en `app/layout.tsx`):
   - **Geist** (`--font-sans`) — UI y texto: moderna, neutra, muy legible en cuerpo pequeño.
   - **Space Grotesk** (`--font-heading`, utilidad `font-heading`) — headings y marca:

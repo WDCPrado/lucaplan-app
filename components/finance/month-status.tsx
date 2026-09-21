@@ -46,7 +46,7 @@ export function MonthStatus({
 
   if (globalLimit === null) {
     return (
-      <section className="glass rounded-2xl p-5 lg:p-6">
+      <section className="glass rounded-xl p-5 lg:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="min-w-0">
             <h2 className="font-heading text-lg font-bold">
@@ -57,7 +57,7 @@ export function MonthStatus({
               descontando lo que está comprometido.
             </p>
           </div>
-          <Button onClick={onOpenPlan} className="h-11 shrink-0 rounded-full">
+          <Button onClick={onOpenPlan} className="h-11 shrink-0">
             Definir presupuesto
           </Button>
         </div>
@@ -73,7 +73,7 @@ export function MonthStatus({
   ).padStart(2, "0")}T00:00:00.000Z`
 
   return (
-    <section className="glass relative rounded-2xl p-5 lg:p-6">
+    <section className="glass relative rounded-xl p-5 lg:p-6">
       {/* Editar el plan (ingresos, presupuesto) vive acá: es el mismo lugar donde se ve su
           resultado. En móvil se ancla arriba a la derecha para no quitarle ancho al titular. */}
       <Button
@@ -81,7 +81,7 @@ export function MonthStatus({
         onClick={onOpenPlan}
         aria-label="Ajustar el plan del mes"
         // Con nombre también en móvil: el icono de sliders solo no decía qué abría.
-        className="absolute top-5 right-5 z-10 rounded-full max-sm:h-9 max-sm:px-3 max-sm:text-xs sm:h-10 lg:top-6 lg:right-6"
+        className="absolute top-5 right-5 z-10 max-sm:h-9 max-sm:px-3 max-sm:text-xs sm:h-10 lg:top-6 lg:right-6"
       >
         <SlidersHorizontal className="size-4" />
         Ajustar plan
@@ -158,7 +158,7 @@ export function MonthStatus({
         <button
           onClick={onOpenPlan}
           className={cn(
-            "mt-4 flex w-full items-center justify-between gap-2 rounded-xl px-4 py-2.5 text-left text-sm transition-colors",
+            "mt-4 flex w-full items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-left text-sm transition-colors",
             remainingToAllocate < 0
               ? "bg-destructive/10 text-destructive hover:bg-destructive/15"
               : "bg-secondary/50 hover:bg-accent"

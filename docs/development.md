@@ -85,6 +85,41 @@ Todo el backend (doc + código) vive en `arch/`; no hay carpeta `src/`. Dentro d
 - Evita `useEffect` para lógica de otra capa (auth/redirects → proxy; errores de red →
   capa fetch; estado derivado → calcular en render; datos iniciales → server component).
 
+### Formas y uso de componentes
+
+Reglas copiadas del front de sdi-estoril (`apps/web`), que es la referencia de forma. Los
+colores siguen siendo los de Luca Plan; lo que se copia es cómo se usan los componentes.
+Rigen para todo lo nuevo; un formulario o modal existente se adapta cuando se toca, no en
+un barrido aparte.
+
+- **shadcn es la fuente de verdad; `components/ui/` solo se toca para los radios.** Los primitivos
+  llevan la jerarquía de radios de abajo aplicada a mano: al reinstalar uno con `shadcn add`,
+  volver a aplicarla. Nada más se edita ahí. Lo reutilizable
+  se compone encima, en `components/<carpeta>/` (`finance/`, `landing/`, `pwa/`): un
+  componente propio envuelve a los primitivos, nunca los reemplaza. Una excepción documentada:
+  `responsive-modal.tsx`, que es composición de Dialog y Drawer.
+- **Tokens, no valores.** Color, fuente, radio y espaciado salen de `app/globals.css`, en los
+  dos temas. Un color nuevo es un token nuevo, no un hex en `className`.
+- **Radio sobrio, con jerarquía de tres niveles** (`--radius: 0.5rem`):
+  `rounded-lg` para controles (botones, inputs, selects, chips, filtros, botones de icono);
+  `rounded-xl` para superficies (tarjetas, paneles `glass`, secciones, modales, drawers,
+  popovers); `rounded-md` para ítems de lista y de menú. `rounded-full` solo en lo que es un
+  círculo o una barra por significado: avatares, anillos de icono, puntos de estado, barras de
+  progreso, el marcador del día, badges de conteo y el FAB. Nada de `rounded-2xl`/`3xl`/`4xl`
+  en controles ni paneles.
+- **Las alturas no cambian con el radio**: targets táctiles ≥44 px (`h-11`) en móvil, como dice
+  la sección de responsividad.
+- **Modales, dos tipos y nada más.** `ResponsiveModal` para crear, editar o mostrar contenido
+  (dialog en escritorio, drawer en móvil); `AlertDialog` para confirmar una acción al momento.
+  Los dos cierran por X arriba y botón en el pie, además de Esc y fondo. El pie lleva las
+  acciones (`ModalFooter`); el botón que envía va con `form="<id>"` del `<form>` del modal.
+- **Formularios.** Un `<form id>` por sección; error de cada campo debajo del campo con
+  `aria-invalid` y `aria-describedby`; Guardar manda solo lo que cambió y queda deshabilitado
+  sin cambios. Dinero con `useMoneyInput`/`formatCLP`, nunca `type="number"` ni formato a mano.
+  Fechas con Calendar + Popover; enums con `Select`.
+- **Un componente de campo no hace fetch ni muta**: recibe valores y callbacks. La mutación
+  vive en quien abre el modal, y el modal se cierra en el éxito, nunca antes.
+
 ## Flujo de creación de UI / mocks
 
 Método para construir vistas nuevas (síguelo siempre):

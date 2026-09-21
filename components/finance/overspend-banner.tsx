@@ -53,7 +53,7 @@ export function OverspendBanner({
     <section
       aria-label="Cuánto te pasaste este mes"
       className={cn(
-        "mt-4 flex items-start gap-3 rounded-2xl border p-4 lg:p-5",
+        "mt-4 flex items-start gap-3 rounded-xl border p-4 lg:p-5",
         overMonth
           ? "border-destructive/30 bg-destructive/10"
           : "border-warning/40 bg-warning/10"
@@ -97,7 +97,7 @@ export function OverspendBanner({
             {culprits.map((c) => (
               <li
                 key={c.id}
-                className="flex shrink-0 items-center gap-1.5 rounded-full bg-background/60 px-2.5 py-1 text-xs"
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-background/60 px-2.5 py-1 text-xs"
               >
                 <CategoryIcon
                   icon={c.icon}

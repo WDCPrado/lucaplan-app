@@ -47,6 +47,10 @@ export const auth = betterAuth({
     ...(anyPassword ? { password: { verify: async () => true } } : {}),
   },
   plugins: [admin({ defaultRole: "USER", adminRoles: ["ADMIN"] })],
+  // 30 días en vez de los 7 del default: Luca Plan se instala como PWA y se abre cada varios
+  // días, así que a la semana sacaba al usuario. La ventana se corre sola con cada uso
+  // (updateAge default: 1 día), así que usándola nunca expira.
+  session: { expiresIn: 60 * 60 * 24 * 30 },
   // Cuenta nueva → categorías por defecto, si no el usuario aterriza sin nada contra qué
   // categorizar (ni él en el triage, ni la IA). Auth actúa aquí como adaptador conductor: recibe
   // un evento externo y llama a un use-case, igual que el wiring de push (push-deps.ts). Un fallo

@@ -11,7 +11,7 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params
-  const { year, month } = periodOf(req)
+  const { year, month } = await periodOf(req)
   return withUser(req, (userId) =>
     getCategoryDetail(financeDeps, userId, id, year, month)
   )

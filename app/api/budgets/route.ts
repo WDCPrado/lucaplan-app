@@ -9,7 +9,7 @@ import { setMonthlyBudget } from "@/arch/v1/application/finance-use-cases/set-mo
 // Vista del mes: categorías (globales) con su límite efectivo, uso, disponible y estado, más el
 // límite global del presupuesto (carry), lo asignado y el restante por presupuestar.
 export async function GET(req: Request) {
-  const { year, month } = periodOf(req)
+  const { year, month } = await periodOf(req)
   return withUser(req, (userId) =>
     getBudgetView(financeDeps, userId, year, month)
   )

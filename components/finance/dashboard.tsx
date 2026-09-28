@@ -35,14 +35,18 @@ import { TransactionSearch } from "./transaction-search"
 import { IncomeModal } from "./income-modal"
 import { OnboardingFlow } from "./onboarding/onboarding-flow"
 import {
-  currentPeriod,
-  daysLeftInMonth,
   formatCLP,
   formatCompact,
   formatDateHeader,
   statusVar,
+  todayKey,
 } from "@/lib/finance-format"
-import { dayOf, spendByDay } from "@/lib/day-spend"
+import { dateOf, daysLeftIn, spendByDate } from "@/lib/day-spend"
+import {
+  daysOf,
+  type PeriodMode,
+  type PeriodRange,
+} from "@/arch/shared/billing-cycle"
 import type {
   AccountDTO,
   AmountBoundsDTO,
@@ -54,8 +58,17 @@ import type {
   UncategorizedDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
+export type CycleProps = {
+  mode: PeriodMode
+  range: PeriodRange // del mes en pantalla
+  closing: { date: string; estimated: boolean } // cierre del mes en pantalla
+  current: { year: number; month: number } // mes en curso según el modo
+}
+
 type Props = {
   period: { year: number; month: number }
+  // Modo del período y rango del mes en pantalla: calendario (1 → fin de mes) o ciclo de la tarjeta.
+  cycle: CycleProps
   summary: MonthlySummaryDTO
   accounts: AccountDTO[]
   budget: BudgetViewDTO
@@ -78,6 +91,7 @@ type Props = {
 // elegido; las cuentas al final. Las mutaciones van por la API + router.refresh() dentro de cada superficie.
 export function Dashboard({
   period,
+  cycle,
   summary,
   accounts,
   budget,
@@ -133,34 +147,37 @@ export function Dashboard({
   const [triageDismissed, setTriageDismissed] = useState(false)
   const triageOpen = uncategorized.transactions.length > 0 && !triageDismissed
 
-  // "Mes en curso" según el calendario del usuario, no el de UTC (ver APP_TZ).
-  const today = currentPeriod()
+  // "Mes en curso" según el modo (en modo tarjeta, el 28/09 ya es octubre) y el calendario del
+  // usuario, no el de UTC (ver APP_TZ). Lo resuelve el servidor en `cycle.current`.
+  const today = todayKey()
   const isCurrentMonth =
-    period.year === today.year && period.month === today.month
-  // Días que faltan (hoy incluido): el divisor del ritmo diario por categoría. Se anuncia una sola
-  // vez en la cabecera del grupo — es un dato del mes, no de cada categoría.
-  const daysLeft = isCurrentMonth ? daysLeftInMonth() : 0
-  const daysInMonth = new Date(
-    Date.UTC(period.year, period.month, 0)
-  ).getUTCDate()
-  const byDay = spendByDay(transactions, daysInMonth)
+    period.year === cycle.current.year && period.month === cycle.current.month
+  // Días que faltan del rango (hoy incluido): el divisor del ritmo diario por categoría. Se
+  // anuncia una sola vez en la cabecera del grupo — es un dato del mes, no de cada categoría.
+  const daysLeft = isCurrentMonth ? daysLeftIn(cycle.range, today) : 0
+  // Un día por fecha del rango: en modo tarjeta cruza dos meses (23 sep – 22 oct).
+  const days = daysOf(cycle.range)
+  const spend = spendByDate(transactions, days)
+  const lastDay = days[days.length - 1]
   // Día que se lista: hoy en el mes en curso; en otro mes, el último con movimientos. Al cambiar
-  // de mes se vuelve al default ajustando el estado en render (mismo patrón que `openTxId`).
-  const periodKey = `${period.year}-${period.month}`
-  const defaultDay = isCurrentMonth
-    ? today.day
-    : (transactions.map(dayOf).sort((a, b) => b - a)[0] ?? daysInMonth)
+  // de mes (o de rango) se vuelve al default ajustando el estado en render (mismo patrón que
+  // `openTxId`).
+  const periodKey = `${cycle.range.start}_${cycle.range.end}`
+  const todayInRange = isCurrentMonth && days.includes(today)
+  const defaultDay = todayInRange
+    ? today
+    : (transactions.map(dateOf).sort().at(-1) ?? lastDay)
   const [dayState, setDayState] = useState({ key: periodKey, day: defaultDay })
   if (dayState.key !== periodKey)
     setDayState({ key: periodKey, day: defaultDay })
   const selectedDay = dayState.day
-  const dayTransactions = transactions.filter((t) => dayOf(t) === selectedDay)
+  const dayTransactions = transactions.filter((t) => dateOf(t) === selectedDay)
   // Escritorio: los movimientos más recientes ANTES del día elegido, agrupados por fecha, para
   // que la columna del día no quede vacía. Ocho filas bastan para llenar la primera pantalla.
   const recentGroups: { key: string; header: string; txs: TransactionDTO[] }[] =
     []
   for (const t of transactions
-    .filter((t) => dayOf(t) < selectedDay)
+    .filter((t) => dateOf(t) < selectedDay)
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 8)) {
     const key = t.date.slice(0, 10)
@@ -173,7 +190,7 @@ export function Dashboard({
     const cat = budget.categories.find((c) => c.id === id)
     if (cat) setDetail(cat)
   }
-  const dayIso = `${period.year}-${String(period.month).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}T00:00:00.000Z`
+  const dayIso = `${selectedDay}T00:00:00.000Z`
   // Neto del día como en la cabecera de cada fecha: ingresos suman, cargos restan, internos no.
   const dayNet = dayTransactions.reduce((sum, t) => {
     if (t.isInternal) return sum
@@ -368,6 +385,7 @@ export function Dashboard({
             </button>
             <MonthPicker
               period={period}
+              current={cycle.current}
               onSelect={(y, m) =>
                 router.push(`/dashboard?year=${y}&month=${m}`)
               }
@@ -390,6 +408,7 @@ export function Dashboard({
               determina. La tira de días vive adentro: es el mes que ese número reparte. */}
           <MonthStatus
             period={period}
+            cycle={cycle}
             isCurrentMonth={isCurrentMonth}
             daysLeft={daysLeft}
             globalLimit={budget.globalLimit}
@@ -399,9 +418,10 @@ export function Dashboard({
             onOpenPlan={() => setPlanOpen(true)}
           >
             <DayStrip
-              spendByDay={byDay}
+              days={days}
+              spend={spend}
               selectedDay={selectedDay}
-              today={isCurrentMonth ? today.day : null}
+              today={todayInRange ? today : null}
               onSelect={(day) => {
                 haptic("light")
                 setDayState({ key: periodKey, day })
@@ -532,7 +552,7 @@ export function Dashboard({
               </div>
               {dayTransactions.length === 0 ? (
                 <p className="glass-strong rounded-xl py-10 text-center text-sm text-muted-foreground">
-                  {isCurrentMonth && selectedDay === today.day
+                  {selectedDay === today
                     ? "Sin movimientos hoy"
                     : "Sin movimientos ese día"}
                 </p>

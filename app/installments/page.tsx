@@ -2,7 +2,8 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { auth } from "@/arch/v1/infrastructure/auth/auth"
-import { currentPeriod } from "@/lib/finance-format"
+import { todayKey } from "@/lib/finance-format"
+import { currentBudgetPeriod } from "@/arch/v1/application/finance-use-cases/budget-period-use-cases"
 import { financePageDeps } from "@/arch/v1/presentation/finance/finance-http"
 import {
   listAccounts,
@@ -16,7 +17,8 @@ export default async function InstallmentsPage() {
   if (!session) redirect("/login")
 
   const userId = session.user.id
-  const now = currentPeriod()
+  // Mes del presupuesto en curso según el modo (calendario o ciclo de la tarjeta).
+  const now = await currentBudgetPeriod(financePageDeps, todayKey())
   const [plans, accounts, budget] = await Promise.all([
     listInstallmentsView(financePageDeps, userId),
     listAccounts(financePageDeps, userId),

@@ -11,6 +11,9 @@ import {
 import type { Transaction } from "../../domain/finance/finance.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
 import { notifyBudgetCrossing } from "./notify-imported-use-case.ts"
+import { periodRange } from "../../../shared/billing-cycle.ts"
+
+const JULIO = { year: 2026, month: 7, range: periodRange(2026, 7, "calendar", {}) }
 import {
   budgetAlertMessage,
   dueSoonMessage,
@@ -162,8 +165,7 @@ test("categorizar un movimiento lo mete al presupuesto y puede cruzar un umbral"
   await notifyBudgetCrossing(
     deps([tx({ id: "viejo", amount: clp(70_000) }), sinCategoria]),
     "u1",
-    2026,
-    7,
+    JULIO,
     (t) => t.id === "nuevo"
   )
   assert.equal(enviados.length, 0)
@@ -175,8 +177,7 @@ test("categorizar un movimiento lo mete al presupuesto y puede cruzar un umbral"
       tx({ id: "nuevo", amount: clp(15_000) }),
     ]),
     "u1",
-    2026,
-    7,
+    JULIO,
     (t) => t.id === "nuevo"
   )
   assert.equal(enviados.length, 1)
@@ -190,8 +191,7 @@ test("categorizar un movimiento lo mete al presupuesto y puede cruzar un umbral"
       tx({ id: "nuevo", amount: clp(15_000), categoryId: "cat2" }),
     ]),
     "u1",
-    2026,
-    7,
+    JULIO,
     (t) => t.id === "nuevo"
   )
   assert.equal(enviados.length, 0)

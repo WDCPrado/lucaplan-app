@@ -28,6 +28,7 @@ import {
   IncomeNotFoundError,
 } from "../../domain/finance/income.domain.ts"
 import { InvalidPaceFrequencyError } from "../../domain/finance/pace.domain.ts"
+import { InvalidBudgetPeriodError } from "../../domain/finance/budget-period.domain.ts"
 import { BalanceScanError } from "../../domain/finance/balance-scan.domain.ts"
 import { MovementScanError } from "../../domain/finance/movement-scan.domain.ts"
 import {
@@ -64,6 +65,9 @@ import { correctionRepository } from "../../infrastructure/database/prisma/categ
 import { incomeRepository } from "../../infrastructure/database/prisma/income.infrastructure.ts"
 import { recurringTemplateRepository } from "../../infrastructure/database/prisma/recurring.infrastructure.ts"
 import { installmentPlanRepository } from "../../infrastructure/database/prisma/installment.infrastructure.ts"
+import { budgetPeriodRepository } from "../../infrastructure/database/prisma/budget-period.infrastructure.ts"
+import { currentBudgetPeriod } from "../../application/finance-use-cases/budget-period-use-cases.ts"
+import { todayKey } from "../../../../lib/finance-format.ts"
 import { openaiCategorizationProvider } from "../../infrastructure/http/ai/openai-categorization.provider.ts"
 import { openaiBalanceScanReader } from "../../infrastructure/http/ai/openai-balance-scan.provider.ts"
 import { openaiMovementScanReader } from "../../infrastructure/http/ai/openai-movement-scan.provider.ts"
@@ -82,6 +86,7 @@ export const financeDeps = {
   incomes: incomeRepository,
   recurring: recurringTemplateRepository,
   installments: installmentPlanRepository,
+  budgetPeriod: budgetPeriodRepository,
   categorization: openaiCategorizationProvider,
   balanceScan: openaiBalanceScanReader,
   movementScan: openaiMovementScanReader,
@@ -112,6 +117,7 @@ function errorStatus(e: unknown): number {
   if (e instanceof LockBusyError) return 409 // sync ya en curso
   if (e instanceof ConnectionMethodConflictError) return 409 // otro método de conexión activo
   if (e instanceof DuplicateBudgetAlertError) return 409 // ya existe una alerta a ese %
+  if (e instanceof InvalidBudgetPeriodError) return 400 // contrato de /api/period-mode y /api/card-closing
   if (
     e instanceof InvalidBudgetAlertError ||
     e instanceof InvalidDueDaysError ||
@@ -182,11 +188,15 @@ export async function withUser(
   }
 }
 
-// year/month desde query params; por defecto el mes actual (UTC).
-export function periodOf(req: Request): { year: number; month: number } {
+// year/month desde query params; por defecto el mes del presupuesto en curso según el modo
+// (calendario o ciclo de la tarjeta), con el "hoy" del calendario del usuario.
+export async function periodOf(
+  req: Request
+): Promise<{ year: number; month: number }> {
   const sp = new URL(req.url).searchParams
-  const now = new Date()
-  const year = Number(sp.get("year")) || now.getUTCFullYear()
-  const month = Number(sp.get("month")) || now.getUTCMonth() + 1
-  return { year, month }
+  const year = Number(sp.get("year"))
+  const month = Number(sp.get("month"))
+  if (year && month) return { year, month }
+  const now = await currentBudgetPeriod(financeDeps, todayKey())
+  return { year: year || now.year, month: month || now.month }
 }

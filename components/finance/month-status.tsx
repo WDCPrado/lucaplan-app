@@ -1,16 +1,35 @@
 "use client"
 
-import { ChevronRight, SlidersHorizontal } from "lucide-react"
+import { useId, useState } from "react"
+import { useRouter } from "next/navigation"
+import { es } from "date-fns/locale"
+import { toast } from "sonner"
+import { CalendarClock, ChevronRight, SlidersHorizontal } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { Calendar } from "@/components/ui/calendar"
+import { Label } from "@/components/ui/label"
 import {
-  currentPeriod,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Switch } from "@/components/ui/switch"
+import { cn } from "@/lib/utils"
+import { haptic } from "@/lib/haptics"
+import {
   formatCLP,
   formatLongDate,
   monthName,
+  todayKey,
   usagePct,
 } from "@/lib/finance-format"
 import { dailyAllowance } from "@/lib/day-spend"
+import {
+  estimateClosing,
+  type PeriodMode,
+} from "@/arch/shared/billing-cycle"
+import type { CycleProps } from "./dashboard"
 
 /**
  * Estado del mes convertido en UNA decisión: cuánto puedes gastar hoy. Es lo libre del mes
@@ -23,6 +42,7 @@ import { dailyAllowance } from "@/lib/day-spend"
  */
 export function MonthStatus({
   period,
+  cycle,
   isCurrentMonth,
   daysLeft,
   globalLimit,
@@ -33,6 +53,7 @@ export function MonthStatus({
   children,
 }: {
   period: { year: number; month: number }
+  cycle: CycleProps
   isCurrentMonth: boolean
   daysLeft: number // días que quedan, hoy incluido; 0 fuera del mes en curso
   globalLimit: number | null
@@ -43,6 +64,8 @@ export function MonthStatus({
   children?: React.ReactNode // la tira de días, debajo del titular
 }) {
   const mes = monthName(period.month).toLowerCase()
+  // Modo y ciclo: van justo encima de la tira de días, que es el rango que describen.
+  const cycleBar = <CycleBar period={period} cycle={cycle} />
 
   if (globalLimit === null) {
     return (
@@ -61,16 +84,15 @@ export function MonthStatus({
             Definir presupuesto
           </Button>
         </div>
-        {children && <div className="mt-5">{children}</div>}
+        {cycleBar}
+        {children && <div className="mt-3">{children}</div>}
       </section>
     )
   }
 
   const free = globalLimit - spent - committed
   const usedPct = usagePct(spent, globalLimit)
-  const todayIso = `${period.year}-${String(period.month).padStart(2, "0")}-${String(
-    currentPeriod().day
-  ).padStart(2, "0")}T00:00:00.000Z`
+  const todayIso = `${todayKey()}T00:00:00.000Z`
 
   return (
     <section className="glass relative rounded-xl p-5 lg:p-6">
@@ -150,7 +172,8 @@ export function MonthStatus({
         )}
       </div>
 
-      {children && <div className="mt-5">{children}</div>}
+      {cycleBar}
+      {children && <div className="mt-3">{children}</div>}
 
       {/* Nudge de asignación: solo aparece cuando hay algo que hacer (falta repartir o te pasaste
           asignando). Abre el plan, que es donde se reparte. En $0 no molesta. */}
@@ -173,5 +196,185 @@ export function MonthStatus({
         </button>
       )}
     </section>
+  )
+}
+
+// «23 sep», del "YYYY-MM-DD" civil sin pasar por la zona horaria.
+function shortDate(day: string): string {
+  const m = monthName(Number(day.slice(5, 7))).slice(0, 3).toLowerCase()
+  return `${Number(day.slice(8, 10))} ${m}`
+}
+
+async function apiError(res: Response | null, fallback: string) {
+  const data = await res?.json().catch(() => null)
+  return typeof data?.error === "string" ? data.error : fallback
+}
+
+/**
+ * Fila del período: en modo tarjeta, el rango del ciclo y su cierre (corregible); a la derecha, el
+ * switch de modo. En móvil se parte en dos líneas: el ciclo arriba y el switch debajo.
+ */
+function CycleBar({
+  period,
+  cycle,
+}: {
+  period: { year: number; month: number }
+  cycle: CycleProps
+}) {
+  const router = useRouter()
+  const switchId = useId()
+  // Optimista: el switch cambia al toque; si falla vuelve y avisa. Cuando el servidor ya trae el
+  // modo nuevo, el valor local sobra y se suelta en render.
+  const [optimistic, setOptimistic] = useState<PeriodMode | null>(null)
+  if (optimistic !== null && optimistic === cycle.mode) setOptimistic(null)
+  const mode = optimistic ?? cycle.mode
+  const card = mode === "card_cycle"
+
+  async function changeMode(checked: boolean) {
+    const next: PeriodMode = checked ? "card_cycle" : "calendar"
+    haptic("light")
+    setOptimistic(next)
+    const res = await fetch("/api/period-mode", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mode: next }),
+    }).catch(() => null)
+    if (!res?.ok) {
+      setOptimistic(null)
+      toast.error(await apiError(res, "No se pudo cambiar el modo."))
+      return
+    }
+    // Al mes en curso del modo nuevo: con el modo tarjeta, el 28/09 ya es octubre.
+    if (window.location.search) router.push("/dashboard")
+    else router.refresh()
+  }
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
+      {/* El rango que trae el servidor es el del modo guardado: se muestra solo cuando el modo
+          guardado y el del switch coinciden en tarjeta. */}
+      {cycle.mode === "card_cycle" && card && (
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="text-base text-muted-foreground sm:text-sm">
+            Ciclo{" "}
+            <span className="font-medium text-foreground tabular-nums">
+              {shortDate(cycle.range.start)} – {shortDate(cycle.range.end)}
+            </span>
+          </p>
+          <ClosingPicker period={period} closing={cycle.closing} />
+        </div>
+      )}
+      <div className="ml-auto flex min-h-11 items-center gap-3">
+        <Label
+          htmlFor={switchId}
+          className="cursor-pointer text-base font-medium sm:text-sm"
+        >
+          {card ? "Modo tarjeta de crédito" : "Modo débito"}
+        </Label>
+        <Switch
+          id={switchId}
+          checked={card}
+          disabled={optimistic !== null}
+          onCheckedChange={changeMode}
+        />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * El cierre del mes en pantalla: se estima (7.º día hábil desde el fin de mes) y se corrige con un
+ * calendario limitado a los días de ese mes. Con una corrección guardada, «Usar estimado» la borra.
+ */
+function ClosingPicker({
+  period,
+  closing,
+}: {
+  period: { year: number; month: number }
+  closing: { date: string; estimated: boolean }
+}) {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const mes = monthName(period.month).toLowerCase()
+  const estimate = estimateClosing(period.year, period.month)
+  const [y, m, d] = closing.date.split("-").map(Number)
+
+  async function save(date: string | null) {
+    setSaving(true)
+    const res = await fetch("/api/card-closing", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ year: period.year, month: period.month, date }),
+    }).catch(() => null)
+    setSaving(false)
+    if (!res?.ok) {
+      toast.error(await apiError(res, "No se pudo guardar el cierre."))
+      return
+    }
+    haptic("light")
+    setOpen(false)
+    router.refresh()
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="secondary"
+          aria-label={`Cierre de ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}. Corregir`}
+          className="h-11 gap-2 px-3 text-base font-normal sm:h-9 sm:text-sm"
+        >
+          <CalendarClock className="size-4 text-muted-foreground" />
+          <span>
+            Cierra el{" "}
+            <span className="font-medium tabular-nums">
+              {shortDate(closing.date)}
+            </span>
+          </span>
+          {closing.estimated && (
+            <Badge
+              variant="outline"
+              className="font-normal text-muted-foreground"
+            >
+              estimado
+            </Badge>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-auto gap-2 p-3">
+        <p className="px-1 text-sm text-muted-foreground">
+          ¿Qué día cierra la facturación de {mes}?
+        </p>
+        <Calendar
+          mode="single"
+          locale={es}
+          month={new Date(period.year, period.month - 1, 1)}
+          disableNavigation
+          showOutsideDays={false}
+          disabled={saving}
+          selected={new Date(y, m - 1, d)}
+          onSelect={(day) => {
+            if (!day) return
+            const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`
+            // El mismo día no es una corrección: cerrar sin guardar.
+            if (key !== closing.date) void save(key)
+            else setOpen(false)
+          }}
+          classNames={{ nav: "hidden" }}
+          className="p-0"
+        />
+        {!closing.estimated && (
+          <Button
+            variant="ghost"
+            disabled={saving}
+            onClick={() => void save(null)}
+            className="h-11 w-full text-base sm:h-9 sm:text-sm"
+          >
+            Usar estimado ({shortDate(estimate)})
+          </Button>
+        )}
+      </PopoverContent>
+    </Popover>
   )
 }

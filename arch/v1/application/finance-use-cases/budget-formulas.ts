@@ -13,6 +13,17 @@ import type {
 } from "../../domain/finance/finance.domain.ts"
 import type { PaceFrequency } from "../../domain/finance/pace.domain.ts"
 import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
+import { daysOf, type PeriodRange } from "../../../shared/billing-cycle.ts"
+
+/**
+ * ¿El día civil de `date` cae dentro del rango, bordes incluidos? UTC: las fechas de movimientos
+ * se guardan como DATE (medianoche UTC); con getters locales un movimiento del día 1 caía en el
+ * día anterior (Chile UTC-4).
+ */
+export function inRange(date: Date, range: PeriodRange): boolean {
+  const day = date.toISOString().slice(0, 10)
+  return day >= range.start && day <= range.end
+}
 
 /** Caja activa: Σ saldo POSITIVO de cuentas `checking` de la moneda dada. Cupos y negativos no cuentan. */
 export function computeActiveCash(
@@ -77,13 +88,12 @@ export function creditCardDebts(
     .map((a) => ({ account: a, debt: a.balance.negate() }))
 }
 
-/** Uso de una categoría en un mes: Σ gastos (`debit`) asociados; disponible = límite − usado. */
+/** Uso de una categoría en el mes (su rango): Σ gastos (`debit`); disponible = límite − usado. */
 export function computeCategoryUsage(
   categoryId: string,
   limit: Money,
   transactions: Transaction[],
-  year: number,
-  month: number,
+  range: PeriodRange,
   // Dirección que "usa" la categoría: gastos suman débitos; categorías de ingreso suman créditos.
   direction: "debit" | "credit" = "debit"
 ): { used: Money; available: Money } {
@@ -95,10 +105,7 @@ export function computeCategoryUsage(
         t.status === "confirmed" &&
         !t.isInternal &&
         t.amount.currency === limit.currency &&
-        // UTC: las fechas de movimientos se guardan y muestran en UTC; con getters locales un
-        // movimiento a medianoche UTC del día 1 caía en el mes anterior (Chile UTC-4).
-        t.date.getUTCFullYear() === year &&
-        t.date.getUTCMonth() + 1 === month
+        inRange(t.date, range)
     )
     .reduce((sum, t) => sum.add(t.amount), Money.zero(limit.currency))
   return { used, available: limit.subtract(used) }
@@ -113,8 +120,7 @@ export function computeCategoryCommitted(
   categoryId: string,
   currency: CurrencyCode,
   transactions: Transaction[],
-  year: number,
-  month: number,
+  range: PeriodRange,
   direction: "debit" | "credit" = "debit"
 ): Money {
   return transactions
@@ -125,40 +131,38 @@ export function computeCategoryCommitted(
         t.status === "pending" &&
         !t.isInternal &&
         t.amount.currency === currency &&
-        // UTC: mismo criterio que computeCategoryUsage.
-        t.date.getUTCFullYear() === year &&
-        t.date.getUTCMonth() + 1 === month
+        inRange(t.date, range)
     )
     .reduce((sum, t) => sum.add(t.amount), Money.zero(currency))
 }
 
 /**
- * Período del RITMO dentro del mes, en días civiles 1..lastDay: hoy (daily) o la semana calendario
- * lunes–domingo que contiene a hoy, recortada a los bordes del mes (weekly). La semana es LA
- * semana: empieza el lunes aunque hoy sea jueves — lo gastado el lunes cuenta igual.
+ * Período del RITMO dentro del mes del presupuesto, en días civiles: hoy (daily) o la semana
+ * calendario lunes–domingo que contiene a hoy, recortada a los bordes del rango del mes (weekly).
+ * La semana es LA semana: empieza el lunes aunque hoy sea jueves — lo gastado el lunes cuenta igual.
  */
 export function pacePeriod(
-  today: { year: number; month: number; day: number },
-  frequency: PaceFrequency
-): { startDay: number; endDay: number } {
-  if (frequency === "daily") return { startDay: today.day, endDay: today.day }
-  const lastDay = new Date(Date.UTC(today.year, today.month, 0)).getUTCDate()
+  today: string, // "YYYY-MM-DD", dentro de `range`
+  frequency: PaceFrequency,
+  range: PeriodRange
+): PeriodRange {
+  if (frequency === "daily") return { start: today, end: today }
+  const monday = new Date(`${today}T00:00:00Z`)
   // 0=lunes … 6=domingo (getUTCDay da 0=domingo; se rota para partir la semana en lunes).
-  const dow =
-    (new Date(Date.UTC(today.year, today.month - 1, today.day)).getUTCDay() +
-      6) %
-    7
-  const monday = today.day - dow
+  monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7))
+  const sunday = new Date(monday)
+  sunday.setUTCDate(sunday.getUTCDate() + 6)
+  const day = (d: Date) => d.toISOString().slice(0, 10)
   return {
-    startDay: Math.max(1, monday),
-    endDay: Math.min(lastDay, monday + 6),
+    start: day(monday) > range.start ? day(monday) : range.start,
+    end: day(sunday) < range.end ? day(sunday) : range.end,
   }
 }
 
 /**
  * Ritmo de una categoría: lo gastado en el período (hoy / esta semana) y el presupuesto de ese
  * período. El presupuesto reparte lo disponible AL INICIO del período (disponible actual +
- * gastado del período) entre los días de mes que quedaban desde ese inicio, × los días del
+ * gastado del período) entre los días del mes que quedaban desde ese inicio, × los días del
  * período. Así la cifra es estable: registrar un gasto sube el "gastado" pero no mueve la meta,
  * y la semana vale lo mismo el lunes que el jueves. Puede ser $0 si la categoría llegó al
  * período sin margen.
@@ -167,10 +171,11 @@ export function computeCategoryPace(
   categoryId: string,
   available: Money, // límite − usado del MES (puede ser negativo)
   transactions: Transaction[],
-  today: { year: number; month: number; day: number },
-  frequency: PaceFrequency
+  today: string, // "YYYY-MM-DD", dentro de `range`
+  frequency: PaceFrequency,
+  range: PeriodRange // el mes del presupuesto
 ): { spent: Money; budget: Money } {
-  const { startDay, endDay } = pacePeriod(today, frequency)
+  const period = pacePeriod(today, frequency, range)
   const spent = transactions
     .filter(
       (t) =>
@@ -179,17 +184,12 @@ export function computeCategoryPace(
         t.status === "confirmed" &&
         !t.isInternal &&
         t.amount.currency === available.currency &&
-        // UTC: mismo criterio de día civil que computeCategoryUsage.
-        t.date.getUTCFullYear() === today.year &&
-        t.date.getUTCMonth() + 1 === today.month &&
-        t.date.getUTCDate() >= startDay &&
-        t.date.getUTCDate() <= endDay
+        inRange(t.date, period)
     )
     .reduce((sum, t) => sum.add(t.amount), Money.zero(available.currency))
-  const lastDay = new Date(Date.UTC(today.year, today.month, 0)).getUTCDate()
   const availableAtStart = available.add(spent)
-  const daysFromStart = lastDay - startDay + 1
-  const periodDays = endDay - startDay + 1
+  const daysFromStart = daysOf({ start: period.start, end: range.end }).length
+  const periodDays = daysOf(period).length
   // Piso por día (como la línea "por día" original) y en unidad mayor: CLP no tiene centavos.
   const dailyMajor = Math.floor(availableAtStart.toMajor() / daysFromStart)
   const budget = Money.of(

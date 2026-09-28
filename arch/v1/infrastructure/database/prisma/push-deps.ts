@@ -10,6 +10,9 @@ import { recurringTemplateRepository } from "./recurring.infrastructure.ts"
 import { pushSubscriptionRepository } from "./push.infrastructure.ts"
 import { webpushSender } from "../../http/webpush/webpush.provider.ts"
 import { prisma } from "./client.ts"
+import { budgetPeriodRepository } from "./budget-period.infrastructure.ts"
+import { currentBudgetPeriod } from "../../../application/finance-use-cases/budget-period-use-cases.ts"
+import { inRange } from "../../../application/finance-use-cases/budget-formulas.ts"
 import {
   notifyBudgetCrossing,
   notifyImportedMovements,
@@ -29,6 +32,7 @@ const notifyDeps = {
   transactions: transactionRepository,
   categories: categoryRepository,
   budgetAlerts: budgetAlertRepository,
+  budgetPeriod: budgetPeriodRepository,
 }
 
 /** Deps del CRUD de umbrales (Configuración → Alertas de presupuesto). */
@@ -82,21 +86,14 @@ export function notifyImportedForSync(
  * SOLO el mes en curso: clasificar historial (el triage del onboarding importa 3 meses) no es un
  * gasto nuevo, es ordenar el pasado — avisar "superaste el presupuesto de mayo" sería ruido.
  */
-export function notifyBudgetForCategorized(
+export async function notifyBudgetForCategorized(
   userId: string,
   tx: Transaction
 ): Promise<void> {
-  const now = new Date()
-  if (
-    tx.date.getUTCFullYear() !== now.getUTCFullYear() ||
-    tx.date.getUTCMonth() !== now.getUTCMonth()
-  )
-    return Promise.resolve()
-  return notifyBudgetCrossing(
+  const current = await currentBudgetPeriod(
     notifyDeps,
-    userId,
-    now.getUTCFullYear(),
-    now.getUTCMonth() + 1,
-    (t) => t.id === tx.id
+    new Date().toISOString().slice(0, 10)
   )
+  if (!inRange(tx.date, current.range)) return
+  return notifyBudgetCrossing(notifyDeps, userId, current, (t) => t.id === tx.id)
 }

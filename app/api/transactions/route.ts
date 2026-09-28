@@ -11,7 +11,7 @@ import {
 } from "@/arch/v1/domain/finance/finance.domain"
 
 export async function GET(req: Request) {
-  const { year, month } = periodOf(req)
+  const { year, month } = await periodOf(req)
   return withUser(req, (userId) =>
     listTransactions(financeDeps, userId, year, month)
   )

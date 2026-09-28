@@ -1,30 +1,39 @@
 import type { TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
+import { daysOf, type PeriodRange } from "../arch/shared/billing-cycle.ts"
 
-/** Día civil (1–31) de un movimiento: `date` es el ISO de un @db.Date, así que el día va en el texto. */
-export function dayOf(tx: Pick<TransactionDTO, "date">): number {
-  return Number(tx.date.slice(8, 10))
+/** Fecha civil "YYYY-MM-DD" de un movimiento: `date` es el ISO de un @db.Date, así que va en el texto. */
+export function dateOf(tx: Pick<TransactionDTO, "date">): string {
+  return tx.date.slice(0, 10)
 }
 
 /**
- * Gasto por día del mes, en CLP, para la tira de días: solo cargos confirmados, sin ajustes de
- * saldo (no son gasto) y con el equivalente CLP cuando la moneda es otra. Índice = día del mes.
+ * Gasto por fecha, en CLP, para la tira de días: una cifra por cada fecha de `days`, en su orden.
+ * Solo cargos confirmados, sin ajustes de saldo (no son gasto) y con el equivalente CLP cuando la
+ * moneda es otra. Agrupa por fecha y no por día del mes: un ciclo de tarjeta cruza dos meses y el
+ * 25/09 no es el 25/10.
  */
-export function spendByDay(
+export function spendByDate(
   transactions: Pick<
     TransactionDTO,
     "date" | "direction" | "status" | "isInternal" | "amount" | "amountClp"
   >[],
-  daysInMonth: number
+  days: string[]
 ): number[] {
-  const out = new Array<number>(daysInMonth + 1).fill(0)
+  const index = new Map(days.map((d, i) => [d, i]))
+  const out = new Array<number>(days.length).fill(0)
   for (const t of transactions) {
     if (t.direction !== "debit" || t.status !== "confirmed" || t.isInternal)
       continue
-    const day = dayOf(t)
-    if (day < 1 || day > daysInMonth) continue
-    out[day] += Math.abs(t.amountClp ?? t.amount)
+    const i = index.get(dateOf(t))
+    if (i !== undefined) out[i] += Math.abs(t.amountClp ?? t.amount)
   }
   return out
+}
+
+/** Días que quedan del rango, hoy incluido: 0 si hoy cae fuera de él. */
+export function daysLeftIn(range: PeriodRange, today: string): number {
+  if (today < range.start || today > range.end) return 0
+  return daysOf({ start: today, end: range.end }).length
 }
 
 /**

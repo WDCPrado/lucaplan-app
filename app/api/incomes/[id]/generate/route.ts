@@ -15,7 +15,7 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params
-  const { year, month } = periodOf(req)
+  const { year, month } = await periodOf(req)
   return withUser(req, (userId) =>
     generateMonthlyIncome(financeDeps, userId, { incomeId: id, year, month })
   )
@@ -27,7 +27,7 @@ export async function DELETE(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params
-  const { year, month } = periodOf(req)
+  const { year, month } = await periodOf(req)
   return withUser(req, (userId) =>
     ungenerateMonthlyIncome(financeDeps, userId, { incomeId: id, year, month })
   )

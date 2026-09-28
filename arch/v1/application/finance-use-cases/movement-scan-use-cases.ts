@@ -23,6 +23,7 @@ import {
   type ScannedMovement,
 } from "../../domain/finance/movement-scan.domain.ts"
 import { createTransaction } from "./create-transaction-use-case.ts"
+import { periodRange } from "../../../shared/billing-cycle.ts"
 
 type Deps = {
   accounts: AccountRepository
@@ -67,8 +68,8 @@ export async function scanAccountMovements(
       [...periods].map((p) =>
         deps.transactions.listByUserPeriod(
           userId,
-          Number(p.slice(0, 4)),
-          Number(p.slice(5, 7))
+          // Meses calendario: el dedupe busca por fecha, no por el período del presupuesto.
+          periodRange(Number(p.slice(0, 4)), Number(p.slice(5, 7)), "calendar", {})
         )
       )
     )

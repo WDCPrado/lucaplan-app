@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
-import { formatCLP } from "@/lib/finance-format"
+import { formatCLP, monthName } from "@/lib/finance-format"
 
 // La altura máxima de una barra se calcula contra el día más caro del mes, ignorando los que
 // superan este monto: un arriendo aplastaría al resto y la tira dejaría de contar algo.
@@ -10,19 +10,22 @@ const OUTLIER_CLP = 200_000
 const MAX_BAR_PX = 56
 
 /**
- * El mes como tira de días: una barra por día con lo gastado, hoy marcado, los días futuros
- * atenuados. Tocar un día lo selecciona (el Inicio lista sus movimientos).
+ * El mes como tira de días: una barra por fecha del rango con lo gastado, hoy marcado, los días
+ * futuros atenuados. Tocar un día lo selecciona (el Inicio lista sus movimientos). En modo tarjeta
+ * el rango cruza dos meses (23 sep – 22 oct): cada día es una fecha, no un número del mes.
  */
 export function DayStrip({
-  spendByDay,
+  days,
+  spend,
   selectedDay,
   today,
   onSelect,
 }: {
-  spendByDay: number[] // índice = día del mes; length = días del mes + 1
-  selectedDay: number
-  today: number | null // día de hoy si el mes es el actual; null en otros meses
-  onSelect: (day: number) => void
+  days: string[] // fechas "YYYY-MM-DD" del rango, en orden
+  spend: number[] // gasto de cada fecha de `days`, mismo índice
+  selectedDay: string
+  today: string | null // hoy si el mes es el en curso; null en otros meses
+  onSelect: (day: string) => void
 }) {
   const selectedRef = useRef<HTMLButtonElement>(null)
   // En móvil la tira desborda: al montar, el día elegido queda a la vista sin mover la página.
@@ -30,8 +33,7 @@ export function DayStrip({
     selectedRef.current?.scrollIntoView({ block: "nearest", inline: "center" })
   }, [])
 
-  const amounts = spendByDay.slice(1)
-  const max = Math.max(1, ...amounts.filter((a) => a <= OUTLIER_CLP))
+  const max = Math.max(1, ...spend.filter((a) => a <= OUTLIER_CLP))
 
   return (
     <div
@@ -41,8 +43,10 @@ export function DayStrip({
       // hay más días a los lados. En ancho caben todos y no hace falta.
       className="-mx-4 flex scrollbar-none gap-0.5 overflow-x-auto mask-[linear-gradient(90deg,transparent,black_1.25rem,black_calc(100%-1.25rem),transparent)] px-4 sm:mx-0 sm:mask-none sm:px-0"
     >
-      {amounts.map((amount, i) => {
-        const day = i + 1
+      {days.map((day, i) => {
+        const amount = spend[i]
+        const n = Number(day.slice(8, 10))
+        const mon = monthName(Number(day.slice(5, 7))).toLowerCase()
         const selected = day === selectedDay
         const isToday = day === today
         const future = today !== null && day > today
@@ -56,7 +60,7 @@ export function DayStrip({
             ref={selected ? selectedRef : undefined}
             role="option"
             aria-selected={selected}
-            aria-label={`Día ${day}: ${formatCLP(amount)}`}
+            aria-label={`${n} de ${mon}: ${formatCLP(amount)}`}
             title={formatCLP(amount)}
             onClick={() => onSelect(day)}
             className={cn(
@@ -79,7 +83,7 @@ export function DayStrip({
                   "rounded-full bg-primary px-1.5 py-px font-semibold text-primary-foreground"
               )}
             >
-              {day}
+              {n}
             </span>
           </button>
         )

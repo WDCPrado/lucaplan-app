@@ -8,6 +8,7 @@ import {
   periodKeyFor,
 } from "../../domain/finance/recurring.domain.ts"
 import { dueSoonMessage, type DueItem } from "./notification-rules.ts"
+import { periodRange } from "../../../shared/billing-cycle.ts"
 import { sendPushToUser, type PushDeps } from "./push-use-cases.ts"
 
 export type NotifyDueDeps = PushDeps & {
@@ -73,7 +74,11 @@ export async function collectDueItems(
   const movements = (
     await Promise.all(
       periods.map((p) =>
-        deps.transactions.listByUserPeriod(userId, p.year, p.month)
+        // Mes CALENDARIO a propósito: el recordatorio mira días corridos, no el ciclo de la tarjeta.
+        deps.transactions.listByUserPeriod(
+          userId,
+          periodRange(p.year, p.month, "calendar", {})
+        )
       )
     )
   ).flat()

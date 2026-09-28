@@ -195,10 +195,10 @@ export function AppShell({
               {actions}
             </div>
           </header>
-          {/* Móvil: fila fija siempre visible — buscar | (selector u otras acciones) | usuario.
+          {/* Móvil: fila flotante siempre visible — buscar | (selector u otras acciones) | usuario.
               items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar. */}
-          <div className="pwa-safe-top sticky top-0 z-20 flex justify-center bg-background px-4 pt-3 pb-3 md:hidden">
-            <div className="flex w-full items-start justify-between gap-2">
+          <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center bg-linear-to-b from-background via-background/85 to-transparent px-4 pt-3 pb-6 md:hidden">
+            <div className="pointer-events-auto flex w-full items-start justify-between gap-2 drop-shadow-md">
               {/* Sin trigger del sidebar: en móvil el drawer solo repetía la barra inferior y el
                   menú de usuario. El hueco lo ocupa la lupa; sin ella, un espaciador del mismo
                   ancho que el avatar para que las acciones del centro no se descentren. */}

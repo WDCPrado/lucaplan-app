@@ -293,6 +293,10 @@ export type TransactionSearchFilters = {
   // recurrentes "Por cobrar" (pending de una plantilla), que son compromiso del mes y no algo que
   // se pueda buscar en la cartola. Va al where del repo por la misma razón que `uncategorized`.
   settledOnly?: boolean
+  currency?: string // ISO 4217 del movimiento
+  // Movimientos que pueden usarse como el cobro de una recurrente: confirmados, del banco (con
+  // externalId), no internos, sin plantilla ni cuota. Mismo criterio que `paymentCandidateRejection` (recurring.domain).
+  recurringCandidates?: boolean
 }
 
 // --- Ports (los implementa la infraestructura; aquí solo el contrato) ---

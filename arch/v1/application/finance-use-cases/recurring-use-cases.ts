@@ -16,12 +16,14 @@ import {
   type RecurringTemplate,
   type RecurringTemplateRepository,
   InvalidRecurringTemplateError,
+  RecurringPeriodBankPaidError,
   RecurringPeriodNotManualError,
   RecurringTemplateEndedError,
   RecurringTemplateNotFoundError,
   executionDateFor,
   hasEnded,
   isValidTolerance,
+  paymentCandidateRejection,
   periodIsWithinValidity,
   periodKeyFor,
   rankTemplatesFor,
@@ -241,8 +243,70 @@ export async function setRecurringPeriodPaid(
   input: { id: string; paid: boolean },
   today = new Date()
 ): Promise<{ ok: true }> {
-  const template = await deps.recurring.findById(input.id)
-  if (!template) throw new RecurringTemplateNotFoundError(input.id)
+  const template = await chargeableTemplate(deps, userId, input.id, today)
+
+  if (input.paid) {
+    const periodKey = await openCurrentPeriod(deps, template, today)
+    await deps.recurring.setPeriodPaid(template.id, periodKey, true)
+    return { ok: true }
+  }
+
+  const periodKey = periodKeyFor(template, today)
+
+  const periodTx = await deps.recurring.findPeriodTransaction(
+    template.id,
+    periodKey
+  )
+  // Deshacer lo que confirmó el banco borraría un cargo real, no una afirmación del usuario.
+  if (periodTx && periodTx.status === "confirmed" && !periodTx.isManual)
+    throw new RecurringPeriodNotManualError()
+  await deps.recurring.setPeriodPaid(template.id, periodKey, false)
+  return { ok: true }
+}
+
+/**
+ * Usa un movimiento que ya existe como el cobro del período en curso, aunque su fecha caiga fuera
+ * de él: el cargo real llegó con otra fecha y el match automático (que mira la fecha) no lo vinculó.
+ * Reemplaza el comprometido o la marca manual del período, igual que un cargo del correo; un cargo
+ * del banco no se pisa (→ 409). El movimiento conserva su fecha, monto y externalId.
+ */
+export async function payRecurringPeriodWith(
+  deps: {
+    recurring: RecurringTemplateRepository
+    transactions: TransactionRepository
+  },
+  userId: string,
+  input: { id: string; transactionId: string },
+  today = new Date()
+): Promise<{ ok: true }> {
+  const template = await chargeableTemplate(deps, userId, input.id, today)
+  const tx = await deps.transactions.findById(input.transactionId)
+  if (!tx || tx.userId !== userId) throw new NotOwnerError()
+  const rejection = paymentCandidateRejection(tx, template)
+  if (rejection) throw new InvalidRecurringTemplateError(rejection)
+
+  const periodKey = await openCurrentPeriod(deps, template, today)
+  const periodTx = await deps.recurring.findPeriodTransaction(
+    template.id,
+    periodKey
+  )
+  if (periodTx?.status === "confirmed" && !periodTx.isManual)
+    throw new RecurringPeriodBankPaidError()
+  // `false` = el correo cerró el período entre la lectura y la escritura.
+  if (!(await deps.recurring.attachImportedMovement(tx.id, template, periodKey)))
+    throw new RecurringPeriodBankPaidError()
+  return { ok: true }
+}
+
+// Plantilla del usuario que todavía tiene período que cobrar: ni pausada ni terminada.
+async function chargeableTemplate(
+  deps: { recurring: RecurringTemplateRepository },
+  userId: string,
+  id: string,
+  today: Date
+): Promise<RecurringTemplate> {
+  const template = await deps.recurring.findById(id)
+  if (!template) throw new RecurringTemplateNotFoundError(id)
   if (template.userId !== userId) throw new NotOwnerError()
   // Pausada o finalizada no tiene período que cobrar: no hay nada que marcar.
   if (!template.isActive)
@@ -254,29 +318,22 @@ export async function setRecurringPeriodPaid(
     throw new InvalidRecurringTemplateError(
       "La recurrente ya terminó: corre su fecha de fin para volver a cobrarla"
     )
+  return template
+}
 
-  const periodKey = periodKeyFor(template, today)
-
-  if (input.paid) {
-    // El período puede no estar abierto: /recurring no materializa, solo el dashboard lo hace.
-    const { transactionId } = await materializePeriod(deps, template, today)
-    if (!transactionId)
-      throw new InvalidRecurringTemplateError(
-        "El período en curso queda fuera de la vigencia de la recurrente"
-      )
-    await deps.recurring.setPeriodPaid(template.id, periodKey, true)
-    return { ok: true }
-  }
-
-  const periodTx = await deps.recurring.findPeriodTransaction(
-    template.id,
-    periodKey
-  )
-  // Deshacer lo que confirmó el banco borraría un cargo real, no una afirmación del usuario.
-  if (periodTx && periodTx.status === "confirmed" && !periodTx.isManual)
-    throw new RecurringPeriodNotManualError()
-  await deps.recurring.setPeriodPaid(template.id, periodKey, false)
-  return { ok: true }
+// Abre (si hace falta) el período en curso y devuelve su clave. El período puede no estar abierto:
+// /recurring no materializa, solo el dashboard lo hace.
+async function openCurrentPeriod(
+  deps: { recurring: RecurringTemplateRepository },
+  template: RecurringTemplate,
+  today: Date
+): Promise<string> {
+  const { transactionId } = await materializePeriod(deps, template, today)
+  if (!transactionId)
+    throw new InvalidRecurringTemplateError(
+      "El período en curso queda fuera de la vigencia de la recurrente"
+    )
+  return periodKeyFor(template, today)
 }
 
 /**

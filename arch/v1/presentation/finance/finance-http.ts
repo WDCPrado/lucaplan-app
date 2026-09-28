@@ -34,6 +34,7 @@ import { MovementScanError } from "../../domain/finance/movement-scan.domain.ts"
 import {
   InvalidRecurringTemplateError,
   RecurringCategoryRequiredError,
+  RecurringPeriodBankPaidError,
   RecurringPeriodNotManualError,
   RecurringTemplateEndedError,
   RecurringTemplateNotFoundError,
@@ -117,6 +118,7 @@ function errorStatus(e: unknown): number {
   if (e instanceof LockBusyError) return 409 // sync ya en curso
   if (e instanceof ConnectionMethodConflictError) return 409 // otro método de conexión activo
   if (e instanceof DuplicateBudgetAlertError) return 409 // ya existe una alerta a ese %
+  if (e instanceof RecurringPeriodBankPaidError) return 409 // el período ya lo cobró el banco
   if (
     e instanceof InvalidBudgetAlertError ||
     e instanceof InvalidDueDaysError ||

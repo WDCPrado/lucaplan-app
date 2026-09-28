@@ -27,6 +27,7 @@ import {
   hasEnded,
   periodKeyFor,
   toleranceRange,
+  RecurringTemplateNotFoundError,
   type RecurringTemplateRepository,
 } from "../../domain/finance/recurring.domain.ts"
 import {
@@ -952,6 +953,33 @@ export async function listRecurringView(
         periodTx?.status === "confirmed" && periodTx.isManual,
     }
   }))
+}
+
+// Ventana hacia atrás de los movimientos que se ofrecen como cobro de una recurrente.
+const CANDIDATE_DAYS = 90
+
+// Movimientos que el usuario puede elegir como el cobro del período en curso de la plantilla `id`
+// (ver `payRecurringPeriodWith`): movimientos del banco confirmados y sin vínculo, de su misma
+// dirección y moneda, de los últimos 90 días (y futuros), más nuevos primero.
+export async function listRecurringCandidates(
+  deps: ReadDeps & { recurring: RecurringTemplateRepository },
+  userId: string,
+  id: string,
+  today = new Date()
+): Promise<{ items: TransactionDTO[] }> {
+  const template = await deps.recurring.findById(id)
+  if (!template) throw new RecurringTemplateNotFoundError(id)
+  if (template.userId !== userId) throw new NotOwnerError()
+  const from = new Date(today)
+  from.setDate(from.getDate() - CANDIDATE_DAYS)
+  const items = await searchTransactions(deps, userId, {
+    direction: template.direction,
+    currency: template.currency,
+    from,
+    recurringCandidates: true,
+    limit: 50,
+  })
+  return { items }
 }
 
 // Un día dentro del período siguiente al que contiene a `from` (basta para derivar su clave).

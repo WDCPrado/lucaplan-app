@@ -4,6 +4,7 @@ import {
 } from "@/arch/v1/presentation/finance/finance-http"
 import {
   deleteRecurringTemplate,
+  payRecurringPeriodWith,
   setRecurringActive,
   setRecurringPeriodPaid,
   updateRecurringTemplate,
@@ -25,6 +26,17 @@ export async function PATCH(
   if (Object.keys(body).length === 1 && typeof body.periodPaid === "boolean")
     return withUser(req, (userId) =>
       setRecurringPeriodPaid(financeDeps, userId, { id, paid: body.periodPaid })
+    )
+  // Solo `paidWithTransactionId` = usar un movimiento existente como el cobro del período en curso.
+  if (
+    Object.keys(body).length === 1 &&
+    typeof body.paidWithTransactionId === "string"
+  )
+    return withUser(req, (userId) =>
+      payRecurringPeriodWith(financeDeps, userId, {
+        id,
+        transactionId: body.paidWithTransactionId,
+      })
     )
   return withUser(req, (userId) =>
     updateRecurringTemplate(financeDeps, userId, {

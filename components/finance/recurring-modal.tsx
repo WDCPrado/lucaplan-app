@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Pause, Play, Trash2, Undo2 } from "lucide-react"
+import { Check, ListChecks, Pause, Play, Trash2, Undo2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
@@ -25,11 +25,13 @@ import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
 import { Chip, DatePicker } from "./transaction-modal"
 import { DayOfMonthPicker } from "./income-modal"
+import { RecurringLinkPicker } from "./recurring-link-picker"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
   AccountDTO,
   CategoryDTO,
   RecurringDTO,
+  TransactionDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 // Fecha de término escrita completa, para revisar el año de un vistazo.
@@ -100,6 +102,11 @@ export function RecurringModal({
   )
   const [withEnd, setWithEnd] = useState(!!template?.endDate)
   const [saving, setSaving] = useState(false)
+  // Selector de un movimiento existente como cobro del período. null = cargando.
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [candidates, setCandidates] = useState<
+    TransactionDTO[] | null | "error"
+  >(null)
 
   const inheritedCategory = categories.find((c) => c.id === categoryId)
   const account = accounts.find((a) => a.id === accountId) ?? accounts[0]
@@ -174,6 +181,7 @@ export function RecurringModal({
     }
     haptic("success")
     toast.success(ok)
+    setPickerOpen(false)
     onOpenChange(false)
     router.refresh()
   }
@@ -185,6 +193,35 @@ export function RecurringModal({
       { periodPaid: !template.currentPeriodPaid },
       template.currentPeriodPaid ? "Marca deshecha" : "Cobro marcado como pagado",
       "No se pudo marcar el cobro"
+    )
+  }
+
+  // El cargo llegó con otra fecha y no se enganchó solo: se elige a mano entre los gastos sueltos.
+  // Se carga al abrir, desde el clic, sin efecto.
+  async function loadCandidates() {
+    if (!template) return
+    setCandidates(null)
+    try {
+      const res = await fetch(`/api/recurring/${template.id}/candidates`)
+      if (!res.ok) throw new Error()
+      const data: { items: TransactionDTO[] } = await res.json()
+      setCandidates(data.items)
+    } catch {
+      setCandidates("error")
+    }
+  }
+
+  function openPicker() {
+    setPickerOpen(true)
+    loadCandidates()
+  }
+
+  // En error, patch no cierra nada: la lista sigue abierta para elegir otro.
+  function pickTransaction(transactionId: string) {
+    patch(
+      { paidWithTransactionId: transactionId },
+      "Cobro vinculado al movimiento",
+      "No se pudo vincular el movimiento"
     )
   }
 
@@ -233,8 +270,9 @@ export function RecurringModal({
               no un campo del formulario. Solo se deshace lo marcado a mano: un cargo del banco es
               un hecho. */}
           {template && template.isActive && !template.hasEnded && (
-            <div className="mt-4 flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2.5">
-              <span className="min-w-0 flex-1 text-sm">
+            // En móvil el texto ocupa su línea y los botones bajan; en escritorio, todo en una.
+            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-secondary/50 px-3 py-2.5">
+              <span className="min-w-0 flex-1 basis-full text-sm sm:basis-0">
                 {template.currentPeriodPaid
                   ? "El cobro de este período ya está registrado."
                   : "El cobro de este período todavía no llega."}
@@ -258,6 +296,17 @@ export function RecurringModal({
                       Ya lo pagué
                     </>
                   )}
+                </Button>
+              )}
+              {!template.currentPeriodPaid && (
+                <Button
+                  variant="ghost"
+                  onClick={openPicker}
+                  disabled={saving}
+                  className="h-11 shrink-0 text-sm"
+                >
+                  <ListChecks className="size-4" />
+                  Elegir movimiento
                 </Button>
               )}
             </div>
@@ -428,6 +477,17 @@ export function RecurringModal({
               </ChipRow>
             </div>
           </Section>
+
+          {template && (
+            <RecurringLinkPicker
+              open={pickerOpen}
+              onOpenChange={setPickerOpen}
+              items={candidates}
+              busy={saving}
+              onPick={pickTransaction}
+              onRetry={loadCandidates}
+            />
+          )}
 
           <ModalFooter>
             {template && (

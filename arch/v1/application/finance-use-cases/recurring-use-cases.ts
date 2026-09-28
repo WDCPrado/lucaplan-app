@@ -124,6 +124,10 @@ export async function createRecurringTemplate(
     throw new InvalidRecurringTemplateError(
       "El movimiento de origen no existe o no es tuyo"
     )
+  if (source.recurringTemplateId)
+    throw new InvalidRecurringTemplateError(
+      "El movimiento ya es el cobro de una recurrente"
+    )
 
   const template = await deps.recurring.create({
     userId,

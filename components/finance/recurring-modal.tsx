@@ -283,8 +283,9 @@ export function RecurringModal({
                   ? "El cobro de este período ya está registrado."
                   : "El cobro de este período todavía no llega."}
               </span>
-              {(!template.currentPeriodPaid ||
-                template.currentPeriodPaidManually) && (
+              {/* Solo sin cobro: un período «pagado a mano» puede ser el movimiento de origen de una
+                  cuenta manual, y reemplazarlo lo borraría sin devolver su saldo. */}
+              {!template.currentPeriodPaid && (
                 <Button
                   variant="outline"
                   onClick={togglePaid}

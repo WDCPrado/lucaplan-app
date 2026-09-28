@@ -917,3 +917,48 @@ test("el recordatorio de vencimiento calla si el período se pagó con un cargo 
   const despues = await collectDueItems(deps, "u1", hoy, 2)
   assert.deepEqual(despues, [], "el período 2026-09 ya está cobrado")
 })
+
+test("createRecurringTemplate: rechaza un movimiento que ya es el cobro de otra recurrente", async () => {
+  let created = false
+  const deps = {
+    recurring: {
+      create: async () => {
+        created = true
+        return {}
+      },
+    },
+    accounts: {
+      findById: async () => ({ id: "acc1", userId: "u1", currency: "CLP" }),
+    },
+    categories: {
+      findById: async () => ({ id: "c1", userId: "u1", type: "expense" }),
+    },
+    transactions: {
+      findById: async () => ({
+        id: "tx1",
+        userId: "u1",
+        description: "Smart Fit Chile",
+        recurringTemplateId: "otra",
+      }),
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any
+  await assert.rejects(
+    () =>
+      createRecurringTemplate(deps, "u1", {
+        accountId: "acc1",
+        categoryId: "c1",
+        label: "Gimnasio",
+        direction: "debit",
+        baseAmount: 17_450,
+        tolerancePct: 10,
+        periodicity: "monthly",
+        dayOfMonth: 20,
+        startDate: new Date(2026, 6, 20),
+        endDate: null,
+        sourceTransactionId: "tx1",
+      }),
+    /ya es el cobro de una recurrente/
+  )
+  assert.equal(created, false)
+})

@@ -27,6 +27,7 @@ import {
   hasEnded,
   periodKeyFor,
   toleranceRange,
+  InvalidRecurringTemplateError,
   RecurringTemplateNotFoundError,
   type RecurringTemplateRepository,
 } from "../../domain/finance/recurring.domain.ts"
@@ -62,6 +63,7 @@ import type { PaceFrequency } from "../../domain/finance/pace.domain.ts"
 import type { BudgetPeriodRepository } from "../../domain/finance/budget-period.domain.ts"
 import type { PeriodRange } from "../../../shared/billing-cycle.ts"
 import { rangeOf } from "./budget-period-use-cases.ts"
+import { todayKey } from "../../../shared/today.ts"
 
 const CLP = "CLP" as const
 
@@ -955,31 +957,35 @@ export async function listRecurringView(
   }))
 }
 
-// Ventana hacia atrás de los movimientos que se ofrecen como cobro de una recurrente.
-const CANDIDATE_DAYS = 90
-
 // Movimientos que el usuario puede elegir como el cobro del período en curso de la plantilla `id`
 // (ver `payRecurringPeriodWith`): movimientos del banco confirmados y sin vínculo, de su misma
-// dirección y moneda, de los últimos 90 días (y futuros), con monto ±50 % del base, más nuevos
-// primero. El monto acota: sin él, 50 gastos recientes cualquiera taparían el cargo de hace un mes.
+// dirección y moneda, de los últimos `days` días (hoy en Chile, sin tope futuro), más nuevos
+// primero. Sin filtro de monto: a veces el cargo real se pasa de cualquier umbral.
+// `categoryId: null` = sin categoría.
 export async function listRecurringCandidates(
   deps: ReadDeps & { recurring: RecurringTemplateRepository },
   userId: string,
   id: string,
-  today = new Date()
+  filters: { days?: number; query?: string; categoryId?: string | null } = {},
+  now = new Date()
 ): Promise<{ items: TransactionDTO[] }> {
   const template = await deps.recurring.findById(id)
   if (!template) throw new RecurringTemplateNotFoundError(id)
   if (template.userId !== userId) throw new NotOwnerError()
-  const from = new Date(today)
-  from.setDate(from.getDate() - CANDIDATE_DAYS)
-  const base = template.baseAmount.toMajor()
+  const days = filters.days ?? 10
+  if (!Number.isInteger(days) || days < 1 || days > 365)
+    throw new InvalidRecurringTemplateError(
+      "Los días deben ser un número entero entre 1 y 365"
+    )
+  // Fechas de movimiento = día civil a medianoche UTC; "hoy" es el día civil de Chile.
+  const from = new Date(`${todayKey(now)}T00:00:00Z`)
+  from.setUTCDate(from.getUTCDate() - days)
   const items = await searchTransactions(deps, userId, {
     direction: template.direction,
     currency: template.currency,
     from,
-    amountMin: base * 0.5,
-    amountMax: base * 1.5,
+    query: filters.query,
+    categoryId: filters.categoryId,
     recurringCandidates: true,
     limit: 50,
   })

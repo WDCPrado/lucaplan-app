@@ -1,9 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import { Search, X } from "lucide-react"
 
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +18,17 @@ import {
 } from "@/components/ui/alert-dialog"
 import { formatCLP, formatDateHeader, formatMoney } from "@/lib/finance-format"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
-import type { TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
+import type {
+  CategoryDTO,
+  TransactionDTO,
+} from "@/arch/v1/application/finance-use-cases/finance-read"
+import { Chip } from "./transaction-modal"
+
+// Filtros del pedido de candidatos. categoryId: "all" = todas, "none" = sin categoría.
+export type CandidateFilters = { q: string; days: number; categoryId: string }
+
+const DAY_PRESETS = [5, 10, 15, 20]
+const MAX_DAYS = 365
 
 // Monto con signo como en MovementRow: hay plantillas de ingreso.
 function signedAmount(tx: TransactionDTO): string {
@@ -32,7 +44,8 @@ function signedAmount(tx: TransactionDTO): string {
 /**
  * Elige un movimiento YA EXISTENTE como el cobro del período en curso de una recurrente: el cargo
  * a veces llega antes o después de su fecha y no se engancha solo. No hace fetch ni muta: quien lo
- * abre carga los candidatos y hace el PATCH cuando se confirma la fila elegida.
+ * abre carga los candidatos (con los filtros que se le devuelven) y hace el PATCH cuando se confirma
+ * la fila elegida.
  *
  * `items`: null = cargando, "error" = falló la carga.
  */
@@ -40,6 +53,9 @@ export function RecurringLinkPicker({
   open,
   onOpenChange,
   items,
+  filters,
+  onFiltersChange,
+  categories,
   busy,
   onPick,
   onRetry,
@@ -47,25 +63,138 @@ export function RecurringLinkPicker({
   open: boolean
   onOpenChange: (o: boolean) => void
   items: TransactionDTO[] | null | "error"
+  filters: CandidateFilters
+  onFiltersChange: (f: CandidateFilters) => void
+  categories: CategoryDTO[] // ya filtradas por la dirección de la plantilla
   busy: boolean
   onPick: (transactionId: string) => void
   onRetry: () => void
 }) {
   // Fila tocada, esperando confirmación: vincular no se deshace desde aquí.
   const [pending, setPending] = useState<TransactionDTO | null>(null)
+  // Texto del campo de días propio; null = se usa uno de los atajos. Solo un valor en rango
+  // llega a los filtros: mientras está fuera de rango la lista se queda con el último válido.
+  const [customDays, setCustomDays] = useState<string | null>(null)
+  const customN = Number(customDays)
+  const customInvalid =
+    !!customDays && (customN < 1 || customN > MAX_DAYS)
+
+  function changeCustomDays(raw: string) {
+    // Solo dígitos y hasta 3: lo que no cabe no se alcanza a escribir.
+    const v = raw.replace(/\D/g, "").slice(0, 3)
+    setCustomDays(v)
+    const n = Number(v)
+    if (v && n >= 1 && n <= MAX_DAYS && n !== filters.days)
+      onFiltersChange({ ...filters, days: n })
+  }
 
   return (
     <ResponsiveModal
       open={open}
       onOpenChange={onOpenChange}
       title="Elegir movimiento"
-      className="sm:max-w-md"
     >
       <div className="flex flex-col px-4 pb-4">
         <p className="py-3 text-xs text-muted-foreground">
           Elige el cargo que corresponde a este período. No se crea nada nuevo:
           el movimiento pasa a ser el cobro de la recurrente.
         </p>
+
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="recurring-link-q"
+            value={filters.q}
+            onChange={(e) => onFiltersChange({ ...filters, q: e.target.value })}
+            placeholder="Buscar por descripción…"
+            aria-label="Buscar movimiento"
+            className="h-11 pr-10 pl-10 text-base"
+          />
+          {filters.q && (
+            <button
+              type="button"
+              onClick={() => onFiltersChange({ ...filters, q: "" })}
+              className="absolute top-1/2 right-1 grid size-11 -translate-y-1/2 place-items-center text-muted-foreground hover:text-foreground"
+              aria-label="Limpiar búsqueda"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
+
+        <FilterGroup label="Días hacia atrás">
+          <ChipScroller>
+            {DAY_PRESETS.map((n) => (
+              <Chip
+                key={n}
+                active={customDays === null && filters.days === n}
+                onClick={() => {
+                  setCustomDays(null)
+                  if (filters.days !== n) onFiltersChange({ ...filters, days: n })
+                }}
+              >
+                {n}
+              </Chip>
+            ))}
+            <Chip
+              active={customDays !== null}
+              onClick={() =>
+                customDays === null && setCustomDays(String(filters.days))
+              }
+            >
+              Personalizado
+            </Chip>
+          </ChipScroller>
+          {customDays !== null && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Input
+                  id="recurring-link-days"
+                  inputMode="numeric"
+                  maxLength={3}
+                  value={customDays}
+                  onChange={(e) => changeCustomDays(e.target.value)}
+                  aria-label="Días hacia atrás"
+                  aria-invalid={customInvalid}
+                  aria-describedby={
+                    customInvalid ? "recurring-link-days-error" : undefined
+                  }
+                  className="tabular h-11 w-24 text-base"
+                />
+                <span className="text-sm text-muted-foreground">días</span>
+              </div>
+              {customInvalid && (
+                <p
+                  id="recurring-link-days-error"
+                  className="text-xs text-destructive"
+                >
+                  Escribe entre 1 y {MAX_DAYS} días.
+                </p>
+              )}
+            </div>
+          )}
+        </FilterGroup>
+
+        <FilterGroup label="Categoría del cargo">
+          <ChipScroller>
+            {[
+              { id: "all", name: "Todas" },
+              { id: "none", name: "Sin categoría" },
+              ...categories,
+            ].map((c) => (
+              <Chip
+                key={c.id}
+                active={filters.categoryId === c.id}
+                onClick={() =>
+                  filters.categoryId !== c.id &&
+                  onFiltersChange({ ...filters, categoryId: c.id })
+                }
+              >
+                {c.name}
+              </Chip>
+            ))}
+          </ChipScroller>
+        </FilterGroup>
 
         {items === null ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
@@ -85,7 +214,7 @@ export function RecurringLinkPicker({
             No hay movimientos para elegir.
           </p>
         ) : (
-          <ul className="flex flex-col gap-0.5" aria-busy={busy}>
+          <ul className="mt-3 flex flex-col gap-0.5" aria-busy={busy}>
             {items.map((tx) => (
               <li key={tx.id}>
                 <button
@@ -152,5 +281,31 @@ export function RecurringLinkPicker({
         </AlertDialogContent>
       </AlertDialog>
     </ResponsiveModal>
+  )
+}
+
+function FilterGroup({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="mt-4 space-y-2">
+      <span className="block text-xs font-medium text-muted-foreground">
+        {label}
+      </span>
+      {children}
+    </div>
+  )
+}
+
+// Chips en una fila con scroll horizontal que sangra hasta los bordes del modal, sin envolver.
+function ChipScroller({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
+      {children}
+    </div>
   )
 }

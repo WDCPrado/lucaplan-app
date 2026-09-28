@@ -25,7 +25,10 @@ import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
 import { Chip, DatePicker } from "./transaction-modal"
 import { DayOfMonthPicker } from "./income-modal"
-import { RecurringLinkPicker } from "./recurring-link-picker"
+import {
+  RecurringLinkPicker,
+  type CandidateFilters,
+} from "./recurring-link-picker"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
   AccountDTO,
@@ -107,9 +110,15 @@ export function RecurringModal({
   const [candidates, setCandidates] = useState<
     TransactionDTO[] | null | "error"
   >(null)
-  // Cada carga lleva un número: si se reabre la lista antes de que llegue la anterior, la vieja
-  // no pisa a la nueva.
+  const [filters, setFilters] = useState<CandidateFilters>({
+    q: "",
+    days: 10,
+    categoryId: "all",
+  })
+  // Cada carga lleva un número: si cambia un filtro o se reabre la lista antes de que llegue la
+  // anterior, la vieja no pisa a la nueva.
   const reqRef = useRef(0)
+  const typingRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const inheritedCategory = categories.find((c) => c.id === categoryId)
   const account = accounts.find((a) => a.id === accountId) ?? accounts[0]
@@ -200,13 +209,18 @@ export function RecurringModal({
   }
 
   // El cargo llegó con otra fecha y no se enganchó solo: se elige a mano entre los gastos sueltos.
-  // Se carga al abrir, desde el clic, sin efecto.
-  async function loadCandidates() {
+  // Se carga al abrir y en cada cambio de filtro, desde el evento, sin efecto.
+  async function loadCandidates(f: CandidateFilters) {
     if (!template) return
     const id = ++reqRef.current
     setCandidates(null)
+    const params = new URLSearchParams({ days: String(f.days) })
+    if (f.q.trim()) params.set("q", f.q.trim())
+    if (f.categoryId !== "all") params.set("categoryId", f.categoryId)
     try {
-      const res = await fetch(`/api/recurring/${template.id}/candidates`)
+      const res = await fetch(
+        `/api/recurring/${template.id}/candidates?${params}`
+      )
       if (!res.ok) throw new Error()
       const data: { items: TransactionDTO[] } = await res.json()
       if (id !== reqRef.current) return
@@ -219,7 +233,17 @@ export function RecurringModal({
 
   function openPicker() {
     setPickerOpen(true)
-    loadCandidates()
+    loadCandidates(filters)
+  }
+
+  // El texto espera 300 ms a que se deje de escribir, como el buscador de movimientos; los chips
+  // recargan al tiro. Cualquier cambio cancela la espera pendiente.
+  function changeFilters(next: CandidateFilters) {
+    const typing = next.q !== filters.q
+    setFilters(next)
+    clearTimeout(typingRef.current)
+    if (typing) typingRef.current = setTimeout(() => loadCandidates(next), 300)
+    else loadCandidates(next)
   }
 
   // En error, patch no cierra nada: la lista sigue abierta para elegir otro.
@@ -491,9 +515,16 @@ export function RecurringModal({
               open={pickerOpen}
               onOpenChange={setPickerOpen}
               items={candidates}
+              filters={filters}
+              onFiltersChange={changeFilters}
+              categories={categories.filter(
+                (c) =>
+                  c.type ===
+                  (template.direction === "credit" ? "income" : "expense")
+              )}
               busy={saving}
               onPick={pickTransaction}
-              onRetry={loadCandidates}
+              onRetry={() => loadCandidates(filters)}
             />
           )}
 

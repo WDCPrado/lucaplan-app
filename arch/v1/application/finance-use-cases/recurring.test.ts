@@ -754,7 +754,7 @@ test("el movimiento de otro usuario o inexistente se rechaza como no encontrado"
   )
 })
 
-test("los candidatos piden gastos confirmados sin vínculo, en la moneda y la ventana de la plantilla", async () => {
+test("los candidatos: del banco, sin vínculo, en su moneda, últimos N días en Chile, con texto y categoría", async () => {
   const { repo } = makeRepo([arriendo])
   let pedido: TransactionSearchFilters | undefined
   const deps = {
@@ -770,7 +770,9 @@ test("los candidatos piden gastos confirmados sin vínculo, en la moneda y la ve
     exchangeRates: {},
   } as unknown as Parameters<typeof listRecurringCandidates>[0]
 
-  const { items } = await listRecurringCandidates(deps, "u1", "arriendo", HOY)
+  // 12/08 a mediodía en Chile.
+  const ahora = new Date("2026-08-12T16:00:00Z")
+  const { items } = await listRecurringCandidates(deps, "u1", "arriendo", {}, ahora)
 
   assert.deepEqual(items.map((i) => i.id), ["tx-julio"])
   assert.equal(pedido?.direction, "debit")
@@ -778,13 +780,37 @@ test("los candidatos piden gastos confirmados sin vínculo, en la moneda y la ve
   assert.equal(pedido?.recurringCandidates, true)
   assert.equal(pedido?.settledOnly, true)
   assert.equal(pedido?.limit, 50)
-  assert.equal(pedido?.amountMin, 175_000, "−50 % del monto base")
-  assert.equal(pedido?.amountMax, 525_000, "+50 % del monto base")
+  assert.equal(pedido?.amountMin, undefined, "sin filtro de monto")
+  assert.equal(pedido?.amountMax, undefined, "sin filtro de monto")
+  assert.equal(pedido?.query, undefined)
+  assert.equal(pedido?.categoryId, undefined)
   assert.equal(pedido?.to, undefined, "los futuros también entran")
-  const dias = Math.round((HOY.getTime() - pedido!.from!.getTime()) / 86_400_000)
-  assert.equal(dias, 90)
+  assert.equal(pedido?.from?.toISOString(), "2026-08-02T00:00:00.000Z", "10 días por defecto")
 
-  await assert.rejects(listRecurringCandidates(deps, "u2", "arriendo", HOY), {
+  // Pasadas las 20:00 en Chile ya es otro día en UTC: manda el día de Chile.
+  await listRecurringCandidates(deps, "u1", "arriendo", { days: 30 }, new Date("2026-08-13T02:00:00Z"))
+  assert.equal(pedido?.from?.toISOString(), "2026-07-13T00:00:00.000Z")
+
+  await listRecurringCandidates(
+    deps,
+    "u1",
+    "arriendo",
+    { query: "arriendo", categoryId: "vivienda" },
+    ahora
+  )
+  assert.equal(pedido?.query, "arriendo")
+  assert.equal(pedido?.categoryId, "vivienda")
+  await listRecurringCandidates(deps, "u1", "arriendo", { categoryId: null }, ahora)
+  assert.equal(pedido?.categoryId, null, "sin categoría")
+
+  for (const days of [0, 366, 1.5, Number.NaN])
+    await assert.rejects(
+      listRecurringCandidates(deps, "u1", "arriendo", { days }, ahora),
+      { name: "InvalidRecurringTemplateError", message: /entre 1 y 365/ },
+      String(days)
+    )
+
+  await assert.rejects(listRecurringCandidates(deps, "u2", "arriendo", {}, ahora), {
     name: "NotOwnerError",
   })
 })
@@ -847,7 +873,7 @@ test("una recurrente de ingreso se paga con un abono y pide abonos como candidat
     accounts: { listByUser: async () => [] },
     exchangeRates: {},
   } as unknown as Parameters<typeof listRecurringCandidates>[0]
-  await listRecurringCandidates(deps, "u1", "sueldo", HOY)
+  await listRecurringCandidates(deps, "u1", "sueldo", {}, HOY)
   assert.equal(pedido?.direction, "credit")
 })
 

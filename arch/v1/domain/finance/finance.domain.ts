@@ -277,7 +277,7 @@ export type MonthlyBudgetInput = {
 export type TransactionSearchFilters = {
   query?: string
   direction?: Direction
-  categoryId?: string
+  categoryId?: string | null // null = sin categoría
   bankName?: string // filtra por banco: incluye TODAS las cuentas de bancos con ese nombre
   from?: Date
   to?: Date

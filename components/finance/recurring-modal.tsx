@@ -113,7 +113,6 @@ export function RecurringModal({
   const [filters, setFilters] = useState<CandidateFilters>({
     q: "",
     days: 10,
-    categoryId: "all",
   })
   // Cada carga lleva un número: si cambia un filtro o se reabre la lista antes de que llegue la
   // anterior, la vieja no pisa a la nueva.
@@ -216,7 +215,6 @@ export function RecurringModal({
     setCandidates(null)
     const params = new URLSearchParams({ days: String(f.days) })
     if (f.q.trim()) params.set("q", f.q.trim())
-    if (f.categoryId !== "all") params.set("categoryId", f.categoryId)
     try {
       const res = await fetch(
         `/api/recurring/${template.id}/candidates?${params}`
@@ -517,11 +515,6 @@ export function RecurringModal({
               items={candidates}
               filters={filters}
               onFiltersChange={changeFilters}
-              categories={categories.filter(
-                (c) =>
-                  c.type ===
-                  (template.direction === "credit" ? "income" : "expense")
-              )}
               busy={saving}
               onPick={pickTransaction}
               onRetry={() => loadCandidates(filters)}

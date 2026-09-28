@@ -18,14 +18,12 @@ import {
 } from "@/components/ui/alert-dialog"
 import { formatCLP, formatDateHeader, formatMoney } from "@/lib/finance-format"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
-import type {
-  CategoryDTO,
-  TransactionDTO,
-} from "@/arch/v1/application/finance-use-cases/finance-read"
+import type { TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { Chip } from "./transaction-modal"
 
-// Filtros del pedido de candidatos. categoryId: "all" = todas, "none" = sin categoría.
-export type CandidateFilters = { q: string; days: number; categoryId: string }
+// Filtros del pedido de candidatos. La categoría no es filtro: el backend siempre trae solo los
+// cargos de la categoría de la recurrente.
+export type CandidateFilters = { q: string; days: number }
 
 const DAY_PRESETS = [5, 10, 15, 20]
 const MAX_DAYS = 365
@@ -55,7 +53,6 @@ export function RecurringLinkPicker({
   items,
   filters,
   onFiltersChange,
-  categories,
   busy,
   onPick,
   onRetry,
@@ -66,7 +63,6 @@ export function RecurringLinkPicker({
   filters: CandidateFilters
   // debounce: el cambio viene de algo que se escribe y espera a que se deje de escribir.
   onFiltersChange: (f: CandidateFilters, debounce?: boolean) => void
-  categories: CategoryDTO[] // ya filtradas por la dirección de la plantilla
   busy: boolean
   onPick: (transactionId: string) => void
   onRetry: () => void
@@ -96,11 +92,13 @@ export function RecurringLinkPicker({
       open={open}
       onOpenChange={onOpenChange}
       title="Elegir movimiento"
+      className="sm:max-w-md"
     >
       <div className="flex flex-col px-4 pb-4">
         <p className="py-3 text-xs text-muted-foreground">
-          Elige el cargo que corresponde a este período. No se crea nada nuevo:
-          el movimiento pasa a ser el cobro de la recurrente.
+          Cargos del banco en la categoría de esta recurrente. Elige el que
+          corresponde a este período: no se crea nada nuevo, el movimiento pasa
+          a ser el cobro.
         </p>
 
         <div className="relative">
@@ -176,27 +174,6 @@ export function RecurringLinkPicker({
               )}
             </div>
           )}
-        </FilterGroup>
-
-        <FilterGroup label="Categoría del cargo">
-          <ChipScroller>
-            {[
-              { id: "all", name: "Todas" },
-              { id: "none", name: "Sin categoría" },
-              ...categories,
-            ].map((c) => (
-              <Chip
-                key={c.id}
-                active={filters.categoryId === c.id}
-                onClick={() =>
-                  filters.categoryId !== c.id &&
-                  onFiltersChange({ ...filters, categoryId: c.id })
-                }
-              >
-                {c.name}
-              </Chip>
-            ))}
-          </ChipScroller>
         </FilterGroup>
 
         {items === null ? (

@@ -959,14 +959,13 @@ export async function listRecurringView(
 
 // Movimientos que el usuario puede elegir como el cobro del período en curso de la plantilla `id`
 // (ver `payRecurringPeriodWith`): movimientos del banco confirmados y sin vínculo, de su misma
-// dirección y moneda, de los últimos `days` días (hoy en Chile, sin tope futuro), más nuevos
-// primero. Sin filtro de monto: a veces el cargo real se pasa de cualquier umbral.
-// `categoryId: null` = sin categoría.
+// dirección, moneda y categoría, de los últimos `days` días (hoy en Chile, sin tope futuro), más
+// nuevos primero. Sin filtro de monto: a veces el cargo real se pasa de cualquier umbral.
 export async function listRecurringCandidates(
   deps: ReadDeps & { recurring: RecurringTemplateRepository },
   userId: string,
   id: string,
-  filters: { days?: number; query?: string; categoryId?: string | null } = {},
+  filters: { days?: number; query?: string } = {},
   now = new Date()
 ): Promise<{ items: TransactionDTO[] }> {
   const template = await deps.recurring.findById(id)
@@ -985,7 +984,7 @@ export async function listRecurringCandidates(
     currency: template.currency,
     from,
     query: filters.query,
-    categoryId: filters.categoryId,
+    categoryId: template.categoryId,
     recurringCandidates: true,
     limit: 50,
   })

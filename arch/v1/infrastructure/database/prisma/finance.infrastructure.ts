@@ -343,8 +343,7 @@ export const transactionRepository: TransactionRepository = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const where: any = { userId }
     if (f.direction) where.direction = f.direction
-    // null = sin categoría; "" o ausente = cualquiera.
-    if (f.categoryId || f.categoryId === null) where.categoryId = f.categoryId
+    if (f.categoryId) where.categoryId = f.categoryId
     // Filtra por banco (nombre): todas las cuentas de bancos con ese nombre, aunque haya varios.
     if (f.bankName) where.account = { bank: { name: f.bankName } }
     if (f.from || f.to)

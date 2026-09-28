@@ -754,7 +754,7 @@ test("el movimiento de otro usuario o inexistente se rechaza como no encontrado"
   )
 })
 
-test("los candidatos: del banco, sin vínculo, en su moneda, últimos N días en Chile, con texto y categoría", async () => {
+test("los candidatos: del banco, sin vínculo, en su moneda, últimos N días en Chile, con texto, en la categoría de la plantilla", async () => {
   const { repo } = makeRepo([arriendo])
   let pedido: TransactionSearchFilters | undefined
   const deps = {
@@ -783,7 +783,7 @@ test("los candidatos: del banco, sin vínculo, en su moneda, últimos N días en
   assert.equal(pedido?.amountMin, undefined, "sin filtro de monto")
   assert.equal(pedido?.amountMax, undefined, "sin filtro de monto")
   assert.equal(pedido?.query, undefined)
-  assert.equal(pedido?.categoryId, undefined)
+  assert.equal(pedido?.categoryId, "vivienda", "siempre la categoría de la plantilla")
   assert.equal(pedido?.to, undefined, "los futuros también entran")
   assert.equal(pedido?.from?.toISOString(), "2026-08-02T00:00:00.000Z", "10 días por defecto")
 
@@ -795,13 +795,10 @@ test("los candidatos: del banco, sin vínculo, en su moneda, últimos N días en
     deps,
     "u1",
     "arriendo",
-    { query: "arriendo", categoryId: "vivienda" },
+    { query: "arriendo" },
     ahora
   )
   assert.equal(pedido?.query, "arriendo")
-  assert.equal(pedido?.categoryId, "vivienda")
-  await listRecurringCandidates(deps, "u1", "arriendo", { categoryId: null }, ahora)
-  assert.equal(pedido?.categoryId, null, "sin categoría")
 
   for (const days of [0, 366, 1.5, Number.NaN])
     await assert.rejects(

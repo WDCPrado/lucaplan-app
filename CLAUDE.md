@@ -16,5 +16,11 @@ Desde ahí abre lo que necesites, sobre todo:
   (una "escena" con su propio usuario demo en `scripts/seed-pr/escenas/`).
 - [openspec/README.md](openspec/README.md) — specs canónicas y cambios en curso.
 
+## Rama base
+
+**Los PR van contra `master`**, la rama principal de este repo, no contra `development`. La rama
+de trabajo sale de `origin/master` y no hay PR de release de `development` a `master`. Esta regla
+es exclusiva de Luca Plan y manda sobre la regla global de usar `development`.
+
 Este archivo no duplica reglas: si algo falta o se contradice, se corrige en el README o en
 `docs/`, no aquí.

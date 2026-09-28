@@ -105,7 +105,7 @@ export function InstallmentModal({
 
   // El plan que nace de un movimiento hereda SU categoría, fija: es la del gasto que lo origina.
   // Cambiarla después recategoriza el plan completo desde cualquier cuota, así que aquí no se
-  // elige. Solo el alta suelta (desde /installments) muestra el selector.
+  // elige. Solo el alta suelta (desde la sección Cuotas de /recurring) muestra el selector.
   const lockedCategory = preset?.categoryId
     ? categories.find((c) => c.id === preset.categoryId)
     : undefined

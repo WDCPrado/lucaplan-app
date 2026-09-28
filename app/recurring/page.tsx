@@ -8,6 +8,7 @@ import { financePageDeps } from "@/arch/v1/presentation/finance/finance-http"
 import {
   listAccounts,
   listRecurringView,
+  listInstallmentsView,
   getBudgetView,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { RecurringView } from "@/components/finance/recurring-view"
@@ -19,10 +20,11 @@ export default async function RecurringPage() {
   const userId = session.user.id
   // Mes del presupuesto en curso según el modo (calendario o ciclo de la tarjeta).
   const now = await currentBudgetPeriod(financePageDeps, todayKey())
-  const [templates, accounts, budget] = await Promise.all([
+  const [templates, plans, accounts, budget] = await Promise.all([
     listRecurringView(financePageDeps, userId),
+    listInstallmentsView(financePageDeps, userId),
     listAccounts(financePageDeps, userId),
-    // Solo por las categorías (nombre/icono/color) para el selector del modal.
+    // Solo por las categorías (nombre/icono/color) para el selector de los modales.
     getBudgetView(financePageDeps, userId, now.year, now.month),
   ])
 
@@ -35,6 +37,7 @@ export default async function RecurringPage() {
         initial: label.charAt(0).toUpperCase(),
       }}
       templates={templates}
+      plans={plans}
       accounts={accounts}
       categories={budget.categories}
     />

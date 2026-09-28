@@ -86,7 +86,7 @@ type Props = {
   openTxId: string | null
 }
 
-// Inicio desktop-first: AppShell (sidebar + topbar + FAB) con el mes convertido en una decisión
+// Inicio desktop-first: AppShell (sidebar + topbar + barra inferior) con el mes convertido en una decisión
 // (cuánto puedo gastar hoy), la tira de días, el ritmo por categoría y los movimientos del día
 // elegido; las cuentas al final. Las mutaciones van por la API + router.refresh() dentro de cada superficie.
 export function Dashboard({
@@ -679,7 +679,7 @@ export function Dashboard({
       </div>
 
       {/* Superficies (adaptativas: dialog en escritorio, sheet en móvil).
-          El de "nuevo ingreso" (FAB +) y el de crear tarjeta viven en el AppShell: son los mismos
+          El de "nuevo movimiento" (el +) y el de crear tarjeta viven en el AppShell: son los mismos
           en toda la app. */}
       <AccountInfoModal
         account={infoAccount}

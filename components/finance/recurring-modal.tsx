@@ -236,10 +236,10 @@ export function RecurringModal({
     loadCandidates(filters)
   }
 
-  // El texto espera 300 ms a que se deje de escribir, como el buscador de movimientos; los chips
-  // recargan al tiro. Cualquier cambio cancela la espera pendiente.
-  function changeFilters(next: CandidateFilters) {
-    const typing = next.q !== filters.q
+  // El texto y los días escritos esperan 300 ms a que se deje de escribir, como el buscador de
+  // movimientos; los chips recargan al tiro. Cualquier cambio cancela la espera pendiente.
+  function changeFilters(next: CandidateFilters, debounce = false) {
+    const typing = debounce || next.q !== filters.q
     setFilters(next)
     clearTimeout(typingRef.current)
     if (typing) typingRef.current = setTimeout(() => loadCandidates(next), 300)

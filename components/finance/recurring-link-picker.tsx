@@ -64,7 +64,8 @@ export function RecurringLinkPicker({
   onOpenChange: (o: boolean) => void
   items: TransactionDTO[] | null | "error"
   filters: CandidateFilters
-  onFiltersChange: (f: CandidateFilters) => void
+  // debounce: el cambio viene de algo que se escribe y espera a que se deje de escribir.
+  onFiltersChange: (f: CandidateFilters, debounce?: boolean) => void
   categories: CategoryDTO[] // ya filtradas por la dirección de la plantilla
   busy: boolean
   onPick: (transactionId: string) => void
@@ -73,11 +74,13 @@ export function RecurringLinkPicker({
   // Fila tocada, esperando confirmación: vincular no se deshace desde aquí.
   const [pending, setPending] = useState<TransactionDTO | null>(null)
   // Texto del campo de días propio; null = se usa uno de los atajos. Solo un valor en rango
-  // llega a los filtros: mientras está fuera de rango la lista se queda con el último válido.
+  // llega a los filtros: mientras está fuera de rango la lista se queda con el último válido, y
+  // el error lo dice. Vacío también es error: Personalizado se abre con los días actuales, así
+  // que vacío solo ocurre si se borró.
   const [customDays, setCustomDays] = useState<string | null>(null)
   const customN = Number(customDays)
   const customInvalid =
-    !!customDays && (customN < 1 || customN > MAX_DAYS)
+    customDays !== null && (!customDays || customN < 1 || customN > MAX_DAYS)
 
   function changeCustomDays(raw: string) {
     // Solo dígitos y hasta 3: lo que no cabe no se alcanza a escribir.
@@ -85,7 +88,7 @@ export function RecurringLinkPicker({
     setCustomDays(v)
     const n = Number(v)
     if (v && n >= 1 && n <= MAX_DAYS && n !== filters.days)
-      onFiltersChange({ ...filters, days: n })
+      onFiltersChange({ ...filters, days: n }, true)
   }
 
   return (

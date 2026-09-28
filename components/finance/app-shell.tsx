@@ -215,7 +215,7 @@ export function AppShell({
                   <Search className="size-4.5" />
                 </button>
               ) : (
-                <div className="size-10 shrink-0" aria-hidden />
+                <div className="invisible size-10 shrink-0" aria-hidden />
               )}
               {actions}
               <UserMenu

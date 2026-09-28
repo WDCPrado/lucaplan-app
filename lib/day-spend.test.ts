@@ -1,10 +1,11 @@
 // Corre con: node --test lib/day-spend.test.ts
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { dailyAllowance, dayOf, spendByDay } from "./day-spend.ts"
+import { dailyAllowance, dateOf, daysLeftIn, spendByDate } from "./day-spend.ts"
+import { daysOf } from "../arch/shared/billing-cycle.ts"
 
 const tx = (
-  day: number,
+  date: string,
   amount: number,
   extra: Partial<{
     direction: string
@@ -13,7 +14,7 @@ const tx = (
     amountClp: number | null
   }> = {}
 ) => ({
-  date: `2026-09-${String(day).padStart(2, "0")}T00:00:00.000Z`,
+  date: `${date}T00:00:00.000Z`,
   direction: "debit",
   status: "confirmed",
   isInternal: false,
@@ -22,27 +23,50 @@ const tx = (
   ...extra,
 })
 
-test("dayOf lee el día civil del ISO sin pasar por la zona horaria", () => {
-  assert.equal(dayOf(tx(8, 1)), 8)
-  assert.equal(dayOf(tx(31, 1)), 31)
+const september = daysOf({ start: "2026-09-01", end: "2026-09-30" })
+const cycle = daysOf({ start: "2026-09-23", end: "2026-10-22" }) // «octubre 2026» en modo tarjeta
+
+test("dateOf lee la fecha civil del ISO sin pasar por la zona horaria", () => {
+  assert.equal(dateOf(tx("2026-09-08", 1)), "2026-09-08")
 })
 
-test("spendByDay suma solo cargos confirmados, sin internos, en CLP", () => {
-  const byDay = spendByDay(
+test("spendByDate suma solo cargos confirmados, sin internos, en CLP", () => {
+  const byDay = spendByDate(
     [
-      tx(5, -38900),
-      tx(5, -6450),
-      tx(7, 1850000, { direction: "credit" }), // ingreso: no es gasto
-      tx(7, -42000, { status: "pending" }), // por cobrar: todavía no
-      tx(7, -9990, { isInternal: true }), // ajuste de saldo: no es gasto
-      tx(9, -50, { amountClp: 47500 }), // USD → su equivalente CLP
+      tx("2026-09-05", -38900),
+      tx("2026-09-05", -6450),
+      tx("2026-09-07", 1850000, { direction: "credit" }), // ingreso: no es gasto
+      tx("2026-09-07", -42000, { status: "pending" }), // por cobrar: todavía no
+      tx("2026-09-07", -9990, { isInternal: true }), // ajuste de saldo: no es gasto
+      tx("2026-09-09", -50, { amountClp: 47500 }), // USD → su equivalente CLP
     ],
-    30
+    september
   )
-  assert.equal(byDay.length, 31)
-  assert.equal(byDay[5], 45350)
-  assert.equal(byDay[7], 0)
-  assert.equal(byDay[9], 47500)
+  assert.equal(byDay.length, 30)
+  assert.equal(byDay[4], 45350) // día 5
+  assert.equal(byDay[6], 0) // día 7
+  assert.equal(byDay[8], 47500) // día 9
+})
+
+test("en un ciclo que cruza meses, el 25/09 y el 25/10 no se mezclan", () => {
+  const byDay = spendByDate(
+    [tx("2026-09-25", -1000), tx("2026-10-25", -9000), tx("2026-10-20", -500)],
+    cycle
+  )
+  assert.equal(byDay.length, 30)
+  assert.equal(byDay[cycle.indexOf("2026-09-25")], 1000)
+  assert.equal(byDay[cycle.indexOf("2026-10-20")], 500)
+  // El 25/10 es del ciclo siguiente: no suma en ningún día de este.
+  assert.equal(byDay.reduce((a, b) => a + b, 0), 1500)
+})
+
+test("daysLeftIn cuenta desde hoy hasta el fin del rango, hoy incluido", () => {
+  const oct = { start: "2026-09-23", end: "2026-10-22" }
+  assert.equal(daysLeftIn(oct, "2026-09-28"), 25)
+  assert.equal(daysLeftIn(oct, "2026-10-22"), 1)
+  assert.equal(daysLeftIn(oct, "2026-10-23"), 0) // fuera del rango
+  // Modo débito: igual que antes (30/09 − 28/09 + 1).
+  assert.equal(daysLeftIn({ start: "2026-09-01", end: "2026-09-30" }, "2026-09-28"), 3)
 })
 
 test("dailyAllowance reparte lo libre en los días que quedan y nunca baja de cero", () => {

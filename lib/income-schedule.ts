@@ -20,3 +20,19 @@ export function payDayState(
   const today = now.getDate()
   return day < today ? "past" : day > today ? "future" : "today"
 }
+
+/**
+ * Días desde hoy hasta la fecha de pago del ingreso en el mes (period): positivo si falta,
+ * 0 si es hoy, negativo si pasó. Cuenta días reales y no resta días del mes: en modo tarjeta,
+ * con octubre en pantalla y hoy 28/09, un ingreso del día 5 (5/10) está a 7 días.
+ * El día se recorta al último del mes (31 en febrero → 28/29), igual que el backend.
+ */
+export function daysUntilPayDay(
+  period: { year: number; month: number },
+  dayOfMonth: number,
+  today: string // "YYYY-MM-DD" civil (todayKey)
+): number {
+  const lastDay = new Date(Date.UTC(period.year, period.month, 0)).getUTCDate()
+  const pay = Date.UTC(period.year, period.month - 1, Math.min(dayOfMonth, lastDay))
+  return Math.round((pay - Date.parse(`${today}T00:00:00Z`)) / 86_400_000)
+}

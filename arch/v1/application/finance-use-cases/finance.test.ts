@@ -28,6 +28,7 @@ import {
   remainingToAllocate,
 } from "./budget-formulas.ts"
 import { setMonthlyBudget } from "./set-monthly-budget-use-case.ts"
+import { periodRange } from "../../../shared/billing-cycle.ts"
 
 const clp = (n: number) => Money.of(n, "CLP")
 
@@ -112,6 +113,7 @@ test("deuda TC: por tarjeta, separada del sobregiro; checking negativo no cuenta
 // --- Uso por categoría ---
 
 const enero = (day: number) => new Date(2026, 0, day)
+const ENERO = periodRange(2026, 1, "calendar", {})
 const tx = (over: Partial<Transaction>): Transaction => ({
   id: "t",
   userId: "u1",
@@ -138,8 +140,7 @@ test("uso por categoría: límite 70.000, gastos 45.000 → disponible 25.000", 
     "cat1",
     clp(70000),
     txs,
-    2026,
-    1
+    ENERO
   )
   assert.equal(used.toMajor(), 45000)
   assert.equal(available.toMajor(), 25000)
@@ -152,8 +153,8 @@ test("comprometido: suma los pending y no los mezcla con el usado", () => {
     tx({ id: "t3", amount: clp(9000), date: enero(5), status: "pending", isInternal: true }), // interno no
     tx({ id: "t4", amount: clp(1000), date: enero(5), status: "pending", categoryId: null }), // sin categoría no
   ]
-  const { used, available } = computeCategoryUsage("cat1", clp(400000), txs, 2026, 1)
-  const committed = computeCategoryCommitted("cat1", "CLP", txs, 2026, 1)
+  const { used, available } = computeCategoryUsage("cat1", clp(400000), txs, ENERO)
+  const committed = computeCategoryCommitted("cat1", "CLP", txs, ENERO)
   assert.equal(used.toMajor(), 20000)
   assert.equal(committed.toMajor(), 350000)
   assert.equal(available.toMajor(), 380000)
@@ -164,10 +165,10 @@ test("comprometido: al confirmarse pasa a usado sin doble conteo", () => {
     tx({ id: "t1", amount: clp(20000), date: enero(3) }),
     tx({ id: "t2", amount: clp(362000), date: enero(5) }), // el mismo movimiento, ya confirmado
   ]
-  const { used } = computeCategoryUsage("cat1", clp(400000), cobrado, 2026, 1)
+  const { used } = computeCategoryUsage("cat1", clp(400000), cobrado, ENERO)
   assert.equal(used.toMajor(), 382000)
   assert.equal(
-    computeCategoryCommitted("cat1", "CLP", cobrado, 2026, 1).toMajor(),
+    computeCategoryCommitted("cat1", "CLP", cobrado, ENERO).toMajor(),
     0
   )
 })
@@ -178,7 +179,7 @@ test("uso por categoría de ingreso: suma créditos y omite débitos", () => {
     tx({ id: "t2", amount: clp(100000), date: enero(20), direction: "credit" }),
     tx({ id: "t3", amount: clp(9999), date: enero(9) }), // gasto no cuenta en ingreso
   ]
-  const { used } = computeCategoryUsage("cat1", clp(0), txs, 2026, 1, "credit")
+  const { used } = computeCategoryUsage("cat1", clp(0), txs, ENERO, "credit")
   assert.equal(used.toMajor(), 350000)
 })
 

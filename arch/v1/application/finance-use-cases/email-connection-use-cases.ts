@@ -1249,6 +1249,7 @@ async function importIntoLink(
       currency: m.amount.currency,
       direction: m.direction,
       externalId: m.externalId,
+      date: m.date,
     }))
 
   return {

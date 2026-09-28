@@ -4,6 +4,7 @@
 // por fórmula (arch/v1/application/finance-use-cases), no son campos ni tablas.
 
 import type { CurrencyCode, Money } from "./money.ts"
+import type { PeriodRange } from "../../../shared/billing-cycle.ts"
 
 // --- Enums de dominio ---
 
@@ -351,15 +352,12 @@ export interface MonthlyBudgetRepository {
 }
 
 export interface TransactionRepository {
-  listByUserPeriod(
-    userId: string,
-    year: number,
-    month: number
-  ): Promise<Transaction[]>
+  // Movimientos con fecha dentro del rango civil (inclusive): el mes del presupuesto ya resuelto
+  // según su modo (calendario o ciclo de la tarjeta).
+  listByUserPeriod(userId: string, range: PeriodRange): Promise<Transaction[]>
   listByCategoryPeriod(
     categoryId: string,
-    year: number,
-    month: number
+    range: PeriodRange
   ): Promise<Transaction[]>
   // Búsqueda con filtros combinados (texto insensible a mayúsculas, dirección, categoría, cuenta, fechas).
   searchByUser(

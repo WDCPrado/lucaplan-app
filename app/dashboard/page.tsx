@@ -2,7 +2,12 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { auth } from "@/arch/v1/infrastructure/auth/auth"
-import { currentPeriod } from "@/lib/finance-format"
+import { todayKey } from "@/lib/finance-format"
+import {
+  closingOf,
+  periodOfDay,
+  periodRange,
+} from "@/arch/shared/billing-cycle"
 import {
   financeDeps,
   financePageDeps,
@@ -19,6 +24,7 @@ import {
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { materializeUserPeriods } from "@/arch/v1/application/finance-use-cases/recurring-use-cases"
 import { getPaceFrequency } from "@/arch/v1/application/finance-use-cases/pace-use-cases"
+import { getBudgetPeriod } from "@/arch/v1/application/finance-use-cases/budget-period-use-cases"
 import { paceDeps } from "@/arch/v1/infrastructure/database/prisma/pace.infrastructure"
 import { Dashboard } from "@/components/finance/dashboard"
 import { PushPrompt } from "@/components/pwa/push-prompt"
@@ -39,18 +45,36 @@ export default async function DashboardPage({
   if (!session) redirect("/login")
 
   const sp = await searchParams
-  // Mes por defecto: el del calendario del usuario (APP_TZ), no el de UTC. Con el servidor en UTC,
-  // el último día del mes saltaba al mes siguiente a media tarde en Chile.
-  const now = currentPeriod()
-  const year = Number(sp.year) || now.year
-  const month = Number(sp.month) || now.month
+  // Mes por defecto: el mes del presupuesto que contiene a hoy según el modo (calendario o ciclo de
+  // la tarjeta), con el "hoy" del calendario del usuario (APP_TZ), no el de UTC. Con el servidor en
+  // UTC, el último día del mes saltaba al mes siguiente a media tarde en Chile.
+  const today = todayKey()
+  const { mode, overrides } = await getBudgetPeriod(financePageDeps)
+  const current = periodOfDay(today, mode, overrides)
+  const year = Number(sp.year) || current.year
+  const month = Number(sp.month) || current.month
+  const range = periodRange(year, month, mode, overrides)
+  const cycle = {
+    mode,
+    range,
+    closing: closingOf(year, month, overrides),
+    current,
+  }
   const userId = session.user.id
 
   // Abre los períodos de las recurrentes activas antes de leer: el comprometido del mes debe verse
   // aunque el cron no haya corrido todavía. Idempotente y solo mes actual/futuro.
+  // En modo tarjeta el rango cruza dos meses calendario (23/09 → 22/10): se abren los dos, o la
+  // recurrente que vence el 25/09 no aparecería como comprometido de octubre.
   // Con las deps CRUDAS a propósito: esto escribe, y lo que escribe no lee de la memoización
   // por render. Las lecturas de más abajo usan `financePageDeps` y ven lo que esto dejó.
-  await materializeUserPeriods(financeDeps, userId, year, month).catch(() => {})
+  for (const key of new Set([range.start.slice(0, 7), range.end.slice(0, 7)]))
+    await materializeUserPeriods(
+      financeDeps,
+      userId,
+      Number(key.slice(0, 4)),
+      Number(key.slice(5, 7))
+    ).catch(() => {})
 
   // La frecuencia primero: getBudgetView la necesita para calcular el ritmo del período.
   const paceFrequency = await getPaceFrequency(paceDeps)
@@ -68,7 +92,7 @@ export default async function DashboardPage({
     listAccounts(financePageDeps, userId),
     getBudgetView(financePageDeps, userId, year, month, {
       frequency: paceFrequency,
-      today: now,
+      today,
     }),
     listTransactions(financePageDeps, userId, year, month),
     listUncategorized(financePageDeps, userId, year, month),
@@ -102,6 +126,7 @@ export default async function DashboardPage({
       )}
       <Dashboard
         period={{ year, month }}
+        cycle={cycle}
         summary={summary}
         accounts={accounts}
         budget={budget}

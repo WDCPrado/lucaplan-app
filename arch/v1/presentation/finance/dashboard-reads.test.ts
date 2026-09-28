@@ -176,8 +176,8 @@ function makeDeps() {
     transactions: {
       listByUserPeriod: log(
         "transactions.listByUserPeriod",
-        async (_u: string, year: number, month: number) =>
-          year === YEAR && month === MONTH ? [tx("t1", 10), tx("t2", 20)] : []
+        async (_u: string, range: { start: string; end: string }) =>
+          range.start === "2026-08-01" ? [tx("t1", 10), tx("t2", 20)] : []
       ),
       searchByUser: log("transactions.searchByUser", async () => []),
       amountBounds: log("transactions.amountBounds", async () => ({
@@ -198,6 +198,12 @@ function makeDeps() {
     },
     recurring: {
       listByUser: log("recurring.listByUser", async () => []),
+    },
+    budgetPeriod: {
+      get: log("budgetPeriod.get", async () => ({
+        mode: "calendar" as const,
+        overrides: {},
+      })),
     },
     exchangeRates: {
       async clpPerUsdAt(): Promise<never> {

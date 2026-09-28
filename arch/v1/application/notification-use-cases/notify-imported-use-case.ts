@@ -11,8 +11,17 @@ import {
   type NotifiableMovement,
 } from "./notification-rules.ts"
 import { sendPushToUser, type PushDeps } from "./push-use-cases.ts"
+import {
+  currentBudgetPeriod,
+  type BudgetPeriodDeps,
+} from "../finance-use-cases/budget-period-use-cases.ts"
+import {
+  periodRange,
+  type PeriodRange,
+} from "../../../shared/billing-cycle.ts"
+import { todayKey } from "../../../shared/today.ts"
 
-export type NotifyImportedDeps = PushDeps & {
+export type NotifyImportedDeps = PushDeps & BudgetPeriodDeps & {
   transactions: Pick<TransactionRepository, "listByUserPeriod">
   categories: Pick<CategoryRepository, "listByUser" | "listLimitsByUser">
   budgetAlerts: Pick<BudgetAlertRepository, "list">
@@ -44,17 +53,18 @@ function countsForBudget(t: Transaction): boolean {
 export async function notifyBudgetCrossing(
   deps: NotifyImportedDeps,
   userId: string,
-  year: number,
-  month: number,
+  // Mes del presupuesto (clave de los límites) y su rango de fechas según el modo.
+  period: { year: number; month: number; range: PeriodRange },
   justEntered: (t: Transaction) => boolean
 ): Promise<void> {
+  const { year, month, range } = period
   // Umbrales configurables (Configuración → Alertas de presupuesto). Sin ninguno, no se alerta.
   const percents = (await deps.budgetAlerts.list()).map((a) => a.percent)
   if (percents.length === 0) return
 
-  const txs = (
-    await deps.transactions.listByUserPeriod(userId, year, month)
-  ).filter(countsForBudget)
+  const txs = (await deps.transactions.listByUserPeriod(userId, range)).filter(
+    countsForBudget
+  )
   const touched = new Set(
     txs.filter(justEntered).map((t) => t.categoryId as string)
   )
@@ -90,18 +100,21 @@ export async function notifyBudgetCrossing(
 /**
  * Datos del movimiento YA persistido que el aviso necesita: su id (para enlazar directo a su modal)
  * y el nombre de la categoría que le quedó. Se busca por el id del banco entre los movimientos del
- * mes; uno cuya fecha caiga fuera (una compra de fin del mes pasado que llega hoy) no aporta
- * ninguno de los dos y el aviso sale como antes.
+ * mes CALENDARIO de su fecha, no en el ciclo en curso: un cargo del día del cierre que llega al día
+ * siguiente es del ciclo anterior y ahí no se encontraría. Sin fecha se mira el mes de hoy.
  */
 async function persisted(
   deps: NotifyImportedDeps,
   userId: string,
-  year: number,
-  month: number,
+  today: string,
   movement: NotifiableMovement
 ): Promise<{ id?: string; category?: string }> {
   if (!movement.externalId) return {}
-  const txs = await deps.transactions.listByUserPeriod(userId, year, month)
+  const day = movement.date ? movement.date.toISOString().slice(0, 10) : today
+  const txs = await deps.transactions.listByUserPeriod(
+    userId,
+    periodRange(Number(day.slice(0, 4)), Number(day.slice(5, 7)), "calendar", {})
+  )
   const tx = txs.find((t) => t.externalId === movement.externalId)
   if (!tx) return {}
   if (!tx.categoryId) return { id: tx.id }
@@ -126,8 +139,10 @@ export async function notifyImportedMovements(
   movements: NotifiableMovement[],
   now = new Date()
 ): Promise<void> {
-  const year = now.getUTCFullYear()
-  const month = now.getUTCMonth() + 1
+  // Mes del presupuesto en curso según el modo (en modo tarjeta, el ciclo que contiene a hoy), con
+  // el "hoy" del calendario del usuario, no el de UTC.
+  const today = todayKey(now)
+  const current = await currentBudgetPeriod(deps, today)
   // Un solo movimiento se nombra: ahí valen la categoría que le puso la IA y el enlace directo a su
   // modal. Con varios el resumen no los lista, así que ni se consultan.
   const message = newMovementsMessage(
@@ -135,7 +150,7 @@ export async function notifyImportedMovements(
       ? [
           {
             ...movements[0],
-            ...(await persisted(deps, userId, year, month, movements[0])),
+            ...(await persisted(deps, userId, today, movements[0])),
           },
         ]
       : movements
@@ -149,8 +164,7 @@ export async function notifyImportedMovements(
   await notifyBudgetCrossing(
     deps,
     userId,
-    now.getUTCFullYear(),
-    now.getUTCMonth() + 1,
+    current,
     (t) => t.externalId !== null && ids.has(t.externalId)
   )
 }

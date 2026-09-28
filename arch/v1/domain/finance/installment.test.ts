@@ -4,6 +4,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { Money } from "./money.ts"
+import { periodRange } from "../../../shared/billing-cycle.ts"
 import {
   accountAllowsKind,
   committedForMonth,
@@ -325,22 +326,25 @@ test("el saldo pendiente se calcula sobre lo registrado, no sobre el cronograma"
   assert.equal(saldo.toMajor(), 3_560_000)
 })
 
+const mes = (year: number, month: number) =>
+  periodRange(year, month, "calendar", {})
+
 test("el comprometido del mes es la cuota que vence ese mes y aún no se paga", () => {
   const plan = makePlan() // cuotas en ago, sep, oct de 2026
-  assert.equal(committedForMonth(plan, 2026, 8).toMajor(), 100_000)
-  assert.equal(committedForMonth(plan, 2026, 9).toMajor(), 100_000)
+  assert.equal(committedForMonth(plan, mes(2026, 8)).toMajor(), 100_000)
+  assert.equal(committedForMonth(plan, mes(2026, 9)).toMajor(), 100_000)
 })
 
 test("una cuota ya pagada no aporta al comprometido de su mes", () => {
   const plan = makePlan()
   plan.items[0].transactionId = "t1"
-  assert.equal(committedForMonth(plan, 2026, 8).toMajor(), 0)
+  assert.equal(committedForMonth(plan, mes(2026, 8)).toMajor(), 0)
 })
 
 test("un mes sin cuotas no compromete nada", () => {
   const plan = makePlan()
-  assert.equal(committedForMonth(plan, 2026, 7).toMajor(), 0)
-  assert.equal(committedForMonth(plan, 2026, 11).toMajor(), 0)
+  assert.equal(committedForMonth(plan, mes(2026, 7)).toMajor(), 0)
+  assert.equal(committedForMonth(plan, mes(2026, 11)).toMajor(), 0)
 })
 
 test("el plan se completa cuando todas sus cuotas están saldadas", () => {

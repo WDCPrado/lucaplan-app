@@ -17,16 +17,18 @@ export function MonthPicker({
   period,
   onSelect,
   withYear,
+  current,
   className,
 }: {
   period: { year: number; month: number }
   onSelect: (year: number, month: number) => void
   withYear?: boolean // "octubre 2026" en vez de "octubre": fuera de la topbar el año no es obvio
+  current?: { year: number; month: number } // mes en curso según el modo (tarjeta: el 28/09 ya es octubre)
   className?: string // estilo del botón que abre el selector
 }) {
   const [open, setOpen] = useState(false)
   const [year, setYear] = useState(period.year)
-  const now = currentPeriod()
+  const now = current ?? currentPeriod()
 
   return (
     <Popover

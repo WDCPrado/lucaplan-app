@@ -16,8 +16,8 @@ export async function PATCH(
 ) {
   const { id } = await ctx.params
   const body = await req.json()
-  const { year, month } = periodOf(req)
   return withUser(req, async (userId) => {
+    const { year, month } = await periodOf(req)
     const income = await updateIncome(financeDeps, userId, {
       id,
       accountId: String(body.accountId),
@@ -42,8 +42,8 @@ export async function DELETE(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params
-  const { year, month } = periodOf(req)
-  return withUser(req, (userId) =>
-    deleteIncome(financeDeps, userId, id, { year, month })
-  )
+  return withUser(req, async (userId) => {
+    const { year, month } = await periodOf(req)
+    return deleteIncome(financeDeps, userId, id, { year, month })
+  })
 }

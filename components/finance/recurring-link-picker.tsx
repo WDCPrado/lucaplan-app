@@ -123,15 +123,19 @@ export function RecurringLinkPicker({
           )}
         </div>
 
-        <FilterGroup label="Días hacia atrás">
-          <ChipScroller>
+        <div className="mt-4 space-y-2">
+          <span className="block text-xs font-medium text-muted-foreground">
+            Días hacia atrás
+          </span>
+          <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
             {DAY_PRESETS.map((n) => (
               <Chip
                 key={n}
                 active={customDays === null && filters.days === n}
                 onClick={() => {
                   setCustomDays(null)
-                  if (filters.days !== n) onFiltersChange({ ...filters, days: n })
+                  if (filters.days !== n)
+                    onFiltersChange({ ...filters, days: n })
                 }}
               >
                 {n}
@@ -145,7 +149,7 @@ export function RecurringLinkPicker({
             >
               Personalizado
             </Chip>
-          </ChipScroller>
+          </div>
           {customDays !== null && (
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
@@ -174,7 +178,7 @@ export function RecurringLinkPicker({
               )}
             </div>
           )}
-        </FilterGroup>
+        </div>
 
         {items === null ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
@@ -261,31 +265,5 @@ export function RecurringLinkPicker({
         </AlertDialogContent>
       </AlertDialog>
     </ResponsiveModal>
-  )
-}
-
-function FilterGroup({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="mt-4 space-y-2">
-      <span className="block text-xs font-medium text-muted-foreground">
-        {label}
-      </span>
-      {children}
-    </div>
-  )
-}
-
-// Chips en una fila con scroll horizontal que sangra hasta los bordes del modal, sin envolver.
-function ChipScroller({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
-      {children}
-    </div>
   )
 }

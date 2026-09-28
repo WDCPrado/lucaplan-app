@@ -84,7 +84,7 @@ type AppShellProps = {
   onSignOut?: () => void
   // Datos del "+" (centro de la barra inferior en móvil, "Movimiento" en el topbar): el acceso
   // rápido a registrar un movimiento a mano (gasto o ingreso, con el toggle ±), igual en toda la app.
-  // Crear recurrentes/cuotas NO va aquí: eso es un botón "Nuevo" en la cabecera de su página.
+  // Crear recurrentes/cuotas NO va aquí: eso va en la cabecera de su sección.
   quickAdd?: { accounts: AccountDTO[]; categories: CategoryDTO[] }
   onSearch?: () => void // si se pasa, muestra la lupa "Buscar" abajo en el sidebar
   title?: string
@@ -195,10 +195,10 @@ export function AppShell({
               {actions}
             </div>
           </header>
-          {/* Móvil: fila flotante siempre visible — buscar | (selector u otras acciones) | usuario.
+          {/* Móvil: fila fija siempre visible — buscar | (selector u otras acciones) | usuario.
               items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar. */}
           <div className="pwa-safe-top sticky top-0 z-20 flex justify-center bg-background px-4 pt-3 pb-3 md:hidden">
-            <div className="flex w-full items-start justify-between gap-2 drop-shadow-md">
+            <div className="flex w-full items-start justify-between gap-2">
               {/* Sin trigger del sidebar: en móvil el drawer solo repetía la barra inferior y el
                   menú de usuario. El hueco lo ocupa la lupa; sin ella, un espaciador del mismo
                   ancho que el avatar para que las acciones del centro no se descentren. */}
@@ -364,7 +364,7 @@ function BottomNav({
             </span>
           </Link>
         )
-        if (!onAdd || i !== NAV.length / 2) return link
+        if (!onAdd || i !== Math.floor(NAV.length / 2)) return link
         return (
           <React.Fragment key={key}>
             <div className="flex flex-1 items-center justify-center">

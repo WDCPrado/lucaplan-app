@@ -195,10 +195,11 @@ export function AppShell({
               {actions}
             </div>
           </header>
-          {/* Móvil: fila fija siempre visible — buscar | (selector u otras acciones) | usuario.
-              items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar. */}
-          <div className="pwa-safe-top sticky top-0 z-20 flex justify-center bg-background px-4 pt-3 pb-3 md:hidden">
-            <div className="flex w-full items-start justify-between gap-2">
+          {/* Móvil: botones flotando sin barra — buscar | (selector u otras acciones) | usuario.
+              items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar. Sin fondo:
+              solo los hijos reciben toques; lo que queda entre ellos pasa al contenido de abajo. */}
+          <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center px-4 pt-3 pb-3 md:hidden">
+            <div className="flex w-full items-start justify-between gap-2 *:pointer-events-auto">
               {/* Sin trigger del sidebar: en móvil el drawer solo repetía la barra inferior y el
                   menú de usuario. El hueco lo ocupa la lupa; sin ella, un espaciador del mismo
                   ancho que el avatar para que las acciones del centro no se descentren. */}
@@ -214,7 +215,7 @@ export function AppShell({
                   <Search className="size-4.5" />
                 </button>
               ) : (
-                <div className="size-10 shrink-0" aria-hidden />
+                <div className="invisible size-10 shrink-0" aria-hidden />
               )}
               {actions}
               <UserMenu

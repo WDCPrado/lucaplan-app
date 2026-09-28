@@ -363,7 +363,7 @@ export function Dashboard({
       title="Inicio"
       actions={
         // Móvil: columna invertida → selector arriba y "Hoy" colgando debajo; escritorio: fila.
-        <div className="flex flex-col-reverse items-center gap-2 md:flex-row">
+        <div className="pointer-events-none flex flex-col-reverse items-center gap-2 *:pointer-events-auto md:flex-row">
           {!isCurrentMonth && (
             <button
               onClick={() => {

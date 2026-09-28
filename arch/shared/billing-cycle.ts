@@ -55,7 +55,8 @@ export function closingOf(
 /** Una corrección válida del cierre de M es una fecha real dentro de M. */
 export function isValidClosing(year: number, month: number, date: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false
-  if (key(new Date(`${date}T00:00:00Z`)) !== date) return false
+  const d = new Date(`${date}T00:00:00Z`)
+  if (isNaN(d.getTime()) || key(d) !== date) return false
   return date.startsWith(`${monthKey(year, month)}-`)
 }
 

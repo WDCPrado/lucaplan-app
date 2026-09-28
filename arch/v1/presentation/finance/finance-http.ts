@@ -67,7 +67,7 @@ import { recurringTemplateRepository } from "../../infrastructure/database/prism
 import { installmentPlanRepository } from "../../infrastructure/database/prisma/installment.infrastructure.ts"
 import { budgetPeriodRepository } from "../../infrastructure/database/prisma/budget-period.infrastructure.ts"
 import { currentBudgetPeriod } from "../../application/finance-use-cases/budget-period-use-cases.ts"
-import { todayKey } from "../../../../lib/finance-format.ts"
+import { todayKey } from "../../../shared/today.ts"
 import { openaiCategorizationProvider } from "../../infrastructure/http/ai/openai-categorization.provider.ts"
 import { openaiBalanceScanReader } from "../../infrastructure/http/ai/openai-balance-scan.provider.ts"
 import { openaiMovementScanReader } from "../../infrastructure/http/ai/openai-movement-scan.provider.ts"
@@ -117,11 +117,11 @@ function errorStatus(e: unknown): number {
   if (e instanceof LockBusyError) return 409 // sync ya en curso
   if (e instanceof ConnectionMethodConflictError) return 409 // otro método de conexión activo
   if (e instanceof DuplicateBudgetAlertError) return 409 // ya existe una alerta a ese %
-  if (e instanceof InvalidBudgetPeriodError) return 400 // contrato de /api/period-mode y /api/card-closing
   if (
     e instanceof InvalidBudgetAlertError ||
     e instanceof InvalidDueDaysError ||
-    e instanceof InvalidPaceFrequencyError
+    e instanceof InvalidPaceFrequencyError ||
+    e instanceof InvalidBudgetPeriodError
   )
     return 422
   if (
@@ -189,7 +189,8 @@ export async function withUser(
 }
 
 // year/month desde query params; por defecto el mes del presupuesto en curso según el modo
-// (calendario o ciclo de la tarjeta), con el "hoy" del calendario del usuario.
+// (calendario o ciclo de la tarjeta), con el "hoy" del calendario del usuario. Puede leer la base:
+// llámalo DENTRO del callback de `withUser`, así va después de la sesión y sus errores se mapean.
 export async function periodOf(
   req: Request
 ): Promise<{ year: number; month: number }> {

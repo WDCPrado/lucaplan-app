@@ -1,6 +1,6 @@
 "use client"
 
-import { useId, useState } from "react"
+import { useId, useOptimistic, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
@@ -223,30 +223,30 @@ function CycleBar({
 }) {
   const router = useRouter()
   const switchId = useId()
-  // Optimista: el switch cambia al toque; si falla vuelve y avisa. Cuando el servidor ya trae el
-  // modo nuevo, el valor local sobra y se suelta en render.
-  const [optimistic, setOptimistic] = useState<PeriodMode | null>(null)
-  if (optimistic !== null && optimistic === cycle.mode) setOptimistic(null)
-  const mode = optimistic ?? cycle.mode
+  // Optimista: el switch cambia al toque y, al terminar la transición (guardado + refresco),
+  // vuelve solo a lo que diga el servidor: si falló, al modo anterior, con un toast.
+  const [mode, setOptimisticMode] = useOptimistic(cycle.mode)
+  const [pending, startTransition] = useTransition()
   const card = mode === "card_cycle"
 
-  async function changeMode(checked: boolean) {
+  function changeMode(checked: boolean) {
     const next: PeriodMode = checked ? "card_cycle" : "calendar"
     haptic("light")
-    setOptimistic(next)
-    const res = await fetch("/api/period-mode", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ mode: next }),
-    }).catch(() => null)
-    if (!res?.ok) {
-      setOptimistic(null)
-      toast.error(await apiError(res, "No se pudo cambiar el modo."))
-      return
-    }
-    // Al mes en curso del modo nuevo: con el modo tarjeta, el 28/09 ya es octubre.
-    if (window.location.search) router.push("/dashboard")
-    else router.refresh()
+    startTransition(async () => {
+      setOptimisticMode(next)
+      const res = await fetch("/api/period-mode", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: next }),
+      }).catch(() => null)
+      if (!res?.ok) {
+        toast.error(await apiError(res, "No se pudo cambiar el modo."))
+        return
+      }
+      // Al mes en curso del modo nuevo: con el modo tarjeta, el 28/09 ya es octubre.
+      if (window.location.search) router.push("/dashboard")
+      else router.refresh()
+    })
   }
 
   return (
@@ -274,7 +274,7 @@ function CycleBar({
         <Switch
           id={switchId}
           checked={card}
-          disabled={optimistic !== null}
+          disabled={pending}
           onCheckedChange={changeMode}
         />
       </div>

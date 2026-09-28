@@ -1,6 +1,6 @@
 // Corrección del cierre de la tarjeta de un mes (Inicio → rango del ciclo). `date: null` borra la
 // corrección y vuelve al estimado. Responde el cierre efectivo tras guardar; una fecha fuera del
-// mes responde 400 y no guarda nada. Global, como el modo.
+// mes responde 422 y no guarda nada. Global, como el modo.
 import {
   withUser,
   financeDeps,

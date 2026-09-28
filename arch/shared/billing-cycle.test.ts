@@ -62,4 +62,6 @@ test("isValidClosing: solo fechas reales dentro del mes", () => {
   assert.equal(isValidClosing(2026, 5, "2026-06-02"), false)
   assert.equal(isValidClosing(2026, 2, "2026-02-30"), false)
   assert.equal(isValidClosing(2026, 5, "20/05/2026"), false)
+  assert.equal(isValidClosing(2026, 5, "2026-05-32"), false)
+  assert.equal(isValidClosing(2026, 5, "2026-05-00"), false)
 })

@@ -10,10 +10,16 @@ import {
 } from "../../domain/notifications/push.domain.ts"
 import type { Transaction } from "../../domain/finance/finance.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
-import { notifyBudgetCrossing } from "./notify-imported-use-case.ts"
-import { periodRange } from "../../../shared/billing-cycle.ts"
-
-const JULIO = { year: 2026, month: 7, range: periodRange(2026, 7, "calendar", {}) }
+import {
+  notifyBudgetCrossing,
+  notifyImportedMovements,
+} from "./notify-imported-use-case.ts"
+import {
+  periodRange,
+  type PeriodMode,
+  type PeriodRange,
+} from "../../../shared/billing-cycle.ts"
+import { inRange } from "../finance-use-cases/budget-formulas.ts"
 import {
   budgetAlertMessage,
   dueSoonMessage,
@@ -24,6 +30,8 @@ import {
   sendPushToUser,
   subscribeToPush,
 } from "./push-use-cases.ts"
+
+const JULIO = { year: 2026, month: 7, range: periodRange(2026, 7, "calendar", {}) }
 
 const mov = (
   description: string,
@@ -334,4 +342,100 @@ test("sendPushToUser borra las suscripciones muertas y no corta a las demás", a
   assert.equal(sent, 1)
   assert.deepEqual(deleted, [fcm("gone")]) // el fallo transitorio NO borra
   assert.deepEqual(enviados.toSorted(), [fcm("boom"), fcm("gone"), fcm("ok")]) // el host ajeno, nunca
+})
+
+// --- Modo tarjeta: los avisos de lo importado miran el ciclo en curso ---
+// Cierre estimado de septiembre 2026: 22/09. En modo tarjeta octubre va del 23/09 al 22/10.
+function importedDeps(txs: Transaction[], mode: PeriodMode) {
+  const enviados: PushMessage[] = []
+  const deps = {
+    subscriptions: {
+      save: async () => {},
+      deleteByEndpoint: async () => {},
+      listByUser: async () => [
+        {
+          userId: "u1",
+          endpoint: "https://fcm.googleapis.com/fcm/send/ok",
+          keys: { p256dh: "a", auth: "b" },
+        },
+      ],
+    },
+    sender: {
+      send: async (_s: PushSubscription, m: PushMessage): Promise<PushSendResult> => {
+        enviados.push(m)
+        return "sent"
+      },
+    },
+    // Repo fiel: devuelve solo lo que cae en el rango pedido.
+    transactions: {
+      listByUserPeriod: async (_u: string, range: PeriodRange) =>
+        txs.filter((t) => inRange(t.date, range)),
+    },
+    categories: {
+      listByUser: async () => [
+        { id: "cat1", userId: "u1", name: "Comida", type: "expense" as const, icon: null, color: null, description: null, paceEnabled: true },
+      ],
+      listLimitsByUser: async () => [
+        { id: "l1", userId: "u1", categoryId: "cat1", year: 2026, month: 9, limit: Money.of(100_000, "CLP") },
+      ],
+    },
+    budgetAlerts: { list: async () => [{ id: "a1", percent: 80 }] },
+    budgetPeriod: {
+      get: async () => ({ mode, overrides: {} }),
+      setMode: async () => {},
+      setClosing: async () => {},
+    },
+  }
+  return { deps, enviados }
+}
+
+const gasto = (id: string, iso: string, amount: number, externalId: string | null = null): Transaction => ({
+  id,
+  userId: "u1",
+  accountId: "cc",
+  categoryId: "cat1",
+  date: new Date(`${iso}T00:00:00Z`),
+  description: id,
+  amount: Money.of(amount, "CLP"),
+  direction: "debit",
+  status: "confirmed",
+  isInternal: false,
+  externalId,
+})
+
+test("modo tarjeta: un gasto del 25/09 cruza el umbral de octubre, no el de septiembre", async () => {
+  const txs = [
+    gasto("sept", "2026-09-10", 90_000), // ciclo de septiembre en modo tarjeta
+    gasto("viejo", "2026-09-24", 70_000), // ya en octubre
+    gasto("nuevo", "2026-09-25", 15_000, "ext-25"),
+  ]
+  const importado = [
+    { ...mov("nuevo", 15_000), externalId: "ext-25", date: new Date("2026-09-25T00:00:00Z") },
+  ]
+  // 26/09 a mediodía en Santiago.
+  const ahora = new Date("2026-09-26T15:00:00Z")
+
+  const tarjeta = importedDeps(txs, "card_cycle")
+  await notifyImportedMovements(tarjeta.deps, "u1", importado, ahora)
+  // Aviso del movimiento + alerta: octubre pasa de 70k a 85k sobre un tope de 100k.
+  assert.equal(tarjeta.enviados.length, 2)
+  assert.match(tarjeta.enviados[1].title, /Comida.*85%/)
+
+  // En modo débito es septiembre: 160k ya estaba sobre el 80%, así que no cruza nada nuevo.
+  const debito = importedDeps(txs, "calendar")
+  await notifyImportedMovements(debito.deps, "u1", importado, ahora)
+  assert.equal(debito.enviados.length, 1)
+})
+
+test("modo tarjeta: el cargo del día del cierre que llega al día siguiente conserva categoría y enlace", async () => {
+  const txs = [gasto("cierre", "2026-09-22", 5_000, "ext-22")]
+  const { deps, enviados } = importedDeps(txs, "card_cycle")
+  await notifyImportedMovements(
+    deps,
+    "u1",
+    [{ ...mov("cierre", 5_000), externalId: "ext-22", date: new Date("2026-09-22T00:00:00Z") }],
+    new Date("2026-09-23T15:00:00Z") // ya es el ciclo de octubre
+  )
+  assert.equal(enviados[0].url, "/dashboard?tx=cierre")
+  assert.match(enviados[0].body, /Comida/)
 })

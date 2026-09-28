@@ -11,10 +11,10 @@ import {
 } from "@/arch/v1/domain/finance/finance.domain"
 
 export async function GET(req: Request) {
-  const { year, month } = await periodOf(req)
-  return withUser(req, (userId) =>
-    listTransactions(financeDeps, userId, year, month)
-  )
+  return withUser(req, async (userId) => {
+    const { year, month } = await periodOf(req)
+    return listTransactions(financeDeps, userId, year, month)
+  })
 }
 
 export async function POST(req: Request) {

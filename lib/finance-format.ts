@@ -67,27 +67,9 @@ const dateHeaderFmt = new Intl.DateTimeFormat("es-CL", {
   timeZone: "UTC",
 })
 
-/**
- * Zona horaria del negocio. Las fechas de movimiento son días CIVILES (`@db.Date`, medianoche UTC):
- * el 30 de julio es el 30 de julio, no un instante. Pero "hoy" sí depende de un reloj, y el reloj
- * que importa es el del usuario, no el de Greenwich: a las 21:00 en Chile ya es el día siguiente en
- * UTC, y sin esto un movimiento de hoy se rotulaba "Ayer" y el mes en curso saltaba antes de tiempo.
- * Fija (Luca Plan es una app chilena, CLP y es-CL) para que cliente y servidor coincidan siempre.
- */
-export const APP_TZ = "America/Santiago"
-
-// en-CA formatea como YYYY-MM-DD, que es justo la clave de día civil que usa la app.
-const dayKeyFmt = new Intl.DateTimeFormat("en-CA", {
-  timeZone: APP_TZ,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-})
-
-/** Día civil del usuario en formato YYYY-MM-DD. */
-export function todayKey(now: Date = new Date()): string {
-  return dayKeyFmt.format(now)
-}
+// "Hoy" del usuario: vive en arch/shared para que el backend la comparta sin importar de lib/.
+import { APP_TZ, todayKey } from "../arch/shared/today.ts"
+export { APP_TZ, todayKey }
 
 /** Año, mes (1-12) y día del calendario del usuario. Fuente única del "ahora" en toda la app. */
 export function currentPeriod(now: Date = new Date()): {
@@ -97,13 +79,6 @@ export function currentPeriod(now: Date = new Date()): {
 } {
   const [year, month, day] = todayKey(now).split("-").map(Number)
   return { year, month, day }
-}
-
-/** Días que quedan del mes en curso, contando hoy. */
-export function daysLeftInMonth(now: Date = new Date()): number {
-  const { year, month, day } = currentPeriod(now)
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
-  return lastDay - day + 1
 }
 
 /** Encabezado de grupo por fecha: "Hoy", "Ayer" o "Martes 9 de julio". */

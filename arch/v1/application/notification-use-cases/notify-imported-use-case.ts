@@ -15,7 +15,11 @@ import {
   currentBudgetPeriod,
   type BudgetPeriodDeps,
 } from "../finance-use-cases/budget-period-use-cases.ts"
-import type { PeriodRange } from "../../../shared/billing-cycle.ts"
+import {
+  periodRange,
+  type PeriodRange,
+} from "../../../shared/billing-cycle.ts"
+import { todayKey } from "../../../shared/today.ts"
 
 export type NotifyImportedDeps = PushDeps & BudgetPeriodDeps & {
   transactions: Pick<TransactionRepository, "listByUserPeriod">
@@ -96,17 +100,21 @@ export async function notifyBudgetCrossing(
 /**
  * Datos del movimiento YA persistido que el aviso necesita: su id (para enlazar directo a su modal)
  * y el nombre de la categoría que le quedó. Se busca por el id del banco entre los movimientos del
- * mes; uno cuya fecha caiga fuera (una compra de fin del mes pasado que llega hoy) no aporta
- * ninguno de los dos y el aviso sale como antes.
+ * mes CALENDARIO de su fecha, no en el ciclo en curso: un cargo del día del cierre que llega al día
+ * siguiente es del ciclo anterior y ahí no se encontraría. Sin fecha se mira el mes de hoy.
  */
 async function persisted(
   deps: NotifyImportedDeps,
   userId: string,
-  range: PeriodRange,
+  today: string,
   movement: NotifiableMovement
 ): Promise<{ id?: string; category?: string }> {
   if (!movement.externalId) return {}
-  const txs = await deps.transactions.listByUserPeriod(userId, range)
+  const day = movement.date ? movement.date.toISOString().slice(0, 10) : today
+  const txs = await deps.transactions.listByUserPeriod(
+    userId,
+    periodRange(Number(day.slice(0, 4)), Number(day.slice(5, 7)), "calendar", {})
+  )
   const tx = txs.find((t) => t.externalId === movement.externalId)
   if (!tx) return {}
   if (!tx.categoryId) return { id: tx.id }
@@ -131,8 +139,10 @@ export async function notifyImportedMovements(
   movements: NotifiableMovement[],
   now = new Date()
 ): Promise<void> {
-  // Mes del presupuesto en curso según el modo (en modo tarjeta, el ciclo que contiene a hoy).
-  const current = await currentBudgetPeriod(deps, now.toISOString().slice(0, 10))
+  // Mes del presupuesto en curso según el modo (en modo tarjeta, el ciclo que contiene a hoy), con
+  // el "hoy" del calendario del usuario, no el de UTC.
+  const today = todayKey(now)
+  const current = await currentBudgetPeriod(deps, today)
   // Un solo movimiento se nombra: ahí valen la categoría que le puso la IA y el enlace directo a su
   // modal. Con varios el resumen no los lista, así que ni se consultan.
   const message = newMovementsMessage(
@@ -140,7 +150,7 @@ export async function notifyImportedMovements(
       ? [
           {
             ...movements[0],
-            ...(await persisted(deps, userId, current.range, movements[0])),
+            ...(await persisted(deps, userId, today, movements[0])),
           },
         ]
       : movements

@@ -13,6 +13,7 @@ import { prisma } from "./client.ts"
 import { budgetPeriodRepository } from "./budget-period.infrastructure.ts"
 import { currentBudgetPeriod } from "../../../application/finance-use-cases/budget-period-use-cases.ts"
 import { inRange } from "../../../application/finance-use-cases/budget-formulas.ts"
+import { todayKey } from "../../../../shared/today.ts"
 import {
   notifyBudgetCrossing,
   notifyImportedMovements,
@@ -90,10 +91,7 @@ export async function notifyBudgetForCategorized(
   userId: string,
   tx: Transaction
 ): Promise<void> {
-  const current = await currentBudgetPeriod(
-    notifyDeps,
-    new Date().toISOString().slice(0, 10)
-  )
+  const current = await currentBudgetPeriod(notifyDeps, todayKey())
   if (!inRange(tx.date, current.range)) return
   return notifyBudgetCrossing(notifyDeps, userId, current, (t) => t.id === tx.id)
 }

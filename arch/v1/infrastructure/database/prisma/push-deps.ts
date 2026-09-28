@@ -45,7 +45,6 @@ export const dueReminderDeps = { dueReminder: dueReminderRepository }
 /** Deps del recordatorio de vencimientos (lo usa el cron `pnpm notify:due`). */
 export const notifyDueDeps = {
   ...pushDeps,
-  transactions: transactionRepository,
   recurring: recurringTemplateRepository,
   installments: installmentPlanRepository,
 }

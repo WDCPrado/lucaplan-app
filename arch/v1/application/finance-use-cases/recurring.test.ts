@@ -13,10 +13,17 @@ import {
   createRecurringTemplate,
   materializePeriod,
   materializeUserPeriods,
+  payRecurringPeriodWith,
   setRecurringActive,
   setRecurringPeriodPaid,
 } from "./recurring-use-cases.ts"
-import { listRecurringView } from "./finance-read.ts"
+import { listRecurringCandidates, listRecurringView } from "./finance-read.ts"
+import { collectDueItems } from "../notification-use-cases/notify-due-use-case.ts"
+import type {
+  Transaction,
+  TransactionRepository,
+  TransactionSearchFilters,
+} from "../../domain/finance/finance.domain.ts"
 
 type Row = {
   id: string
@@ -640,4 +647,341 @@ test("el cargo del correo no pisa un cobro que ya venía del banco", async () =>
   assert.equal(claimed, null, "sigue el flujo normal de categorización")
   assert.equal(rows.length, 1)
   assert.equal(rows[0].amount.toMajor(), 360_000)
+})
+
+// --- usar un movimiento existente como el cobro del período (WDC-108) ---
+//
+// El cargo real llegó con fecha de otro mes y el match automático no lo vio: el usuario lo elige.
+
+const movimiento = (over: Partial<Transaction> = {}): Transaction => ({
+  id: "tx-julio",
+  userId: "u1",
+  accountId: "acc1",
+  categoryId: null,
+  date: new Date(2026, 6, 30), // julio: fuera del período en curso (agosto)
+  description: "ARRIENDO DEPTO",
+  amount: Money.of(355_000, "CLP"),
+  direction: "debit",
+  status: "confirmed",
+  isInternal: false,
+  externalId: "banco-1",
+  recurringTemplateId: null,
+  installmentItemId: null,
+  ...over,
+})
+
+const txRepo = (txs: Transaction[]) =>
+  ({
+    findById: async (id: string) => txs.find((t) => t.id === id) ?? null,
+  }) as unknown as TransactionRepository
+
+const pagarCon = (repo: RecurringTemplateRepository, tx: Transaction) =>
+  payRecurringPeriodWith(
+    { recurring: repo, transactions: txRepo([tx]) },
+    "u1",
+    { id: "arriendo", transactionId: tx.id },
+    HOY
+  )
+
+test("un movimiento de otro mes reemplaza el comprometido del período en curso", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, HOY)
+
+  await pagarCon(repo, movimiento())
+
+  assert.equal(rows.length, 1, "no queda el comprometido además del cobro")
+  assert.equal(rows[0].id, "tx-julio")
+  assert.equal(rows[0].periodKey, "2026-08", "cuenta como el cobro de agosto")
+  assert.equal(rows[0].status, "confirmed")
+})
+
+test("también abre el período si no estaba materializado y reemplaza la marca manual", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await setRecurringPeriodPaid({ recurring: repo }, "u1", { id: "arriendo", paid: true }, HOY)
+
+  await pagarCon(repo, movimiento())
+
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].id, "tx-julio")
+})
+
+test("un período que ya cobró el banco se rechaza con 409", async () => {
+  const { repo, rows, confirm } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, HOY)
+  confirm(rows[0].id, Money.of(360_000, "CLP"), new Date(2026, 7, 5))
+
+  await assert.rejects(pagarCon(repo, movimiento()), {
+    name: "RecurringPeriodBankPaidError",
+    message: "Este período ya tiene un cargo del banco",
+  })
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].amount.toMajor(), 360_000, "el cargo del banco queda intacto")
+})
+
+test("rechaza lo que no puede ser el cobro: ingreso, manual, vinculado, cuota, interno, otra moneda", async () => {
+  const casos: [Partial<Transaction>, RegExp][] = [
+    [{ direction: "credit" }, /ingreso/],
+    [{ externalId: null }, /^Solo se pueden elegir movimientos que vinieron del banco$/],
+    [{ recurringTemplateId: "otra" }, /ya es el cobro/],
+    [{ installmentItemId: "item1" }, /cuota/],
+    [{ isInternal: true }, /interno/],
+    [{ status: "pending" }, /confirmado/],
+    [{ amount: Money.of(400, "USD") }, /otra moneda/],
+  ]
+  for (const [over, error] of casos) {
+    const { repo, rows } = makeRepo([arriendo])
+    await assert.rejects(pagarCon(repo, movimiento(over)), {
+      name: "InvalidRecurringTemplateError",
+      message: error,
+    })
+    assert.equal(rows.length, 0, "no toca el período")
+  }
+})
+
+test("el movimiento de otro usuario o inexistente se rechaza como no encontrado", async () => {
+  const { repo } = makeRepo([arriendo])
+  await assert.rejects(pagarCon(repo, movimiento({ userId: "u2" })), {
+    name: "NotOwnerError",
+  })
+  await assert.rejects(
+    payRecurringPeriodWith(
+      { recurring: repo, transactions: txRepo([]) },
+      "u1",
+      { id: "arriendo", transactionId: "nada" },
+      HOY
+    ),
+    { name: "NotOwnerError" }
+  )
+})
+
+test("los candidatos: del banco, sin vínculo, en su moneda, últimos N días en Chile, con texto, en la categoría de la plantilla", async () => {
+  const { repo } = makeRepo([arriendo])
+  let pedido: TransactionSearchFilters | undefined
+  const deps = {
+    recurring: repo,
+    transactions: {
+      searchByUser: async (_u: string, f: TransactionSearchFilters) => {
+        pedido = f
+        return [movimiento()]
+      },
+    },
+    categories: { listByUser: async () => [] },
+    accounts: { listByUser: async () => [] },
+    exchangeRates: {},
+  } as unknown as Parameters<typeof listRecurringCandidates>[0]
+
+  // 12/08 a mediodía en Chile.
+  const ahora = new Date("2026-08-12T16:00:00Z")
+  const { items } = await listRecurringCandidates(deps, "u1", "arriendo", {}, ahora)
+
+  assert.deepEqual(items.map((i) => i.id), ["tx-julio"])
+  assert.equal(pedido?.direction, "debit")
+  assert.equal(pedido?.currency, "CLP")
+  assert.equal(pedido?.recurringCandidates, true)
+  assert.equal(pedido?.settledOnly, true)
+  assert.equal(pedido?.limit, 50)
+  assert.equal(pedido?.amountMin, undefined, "sin filtro de monto")
+  assert.equal(pedido?.amountMax, undefined, "sin filtro de monto")
+  assert.equal(pedido?.query, undefined)
+  assert.equal(pedido?.categoryId, "vivienda", "siempre la categoría de la plantilla")
+  assert.equal(pedido?.to, undefined, "los futuros también entran")
+  assert.equal(pedido?.from?.toISOString(), "2026-08-02T00:00:00.000Z", "10 días por defecto")
+
+  // Pasadas las 20:00 en Chile ya es otro día en UTC: manda el día de Chile.
+  await listRecurringCandidates(deps, "u1", "arriendo", { days: 30 }, new Date("2026-08-13T02:00:00Z"))
+  assert.equal(pedido?.from?.toISOString(), "2026-07-13T00:00:00.000Z")
+
+  await listRecurringCandidates(
+    deps,
+    "u1",
+    "arriendo",
+    { query: "arriendo" },
+    ahora
+  )
+  assert.equal(pedido?.query, "arriendo")
+
+  for (const days of [0, 366, 1.5, Number.NaN])
+    await assert.rejects(
+      listRecurringCandidates(deps, "u1", "arriendo", { days }, ahora),
+      { name: "InvalidRecurringTemplateError", message: /entre 1 y 365/ },
+      String(days)
+    )
+
+  await assert.rejects(listRecurringCandidates(deps, "u2", "arriendo", {}, ahora), {
+    name: "NotOwnerError",
+  })
+})
+
+test("un correo posterior del mismo período no borra el movimiento elegido", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await pagarCon(repo, movimiento())
+
+  const claimed = await confirmFromMovement({ recurring: repo }, [arriendo], {
+    id: "tx-correo",
+    description: "Arriendo Depto 08/26",
+    amount: Money.of(355_000, "CLP"),
+    direction: "debit",
+    date: new Date(2026, 7, 5),
+  })
+
+  assert.equal(claimed, null, "el período ya tiene su cargo del banco")
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].id, "tx-julio", "el elegido sigue siendo el cobro")
+})
+
+test("una recurrente de ingreso se paga con un abono y pide abonos como candidatos", async () => {
+  const sueldo: RecurringTemplate = {
+    ...arriendo,
+    id: "sueldo",
+    categoryId: "sueldo",
+    label: "Sueldo",
+    description: "SUELDO",
+    direction: "credit",
+  }
+  const { repo, rows } = makeRepo([sueldo])
+  const abono = movimiento({ id: "abono-julio", direction: "credit" })
+  const conSueldo = (tx: Transaction) =>
+    payRecurringPeriodWith(
+      { recurring: repo, transactions: txRepo([tx]) },
+      "u1",
+      { id: "sueldo", transactionId: tx.id },
+      HOY
+    )
+
+  await assert.rejects(conSueldo(movimiento()), {
+    name: "InvalidRecurringTemplateError",
+    message: /Un gasto no puede/,
+  })
+  await conSueldo(abono)
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].id, "abono-julio")
+  assert.equal(rows[0].periodKey, "2026-08")
+
+  let pedido: TransactionSearchFilters | undefined
+  const deps = {
+    recurring: repo,
+    transactions: {
+      searchByUser: async (_u: string, f: TransactionSearchFilters) => {
+        pedido = f
+        return []
+      },
+    },
+    categories: { listByUser: async () => [] },
+    accounts: { listByUser: async () => [] },
+    exchangeRates: {},
+  } as unknown as Parameters<typeof listRecurringCandidates>[0]
+  await listRecurringCandidates(deps, "u1", "sueldo", {}, HOY)
+  assert.equal(pedido?.direction, "credit")
+})
+
+test("pagar con movimiento: plantilla ajena → no encontrada; pausada o terminada → 422", async () => {
+  await assert.rejects(
+    pagarCon(makeRepo([{ ...arriendo, userId: "u2" }]).repo, movimiento()),
+    { name: "NotOwnerError" }
+  )
+  await assert.rejects(
+    pagarCon(makeRepo([{ ...arriendo, isActive: false }]).repo, movimiento()),
+    { name: "InvalidRecurringTemplateError", message: /pausada/ }
+  )
+  await assert.rejects(
+    pagarCon(makeRepo([{ ...arriendo, endDate: new Date(2026, 6, 31) }]).repo, movimiento()),
+    { name: "InvalidRecurringTemplateError", message: /fecha de fin/ }
+  )
+})
+
+test("si el vínculo falla porque el movimiento cambió en medio, no responde 409", async () => {
+  // El repo rechaza el vínculo; la segunda lectura del movimiento dice por qué.
+  const conCambio = (despues: Transaction | null) => {
+    const { repo } = makeRepo([arriendo])
+    repo.attachImportedMovement = async () => false
+    let lecturas = 0
+    const transactions = {
+      findById: async () => (lecturas++ === 0 ? movimiento() : despues),
+    } as unknown as TransactionRepository
+    return payRecurringPeriodWith(
+      { recurring: repo, transactions },
+      "u1",
+      { id: "arriendo", transactionId: "tx-julio" },
+      HOY
+    )
+  }
+  await assert.rejects(conCambio(null), { name: "NotOwnerError" })
+  await assert.rejects(conCambio(movimiento({ recurringTemplateId: "otra" })), {
+    name: "InvalidRecurringTemplateError",
+    message: /ya es el cobro/,
+  })
+  // El movimiento sigue igual: fue el período el que cambió (lo cerró el correo).
+  await assert.rejects(conCambio(movimiento()), {
+    name: "RecurringPeriodBankPaidError",
+  })
+})
+
+test("el recordatorio de vencimiento calla si el período se pagó con un cargo de otro mes", async () => {
+  const hoy = new Date(2026, 8, 4, 12) // 4/09: el arriendo vence el 5
+  const { repo } = makeRepo([arriendo])
+  const deps = {
+    recurring: repo,
+    installments: { listByUser: async () => [] },
+  } as unknown as Parameters<typeof collectDueItems>[0]
+
+  const antes = await collectDueItems(deps, "u1", hoy, 2)
+  assert.equal(antes.length, 1, "sin pagar, avisa")
+
+  // El cargo llegó el 30/08 y se eligió como el cobro de septiembre.
+  await payRecurringPeriodWith(
+    {
+      recurring: repo,
+      transactions: txRepo([movimiento({ date: new Date(2026, 7, 30) })]),
+    },
+    "u1",
+    { id: "arriendo", transactionId: "tx-julio" },
+    hoy
+  )
+  const despues = await collectDueItems(deps, "u1", hoy, 2)
+  assert.deepEqual(despues, [], "el período 2026-09 ya está cobrado")
+})
+
+test("createRecurringTemplate: rechaza un movimiento que ya es el cobro de otra recurrente", async () => {
+  let created = false
+  const deps = {
+    recurring: {
+      create: async () => {
+        created = true
+        return {}
+      },
+    },
+    accounts: {
+      findById: async () => ({ id: "acc1", userId: "u1", currency: "CLP" }),
+    },
+    categories: {
+      findById: async () => ({ id: "c1", userId: "u1", type: "expense" }),
+    },
+    transactions: {
+      findById: async () => ({
+        id: "tx1",
+        userId: "u1",
+        description: "Smart Fit Chile",
+        recurringTemplateId: "otra",
+      }),
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any
+  await assert.rejects(
+    () =>
+      createRecurringTemplate(deps, "u1", {
+        accountId: "acc1",
+        categoryId: "c1",
+        label: "Gimnasio",
+        direction: "debit",
+        baseAmount: 17_450,
+        tolerancePct: 10,
+        periodicity: "monthly",
+        dayOfMonth: 20,
+        startDate: new Date(2026, 6, 20),
+        endDate: null,
+        sourceTransactionId: "tx1",
+      }),
+    /ya es el cobro de una recurrente/
+  )
+  assert.equal(created, false)
 })

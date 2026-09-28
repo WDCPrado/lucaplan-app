@@ -385,6 +385,15 @@ export const transactionRepository: TransactionRepository = {
         AND: [{ status: "pending" }, { recurringTemplateId: { not: null } }],
       }
     }
+    if (f.currency) where.currency = f.currency
+    // Va después de `settledOnly`: pisa su `status` con uno más estricto.
+    if (f.recurringCandidates) {
+      where.status = "confirmed"
+      where.isInternal = false
+      where.recurringTemplateId = null
+      where.installmentItemId = null
+      where.externalId = { not: null } // solo lo que vino del banco
+    }
     const rows = await prisma.transaction.findMany({
       where,
       orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],

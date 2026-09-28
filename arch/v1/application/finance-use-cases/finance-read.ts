@@ -27,6 +27,8 @@ import {
   hasEnded,
   periodKeyFor,
   toleranceRange,
+  InvalidRecurringTemplateError,
+  RecurringTemplateNotFoundError,
   type RecurringTemplateRepository,
 } from "../../domain/finance/recurring.domain.ts"
 import {
@@ -61,6 +63,7 @@ import type { PaceFrequency } from "../../domain/finance/pace.domain.ts"
 import type { BudgetPeriodRepository } from "../../domain/finance/budget-period.domain.ts"
 import type { PeriodRange } from "../../../shared/billing-cycle.ts"
 import { rangeOf } from "./budget-period-use-cases.ts"
+import { todayKey } from "../../../shared/today.ts"
 
 const CLP = "CLP" as const
 
@@ -952,6 +955,40 @@ export async function listRecurringView(
         periodTx?.status === "confirmed" && periodTx.isManual,
     }
   }))
+}
+
+// Movimientos que el usuario puede elegir como el cobro del período en curso de la plantilla `id`
+// (ver `payRecurringPeriodWith`): movimientos del banco confirmados y sin vínculo, de su misma
+// dirección, moneda y categoría, de los últimos `days` días (hoy en Chile, sin tope futuro), más
+// nuevos primero. Sin filtro de monto: a veces el cargo real se pasa de cualquier umbral.
+export async function listRecurringCandidates(
+  deps: ReadDeps & { recurring: RecurringTemplateRepository },
+  userId: string,
+  id: string,
+  filters: { days?: number; query?: string } = {},
+  now = new Date()
+): Promise<{ items: TransactionDTO[] }> {
+  const template = await deps.recurring.findById(id)
+  if (!template) throw new RecurringTemplateNotFoundError(id)
+  if (template.userId !== userId) throw new NotOwnerError()
+  const days = filters.days ?? 10
+  if (!Number.isInteger(days) || days < 1 || days > 365)
+    throw new InvalidRecurringTemplateError(
+      "Los días deben ser un número entero entre 1 y 365"
+    )
+  // Fechas de movimiento = día civil a medianoche UTC; "hoy" es el día civil de Chile.
+  const from = new Date(`${todayKey(now)}T00:00:00Z`)
+  from.setUTCDate(from.getUTCDate() - days)
+  const items = await searchTransactions(deps, userId, {
+    direction: template.direction,
+    currency: template.currency,
+    from,
+    query: filters.query,
+    categoryId: template.categoryId,
+    recurringCandidates: true,
+    limit: 50,
+  })
+  return { items }
 }
 
 // Un día dentro del período siguiente al que contiene a `from` (basta para derivar su clave).

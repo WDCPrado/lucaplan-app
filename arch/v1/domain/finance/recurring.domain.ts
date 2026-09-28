@@ -9,7 +9,7 @@
 // movimiento real de origen y es inmutable desde el front. Renombrar (editar `label`) nunca rompe
 // el reconocimiento del cargo.
 
-import type { Direction } from "./finance.domain.ts"
+import type { Direction, Transaction } from "./finance.domain.ts"
 import { normalizeMovementText } from "./categorization-learning.domain.ts"
 import { type CurrencyCode } from "./money.ts"
 import { Money } from "./money.ts"
@@ -257,6 +257,34 @@ export function requiresDayOfMonth(periodicity: Periodicity): boolean {
   return periodicity !== "biweekly"
 }
 
+// --- Cobro con un movimiento elegido ---
+
+/**
+ * ¿Puede `tx` usarse como el cobro del período de `template`? null si sí; si no, el motivo en
+ * palabras del usuario (→ 422). La fecha no importa: justamente se usa cuando el cargo cayó fuera
+ * del período. El mismo criterio lo aplica el filtro `recurringCandidates` del buscador.
+ */
+export function paymentCandidateRejection(
+  tx: Transaction,
+  template: Pick<RecurringTemplate, "currency" | "direction">
+): string | null {
+  if (tx.direction !== template.direction)
+    return template.direction === "debit"
+      ? "Un ingreso no puede ser el cobro de una recurrente de gasto"
+      : "Un gasto no puede ser el cobro de una recurrente de ingreso"
+  // Solo lo que vino del banco: un movimiento manual vinculado se confundiría con la marca de «Ya
+  // lo pagué», y el próximo correo del período lo borraría (`attachImportedMovement`).
+  if (tx.externalId === null)
+    return "Solo se pueden elegir movimientos que vinieron del banco"
+  if (tx.status !== "confirmed") return "El movimiento todavía no está confirmado"
+  if (tx.isInternal) return "Un movimiento interno no puede ser el cobro de una recurrente"
+  if (tx.recurringTemplateId) return "El movimiento ya es el cobro de una recurrente"
+  if (tx.installmentItemId) return "El movimiento ya es la cuota de un plan"
+  if (tx.amount.currency !== template.currency)
+    return "El movimiento está en otra moneda que la recurrente"
+  return null
+}
+
 // --- Port (lo implementa la infraestructura) ---
 
 export interface RecurringTemplateRepository {
@@ -313,7 +341,8 @@ export interface RecurringTemplateRepository {
    * El cargo real ya se importó (trae su `externalId` y ya movió los buckets), así que
    * es ÉL quien queda como ejecución del período — toma la categoría de la plantilla, el vínculo y
    * el `periodKey`, queda `confirmed` + `reviewed`, y el comprometido `pending` del período se
-   * consume (se borra). Atómico. `false` si el período ya tenía una ejecución confirmada.
+   * consume (se borra). Atómico. `false` si el período ya tenía una ejecución confirmada del banco,
+   * o si el movimiento no existe o ya es de otra plantilla (entonces no se toca nada).
    */
   attachImportedMovement(
     transactionId: string,
@@ -372,5 +401,13 @@ export class RecurringPeriodNotManualError extends Error {
   constructor() {
     super("Ese cobro lo confirmó el banco: no se puede deshacer a mano")
     this.name = "RecurringPeriodNotManualError"
+  }
+}
+
+/** El período en curso ya tiene su cargo real del banco (→ 409): dos cargos reales no se pisan. */
+export class RecurringPeriodBankPaidError extends Error {
+  constructor() {
+    super("Este período ya tiene un cargo del banco")
+    this.name = "RecurringPeriodBankPaidError"
   }
 }

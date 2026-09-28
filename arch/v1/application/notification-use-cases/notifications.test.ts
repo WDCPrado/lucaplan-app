@@ -233,7 +233,7 @@ test("vencimientos: solo dentro de la ventana, en UTC", () => {
 
   // Cuotas: el aviso lleva a su página. Mezcladas con una recurrente, gana /recurring.
   const cuota = item("TV (cuota 2/12)", "2026-07-29", 30000, "installment")
-  assert.equal(dueSoonMessage([cuota], now)!.url, "/installments")
+  assert.equal(dueSoonMessage([cuota], now)!.url, "/recurring#cuotas")
   assert.equal(
     dueSoonMessage([cuota, item("Netflix", "2026-07-29")], now)!.url,
     "/recurring"

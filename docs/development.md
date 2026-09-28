@@ -105,7 +105,7 @@ un barrido aparte.
   `rounded-xl` para superficies (tarjetas, paneles `glass`, secciones, modales, drawers,
   popovers); `rounded-md` para ítems de lista y de menú. `rounded-full` solo en lo que es un
   círculo o una barra por significado: avatares, anillos de icono, puntos de estado, barras de
-  progreso, el marcador del día, badges de conteo y el FAB. Nada de `rounded-2xl`/`3xl`/`4xl`
+  progreso, el marcador del día, badges de conteo y el "+" de la barra inferior. Nada de `rounded-2xl`/`3xl`/`4xl`
   en controles ni paneles.
 - **Las alturas no cambian con el radio**: targets táctiles ≥44 px (`h-11`) en móvil, como dice
   la sección de responsividad.

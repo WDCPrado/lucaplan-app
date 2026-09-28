@@ -11,7 +11,6 @@ import {
   LogOut,
   UserRound,
   Repeat,
-  CreditCard,
   Settings,
   ChevronsUpDown,
   Plus,
@@ -37,7 +36,6 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
-import { useScrollDirection } from "@/hooks/use-scroll-direction"
 import { AddTransactionSheet } from "./add-transaction-sheet"
 import { AccountModal } from "./account-modal"
 import type {
@@ -54,11 +52,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 // Solo rutas que existen. Movimientos/Presupuestos viven como secciones del
-// dashboard; cuando sean páginas propias, se agregan aquí.
+// dashboard y Cuotas como sección de Recurrentes; cuando sean páginas propias, se agregan aquí.
 export type NavKey =
   | "inicio"
   | "recurrentes"
-  | "cuotas"
   | "configuracion"
   | "perfil"
 
@@ -75,7 +72,6 @@ const NAV: {
     Icon: Repeat,
     href: "/recurring",
   },
-  { key: "cuotas", label: "Cuotas", Icon: CreditCard, href: "/installments" },
   // Un solo nombre por sección: el mismo en la barra lateral, la inferior y el título.
   { key: "configuracion", label: "Ajustes", Icon: Settings, href: "/settings" },
   { key: "perfil", label: "Perfil", Icon: UserRound, href: "/profile" },
@@ -86,9 +82,9 @@ type AppShellProps = {
   active?: NavKey
   onNavigate?: (key: NavKey) => void
   onSignOut?: () => void
-  // Datos del FAB "+": es el acceso rápido a registrar un movimiento a mano (gasto o ingreso,
-  // con el toggle ±), igual en toda la app.
-  // Crear recurrentes/cuotas NO va aquí: eso es un botón "Nuevo" en la cabecera de su página.
+  // Datos del "+" (centro de la barra inferior en móvil, "Movimiento" en el topbar): el acceso
+  // rápido a registrar un movimiento a mano (gasto o ingreso, con el toggle ±), igual en toda la app.
+  // Crear recurrentes/cuotas NO va aquí: eso va en la cabecera de su sección.
   quickAdd?: { accounts: AccountDTO[]; categories: CategoryDTO[] }
   onSearch?: () => void // si se pasa, muestra la lupa "Buscar" abajo en el sidebar
   title?: string
@@ -111,9 +107,6 @@ export function AppShell({
 }: AppShellProps) {
   const [addOpen, setAddOpen] = React.useState(false)
   const [accountOpen, setAccountOpen] = React.useState(false)
-  // Móvil: el FAB tapaba la columna de cifras de la derecha mientras se lee; se esconde al bajar
-  // y vuelve al subir o al llegar arriba.
-  const scrollDirection = useScrollDirection()
   const canAdd = !!quickAdd
 
   // Atajos de escritorio: "/" o Ctrl/⌘+K abre la búsqueda y "n" el nuevo movimiento. No actúan
@@ -174,10 +167,19 @@ export function AppShell({
                 {title}
               </h1>
             )}
+            {/* Escritorio: crear, buscar y después el selector de mes, en ese orden. Buscar y crear
+                viven en el topbar, no flotando: tapaban la esquina de la columna derecha. */}
             <div className="ml-auto flex items-center gap-2">
-              {actions}
-              {/* Escritorio: buscar y crear viven en el topbar, no flotando. Los FAB tapaban la
-                  esquina de la columna derecha (tarjetas de cuentas). */}
+              {quickAdd && (
+                <Button
+                  onClick={() => setAddOpen(true)}
+                  title="Nuevo movimiento (N)"
+                  className="h-9"
+                >
+                  <Plus className="size-4" />
+                  Movimiento
+                </Button>
+              )}
               {onSearch && (
                 <Button
                   onClick={onSearch}
@@ -190,22 +192,13 @@ export function AppShell({
                   <Search className="size-4" />
                 </Button>
               )}
-              {quickAdd && (
-                <Button
-                  onClick={() => setAddOpen(true)}
-                  title="Nuevo movimiento (N)"
-                  className="h-9"
-                >
-                  <Plus className="size-4" />
-                  Movimiento
-                </Button>
-              )}
+              {actions}
             </div>
           </header>
-          {/* Móvil: fila flotante siempre visible — buscar | (selector u otras acciones) | usuario.
+          {/* Móvil: fila fija siempre visible — buscar | (selector u otras acciones) | usuario.
               items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar. */}
-          <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center bg-linear-to-b from-background via-background/85 to-transparent px-4 pt-3 pb-6 md:hidden">
-            <div className="pointer-events-auto flex w-full items-start justify-between gap-2 drop-shadow-md">
+          <div className="pwa-safe-top sticky top-0 z-20 flex justify-center bg-background px-4 pt-3 pb-3 md:hidden">
+            <div className="flex w-full items-start justify-between gap-2">
               {/* Sin trigger del sidebar: en móvil el drawer solo repetía la barra inferior y el
                   menú de usuario. El hueco lo ocupa la lupa; sin ella, un espaciador del mismo
                   ancho que el avatar para que las acciones del centro no se descentren. */}
@@ -243,46 +236,19 @@ export function AppShell({
               />
             </div>
           </div>
-          {/* Aire inferior solo en móvil, por la barra de navegación fija (y el FAB encima
-              cuando lo hay). En escritorio no flota nada. */}
-          <div
-            className={cn(
-              "min-w-0 flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0",
-              quickAdd && "max-md:pb-[calc(8.5rem+env(safe-area-inset-bottom))]"
-            )}
-          >
+          {/* Aire inferior solo en móvil, por la barra de navegación fija. En escritorio no flota
+              nada. */}
+          <div className="min-w-0 flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
             {children}
           </div>
         </SidebarInset>
 
-        {/* Móvil: barra inferior fija con los destinos a un toque. El drawer del sidebar sigue
-            estando (mismo menú, con el resto de acciones); esto solo acorta el camino frecuente. */}
-        <BottomNav active={active} onNavigate={onNavigate} />
-
-        {/* FAB de crear, solo móvil: sube por encima de la barra de navegación. La lupa vive
-            arriba a la izquierda, para que "agregar" sea el único botón flotante. */}
-        {quickAdd && (
-          <div
-            className={cn(
-              "fixed right-5 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 transition-[transform,opacity] duration-200 ease-out md:hidden",
-              scrollDirection === "down" &&
-                "pointer-events-none translate-y-24 opacity-0"
-            )}
-          >
-            <Button
-              onClick={() => {
-                haptic("medium")
-                setAddOpen(true)
-              }}
-              size="icon"
-              aria-label="Registrar un movimiento"
-              title="Nuevo movimiento (N)"
-              className="size-14 rounded-full shadow-lg"
-            >
-              <Plus className="size-6" />
-            </Button>
-          </div>
-        )}
+        {/* Móvil: barra inferior fija con los destinos a un toque y el "+" de registrar al centro. */}
+        <BottomNav
+          active={active}
+          onNavigate={onNavigate}
+          onAdd={quickAdd ? () => setAddOpen(true) : undefined}
+        />
 
         {quickAdd && (
           <>
@@ -352,13 +318,16 @@ function NavMenu({
 }
 
 // Barra inferior de navegación (solo móvil): los mismos destinos del sidebar, al alcance del
-// pulgar y con el actual siempre visible. El drawer sigue disponible desde el header.
+// pulgar y con el actual siempre visible. Con `onAdd`, el "+" de registrar va al centro, entre
+// las dos mitades; sin él, los destinos se reparten el ancho igual y nada queda descentrado.
 function BottomNav({
   active,
   onNavigate,
+  onAdd,
 }: {
   active?: NavKey
   onNavigate?: (key: NavKey) => void
+  onAdd?: () => void
 }) {
   const pathname = usePathname()
   const activeKey =
@@ -371,9 +340,9 @@ function BottomNav({
       aria-label="Navegación principal"
       className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border/60 bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
     >
-      {NAV.map(({ key, label, Icon, href }) => {
+      {NAV.map(({ key, label, Icon, href }, i) => {
         const isActive = activeKey === key
-        return (
+        const link = (
           <Link
             key={key}
             href={href}
@@ -394,6 +363,25 @@ function BottomNav({
               {label}
             </span>
           </Link>
+        )
+        if (!onAdd || i !== Math.floor(NAV.length / 2)) return link
+        return (
+          <React.Fragment key={key}>
+            <div className="flex flex-1 items-center justify-center">
+              <Button
+                onClick={() => {
+                  haptic("medium")
+                  onAdd()
+                }}
+                size="icon"
+                aria-label="Registrar un movimiento"
+                className="size-11 rounded-full shadow-md"
+              >
+                <Plus className="size-6" />
+              </Button>
+            </div>
+            {link}
+          </React.Fragment>
         )
       })}
     </nav>

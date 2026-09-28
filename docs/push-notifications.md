@@ -189,7 +189,7 @@ cambiarla no exige tocar el cron; el argumento posicional sigue mandando para pr
 | Movimiento nuevo (uno)     | `/dashboard?tx=<id>` — abre el modal de ESE movimiento                   |
 | Movimientos nuevos (varios)| `/dashboard`                                                             |
 | Alerta de presupuesto      | `/dashboard`                                                             |
-| Pagos por vencer           | `/installments` si todo lo que vence son cuotas; si no, `/recurring`     |
+| Pagos por vencer           | `/recurring#cuotas` si todo son cuotas; si no, `/recurring` |
 
 El `notificationclick` del service worker **navega** la ventana existente a esa URL en vez de solo
 enfocarla: con la PWA ya abierta en `/dashboard`, un simple `focus()` dejaba el enlace sin efecto.

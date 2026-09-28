@@ -125,7 +125,7 @@ export type DueItem = {
 // (o están mezcladas), la de recurrentes.
 function dueUrl(items: DueItem[]): string {
   return items.every((i) => i.kind === "installment")
-    ? "/installments"
+    ? "/recurring#cuotas"
     : "/recurring"
 }
 

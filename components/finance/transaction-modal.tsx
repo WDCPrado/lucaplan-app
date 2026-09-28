@@ -790,7 +790,7 @@ function ConnectedDetail({
             label="Cuotas"
             value={
               <Link
-                href="/installments"
+                href="/recurring#cuotas"
                 className="inline-flex items-center gap-1.5 underline underline-offset-2"
               >
                 <CreditCard className="size-3.5 text-primary" />
@@ -806,7 +806,7 @@ function ConnectedDetail({
             label="Cuotas"
             value={
               <Link
-                href="/installments"
+                href="/recurring#cuotas"
                 className="inline-flex items-center gap-1.5 underline underline-offset-2"
               >
                 <CreditCard className="size-3.5 text-primary" />

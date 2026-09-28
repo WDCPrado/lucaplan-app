@@ -12,10 +12,12 @@ import { currentPeriod, formatCLP } from "@/lib/finance-format"
 import { AppShell } from "./app-shell"
 import { CategoryIcon } from "./category-icons"
 import { RecurringModal } from "./recurring-modal"
+import { InstallmentsSection } from "./installments-view"
 import { Button } from "@/components/ui/button"
 import type {
   AccountDTO,
   CategoryDTO,
+  InstallmentPlanDTO,
   RecurringDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
@@ -63,14 +65,19 @@ function isThisMonth(iso: string): boolean {
   return d.getUTCFullYear() === t.year && d.getUTCMonth() + 1 === t.month
 }
 
+// Pantalla Recurrentes: lo que ya está comprometido cada mes, en dos secciones. Recurrentes y
+// Cuotas van lado a lado desde xl (cada una en una columna con su resumen arriba) y apiladas por
+// debajo, con Cuotas al final.
 export function RecurringView({
   user,
   templates,
+  plans,
   accounts,
   categories,
 }: {
   user: { name: string; email: string; initial: string }
   templates: RecurringDTO[]
+  plans: InstallmentPlanDTO[]
   accounts: AccountDTO[]
   categories: CategoryDTO[]
 }) {
@@ -129,30 +136,81 @@ export function RecurringView({
       quickAdd={{ accounts, categories }}
       title="Recurrentes"
     >
-      {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para
-          el enlace "Volver", que ya no está. En escritorio la topbar sí pide su margen. */}
-      <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
-        <h1 className="mb-4 font-heading text-xl font-bold md:sr-only">
-          Recurrentes
-        </h1>
-        {templates.length === 0 ? (
-          <EmptyState />
-        ) : (
-          // Escritorio: la lista manda y el resumen del mes acompaña; móvil: una columna con el
-          // resumen al final (primero se decide sobre las filas, después se mira el total).
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start">
-            <div className="min-w-0">
-              {/* Sin botón "Nuevo": una recurrente solo nace de un movimiento (el use case rechaza
-                  el alta suelta), y el botón abría un formulario que nunca se podía guardar. El
-                  camino es abrir el movimiento y elegir "Hacer recurrente". min-h-9: la fila mide
-                  lo mismo que el título del panel derecho, para que queden alineados. */}
-              <div className="mb-3 flex min-h-9 items-end">
-                <h2 className="font-heading text-lg font-bold">
-                  Gastos recurrentes
-                </h2>
-              </div>
+      {/* En móvil el contenido arranca pegado al header flotante; en escritorio la topbar pide su
+          margen. xl: dos columnas de ~30rem, el mínimo en que una fila de recurrente cabe con su
+          nombre y el "Ya lo pagué"; por debajo de eso, una columna. */}
+      <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6 xl:max-w-7xl">
+        <h1 className="sr-only">Recurrentes y cuotas</h1>
+        <div className="grid gap-10 xl:grid-cols-2 xl:items-start xl:gap-8">
+          <section aria-labelledby="recurrentes-title" className="min-w-0">
+            {/* Sin botón "Nuevo": una recurrente solo nace de un movimiento (el use case rechaza el
+                alta suelta), y el botón abría un formulario que nunca se podía guardar. El camino
+                es abrir el movimiento y elegir "Hacer recurrente". min-h-9: mide lo mismo que la
+                cabecera de Cuotas, que sí lleva botón, para que los títulos queden alineados. */}
+            <div className="mb-3 flex min-h-9 items-end">
+              <h2 id="recurrentes-title" className="font-heading text-lg font-bold">
+                Recurrentes
+              </h2>
+            </div>
 
+            {templates.length === 0 ? (
+              <EmptyState />
+            ) : (
               <div className="flex flex-col gap-6">
+                {/* El resumen del mes va primero: es el titular de la sección. */}
+                <div className="glass rounded-xl p-4">
+                  <p className="text-sm text-muted-foreground">Total recurrente</p>
+                  <p className="tabular text-2xl font-bold">{formatCLP(committed)}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {active.length} de {templates.length}{" "}
+                    {templates.length === 1 ? "activa" : "activas"}
+                  </p>
+
+                  {/* Lo que falta cobrar dentro del mes es lo accionable (hay que reservarlo). Si ya
+                      no queda nada, el panel muestra los que vienen en vez de una frase vacía. */}
+                  <div className="mt-4 border-t border-border/60 pt-3">
+                    <p className="text-sm font-medium">
+                      {dueThisMonth.length > 0 ? "Por cobrar este mes" : "Próximos cobros"}
+                    </p>
+                    {upcoming.length === 0 ? (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Sin cobros programados.
+                      </p>
+                    ) : (
+                      <>
+                        <ul className="mt-1.5 space-y-1.5">
+                          {(dueThisMonth.length > 0
+                            ? dueThisMonth
+                            : upcoming.slice(0, 3)
+                          ).map((t) => (
+                            <li key={t.id} className="flex justify-between gap-2 text-sm">
+                              <span className="min-w-0 truncate text-muted-foreground">
+                                {t.label}
+                                {dueThisMonth.length === 0 &&
+                                  ` · ${nextChargeLabel(t.nextExecution)
+                                    .replace("Cobra el ", "")
+                                    .replace("Cobra ", "")}`}
+                              </span>
+                              <span className="tabular shrink-0">
+                                {formatCLP(t.baseAmount)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                        {dueThisMonth.length > 0 && (
+                          <p className="mt-2 text-sm">
+                            Reserva{" "}
+                            <strong className="tabular font-semibold">
+                              {formatCLP(dueTotal)}
+                            </strong>{" "}
+                            antes de fin de mes.
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+
                 {active.length > 0 && (
                   <ul className="glass divide-y divide-border/50 rounded-xl px-3">
                     {active.map((t) => (
@@ -202,77 +260,11 @@ export function RecurringView({
                   </section>
                 )}
               </div>
-            </div>
+            )}
+          </section>
 
-            {/* Móvil: el resumen del mes va primero (es el titular); escritorio: columna derecha. */}
-            <div className="max-lg:order-first">
-              <div className="mb-3 flex min-h-9 items-end">
-                <h2 className="font-heading text-lg font-bold">Este mes</h2>
-              </div>
-              <section className="glass rounded-xl p-4 lg:sticky lg:top-24">
-                <p className="text-sm text-muted-foreground">
-                  Total recurrente
-                </p>
-                <p className="tabular text-2xl font-bold">
-                  {formatCLP(committed)}
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {active.length} de {templates.length}{" "}
-                  {templates.length === 1 ? "activa" : "activas"}
-                </p>
-
-                {/* Lo que falta cobrar dentro del mes es lo accionable (hay que reservarlo). Si ya
-                    no queda nada, el panel muestra los que vienen en vez de una frase vacía. */}
-                <div className="mt-4 border-t border-border/60 pt-3">
-                  <p className="text-sm font-medium">
-                    {dueThisMonth.length > 0
-                      ? "Por cobrar este mes"
-                      : "Próximos cobros"}
-                  </p>
-                  {upcoming.length === 0 ? (
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Sin cobros programados.
-                    </p>
-                  ) : (
-                    <>
-                      <ul className="mt-1.5 space-y-1.5">
-                        {(dueThisMonth.length > 0
-                          ? dueThisMonth
-                          : upcoming.slice(0, 3)
-                        ).map((t) => (
-                          <li
-                            key={t.id}
-                            className="flex justify-between gap-2 text-sm"
-                          >
-                            <span className="min-w-0 truncate text-muted-foreground">
-                              {t.label}
-                              {dueThisMonth.length === 0 &&
-                                ` · ${nextChargeLabel(t.nextExecution)
-                                  .replace("Cobra el ", "")
-                                  .replace("Cobra ", "")}`}
-                            </span>
-                            <span className="tabular shrink-0">
-                              {formatCLP(t.baseAmount)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                      {dueThisMonth.length > 0 && (
-                        <p className="mt-2 text-sm">
-                          Reserva{" "}
-                          <strong className="tabular font-semibold">
-                            {formatCLP(dueTotal)}
-                          </strong>{" "}
-                          antes de fin de mes.
-                        </p>
-                      )}
-                    </>
-                  )}
-                </div>
-              </section>
-            </div>
-          </div>
-        )}
+          <InstallmentsSection plans={plans} accounts={accounts} categories={categories} />
+        </div>
       </div>
 
       {/* `key` por plantilla: el formulario guarda sus campos en useState, así que hay que
@@ -393,7 +385,7 @@ function RecurringRow({
 // un movimiento. No hay alta a mano: la clave con la que se reconoce el cargo sale del cargo real.
 function EmptyState() {
   return (
-    <div className="glass mx-auto max-w-2xl rounded-xl px-6 py-10 text-center">
+    <div className="glass rounded-xl px-6 py-10 text-center">
       <span
         className="mx-auto mb-3 grid size-11 place-items-center rounded-full bg-primary/10"
         aria-hidden

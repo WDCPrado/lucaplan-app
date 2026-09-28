@@ -81,16 +81,23 @@ de iOS. El rediseño desktop-first NO SHALL introducir regresiones de usabilidad
 - **WHEN** una vista se verifica en dark y en light
 - **THEN** el layout y el contraste se mantienen correctos en ambos temas
 
-### Requirement: Acciones flotantes de tamaño consistente
+### Requirement: Registrar un movimiento desde el shell
 
-Las acciones flotantes del shell (buscar y agregar) SHALL tener el **mismo tamaño** de botón e
-icono; la jerarquía entre ambas SHALL expresarse por variante de color (primaria para agregar,
-secundaria para buscar), no por tamaño. Ambas MUST cumplir el target táctil mínimo (≥44px).
+La acción de registrar un movimiento SHALL estar en el shell, igual en toda la app. En móvil SHALL
+ser un botón "+" primario al **centro de la barra de navegación inferior**, entre los destinos, con
+target táctil ≥44px y nombre accesible; no SHALL haber botones flotantes sobre el contenido. En
+escritorio el topbar SHALL ordenar sus acciones así: primero "Movimiento", después buscar y al
+final el selector de mes (u otras acciones de la página).
 
-#### Scenario: Lupa y agregar del mismo porte
+#### Scenario: El "+" al centro de la barra inferior
 
-- **WHEN** el usuario ve las acciones flotantes abajo a la derecha
-- **THEN** la lupa y el "+" tienen el mismo diámetro y tamaño de icono, diferenciándose solo por color
+- **WHEN** el usuario abre en móvil una vista que permite registrar movimientos
+- **THEN** la barra inferior muestra Inicio, Recurrentes, el "+", Ajustes y Perfil, y tocar el "+" abre el alta de movimiento
+
+#### Scenario: Orden del topbar en escritorio
+
+- **WHEN** el usuario ve el Inicio en escritorio
+- **THEN** el topbar muestra, de izquierda a derecha, "Movimiento", la lupa y el selector de mes
 
 ### Requirement: Toggle de tema refleja el tema activo
 

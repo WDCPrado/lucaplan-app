@@ -30,6 +30,9 @@ export type NotifiableMovement = {
   // Id del banco: sirve para reconocer el lote entre los movimientos ya persistidos (y ver cuáles
   // quedaron categorizados). Ausente = no se puede reconocer; solo afecta la alerta de presupuesto.
   externalId?: string | null
+  // Día civil del movimiento (DATE, medianoche UTC): dice en qué mes buscarlo ya persistido.
+  // Ausente = se busca en el mes calendario de hoy.
+  date?: Date
   // Nombre de la categoría que quedó asignada (la IA corre antes de notificar). Ausente/null = el
   // movimiento quedó sin clasificar: el aviso lo omite en vez de inventar.
   category?: string | null

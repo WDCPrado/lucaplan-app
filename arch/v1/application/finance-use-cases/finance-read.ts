@@ -58,6 +58,9 @@ import {
   remainingToAllocate,
 } from "./budget-formulas.ts"
 import type { PaceFrequency } from "../../domain/finance/pace.domain.ts"
+import type { BudgetPeriodRepository } from "../../domain/finance/budget-period.domain.ts"
+import type { PeriodRange } from "../../../shared/billing-cycle.ts"
+import { rangeOf } from "./budget-period-use-cases.ts"
 
 const CLP = "CLP" as const
 
@@ -68,6 +71,8 @@ type ReadDeps = {
   installments?: InstallmentPlanRepository
   // Opcional: la meta de una categoría de ingreso es la suma de sus ingresos del mes.
   incomes?: IncomeRepository
+  // Opcional: modo del período (calendario o ciclo de la tarjeta). Sin él, mes calendario.
+  budgetPeriod?: BudgetPeriodRepository
   accounts: AccountRepository
   banks: BankRepository
   categories: CategoryRepository
@@ -289,7 +294,8 @@ export async function getMonthlySummary(
   month: number
 ): Promise<MonthlySummaryDTO> {
   const accounts = await deps.accounts.listByUser(userId)
-  const txs = await deps.transactions.listByUserPeriod(userId, year, month)
+  const range = await rangeOf(deps, year, month)
+  const txs = await deps.transactions.listByUserPeriod(userId, range)
   const withLimit = await categoriesWithLimit(deps, userId, year, month)
   // Montos en otra moneda (USD) convertidos a CLP por el dólar de su fecha, para que cuenten.
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
@@ -380,7 +386,8 @@ export async function listTransactions(
   year: number,
   month: number
 ): Promise<TransactionDTO[]> {
-  const txs = await deps.transactions.listByUserPeriod(userId, year, month)
+  const range = await rangeOf(deps, year, month)
+  const txs = await deps.transactions.listByUserPeriod(userId, range)
   const withLimit = await categoriesWithLimit(deps, userId, year, month)
   const accounts = await deps.accounts.listByUser(userId)
   const { clpTxs, clpAmounts } = await clpView(deps.exchangeRates, txs)
@@ -412,13 +419,7 @@ export async function listTransactions(
   // Cuotas por cobrar del mes: filas DERIVADAS, no transacciones. Se anticipan como "Por cobrar"
   // igual que una recurrente y desaparecen solas al pagarse (ahí nace la transacción real). No se
   // persiste nada: por eso el disparo por correo sigue intacto y no hay doble conteo.
-  const forecast = await installmentForecastRows(
-    deps,
-    userId,
-    year,
-    month,
-    catById
-  )
+  const forecast = await installmentForecastRows(deps, userId, range, catById)
   // Orden por fecha desc para TODO el conjunto: la lista agrupa por día filas CONTIGUAS, así que
   // un forecast fuera de orden partiría un día en dos grupos (keys duplicadas en React) y además
   // mostraría la cuota lejos de su fecha. El sort es estable: dentro del día, forecast primero.
@@ -427,12 +428,11 @@ export async function listTransactions(
   )
 }
 
-// Construye las filas de pronóstico de las cuotas que vencen en (year, month) y aún no se pagan.
+// Construye las filas de pronóstico de las cuotas que vencen en el rango del mes y aún no se pagan.
 async function installmentForecastRows(
   deps: { installments?: InstallmentPlanRepository },
   userId: string,
-  year: number,
-  month: number,
+  range: PeriodRange,
   catById: Map<string, Category>
 ): Promise<TransactionDTO[]> {
   if (!deps.installments) return []
@@ -440,7 +440,7 @@ async function installmentForecastRows(
   const rows: TransactionDTO[] = []
   for (const plan of plans) {
     const cat = catById.get(plan.categoryId)
-    for (const item of dueUnsettledItems(plan, year, month)) {
+    for (const item of dueUnsettledItems(plan, range)) {
       rows.push({
         id: `forecast:${item.id}`,
         accountId: plan.accountId,
@@ -523,16 +523,21 @@ export type UncategorizedDTO = {
 // primero— para el triage del dashboard. Solo el mes en vista: los pendientes de meses anteriores no
 // abruman el triage inicial. El criterio de elegibilidad vive en el filtro `uncategorized` del repo.
 export async function listUncategorized(
-  deps: { transactions: TransactionRepository; accounts: AccountRepository },
+  deps: {
+    transactions: TransactionRepository
+    accounts: AccountRepository
+    budgetPeriod?: BudgetPeriodRepository
+  },
   userId: string,
   year: number,
   month: number
 ): Promise<UncategorizedDTO> {
+  const range = await rangeOf(deps, year, month)
   const [txs, accounts] = await Promise.all([
     deps.transactions.searchByUser(userId, {
       uncategorized: true,
-      from: new Date(Date.UTC(year, month - 1, 1)),
-      to: new Date(Date.UTC(year, month, 0)), // último día del mes
+      from: new Date(`${range.start}T00:00:00Z`),
+      to: new Date(`${range.end}T00:00:00Z`), // último día del mes, inclusive
       limit: TRIAGE_LIMIT + 1,
     }),
     deps.accounts.listByUser(userId),
@@ -597,14 +602,15 @@ export async function getBudgetView(
   userId: string,
   year: number,
   month: number,
-  // Ritmo del período (dashboard): frecuencia configurada + "hoy" del calendario del usuario.
-  // Sin esto (u otras vistas/meses pasados) las categorías no llevan `pace`.
-  pace?: { frequency: PaceFrequency; today: { year: number; month: number; day: number } }
+  // Ritmo del período (dashboard): frecuencia configurada + "hoy" ("YYYY-MM-DD") del calendario
+  // del usuario. Sin esto (u otras vistas/meses pasados) las categorías no llevan `pace`.
+  pace?: { frequency: PaceFrequency; today: string }
 ): Promise<BudgetViewDTO> {
+  const range = await rangeOf(deps, year, month)
   const [withLimit, txs, budgets, plans, incomesList, incomeAmounts] =
     await Promise.all([
       categoriesWithLimit(deps, userId, year, month),
-      deps.transactions.listByUserPeriod(userId, year, month),
+      deps.transactions.listByUserPeriod(userId, range),
       deps.monthlyBudgets.listByUser(userId),
       deps.installments?.listByUser(userId) ?? Promise.resolve([]),
       deps.incomes?.listByUser(userId) ?? Promise.resolve([]),
@@ -612,12 +618,12 @@ export async function getBudgetView(
     ])
   // USD → CLP por fecha para que el uso por categoría cuente esos movimientos.
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
-  // Comprometido de cuotas por categoría: la cuota que vence este mes y aún no se paga se anticipa
+  // Comprometido de cuotas por categoría: la cuota que vence en el rango y aún no se paga se anticipa
   // como comprometida, igual que una recurrente. Derivado, no filas: al pagarse pasa a `used` y
   // desaparece de aquí, sin doble conteo.
   const installmentCommitted = new Map<string, Money>()
   for (const plan of plans) {
-    const amount = committedForMonth(plan, year, month)
+    const amount = committedForMonth(plan, range)
     if (amount.isZero) continue
     const prev = installmentCommitted.get(plan.categoryId)
     installmentCommitted.set(plan.categoryId, prev ? prev.add(amount) : amount)
@@ -645,8 +651,7 @@ export async function getBudgetView(
       category.id,
       limit,
       clpTxs,
-      year,
-      month,
+      range,
       direction
     )
     const fromInstallments = installmentCommitted.get(category.id)
@@ -654,8 +659,7 @@ export async function getBudgetView(
       category.id,
       limit.currency,
       clpTxs,
-      year,
-      month,
+      range,
       direction
     ).add(
       // Solo si coinciden la moneda de la categoría y la del plan (el comprometido es por moneda).
@@ -672,15 +676,16 @@ export async function getBudgetView(
       // así que repartir su tope por día o por semana solo produce un semáforo que miente.
       category.paceEnabled &&
       limit.isPositive &&
-      pace.today.year === year &&
-      pace.today.month === month
+      pace.today >= range.start &&
+      pace.today <= range.end
         ? (() => {
             const p = computeCategoryPace(
               category.id,
               available,
               clpTxs,
               pace.today,
-              pace.frequency
+              pace.frequency,
+              range
             )
             return {
               frequency: pace.frequency,
@@ -769,7 +774,8 @@ export async function getBudgetView(
  * `max(0, gasto − límite global)` del mes anterior. Es plata que ya se gastó —salió del colchón o
  * de la tarjeta— y que por lo tanto este mes no está disponible para repartir. Vale 0 si ese mes
  * cerró dentro de su presupuesto y también si no tenía presupuesto definido: no se puede pasar de
- * un límite que no existe.
+ * un límite que no existe. Con el modo tarjeta, "el mes anterior" es el ciclo anterior: lo
+ * resuelve `getBudgetView` con el mismo rango que ese mes muestra.
  *
  * El excedente de TOPES no participa: pasarse de un tope con presupuesto global libre no debe
  * nada, porque la plata existía y solo estaba asignada a otra cosa.
@@ -970,11 +976,8 @@ export async function getCategoryDetail(
 
   const limits = await deps.categories.listLimitsByUser(userId)
   const limit = effectiveLimit(limits, categoryId, year, month)
-  const txs = await deps.transactions.listByCategoryPeriod(
-    categoryId,
-    year,
-    month
-  )
+  const range = await rangeOf(deps, year, month)
+  const txs = await deps.transactions.listByCategoryPeriod(categoryId, range)
   const accounts = await deps.accounts.listByUser(userId)
   const { clpTxs, clpAmounts } = await clpView(deps.exchangeRates, txs)
   const manual = new Set(
@@ -984,8 +987,7 @@ export async function getCategoryDetail(
     categoryId,
     limit,
     clpTxs,
-    year,
-    month,
+    range,
     category.type === "income" ? "credit" : "debit"
   )
   const remaining = historicalRemaining(clpTxs, () => limit)
@@ -1003,8 +1005,7 @@ export async function getCategoryDetail(
       categoryId,
       limit.currency,
       clpTxs,
-      year,
-      month,
+      range,
       category.type === "income" ? "credit" : "debit"
     ).toMajor(),
     available: available.toMajor(),

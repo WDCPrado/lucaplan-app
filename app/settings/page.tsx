@@ -10,7 +10,8 @@ import {
   dueReminderDeps,
 } from "@/arch/v1/infrastructure/database/prisma/push-deps"
 import { paceDeps } from "@/arch/v1/infrastructure/database/prisma/pace.infrastructure"
-import { currentPeriod } from "@/lib/finance-format"
+import { todayKey } from "@/lib/finance-format"
+import { currentBudgetPeriod } from "@/arch/v1/application/finance-use-cases/budget-period-use-cases"
 import { financePageDeps } from "@/arch/v1/presentation/finance/finance-http"
 import {
   listAccounts,
@@ -22,7 +23,8 @@ export default async function SettingsPage() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) redirect("/login")
 
-  const now = currentPeriod()
+  // Mes del presupuesto en curso según el modo (calendario o ciclo de la tarjeta).
+  const now = await currentBudgetPeriod(financePageDeps, todayKey())
   // Datos iniciales en el servidor (nada de useEffect para el primer render). Cuentas y
   // categorías solo alimentan el "+" de ingreso rápido del shell, que va en toda la app.
   const [alerts, dueDays, paceFrequency, accounts, budget] = await Promise.all([

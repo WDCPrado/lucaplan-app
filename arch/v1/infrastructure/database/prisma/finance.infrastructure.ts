@@ -1,6 +1,7 @@
 // Adapters Postgres del dominio finance. Implementan los ports mapeando Prisma Decimal ↔ Money.
 // El dominio nunca ve tipos de Prisma. Los presupuestos/categorías se asumen en CLP (base).
 import { prisma } from "./client.ts"
+import type { PeriodRange } from "../../../../shared/billing-cycle.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import {
   amountDigits,
@@ -322,16 +323,16 @@ export const monthlyBudgetRepository: MonthlyBudgetRepository = {
 }
 
 export const transactionRepository: TransactionRepository = {
-  async listByUserPeriod(userId, year, month) {
+  async listByUserPeriod(userId, range) {
     const rows = await prisma.transaction.findMany({
-      where: { userId, ...periodWhere(year, month) },
+      where: { userId, ...periodWhere(range) },
       orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
     })
     return rows.map(toTransaction)
   },
-  async listByCategoryPeriod(categoryId, year, month) {
+  async listByCategoryPeriod(categoryId, range) {
     const rows = await prisma.transaction.findMany({
-      where: { categoryId, ...periodWhere(year, month) },
+      where: { categoryId, ...periodWhere(range) },
       orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
     })
     return rows.map(toTransaction)
@@ -520,9 +521,10 @@ export const transactionRepository: TransactionRepository = {
   },
 }
 
-// Filtro [primer día del mes, primer día del mes siguiente) sobre transactionDate.
-function periodWhere(year: number, month: number) {
-  const start = new Date(Date.UTC(year, month - 1, 1))
-  const end = new Date(Date.UTC(year, month, 1))
+// Filtro [inicio del rango, día siguiente a su fin) sobre transactionDate (DATE, medianoche UTC).
+function periodWhere(range: PeriodRange) {
+  const start = new Date(`${range.start}T00:00:00Z`)
+  const end = new Date(`${range.end}T00:00:00Z`)
+  end.setUTCDate(end.getUTCDate() + 1)
   return { transactionDate: { gte: start, lt: end } }
 }

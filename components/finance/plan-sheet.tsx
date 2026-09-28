@@ -14,11 +14,12 @@ import { haptic } from "@/lib/haptics"
 import { CategoryIcon } from "./category-icons"
 import { ProgressRing } from "./progress-ring"
 import {
-  currentPeriod,
   formatCLP,
   formatMoney,
   monthName,
+  todayKey,
 } from "@/lib/finance-format"
+import { daysUntilPayDay } from "@/lib/income-schedule"
 import { planTotal, previousMonthLabel, shouldSuggest } from "@/lib/plan-total"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
@@ -459,7 +460,8 @@ function IncomeRow({
   if (income.generated) {
     when = `Llegó el ${day}`
   } else if (isCurrentMonth) {
-    const diff = day - currentPeriod().day
+    // Días reales hasta el pago: en modo tarjeta el mes en curso puede ser el siguiente.
+    const diff = daysUntilPayDay(period, day, todayKey())
     when =
       diff > 1
         ? `Llega el ${day} · en ${diff} días`

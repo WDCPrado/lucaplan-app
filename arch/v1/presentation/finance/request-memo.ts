@@ -21,6 +21,7 @@ import type {
 import type { IncomeRepository } from "../../domain/finance/income.domain.ts"
 import type { InstallmentPlanRepository } from "../../domain/finance/installment.domain.ts"
 import type { RecurringTemplateRepository } from "../../domain/finance/recurring.domain.ts"
+import type { BudgetPeriodRepository } from "../../domain/finance/budget-period.domain.ts"
 
 export type MemoStore = Map<string, Promise<unknown>>
 
@@ -40,6 +41,7 @@ export type MemoizedPorts = {
   incomes: IncomeRepository
   installments: InstallmentPlanRepository
   recurring: RecurringTemplateRepository
+  budgetPeriod: BudgetPeriodRepository
 }
 
 // Lecturas de solo lectura, por usuario, que un mismo render pide idénticas más de una vez.
@@ -58,6 +60,8 @@ const READS = {
   incomes: ["listByUser", "listAmountsByUser"],
   installments: ["listByUser"],
   recurring: ["listByUser"],
+  // Modo y cierres: cada vista del mes resuelve su rango con esto, y un render arma varias.
+  budgetPeriod: ["get"],
 } satisfies { [R in keyof MemoizedPorts]: readonly (keyof MemoizedPorts[R])[] }
 
 /**
@@ -70,7 +74,8 @@ const READS = {
  * `financePageDeps` memoizado), no dónde acabe corriendo el código.
  *
  * ponytail: la clave es el nombre del método más `JSON.stringify` de los argumentos. Alcanza porque
- * todos los argumentos de estas lecturas son strings y números. Si alguna pasara a recibir un
+ * todos los argumentos de estas lecturas son strings, números o el rango del mes
+ * (`{ start, end }`, que siempre se arma con las claves en ese orden). Si alguna pasara a recibir un
  * objeto con orden de claves variable, habría que darle una clave propia.
  *
  * ponytail: `{ ...repo }` asume que los adapters son objetos literales, que es lo que son hoy todos

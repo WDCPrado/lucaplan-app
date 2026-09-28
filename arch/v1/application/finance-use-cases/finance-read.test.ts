@@ -20,6 +20,8 @@ import {
   listUncategorized,
   searchTransactions,
 } from "./finance-read.ts"
+import { inRange } from "./budget-formulas.ts"
+import type { PeriodMode, PeriodRange } from "../../../shared/billing-cycle.ts"
 
 const mov = (id: string, accountId = "a1"): Transaction => ({
   id,
@@ -422,9 +424,13 @@ const DEBT_TXS: Record<string, Transaction[]> = {
   ],
 }
 
-// `listByUserPeriod` respeta (year, month) a propósito: si el cableado pidiera el mes equivocado,
-// unos deps que devuelven siempre lo mismo lo taparían.
-function debtDeps(budgets: MonthlyBudget[]) {
+// `listByUserPeriod` respeta el rango a propósito: si el cableado pidiera el mes equivocado, unos
+// deps que devuelven siempre lo mismo lo taparían.
+function debtDeps(
+  budgets: MonthlyBudget[],
+  txs: Transaction[] = Object.values(DEBT_TXS).flat(),
+  mode: PeriodMode = "calendar"
+) {
   return {
     categories: {
       async listByUser() {
@@ -435,8 +441,8 @@ function debtDeps(budgets: MonthlyBudget[]) {
       },
     },
     transactions: {
-      async listByUserPeriod(_userId: string, year: number, month: number) {
-        return DEBT_TXS[`${year}-${month}`] ?? []
+      async listByUserPeriod(_userId: string, range: PeriodRange) {
+        return txs.filter((t) => inRange(t.date, range))
       },
     },
     monthlyBudgets: {
@@ -447,6 +453,11 @@ function debtDeps(budgets: MonthlyBudget[]) {
     exchangeRates: {
       async clpPerUsdAt(): Promise<never> {
         throw new Error("no usado: todo el fixture es CLP")
+      },
+    },
+    budgetPeriod: {
+      async get() {
+        return { mode, overrides: {} }
       },
     },
   } as unknown as Parameters<typeof getPreviousMonthDebt>[0]
@@ -529,7 +540,7 @@ test("getBudgetView: el ritmo se omite en la categoría que lo tiene apagado", a
     "u1",
     2026,
     8,
-    { frequency: "weekly", today: { year: 2026, month: 8, day: 15 } }
+    { frequency: "weekly", today: "2026-08-15" }
   )
 
   assert.ok(
@@ -548,7 +559,7 @@ test("getBudgetView: apagar el ritmo no toca las cifras del presupuesto", async 
   ]
   const hoy = {
     frequency: "weekly" as const,
-    today: { year: 2026, month: 8, day: 15 },
+    today: "2026-08-15",
   }
   const off = await getBudgetView(budgetDeps(globalBudget(300000), apagada), "u1", 2026, 8, hoy)
   const on = await getBudgetView(budgetDeps(globalBudget(300000), encendida), "u1", 2026, 8, hoy)
@@ -575,7 +586,7 @@ test("getBudgetView: las categorías con ritmo van primero, y dentro de cada gru
     "u1",
     2026,
     8,
-    { frequency: "weekly", today: { year: 2026, month: 8, day: 15 } }
+    { frequency: "weekly", today: "2026-08-15" }
   )
 
   assert.deepEqual(
@@ -595,7 +606,7 @@ test("getBudgetView: sin ritmo en ninguna, el orden es el de siempre (recencia)"
     "u1",
     2026,
     8,
-    { frequency: "weekly", today: { year: 2026, month: 8, day: 15 } }
+    { frequency: "weekly", today: "2026-08-15" }
   )
 
   // c-super primero: es la de la transacción más reciente del mes.
@@ -603,4 +614,90 @@ test("getBudgetView: sin ritmo en ninguna, el orden es el de siempre (recencia)"
     view.categories.map((c) => c.id),
     ["c-super", "c-comida"]
   )
+})
+
+// --- Modo tarjeta: el mes del presupuesto es el ciclo de facturación ---
+// Cierres estimados de 2026: agosto 21/08, septiembre 22/09, octubre 22/10. Así, en modo tarjeta
+// septiembre va del 22/08 al 22/09 y octubre del 23/09 al 22/10.
+
+const day = (iso: string) => new Date(`${iso}T00:00:00Z`)
+const spentIn = async (
+  txs: Transaction[],
+  mode: PeriodMode,
+  month: number
+) =>
+  (await getBudgetView(debtDeps([], txs, mode), "u1", 2026, month)).categories.find(
+    (c) => c.id === "c-super"
+  )!
+
+test("modo tarjeta: un gasto después del cierre cuenta en el mes siguiente", async () => {
+  const txs = [budgetTx({ id: "k1", categoryId: "c-super", date: day("2026-09-25") })]
+  assert.equal((await spentIn(txs, "card_cycle", 10)).used, 1000)
+  assert.equal((await spentIn(txs, "card_cycle", 9)).used, 0)
+  // Mismo gasto, modo débito: septiembre, como antes de este cambio.
+  assert.equal((await spentIn(txs, "calendar", 9)).used, 1000)
+  assert.equal((await spentIn(txs, "calendar", 10)).used, 0)
+})
+
+test("modo tarjeta: el gasto del día del cierre cuenta en ese mes", async () => {
+  const txs = [budgetTx({ id: "k2", categoryId: "c-super", date: day("2026-09-22") })]
+  assert.equal((await spentIn(txs, "card_cycle", 9)).used, 1000)
+  assert.equal((await spentIn(txs, "card_cycle", 10)).used, 0)
+})
+
+test("modo tarjeta: la recurrente que vence el 25/09 es comprometido de octubre", async () => {
+  const txs = [
+    budgetTx({
+      id: "k3",
+      categoryId: "c-super",
+      date: day("2026-09-25"),
+      status: "pending",
+      amount: Money.of(15000, "CLP"),
+    }),
+  ]
+  assert.equal((await spentIn(txs, "card_cycle", 10)).committed, 15000)
+  assert.equal((await spentIn(txs, "card_cycle", 9)).committed, 0)
+  assert.equal((await spentIn(txs, "calendar", 9)).committed, 15000)
+})
+
+test("modo tarjeta: la deuda del mes anterior mide el ciclo anterior (22/08 → 22/09)", async () => {
+  const txs = [
+    // Ciclo de agosto (termina el 21/08): no es de septiembre.
+    budgetTx({ id: "k4", categoryId: "c-super", date: day("2026-08-21"), amount: Money.of(900000, "CLP") }),
+    // Ciclo de septiembre: 150.000 contra un límite de 100.000.
+    budgetTx({ id: "k5", categoryId: "c-super", date: day("2026-08-22"), amount: Money.of(150000, "CLP") }),
+    // Después del cierre de septiembre: ya es octubre.
+    budgetTx({ id: "k6", categoryId: "c-super", date: day("2026-09-25"), amount: Money.of(900000, "CLP") }),
+  ]
+  const budgets = [monthBudget(2026, 9, 100000)]
+  assert.equal(
+    await getPreviousMonthDebt(debtDeps(budgets, txs, "card_cycle"), "u1", 2026, 10),
+    50000
+  )
+  // En modo débito septiembre es 1/09 → 30/09: solo entra el del 25/09.
+  assert.equal(
+    await getPreviousMonthDebt(debtDeps(budgets, txs, "calendar"), "u1", 2026, 10),
+    800000
+  )
+})
+
+test("modo tarjeta: el triage acota al rango del ciclo", async () => {
+  const { deps, filters } = makeDeps([mov("t1")], [account("a1", "bancochile")])
+  await listUncategorized(
+    {
+      ...deps,
+      budgetPeriod: {
+        async get() {
+          return { mode: "card_cycle" as const, overrides: {} }
+        },
+        async setMode() {},
+        async setClosing() {},
+      },
+    },
+    "u1",
+    2026,
+    10
+  )
+  assert.equal(filters()?.from?.toISOString(), "2026-09-23T00:00:00.000Z")
+  assert.equal(filters()?.to?.toISOString(), "2026-10-22T00:00:00.000Z")
 })

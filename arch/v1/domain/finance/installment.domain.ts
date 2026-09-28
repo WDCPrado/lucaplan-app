@@ -11,6 +11,7 @@
 
 import type { AccountType } from "./finance.domain.ts"
 import { type CurrencyCode, Money } from "./money.ts"
+import type { PeriodRange } from "../../../shared/billing-cycle.ts"
 
 // --- Entidad ---
 
@@ -280,25 +281,20 @@ export function progress(plan: InstallmentPlan): {
  */
 export function dueUnsettledItems(
   plan: InstallmentPlan,
-  year: number,
-  month: number
+  range: PeriodRange // el mes del presupuesto ya resuelto (calendario o ciclo de la tarjeta)
 ): InstallmentItem[] {
-  return plan.items.filter(
-    (i) =>
-      !isSettled(i) &&
-      // Getters UTC: el DATE de la BD es medianoche UTC y en local caería en el día (y a veces
-      // mes) anterior.
-      i.dueDate.getUTCFullYear() === year &&
-      i.dueDate.getUTCMonth() + 1 === month
-  )
+  return plan.items.filter((i) => {
+    // UTC: el DATE de la BD es medianoche UTC y en local caería en el día (y a veces mes) anterior.
+    const day = i.dueDate.toISOString().slice(0, 10)
+    return !isSettled(i) && day >= range.start && day <= range.end
+  })
 }
 
 export function committedForMonth(
   plan: InstallmentPlan,
-  year: number,
-  month: number
+  range: PeriodRange
 ): Money {
-  return dueUnsettledItems(plan, year, month).reduce(
+  return dueUnsettledItems(plan, range).reduce(
     (sum, i) => sum.add(i.amount),
     Money.zero(plan.currency)
   )

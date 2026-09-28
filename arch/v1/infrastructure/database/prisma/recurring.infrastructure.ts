@@ -33,6 +33,9 @@ function toTemplate(row: any): RecurringTemplate {
   }
 }
 
+// Aborta el $transaction de `attachImportedMovement` para revertirlo; afuera se vuelve `false`.
+class NotAttached extends Error {}
+
 export const recurringTemplateRepository: RecurringTemplateRepository = {
   async listByUser(userId) {
     return (
@@ -219,8 +222,12 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
       if (committed && committed.id !== transactionId)
         await db.transaction.delete({ where: { id: committed.id } })
       const { count } = await db.transaction.updateMany({
-        // El importado conserva su monto, fecha y externalId reales: solo adopta el vínculo.
-        where: { id: transactionId },
+        // El importado conserva su monto, fecha y externalId reales: solo adopta el vínculo. Uno ya
+        // vinculado a OTRA plantilla no se roba (dejaría ese período sin su cobro).
+        where: {
+          id: transactionId,
+          OR: [{ recurringTemplateId: null }, { recurringTemplateId: template.id }],
+        },
         data: {
           categoryId: template.categoryId,
           recurringTemplateId: template.id,
@@ -229,7 +236,12 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
           reviewed: true,
         },
       })
-      return count > 0
+      // Movimiento inexistente o de otra plantilla: se revierte el borrado del comprometido.
+      if (count === 0) throw new NotAttached()
+      return true
+    }).catch((e) => {
+      if (e instanceof NotAttached) return false
+      throw e
     })
   },
 }

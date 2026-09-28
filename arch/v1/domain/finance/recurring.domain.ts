@@ -341,7 +341,8 @@ export interface RecurringTemplateRepository {
    * El cargo real ya se importó (trae su `externalId` y ya movió los buckets), así que
    * es ÉL quien queda como ejecución del período — toma la categoría de la plantilla, el vínculo y
    * el `periodKey`, queda `confirmed` + `reviewed`, y el comprometido `pending` del período se
-   * consume (se borra). Atómico. `false` si el período ya tenía una ejecución confirmada.
+   * consume (se borra). Atómico. `false` si el período ya tenía una ejecución confirmada del banco,
+   * o si el movimiento no existe o ya es de otra plantilla (entonces no se toca nada).
    */
   attachImportedMovement(
     transactionId: string,

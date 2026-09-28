@@ -18,6 +18,7 @@ import {
   setRecurringPeriodPaid,
 } from "./recurring-use-cases.ts"
 import { listRecurringCandidates, listRecurringView } from "./finance-read.ts"
+import { collectDueItems } from "../notification-use-cases/notify-due-use-case.ts"
 import type {
   Transaction,
   TransactionRepository,
@@ -777,6 +778,8 @@ test("los candidatos piden gastos confirmados sin vínculo, en la moneda y la ve
   assert.equal(pedido?.recurringCandidates, true)
   assert.equal(pedido?.settledOnly, true)
   assert.equal(pedido?.limit, 50)
+  assert.equal(pedido?.amountMin, 175_000, "−50 % del monto base")
+  assert.equal(pedido?.amountMax, 525_000, "+50 % del monto base")
   assert.equal(pedido?.to, undefined, "los futuros también entran")
   const dias = Math.round((HOY.getTime() - pedido!.from!.getTime()) / 86_400_000)
   assert.equal(dias, 90)
@@ -846,4 +849,71 @@ test("una recurrente de ingreso se paga con un abono y pide abonos como candidat
   } as unknown as Parameters<typeof listRecurringCandidates>[0]
   await listRecurringCandidates(deps, "u1", "sueldo", HOY)
   assert.equal(pedido?.direction, "credit")
+})
+
+test("pagar con movimiento: plantilla ajena → no encontrada; pausada o terminada → 422", async () => {
+  await assert.rejects(
+    pagarCon(makeRepo([{ ...arriendo, userId: "u2" }]).repo, movimiento()),
+    { name: "NotOwnerError" }
+  )
+  await assert.rejects(
+    pagarCon(makeRepo([{ ...arriendo, isActive: false }]).repo, movimiento()),
+    { name: "InvalidRecurringTemplateError", message: /pausada/ }
+  )
+  await assert.rejects(
+    pagarCon(makeRepo([{ ...arriendo, endDate: new Date(2026, 6, 31) }]).repo, movimiento()),
+    { name: "InvalidRecurringTemplateError", message: /fecha de fin/ }
+  )
+})
+
+test("si el vínculo falla porque el movimiento cambió en medio, no responde 409", async () => {
+  // El repo rechaza el vínculo; la segunda lectura del movimiento dice por qué.
+  const conCambio = (despues: Transaction | null) => {
+    const { repo } = makeRepo([arriendo])
+    repo.attachImportedMovement = async () => false
+    let lecturas = 0
+    const transactions = {
+      findById: async () => (lecturas++ === 0 ? movimiento() : despues),
+    } as unknown as TransactionRepository
+    return payRecurringPeriodWith(
+      { recurring: repo, transactions },
+      "u1",
+      { id: "arriendo", transactionId: "tx-julio" },
+      HOY
+    )
+  }
+  await assert.rejects(conCambio(null), { name: "NotOwnerError" })
+  await assert.rejects(conCambio(movimiento({ recurringTemplateId: "otra" })), {
+    name: "InvalidRecurringTemplateError",
+    message: /ya es el cobro/,
+  })
+  // El movimiento sigue igual: fue el período el que cambió (lo cerró el correo).
+  await assert.rejects(conCambio(movimiento()), {
+    name: "RecurringPeriodBankPaidError",
+  })
+})
+
+test("el recordatorio de vencimiento calla si el período se pagó con un cargo de otro mes", async () => {
+  const hoy = new Date(2026, 8, 4, 12) // 4/09: el arriendo vence el 5
+  const { repo } = makeRepo([arriendo])
+  const deps = {
+    recurring: repo,
+    installments: { listByUser: async () => [] },
+  } as unknown as Parameters<typeof collectDueItems>[0]
+
+  const antes = await collectDueItems(deps, "u1", hoy, 2)
+  assert.equal(antes.length, 1, "sin pagar, avisa")
+
+  // El cargo llegó el 30/08 y se eligió como el cobro de septiembre.
+  await payRecurringPeriodWith(
+    {
+      recurring: repo,
+      transactions: txRepo([movimiento({ date: new Date(2026, 7, 30) })]),
+    },
+    "u1",
+    { id: "arriendo", transactionId: "tx-julio" },
+    hoy
+  )
+  const despues = await collectDueItems(deps, "u1", hoy, 2)
+  assert.deepEqual(despues, [], "el período 2026-09 ya está cobrado")
 })

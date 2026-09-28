@@ -280,10 +280,15 @@ export async function payRecurringPeriodWith(
   today = new Date()
 ): Promise<{ ok: true }> {
   const template = await chargeableTemplate(deps, userId, input.id, today)
-  const tx = await deps.transactions.findById(input.transactionId)
-  if (!tx || tx.userId !== userId) throw new NotOwnerError()
-  const rejection = paymentCandidateRejection(tx, template)
-  if (rejection) throw new InvalidRecurringTemplateError(rejection)
+  // Valida el movimiento: 404 si no está o no es suyo, 422 si no puede ser el cobro.
+  const assertCandidate = async () => {
+    const tx = await deps.transactions.findById(input.transactionId)
+    if (!tx || tx.userId !== userId) throw new NotOwnerError()
+    const rejection = paymentCandidateRejection(tx, template)
+    if (rejection) throw new InvalidRecurringTemplateError(rejection)
+    return tx
+  }
+  const tx = await assertCandidate()
 
   const periodKey = await openCurrentPeriod(deps, template, today)
   const periodTx = await deps.recurring.findPeriodTransaction(
@@ -292,9 +297,12 @@ export async function payRecurringPeriodWith(
   )
   if (periodTx?.status === "confirmed" && !periodTx.isManual)
     throw new RecurringPeriodBankPaidError()
-  // `false` = el correo cerró el período entre la lectura y la escritura.
-  if (!(await deps.recurring.attachImportedMovement(tx.id, template, periodKey)))
+  if (!(await deps.recurring.attachImportedMovement(tx.id, template, periodKey))) {
+    // Algo cambió entre la lectura y la escritura: o el movimiento (borrado o vinculado a otra
+    // plantilla → 404/422) o el período (lo cerró el correo → 409).
+    await assertCandidate()
     throw new RecurringPeriodBankPaidError()
+  }
   return { ok: true }
 }
 

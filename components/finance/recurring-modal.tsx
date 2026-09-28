@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Check, ListChecks, Pause, Play, Trash2, Undo2 } from "lucide-react"
 import { toast } from "sonner"
@@ -107,6 +107,9 @@ export function RecurringModal({
   const [candidates, setCandidates] = useState<
     TransactionDTO[] | null | "error"
   >(null)
+  // Cada carga lleva un número: si se reabre la lista antes de que llegue la anterior, la vieja
+  // no pisa a la nueva.
+  const reqRef = useRef(0)
 
   const inheritedCategory = categories.find((c) => c.id === categoryId)
   const account = accounts.find((a) => a.id === accountId) ?? accounts[0]
@@ -200,13 +203,16 @@ export function RecurringModal({
   // Se carga al abrir, desde el clic, sin efecto.
   async function loadCandidates() {
     if (!template) return
+    const id = ++reqRef.current
     setCandidates(null)
     try {
       const res = await fetch(`/api/recurring/${template.id}/candidates`)
       if (!res.ok) throw new Error()
       const data: { items: TransactionDTO[] } = await res.json()
+      if (id !== reqRef.current) return
       setCandidates(data.items)
     } catch {
+      if (id !== reqRef.current) return
       setCandidates("error")
     }
   }
@@ -298,7 +304,8 @@ export function RecurringModal({
                   )}
                 </Button>
               )}
-              {!template.currentPeriodPaid && (
+              {(!template.currentPeriodPaid ||
+                template.currentPeriodPaidManually) && (
                 <Button
                   variant="ghost"
                   onClick={openPicker}

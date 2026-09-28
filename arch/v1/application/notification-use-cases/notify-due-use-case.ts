@@ -1,4 +1,3 @@
-import type { TransactionRepository } from "../../domain/finance/finance.domain.ts"
 import type { InstallmentPlanRepository } from "../../domain/finance/installment.domain.ts"
 import { isSettled } from "../../domain/finance/installment.domain.ts"
 import type { RecurringTemplateRepository } from "../../domain/finance/recurring.domain.ts"
@@ -8,20 +7,17 @@ import {
   periodKeyFor,
 } from "../../domain/finance/recurring.domain.ts"
 import { dueSoonMessage, type DueItem } from "./notification-rules.ts"
-import { periodRange } from "../../../shared/billing-cycle.ts"
 import { sendPushToUser, type PushDeps } from "./push-use-cases.ts"
 
 export type NotifyDueDeps = PushDeps & {
-  recurring: Pick<RecurringTemplateRepository, "listActiveByUser">
+  recurring: Pick<
+    RecurringTemplateRepository,
+    "listActiveByUser" | "findPeriodTransaction"
+  >
   installments: Pick<InstallmentPlanRepository, "listByUser">
-  transactions: Pick<TransactionRepository, "listByUserPeriod">
 }
 
 const DAY_MS = 86_400_000
-const monthOf = (d: Date) => ({
-  year: d.getUTCFullYear(),
-  month: d.getUTCMonth() + 1,
-})
 
 /**
  * Pagos que vencen dentro de la ventana: cuotas de planes sin saldar y ejecuciones de plantillas
@@ -61,35 +57,9 @@ export async function collectDueItems(
     }
   }
 
-  // Recurrentes ya cobradas: se detectan por movimiento confirmado de la plantilla en el mes del
-  // vencimiento. ponytail: en quincenales eso silencia el segundo aviso del mes; si molesta, hay
-  // que exponer `periodKey` en el dominio de Transaction y comparar por período exacto.
+  // Recurrentes ya cobradas: el período exacto tiene su movimiento confirmed. Por período y no
+  // por la fecha del movimiento: un cargo vinculado a mano puede tener fecha de otro mes.
   const templates = await deps.recurring.listActiveByUser(userId)
-  if (templates.length === 0) return items
-
-  const periods = [monthOf(now), monthOf(end)].filter(
-    (p, i, all) =>
-      i === all.findIndex((o) => o.year === p.year && o.month === p.month)
-  )
-  const movements = (
-    await Promise.all(
-      periods.map((p) =>
-        // Mes CALENDARIO a propósito: el recordatorio mira días corridos, no el ciclo de la tarjeta.
-        deps.transactions.listByUserPeriod(
-          userId,
-          periodRange(p.year, p.month, "calendar", {})
-        )
-      )
-    )
-  ).flat()
-  const charged = new Set(
-    movements
-      .filter((t) => t.status === "confirmed" && t.recurringTemplateId)
-      .map(
-        (t) =>
-          `${t.recurringTemplateId}:${t.date.getUTCFullYear()}-${t.date.getUTCMonth()}`
-      )
-  )
 
   for (const t of templates) {
     // Períodos que la ventana toca: el de hoy y el de su último día (pueden ser el mismo).
@@ -97,8 +67,8 @@ export async function collectDueItems(
     for (const key of [...new Set(keys)]) {
       const dueDate = executionDateFor(t, key)
       if (!inWindow(dueDate) || hasEnded(t, dueDate)) continue
-      const monthKey = `${t.id}:${dueDate.getUTCFullYear()}-${dueDate.getUTCMonth()}`
-      if (charged.has(monthKey)) continue
+      const periodTx = await deps.recurring.findPeriodTransaction(t.id, key)
+      if (periodTx?.status === "confirmed") continue
       items.push({
         description: t.description,
         amount: t.baseAmount.toMajor(),

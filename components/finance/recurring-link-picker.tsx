@@ -1,15 +1,38 @@
 "use client"
 
+import { useState } from "react"
+
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { formatCLP, formatDateHeader, formatMoney } from "@/lib/finance-format"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type { TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
+// Monto con signo como en MovementRow: hay plantillas de ingreso.
+function signedAmount(tx: TransactionDTO): string {
+  const abs = Math.abs(tx.amount)
+  return (
+    (tx.direction === "credit" ? "+" : "−") +
+    (tx.currency === "CLP"
+      ? formatCLP(abs)
+      : formatMoney(abs, tx.currency as CurrencyCode))
+  )
+}
+
 /**
  * Elige un movimiento YA EXISTENTE como el cobro del período en curso de una recurrente: el cargo
  * a veces llega antes o después de su fecha y no se engancha solo. No hace fetch ni muta: quien lo
- * abre carga los candidatos y hace el PATCH al tocar una fila.
+ * abre carga los candidatos y hace el PATCH cuando se confirma la fila elegida.
  *
  * `items`: null = cargando, "error" = falló la carga.
  */
@@ -28,6 +51,9 @@ export function RecurringLinkPicker({
   onPick: (transactionId: string) => void
   onRetry: () => void
 }) {
+  // Fila tocada, esperando confirmación: vincular no se deshace desde aquí.
+  const [pending, setPending] = useState<TransactionDTO | null>(null)
+
   return (
     <ResponsiveModal
       open={open}
@@ -65,8 +91,8 @@ export function RecurringLinkPicker({
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => onPick(tx.id)}
-                  className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors outline-none hover:bg-secondary/60 focus-visible:ring-[3px]focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+                  onClick={() => setPending(tx)}
+                  className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors outline-none hover:bg-secondary/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">
@@ -78,13 +104,7 @@ export function RecurringLinkPicker({
                     </span>
                   </span>
                   <span className="tabular shrink-0 text-sm font-semibold">
-                    −
-                    {tx.currency === "CLP"
-                      ? formatCLP(Math.abs(tx.amount))
-                      : formatMoney(
-                          Math.abs(tx.amount),
-                          tx.currency as CurrencyCode
-                        )}
+                    {signedAmount(tx)}
                   </span>
                 </button>
               </li>
@@ -92,6 +112,45 @@ export function RecurringLinkPicker({
           </ul>
         )}
       </div>
+
+      <AlertDialog
+        open={!!pending}
+        onOpenChange={(o) => !o && setPending(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Usar este movimiento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Queda como el cobro del período en curso y adopta la categoría de
+              la recurrente. No se puede deshacer desde aquí.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {pending && (
+            <div className="flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2.5">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">
+                  {pending.description}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {formatDateHeader(pending.date)}
+                </span>
+              </span>
+              <span className="tabular shrink-0 text-sm font-semibold">
+                {signedAmount(pending)}
+              </span>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={() => pending && onPick(pending.id)}
+            >
+              Vincular
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ResponsiveModal>
   )
 }

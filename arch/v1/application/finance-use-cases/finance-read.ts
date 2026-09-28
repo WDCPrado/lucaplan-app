@@ -960,7 +960,8 @@ const CANDIDATE_DAYS = 90
 
 // Movimientos que el usuario puede elegir como el cobro del período en curso de la plantilla `id`
 // (ver `payRecurringPeriodWith`): movimientos del banco confirmados y sin vínculo, de su misma
-// dirección y moneda, de los últimos 90 días (y futuros), más nuevos primero.
+// dirección y moneda, de los últimos 90 días (y futuros), con monto ±50 % del base, más nuevos
+// primero. El monto acota: sin él, 50 gastos recientes cualquiera taparían el cargo de hace un mes.
 export async function listRecurringCandidates(
   deps: ReadDeps & { recurring: RecurringTemplateRepository },
   userId: string,
@@ -972,10 +973,13 @@ export async function listRecurringCandidates(
   if (template.userId !== userId) throw new NotOwnerError()
   const from = new Date(today)
   from.setDate(from.getDate() - CANDIDATE_DAYS)
+  const base = template.baseAmount.toMajor()
   const items = await searchTransactions(deps, userId, {
     direction: template.direction,
     currency: template.currency,
     from,
+    amountMin: base * 0.5,
+    amountMax: base * 1.5,
     recurringCandidates: true,
     limit: 50,
   })

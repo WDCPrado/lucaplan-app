@@ -295,7 +295,7 @@ function CycleBar({
         ))}
       </div>
       {cycle.mode === "card_cycle" && card ? (
-        <div className="w-full sm:w-auto sm:flex-1">
+        <div className="w-full md:w-auto">
           <ClosingPicker
             period={period}
             closing={cycle.closing}
@@ -356,10 +356,10 @@ function ClosingPicker({
         <Button
           variant="secondary"
           aria-label={`Cierre de ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}. Corregir`}
-          className="h-auto min-h-16 w-full justify-start gap-3 border border-border bg-card px-3 py-2 text-sm font-normal hover:bg-accent sm:min-h-11"
+          className="h-auto min-h-16 w-full justify-start gap-3 border border-border bg-card px-3 py-2 text-sm font-normal hover:bg-accent md:min-h-11 md:w-auto"
         >
           <CalendarClock className="size-5 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 text-left sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-3">
+          <span className="min-w-0 flex-1 text-left md:flex md:flex-wrap md:items-center md:gap-x-3">
             <span className="block font-medium tabular-nums">
               {shortDate(range.start)} – {shortDate(range.end)}
             </span>

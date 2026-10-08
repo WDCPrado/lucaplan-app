@@ -1,9 +1,10 @@
 "use client"
 
+import type { ReactNode } from "react"
+
 import { Pencil } from "lucide-react"
-import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
-import { ProgressRing } from "./progress-ring"
 import { MovementRow } from "./movement-row"
 import { CategoryIcon } from "./category-icons"
 import { formatCLP, statusVar } from "@/lib/finance-format"
@@ -12,106 +13,134 @@ import type {
   TransactionDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
-// Detalle de una categoría: anillo grande, usado/de/disponible, movimientos del mes y editar.
 export function CategoryDetailSheet({
+  children,
   category,
   transactions,
   onOpenChange,
   onEdit,
   onOpenTx,
 }: {
+  children?: ReactNode
   category: CategoryDTO | null
   transactions: TransactionDTO[]
-  onOpenChange: (o: boolean) => void
-  onEdit: (c: CategoryDTO) => void
-  onOpenTx?: (t: TransactionDTO) => void
+  onOpenChange: (open: boolean) => void
+  onEdit: (category: CategoryDTO) => void
+  onOpenTx?: (transaction: TransactionDTO) => void
 }) {
-  const open = category !== null
-  const pct =
-    category && category.limit > 0 ? (category.used / category.limit) * 100 : 0
   const txs = category
-    ? transactions.filter((t) => t.categoryId === category.id)
+    ? transactions.filter((tx) => tx.categoryId === category.id)
     : []
-
   return (
     <ResponsiveModal
-      open={open}
+      open={category !== null}
       onOpenChange={onOpenChange}
-      title={category?.name ?? ""}
-      headerClassName="items-center"
+      title={category?.name ?? "Categoría"}
     >
       {category && (
-        <div>
-          <div className="flex flex-col items-center gap-1 px-4">
-            <ProgressRing
-              percent={pct}
-              committedPercent={
-                category.limit > 0
-                  ? (category.committed / category.limit) * 100
-                  : 0
-              }
-              status={category.status}
-              size={150}
-              stroke={11}
-            >
-              <CategoryIcon
-                icon={category.icon}
-                size={44}
-                color={category.color ?? undefined}
-              />
-            </ProgressRing>
-            <div className="tabular mt-2 text-3xl font-bold">
-              {formatCLP(category.used)}{" "}
-              <span className="text-lg font-normal text-muted-foreground">
-                de {formatCLP(category.limit)}
-              </span>
-            </div>
-            {/* Mismo color que el anillo: en verde fijo, un disponible negativo se leía como
-                "vas bien". El estado manda sobre el texto igual que sobre el arco. */}
-            <div
-              className="text-sm font-medium"
-              style={{ color: statusVar(category.status) }}
-            >
-              <span className="tabular">{formatCLP(category.available)}</span>{" "}
-              disponible
-            </div>
-            {category.committed > 0 && (
-              <div className="text-xs text-muted-foreground">
-                <span className="tabular">{formatCLP(category.committed)}</span>{" "}
-                comprometido (recurrentes y cuotas por cobrar)
+        <>
+          <div className="space-y-8 px-5">
+            <section>
+              <div className="mb-4 flex items-center gap-3">
+                <span className="grid size-11 place-items-center rounded-lg bg-muted">
+                  <CategoryIcon
+                    icon={category.icon}
+                    size={22}
+                    color={category.color ?? undefined}
+                  />
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  {category.type === "income"
+                    ? "Recibido en el período"
+                    : "Disponible en el período"}
+                </span>
               </div>
-            )}
-            {/* Editar como acción con nombre, no como pastilla dentro del anillo. */}
+              <p
+                className="tabular text-3xl font-semibold"
+                style={{
+                  color:
+                    category.type === "income"
+                      ? undefined
+                      : statusVar(category.status),
+                }}
+              >
+                {formatCLP(
+                  category.type === "income"
+                    ? category.used
+                    : category.available
+                )}
+              </p>
+              {category.type !== "income" && (
+                <dl className="mt-6 grid grid-cols-3 gap-3 border-t pt-4">
+                  <div>
+                    <dt className="text-sm text-muted-foreground">
+                      Presupuesto
+                    </dt>
+                    <dd className="tabular mt-1 text-base font-medium break-all">
+                      {formatCLP(category.limit)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-muted-foreground">Gastado</dt>
+                    <dd className="tabular mt-1 text-base font-medium break-all">
+                      {formatCLP(category.used)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-muted-foreground">
+                      Comprometido
+                    </dt>
+                    <dd className="tabular mt-1 text-base font-medium break-all">
+                      {formatCLP(category.committed)}
+                    </dd>
+                  </div>
+                </dl>
+              )}
+              {category.committed > 0 && (
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  El comprometido reserva recurrentes y cuotas por cobrar.
+                </p>
+              )}
+            </section>
+            <section>
+              <h3 className="mb-3 text-base font-semibold">
+                Movimientos del período
+              </h3>
+              {txs.length === 0 ? (
+                <p className="py-4 text-base leading-relaxed text-muted-foreground">
+                  Todavía no hay movimientos en esta categoría.
+                </p>
+              ) : (
+                <div className="divide-y">
+                  {txs.map((tx) => (
+                    <MovementRow key={tx.id} tx={tx} onOpen={onOpenTx} />
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+          <ModalFooter className="px-5">
             <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => onEdit(category)}
-              className="mt-2"
+              type="button"
+              variant="outline"
+              className="h-12 text-base"
+              onClick={() => onOpenChange(false)}
             >
-              <Pencil className="size-3.5" />
+              Cerrar
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onEdit(category)}
+              className="h-12 flex-1 text-base"
+            >
+              <Pencil className="size-4" />
               Editar categoría
             </Button>
-          </div>
-          <div className="mt-4 px-4 pb-6 md:pb-4">
-            <div className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Movimientos del mes
-            </div>
-            {txs.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                Sin movimientos
-              </p>
-            ) : (
-              // Escritorio: el diálogo mide lo que mide la lista, con un tope; sin él, dos
-              // movimientos dejaban el 40 % del modal vacío.
-              <div className="divide-y md:max-h-[45dvh] md:overflow-y-auto">
-                {txs.map((t) => (
-                  <MovementRow key={t.id} tx={t} onOpen={onOpenTx} />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+          </ModalFooter>
+        </>
       )}
+      {children}
     </ResponsiveModal>
   )
 }

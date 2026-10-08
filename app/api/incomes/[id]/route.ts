@@ -1,3 +1,4 @@
+import { incomeUpdateSchema } from "@/lib/finance-form-schemas"
 import {
   withUser,
   financeDeps,
@@ -16,16 +17,20 @@ export async function PATCH(
 ) {
   const { id } = await ctx.params
   const body = await req.json()
+
   return withUser(req, async (userId) => {
-    const { year, month } = await periodOf(req)
-    const income = await updateIncome(financeDeps, userId, {
-      id,
+    const parsed = incomeUpdateSchema.parse({
       accountId: String(body.accountId),
       categoryId: String(body.categoryId),
       name: String(body.name ?? ""),
       amount: Number(body.amount),
       dayOfMonth: Number(body.dayOfMonth),
       isActive: body.isActive ?? true,
+    })
+    const { year, month } = await periodOf(req)
+    const income = await updateIncome(financeDeps, userId, {
+      id,
+      ...parsed,
       year,
       month,
     })

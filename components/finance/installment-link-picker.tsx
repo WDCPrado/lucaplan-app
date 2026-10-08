@@ -103,7 +103,7 @@ export function InstallmentLinkPicker({
       onOpenChange={onOpenChange}
       title="Asignar un movimiento"
     >
-      <div className="flex flex-col px-4 pb-4">
+      <div className="flex flex-col px-5 pb-4">
         <p className="py-3 text-xs text-muted-foreground">
           Elige el gasto que corresponde a esta cuota. No se crea nada nuevo: el
           movimiento pasa a ser la cuota.
@@ -134,7 +134,7 @@ export function InstallmentLinkPicker({
                 onClick={() => setOnlyCategory(!onlyCategory)}
                 aria-pressed={onlyCategory}
                 className={cn(
-                  "h-9 shrink-0 rounded-lg border px-3 text-xs whitespace-nowrap transition-colors",
+                  "h-11 shrink-0 rounded-lg border px-3 text-xs whitespace-nowrap transition-colors",
                   onlyCategory
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border text-muted-foreground"

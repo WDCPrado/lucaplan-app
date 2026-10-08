@@ -1,7 +1,18 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useId, useState } from "react"
+import { Controller, useForm, useWatch } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import {
+  transactionEditFormSchema,
+  type TransactionUpdateFormValues,
+} from "@/lib/finance-form-schemas"
+import {
+  FinanceField,
+  MoneyFormInput,
+  financeResponseError,
+} from "./finance-form-field"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { es } from "date-fns/locale"
@@ -50,7 +61,6 @@ import { CorrectionLearnStep } from "./correction-learn-step"
 import { RecurringModal } from "./recurring-modal"
 import { InstallmentModal } from "./installment-modal"
 import { AssignToInstallmentModal } from "./assign-to-installment-modal"
-import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
 import {
   categoryUsageLine,
@@ -175,13 +185,21 @@ export const toISODate = (d: Date) =>
 export function DatePicker({
   value,
   onChange,
+  id,
+  invalid,
+  describedBy,
   placeholder = "Elegir fecha",
   fromDate,
+  toDate,
 }: {
+  id?: string
+  invalid?: boolean
+  describedBy?: string
   value: string // "" = sin fecha elegida todavía
   onChange: (v: string) => void
   placeholder?: string
   fromDate?: string // YYYY-MM-DD: días anteriores deshabilitados
+  toDate?: string // YYYY-MM-DD: días posteriores deshabilitados
 }) {
   const [open, setOpen] = useState(false)
   // Sin valor no hay día seleccionado: el calendario abre en el mes actual y el botón muestra
@@ -191,8 +209,12 @@ export function DatePicker({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          type="button"
+          id={id}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
           variant="outline"
-          className="h-11 w-full justify-start rounded-lg text-base font-normal"
+          className="h-12 w-full justify-start rounded-lg text-base font-normal"
         >
           <CalendarIcon className="size-4 text-muted-foreground" />
           {selected ? (
@@ -214,7 +236,10 @@ export function DatePicker({
           locale={es}
           selected={selected}
           defaultMonth={selected}
-          disabled={fromDate ? { before: parseISODate(fromDate) } : undefined}
+          disabled={[
+            ...(fromDate ? [{ before: parseISODate(fromDate) }] : []),
+            ...(toDate ? [{ after: parseISODate(toDate) }] : []),
+          ]}
           onSelect={(d) => {
             if (!d) return
             onChange(toISODate(d))
@@ -252,6 +277,7 @@ export function TransactionModal({
             key={tx.id}
             tx={tx}
             account={account}
+            accounts={accounts}
             categories={categories}
             onClose={() => onOpenChange(false)}
           />
@@ -272,28 +298,56 @@ export function TransactionModal({
 function EditForm({
   tx,
   account,
+  accounts,
   categories,
   onClose,
 }: {
   tx: TransactionDTO
   account: AccountDTO | undefined
+  accounts: AccountDTO[]
   categories: CategoryDTO[]
   onClose: () => void
 }) {
   const router = useRouter()
-  const [description, setDescription] = useState(tx.description)
-  const [direction, setDirection] = useState<"debit" | "credit">(
-    tx.direction === "credit" ? "credit" : "debit"
-  )
-  const [categoryId, setCategoryId] = useState<string | null>(tx.categoryId)
-  const [date, setDate] = useState(tx.date.slice(0, 10))
-  const money = useMoneyInput(tx.currency as CurrencyCode, Math.abs(tx.amount))
+  const instanceId = useId()
+  const [apiError, setApiError] = useState<string | null>(null)
+  const form = useForm<TransactionUpdateFormValues>({
+    resolver: zodResolver(transactionEditFormSchema),
+    defaultValues: {
+      description: tx.description,
+      direction: tx.direction === "credit" ? "credit" : "debit",
+      categoryId: tx.categoryId,
+      date: tx.date.slice(0, 10),
+      amount: Math.abs(tx.amount),
+    },
+  })
+  const [direction, categoryId] = useWatch({
+    control: form.control,
+    name: ["direction", "categoryId"],
+  })
+  const setCategoryId = (value: string | null) =>
+    form.setValue("categoryId", value, { shouldDirty: true })
   const [busy, setBusy] = useState<null | "save" | "delete">(null)
   // La cuota de un plan: su monto es un espejo del cronograma (se edita en el plan, que sincroniza
   // el movimiento) y su categoría es la del plan (cambiarla aquí recategoriza el plan completo).
   const isInstallment = !!tx.installmentItemId
+  const [makeRecurring, setMakeRecurring] = useState(false)
+  const [makeInstallments, setMakeInstallments] = useState(false)
+  const [assignInstallment, setAssignInstallment] = useState(false)
+  // La conversión usa el movimiento guardado: nunca adopta un borrador sin guardar.
+  const showConversions =
+    tx.direction === "debit" &&
+    !tx.isInternal &&
+    !!tx.categoryId &&
+    !tx.recurringTemplateId &&
+    !tx.installmentItemId &&
+    !tx.installmentSourceCount &&
+    !tx.installmentForecast
+  const conversionsDisabled = form.formState.isDirty || busy !== null
+  const isCreditCard = account?.accountType === "credit_card"
 
-  const canSave = money.value > 0 && description.trim() !== "" && busy === null
+  const canSave =
+    form.formState.isDirty && busy === null && !form.formState.isSubmitting
 
   // Categorías filtradas por el lado elegido (gasto/ingreso); al cambiar de lado se limpia si no calza.
   const visibleCategories = savedFirst(
@@ -304,83 +358,137 @@ function EditForm({
   )
 
   function changeDirection(d: "debit" | "credit") {
-    setDirection(d)
+    form.setValue("direction", d, { shouldDirty: true })
     const t = d === "credit" ? "income" : "expense"
     if (categoryId && categories.find((c) => c.id === categoryId)?.type !== t)
       setCategoryId(null)
   }
 
-  async function save() {
-    if (!canSave) return
+  async function save(input: TransactionUpdateFormValues) {
+    setApiError(null)
     setBusy("save")
-    const res = await fetch(`/api/transactions/${tx.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        description: description.trim(),
-        amount: money.value,
-        direction,
-        categoryId,
-        date,
-      }),
-    })
-    setBusy(null)
-    haptic(res.ok ? "success" : "error")
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/transactions/${tx.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...input,
+          description: input.description.trim(),
+        }),
+      })
+      if (!res.ok)
+        throw new Error(
+          await financeResponseError(
+            res,
+            "No se pudo guardar el movimiento. Inténtalo otra vez."
+          )
+        )
+      haptic("success")
       onClose()
       router.refresh()
+    } catch (error) {
+      haptic("error")
+      setApiError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar el movimiento."
+      )
+    } finally {
+      setBusy(null)
     }
   }
 
   async function remove() {
+    setApiError(null)
     setBusy("delete")
-    haptic("heavy") // acción destructiva
-    const res = await fetch(`/api/transactions/${tx.id}`, { method: "DELETE" })
-    setBusy(null)
-    if (res.ok) {
+    haptic("heavy")
+    try {
+      const res = await fetch(`/api/transactions/${tx.id}`, {
+        method: "DELETE",
+      })
+      if (!res.ok)
+        throw new Error(
+          await financeResponseError(
+            res,
+            "No se pudo eliminar el movimiento. Inténtalo otra vez."
+          )
+        )
       onClose()
       router.refresh()
-    } else {
+    } catch (error) {
       haptic("error")
+      setApiError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo eliminar el movimiento."
+      )
+    } finally {
+      setBusy(null)
     }
   }
 
-  return (
-    <div className="flex flex-col gap-5 px-4">
-      <Input
-        placeholder="Descripción"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none placeholder:font-normal focus-visible:ring-0 md:text-2xl"
-      />
-      <div className="flex items-center gap-3">
+  const editor = (
+    <form
+      id={`edit-transaction-${tx.id}-${instanceId}`}
+      onSubmit={form.handleSubmit(save)}
+      className="flex flex-col gap-6 px-5"
+      noValidate
+    >
+      {apiError && (
+        <p
+          role="alert"
+          className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
+        >
+          {apiError}
+        </p>
+      )}
+      <FinanceField
+        id={`transaction-description-${tx.id}-${instanceId}`}
+        label="Descripción"
+        error={form.formState.errors.description?.message}
+      >
+        <Input
+          id={`transaction-description-${tx.id}-${instanceId}`}
+          {...form.register("description")}
+          inputMode="text"
+          className="h-12 text-base"
+        />
+      </FinanceField>
+      <div className="flex flex-col gap-3">
+        <span className="text-sm font-medium">Tipo de movimiento</span>
         <DirectionToggle
           value={direction}
           onChange={changeDirection}
-          disabled={isInstallment}
-        />
-        <span
-          className="text-2xl font-semibold text-muted-foreground"
-          aria-hidden
-        >
-          $
-        </span>
-        <Input
-          inputMode="numeric"
-          value={money.display}
-          onChange={(e) => money.onChange(e.target.value)}
-          disabled={isInstallment}
-          aria-label="Monto del movimiento"
-          className={cn(
-            // Misma regla que las filas del dashboard: ingreso verde, gasto neutro. Rojo queda
-            // reservado para estados (vencido, error), no para "es un gasto".
-            "tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0 md:text-3xl",
-            direction === "debit" ? "text-foreground" : "text-success"
-          )}
+          disabled={isInstallment || busy !== null}
         />
       </div>
+      <Controller
+        name="amount"
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <FinanceField
+            id={`transaction-amount-${tx.id}-${instanceId}`}
+            label={`Monto (${tx.currency})`}
+            error={fieldState.error?.message}
+          >
+            <MoneyFormInput
+              id={`transaction-amount-${tx.id}-${instanceId}`}
+              value={field.value}
+              onValueChange={field.onChange}
+              currency={tx.currency as CurrencyCode}
+              readOnly={isInstallment}
+              aria-invalid={!!fieldState.error}
+              aria-describedby={
+                fieldState.error
+                  ? `transaction-amount-${tx.id}-${instanceId}-error`
+                  : undefined
+              }
+            />
+          </FinanceField>
+        )}
+      />
       {isInstallment && (
-        <p className="-mt-3 text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           El monto de una cuota se edita en su plan de cuotas.
         </p>
       )}
@@ -396,10 +504,29 @@ function EditForm({
         </div>
       )}
 
-      <div>
-        <Label className="mb-1 block text-xs">Fecha</Label>
-        <DatePicker value={date} onChange={setDate} />
-      </div>
+      <Controller
+        name="date"
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <FinanceField
+            id={`transaction-date-${tx.id}-${instanceId}`}
+            label="Fecha"
+            error={fieldState.error?.message}
+          >
+            <DatePicker
+              id={`transaction-date-${tx.id}-${instanceId}`}
+              value={field.value}
+              onChange={field.onChange}
+              invalid={!!fieldState.error}
+              describedBy={
+                fieldState.error
+                  ? `transaction-date-${tx.id}-${instanceId}-error`
+                  : undefined
+              }
+            />
+          </FinanceField>
+        )}
+      />
 
       <div>
         <Label className="mb-1 block text-xs">Categoría</Label>
@@ -409,7 +536,7 @@ function EditForm({
           </p>
         ) : (
           <>
-            <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
+            <div className="-mx-5 flex scrollbar-none gap-2 overflow-x-auto px-5 pb-1">
               {/* Sin categoría solo si NO es recurrente ni cuota: plantilla y plan exigen una,
                   y quitarla aquí los dejaría sin la suya. */}
               {!tx.recurringTemplateId && !isInstallment && (
@@ -462,9 +589,70 @@ function EditForm({
       </div>
 
       <ModalFooter>
+        {showConversions && (
+          <div className="flex basis-full flex-col gap-2">
+            <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={conversionsDisabled}
+                aria-describedby={
+                  form.formState.isDirty
+                    ? `transaction-conversions-${tx.id}-${instanceId}`
+                    : undefined
+                }
+                onClick={() => {
+                  haptic("light")
+                  setMakeRecurring(true)
+                }}
+                className="h-12 min-w-0 px-2 text-sm"
+              >
+                <Repeat className="size-4 shrink-0" />
+                Hacer recurrente
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={conversionsDisabled}
+                aria-describedby={
+                  form.formState.isDirty
+                    ? `transaction-conversions-${tx.id}-${instanceId}`
+                    : undefined
+                }
+                onClick={() => {
+                  haptic("light")
+                  if (isCreditCard) setMakeInstallments(true)
+                  else setAssignInstallment(true)
+                }}
+                className="h-12 min-w-0 px-2 text-sm"
+              >
+                <CreditCard className="size-4 shrink-0" />
+                {isCreditCard ? "Pasar a cuotas" : "Es una cuota"}
+              </Button>
+            </div>
+            {form.formState.isDirty && (
+              <p
+                id={`transaction-conversions-${tx.id}-${instanceId}`}
+                className="text-sm text-muted-foreground"
+              >
+                Guarda los cambios antes de hacer recurrente o pasar a cuotas.
+              </p>
+            )}
+          </div>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onClose}
+          disabled={busy !== null}
+          className="h-12"
+        >
+          Cancelar
+        </Button>
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
+              type="button"
               variant="outline"
               size="icon"
               disabled={busy !== null}
@@ -486,22 +674,76 @@ function EditForm({
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={remove} variant="destructive">
+              <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                type="button"
+                onClick={remove}
+                variant="destructive"
+              >
                 {busy === "delete" ? "Borrando…" : "Eliminar"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
         <Button
-          onClick={save}
+          type="submit"
+          form={`edit-transaction-${tx.id}-${instanceId}`}
           disabled={!canSave}
           className="h-12 flex-1 text-base"
         >
           {busy === "save" ? "Guardando…" : "Guardar"}
         </Button>
       </ModalFooter>
-    </div>
+    </form>
+  )
+
+  return (
+    <>
+      {editor}
+      {/* Los formularios de conversión son hermanos del editor, nunca formularios anidados. */}
+      {makeRecurring && (
+        <RecurringModal
+          open
+          onOpenChange={setMakeRecurring}
+          onSaved={onClose}
+          accounts={accounts}
+          categories={categories}
+          preset={{
+            label: tx.description,
+            accountId: tx.accountId,
+            categoryId: tx.categoryId,
+            baseAmount: Math.abs(tx.amount),
+            dayOfMonth: new Date(tx.date).getUTCDate(),
+            sourceTransactionId: tx.id,
+          }}
+        />
+      )}
+      {makeInstallments && (
+        <InstallmentModal
+          open
+          onOpenChange={setMakeInstallments}
+          onCreated={onClose}
+          accounts={accounts}
+          categories={categories}
+          kind="card"
+          preset={{
+            description: tx.description,
+            accountId: tx.accountId,
+            categoryId: tx.categoryId,
+            totalAmount: Math.abs(tx.amount),
+            sourceTransactionId: tx.id,
+          }}
+        />
+      )}
+      {assignInstallment && (
+        <AssignToInstallmentModal
+          open
+          onOpenChange={setAssignInstallment}
+          transactionId={tx.id}
+          onAssigned={onClose}
+        />
+      )}
+    </>
   )
 }
 
@@ -689,7 +931,7 @@ function ConnectedDetail({
 
   if (learn) {
     return (
-      <div className="flex flex-col gap-5 px-4 pb-6">
+      <div className="flex flex-col gap-6 px-5 pb-6">
         <CorrectionLearnStep
           description={tx.description}
           sameTextCount={learn.sameTextCount}
@@ -705,7 +947,7 @@ function ConnectedDetail({
   }
 
   return (
-    <div className="flex flex-col gap-6 px-4">
+    <div className="flex flex-col gap-8 px-5">
       <div className="flex flex-col items-center gap-1 pt-2 text-center">
         <div
           className={`tabular text-4xl font-bold ${income ? "text-success" : "text-foreground"}`}
@@ -826,7 +1068,7 @@ function ConnectedDetail({
           </p>
         ) : (
           <>
-            <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
+            <div className="-mx-5 flex scrollbar-none gap-2 overflow-x-auto px-5 pb-1">
               {/* Sin categoría solo si NO es recurrente ni de un plan de cuotas: plantilla y plan
                   exigen una, y quitarla aquí los dejaría sin la suya. */}
               {!tx.recurringTemplateId && !inInstallmentPlan && (
@@ -879,10 +1121,20 @@ function ConnectedDetail({
       </div>
 
       <ModalFooter>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onClose}
+          disabled={saving}
+          className="h-12"
+        >
+          Cerrar
+        </Button>
         {tx.recurringTemplateId ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
+                type="button"
                 variant="outline"
                 size="icon"
                 disabled={saving}
@@ -921,6 +1173,7 @@ function ConnectedDetail({
           showConversions && (
             <>
               <Button
+                type="button"
                 variant="outline"
                 onClick={() => {
                   haptic("light")
@@ -937,6 +1190,7 @@ function ConnectedDetail({
                   ya existe, y lo que corresponde es asignarlo — no crear nada. */}
               {isCreditCard ? (
                 <Button
+                  type="button"
                   variant="outline"
                   onClick={() => {
                     haptic("light")
@@ -950,6 +1204,7 @@ function ConnectedDetail({
                 </Button>
               ) : (
                 <Button
+                  type="button"
                   variant="outline"
                   onClick={() => {
                     haptic("light")
@@ -973,6 +1228,7 @@ function ConnectedDetail({
           !inInstallmentPlan &&
           !tx.installmentForecast && (
             <Button
+              type="button"
               variant="outline"
               size="icon"
               onClick={() => setConfirmDeleteTx(true)}
@@ -984,6 +1240,7 @@ function ConnectedDetail({
             </Button>
           )}
         <Button
+          type="button"
           onClick={saveCategory}
           disabled={!changed || saving}
           className={cn(
@@ -1006,8 +1263,12 @@ function ConnectedDetail({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={removeTx} variant="destructive">
+            <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              onClick={removeTx}
+              variant="destructive"
+            >
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1024,8 +1285,12 @@ function ConnectedDetail({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteRecurring} variant="destructive">
+            <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              onClick={deleteRecurring}
+              variant="destructive"
+            >
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1055,10 +1320,8 @@ function ConnectedDetail({
       {makeLoan && (
         <InstallmentModal
           open
-          onOpenChange={(o) => {
-            setMakeLoan(o)
-            if (!o) onClose()
-          }}
+          onOpenChange={setMakeLoan}
+          onCreated={onClose}
           accounts={accounts}
           categories={categories}
           kind="loan"
@@ -1079,10 +1342,8 @@ function ConnectedDetail({
       {makeInstallments && (
         <InstallmentModal
           open
-          onOpenChange={(o) => {
-            setMakeInstallments(o)
-            if (!o) onClose()
-          }}
+          onOpenChange={setMakeInstallments}
+          onCreated={onClose}
           accounts={accounts}
           categories={categories}
           kind="card"
@@ -1101,10 +1362,8 @@ function ConnectedDetail({
       {makeRecurring && (
         <RecurringModal
           open
-          onOpenChange={(o) => {
-            setMakeRecurring(o)
-            if (!o) onClose()
-          }}
+          onOpenChange={setMakeRecurring}
+          onSaved={onClose}
           accounts={accounts}
           categories={categories}
           preset={{
@@ -1141,7 +1400,7 @@ export function DirectionToggle({
   disabled?: boolean
 }) {
   return (
-    <div className="flex overflow-hidden rounded-lg border">
+    <div className="flex w-full overflow-hidden rounded-lg border">
       {(["debit", "credit"] as const).map((d) => (
         <button
           key={d}
@@ -1154,14 +1413,14 @@ export function DirectionToggle({
           aria-pressed={value === d}
           aria-label={d === "debit" ? "Gasto" : "Ingreso"}
           className={cn(
-            "size-11 text-xl disabled:opacity-50",
+            "flex h-12 flex-1 items-center justify-center gap-2 px-4 text-sm font-medium transition-colors disabled:opacity-50",
             value === d &&
               (d === "debit"
-                ? "bg-destructive text-destructive-foreground"
+                ? "bg-primary text-primary-foreground"
                 : "bg-success text-success-foreground")
           )}
         >
-          {d === "debit" ? "−" : "+"}
+          {d === "debit" ? "− Gasto" : "+ Ingreso"}
         </button>
       ))}
     </div>
@@ -1188,8 +1447,9 @@ export function Chip({
         onClick()
       }}
       disabled={disabled}
+      aria-pressed={active}
       className={cn(
-        "flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-4 text-sm whitespace-nowrap disabled:opacity-50",
+        "flex min-h-11 shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
         active
           ? "border-primary bg-primary/10 text-primary"
           : "text-muted-foreground"

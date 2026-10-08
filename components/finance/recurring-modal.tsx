@@ -72,6 +72,7 @@ export type RecurringPreset = {
 export function RecurringModal({
   open,
   onOpenChange,
+  onSaved,
   accounts,
   categories,
   template,
@@ -79,15 +80,14 @@ export function RecurringModal({
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
+  onSaved?: () => void
   accounts: AccountDTO[]
   categories: CategoryDTO[]
   template?: RecurringDTO | null // null/undefined = crear
   preset?: RecurringPreset | null // precarga al crear desde un movimiento
 }) {
   const router = useRouter()
-  const [label, setLabel] = useState(
-    template?.label ?? preset?.label ?? ""
-  )
+  const [label, setLabel] = useState(template?.label ?? preset?.label ?? "")
   const [accountId, setAccountId] = useState(
     template?.accountId ?? preset?.accountId ?? accounts[0]?.id ?? ""
   )
@@ -98,7 +98,9 @@ export function RecurringModal({
   const [periodicity, setPeriodicity] = useState<string>(
     template?.periodicity ?? "monthly"
   )
-  const [day, setDay] = useState(template?.dayOfMonth ?? preset?.dayOfMonth ?? 1)
+  const [day, setDay] = useState(
+    template?.dayOfMonth ?? preset?.dayOfMonth ?? 1
+  )
   // Fin de vigencia: vacío = indefinida (nunca termina), que es el caso normal.
   const [endDate, setEndDate] = useState(
     template?.endDate ? template.endDate.slice(0, 10) : ""
@@ -158,7 +160,9 @@ export function RecurringModal({
           startDate: template?.startDate ?? new Date().toISOString(),
           endDate: endDate || null,
           isActive: template?.isActive ?? true,
-          sourceTransactionId: template ? undefined : preset?.sourceTransactionId,
+          sourceTransactionId: template
+            ? undefined
+            : preset?.sourceTransactionId,
         }),
       }
     )
@@ -171,6 +175,7 @@ export function RecurringModal({
     haptic("success")
     toast.success(template ? "Recurrente actualizada" : "Recurrente creada")
     onOpenChange(false)
+    onSaved?.()
     router.refresh()
   }
 
@@ -202,7 +207,9 @@ export function RecurringModal({
     if (!template) return
     patch(
       { periodPaid: !template.currentPeriodPaid },
-      template.currentPeriodPaid ? "Marca deshecha" : "Cobro marcado como pagado",
+      template.currentPeriodPaid
+        ? "Marca deshecha"
+        : "Cobro marcado como pagado",
       "No se pudo marcar el cobro"
     )
   }
@@ -292,7 +299,7 @@ export function RecurringModal({
           Necesitas una cuenta para crear un gasto recurrente.
         </div>
       ) : (
-        <div className="flex flex-col px-4">
+        <div className="flex flex-col px-5">
           {/* El banco avisa cuando quiere, y hasta entonces el gasto sigue como comprometido y el
               presupuesto muestra plata que ya salió. Va arriba porque es el estado del período,
               no un campo del formulario. Solo se deshace lo marcado a mano: un cargo del banco es
@@ -309,6 +316,7 @@ export function RecurringModal({
                   cuenta manual, y reemplazarlo lo borraría sin devolver su saldo. */}
               {!template.currentPeriodPaid && (
                 <Button
+                  type="button"
                   variant="outline"
                   onClick={togglePaid}
                   disabled={saving}
@@ -330,6 +338,7 @@ export function RecurringModal({
               {(!template.currentPeriodPaid ||
                 template.currentPeriodPaidManually) && (
                 <Button
+                  type="button"
                   variant="ghost"
                   onClick={openPicker}
                   disabled={saving}
@@ -458,6 +467,7 @@ export function RecurringModal({
                     />
                   </span>
                   <Button
+                    type="button"
                     variant="ghost"
                     onClick={() => {
                       setWithEnd(false)
@@ -522,10 +532,20 @@ export function RecurringModal({
           )}
 
           <ModalFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
+              className="h-12 flex-1"
+            >
+              Cancelar
+            </Button>
             {template && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
+                    type="button"
                     variant="outline"
                     size="icon"
                     disabled={saving}
@@ -546,8 +566,11 @@ export function RecurringModal({
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogCancel type="button">
+                      Cancelar
+                    </AlertDialogCancel>
                     <AlertDialogAction
+                      type="button"
                       onClick={remove}
                       variant="destructive"
                     >
@@ -559,11 +582,16 @@ export function RecurringModal({
             )}
             {template && !template.hasEnded && (
               <Button
+                type="button"
                 variant="outline"
                 size="icon"
                 disabled={saving}
                 onClick={toggleActive}
-                aria-label={template.isActive ? "Pausar recurrente" : "Reanudar recurrente"}
+                aria-label={
+                  template.isActive
+                    ? "Pausar recurrente"
+                    : "Reanudar recurrente"
+                }
                 title={template.isActive ? "Pausar" : "Reanudar"}
                 className="size-12 shrink-0"
               >
@@ -575,11 +603,16 @@ export function RecurringModal({
               </Button>
             )}
             <Button
+              type="button"
               onClick={save}
               disabled={!canSave}
               className="h-12 flex-1 text-base"
             >
-              {saving ? "Guardando…" : template ? "Guardar" : "Crear recurrente"}
+              {saving
+                ? "Guardando…"
+                : template
+                  ? "Guardar"
+                  : "Crear recurrente"}
             </Button>
           </ModalFooter>
         </div>
@@ -602,7 +635,7 @@ function Section({
   return (
     <section
       className={cn(
-        "flex flex-col gap-3 py-5",
+        "flex flex-col gap-4 py-7",
         !last && "border-b border-border/60"
       )}
     >
@@ -615,7 +648,7 @@ function Section({
 // Fila de chips con scroll horizontal que sangra hasta los bordes del modal.
 function ChipRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
+    <div className="-mx-5 flex scrollbar-none gap-2 overflow-x-auto px-5 pb-1">
       {children}
     </div>
   )

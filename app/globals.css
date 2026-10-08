@@ -405,3 +405,190 @@ html:has(main[data-landing]) body {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* Producto: superficies sólidas. La landing conserva su dirección propia. */
+html:has([data-app-shell]),
+html:has([data-app-shell]) body {
+  background-color: var(--background);
+  background-image: none;
+}
+[data-product] .glass,
+[data-product] .glass-strong {
+  background: var(--card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  border-color: var(--border);
+}
+[data-product] button:focus-visible,
+[data-product] a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+[data-product] ::selection {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+[data-product] [data-slot="input"],
+[data-product] [data-slot="tabs-list"],
+[data-product] [data-slot="tabs-trigger"][data-state="active"] {
+  background-color: var(--card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-product] [data-slot="input"].bg-transparent {
+  background-color: transparent;
+}
+
+/* Home: anchos de contenido, independientes de la sidebar abierta/cerrada. */
+.home-summary {
+  container-type: inline-size;
+}
+.home-summary-content {
+  display: grid;
+  gap: 1rem;
+}
+.home-summary-details {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+.home-summary-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.75rem, 1fr));
+  gap: 0.5rem;
+}
+.home-summary-budget,
+.home-summary-desktop-action,
+.home-summary-allocation {
+  display: none;
+}
+@container (min-width: 900px) {
+  .home-summary-content {
+    grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr) auto;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  .home-summary-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .home-summary-details {
+    border-top: 0;
+    padding-top: 0;
+  }
+  .home-summary-totals {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .home-summary-budget,
+  .home-summary-desktop-action,
+  .home-summary-allocation {
+    display: block;
+  }
+  .home-summary-desktop-action {
+    display: inline-flex;
+  }
+  .home-summary-mobile-action,
+  .home-summary-mobile-budget {
+    display: none;
+  }
+}
+@container (max-width: 290px) {
+  .home-summary-head {
+    flex-wrap: wrap;
+  }
+}
+.home-summary-totals dt,
+.home-summary-totals dd {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767px) {
+  .home-period-actions {
+    max-width: calc(100% - 3.5rem);
+  }
+}
+.home-categories {
+  container: category-plan / inline-size;
+}
+.home-category-desktop {
+  display: none;
+}
+@container category-plan (min-width: 680px) {
+  .home-category-row {
+    display: block;
+    min-height: 4rem;
+    padding: 0.75rem 1rem;
+  }
+  .home-category-mobile {
+    display: none;
+  }
+  .home-category-desktop {
+    display: grid;
+  }
+  .home-category-columns {
+    grid-template-columns:
+      minmax(150px, 1.5fr) repeat(3, minmax(90px, 1fr))
+      minmax(110px, 1.1fr);
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .home-category-list > .home-category-columns {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+@media (min-width: 768px) {
+  .home-categories {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: var(--card);
+  }
+  .home-category-heading {
+    margin-bottom: 0;
+    padding: 0.5rem 1rem;
+  }
+  .home-category-list {
+    padding: 0 1rem;
+  }
+}
+@media (min-width: 1280px) {
+  .home-workspace {
+    grid-template-columns: minmax(0, 2fr) minmax(340px, 1fr);
+    align-items: start;
+  }
+  .home-categories {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .home-activity {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .home-recent {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .home-accounts {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+}
+@container category-plan (min-width: 680px) {
+  .home-category-list {
+    padding: 0;
+  }
+  .home-category-list > button {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+/* `bg-glass` es un token translúcido heredado, incluso sin clase .glass. */
+[data-product] .bg-glass {
+  background-color: var(--secondary);
+}
+[data-product] [data-slot="sidebar-inset"] {
+  background-color: var(--background);
+}

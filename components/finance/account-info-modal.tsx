@@ -20,6 +20,7 @@ import {
 import { AccountCard } from "./account-card"
 import { BalanceScanPanel } from "./balance-scan-panel"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
+import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 const TYPE_LABEL: Record<string, string> = {
@@ -49,6 +50,8 @@ export function AccountInfoModal({
   // Conectada = importada por un banco, cualquiera sea (ver account-card.tsx).
   const connected = !!account && account.provider !== "manual"
   const buckets = account?.buckets ?? []
+  const cash = buckets.find((b) => b.kind === "cash")
+  const overdraft = buckets.find((b) => b.kind === "overdraft")
   const nat = buckets.find((b) => b.kind === "credit_national")
   const intl = buckets.find((b) => b.kind === "credit_international")
   // Tarjeta de crédito: el "saldo" útil es el CUPO DISPONIBLE, no la deuda (account.balance negativo).
@@ -97,7 +100,7 @@ export function AccountInfoModal({
       title={mode === "scan" ? "Actualizar saldo" : "Detalle de la cuenta"}
     >
       {account && mode === "scan" && (
-        <div className="flex flex-col gap-4 px-4 pb-6">
+        <div className="flex flex-col gap-7 px-5 pb-6">
           <BalanceScanPanel
             account={account}
             onDone={() => onOpenChange(false)}
@@ -109,7 +112,7 @@ export function AccountInfoModal({
       )}
 
       {account && mode === "info" && (
-        <div className="flex flex-col gap-5 px-4 pb-6">
+        <div className="flex flex-col gap-8 px-5 pb-6">
           <AccountCard account={account} />
 
           <dl className="flex flex-col">
@@ -134,8 +137,32 @@ export function AccountInfoModal({
                   />
                 )}
               </>
-            ) : (
-              <Row label="Saldo" value={formatCLP(account.balance)} />
+            ) : !cash ? (
+              <Row
+                label={account.balance < 0 ? "Deuda" : "Saldo disponible"}
+                value={formatMoney(
+                  Math.abs(account.balance),
+                  account.currency as CurrencyCode
+                )}
+              />
+            ) : null}
+            {cash && (
+              <Row
+                label="Caja disponible"
+                value={formatMoney(
+                  cash.available,
+                  cash.currency as CurrencyCode
+                )}
+              />
+            )}
+            {overdraft && overdraft.used > 0 && (
+              <Row
+                label="Deuda de sobregiro"
+                value={formatMoney(
+                  overdraft.used,
+                  overdraft.currency as CurrencyCode
+                )}
+              />
             )}
             {account.cardLast4 && (
               <Row label="Tarjeta" value={`•••• ${account.cardLast4}`} />
@@ -201,12 +228,12 @@ export function AccountInfoModal({
               {disconnectError ? (
                 <p
                   role="alert"
-                  className="text-center text-xs text-destructive"
+                  className="text-center text-sm text-destructive"
                 >
                   {disconnectError}
                 </p>
               ) : (
-                <p className="text-center text-xs text-muted-foreground">
+                <p className="text-center text-sm text-muted-foreground">
                   Elimina la conexión, sus credenciales y todos sus datos de
                   Luca Plan.
                 </p>
@@ -221,9 +248,11 @@ export function AccountInfoModal({
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-border/50 py-3 last:border-0">
+    <div className="flex items-center justify-between gap-5 border-b border-border py-4 last:border-0">
       <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="text-right text-sm font-medium">{value}</dd>
+      <dd className="min-w-0 text-right text-base font-medium break-words">
+        {value}
+      </dd>
     </div>
   )
 }

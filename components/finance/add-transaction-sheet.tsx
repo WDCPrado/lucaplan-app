@@ -1,8 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import type { ReactNode } from "react"
+
+import { useId, useState } from "react"
+import { Controller, useForm, useWatch } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import {
+  transactionSchema,
+  type TransactionFormValues,
+} from "@/lib/finance-form-schemas"
+import { FinanceField, MoneyFormInput } from "./finance-form-field"
 import { useRouter } from "next/navigation"
-import { toast } from "sonner"
 import { Check, CreditCard, Landmark } from "lucide-react"
 import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
@@ -11,7 +19,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MovementScanPanel } from "./movement-scan-panel"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
-import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
 import {
   Chip,
@@ -20,26 +27,26 @@ import {
   toISODate,
 } from "./transaction-modal"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
-import type { Direction } from "@/arch/v1/domain/finance/finance.domain"
 import type {
   AccountDTO,
   CategoryDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 export function AddTransactionSheet({
+  children,
   open,
   onOpenChange,
   accounts,
   categories,
   onCreateAccount,
 }: {
+  children?: ReactNode
   open: boolean
   onOpenChange: (o: boolean) => void
   accounts: AccountDTO[]
   categories: CategoryDTO[]
   onCreateAccount: () => void
 }) {
-  const router = useRouter()
   // Cuentas que aceptan movimientos a mano: manuales (todo) y corrientes conectadas por correo
   // (solo abonos: el banco no notifica ingresos por correo; los cargos llegan solos).
   const manualAccounts = accounts.filter(
@@ -51,158 +58,16 @@ export function AddTransactionSheet({
   // se pierden los cargos que el aviso no trajo, y el alta a mano ni siquiera la ofrece.
   const bankAccounts = accounts.filter((a) => a.provider !== "manual")
 
-  const [description, setDescription] = useState("")
-  const [accountId, setAccountId] = useState(manualAccounts[0]?.id ?? "")
+  const [channel, setChannel] = useState("manual")
   const [scanAccountId, setScanAccountId] = useState(bankAccounts[0]?.id ?? "")
-  const [side, setSide] = useState<Direction>("debit")
-  const [categoryId, setCategoryId] = useState<string | null>(null)
-  const [date, setDate] = useState(() => toISODate(new Date()))
-  const [saving, setSaving] = useState(false)
-
-  // Cuenta activa: la seleccionada o la primera (cubre el caso de crear una cuenta recién).
-  const account =
-    manualAccounts.find((a) => a.id === accountId) ?? manualAccounts[0]
   const scanAccount =
     bankAccounts.find((a) => a.id === scanAccountId) ?? bankAccounts[0]
-  const money = useMoneyInput((account?.currency as CurrencyCode) ?? "CLP")
-  const amountNum = money.value
-  const canSave = amountNum > 0 && !!account && !saving
-
-  // Cuenta conectada: el backend solo acepta abonos ahí (los cargos llegan por correo), así que
-  // el lado queda fijo en ingreso. Derivado, no sincronizado: cambiar de cuenta ya lo corrige.
-  const connected = !!account && account.provider !== "manual"
-  const direction = connected ? "credit" : side
-  const income = direction === "credit"
-  const visibleCategories = categories.filter(
-    (c) => c.type === (income ? "income" : "expense")
-  )
-  // La categoría elegida solo vale para el lado actual; si se cambió de lado (o de cuenta), se
-  // ignora sin tener que limpiarla a mano.
-  const validCategoryId = visibleCategories.some((c) => c.id === categoryId)
-    ? categoryId
-    : null
-
-  async function save() {
-    if (!canSave || !account) return
-    setSaving(true)
-    const res = await fetch("/api/transactions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        accountId: account.id,
-        categoryId: validCategoryId,
-        amount: amountNum,
-        currency: account.currency,
-        direction,
-        description: description || (income ? "Ingreso" : "Gasto"),
-        date,
-      }),
-    })
-    setSaving(false)
-    haptic(res.ok ? "success" : "error")
-    // Sin esto, un fallo era invisible: el sheet quedaba abierto "sin pasar nada".
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      toast.error(
-        data.error ?? `No se pudo registrar el ${income ? "ingreso" : "gasto"}`
-      )
-      return
-    }
-    money.reset()
-    setDescription("")
-    setCategoryId(null)
-    setDate(toISODate(new Date()))
-    onOpenChange(false)
-    router.refresh()
-  }
-
   const manualForm = (
-    <>
-      <Input
-        placeholder="Descripción"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        // md:text-2xl: el Input trae md:text-sm y en escritorio dejaba el título en 14 px.
-        className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none placeholder:font-normal focus-visible:ring-0 md:text-2xl"
-      />
-      <div className="flex items-center gap-3">
-        <DirectionToggle
-          value={direction}
-          onChange={setSide}
-          disabled={connected}
-        />
-        <span
-          className="text-2xl font-semibold text-muted-foreground"
-          aria-hidden
-        >
-          $
-        </span>
-        <Input
-          inputMode="numeric"
-          placeholder="0"
-          value={money.display}
-          onChange={(e) => money.onChange(e.target.value)}
-          aria-label="Monto del movimiento"
-          className={cn(
-            // Misma regla que el resto: ingreso verde, gasto neutro.
-            "tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0 md:text-3xl",
-            income ? "text-success" : "text-foreground"
-          )}
-        />
-      </div>
-      {connected && (
-        <p className="-mt-2 text-xs text-muted-foreground">
-          Cuenta conectada: aquí registras abonos e ingresos — los cargos llegan
-          solos desde el correo del banco.
-        </p>
-      )}
-
-      <DatePicker value={date} onChange={setDate} />
-
-      {manualAccounts.length > 1 && (
-        <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
-          {manualAccounts.map((a) => (
-            <Chip
-              key={a.id}
-              active={a.id === account?.id}
-              onClick={() => setAccountId(a.id)}
-            >
-              {a.name}
-            </Chip>
-          ))}
-        </div>
-      )}
-
-      <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
-        {visibleCategories.length === 0 ? (
-          <span className="text-sm text-muted-foreground">
-            Sin categorías de {income ? "ingreso" : "gasto"}.
-          </span>
-        ) : (
-          visibleCategories.map((c) => (
-            <Chip
-              key={c.id}
-              active={c.id === validCategoryId}
-              onClick={() =>
-                setCategoryId(c.id === validCategoryId ? null : c.id)
-              }
-            >
-              <CategoryIcon icon={c.icon} size={16} /> {c.name}
-            </Chip>
-          ))
-        )}
-      </div>
-
-      <ModalFooter>
-        <Button
-          onClick={save}
-          disabled={!canSave}
-          className="h-12 flex-1 text-base"
-        >
-          {saving ? "Guardando…" : "Guardar"}
-        </Button>
-      </ModalFooter>
-    </>
+    <ManualTransactionForm
+      accounts={manualAccounts}
+      categories={categories}
+      onClose={() => onOpenChange(false)}
+    />
   )
 
   // De qué instrumento es la foto. Se elige la TARJETA o la cuenta, no el banco: dos bancos pueden
@@ -267,36 +132,279 @@ export function AddTransactionSheet({
       {accounts.length === 0 ? (
         <div className="flex flex-col items-center gap-4 px-4 py-10 text-center">
           <p className="text-sm text-muted-foreground">
-            Necesitas una tarjeta para registrar movimientos a mano.
+            Agrega una cuenta para registrar tu primer movimiento.
           </p>
-          <Button onClick={onCreateAccount} className="h-12">
-            Nueva tarjeta
+          <Button type="button" onClick={onCreateAccount} className="h-12">
+            Agregar cuenta
           </Button>
         </div>
       ) : bankAccounts.length === 0 ? (
         // Sin cuentas conectadas no hay nada que leer de una cartola: la pestaña sobraría.
-        <div className="flex flex-col gap-5 px-4">{manualForm}</div>
+        <div className="flex flex-col gap-8 px-5">{manualForm}</div>
       ) : manualAccounts.length === 0 ? (
-        <div className="flex flex-col gap-5 px-4">{bankTab}</div>
+        <div className="flex flex-col gap-8 px-5">{bankTab}</div>
       ) : (
-        <Tabs defaultValue="manual" className="gap-5 px-4">
+        <Tabs value={channel} onValueChange={setChannel} className="gap-8 px-5">
           {/* "Del banco" es una vía aparte, no una excepción escondida en el alta normal: ahí un
               cargo en cuenta conectada se duplicaría cuando llegue el correo. Acá se lee de la foto
               y se contrasta contra lo ya registrado antes de proponer nada. */}
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="manual">A mano</TabsTrigger>
+            <TabsTrigger value="manual">Manual</TabsTrigger>
             <TabsTrigger value="bank">Del banco</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="manual" className="flex flex-col gap-5">
+          <TabsContent
+            value="manual"
+            forceMount
+            hidden={channel !== "manual"}
+            className={cn(
+              "flex-col gap-8",
+              channel === "manual" ? "flex" : "hidden"
+            )}
+          >
             {manualForm}
           </TabsContent>
 
-          <TabsContent value="bank" className="flex flex-col gap-5">
+          <TabsContent value="bank" className="flex flex-col gap-8">
             {bankTab}
           </TabsContent>
         </Tabs>
       )}
+      {children}
     </ResponsiveModal>
+  )
+}
+
+function ManualTransactionForm({
+  accounts,
+  categories,
+  onClose,
+}: {
+  accounts: AccountDTO[]
+  categories: CategoryDTO[]
+  onClose: () => void
+}) {
+  const formId = `new-manual-transaction-${useId()}`
+  const router = useRouter()
+  const [apiError, setApiError] = useState<string | null>(null)
+  const form = useForm<TransactionFormValues>({
+    resolver: zodResolver(transactionSchema),
+    defaultValues: {
+      description: "",
+      accountId: accounts[0]?.id ?? "",
+      currency: (accounts[0]?.currency as CurrencyCode) ?? "CLP",
+      direction: accounts[0]?.provider !== "manual" ? "credit" : "debit",
+      categoryId: null,
+      amount: 0,
+      date: toISODate(new Date()),
+    },
+  })
+  const [accountId, direction, categoryId, currency] = useWatch({
+    control: form.control,
+    name: ["accountId", "direction", "categoryId", "currency"],
+  })
+  const account = accounts.find((a) => a.id === accountId) ?? accounts[0]
+  const connected = !!account && account.provider !== "manual"
+  const income = direction === "credit"
+  const visibleCategories = categories.filter(
+    (c) => c.type === (income ? "income" : "expense")
+  )
+  const saving = form.formState.isSubmitting
+  function chooseDirection(direction: "debit" | "credit") {
+    form.setValue("direction", direction, { shouldDirty: true })
+    if (
+      categories.find((c) => c.id === categoryId)?.type !==
+      (direction === "credit" ? "income" : "expense")
+    )
+      form.setValue("categoryId", null, { shouldDirty: true })
+  }
+  async function save(input: TransactionFormValues) {
+    if (!account) return
+    setApiError(null)
+    try {
+      const res = await fetch("/api/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...input,
+          description: input.description || (income ? "Ingreso" : "Gasto"),
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(
+          data.error ??
+            "No se pudo registrar el movimiento. Inténtalo otra vez."
+        )
+      }
+      haptic("success")
+      form.reset()
+      onClose()
+      router.refresh()
+    } catch (error) {
+      haptic("error")
+      setApiError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo registrar el movimiento. Inténtalo otra vez."
+      )
+    }
+  }
+  return (
+    <form
+      id={formId}
+      onSubmit={form.handleSubmit(save)}
+      className="flex flex-col gap-6"
+      noValidate
+    >
+      {apiError && (
+        <p
+          role="alert"
+          className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
+        >
+          {apiError}
+        </p>
+      )}
+      <FinanceField
+        id={`${formId}-description`}
+        label="Descripción"
+        error={form.formState.errors.description?.message}
+      >
+        <Input
+          id={`${formId}-description`}
+          {...form.register("description")}
+          inputMode="text"
+          placeholder={income ? "Ej. Sueldo" : "Ej. Compra supermercado"}
+          className="h-12 text-base"
+        />
+      </FinanceField>
+      <div className="flex flex-col gap-3">
+        <span className="text-sm font-medium">Tipo de movimiento</span>
+        <DirectionToggle
+          value={direction}
+          onChange={chooseDirection}
+          disabled={connected || saving}
+        />
+        {connected && (
+          <p className="text-sm text-muted-foreground">
+            En esta cuenta conectada puedes registrar abonos. Los cargos llegan
+            desde el correo del banco; si falta uno, usa Del banco.
+          </p>
+        )}
+      </div>
+      <Controller
+        name="amount"
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <FinanceField
+            id={`${formId}-amount`}
+            label={`Monto (${currency})`}
+            error={fieldState.error?.message}
+            required
+          >
+            <MoneyFormInput
+              id={`${formId}-amount`}
+              value={field.value}
+              onValueChange={field.onChange}
+              currency={currency}
+              aria-invalid={!!fieldState.error}
+              aria-describedby={
+                fieldState.error ? `${formId}-amount-error` : undefined
+              }
+              required
+            />
+          </FinanceField>
+        )}
+      />
+      <Controller
+        name="date"
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <FinanceField
+            id={`${formId}-date`}
+            label="Fecha"
+            error={fieldState.error?.message}
+            required
+          >
+            <DatePicker
+              id={`${formId}-date`}
+              value={field.value}
+              onChange={field.onChange}
+              invalid={!!fieldState.error}
+              describedBy={
+                fieldState.error ? `${formId}-date-error` : undefined
+              }
+            />
+          </FinanceField>
+        )}
+      />
+      <div className="flex flex-col gap-3">
+        <span className="text-sm font-medium">Cuenta</span>
+        <div className="-mx-5 flex scrollbar-none gap-2 overflow-x-auto px-5 pb-1">
+          {accounts.map((a) => (
+            <Chip
+              key={a.id}
+              active={a.id === account?.id}
+              disabled={saving}
+              onClick={() => {
+                form.setValue("accountId", a.id, { shouldDirty: true })
+                form.setValue("currency", a.currency as CurrencyCode, {
+                  shouldDirty: true,
+                })
+                if (a.provider !== "manual") chooseDirection("credit")
+              }}
+            >
+              {a.bankName} · {a.name}
+              {a.cardLast4 ? ` ···· ${a.cardLast4}` : ""}
+            </Chip>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col gap-3">
+        <span className="text-sm font-medium">Categoría</span>
+        <div className="-mx-5 flex scrollbar-none gap-2 overflow-x-auto px-5 pb-1">
+          {visibleCategories.map((c) => (
+            <Chip
+              key={c.id}
+              active={c.id === categoryId}
+              disabled={saving}
+              onClick={() =>
+                form.setValue("categoryId", c.id === categoryId ? null : c.id, {
+                  shouldDirty: true,
+                })
+              }
+            >
+              <CategoryIcon icon={c.icon} size={16} />
+              {c.name}
+            </Chip>
+          ))}
+        </div>
+        {visibleCategories.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            Sin categorías de {income ? "ingreso" : "gasto"}. Puedes
+            clasificarlo después.
+          </p>
+        )}
+      </div>
+      <ModalFooter>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onClose}
+          disabled={saving}
+          className="h-12 flex-1"
+        >
+          Cancelar
+        </Button>
+        <Button
+          type="submit"
+          form={formId}
+          disabled={!account || saving}
+          className="h-12 flex-1 text-base"
+        >
+          {saving ? "Guardando…" : "Guardar movimiento"}
+        </Button>
+      </ModalFooter>
+    </form>
   )
 }

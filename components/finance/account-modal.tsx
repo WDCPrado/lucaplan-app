@@ -1,19 +1,29 @@
 "use client"
 
-import { useState } from "react"
+import { useId } from "react"
+import { useForm, Controller, useWatch } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useMoneyInput } from "@/hooks/use-money-input"
-import { variantForType } from "@/lib/bank-cards"
-import { AccountCard } from "./account-card"
-import { Chip } from "./transaction-modal"
-import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
-import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  accountSchema,
+  type AccountFormValues,
+} from "@/lib/finance-form-schemas"
+import {
+  FinanceField,
+  MoneyFormInput,
+  financeResponseError,
+} from "./finance-form-field"
 
-// Alta manual = bancos/medios sin conexión automática (los conectados llegan por correo).
 const BANKS = [
   "Mercado Pago",
   "Tenpo",
@@ -25,200 +35,307 @@ const BANKS = [
   "Coopeuch",
   "Efectivo",
 ]
-
-// Alta manual = tarjetas (solo tipos con tarjeta).
-const TYPES: { value: string; label: string }[] = [
-  { value: "checking", label: "Tarjeta de débito" },
-  { value: "credit_card", label: "Tarjeta de crédito" },
-]
-
+const DEFAULTS: AccountFormValues = {
+  bankName: BANKS[0],
+  name: "",
+  accountType: "checking",
+  currency: "CLP",
+  balance: 0,
+  color: "#1e3a8a",
+  cardLast4: null,
+}
 export function AccountModal({
   open,
   onOpenChange,
 }: {
   open: boolean
-  onOpenChange: (o: boolean) => void
+  onOpenChange: (open: boolean) => void
 }) {
   const router = useRouter()
-  const [bankName, setBankName] = useState(BANKS[0] ?? "")
-  const [name, setName] = useState("")
-  const [accountType, setAccountType] = useState("checking")
-  const [currency, setCurrency] = useState<CurrencyCode>("CLP")
-  const [color, setColor] = useState("#1e3a8a")
-  const [cardLast4, setCardLast4] = useState("")
-  const [saving, setSaving] = useState(false)
-  const balance = useMoneyInput(currency, 0)
-
-  // Solo los tipos con tarjeta (corriente = débito, crédito) exigen los últimos 4 dígitos.
-  const hasCard = variantForType(accountType) !== null
-  const cardOk = !hasCard || cardLast4.length === 4
-  const canSave = !!bankName.trim() && !!name.trim() && cardOk && !saving
-
-  // Cuenta ficticia para el preview en vivo (reacciona a banco, tipo, saldo y dígitos).
-  const preview: AccountDTO = {
-    id: "preview",
-    bankId: "preview",
-    bankName,
-    name: name || "Nueva tarjeta",
-    accountType,
-    currency,
-    balance: balance.value,
-    color,
-    cardLast4: hasCard && cardLast4 ? cardLast4 : null,
-    provider: "manual",
-    lastSyncedAt: null,
-  }
-
-  async function save() {
-    if (!canSave) return
-    setSaving(true)
-    const res = await fetch("/api/accounts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        bankName: bankName.trim(),
-        name: name.trim(),
-        accountType,
-        currency,
-        balance: balance.value,
-        color,
-        cardLast4: hasCard ? cardLast4 : null,
-      }),
-    })
-    setSaving(false)
-    if (res.ok) {
-      setName("")
-      setCardLast4("")
-      balance.reset()
+  const formId = `account-${useId()}`
+  const form = useForm({
+    resolver: zodResolver(accountSchema),
+    defaultValues: DEFAULTS,
+  })
+  const currency = useWatch({ control: form.control, name: "currency" })
+  const { errors, isSubmitting } = form.formState
+  async function save(values: AccountFormValues) {
+    form.clearErrors("root")
+    try {
+      const res = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...values,
+          bankName: values.bankName.trim(),
+          name: values.name.trim(),
+        }),
+      })
+      if (!res.ok)
+        throw new Error(
+          await financeResponseError(
+            res,
+            "No se pudo crear la cuenta. Vuelve a intentarlo."
+          )
+        )
+      form.reset()
       onOpenChange(false)
       router.refresh()
+    } catch (error) {
+      form.setError("root", {
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo crear la cuenta.",
+      })
     }
   }
-
   return (
     <ResponsiveModal
       open={open}
-      onOpenChange={onOpenChange}
-      title="Nueva tarjeta"
-      className="sm:max-w-3xl"
+      onOpenChange={(next) => {
+        if (!next) form.reset()
+        onOpenChange(next)
+      }}
+      title="Nueva cuenta manual"
     >
-      <div className="px-4">
-        <div className="md:grid md:grid-cols-2 md:gap-6">
-          {/* Columna izquierda: tarjeta grande + banco + tipo (+ dígitos) */}
-          <div className="flex flex-col gap-4">
-            <div className="md:sticky md:top-0">
-              <AccountCard account={preview} />
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs">Banco</Label>
-              <div className="flex flex-wrap gap-2">
-                {BANKS.map((b) => (
-                  <Chip
-                    key={b}
-                    active={bankName === b}
-                    onClick={() => setBankName(b)}
-                  >
-                    {b}
-                  </Chip>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                El alta manual es para bancos/medios sin conexión automática.
-                Los bancos con conexión por correo se agregan desde “Conectar
-                banco”.
-              </p>
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs">Tipo de cuenta</Label>
-              <div className="flex flex-wrap gap-2">
-                {TYPES.map((t) => (
-                  <Chip
-                    key={t.value}
-                    active={accountType === t.value}
-                    onClick={() => setAccountType(t.value)}
-                  >
-                    {t.label}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-            {hasCard && (
-              <div>
-                <Label className="mb-1 block text-xs">
-                  Últimos 4 dígitos de la tarjeta
-                </Label>
-                <Input
-                  inputMode="numeric"
-                  value={cardLast4}
-                  onChange={(e) =>
-                    setCardLast4(e.target.value.replace(/\D/g, "").slice(0, 4))
-                  }
-                  placeholder="8821"
-                  className="tabular h-11 tracking-widest"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Columna derecha: nombre, moneda, saldo, color */}
-          <div className="mt-4 flex flex-col gap-4 md:mt-0">
-            <div>
-              <Label className="mb-1 block text-xs">Nombre de la tarjeta</Label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Tarjeta débito CLP"
-                className="h-11"
-              />
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs">Moneda</Label>
-              <div className="flex gap-2">
-                {(["CLP", "USD"] as const).map((c) => (
-                  <Chip
-                    key={c}
-                    active={currency === c}
-                    onClick={() => setCurrency(c)}
-                  >
-                    {c}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs">Saldo inicial</Label>
-              <Input
-                inputMode="numeric"
-                value={balance.display}
-                onChange={(e) => balance.onChange(e.target.value)}
-                placeholder="0"
-                className="tabular h-11"
-              />
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs">
-                Color (fallback sin arte)
-              </Label>
-              <input
-                type="color"
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                className="h-11 w-full rounded-md border bg-transparent"
-              />
-            </div>
-          </div>
-        </div>
-
-        <ModalFooter className="mt-4">
-          <Button
-            onClick={save}
-            disabled={!canSave}
-            className="h-12 flex-1 text-base"
+      <form
+        id={formId}
+        onSubmit={form.handleSubmit(save)}
+        className="flex flex-col gap-7 px-5"
+      >
+        <fieldset disabled={isSubmitting} className="contents">
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Para cuentas sin conexión automática. Si tu banco se conecta por
+            correo, usa “Conectar banco”.
+          </p>
+          {errors.root && (
+            <p role="alert" className="text-sm text-destructive">
+              {errors.root.message}
+            </p>
+          )}
+          <FinanceField
+            id={`${formId}-bank`}
+            label="Banco o medio"
+            required
+            error={errors.bankName?.message}
           >
-            {saving ? "Guardando…" : "Crear tarjeta"}
-          </Button>
-        </ModalFooter>
-      </div>
+            <Controller
+              name="bankName"
+              control={form.control}
+              render={({ field }) => (
+                <Select
+                  required
+                  value={field.value}
+                  onValueChange={field.onChange}
+                >
+                  <SelectTrigger
+                    id={`${formId}-bank`}
+                    className="h-12! w-full text-base"
+                    aria-invalid={!!errors.bankName}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover">
+                    {BANKS.map((bank) => (
+                      <SelectItem key={bank} value={bank}>
+                        {bank}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </FinanceField>
+          <FinanceField
+            id={`${formId}-name`}
+            label="Nombre de la cuenta"
+            required
+            error={errors.name?.message}
+          >
+            <Input
+              id={`${formId}-name`}
+              {...form.register("name")}
+              required
+              inputMode="text"
+              placeholder="Ej. Débito CLP"
+              className="h-12 text-base"
+              aria-invalid={!!errors.name}
+              aria-describedby={
+                errors.name ? `${formId}-name-error` : undefined
+              }
+            />
+          </FinanceField>
+          <div className="grid gap-7 sm:grid-cols-2">
+            <FinanceField
+              id={`${formId}-type`}
+              label="Tipo"
+              required
+              error={errors.accountType?.message}
+            >
+              <Controller
+                name="accountType"
+                control={form.control}
+                render={({ field }) => (
+                  <Select
+                    required
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger
+                      id={`${formId}-type`}
+                      className="h-12! w-full text-base"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover">
+                      <SelectItem value="checking">
+                        Tarjeta de débito
+                      </SelectItem>
+                      <SelectItem value="credit_card">
+                        Tarjeta de crédito
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FinanceField>
+            <FinanceField
+              id={`${formId}-currency`}
+              label="Moneda"
+              required
+              error={errors.currency?.message}
+            >
+              <Controller
+                name="currency"
+                control={form.control}
+                render={({ field }) => (
+                  <Select
+                    required
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger
+                      id={`${formId}-currency`}
+                      className="h-12! w-full text-base"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover">
+                      <SelectItem value="CLP">CLP · Peso chileno</SelectItem>
+                      <SelectItem value="USD">USD · Dólar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FinanceField>
+          </div>
+          <FinanceField
+            id={`${formId}-digits`}
+            label="Últimos 4 dígitos"
+            required
+            error={errors.cardLast4?.message}
+          >
+            <Controller
+              name="cardLast4"
+              control={form.control}
+              render={({ field }) => (
+                <Input
+                  id={`${formId}-digits`}
+                  name={field.name}
+                  ref={field.ref}
+                  value={field.value ?? ""}
+                  required
+                  inputMode="numeric"
+                  maxLength={4}
+                  onChange={(event) =>
+                    field.onChange(
+                      event.target.value.replace(/\D/g, "").slice(0, 4) || null
+                    )
+                  }
+                  onBlur={field.onBlur}
+                  className="tabular h-12 text-base"
+                  placeholder="8821"
+                  aria-invalid={!!errors.cardLast4}
+                  aria-describedby={
+                    errors.cardLast4 ? `${formId}-digits-error` : undefined
+                  }
+                />
+              )}
+            />
+          </FinanceField>
+          <FinanceField
+            id={`${formId}-balance`}
+            label={`Saldo inicial (${currency})`}
+            error={errors.balance?.message}
+            hint="Usa el saldo en la moneda de esta cuenta. El crédito se muestra separado de tu dinero disponible."
+          >
+            <Controller
+              name="balance"
+              control={form.control}
+              render={({ field }) => (
+                <MoneyFormInput
+                  allowNegative
+                  id={`${formId}-balance`}
+                  name={field.name}
+                  ref={field.ref}
+                  value={field.value}
+                  currency={currency}
+                  onValueChange={field.onChange}
+                  onBlur={field.onBlur}
+                  placeholder="0"
+                  aria-invalid={!!errors.balance}
+                  aria-describedby={`${formId}-balance-${errors.balance ? "error" : "hint"}`}
+                />
+              )}
+            />
+          </FinanceField>
+          <FinanceField
+            id={`${formId}-color`}
+            label="Color de la cuenta"
+            error={errors.color?.message}
+          >
+            <Controller
+              name="color"
+              control={form.control}
+              render={({ field }) => (
+                <input
+                  id={`${formId}-color`}
+                  type="color"
+                  name={field.name}
+                  ref={field.ref}
+                  value={field.value ?? "#1e3a8a"}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  className="h-12 w-full rounded-lg border border-input bg-background"
+                />
+              )}
+            />
+          </FinanceField>
+        </fieldset>
+      </form>
+      <ModalFooter className="px-5">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-12"
+          disabled={isSubmitting}
+          onClick={() => {
+            form.reset()
+            onOpenChange(false)
+          }}
+        >
+          Cancelar
+        </Button>
+        <Button
+          type="submit"
+          form={formId}
+          disabled={isSubmitting}
+          className="h-12 flex-1 text-base"
+        >
+          {isSubmitting ? "Guardando…" : "Crear cuenta"}
+        </Button>
+      </ModalFooter>
     </ResponsiveModal>
   )
 }

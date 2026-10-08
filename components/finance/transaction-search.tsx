@@ -1,5 +1,7 @@
 "use client"
 
+import type { ReactNode } from "react"
+
 import { useEffect, useState } from "react"
 import { Search, X, Loader2, CalendarRange } from "lucide-react"
 import type { DateRange } from "react-day-picker"
@@ -51,14 +53,18 @@ const DIRS: { value: Dir; label: string }[] = [
 // Buscador de movimientos: filtros combinados (texto insensible, dirección, categoría, cuenta,
 // rango de fechas) contra el backend con debounce (300ms) y cancelación de la petición anterior.
 export function TransactionSearch({
+  children,
   open,
+  detailOpen,
   onOpenChange,
   categories,
   accounts,
   amountBounds,
   onOpenTransaction,
 }: {
+  children?: ReactNode
   open: boolean
+  detailOpen: boolean
   onOpenChange: (o: boolean) => void
   categories: CategoryDTO[]
   accounts: AccountDTO[]
@@ -93,7 +99,7 @@ export function TransactionSearch({
 
   // Debounce + abort: rearma la búsqueda 300ms después del último cambio de query o filtro.
   useEffect(() => {
-    if (!open) return
+    if (!open || detailOpen) return
     const params = new URLSearchParams()
     if (q.trim()) params.set("q", q.trim())
     if (direction) params.set("direction", direction)
@@ -128,7 +134,17 @@ export function TransactionSearch({
       clearTimeout(t)
       ctrl.abort()
     }
-  }, [open, q, direction, categoryId, bank, range, amount, amountNarrowed])
+  }, [
+    open,
+    detailOpen,
+    q,
+    direction,
+    categoryId,
+    bank,
+    range,
+    amount,
+    amountNarrowed,
+  ])
 
   const hasFilters =
     !!q ||
@@ -164,7 +180,7 @@ export function TransactionSearch({
       onOpenChange={onOpenChange}
       title="Buscar movimientos"
     >
-      <div className="flex flex-col gap-3 px-4 pb-6">
+      <div className="flex flex-col gap-6 px-5 pb-6">
         {/* Campo de búsqueda */}
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -172,13 +188,16 @@ export function TransactionSearch({
             autoFocus={!isMobile}
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            aria-label="Buscar movimientos por descripción o categoría"
+            inputMode="search"
             placeholder="Buscar por descripción o categoría…"
             className="h-12 pr-10 pl-10 text-base"
           />
           {q && (
             <button
+              type="button"
               onClick={() => setQ("")}
-              className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute top-1/2 right-0 grid size-11 -translate-y-1/2 place-items-center text-muted-foreground hover:text-foreground"
               aria-label="Limpiar búsqueda"
             >
               <X className="size-4" />
@@ -188,14 +207,15 @@ export function TransactionSearch({
 
         {/* Filtros combinados: una fila con scroll-x en móvil (cinco filas de filtros dejaban
             los resultados bajo el pliegue); en ancho envuelven. */}
-        <div className="-mx-4 flex scrollbar-none items-center gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex shrink-0 overflow-hidden rounded-lg border text-sm">
             {DIRS.map((d) => (
               <button
+                type="button"
                 key={d.label}
                 onClick={() => setDirection(d.value)}
                 className={cn(
-                  "h-9 px-3.5 transition-colors",
+                  "h-11 px-3.5 transition-colors",
                   direction === d.value
                     ? d.value === "credit"
                       ? "bg-success text-success-foreground"
@@ -211,7 +231,7 @@ export function TransactionSearch({
           </div>
 
           <Select value={categoryId} onValueChange={setCategoryId}>
-            <SelectTrigger className="h-9 w-auto min-w-32 shrink-0">
+            <SelectTrigger className="h-11 w-auto min-w-32 shrink-0">
               <SelectValue placeholder="Categoría" />
             </SelectTrigger>
             <SelectContent>
@@ -225,7 +245,7 @@ export function TransactionSearch({
           </Select>
 
           <Select value={bank} onValueChange={setBank}>
-            <SelectTrigger className="h-9 w-auto min-w-28 shrink-0">
+            <SelectTrigger className="h-11 w-auto min-w-28 shrink-0">
               <SelectValue placeholder="Banco" />
             </SelectTrigger>
             <SelectContent>
@@ -242,9 +262,10 @@ export function TransactionSearch({
           <Popover>
             <PopoverTrigger asChild>
               <Button
+                type="button"
                 variant="outline"
                 className={cn(
-                  "h-9 shrink-0 justify-start gap-2 font-normal",
+                  "h-11 shrink-0 justify-start gap-2 font-normal",
                   !range?.from && "text-muted-foreground"
                 )}
               >
@@ -268,6 +289,7 @@ export function TransactionSearch({
           </Popover>
           {hasFilters && (
             <button
+              type="button"
               onClick={clearAll}
               className="ml-auto shrink-0 text-sm text-muted-foreground hover:text-foreground"
             >
@@ -281,7 +303,7 @@ export function TransactionSearch({
           <div className="flex flex-col gap-2 pt-1">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>Monto</span>
-              <span className="font-mono tabular-nums">
+              <span className="tabular-nums">
                 {formatCompact(amount[0])} – {formatCompact(amount[1])}
               </span>
             </div>
@@ -304,7 +326,8 @@ export function TransactionSearch({
             </div>
           ) : results.length === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">
-              Sin resultados
+              No encontramos movimientos con estos filtros. Prueba otra
+              descripción o cambia los filtros.
             </p>
           ) : (
             <div className="flex flex-col gap-4">
@@ -328,6 +351,7 @@ export function TransactionSearch({
           )}
         </div>
       </div>
+      {children}
     </ResponsiveModal>
   )
 }

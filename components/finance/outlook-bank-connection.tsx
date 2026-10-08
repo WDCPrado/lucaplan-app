@@ -29,11 +29,7 @@ import { DatePicker } from "./transaction-modal"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { useMoneyInput } from "@/hooks/use-money-input"
-import {
-  CARD_VARIANT_BG,
-  resolveCardArt,
-  type CardVariant,
-} from "@/lib/bank-cards"
+import type { CardVariant } from "@/lib/bank-cards"
 import {
   confirmBlocker,
   plural,
@@ -999,7 +995,7 @@ function MailboxCard({
                 variant="outline"
                 onClick={() => onReconcile(bank)}
                 disabled={busy}
-                className="h-9"
+                className="h-11"
               >
                 Actualizar saldos
               </Button>
@@ -1116,7 +1112,7 @@ function DisconnectBankButton({
         <Button
           variant="ghost"
           disabled={busy}
-          className="h-9 text-destructive hover:text-destructive"
+          className="h-11 text-destructive hover:text-destructive"
         >
           <Unplug /> Desconectar
         </Button>
@@ -1242,7 +1238,9 @@ export function SnapshotForm({
           refLabel="Número de cuenta o últimos 4"
         >
           <div>
-            <div className="text-xs text-white/75">Saldo actual (CLP)</div>
+            <div className="text-xs text-muted-foreground">
+              Saldo actual (CLP)
+            </div>
             <MoneyField
               currency="CLP"
               value={checking.cash}
@@ -1384,24 +1382,9 @@ export function SnapshotForm({
   )
 }
 
-// Inputs sobre el arte oscuro de la tarjeta: caja translúcida (secundarios) y transparente
-// grande (dato principal, misma posición que el saldo/cupo disponible del AccountCard).
-// El fondo va inline porque el frost global de [data-slot="input"] (globals.css, fuera de
-// @layer) pisa las utilidades de Tailwind; inline le gana sin tocar el design system.
-const boxedMoneyInput =
-  "h-11 rounded-lg border-white/20 text-base text-white placeholder:text-white/40 selection:bg-white/25 selection:text-white focus-visible:border-white/40 focus-visible:ring-white/20 md:text-base"
-const primaryMoneyInput =
-  "h-auto rounded-none border-0 px-0 py-0.5 text-3xl font-semibold text-white shadow-none placeholder:text-white/30 selection:bg-white/25 selection:text-white focus-visible:ring-0 md:text-3xl [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]"
-const boxedInputStyle: React.CSSProperties = {
-  backgroundColor: "rgb(255 255 255 / 0.12)",
-  backdropFilter: "none",
-  WebkitBackdropFilter: "none",
-}
-const primaryInputStyle: React.CSSProperties = {
-  backgroundColor: "transparent",
-  backdropFilter: "none",
-  WebkitBackdropFilter: "none",
-}
+// Controles de saldo sobre una superficie neutra: misma máscara y monedas separadas.
+const boxedMoneyInput = "h-12 rounded-lg text-base"
+const primaryMoneyInput = "h-12 rounded-lg text-xl font-semibold md:text-xl"
 
 // Input de monto que reutiliza el formateo vigente (CLP entero agrupado, USD con coma y 2
 // decimales). `value` solo inicializa; el estado vive en useMoneyInput y se reporta por onValue.
@@ -1428,7 +1411,6 @@ function MoneyField({
       placeholder={currency === "USD" ? "0,00" : "0"}
       aria-label={ariaLabel}
       onChange={(e) => onValue(money.onChange(e.target.value))}
-      style={kind === "primary" ? primaryInputStyle : boxedInputStyle}
       className={cn(
         "tabular",
         kind === "primary" ? primaryMoneyInput : boxedMoneyInput,
@@ -1469,7 +1451,7 @@ function BucketEditor({
       {enabled && (
         <>
           <div>
-            <div className="text-xs text-white/75">Disponible</div>
+            <div className="text-xs text-muted-foreground">Disponible</div>
             <MoneyField
               currency={currency}
               value={available}
@@ -1512,14 +1494,14 @@ function DerivedUsed({
 }) {
   if (bucketInvalid(limit, available))
     return (
-      <p className="text-xs font-medium text-red-300">
+      <p className="text-xs font-medium text-destructive">
         El disponible debe estar entre cero y el cupo total
       </p>
     )
   const used = limit - available
   if (used <= 0) return null
   return (
-    <p className="tabular text-xs text-red-300">
+    <p className="tabular text-xs text-destructive">
       Usado −{formatMoney(used, currency)}
     </p>
   )
@@ -1540,10 +1522,10 @@ function CardToggle({
       aria-pressed={pressed}
       onClick={() => onPressed(!pressed)}
       className={cn(
-        "flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors",
+        "flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
         pressed
-          ? "border-white/30 bg-white/20 text-white"
-          : "border-white/15 text-white/60 hover:text-white/85"
+          ? "border-primary bg-primary/10 text-primary"
+          : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
       )}
     >
       {pressed && <Check className="size-3" />}
@@ -1561,17 +1543,16 @@ function CardField({
 }) {
   return (
     <label className="block space-y-1">
-      <span className="block text-xs text-white/75">{label}</span>
+      <span className="block text-xs text-muted-foreground">{label}</span>
       {children}
     </label>
   )
 }
 
-// Superficie editable con el mismo arte y jerarquía del AccountCard del dashboard: banco arriba,
-// datos al centro, últimos 4 + tipo abajo; el isotipo del banco queda como marca de agua.
+// Instrumento propuesto: banco, saldos y referencia en una superficie neutra.
+// La persona revisa cada dato antes de confirmar la conexión.
 function CandidateCard({
   bankName,
-  variant,
   typeLabel,
   movementCount,
   onRemove,
@@ -1601,39 +1582,21 @@ function CandidateCard({
   const [refTouched, setRefTouched] = useState(false)
   const refInvalid = refTouched && !refComplete(refValue)
   const refErrorId = useId()
-  const art = resolveCardArt(
-    bankName,
-    variant === "debito" ? "checking" : "credit_card"
-  )
   return (
-    <div
-      className="relative flex min-h-40 w-full flex-col gap-4 overflow-hidden rounded-xl p-5 text-white shadow-[0_1px_2px_rgb(0_0_0/0.08),0_8px_20px_-10px_rgb(0_0_0/0.25)]"
-      style={{ background: CARD_VARIANT_BG[variant] }}
-    >
-      {art && (
-        // Monograma propio del banco como marca de agua (sin logo de terceros).
-        <span
-          aria-hidden
-          className="pointer-events-none absolute top-1/2 -right-3 -translate-y-1/2 text-8xl leading-none font-bold text-white/12 select-none"
-        >
-          {art.monogram}
-        </span>
-      )}
+    <div className="flex w-full flex-col gap-6 rounded-xl border border-border bg-card p-5 text-foreground">
       <div className="relative flex items-start justify-between gap-2">
-        <div className="text-lg font-semibold tracking-tight [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
-          {bankName}
-        </div>
+        <div className="text-base font-semibold">{bankName}</div>
         <button
           type="button"
           onClick={onRemove}
-          className="text-xs font-medium text-white/60 transition-colors hover:text-red-300"
+          className="min-h-11 px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-destructive"
         >
           Quitar
         </button>
       </div>
-      <div className="relative flex-1 space-y-3">{children}</div>
+      <div className="relative flex-1 space-y-5">{children}</div>
       <div className="relative space-y-1.5">
-        <div className="flex items-center justify-between gap-2 text-sm text-white/85">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="tracking-widest">••••</span>
             <Input
@@ -1646,8 +1609,7 @@ function CandidateCard({
               aria-describedby={refInvalid ? refErrorId : undefined}
               onChange={(e) => onRef(e.target.value)}
               onBlur={() => setRefTouched(true)}
-              style={boxedInputStyle}
-              className="tabular h-10 w-24 rounded-lg border-white/20 px-2 text-sm tracking-widest text-white selection:bg-white/25 selection:text-white placeholder:text-white/40 focus-visible:border-white/70 focus-visible:ring-white/60"
+              className="tabular h-12 w-24 rounded-lg px-3 text-base tracking-widest"
             />
           </span>
           <span className="shrink-0">
@@ -1656,7 +1618,7 @@ function CandidateCard({
           </span>
         </div>
         {refInvalid && (
-          <p id={refErrorId} className="text-sm text-red-200">
+          <p id={refErrorId} className="text-sm text-destructive">
             Faltan los últimos 4 dígitos.
           </p>
         )}

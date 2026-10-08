@@ -29,7 +29,7 @@ export function CorrectionLearnStep({
   const n = sameTextCount
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-col items-center gap-1 pt-2 text-center">
         <div className="text-lg font-semibold">Categoría guardada</div>
         <div className="text-sm text-balance text-muted-foreground">
@@ -38,7 +38,7 @@ export function CorrectionLearnStep({
       </div>
 
       <div>
-        <Label htmlFor="correction-note" className="mb-2 block text-xs">
+        <Label htmlFor="correction-note" className="mb-2 block text-sm">
           ¿Qué es este movimiento? (opcional)
         </Label>
         <Input
@@ -47,9 +47,10 @@ export function CorrectionLearnStep({
           onChange={(e) => setNote(e.target.value)}
           maxLength={120}
           placeholder="Ej.: pedidos de comida a domicilio"
-          className="h-11 text-base"
+          inputMode="text"
+          className="h-12 text-base"
         />
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="mt-2 text-sm text-muted-foreground">
           Tu explicación queda guardada y la IA la usa para clasificar los
           próximos movimientos parecidos.
         </p>

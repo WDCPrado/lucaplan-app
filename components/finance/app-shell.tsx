@@ -53,11 +53,7 @@ import {
 
 // Solo rutas que existen. Movimientos/Presupuestos viven como secciones del
 // dashboard y Cuotas como sección de Recurrentes; cuando sean páginas propias, se agregan aquí.
-export type NavKey =
-  | "inicio"
-  | "recurrentes"
-  | "configuracion"
-  | "perfil"
+export type NavKey = "inicio" | "recurrentes" | "configuracion" | "perfil"
 
 const NAV: {
   key: NavKey
@@ -108,6 +104,7 @@ export function AppShell({
   const [addOpen, setAddOpen] = React.useState(false)
   const [accountOpen, setAccountOpen] = React.useState(false)
   const canAdd = !!quickAdd
+  const mobileHome = active === "inicio"
 
   // Atajos de escritorio: "/" o Ctrl/⌘+K abre la búsqueda y "n" el nuevo movimiento. No actúan
   // escribiendo en un campo ni con un diálogo abierto: ahí las teclas son del diálogo.
@@ -134,7 +131,7 @@ export function AppShell({
 
   return (
     <TooltipProvider delayDuration={0}>
-      <SidebarProvider>
+      <SidebarProvider data-product data-app-shell className="bg-background">
         <Sidebar collapsible="icon">
           <SidebarHeader>
             <div className="flex items-center gap-2 px-1 py-1">
@@ -158,10 +155,10 @@ export function AppShell({
           </SidebarFooter>
         </Sidebar>
 
-        <SidebarInset className="min-w-0">
-          {/* Topbar solo en escritorio; en móvil el selector de mes flota (sticky) centrado. */}
-          <header className="pwa-safe-top sticky top-0 z-10 hidden min-h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-4 backdrop-blur md:flex lg:px-6">
-            <SidebarTrigger className="size-9" />
+        <SidebarInset className="min-w-0 bg-background">
+          {/* Topbar de escritorio; Inicio móvil organiza marca y período en dos filas. */}
+          <header className="pwa-safe-top sticky top-0 z-10 hidden min-h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background px-4 md:flex lg:px-6">
+            <SidebarTrigger className="size-11" />
             {title && (
               <h1 className="font-heading text-lg font-bold tracking-tight">
                 {title}
@@ -174,7 +171,7 @@ export function AppShell({
                 <Button
                   onClick={() => setAddOpen(true)}
                   title="Nuevo movimiento (N)"
-                  className="h-9"
+                  className="min-h-11"
                 >
                   <Plus className="size-4" />
                   Movimiento
@@ -187,7 +184,7 @@ export function AppShell({
                   variant="secondary"
                   aria-label="Buscar movimientos"
                   title="Buscar (/ o Ctrl K)"
-                  className="size-9"
+                  className="size-11"
                 >
                   <Search className="size-4" />
                 </Button>
@@ -195,14 +192,24 @@ export function AppShell({
               {actions}
             </div>
           </header>
-          {/* Móvil: botones flotando sin barra — buscar | (selector u otras acciones) | usuario.
-              items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar. Sin fondo:
-              solo los hijos reciben toques; lo que queda entre ellos pasa al contenido de abajo. */}
-          <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center px-4 pt-3 pb-3 md:hidden">
-            <div className="flex w-full items-start justify-between gap-2 *:pointer-events-auto">
-              {/* Sin trigger del sidebar: en móvil el drawer solo repetía la barra inferior y el
-                  menú de usuario. El hueco lo ocupa la lupa; sin ella, un espaciador del mismo
-                  ancho que el avatar para que las acciones del centro no se descentren. */}
+          {/* Inicio móvil scrollea con el contenido; las otras pantallas conservan su header. */}
+          <div
+            className={cn(
+              "pwa-safe-top z-20 border-b border-border bg-background px-5 md:hidden",
+              mobileHome ? "py-2.5" : "sticky top-0 py-3"
+            )}
+          >
+            <div
+              className={cn(
+                "flex w-full flex-wrap items-center justify-between gap-x-2",
+                mobileHome ? "gap-y-2" : "gap-y-3"
+              )}
+            >
+              {mobileHome && (
+                <span className="mr-auto font-heading text-xl font-semibold">
+                  <span className="text-primary">Luca</span> Plan
+                </span>
+              )}
               {onSearch ? (
                 <button
                   onClick={() => {
@@ -210,24 +217,41 @@ export function AppShell({
                     onSearch()
                   }}
                   aria-label="Buscar movimientos"
-                  className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary transition-colors hover:bg-accent"
+                  className="grid size-11 shrink-0 place-items-center rounded-lg bg-secondary transition-colors hover:bg-accent"
                 >
                   <Search className="size-4.5" />
                 </button>
-              ) : (
-                <div className="invisible size-10 shrink-0" aria-hidden />
+              ) : !mobileHome ? (
+                <div className="invisible size-11 shrink-0" aria-hidden />
+              ) : null}
+              {!mobileHome && (
+                <span className="font-heading text-lg font-semibold">
+                  Luca Plan
+                </span>
               )}
-              {actions}
+              <div
+                className={cn(
+                  "order-last flex w-full items-center",
+                  mobileHome ? "justify-between gap-2" : "justify-center"
+                )}
+              >
+                {mobileHome && (
+                  <h1 className="font-heading text-lg font-bold tracking-tight">
+                    {title}
+                  </h1>
+                )}
+                {actions}
+              </div>
               <UserMenu
                 user={user}
                 onSignOut={onSignOut}
                 trigger={
                   <button
-                    className="grid size-10 place-items-center rounded-full"
+                    className="grid size-11 shrink-0 place-items-center rounded-full"
                     aria-label="Perfil"
                     onClick={() => haptic("light")}
                   >
-                    <Avatar className="size-10 rounded-full">
+                    <Avatar className="size-11 rounded-full">
                       <AvatarFallback className="rounded-full bg-secondary text-sm font-medium text-foreground">
                         {user.initial}
                       </AvatarFallback>
@@ -261,11 +285,11 @@ export function AppShell({
               accounts={quickAdd.accounts}
               categories={quickAdd.categories}
               onCreateAccount={() => {
-                setAddOpen(false)
                 setAccountOpen(true)
               }}
-            />
-            <AccountModal open={accountOpen} onOpenChange={setAccountOpen} />
+            >
+              <AccountModal open={accountOpen} onOpenChange={setAccountOpen} />
+            </AddTransactionSheet>
           </>
         )}
       </SidebarProvider>
@@ -339,7 +363,7 @@ function BottomNav({
   return (
     <nav
       aria-label="Navegación principal"
-      className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border/60 bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border/60 bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       {NAV.map(({ key, label, Icon, href }, i) => {
         const isActive = activeKey === key
@@ -355,12 +379,12 @@ function BottomNav({
                 window.scrollTo({ top: 0, behavior: "smooth" })
             }}
             className={cn(
-              "flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 transition-colors",
+              "flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 py-2 transition-colors",
               isActive ? "text-primary" : "text-muted-foreground"
             )}
           >
             <Icon className="size-5 shrink-0" />
-            <span className="max-w-full truncate text-[10px] leading-none">
+            <span className="max-w-full truncate text-xs leading-none">
               {label}
             </span>
           </Link>

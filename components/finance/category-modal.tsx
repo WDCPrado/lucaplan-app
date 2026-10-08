@@ -1,10 +1,14 @@
 "use client"
 
+import { z } from "zod"
 import { useId, useState } from "react"
+import { useForm, Controller, useWatch } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
-import { ChevronDown, Trash2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { haptic } from "@/lib/haptics"
+import { categorySchema, categoryLimitSchema } from "@/lib/finance-form-schemas"
 import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import {
   AlertDialog,
@@ -19,351 +23,413 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import { useMoneyInput } from "@/hooks/use-money-input"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { formatCLP, monthName } from "@/lib/finance-format"
-import { ProgressRing } from "./progress-ring"
-import { CATEGORY_COLORS, CATEGORY_ICONS, CategoryIcon } from "./category-icons"
+import { CATEGORY_COLORS, CATEGORY_ICONS } from "./category-icons"
+import {
+  FinanceField,
+  MoneyFormInput,
+  financeResponseError,
+} from "./finance-form-field"
 import type { CategoryDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
-// Crear o editar categoría (global) + su límite del mes, siempre en modal. `category` ⇒ edición.
-// SOLO categoría: los ingresos (fuentes) se editan aparte en IncomeModal — una categoría puede
-// tener N ingresos. `lockedType` fija el tipo al crear desde un grupo (se oculta el selector y
-// el título lo refleja); el selector solo aparece en creación libre.
+const formSchema = categorySchema.extend({
+  limit: categoryLimitSchema.shape.limit,
+})
 export function CategoryModal({
   open,
   onOpenChange,
+  onDeleted,
   period,
   category,
   lockedType,
   remainingToAllocate,
 }: {
   open: boolean
-  onOpenChange: (o: boolean) => void
+  onOpenChange: (open: boolean) => void
+  onDeleted?: (id: string) => void
   period: { year: number; month: number }
   category?: CategoryDTO | null
   lockedType?: "income" | "expense" | null
   remainingToAllocate?: number | null
 }) {
   const router = useRouter()
-  const isEdit = !!category
-  const [name, setName] = useState(category?.name ?? "")
-  const [type, setType] = useState<"income" | "expense">(
-    (category?.type as "income" | "expense") ?? lockedType ?? "expense"
-  )
-  const [description, setDescription] = useState(category?.description ?? "")
-  const limit = useMoneyInput("CLP", category?.limit ?? 0)
-  // Ritmo de gasto: activado por defecto, como el campo en la BD.
-  const [paceEnabled, setPaceEnabled] = useState(category?.paceEnabled ?? true)
-  const paceId = useId() // el label lo necesita; el Switch de Radix es un button, no un input
-  const [icon, setIcon] = useState(category?.icon ?? "")
-  const [color, setColor] = useState(category?.color ?? CATEGORY_COLORS[0])
-  const [saving, setSaving] = useState(false)
+  const formId = `category-${useId()}`
+  const [deleting, setDeleting] = useState(false)
+  const [createdId, setCreatedId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
-
-  const canSave = !!name.trim() && !saving
-
-  // Color legacy fuera de la paleta: se muestra como swatch extra para no perderlo al editar.
-  const palette = CATEGORY_COLORS.includes(color)
-    ? CATEGORY_COLORS
-    : [...CATEGORY_COLORS, color]
-
-  // Restante en vivo: restante del mes + límite efectivo original − límite en pantalla.
-  // Null (oculto) sin límite global definido o en categorías de ingreso.
-  const liveRemaining =
+  const form = useForm({
+    resolver: zodResolver(formSchema),
+    values: {
+      id: category?.id,
+      name: category?.name ?? "",
+      type: (category?.type ?? lockedType ?? "expense") as "income" | "expense",
+      description: category?.description ?? null,
+      limit: category?.limit ?? 0,
+      paceEnabled: category?.paceEnabled ?? true,
+      icon: category?.icon ?? null,
+      color: category?.color ?? CATEGORY_COLORS[0],
+    },
+  })
+  const type = useWatch({ control: form.control, name: "type" })
+  const limit = useWatch({ control: form.control, name: "limit" })
+  const color = useWatch({ control: form.control, name: "color" })
+  const icon = useWatch({ control: form.control, name: "icon" })
+  const { errors, isSubmitting, isDirty } = form.formState
+  const busy = isSubmitting || deleting
+  const palette =
+    color && !CATEGORY_COLORS.includes(color)
+      ? [...CATEGORY_COLORS, color]
+      : CATEGORY_COLORS
+  const left =
     remainingToAllocate == null || type !== "expense"
       ? null
-      : remainingToAllocate + (category?.limit ?? 0) - limit.value
-
-  // Vista previa: gasto usa el uso real contra el límite en pantalla; ingreso, lleno si ya entró.
-  const previewPct =
-    type === "income"
-      ? (category?.used ?? 0) > 0
-        ? 100
-        : 0
-      : isEdit && limit.value > 0
-        ? ((category?.used ?? 0) / limit.value) * 100
-        : 0
-
-  async function save() {
-    if (!canSave) return
-    setSaving(true)
-    // 1) Categoría global (nombre/tipo/icono/color)
-    const catRes = await fetch("/api/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: category?.id,
-        name: name.trim(),
-        type,
-        icon,
-        color,
-        description: description.trim(),
-        paceEnabled,
-      }),
-    })
-    if (!catRes.ok) {
-      setSaving(false)
-      haptic("error")
-      toast.error("No se pudo guardar la categoría")
-      return
-    }
-    const categoryId = category?.id ?? ((await catRes.json()).id as string)
-    // 2) Límite del mes: solo para categorías de gasto (las de ingreso no tienen tope).
-    if (type === "expense") {
-      const limRes = await fetch("/api/category-limits", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          categoryId,
-          year: period.year,
-          month: period.month,
-          limit: limit.value,
-        }),
-      })
-      if (!limRes.ok) {
-        setSaving(false)
-        haptic("error")
-        toast.error(
-          "La categoría se guardó, pero el límite no. Vuelve a intentarlo."
-        )
-        return
+      : remainingToAllocate + (category?.limit ?? 0) - limit
+  async function save(values: z.infer<typeof formSchema>) {
+    form.clearErrors("root")
+    try {
+      const { limit: nextLimit, ...identity } = values
+      // Limit-only edits do not rewrite the global category identity.
+      const identityChanged =
+        !category ||
+        Object.keys(form.formState.dirtyFields).some((key) => key !== "limit")
+      let categoryId = category?.id ?? createdId
+      if (identityChanged) {
+        const res = await fetch("/api/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...identity,
+            id: category?.id ?? createdId ?? undefined,
+            name: identity.name.trim(),
+            description: identity.description?.trim() || null,
+          }),
+        })
+        if (!res.ok)
+          throw new Error(
+            await financeResponseError(res, "No se pudo guardar la categoría.")
+          )
+        categoryId = category?.id ?? (await res.json()).id
+        if (!category && categoryId) setCreatedId(categoryId)
       }
-    }
-    setSaving(false)
-    haptic("success")
-    onOpenChange(false)
-    router.refresh()
-  }
-
-  // Elimina la categoría: sus movimientos quedan sin categoría; los ingresos asignados se
-  // eliminan. El backend rechaza (422 con mensaje) si recurrentes o planes de cuotas la usan.
-  async function removeCategory() {
-    if (!category || saving) return
-    setSaving(true)
-    haptic("heavy") // destructiva
-    const res = await fetch(`/api/categories/${category.id}`, {
-      method: "DELETE",
-    })
-    const data = await res.json().catch(() => ({}))
-    setSaving(false)
-    if (!res.ok) {
+      if (
+        values.type === "expense" &&
+        (!category || form.formState.dirtyFields.limit)
+      ) {
+        const res = await fetch("/api/category-limits", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ categoryId, ...period, limit: nextLimit }),
+        })
+        if (!res.ok)
+          throw new Error(
+            await financeResponseError(
+              res,
+              identityChanged
+                ? "La categoría se guardó, pero el tope no. Vuelve a intentarlo."
+                : "No se pudo guardar el tope."
+            )
+          )
+      }
+      haptic("success")
+      setCreatedId(null)
+      form.reset()
+      onOpenChange(false)
+      router.refresh()
+    } catch (error) {
       haptic("error")
-      return toast.error(data.error ?? "No se pudo eliminar la categoría")
+      form.setError("root", {
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo guardar la categoría.",
+      })
     }
-    haptic("success")
-    toast.success("Categoría eliminada; sus movimientos quedaron sin categoría")
-    onOpenChange(false)
-    router.refresh()
   }
-
+  async function remove() {
+    if (!category || busy) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/categories/${category.id}`, {
+        method: "DELETE",
+      })
+      if (!res.ok)
+        throw new Error(
+          await financeResponseError(res, "No se pudo eliminar la categoría.")
+        )
+      toast.success(
+        "Categoría eliminada; sus movimientos quedaron sin categoría"
+      )
+      setCreatedId(null)
+      form.reset()
+      onOpenChange(false)
+      onDeleted?.(category.id)
+      router.refresh()
+    } catch (error) {
+      form.setError("root", {
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo eliminar la categoría.",
+      })
+    } finally {
+      setDeleting(false)
+    }
+  }
   return (
     <ResponsiveModal
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        if (!next) {
+          form.reset()
+          setCreatedId(null)
+        }
+        onOpenChange(next)
+      }}
       title={
-        isEdit
+        category
           ? "Editar categoría"
           : lockedType === "income"
             ? "Nueva categoría de ingreso"
-            : lockedType === "expense"
-              ? "Nueva categoría de gasto"
-              : "Nueva categoría"
+            : "Nueva categoría"
       }
     >
-      <div className="flex flex-col gap-5 px-4">
-        {/* Identidad: vista previa en vivo + nombre grande (mismo patrón que el resto de la app) */}
-        <div className="flex items-center gap-4">
-          <ProgressRing
-            percent={previewPct}
-            status={category?.status ?? "bueno"}
-            size={64}
+      <form
+        id={formId}
+        onSubmit={form.handleSubmit(save)}
+        className="flex flex-col gap-7 px-5"
+      >
+        <fieldset disabled={busy} className="contents">
+          {errors.root && (
+            <p role="alert" className="text-sm text-destructive">
+              {errors.root.message}
+            </p>
+          )}
+          <FinanceField
+            id={`${formId}-name`}
+            label="Nombre"
+            required
+            error={errors.name?.message}
           >
-            <CategoryIcon icon={icon} size={22} color={color} />
-          </ProgressRing>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={
-              type === "income" ? "Nombre (ej. Abonos)" : "Nombre (ej. Compras)"
-            }
-            aria-label="Nombre"
-            className="h-12 flex-1 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0 md:text-2xl"
-          />
-        </div>
-
-        {/* Tipo: solo en creación libre; fijado desde un grupo o en edición, el título ya lo dice. */}
-        {!isEdit && !lockedType && (
-          <div>
-            <Label className="mb-1 block text-xs">Tipo</Label>
-            <div className="flex gap-2">
-              {(["expense", "income"] as const).map((t) => (
-                <button
-                  key={t}
+            <Input
+              {...form.register("name")}
+              id={`${formId}-name`}
+              required
+              inputMode="text"
+              className="h-12 text-base"
+              placeholder="Ej. Supermercado"
+              aria-invalid={!!errors.name}
+              aria-describedby={
+                errors.name ? `${formId}-name-error` : undefined
+              }
+            />
+          </FinanceField>
+          {!category && !lockedType && (
+            <FinanceField
+              id={`${formId}-type`}
+              label="Tipo"
+              required
+              error={errors.type?.message}
+            >
+              <Controller
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    required
+                  >
+                    <SelectTrigger
+                      id={`${formId}-type`}
+                      className="h-12! w-full text-base"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover backdrop-blur-none">
+                      <SelectItem value="expense">Gasto</SelectItem>
+                      <SelectItem value="income">Ingreso</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FinanceField>
+          )}
+          {type === "expense" && (
+            <section className="space-y-5">
+              <FinanceField
+                id={`${formId}-limit`}
+                label={`Tope de ${monthName(period.month)} (CLP)`}
+                error={errors.limit?.message}
+                hint={
+                  left === null
+                    ? "Este tope se hereda hasta que lo cambies."
+                    : left < 0
+                      ? `Sobreasignado por ${formatCLP(-left)}. Puedes guardar y ajustar después.`
+                      : `Por repartir: ${formatCLP(left)}. No necesitas asignarlo todo.`
+                }
+              >
+                <Controller
+                  control={form.control}
+                  name="limit"
+                  render={({ field }) => (
+                    <MoneyFormInput
+                      allowNegative
+                      id={`${formId}-limit`}
+                      name={field.name}
+                      ref={field.ref}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      onBlur={field.onBlur}
+                      aria-invalid={!!errors.limit}
+                      aria-describedby={`${formId}-limit-${errors.limit ? "error" : "hint"}`}
+                      placeholder="70.000"
+                    />
+                  )}
+                />
+              </FinanceField>
+              <FinanceField
+                id={`${formId}-pace`}
+                label="Ritmo de gasto"
+                hint="Compara tu gasto con el tope para hoy o esta semana. Apágalo si pagas esta categoría una vez al mes."
+              >
+                <Controller
+                  control={form.control}
+                  name="paceEnabled"
+                  render={({ field }) => (
+                    <Switch
+                      id={`${formId}-pace`}
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      aria-describedby={`${formId}-pace-hint`}
+                    />
+                  )}
+                />
+              </FinanceField>
+            </section>
+          )}
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-medium">Icono</legend>
+            <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
+              {CATEGORY_ICONS.map(({ name, Icon }) => (
+                <Button
+                  key={name}
                   type="button"
-                  onClick={() => setType(t)}
+                  variant="outline"
                   className={cn(
-                    "h-11 flex-1 rounded-lg border text-sm font-medium transition-colors",
-                    type === t
-                      ? t === "income"
-                        ? "border-success bg-success/10 text-success"
-                        : "border-primary bg-primary/10 text-primary"
-                      : "text-muted-foreground"
+                    "size-11",
+                    icon === name && "border-primary bg-primary/10 text-primary"
+                  )}
+                  aria-label={name}
+                  aria-pressed={icon === name}
+                  onClick={() =>
+                    form.setValue("icon", name, { shouldDirty: true })
+                  }
+                >
+                  <Icon size={18} />
+                </Button>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-medium">Color</legend>
+            <div className="flex flex-wrap gap-2">
+              {palette.map((value) => (
+                <button
+                  type="button"
+                  key={value}
+                  aria-label={`Color ${value}`}
+                  aria-pressed={color === value}
+                  onClick={() =>
+                    form.setValue("color", value, { shouldDirty: true })
+                  }
+                  className={cn(
+                    "grid size-11 place-items-center rounded-lg border",
+                    color === value && "border-foreground"
                   )}
                 >
-                  {t === "income" ? "Ingreso" : "Gasto"}
+                  <span
+                    className="size-6 rounded-full"
+                    style={{ backgroundColor: value }}
+                  />
                 </button>
               ))}
             </div>
-          </div>
-        )}
-
-        {/* Presupuesto (solo gasto) */}
-        {type === "expense" && (
-          <div>
-            <Label className="mb-1 block text-xs">
-              Límite de {monthName(period.month)} (CLP)
-            </Label>
-            <Input
-              inputMode="numeric"
-              value={limit.display}
-              onChange={(e) => limit.onChange(e.target.value)}
-              placeholder="70.000"
-              className="tabular h-11 text-base"
-            />
-            {liveRemaining !== null && (
-              <p
-                className={cn(
-                  "mt-1 text-xs",
-                  liveRemaining < 0
-                    ? "text-destructive"
-                    : "text-muted-foreground"
-                )}
-              >
-                {liveRemaining < 0
-                  ? `Sobre-asignado por ${formatCLP(-liveRemaining)} del presupuesto de ${monthName(period.month)}`
-                  : `Quedan ${formatCLP(liveRemaining)} por presupuestar en ${monthName(period.month)}`}
-              </p>
-            )}
-
-            {/* El ritmo reparte el tope del mes entre los días (o las semanas) que quedan. En lo
-                que se paga de una vez —una suscripción se cobra un día y listo— ese reparto no
-                describe nada: el semáforo se ve excedido el día del cobro y en silencio el resto.
-                Vive junto al límite porque es una lectura DE ese límite, no otra cosa. */}
-            <div className="mt-3 flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2.5">
-              <div className="min-w-0 flex-1">
-                <Label htmlFor={paceId} className="text-sm font-medium">
-                  Ritmo de gasto
-                </Label>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Compara lo que llevas gastado hoy o esta semana contra la
-                  parte del tope que toca. Apágalo si esta categoría se paga de
-                  una vez al mes.
-                </p>
-              </div>
-              <Switch
-                id={paceId}
-                checked={paceEnabled}
-                onCheckedChange={setPaceEnabled}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Apariencia: filas con scroll horizontal (mismo gesto que el resto de la app) */}
-        <div>
-          <Label className="mb-1.5 block text-xs">Icono</Label>
-          <div className="-mx-4 grid scrollbar-none auto-cols-max grid-flow-col grid-rows-2 gap-2 overflow-x-auto px-4 pb-1">
-            {CATEGORY_ICONS.map(({ name: n, Icon }) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setIcon(n)}
-                className={cn(
-                  "grid size-10 place-items-center rounded-lg border transition-colors",
-                  icon === n
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "text-muted-foreground"
-                )}
-                aria-label={n}
-              >
-                <Icon size={18} />
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <Label className="mb-1.5 block text-xs">Color</Label>
-          <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
-            {palette.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setColor(c)}
-                aria-label={`Color ${c}`}
-                aria-pressed={color === c}
-                className={cn(
-                  "size-9 shrink-0 rounded-full border-2 transition-transform",
-                  color === c
-                    ? "scale-110 border-foreground"
-                    : "border-transparent hover:scale-105"
-                )}
-                style={{ backgroundColor: c }}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Descripción IA (colapsable; abierta solo si ya tiene texto) */}
-        <Collapsible defaultOpen={!!description}>
-          <CollapsibleTrigger className="flex w-full items-center justify-between py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground [&[data-state=open]>svg]:rotate-180">
-            Descripción para la IA (opcional)
-            <ChevronDown className="size-4 transition-transform" />
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ej: comida y mercadería para la casa (Jumbo, Líder, Unimarc)"
-              rows={2}
-              className="mt-1 resize-none text-base"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Ayuda a la IA a categorizar tus movimientos del banco.
-            </p>
-          </CollapsibleContent>
-        </Collapsible>
-
-        <ModalFooter>
-          {isEdit && (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setConfirmDelete(true)}
-              disabled={saving}
-              aria-label="Eliminar categoría"
-              className="size-12 shrink-0 text-destructive hover:text-destructive"
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          )}
-          <Button
-            onClick={save}
-            disabled={!canSave}
-            className="h-12 flex-1 text-base"
+          </fieldset>
+          <FinanceField
+            id={`${formId}-description`}
+            label="Descripción para la IA (opcional)"
+            error={errors.description?.message}
+            hint="Ayuda a clasificar los movimientos de tu banco."
           >
-            {saving ? "Guardando…" : "Guardar"}
+            <Controller
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <Textarea
+                  id={`${formId}-description`}
+                  name={field.name}
+                  ref={field.ref}
+                  inputMode="text"
+                  value={field.value ?? ""}
+                  onChange={(event) =>
+                    field.onChange(event.target.value || null)
+                  }
+                  onBlur={field.onBlur}
+                  rows={2}
+                  className="text-base"
+                  placeholder="Ej. Comida y mercadería para la casa"
+                  aria-invalid={!!errors.description}
+                  aria-describedby={`${formId}-description-${errors.description ? "error" : "hint"}`}
+                />
+              )}
+            />
+          </FinanceField>
+        </fieldset>
+      </form>
+      <ModalFooter className="px-5">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-12"
+          disabled={busy}
+          onClick={() => {
+            form.reset()
+            setCreatedId(null)
+            onOpenChange(false)
+          }}
+        >
+          Cancelar
+        </Button>
+        {category && (
+          <Button
+            type="button"
+            variant="outline"
+            className="size-12 text-destructive"
+            disabled={busy}
+            onClick={() => setConfirmDelete(true)}
+            aria-label="Eliminar categoría"
+          >
+            <Trash2 className="size-4" />
           </Button>
-        </ModalFooter>
-      </div>
-
+        )}
+        <Button
+          type="submit"
+          form={formId}
+          disabled={busy || (!!category && !isDirty)}
+          className="h-12 flex-1 text-base"
+        >
+          {isSubmitting ? "Guardando…" : "Guardar categoría"}
+        </Button>
+      </ModalFooter>
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -376,7 +442,7 @@ export function CategoryModal({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={removeCategory} variant="destructive">
+            <AlertDialogAction onClick={remove} variant="destructive">
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>

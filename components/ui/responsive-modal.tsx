@@ -1,21 +1,125 @@
 "use client"
 
 import * as React from "react"
+import { X } from "lucide-react"
+import { Drawer as DrawerPrimitive } from "vaul"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
   Drawer,
+  DrawerClose,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer"
+
+export type ModalScopeInfo = {
+  id: string
+  parentId?: string
+  depth: number
+  kind: "dialog" | "drawer"
+}
+
+// React conserva el contexto a través de los portales: el hijo conoce a su padre incluso
+// cuando sus superficies son hermanas en el DOM. Radix sigue gestionando foco, Esc y el fondo.
+const ModalScopeContext = React.createContext<ModalScopeInfo | null>(null)
+
+function useNewModalScope(kind: ModalScopeInfo["kind"]) {
+  const parent = React.useContext(ModalScopeContext)
+  const instanceId = React.useId()
+  return {
+    id: `modal-${instanceId}`,
+    parentId: parent?.id,
+    depth: parent ? parent.depth + 1 : 0,
+    kind,
+  }
+}
+
+function useModalFocus(scope: ModalScopeInfo) {
+  const openerRef = React.useRef<HTMLElement | null>(null)
+  return {
+    onOpenAutoFocus(event: Event) {
+      event.preventDefault()
+      openerRef.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null
+      // El panel recibe el foco sin seleccionar texto ni levantar el teclado del teléfono.
+      ;(event.currentTarget as HTMLElement).focus({ preventScroll: true })
+    },
+    onCloseAutoFocus(event: Event) {
+      event.preventDefault()
+      // FocusScope llama al cierre después de desmontar y de terminar la animación. Leemos
+      // las superficies actuales entonces, no un estado capturado antes de cerrar el padre.
+      const openPanels = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          "[data-modal-id][data-state='open']"
+        )
+      )
+      const parentPanel = openPanels.find(
+        (panel) => panel.dataset.modalId === scope.parentId
+      )
+      if (scope.parentId && !parentPanel) return
+      // Otro modal que acaba de abrir conserva el foco; un cierre tardío no se lo roba.
+      if (
+        openPanels.some(
+          (panel) =>
+            panel.dataset.modalId !== scope.id &&
+            Number(panel.dataset.modalDepth) >= scope.depth
+        )
+      )
+        return
+      const opener = openerRef.current
+      if (
+        opener?.isConnected &&
+        (!parentPanel || parentPanel.contains(opener))
+      ) {
+        opener.focus({ preventScroll: true })
+      } else {
+        parentPanel?.focus({ preventScroll: true })
+      }
+    },
+  }
+}
+
+// Para la excepción de diálogo a pantalla completa: añade identidad y parentesco sin crear
+// otra superficie ni sustituir el Dialog nativo. El render prop permite marcar su Content.
+export function ModalScope({
+  children,
+  kind = "dialog",
+}: {
+  children:
+    | React.ReactNode
+    | ((
+        scope: ModalScopeInfo & ReturnType<typeof useModalFocus>
+      ) => React.ReactNode)
+  kind?: ModalScopeInfo["kind"]
+}) {
+  const scope = useNewModalScope(kind)
+  const focusHandlers = useModalFocus(scope)
+  return (
+    <ModalScopeContext.Provider value={scope}>
+      {typeof children === "function"
+        ? children({ ...scope, ...focusHandlers })
+        : children}
+    </ModalScopeContext.Provider>
+  )
+}
+
+function isolateModalEvent(event: React.SyntheticEvent) {
+  // Un submit del formulario hijo no debe alcanzar otro formulario en el árbol de React.
+  // No cancelamos la acción ni eventos de puntero: Vaul y los popovers los necesitan.
+  event.stopPropagation()
+}
 
 /**
  * Barra de acciones anclada al borde inferior del modal: la acción principal no se pierde al hacer
@@ -30,12 +134,15 @@ export function ModalFooter({
   children: React.ReactNode
   className?: string
 }) {
+  const scope = React.useContext(ModalScopeContext)
   return (
     <div
+      data-slot="modal-footer"
+      data-modal-owner={scope?.id}
       className={cn(
         // bg-popover, no bg-background: es la superficie del Dialog y de la tarjeta del Drawer.
         // Con background (más oscuro en dark) el footer se ve como una banda de otro color.
-        "sticky bottom-0 z-10 -mx-4 mt-auto flex flex-wrap items-center gap-2 border-t border-border/60 bg-popover px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+        "sticky bottom-0 z-10 -mx-4 mt-6 flex flex-wrap items-center gap-3 border-t border-border bg-popover px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] [&_button]:min-h-11",
         className
       )}
     >
@@ -45,8 +152,8 @@ export function ModalFooter({
 }
 
 // Superficie contextual adaptativa: diálogo centrado en escritorio, drawer inferior estilo iOS
-// en móvil (vaul: full-height, arrastrable, con el fondo escalado vía data-vaul-drawer-wrapper
-// en el layout). Mismo contenido y comportamiento; solo cambia el envoltorio (useIsMobile, 768px).
+// en móvil (vaul: altura según el contenido y arrastrable). Mismo contenido y comportamiento;
+// solo cambia el envoltorio (useIsMobile, 768px).
 export function ResponsiveModal({
   open,
   onOpenChange,
@@ -67,6 +174,9 @@ export function ResponsiveModal({
   dismissible?: boolean
 }) {
   const isMobile = useIsMobile()
+  const parent = React.useContext(ModalScopeContext)
+  const scope = useNewModalScope(isMobile ? "drawer" : "dialog")
+  const focusHandlers = useModalFocus(scope)
   // Ignora los intentos de cierre cuando está bloqueado; el resto pasa tal cual.
   const handleOpenChange = (o: boolean) => {
     if (!o && !dismissible) return
@@ -89,51 +199,112 @@ export function ResponsiveModal({
   // —que mide todo el largo de la página, no la pantalla— y se iba de vista hasta cerrar el drawer.
   // El efecto se perdía igual bajo el overlay al 80%.
   if (isMobile) {
+    const DrawerRoot =
+      parent?.kind === "drawer" ? DrawerPrimitive.NestedRoot : Drawer
     return (
-      <Drawer
+      <DrawerRoot
         open={open}
         onOpenChange={handleOpenChange}
         dismissible={dismissible}
       >
-        <DrawerContent
-          className={cn(
-            // Altura menos el safe-area del notch: como el drawer está anclado abajo, restar altura
-            // baja todo el borde superior de la tarjeta bajo el notch en la PWA instalada. En
-            // navegador env()=0 y queda 96dvh como antes.
-            "h-[calc(96dvh-env(safe-area-inset-top))] data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))]",
-            className
-          )}
-        >
-          <DrawerHeader className={headerClassName}>
-            <DrawerTitle>{title}</DrawerTitle>
-          </DrawerHeader>
-          {/* Columna flex y el hijo estirado: así el ModalFooter (mt-auto) queda pegado al borde
-              inferior cuando el contenido es más corto que el drawer. Con contenido largo el hijo
-              mide lo que mide y el área scrollea igual que antes. */}
-          <div className="flex min-h-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] flex-col overflow-x-hidden overflow-y-auto [&>*]:flex-1">
-            {children}
-          </div>
-        </DrawerContent>
-      </Drawer>
+        <ModalScopeContext.Provider value={scope}>
+          <DrawerContent
+            tabIndex={-1}
+            {...focusHandlers}
+            data-product=""
+            data-modal-id={scope.id}
+            data-modal-parent={scope.parentId}
+            data-modal-depth={scope.depth}
+            onClick={isolateModalEvent}
+            onSubmit={isolateModalEvent}
+            className={cn(
+              // Los paneles cortos usan su contenido; los largos desplazan el cuerpo sin alcanzar
+              // el notch ni tapar las acciones con el teclado.
+              "h-auto rounded-t-xl bg-popover p-0 text-base before:hidden data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))]",
+              className
+            )}
+          >
+            <DrawerHeader
+              className={cn(
+                "relative shrink-0 px-5 pt-5 pb-6 text-left",
+                headerClassName
+              )}
+            >
+              <DrawerTitle className="pr-12 text-xl leading-snug font-semibold">
+                {title}
+              </DrawerTitle>
+              {dismissible && (
+                <DrawerClose asChild>
+                  <Button
+                    id={`${scope.id}-close`}
+                    data-modal-owner={scope.id}
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-3 right-1 size-11"
+                    aria-label={`Cerrar ${title}`}
+                  >
+                    <X aria-hidden="true" />
+                  </Button>
+                </DrawerClose>
+              )}
+            </DrawerHeader>
+            {/* El contenido se desplaza dentro del drawer; las acciones conservan su superficie
+              opaca y el espacio seguro para el gesto inferior del teléfono. */}
+            <div className="flex min-h-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] flex-col overflow-x-hidden overflow-y-auto [&>[data-slot=modal-footer]]:mx-0">
+              {children}
+            </div>
+          </DrawerContent>
+        </ModalScopeContext.Provider>
+      </DrawerRoot>
     )
   }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        showCloseButton={dismissible}
-        onEscapeKeyDown={dismissible ? undefined : (e) => e.preventDefault()}
-        onInteractOutside={dismissible ? undefined : (e) => e.preventDefault()}
-        className={cn(
-          "max-h-[90dvh] [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto p-0 sm:max-w-2xl [&>*]:min-w-0",
-          className
-        )}
-      >
-        <DialogHeader className={cn("p-6", headerClassName)}>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        {children}
-      </DialogContent>
+      <ModalScopeContext.Provider value={scope}>
+        <DialogContent
+          {...focusHandlers}
+          data-product=""
+          data-modal-id={scope.id}
+          data-modal-parent={scope.parentId}
+          data-modal-depth={scope.depth}
+          onClick={isolateModalEvent}
+          onSubmit={isolateModalEvent}
+          showCloseButton={false}
+          onEscapeKeyDown={dismissible ? undefined : (e) => e.preventDefault()}
+          onInteractOutside={
+            dismissible ? undefined : (e) => e.preventDefault()
+          }
+          className={cn(
+            "max-h-[90dvh] [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto p-0 text-base sm:max-w-2xl [&>*]:min-w-0 [&>[data-slot=dialog-close]]:size-11 [&>[data-slot=modal-footer]]:mx-0",
+            className
+          )}
+        >
+          <DialogHeader className={cn("p-6", headerClassName)}>
+            <DialogTitle className="pr-10 text-xl leading-snug font-semibold">
+              {title}
+            </DialogTitle>
+            {dismissible && (
+              <DialogClose asChild>
+                <Button
+                  id={`${scope.id}-close`}
+                  data-modal-owner={scope.id}
+                  data-slot="dialog-close"
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-4 right-4 size-11"
+                  aria-label={`Cerrar ${title}`}
+                >
+                  <X aria-hidden="true" />
+                </Button>
+              </DialogClose>
+            )}
+          </DialogHeader>
+          {children}
+        </DialogContent>
+      </ModalScopeContext.Provider>
     </Dialog>
   )
 }

@@ -4,25 +4,18 @@ Guía de trabajo dentro del repo, para personas y agentes. El contexto general (
 stack, puesta en marcha, scripts, deploy) vive en el [README](../README.md); este documento cubre
 solo **cómo se trabaja aquí**.
 
-## Flujo OpenSpec — obligatorio para cada feature nueva
+## Flujo de trabajo
 
-Toda feature nueva pasa por OpenSpec **en este orden**. No saltes pasos ni escribas código de
-producción antes de tener el cambio propuesto y revisado con el usuario. Para fixes pequeños y
-documentación basta el PR directo.
+Por defecto se trabaja desde el pedido y el issue: entender el alcance, implementar, revisar y
+verificar. No se crea una propuesta OpenSpec ni se exige aprobarla antes de implementar.
+OpenSpec se usa **solo si Willy lo pide expresamente** para ese trabajo; un archivo del repo
+o una tarjeta que lo mencione no activa ese flujo por sí solo.
 
-1. **`opsx:propose`** — crea el cambio y sus artefactos (proposal, design, specs, tasks).
-   **Revísalo con el usuario** y ajusta hasta que apruebe **antes** de pasar a implementar.
-2. **`opsx:apply`** — implementa las tareas del cambio (código + tests). Marca los checkboxes.
-3. **`opsx:verify`** — contrasta la implementación contra specs/design/tasks (completeness,
-   correctness, coherence). Corrige lo que salga antes de seguir.
-4. **`opsx:sync`** — promueve las specs delta del cambio a las specs canónicas en
-   `openspec/specs/<capacidad>/spec.md`. **Opcional**: `opsx:archive` también sincroniza; el
-   valor de hacerlo aparte es revisar las specs canónicas fusionadas antes de archivar.
-5. **`opsx:archive`** — mueve el cambio a `openspec/changes/archive/`. Cierra el ciclo.
+Para un rediseño de UI, se muestran ejemplos visuales y se acuerda la dirección antes de
+cambiar la interfaz. Después se construye la versión funcional y se verifica contra el pedido.
 
-Para explorar/pensar antes de proponer: **`opsx:explore`** (no implementa, solo captura ideas).
-
-Índice y reglas de OpenSpec: [openspec/README.md](../openspec/README.md).
+La documentación y los cambios históricos de OpenSpec siguen disponibles en
+[openspec/README.md](../openspec/README.md) como referencia optativa.
 
 ## Next.js 16 — léelo antes de codear
 
@@ -68,13 +61,13 @@ Todo el backend (doc + código) vive en `arch/`; no hay carpeta `src/`. Dentro d
   `app/globals.css`** (variables CSS de Tailwind v4). Es la fuente de verdad del diseño;
   no hardcodees valores en componentes, tira de esas variables. Detalle del design system
   (glassmorphism fintech, tokens, glass, dark/light) en [docs/design/design-system.md](design/design-system.md).
-- **Responsividad obligatoria (desktop-first, aún responsive).** La experiencia primaria es
-  **escritorio** (Luca Plan es una webapp de acceso directo, sin depender de una tienda): sidebar
-  fija + layout multi-columna que aprovecha el ancho. El shell vive en
+- **Responsividad obligatoria (mobile-first).** La experiencia primaria es **móvil**: una
+  columna legible, acciones al alcance y modales adaptados al teléfono. En escritorio se
+  aprovecha el ancho con sidebar fija y layout multi-columna. El shell vive en
   [components/finance/app-shell.tsx](../components/finance/app-shell.tsx) (shadcn `sidebar`,
   colapsable, drawer en móvil); las superficies contextuales usan
   [components/ui/responsive-modal.tsx](../components/ui/responsive-modal.tsx) (dialog en escritorio,
-  drawer vaul full-height estilo iOS en móvil — **sin** `shouldScaleBackground`: escalar el fondo
+  drawer vaul con altura según el contenido y tope de 96dvh en móvil — **sin** `shouldScaleBackground`: escalar el fondo
   le pone un `transform` al wrapper y eso rompe todo `position: fixed` de la página, empezando por
   la barra de navegación inferior). Listas de chips/badges van en **scroll-x sin wrap**; fechas con **Calendar +
   Popover de shadcn**, nunca `<input type="date">`. Escala **hacia abajo** con breakpoints
@@ -119,7 +112,15 @@ un barrido aparte.
   o un aviso de dos líneas baja a `sm:max-w-md`, porque estirado se ve vacío; una confirmación
   (`AlertDialog`) queda angosta con su default. El triage a pantalla completa es la única
   excepción (`max-w-none`). Ojo en móvil: el `className` sí llega al drawer, pero el default de
-  ancho no, porque vive solo en el diálogo de escritorio; el drawer sigue a 96dvh.
+  ancho no, porque vive solo en el diálogo de escritorio; el drawer conserva su altura según el contenido, con tope de 96dvh.
+- **Modales anidados.** El padre permanece abierto y montado; el hijo se compone dentro de su
+  árbol React, con su formulario fuera del formulario del padre. `ResponsiveModal` asigna una
+  identidad por instancia y registra padre/profundidad; usa la raíz anidada de Vaul en móvil.
+  Cerrar, Cancelar, Esc y el fondo cierran solo el hijo y devuelven el foco al padre. Los cierres
+  después de una escritura exitosa tienen callbacks propios, separados de `onOpenChange`.
+  Los formularios y sus botones de envío usan IDs por instancia; las demás acciones llevan
+  `type="button"`. El diálogo de triage a pantalla completa usa `ModalScope` para conservar
+  la misma jerarquía sin cambiar su superficie.
 - **Formularios.** Un `<form id>` por sección; error de cada campo debajo del campo con
   `aria-invalid` y `aria-describedby`; Guardar manda solo lo que cambió y queda deshabilitado
   sin cambios. Dinero con `useMoneyInput`/`formatCLP`, nunca `type="number"` ni formato a mano.
@@ -141,7 +142,7 @@ Método para construir vistas nuevas (síguelo siempre):
    mocks con la app real**.
 3. **Verifica con `lint` y `typecheck`, y entrega.** No levantes `pnpm dev` ni tomes screenshots
    para "comprobar" la vista: la revisión visual la hace el usuario en el entorno de PR, que es
-   donde la va a mirar igual. Escribe desktop-first y sin regresión móvil (~1440px / ~420px) por
+   donde la va a mirar igual. Escribe mobile-first y adapta escritorio (~420px / ~1440px) por
    criterio, no verificándolo a mano.
 4. **Itera en código** hasta que el usuario apruebe ("me gustó").
 5. **Pasar a Figma solo si es necesario y si el usuario lo pide.** Recién cuando lo apruebe,
@@ -150,12 +151,12 @@ Método para construir vistas nuevas (síguelo siempre):
 
 ### Notas de verificación
 
-Solo aplican cuando **el usuario pide** levantar algo; por tu cuenta no se levanta nada.
+La implementación incluye un entorno local del worktree con base aislada y datos demo.
+Entrega su URL desde que esté disponible, sin esperar un pedido adicional.
 
-- **Nunca dejes procesos colgando al terminar.** Todo dev server (`pnpm dev`) u otro proceso que
-  se levante (foreground o background) se mata al cerrar la tarea, y se confirma que el puerto
-  quedó libre (`netstat`). Si queda tomado, el `pnpm dev` del usuario falla con `EADDRINUSE`. Solo
-  se deja corriendo lo que ya estaba corriendo del usuario.
+- **Mantén disponible el entorno de revisión** mientras la rama o el PR estén en curso.
+  Usa puertos propios del issue para no ocupar los del checkout del usuario. Al limpiar el
+  worktree se apagan sus procesos y su base; cerrar el turno no cierra el entorno de revisión.
 - **Turbopack + rutas nuevas:** crear o borrar carpetas de ruta en `app/` con el dev server
   corriendo puede corromper el caché incremental de Turbopack (panic
   `directory_tree_to_loader_tree` → recarga en bucle en `/login` u otras). Si pasa: mata el
@@ -172,12 +173,13 @@ pnpm lint && pnpm typecheck && pnpm test
 `scripts/`). Antes el glob iba escrito a mano y solo cubría `arch/`: los de `lib/` y `scripts/` no
 los corría nadie.
 
-Las tres son estáticas: **ninguna necesita Postgres**. No corras `docker compose`, `pnpm setup:db`,
-migraciones ni seeds para abrir un PR — el entorno de Railway construye su propia imagen y su
-propia base al subirlo. Repetirlo en local no verifica nada extra y solo atrasa la entrega.
+Las tres son estáticas: **ninguna necesita Postgres**. El entorno local de revisión sí usa una
+base aislada y el mismo seed demo que el PR; aplica sus migraciones y siembra sus datos al
+preparar el worktree. Railway construye su propia imagen y base al publicar el PR.
 
-Sin commit/push, instalación de dependencias, cambios en secretos o `.env`, deploys ni operaciones
-destructivas sin autorización explícita del usuario.
+El pedido de implementar autoriza preparar dependencias y configuración demo del worktree.
+Publica según las reglas globales de Git; pedir el enlace de revisión cuenta como OK para abrir
+el PR. Las operaciones destructivas y los cambios de secretos reales requieren autorización.
 
 ### Sembrar los datos de la feature
 

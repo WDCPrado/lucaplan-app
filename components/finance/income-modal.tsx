@@ -1,6 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import type { ReactNode } from "react"
+
+import { useId, useState } from "react"
+import { useForm, Controller, useWatch } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import { CalendarIcon, Trash2 } from "lucide-react"
 import { es } from "date-fns/locale"
@@ -9,6 +13,13 @@ import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Calendar } from "@/components/ui/calendar"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,9 +37,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { haptic } from "@/lib/haptics"
-import { useMoneyInput } from "@/hooks/use-money-input"
-import { CategoryIcon } from "./category-icons"
-import { Chip } from "./transaction-modal"
+import { incomeSchema, type IncomeFormValues } from "@/lib/finance-form-schemas"
+import {
+  FinanceField,
+  MoneyFormInput,
+  financeResponseError,
+} from "./finance-form-field"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
   AccountDTO,
@@ -36,13 +50,10 @@ import type {
   IncomeDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
-// Cuentas que reciben ingresos: no de crédito (un abono a una tarjeta es un pago, no un ingreso).
-const acceptsIncome = (a: AccountDTO) =>
-  a.accountType !== "credit_card" && a.accountType !== "credit_line"
-
-// Modal de fuente de ingreso (crear/editar). El monto se ingresa en la moneda de la cuenta destino.
-// Al guardar, el backend siembra el límite global del mes si aún no está definido.
+const acceptsIncome = (account: AccountDTO) =>
+  account.accountType !== "credit_card" && account.accountType !== "credit_line"
 export function IncomeModal({
+  children,
   open,
   onOpenChange,
   accounts,
@@ -51,179 +62,320 @@ export function IncomeModal({
   period,
   onCreateCategory,
 }: {
+  children?: ReactNode
   open: boolean
-  onOpenChange: (o: boolean) => void
+  onOpenChange: (open: boolean) => void
   accounts: AccountDTO[]
   categories: CategoryDTO[]
-  income?: IncomeDTO | null // null/undefined = crear; objeto = editar
+  income?: IncomeDTO | null
   period: { year: number; month: number }
   onCreateCategory: () => void
 }) {
   const router = useRouter()
+  const formId = `income-${useId()}`
   const destinations = accounts.filter(acceptsIncome)
-  const incomeCategories = categories.filter((c) => c.type === "income")
-
-  const [name, setName] = useState(income?.name ?? "")
-  const [accountId, setAccountId] = useState(
-    income?.accountId ?? destinations[0]?.id ?? ""
+  const incomeCategories = categories.filter(
+    (category) => category.type === "income"
   )
-  const [categoryId, setCategoryId] = useState<string | null>(
-    income?.categoryId ?? incomeCategories[0]?.id ?? null
-  )
-  const [day, setDay] = useState(income?.dayOfMonth ?? 1)
-  const [saving, setSaving] = useState(false)
-
-  const account = destinations.find((a) => a.id === accountId) ?? destinations[0]
-  const money = useMoneyInput(
-    (account?.currency as CurrencyCode) ?? "CLP",
-    income?.amount ?? 0
-  )
-  const canSave =
-    !!name.trim() &&
-    !!account &&
-    !!categoryId &&
-    money.value > 0 &&
-    day >= 1 &&
-    day <= 31 &&
-    !saving
-
-  async function save() {
-    if (!canSave || !account || !categoryId) return
-    setSaving(true)
-    const url = income
-      ? `/api/incomes/${income.id}?year=${period.year}&month=${period.month}`
-      : `/api/incomes?year=${period.year}&month=${period.month}`
-    const res = await fetch(url, {
-      method: income ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        accountId: account.id,
-        categoryId,
-        name: name.trim(),
-        amount: money.value,
-        dayOfMonth: day,
-        isActive: income?.isActive ?? true,
-      }),
-    })
-    const data = await res.json().catch(() => ({}))
-    setSaving(false)
-    if (!res.ok) {
-      haptic("error")
-      return toast.error(data.error ?? "No se pudo guardar el ingreso")
-    }
-    haptic("success")
-    if (data.seed?.seeded)
+  const [deleting, setDeleting] = useState(false)
+  const form = useForm({
+    resolver: zodResolver(incomeSchema),
+    // Refresh after creating a category fills the untouched selector without erasing the draft.
+    resetOptions: { keepDirtyValues: true },
+    values: {
+      name: income?.name ?? "",
+      accountId: income?.accountId ?? destinations[0]?.id ?? "",
+      categoryId: income?.categoryId ?? incomeCategories[0]?.id ?? "",
+      amount: income?.amount ?? 0,
+      dayOfMonth: income?.dayOfMonth ?? 1,
+    },
+  })
+  const accountId = useWatch({ control: form.control, name: "accountId" })
+  const currency = (destinations.find((account) => account.id === accountId)
+    ?.currency ?? "CLP") as CurrencyCode
+  const { errors, isSubmitting, isDirty, dirtyFields } = form.formState
+  // RHF subscribes to dirtyFields to preserve those values during a reactive reset.
+  const hasDraftChanges = isDirty || Object.keys(dirtyFields).length > 0
+  const busy = isSubmitting || deleting
+  async function save(values: IncomeFormValues) {
+    form.clearErrors("root")
+    try {
+      const url = income
+        ? `/api/incomes/${income.id}?year=${period.year}&month=${period.month}`
+        : `/api/incomes?year=${period.year}&month=${period.month}`
+      const res = await fetch(url, {
+        method: income ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...values,
+          name: values.name.trim(),
+          ...(income ? { isActive: income.isActive } : {}),
+        }),
+      })
+      if (!res.ok)
+        throw new Error(
+          await financeResponseError(
+            res,
+            "No se pudo guardar el ingreso. Vuelve a intentarlo."
+          )
+        )
+      const data = await res.json().catch(() => ({}))
+      haptic("success")
       toast.success(
-        `Presupuesto del mes: ${data.seed.total.toLocaleString("es-CL")}`
+        data.seed?.seeded
+          ? `Presupuesto del mes: ${data.seed.total.toLocaleString("es-CL")}`
+          : income
+            ? "Ingreso actualizado"
+            : "Ingreso agregado"
       )
-    else toast.success(income ? "Ingreso actualizado" : "Ingreso agregado")
-    onOpenChange(false)
-    router.refresh()
-  }
-
-  async function remove() {
-    if (!income || saving) return
-    setSaving(true)
-    // El período viaja también al eliminar: la fuente deja de existir DESDE ese mes y los
-    // anteriores conservan su historia.
-    const res = await fetch(
-      `/api/incomes/${income.id}?year=${period.year}&month=${period.month}`,
-      { method: "DELETE" }
-    )
-    setSaving(false)
-    if (!res.ok) {
+      form.reset(undefined, { keepDirtyValues: false })
+      onOpenChange(false)
+      router.refresh()
+    } catch (error) {
       haptic("error")
-      return toast.error("No se pudo eliminar el ingreso")
+      form.setError("root", {
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo guardar el ingreso.",
+      })
     }
-    haptic("success")
-    toast.success("Ingreso eliminado")
-    onOpenChange(false)
-    router.refresh()
   }
-
+  async function remove() {
+    if (!income || busy) return
+    setDeleting(true)
+    try {
+      const res = await fetch(
+        `/api/incomes/${income.id}?year=${period.year}&month=${period.month}`,
+        { method: "DELETE" }
+      )
+      if (!res.ok)
+        throw new Error(
+          await financeResponseError(res, "No se pudo eliminar el ingreso.")
+        )
+      toast.success("Ingreso eliminado")
+      form.reset(undefined, { keepDirtyValues: false })
+      onOpenChange(false)
+      router.refresh()
+    } catch (error) {
+      form.setError("root", {
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo eliminar el ingreso.",
+      })
+    } finally {
+      setDeleting(false)
+    }
+  }
   return (
     <ResponsiveModal
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        if (!next) form.reset(undefined, { keepDirtyValues: false })
+        onOpenChange(next)
+      }}
       title={income ? "Editar ingreso" : "Nuevo ingreso"}
     >
       {destinations.length === 0 ? (
-        <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-          Necesitas una cuenta que reciba dinero (corriente, ahorro o billetera)
-          para registrar un ingreso.
-        </div>
+        <>
+          <p className="px-5 py-8 text-base leading-relaxed text-muted-foreground">
+            Agrega una cuenta corriente, de ahorro o billetera para recibir
+            ingresos. Las tarjetas de crédito registran pagos, no ingresos.
+          </p>
+          <ModalFooter className="px-5">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-12 flex-1"
+              onClick={() => onOpenChange(false)}
+            >
+              Cerrar
+            </Button>
+          </ModalFooter>
+        </>
       ) : (
-        <div className="flex flex-col gap-5 px-4">
-          <Input
-            placeholder="Nombre (ej. Sueldo)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="h-12 border-0 bg-transparent px-0 text-2xl font-bold shadow-none focus-visible:ring-0 md:text-2xl"
-          />
-
-          {/* Sin la insignia "+": imitaba el toggle ±  del form de movimiento sin ser un control.
-              El verde del monto ya dice "entra dinero". */}
-          <Input
-            inputMode="numeric"
-            placeholder="0"
-            value={money.display}
-            onChange={(e) => money.onChange(e.target.value)}
-            aria-label="Monto del ingreso"
-            className="tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold text-success shadow-none focus-visible:ring-0"
-          />
-
-          <Field label="Cuenta donde entra">
-            <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
-              {destinations.map((a) => (
-                <Chip
-                  key={a.id}
-                  active={a.id === account?.id}
-                  onClick={() => setAccountId(a.id)}
+        <>
+          <form
+            id={formId}
+            onSubmit={form.handleSubmit(save)}
+            className="flex flex-col gap-7 px-5"
+          >
+            <fieldset disabled={busy} className="contents">
+              {errors.root && (
+                <p role="alert" className="text-sm text-destructive">
+                  {errors.root.message}
+                </p>
+              )}
+              <FinanceField
+                id={`${formId}-name`}
+                label="Nombre del ingreso"
+                error={errors.name?.message}
+              >
+                <Input
+                  id={`${formId}-name`}
+                  {...form.register("name")}
+                  required
+                  inputMode="text"
+                  className="h-12 text-base"
+                  placeholder="Ej. Sueldo"
+                  aria-invalid={!!errors.name}
+                  aria-describedby={
+                    errors.name ? `${formId}-name-error` : undefined
+                  }
+                />
+              </FinanceField>
+              <FinanceField
+                id={`${formId}-account`}
+                label="Cuenta donde entra"
+                error={errors.accountId?.message}
+              >
+                <Controller
+                  control={form.control}
+                  name="accountId"
+                  render={({ field }) => (
+                    <Select
+                      required
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger
+                        id={`${formId}-account`}
+                        className="h-12! w-full text-base"
+                        aria-invalid={!!errors.accountId}
+                        aria-describedby={
+                          errors.accountId
+                            ? `${formId}-account-error`
+                            : undefined
+                        }
+                      >
+                        <SelectValue placeholder="Elige una cuenta" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover">
+                        {destinations.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                            {account.name} · {account.currency}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </FinanceField>
+              <FinanceField
+                id={`${formId}-amount`}
+                label={`Monto (${currency})`}
+                error={errors.amount?.message}
+              >
+                <Controller
+                  control={form.control}
+                  name="amount"
+                  render={({ field }) => (
+                    <MoneyFormInput
+                      id={`${formId}-amount`}
+                      name={field.name}
+                      ref={field.ref}
+                      value={field.value}
+                      currency={currency}
+                      onValueChange={field.onChange}
+                      onBlur={field.onBlur}
+                      placeholder="0"
+                      aria-invalid={!!errors.amount}
+                      aria-describedby={
+                        errors.amount ? `${formId}-amount-error` : undefined
+                      }
+                    />
+                  )}
+                />
+              </FinanceField>
+              <FinanceField
+                id={`${formId}-category`}
+                label="Categoría de ingreso"
+                error={errors.categoryId?.message}
+              >
+                <Controller
+                  control={form.control}
+                  name="categoryId"
+                  render={({ field }) => (
+                    <Select
+                      required
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger
+                        id={`${formId}-category`}
+                        className="h-12! w-full text-base"
+                        aria-invalid={!!errors.categoryId}
+                        aria-describedby={
+                          errors.categoryId
+                            ? `${formId}-category-error`
+                            : undefined
+                        }
+                      >
+                        <SelectValue placeholder="Elige una categoría" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover">
+                        {incomeCategories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onCreateCategory}
+                  className="h-11"
                 >
-                  {a.name}
-                </Chip>
-              ))}
-            </div>
-          </Field>
-
-          <Field label="Categoría de ingreso">
-            <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
-              {incomeCategories.map((c) => (
-                <Chip
-                  key={c.id}
-                  active={c.id === categoryId}
-                  onClick={() => setCategoryId(c.id)}
-                >
-                  <CategoryIcon
-                    icon={c.icon}
-                    size={16}
-                    color={c.color ?? undefined}
-                  />{" "}
-                  {c.name}
-                </Chip>
-              ))}
-              <Chip active={false} onClick={onCreateCategory}>
-                ＋ Crear
-              </Chip>
-            </div>
-          </Field>
-
-          <Field label="Día de ingreso del mes">
-            <DayOfMonthPicker value={day} onChange={setDay} />
-            <span className="block text-xs text-muted-foreground">
-              Si el mes no tiene ese día (ej. 31 en febrero), se usa el último.
-            </span>
-          </Field>
-
-          <ModalFooter>
+                  Crear categoría de ingreso
+                </Button>
+              </FinanceField>
+              <FinanceField
+                id={`${formId}-day`}
+                label="Día de ingreso"
+                error={errors.dayOfMonth?.message}
+                hint="Si ese día no existe en el mes, se usa el último día."
+              >
+                <Controller
+                  control={form.control}
+                  name="dayOfMonth"
+                  render={({ field }) => (
+                    <DayOfMonthPicker
+                      id={`${formId}-day`}
+                      value={field.value}
+                      onChange={field.onChange}
+                      aria-invalid={!!errors.dayOfMonth}
+                      aria-describedby={`${formId}-day-${errors.dayOfMonth ? "error" : "hint"}`}
+                    />
+                  )}
+                />
+              </FinanceField>
+            </fieldset>
+          </form>
+          <ModalFooter className="px-5">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-12"
+              disabled={busy}
+              onClick={() => {
+                form.reset(undefined, { keepDirtyValues: false })
+                onOpenChange(false)
+              }}
+            >
+              Cancelar
+            </Button>
             {income && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
+                    type="button"
                     variant="outline"
-                    size="icon"
-                    disabled={saving}
-                    className="size-12 shrink-0 text-destructive hover:text-destructive"
+                    className="size-12 text-destructive"
+                    disabled={busy}
                     aria-label="Eliminar ingreso"
                   >
                     <Trash2 className="size-4" />
@@ -241,10 +393,7 @@ export function IncomeModal({
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={remove}
-                      variant="destructive"
-                    >
+                    <AlertDialogAction onClick={remove} variant="destructive">
                       Eliminar
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -252,19 +401,28 @@ export function IncomeModal({
               </AlertDialog>
             )}
             <Button
-              onClick={save}
-              disabled={!canSave}
+              type="submit"
+              form={formId}
+              disabled={
+                busy ||
+                incomeCategories.length === 0 ||
+                (!!income && !hasDraftChanges)
+              }
               className="h-12 flex-1 text-base"
             >
-              {saving ? "Guardando…" : income ? "Guardar" : "Agregar ingreso"}
+              {isSubmitting
+                ? "Guardando…"
+                : income
+                  ? "Guardar ingreso"
+                  : "Agregar ingreso"}
             </Button>
           </ModalFooter>
-        </div>
+        </>
       )}
+      {children}
     </ResponsiveModal>
   )
 }
-
 // Mes de referencia con 31 días (enero) para que el calendario ofrezca todos los días 1–31.
 // El ingreso es recurrente: guardamos solo el número de día, el mes/año no importan.
 const DAY_PICKER_MONTH = new Date(2001, 0, 1)
@@ -273,8 +431,13 @@ const DAY_PICKER_MONTH = new Date(2001, 0, 1)
 export function DayOfMonthPicker({
   value,
   onChange,
+  id,
+  ...props
 }: {
   value: number
+  id?: string
+  "aria-invalid"?: boolean
+  "aria-describedby"?: string
   onChange: (day: number) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -282,6 +445,9 @@ export function DayOfMonthPicker({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
+          {...props}
+          type="button"
           variant="outline"
           className="h-11 w-full justify-start rounded-lg text-base font-normal"
         >
@@ -309,21 +475,3 @@ export function DayOfMonthPicker({
     </Popover>
   )
 }
-
-function Field({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="space-y-1.5">
-      <span className="block text-xs font-medium text-muted-foreground">
-        {label}
-      </span>
-      {children}
-    </div>
-  )
-}
-

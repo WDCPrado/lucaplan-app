@@ -2,6 +2,7 @@
 // adapters, y mapea errores de dominio a status (401 sin sesión, 404 ownership/no-encontrado, 422
 // regla de negocio). Sin lógica de negocio.
 import { cache } from "react"
+import { ZodError } from "zod"
 
 import { sessionGateway } from "../../infrastructure/auth/session.gateway.ts"
 import {
@@ -113,6 +114,7 @@ const requestStore = cache((): MemoStore => new Map())
 export const financePageDeps = memoizeReads(financeDeps, requestStore)
 
 function errorStatus(e: unknown): number {
+  if (e instanceof ZodError) return 422
   if (e instanceof WebhookSignatureError || e instanceof OAuthStateError)
     return 401
   if (e instanceof LockBusyError) return 409 // sync ya en curso
@@ -186,7 +188,15 @@ export async function withUser(
   try {
     return jsonResponse(await fn(actor.userId), okStatus)
   } catch (e) {
-    return jsonResponse({ error: (e as Error).message }, errorStatus(e))
+    return jsonResponse(
+      {
+        error:
+          e instanceof ZodError
+            ? (e.issues[0]?.message ?? "Datos inválidos")
+            : (e as Error).message,
+      },
+      errorStatus(e)
+    )
   }
 }
 

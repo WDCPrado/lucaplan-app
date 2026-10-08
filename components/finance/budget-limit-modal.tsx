@@ -1,19 +1,22 @@
 "use client"
 
-import { useState } from "react"
+import { useId } from "react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { haptic } from "@/lib/haptics"
+import { monthlyBudgetSchema } from "@/lib/finance-form-schemas"
 import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useMoneyInput } from "@/hooks/use-money-input"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { monthName } from "@/lib/finance-format"
+import {
+  FinanceField,
+  MoneyFormInput,
+  financeResponseError,
+} from "./finance-form-field"
 
-// Define/edita el límite global del presupuesto del mes (POST /api/budgets, upsert). Los meses
-// siguientes lo heredan (carry-forward) hasta que se cambie; 0 es presupuesto cero, no "sin límite".
 export function BudgetLimitModal({
   open,
   onOpenChange,
@@ -21,74 +24,123 @@ export function BudgetLimitModal({
   current,
 }: {
   open: boolean
-  onOpenChange: (o: boolean) => void
+  onOpenChange: (open: boolean) => void
   period: { year: number; month: number }
   current: number | null
 }) {
   const router = useRouter()
-  const limit = useMoneyInput("CLP", current ?? 0)
-  const [saving, setSaving] = useState(false)
-  // En móvil no autoenfocamos: el teclado abriéndose mientras el drawer anima se ve saltón.
+  const id = useId()
+  const formId = `budget-${id}`
+  const fieldId = `${formId}-limit`
   const isMobile = useIsMobile()
-
-  async function save() {
-    if (saving) return
-    setSaving(true)
-    const res = await fetch("/api/budgets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        year: period.year,
-        month: period.month,
-        globalLimit: limit.value,
-      }),
-    })
-    setSaving(false)
-    if (!res.ok) {
+  const form = useForm({
+    resolver: zodResolver(monthlyBudgetSchema),
+    values: { ...period, globalLimit: current ?? 0 },
+  })
+  const { errors, isSubmitting, isDirty } = form.formState
+  async function save(values: {
+    year: number
+    month: number
+    globalLimit: number
+  }) {
+    form.clearErrors("root")
+    try {
+      const res = await fetch("/api/budgets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      })
+      if (!res.ok)
+        throw new Error(
+          await financeResponseError(
+            res,
+            "No se pudo guardar el presupuesto. Vuelve a intentarlo."
+          )
+        )
+      haptic("success")
+      toast.success("Presupuesto actualizado")
+      onOpenChange(false)
+      router.refresh()
+    } catch (error) {
       haptic("error")
-      toast.error("No se pudo guardar el presupuesto del mes")
-      return
+      form.setError("root", {
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo guardar el presupuesto.",
+      })
     }
-    haptic("success")
-    onOpenChange(false)
-    router.refresh()
   }
-
   return (
     <ResponsiveModal
       className="sm:max-w-md"
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        if (!next) form.reset()
+        onOpenChange(next)
+      }}
       title={`Presupuesto de ${monthName(period.month)}`}
     >
-      <div className="flex flex-col gap-4 px-4">
-        <div>
-          <Label className="mb-1 block text-xs">
-            Límite global del mes (CLP)
-          </Label>
-          <Input
-            inputMode="numeric"
-            value={limit.display}
-            onChange={(e) => limit.onChange(e.target.value)}
-            placeholder="500.000"
-            className="tabular h-11 text-base"
-            autoFocus={!isMobile}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Controla cuánto puedes repartir entre tus categorías. Los meses
-            siguientes heredan este límite hasta que lo cambies.
-          </p>
-        </div>
-        <ModalFooter>
-          <Button
-            onClick={save}
-            disabled={saving}
-            className="h-12 flex-1 text-base"
+      <form
+        id={formId}
+        onSubmit={form.handleSubmit(save)}
+        className="flex flex-col gap-7 px-5"
+      >
+        <fieldset disabled={isSubmitting} className="contents">
+          {errors.root && (
+            <p role="alert" className="text-sm text-destructive">
+              {errors.root.message}
+            </p>
+          )}
+          <FinanceField
+            id={fieldId}
+            label="Presupuesto total (CLP)"
+            error={errors.globalLimit?.message}
+            hint="Define cuánto quieres gastar. Puedes dejar dinero por repartir; los meses siguientes heredan este presupuesto hasta que lo cambies."
           >
-            {saving ? "Guardando…" : "Guardar"}
-          </Button>
-        </ModalFooter>
-      </div>
+            <Controller
+              name="globalLimit"
+              control={form.control}
+              render={({ field }) => (
+                <MoneyFormInput
+                  id={fieldId}
+                  name={field.name}
+                  ref={field.ref}
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  onBlur={field.onBlur}
+                  autoFocus={!isMobile}
+                  aria-invalid={!!errors.globalLimit}
+                  aria-describedby={`${fieldId}-${errors.globalLimit ? "error" : "hint"}`}
+                  placeholder="500.000"
+                />
+              )}
+            />
+          </FinanceField>
+        </fieldset>
+      </form>
+      <ModalFooter className="px-5">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-12"
+          onClick={() => {
+            form.reset()
+            onOpenChange(false)
+          }}
+          disabled={isSubmitting}
+        >
+          Cancelar
+        </Button>
+        <Button
+          type="submit"
+          form={formId}
+          disabled={isSubmitting || (current !== null && !isDirty)}
+          className="h-12 flex-1 text-base"
+        >
+          {isSubmitting ? "Guardando…" : "Guardar presupuesto"}
+        </Button>
+      </ModalFooter>
     </ResponsiveModal>
   )
 }

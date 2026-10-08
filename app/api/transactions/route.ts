@@ -1,3 +1,4 @@
+import { transactionSchema } from "@/lib/finance-form-schemas"
 import {
   withUser,
   financeDeps,
@@ -34,17 +35,22 @@ export async function POST(req: Request) {
       { status: 400 }
     )
   }
+
   return withUser(
     req,
     async (userId) => {
-      const t = await createTransaction(financeDeps, userId, {
+      const parsed = transactionSchema.parse({
         accountId: body.accountId,
         categoryId: body.categoryId ?? null,
         amount,
         currency: body.currency,
         direction: body.direction as Direction,
         description: body.description ?? "",
-        date: body.date ? new Date(body.date) : new Date(),
+        date: body.date || new Date().toISOString(),
+      })
+      const t = await createTransaction(financeDeps, userId, {
+        ...parsed,
+        date: new Date(parsed.date),
       })
       return { id: t.id }
     },

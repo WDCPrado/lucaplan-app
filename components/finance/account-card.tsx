@@ -49,10 +49,12 @@ export function AccountCard({
   account,
   hidden,
   onClick,
+  compact = false,
 }: {
   account: AccountDTO
   hidden?: boolean
   onClick?: () => void
+  compact?: boolean
 }) {
   const art = resolveCardArt(account.bankName, account.accountType)
   // Conectada = importada por un banco, cualquiera sea. Comparar contra un banco concreto
@@ -78,6 +80,80 @@ export function AccountCard({
           .filter((d): d is string => !!d)
           .sort()[0]
       : null
+
+  if (compact) {
+    const money = (value: number, currency: string) =>
+      hidden ? "••••••" : formatMoney(value, currency as CurrencyCode)
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-h-20 w-full flex-wrap items-center justify-between gap-4 py-5 text-left transition-colors hover:bg-secondary"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="font-medium break-words">
+            {account.bankName || account.name}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {TYPE_LABEL[account.accountType] ?? account.accountType}
+            {account.cardLast4
+              ? ` · •••• ${account.cardLast4}`
+              : ` · ${account.name}`}
+          </p>
+          {connected && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Conectado
+              {estimatedSince
+                ? ` · saldo estimado desde ${new Date(estimatedSince).toLocaleDateString("es-CL")}`
+                : ""}
+            </p>
+          )}
+        </div>
+        <dl className="flex max-w-full min-w-0 flex-col flex-wrap gap-x-6 gap-y-3 text-sm md:flex-row">
+          {isCredit && primary ? (
+            <>
+              {[nat, intl]
+                .filter((b) => !!b)
+                .map((b) => (
+                  <div className="max-w-full min-w-0" key={b!.kind}>
+                    <dt className="text-muted-foreground">
+                      {b!.kind === "credit_national"
+                        ? "Cupo nacional · CLP"
+                        : "Cupo internacional · USD"}
+                    </dt>
+                    <dd className="tabular mt-1 font-semibold break-all">
+                      {money(b!.available, b!.currency)}
+                    </dd>
+                  </div>
+                ))}
+            </>
+          ) : isCredit ? (
+            <div className="text-sm text-muted-foreground">
+              <dt>Cupo sin datos</dt>
+              <dd className="mt-1">Abrir para actualizar saldo</dd>
+            </div>
+          ) : (
+            <div className="max-w-full min-w-0">
+              <dt className="text-muted-foreground">
+                Saldo {cash?.currency ?? account.currency}
+              </dt>
+              <dd className="tabular mt-1 font-semibold break-all">
+                {money(
+                  cash?.available ?? account.balance,
+                  cash?.currency ?? account.currency
+                )}
+              </dd>
+              {overdraft && overdraft.used > 0 && (
+                <p className="mt-1 text-sm text-destructive">
+                  Sobregiro usado {money(overdraft.used, overdraft.currency)}
+                </p>
+              )}
+            </div>
+          )}
+        </dl>
+      </button>
+    )
+  }
 
   return (
     <div
@@ -135,7 +211,10 @@ export function AccountCard({
           <div className="tabular text-3xl font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
             {hidden
               ? "••••••"
-              : formatMoney(primary.available, primary.currency as CurrencyCode)}
+              : formatMoney(
+                  primary.available,
+                  primary.currency as CurrencyCode
+                )}
           </div>
           {/* El cupo secundario va DEBAJO, no al lado: en la misma línea, dos montos largos
               (CLP de siete dígitos + USD) se salen del ancho de la tarjeta. */}

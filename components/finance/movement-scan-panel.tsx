@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Camera, Loader2, Plus, TriangleAlert, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "./transaction-modal"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { groupByCurrency } from "@/lib/finance-format"
@@ -173,7 +174,7 @@ export function MovementScanPanel({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <input
         ref={fileRef}
         type="file"
@@ -218,7 +219,7 @@ export function MovementScanPanel({
                     }
                     disabled={busy !== null}
                     aria-label={`Quitar ${shot.name}`}
-                    className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent"
+                    className="grid size-11 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent"
                   >
                     <X className="size-4" />
                   </button>
@@ -289,7 +290,7 @@ export function MovementScanPanel({
               <li
                 key={row.id}
                 className={cn(
-                  "flex flex-col gap-2 rounded-lg border border-border/60 p-3",
+                  "flex flex-col gap-4 rounded-lg border border-border p-4",
                   !row.checked && "opacity-55"
                 )}
               >
@@ -309,7 +310,9 @@ export function MovementScanPanel({
                       patch(row.id, { description: e.target.value })
                     }
                     placeholder="Descripción"
-                    className="h-9 flex-1"
+                    aria-label="Descripción del movimiento"
+                    inputMode="text"
+                    className="h-12 min-w-0 flex-1 text-base"
                   />
                   <button
                     type="button"
@@ -326,7 +329,7 @@ export function MovementScanPanel({
                         : "Es un ingreso; cambiar a gasto"
                     }
                     className={cn(
-                      "size-9 shrink-0 rounded-lg border text-xl",
+                      "size-11 shrink-0 rounded-lg border text-xl",
                       row.direction === "debit"
                         ? "text-destructive"
                         : "bg-success/10 text-success"
@@ -335,15 +338,15 @@ export function MovementScanPanel({
                     {row.direction === "debit" ? "−" : "+"}
                   </button>
                 </div>
-                <div className="flex items-center gap-2 pl-8">
-                  <Input
-                    type="date"
-                    value={row.date}
-                    max={todayISO()}
-                    onChange={(e) => patch(row.id, { date: e.target.value })}
-                    aria-label="Fecha del movimiento"
-                    className="h-9 w-36"
-                  />
+                <div className="flex flex-wrap items-center gap-3 pl-8">
+                  <div className="w-full sm:w-auto">
+                    <DatePicker
+                      id={`scanned-date-${row.id}`}
+                      value={row.date}
+                      toDate={todayISO()}
+                      onChange={(date) => patch(row.id, { date })}
+                    />
+                  </div>
                   <Input
                     inputMode="numeric"
                     value={showAmount(row.amount)}
@@ -352,7 +355,7 @@ export function MovementScanPanel({
                     }
                     placeholder="0"
                     aria-label="Monto del movimiento"
-                    className="tabular h-9 flex-1 text-right"
+                    className="tabular h-12 min-w-0 flex-1 text-right text-base"
                   />
                   <button
                     type="button"
@@ -362,7 +365,7 @@ export function MovementScanPanel({
                       )
                     }
                     aria-label="Quitar de la lista"
-                    className="grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent"
+                    className="grid size-11 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent"
                   >
                     <X className="size-4" />
                   </button>
@@ -407,7 +410,10 @@ export function MovementScanPanel({
       )}
 
       {error && (
-        <p className="flex items-start gap-2 text-sm text-destructive">
+        <p
+          role="alert"
+          className="flex items-start gap-2 text-sm text-destructive"
+        >
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
           {error}
         </p>

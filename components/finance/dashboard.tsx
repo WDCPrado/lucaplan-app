@@ -2,19 +2,10 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import {
-  ChevronLeft,
-  ChevronRight,
-  CirclePlus,
-  Eye,
-  EyeOff,
-  Plus,
-  TrendingUp,
-} from "lucide-react"
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Plus } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
-import { useCardCarousel } from "@/hooks/use-card-carousel"
 import { AppShell } from "./app-shell"
 import { MonthPicker } from "./month-picker"
 import { MonthStatus } from "./month-status"
@@ -36,7 +27,6 @@ import { IncomeModal } from "./income-modal"
 import { OnboardingFlow } from "./onboarding/onboarding-flow"
 import {
   formatCLP,
-  formatCompact,
   formatDateHeader,
   statusVar,
   todayKey,
@@ -86,7 +76,7 @@ type Props = {
   openTxId: string | null
 }
 
-// Inicio desktop-first: AppShell (sidebar + topbar + barra inferior) con el mes convertido en una decisión
+// Inicio mobile-first: AppShell (sidebar + topbar + barra inferior) con el mes convertido en una decisión
 // (cuánto puedo gastar hoy), la tira de días, el ritmo por categoría y los movimientos del día
 // elegido; las cuentas al final. Las mutaciones van por la API + router.refresh() dentro de cada superficie.
 export function Dashboard({
@@ -132,20 +122,13 @@ export function Dashboard({
   const [editIncome, setEditIncome] = useState<IncomeDTO | null | undefined>(
     undefined
   ) // undefined=cerrado, null=crear
-  const {
-    ref: cardsRef,
-    handlers: cardsHandlers,
-    onScroll: cardsScroll,
-  } = useCardCarousel()
   const [infoAccount, setInfoAccount] = useState<AccountDTO | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [budgetLimitOpen, setBudgetLimitOpen] = useState(false)
   // Plan del mes (ingresos + presupuesto): decisiones ocasionales, fuera del flujo diario.
   const [planOpen, setPlanOpen] = useState(false)
-  // Triage de sin categoría: descartado no reaparece hasta la PRÓXIMA carga (el estado vive en
-  // el cliente; recargar la app lo resetea). Se monta solo mientras está abierto.
-  const [triageDismissed, setTriageDismissed] = useState(false)
-  const triageOpen = uncategorized.transactions.length > 0 && !triageDismissed
+  // Clasificar es una acción explícita: un refresh no interrumpe el Home.
+  const [triageOpen, setTriageOpen] = useState(false)
 
   // "Mes en curso" según el modo (en modo tarjeta, el 28/09 ya es octubre) y el calendario del
   // usuario, no el de UTC (ver APP_TZ). Lo resuelve el servidor en `cycle.current`.
@@ -207,118 +190,157 @@ export function Dashboard({
   const uncappedCategories = expenseCategories.filter((c) => c.limit <= 0)
   const renderExpenseCat = (c: CategoryDTO) => {
     const pct = c.limit > 0 ? Math.min(100, (c.used / c.limit) * 100) : 0
-    // El comprometido continúa al gastado en lo que queda de barra (no se suma).
     const commPct =
       c.limit > 0 ? Math.min(100 - pct, (c.committed / c.limit) * 100) : 0
     return (
       <button
         key={c.id}
         onClick={() => setDetail(c)}
-        className="flex flex-col gap-1.5 rounded-lg px-1.5 py-2 text-left transition-colors hover:bg-accent/50"
+        className="home-category-row grid min-h-24 w-full grid-cols-[2.75rem_minmax(0,1fr)] gap-3 border-b border-border py-5 text-left last:border-b-0 hover:bg-secondary"
       >
-        <div className="flex items-center gap-2">
-          <CategoryIcon icon={c.icon} size={16} color={c.color ?? undefined} />
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">
-            {c.name}
-          </span>
-          <span className="tabular shrink-0 text-xs text-muted-foreground">
-            {c.limit > 0
-              ? `${formatCLP(c.used)} de ${formatCLP(c.limit)}`
-              : `sin tope · ${formatCLP(c.used)}`}
-          </span>
-        </div>
-        {/* Mismo semáforo que el arco (statusVar): gastado sólido + comprometido tenue detrás. */}
-        <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full transition-[width] duration-500 ease-out"
-            style={{ width: `${pct}%`, background: statusVar(c.status) }}
-          />
-          <div
-            className="h-full transition-[width] duration-500 ease-out"
-            style={{
-              width: `${Math.max(0, commPct)}%`,
-              background: statusVar(c.status),
-              opacity: 0.35,
-            }}
-          />
-        </div>
-        {/* Izquierda: ritmo del período (hoy / esta semana, según Configuración): lo gastado del período
-            contra su presupuesto, que el backend deja ESTABLE — registrar un gasto sube el
-            gastado, no mueve la meta, y la semana vale lo mismo el lunes que el jueves.
-            Semáforo silencioso: gris bajo 80%, alerta 80–100%, excedido >100%. `pace` solo viene
-            en el mes en curso y con tope; sin margen de período se mantiene el aviso de siempre. */}
-        <div className="flex items-baseline justify-between gap-2">
-          {c.pace ? (
-            c.pace.budget > 0 ? (
-              <p
-                className={cn(
-                  "text-xs",
-                  c.pace.status === "excedido"
-                    ? "text-destructive"
-                    : c.pace.status === "alerta"
-                      ? "text-warning"
-                      : "text-muted-foreground"
-                )}
-              >
-                {/* ponytail: se muestra lo que QUEDA (más accionable que lo gastado) y en una sola
-                  línea, sin el "de $X": en móvil partía la fila en cuatro líneas. Pasado el
-                  ritmo se dice cuánto de más, que "$0 libres" esconde. */}
-                {c.pace.budget - c.pace.spent >= 0 ? (
-                  <>
-                    <span className="tabular">
-                      {formatCLP(c.pace.budget - c.pace.spent)}
-                    </span>{" "}
-                    libres{" "}
-                    {c.pace.frequency === "daily" ? "hoy" : "esta semana"}
-                  </>
-                ) : (
-                  <>
-                    <span className="tabular">
-                      {formatCLP(c.pace.spent - c.pace.budget)}
-                    </span>{" "}
-                    sobre el ritmo{" "}
-                    {c.pace.frequency === "daily" ? "de hoy" : "semanal"}
-                  </>
-                )}
-              </p>
-            ) : (
-              <p className="text-xs text-destructive">
-                Sin margen
-                {c.available < 0 && (
-                  <>
-                    {" "}
-                    · <span className="tabular">
-                      {formatCLP(-c.available)}
-                    </span>{" "}
-                    sobre el tope
-                  </>
-                )}
-              </p>
-            )
-          ) : (
-            <span />
-          )}
-          {/* Derecha: lo que queda del mes (tope − gastado − comprometido). Sin tope no hay resto. */}
+        <span className="home-category-mobile grid size-11 place-items-center rounded-lg bg-secondary">
+          <CategoryIcon icon={c.icon} size={21} color={c.color ?? undefined} />
+        </span>
+        <div className="home-category-mobile min-w-0 space-y-1">
+          <div className="flex items-start justify-between gap-3">
+            <span className="min-w-0 font-medium break-words">{c.name}</span>
+            <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          </div>
           {c.limit > 0 && (
-            <p
-              className={cn(
-                "shrink-0 text-xs",
-                c.available < 0 ? "text-destructive" : "text-muted-foreground"
-              )}
-            >
-              {c.available < 0 ? (
-                <>
-                  <span className="tabular">{formatCLP(-c.available)}</span>{" "}
-                  sobre el tope
-                </>
-              ) : (
-                <>
-                  quedan{" "}
-                  <span className="tabular">{formatCLP(c.available)}</span>
-                </>
-              )}
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <div
+                className="flex h-2 min-w-20 flex-1 overflow-hidden rounded-full bg-muted"
+                aria-hidden="true"
+              >
+                <div
+                  style={{ width: `${pct}%`, background: statusVar(c.status) }}
+                />
+                <div
+                  style={{
+                    width: `${Math.max(0, commPct)}%`,
+                    background:
+                      "color-mix(in oklch, var(--primary) 35%, var(--card))",
+                  }}
+                />
+              </div>
+              <span
+                className={cn("text-sm", c.available < 0 && "text-destructive")}
+              >
+                {c.available < 0 ? "Excedido " : "Quedan "}
+                <span className="font-semibold tabular-nums">
+                  {formatCLP(Math.abs(c.available))}
+                </span>
+              </span>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">
+            Gastado <span className="tabular-nums">{formatCLP(c.used)}</span>
+            {c.limit > 0 ? (
+              <>
+                {" "}
+                de <span className="tabular-nums">{formatCLP(c.limit)}</span>
+              </>
+            ) : (
+              " · sin tope"
+            )}
+          </p>
+          {c.committed > 0 && (
+            <p className="text-sm text-muted-foreground">
+              Comprometido{" "}
+              <span className="tabular-nums">{formatCLP(c.committed)}</span>
             </p>
           )}
+          {c.pace && (
+            <p
+              className={cn(
+                "text-sm",
+                c.pace.status === "excedido"
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+              )}
+            >
+              {c.pace.budget - c.pace.spent >= 0
+                ? "Libres "
+                : "Sobre el ritmo "}
+              {c.pace.frequency === "daily" ? "hoy: " : "esta semana: "}
+              <span className="tabular-nums">
+                {formatCLP(Math.abs(c.pace.budget - c.pace.spent))}
+              </span>
+            </p>
+          )}
+        </div>
+        <div className="home-category-desktop home-category-columns">
+          <div className="min-w-0">
+            <span className="flex items-center gap-2 text-sm font-medium">
+              <CategoryIcon
+                icon={c.icon}
+                size={18}
+                color={c.color ?? undefined}
+              />
+              <span className="break-words">{c.name}</span>
+            </span>
+            {c.pace && (
+              <p
+                className={cn(
+                  "mt-1 text-sm",
+                  c.pace.status === "excedido"
+                    ? "text-destructive"
+                    : "text-muted-foreground"
+                )}
+              >
+                {c.pace.budget - c.pace.spent < 0
+                  ? "Sobre el ritmo "
+                  : "Libres "}
+                {c.pace.frequency === "daily" ? "hoy " : "esta semana "}
+                <span className="tabular-nums">
+                  {formatCLP(Math.abs(c.pace.budget - c.pace.spent))}
+                </span>
+              </p>
+            )}
+          </div>
+          <span className="text-right text-sm tabular-nums">
+            {formatCLP(c.used)}
+          </span>
+          <span className="text-right text-sm tabular-nums">
+            {formatCLP(c.committed)}
+          </span>
+          <span
+            className={cn(
+              "text-right text-sm font-semibold tabular-nums",
+              c.available < 0 && "text-destructive"
+            )}
+          >
+            {c.limit > 0 ? formatCLP(c.available) : "—"}
+          </span>
+          <div className="flex items-center gap-2">
+            {c.limit > 0 ? (
+              <>
+                <div
+                  className="flex h-2 flex-1 overflow-hidden rounded-full bg-muted"
+                  aria-hidden="true"
+                >
+                  <span
+                    style={{
+                      width: `${pct}%`,
+                      background: statusVar(c.status),
+                    }}
+                  />
+                  <span
+                    style={{
+                      width: `${Math.max(0, commPct)}%`,
+                      background:
+                        "color-mix(in oklch, var(--primary) 35%, var(--card))",
+                    }}
+                  />
+                </div>
+                <span className="w-10 text-right text-sm text-muted-foreground tabular-nums">
+                  {Math.round(((c.used + c.committed) / c.limit) * 100)}%
+                </span>
+              </>
+            ) : (
+              <span className="text-sm text-muted-foreground">Sin tope</span>
+            )}
+          </div>
         </div>
       </button>
     )
@@ -354,31 +376,120 @@ export function Dashboard({
     router.push("/login")
   }
 
+  const transactionEditor = (
+    <TransactionModal
+      tx={detailTx}
+      categories={budget.categories}
+      accounts={accounts}
+      onOpenChange={(o) => {
+        if (o) return
+        setDetailTx(null)
+        // Saca el `?tx=` de la barra: recargar o volver no debe reabrir el modal.
+        if (openTxId)
+          window.history.replaceState(null, "", window.location.pathname)
+      }}
+    />
+  )
+  const categoryEditor = (
+    <CategoryModal
+      key={editCat?.id ?? `new-${newCatType ?? "libre"}`}
+      open={editCat !== undefined}
+      onOpenChange={(o) => !o && setEditCat(undefined)}
+      onDeleted={(id) => {
+        if (detail?.id === id) setDetail(null)
+      }}
+      period={period}
+      category={editCat}
+      lockedType={editCat ? null : newCatType}
+      remainingToAllocate={budget.remainingToAllocate}
+    />
+  )
+  const incomeEditor = (
+    <IncomeModal
+      key={editIncome?.id ?? "new-income"}
+      open={editIncome !== undefined}
+      onOpenChange={(o) => !o && setEditIncome(undefined)}
+      accounts={accounts}
+      categories={budget.categories}
+      income={editIncome}
+      period={period}
+      onCreateCategory={() => {
+        setNewCatType("income")
+        setEditCat(null)
+      }}
+    >
+      {editIncome !== undefined && categoryEditor}
+    </IncomeModal>
+  )
+  const budgetEditor = (
+    <BudgetLimitModal
+      key={`${period.year}-${period.month}-${budget.globalLimit ?? "unset"}`}
+      open={budgetLimitOpen}
+      onOpenChange={setBudgetLimitOpen}
+      period={period}
+      current={budget.globalLimit}
+    />
+  )
+  const categoryDetail = (
+    <CategoryDetailSheet
+      // Derivada de las props frescas (no del snapshot en estado): si el modal de transacción
+      // guarda encima y refresca, el usado/disponible del detalle se actualiza solo.
+      category={
+        detail && (budget.categories.find((c) => c.id === detail.id) ?? detail)
+      }
+      transactions={transactions}
+      onOpenChange={(o) => !o && setDetail(null)}
+      onEdit={(c) => {
+        setEditCat(c)
+      }}
+      onOpenTx={setDetailTx}
+    >
+      {detail && categoryEditor}
+      {detail && !searchOpen && transactionEditor}
+    </CategoryDetailSheet>
+  )
+  const triage = triageOpen && !onboarding && (
+    <UncategorizedTriage
+      transactions={uncategorized.transactions}
+      hasMore={uncategorized.hasMore}
+      accounts={accounts}
+      categories={budget.categories}
+      onClose={() => setTriageOpen(false)}
+      onCreateCategory={() => {
+        setNewCatType(null)
+        setEditCat(null)
+      }}
+    >
+      {categoryEditor}
+    </UncategorizedTriage>
+  )
+
   return (
     <AppShell
       user={user}
+      active="inicio"
       onSignOut={signOut}
       quickAdd={{ accounts, categories: budget.categories }}
       onSearch={() => setSearchOpen(true)}
       title="Inicio"
       actions={
-        // Móvil: columna invertida → selector arriba y "Hoy" colgando debajo; escritorio: fila.
-        <div className="pointer-events-none flex flex-col-reverse items-center gap-2 *:pointer-events-auto md:flex-row">
+        // Móvil: selector de 44 px junto al título; «Hoy» solo aparece fuera del período actual.
+        <div className="home-period-actions pointer-events-none flex flex-wrap items-center justify-end gap-2 *:pointer-events-auto md:flex-nowrap">
           {!isCurrentMonth && (
             <button
               onClick={() => {
                 haptic("light")
                 router.push("/dashboard")
               }}
-              className="rounded-lg bg-secondary px-3.5 py-1.5 text-sm font-semibold transition-colors hover:bg-accent"
+              className="min-h-11 rounded-lg bg-secondary px-3.5 py-1.5 text-sm font-semibold transition-colors hover:bg-accent"
             >
               Hoy
             </button>
           )}
-          <div className="flex items-center gap-1 rounded-lg bg-secondary px-1.5 py-1">
+          <div className="flex items-center rounded-lg bg-secondary md:gap-1 md:px-1.5 md:py-1">
             <button
               onClick={() => goMonth(-1)}
-              className="grid size-8 place-items-center rounded-md hover:bg-background"
+              className="grid size-11 place-items-center rounded-md hover:bg-background"
               aria-label="Mes anterior"
             >
               <ChevronLeft className="size-4" />
@@ -386,13 +497,15 @@ export function Dashboard({
             <MonthPicker
               period={period}
               current={cycle.current}
+              withYear
+              className="h-11"
               onSelect={(y, m) =>
                 router.push(`/dashboard?year=${y}&month=${m}`)
               }
             />
             <button
               onClick={() => goMonth(1)}
-              className="grid size-8 place-items-center rounded-md hover:bg-background"
+              className="grid size-11 place-items-center rounded-md hover:bg-background"
               aria-label="Mes siguiente"
             >
               <ChevronRight className="size-4" />
@@ -401,11 +514,11 @@ export function Dashboard({
         </div>
       }
     >
-      <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
-        <div className="flex flex-col gap-5">
+      <div className="w-full px-5 py-6 md:px-6">
+        <div className="flex flex-col gap-8">
           {/* Estado del mes: la respuesta a "¿cuánto puedo gastar hoy?" antes que cualquier
               detalle. Desde acá se abre el plan (ingresos y presupuesto), que es lo que lo
-              determina. La tira de días vive adentro: es el mes que ese número reparte. */}
+              determina. La actividad permite recorrer después los días de ese período. */}
           <MonthStatus
             period={period}
             cycle={cycle}
@@ -416,18 +529,7 @@ export function Dashboard({
             committed={totalCommitted}
             remainingToAllocate={budget.remainingToAllocate}
             onOpenPlan={() => setPlanOpen(true)}
-          >
-            <DayStrip
-              days={days}
-              spend={spend}
-              selectedDay={selectedDay}
-              today={todayInRange ? today : null}
-              onSelect={(day) => {
-                haptic("light")
-                setDayState({ key: periodKey, day })
-              }}
-            />
-          </MonthStatus>
+          />
 
           {/* Cuánto te pasaste, junto: el excedente del mes (contra el presupuesto global) y el de
               los topes por categoría, que no son la misma cifra. Con ambos en $0 no se renderiza. */}
@@ -442,26 +544,13 @@ export function Dashboard({
           {/* Escritorio: categorías a la izquierda; el día elegido y los días anteriores a la
               derecha; las cuentas abajo, a lo ancho. Móvil: una columna en el orden del DOM —
               categorías, día elegido, cuentas—. Todo scrollea con la página (nada fijo). */}
-          <div className="grid gap-x-6 gap-y-8 lg:grid-cols-2 lg:items-start">
-            <section
-              id="presupuestos"
-              className="min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1"
-            >
-              <div className="mb-3 flex items-start justify-between gap-2">
+          <div className="home-workspace grid gap-6 gap-y-8">
+            <section id="presupuestos" className="home-categories min-w-0">
+              <div className="home-category-heading mb-3 flex items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                   <h2 className="font-heading text-lg font-bold">
-                    Ritmo por categoría
+                    Plan por categoría
                   </h2>
-                  {/* Los días que faltan valen para todas las categorías: se dicen una vez acá,
-                      no repetidos en cada fila. En angosto bajan a su propia línea: al lado del
-                      título partían el título en dos y se truncaban. */}
-                  {daysLeft > 0 && (
-                    <span className="basis-full text-sm text-muted-foreground sm:basis-auto">
-                      {daysLeft === 1
-                        ? "queda 1 día"
-                        : `quedan ${daysLeft} días`}
-                    </span>
-                  )}
                 </div>
                 <button
                   onClick={() => {
@@ -469,12 +558,21 @@ export function Dashboard({
                     setEditCat(null)
                   }}
                   aria-label="Nueva categoría de gasto"
-                  className="flex shrink-0 items-center gap-1.5 text-sm text-primary"
+                  className="flex min-h-11 shrink-0 items-center gap-1.5 text-sm text-primary"
                 >
                   <Plus className="size-4" /> Categoría
                 </button>
               </div>
-              <div className="glass rounded-xl p-4">
+              <div className="home-category-list">
+                {expenseCategories.length > 0 && (
+                  <div className="home-category-desktop home-category-columns border-b border-border bg-secondary py-3 text-sm text-muted-foreground">
+                    <span>Categoría</span>
+                    <span className="text-right">Gastado</span>
+                    <span className="text-right">Comprometido</span>
+                    <span className="text-right">Disponible</span>
+                    <span>Avance</span>
+                  </div>
+                )}
                 {expenseCategories.length === 0 ? (
                   <button
                     onClick={() => {
@@ -502,34 +600,20 @@ export function Dashboard({
                         {uncappedCategories.map(renderExpenseCat)}
                       </>
                     )}
-                    <button
-                      onClick={() => {
-                        setNewCatType("expense")
-                        setEditCat(null)
-                      }}
-                      className="flex min-h-11 w-full items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-                      aria-label="Nueva categoría de gasto"
-                    >
-                      <CirclePlus className="size-4 shrink-0" />
-                      Nueva categoría
-                    </button>
                   </div>
                 )}
-                {/* Los ingresos se ven y editan en el plan del mes ("Ajustar plan"): acá solo la
-                    puerta, con el total activo, para no repetir las filas en dos superficies. */}
-                <div className="mt-2 border-t border-border/40 pt-2">
+                {uncategorized.transactions.length > 0 && (
                   <button
-                    onClick={() => setPlanOpen(true)}
-                    className="flex min-h-11 w-full items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                    onClick={() => setTriageOpen(true)}
+                    className="flex min-h-14 w-full items-center justify-between gap-3 border-t border-border py-4 text-left text-sm text-primary"
                   >
-                    <TrendingUp className="size-4 shrink-0" />
-                    Ingresos
-                    <span className="tabular ml-auto text-foreground">
-                      {formatCLP(activeIncomeTotal)}
+                    <span>
+                      {uncategorized.transactions.length}
+                      {uncategorized.hasMore ? "+" : ""} por categorizar
                     </span>
-                    <ChevronRight className="size-4 shrink-0" />
+                    <ChevronRight className="size-4" />
                   </button>
-                </div>
+                )}
               </div>
             </section>
 
@@ -537,11 +621,11 @@ export function Dashboard({
                 con la búsqueda (lupa). */}
             <section
               id="movimientos"
-              className="min-w-0 lg:col-start-2 lg:row-start-1"
+              className="home-activity min-w-0 rounded-xl md:border md:border-border md:bg-card md:p-4"
             >
-              <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="truncate font-heading text-lg font-bold">
-                  {formatDateHeader(dayIso)}
+                  Actividad
                 </h2>
                 {dayTransactions.length > 0 && (
                   <span className="tabular shrink-0 text-sm text-muted-foreground">
@@ -550,14 +634,35 @@ export function Dashboard({
                   </span>
                 )}
               </div>
+              <div className="mb-5">
+                <DayStrip
+                  days={days}
+                  spend={spend}
+                  selectedDay={selectedDay}
+                  today={todayInRange ? today : null}
+                  onSelect={(day) => {
+                    haptic("light")
+                    setDayState({ key: periodKey, day })
+                  }}
+                />
+              </div>
+              <div className="mb-3 flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                <span>{formatDateHeader(dayIso)}</span>
+                <button
+                  className="min-h-11 text-primary"
+                  onClick={() => setSearchOpen(true)}
+                >
+                  Ver todas
+                </button>
+              </div>
               {dayTransactions.length === 0 ? (
-                <p className="glass-strong rounded-xl py-10 text-center text-sm text-muted-foreground">
+                <p className="rounded-xl border border-border bg-card py-10 text-center text-sm text-muted-foreground">
                   {selectedDay === today
                     ? "Sin movimientos hoy"
                     : "Sin movimientos ese día"}
                 </p>
               ) : (
-                <div className="glass flex flex-col gap-0.5 rounded-xl p-2">
+                <div className="divide-y divide-border bg-card">
                   {dayTransactions.map((t) => (
                     <MovementRow
                       key={t.id}
@@ -575,11 +680,11 @@ export function Dashboard({
                   frente a una lista de categorías de 900 px. Los días anteriores la completan con
                   lo más reciente, agrupado por fecha como en la búsqueda. */}
             {recentGroups.length > 0 && (
-              <section className="max-lg:hidden lg:col-start-2 lg:row-start-2">
+              <section className="home-recent min-w-0">
                 <h3 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   Días anteriores
                 </h3>
-                <div className="glass flex flex-col gap-0.5 rounded-xl p-2">
+                <div className="divide-y divide-border rounded-xl border border-border bg-card p-1">
                   {recentGroups.map((g) => (
                     <div key={g.key}>
                       <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground">
@@ -600,13 +705,13 @@ export function Dashboard({
             )}
 
             {/* Cuentas: consulta, no decisión diaria. Escritorio: bajo las dos columnas, a lo
-                ancho, como grilla de tarjetas. Móvil: al final, como carrusel. */}
-            <section className="min-w-0 lg:col-span-2 lg:row-start-3">
+                ancho, como filas sólidas con cada moneda por separado. Móvil: al final. */}
+            <section className="home-accounts min-w-0">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="font-heading text-lg font-bold">Cuentas</h2>
                 <button
                   onClick={() => setShowBalance((v) => !v)}
-                  className="flex items-center gap-1.5 text-sm text-muted-foreground"
+                  className="flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground"
                 >
                   {showBalance ? (
                     <Eye className="size-4" />
@@ -616,57 +721,28 @@ export function Dashboard({
                   {showBalance ? "Ocultar" : "Mostrar"}
                 </button>
               </div>
-              <div
-                ref={cardsRef}
-                {...cardsHandlers}
-                onScroll={cardsScroll}
-                // Móvil: carrusel con snap y fade en los bordes (pt-1: aire para el hover
-                // -translate-y). Escritorio: grilla sin scroll que llena el ancho —tres o cuatro
-                // tarjetas por fila según quepan; con más, envuelve—.
-                className="-mx-4 flex cursor-grab snap-x snap-mandatory scrollbar-none gap-4 overflow-x-auto mask-[linear-gradient(90deg,transparent,black_var(--fade-l,0rem),black_calc(100%-var(--fade-r,2.5rem)),transparent)] px-4 pt-1 pb-4 active:cursor-grabbing lg:mx-0 lg:grid lg:cursor-default lg:grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] lg:overflow-visible lg:mask-none lg:px-0"
-              >
-                {/* Sin cuentas no hay nada que sumar: la tarjeta en $0 solo tapaba «Conectar banco». */}
+              <div className="divide-y divide-border rounded-xl border border-border bg-card px-4">
                 {accounts.length > 0 && (
-                  <div
-                    data-card
-                    className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-xl p-5 lg:w-auto lg:snap-start"
-                  >
-                    <div className="text-sm text-muted-foreground">
-                      Total en cuentas
-                    </div>
-                    <div className="tabular my-3 text-3xl font-bold">
+                  <div className="flex flex-wrap items-center justify-between gap-3 py-4">
+                    <span className="text-sm text-muted-foreground">
+                      Total en cuentas · CLP
+                    </span>
+                    <span className="tabular font-semibold">
                       {showBalance ? formatCLP(summary.activeCash) : "••••••"}
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-center">
-                      <Stat
-                        label="Ingresos"
-                        value={formatCompact(summary.income, true)}
-                        className="text-success"
-                      />
-                      <Stat
-                        label="Gastos"
-                        value={formatCompact(-summary.expense)}
-                      />
-                      <Stat
-                        label="Asignado"
-                        value={formatCompact(summary.totalBudget)}
-                      />
-                    </div>
+                    </span>
                   </div>
                 )}
                 {accounts.map((a) => (
-                  <div
+                  <AccountCard
                     key={a.id}
-                    data-card
-                    className="flex w-72 shrink-0 snap-center snap-always lg:w-auto lg:snap-start"
-                  >
-                    <AccountCard
-                      account={a}
-                      hidden={!showBalance}
-                      onClick={() => setInfoAccount(a)}
-                    />
-                  </div>
+                    account={a}
+                    hidden={!showBalance}
+                    compact
+                    onClick={() => setInfoAccount(a)}
+                  />
                 ))}
+              </div>
+              <div className="mt-4">
                 <SyncBancoChileButton
                   accounts={accounts}
                   outlookResult={onboarding ? null : outlookResult}
@@ -685,54 +761,14 @@ export function Dashboard({
         account={infoAccount}
         onOpenChange={(o) => !o && setInfoAccount(null)}
       />
-      <CategoryDetailSheet
-        // Derivada de las props frescas (no del snapshot en estado): si el modal de transacción
-        // guarda encima y refresca, el usado/disponible del detalle se actualiza solo.
-        category={
-          detail &&
-          (budget.categories.find((c) => c.id === detail.id) ?? detail)
-        }
-        transactions={transactions}
-        // Con el modal de transacción abierto encima, su X / click fuera llega aquí como
-        // "interact outside": se ignora para que solo se cierre el modal de arriba.
-        onOpenChange={(o) => !o && detailTx === null && setDetail(null)}
-        onEdit={(c) => {
-          setDetail(null)
-          setEditCat(c)
-        }}
-        onOpenTx={setDetailTx}
-      />
-      <CategoryModal
-        key={editCat?.id ?? `new-${newCatType ?? "libre"}`}
-        open={editCat !== undefined}
-        onOpenChange={(o) => !o && setEditCat(undefined)}
-        period={period}
-        category={editCat}
-        lockedType={editCat ? null : newCatType}
-        remainingToAllocate={budget.remainingToAllocate}
-      />
-      <IncomeModal
-        key={editIncome?.id ?? "new-income"}
-        open={editIncome !== undefined}
-        onOpenChange={(o) => !o && setEditIncome(undefined)}
-        accounts={accounts}
-        categories={budget.categories}
-        income={editIncome}
-        period={period}
-        onCreateCategory={() => {
-          setNewCatType("income")
-          setEditCat(null)
-        }}
-      />
-      <BudgetLimitModal
-        key={`${period.year}-${period.month}-${budget.globalLimit ?? "unset"}`}
-        open={budgetLimitOpen}
-        onOpenChange={setBudgetLimitOpen}
-        period={period}
-        current={budget.globalLimit}
-      />
-      {/* Plan del mes. Los sub-modales (límite, ingreso, categoría) reemplazan a este en vez de
-          apilarse: dos superficies encima confunden el cierre, sobre todo en móvil. */}
+      {!planOpen && categoryDetail}
+      {!planOpen &&
+        editIncome === undefined &&
+        !detail &&
+        !triageOpen &&
+        categoryEditor}
+      {!planOpen && incomeEditor}
+      {!planOpen && budgetEditor}
       <PlanSheet
         open={planOpen}
         onOpenChange={setPlanOpen}
@@ -748,64 +784,42 @@ export function Dashboard({
         activeIncomeTotal={activeIncomeTotal}
         previousMonthDebt={previousMonthDebt}
         onEditBudget={() => {
-          setPlanOpen(false)
           setBudgetLimitOpen(true)
         }}
         onAddIncome={() => {
-          setPlanOpen(false)
           setEditIncome(null)
         }}
         onEditIncome={(inc) => {
-          setPlanOpen(false)
           setEditIncome(inc)
         }}
         onOpenIncomeCategory={(cat) => {
-          setPlanOpen(false)
           setDetail(cat)
         }}
         onNewIncomeCategory={() => {
-          setPlanOpen(false)
           setNewCatType("income")
           setEditCat(null)
         }}
-      />
-      <TransactionModal
-        tx={detailTx}
-        categories={budget.categories}
-        accounts={accounts}
-        onOpenChange={(o) => {
-          if (o) return
-          setDetailTx(null)
-          // Saca el `?tx=` de la barra: recargar o volver no debe reabrir el modal.
-          if (openTxId)
-            window.history.replaceState(null, "", window.location.pathname)
-        }}
-      />
+      >
+        {budgetEditor}
+        {incomeEditor}
+        {categoryDetail}
+        {editIncome === undefined && !detail && categoryEditor}
+      </PlanSheet>
+      {!searchOpen && !detail && transactionEditor}
       <TransactionSearch
         open={searchOpen}
+        detailOpen={detailTx !== null}
         onOpenChange={setSearchOpen}
         categories={budget.categories}
         accounts={accounts}
         amountBounds={amountBounds}
         onOpenTransaction={(tx) => {
-          setSearchOpen(false)
           setDetailTx(tx)
         }}
-      />
-      {triageOpen && !onboarding && (
-        <UncategorizedTriage
-          transactions={uncategorized.transactions}
-          hasMore={uncategorized.hasMore}
-          accounts={accounts}
-          categories={budget.categories}
-          onClose={() => setTriageDismissed(true)}
-          onCreateCategory={() => {
-            setTriageDismissed(true)
-            setNewCatType(null)
-            setEditCat(null) // abre el modal de categoría existente; el triage vuelve en la próxima carga
-          }}
-        />
-      )}
+      >
+        {searchOpen && transactionEditor}
+      </TransactionSearch>
+      {triage}
 
       {onboarding && (
         <OnboardingFlow
@@ -824,24 +838,5 @@ export function Dashboard({
         />
       )}
     </AppShell>
-  )
-}
-
-function Stat({
-  label,
-  value,
-  className,
-}: {
-  label: string
-  value: string
-  className?: string
-}) {
-  return (
-    <div>
-      <div className="text-xs text-muted-foreground uppercase">{label}</div>
-      <div className={cn("tabular text-sm font-semibold", className)}>
-        {value}
-      </div>
-    </div>
   )
 }

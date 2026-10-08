@@ -503,7 +503,7 @@ seed lo registra y sigue con las demás, en vez de caerse el deploy. Cómo escri
 | --------------------------- | --------------------------------------------------------------------- |
 | Producto y experiencia      | [docs/product.md](docs/product.md) — usuarios, propósito, posicionamiento, reglas de dominio, compromisos de marca, evidencia real, principios de diseño y accesibilidad. |
 | Arquitectura                | [arch/clean-architecture.md](arch/clean-architecture.md) — capas y regla de dependencias. |
-| Desarrollo y contribución   | [docs/development.md](docs/development.md) — flujo OpenSpec, Next 16, reglas de UI, mocks, convenciones y verificaciones. |
+| Desarrollo y contribución   | [docs/development.md](docs/development.md) — flujo de trabajo, Next 16, reglas de UI, mocks, convenciones y verificaciones. |
 | Design system               | [docs/design/design-system.md](docs/design/design-system.md) — tokens, glass, dark/light. La fuente de verdad visual es [app/globals.css](app/globals.css). |
 | Notificaciones push         | [docs/push-notifications.md](docs/push-notifications.md) — Web Push (VAPID) en Android, iOS 16.4+ y Windows: configuración, eventos y cron. |
 | Outlook / Microsoft Graph   | [docs/email-connection-outlook.md](docs/email-connection-outlook.md) — referencia de la conexión de correo con Banco de Chile. El paso a paso está [más arriba](#-conectar-outlook-banco-de-chile-paso-a-paso). |
@@ -514,9 +514,9 @@ seed lo registra y sigue con las demás, en vez de caerse el deploy. Cómo escri
 ## Contribuir
 
 1. Haz fork y crea una rama desde `master`.
-2. Lee [docs/development.md](docs/development.md): las features nuevas siguen el flujo
-   [OpenSpec](openspec/) del repo (propuesta → implementación → verificación); para fixes
-   pequeños y documentación basta el PR directo.
+2. Lee [docs/development.md](docs/development.md): el flujo por defecto parte del pedido y el
+   issue, sigue con implementación, revisión y verificación. OpenSpec es optativo y se usa solo
+   cuando Willy lo pide expresamente.
 3. Antes de abrir el PR: `pnpm lint && pnpm typecheck && pnpm test`.
 4. Respeta la regla de dependencias de `arch/` y los primitivos de UI (shadcn/ui — si
    falta un componente, se instala con `pnpm dlx shadcn@latest add <componente>`).

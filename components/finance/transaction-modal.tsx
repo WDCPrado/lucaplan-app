@@ -277,6 +277,7 @@ export function TransactionModal({
             key={tx.id}
             tx={tx}
             account={account}
+            accounts={accounts}
             categories={categories}
             onClose={() => onOpenChange(false)}
           />
@@ -297,11 +298,13 @@ export function TransactionModal({
 function EditForm({
   tx,
   account,
+  accounts,
   categories,
   onClose,
 }: {
   tx: TransactionDTO
   account: AccountDTO | undefined
+  accounts: AccountDTO[]
   categories: CategoryDTO[]
   onClose: () => void
 }) {
@@ -327,6 +330,20 @@ function EditForm({
   // La cuota de un plan: su monto es un espejo del cronograma (se edita en el plan, que sincroniza
   // el movimiento) y su categoría es la del plan (cambiarla aquí recategoriza el plan completo).
   const isInstallment = !!tx.installmentItemId
+  const [makeRecurring, setMakeRecurring] = useState(false)
+  const [makeInstallments, setMakeInstallments] = useState(false)
+  const [assignInstallment, setAssignInstallment] = useState(false)
+  // La conversión usa el movimiento guardado: nunca adopta un borrador sin guardar.
+  const showConversions =
+    tx.direction === "debit" &&
+    !tx.isInternal &&
+    !!tx.categoryId &&
+    !tx.recurringTemplateId &&
+    !tx.installmentItemId &&
+    !tx.installmentSourceCount &&
+    !tx.installmentForecast
+  const conversionsDisabled = form.formState.isDirty || busy !== null
+  const isCreditCard = account?.accountType === "credit_card"
 
   const canSave =
     form.formState.isDirty && busy === null && !form.formState.isSubmitting
@@ -409,7 +426,7 @@ function EditForm({
     }
   }
 
-  return (
+  const editor = (
     <form
       id={`edit-transaction-${tx.id}`}
       onSubmit={form.handleSubmit(save)}
@@ -569,6 +586,57 @@ function EditForm({
       </div>
 
       <ModalFooter>
+        {showConversions && (
+          <div className="flex basis-full flex-col gap-2">
+            <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={conversionsDisabled}
+                aria-describedby={
+                  form.formState.isDirty
+                    ? `transaction-conversions-${tx.id}`
+                    : undefined
+                }
+                onClick={() => {
+                  haptic("light")
+                  setMakeRecurring(true)
+                }}
+                className="h-12 min-w-0 px-2 text-sm"
+              >
+                <Repeat className="size-4 shrink-0" />
+                Hacer recurrente
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={conversionsDisabled}
+                aria-describedby={
+                  form.formState.isDirty
+                    ? `transaction-conversions-${tx.id}`
+                    : undefined
+                }
+                onClick={() => {
+                  haptic("light")
+                  if (isCreditCard) setMakeInstallments(true)
+                  else setAssignInstallment(true)
+                }}
+                className="h-12 min-w-0 px-2 text-sm"
+              >
+                <CreditCard className="size-4 shrink-0" />
+                {isCreditCard ? "Pasar a cuotas" : "Es una cuota"}
+              </Button>
+            </div>
+            {form.formState.isDirty && (
+              <p
+                id={`transaction-conversions-${tx.id}`}
+                className="text-sm text-muted-foreground"
+              >
+                Guarda los cambios antes de hacer recurrente o pasar a cuotas.
+              </p>
+            )}
+          </div>
+        )}
         <Button
           type="button"
           variant="outline"
@@ -620,6 +688,62 @@ function EditForm({
         </Button>
       </ModalFooter>
     </form>
+  )
+
+  return (
+    <>
+      {editor}
+      {/* Los formularios de conversión son hermanos del editor, nunca formularios anidados. */}
+      {makeRecurring && (
+        <RecurringModal
+          open
+          onOpenChange={(open) => {
+            setMakeRecurring(open)
+            if (!open) onClose()
+          }}
+          accounts={accounts}
+          categories={categories}
+          preset={{
+            label: tx.description,
+            accountId: tx.accountId,
+            categoryId: tx.categoryId,
+            baseAmount: Math.abs(tx.amount),
+            dayOfMonth: new Date(tx.date).getUTCDate(),
+            sourceTransactionId: tx.id,
+          }}
+        />
+      )}
+      {makeInstallments && (
+        <InstallmentModal
+          open
+          onOpenChange={(open) => {
+            setMakeInstallments(open)
+            if (!open) onClose()
+          }}
+          accounts={accounts}
+          categories={categories}
+          kind="card"
+          preset={{
+            description: tx.description,
+            accountId: tx.accountId,
+            categoryId: tx.categoryId,
+            totalAmount: Math.abs(tx.amount),
+            sourceTransactionId: tx.id,
+          }}
+        />
+      )}
+      {assignInstallment && (
+        <AssignToInstallmentModal
+          open
+          onOpenChange={(open) => {
+            setAssignInstallment(open)
+            if (!open) onClose()
+          }}
+          transactionId={tx.id}
+          onAssigned={onClose}
+        />
+      )}
+    </>
   )
 }
 

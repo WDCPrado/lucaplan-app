@@ -109,7 +109,7 @@ export function AccountCard({
             </p>
           )}
         </div>
-        <dl className="flex max-w-full min-w-0 flex-wrap gap-x-6 gap-y-3 text-sm">
+        <dl className="flex max-w-full min-w-0 flex-col flex-wrap gap-x-6 gap-y-3 text-sm md:flex-row">
           {isCredit && primary ? (
             <>
               {[nat, intl]

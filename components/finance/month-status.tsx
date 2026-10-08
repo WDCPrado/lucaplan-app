@@ -58,9 +58,9 @@ export function MonthStatus({
     cycle.current.year * 12 + cycle.current.month
   const free = globalLimit === null ? null : globalLimit - spent - committed
   return (
-    <section aria-label="Resumen del plan" className="space-y-6">
+    <section aria-label="Resumen del plan" className="home-summary space-y-4">
       <CycleBar period={period} cycle={cycle} />
-      <div className="rounded-xl border border-border bg-card p-5 lg:p-6">
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
         {free === null ? (
           <div className="space-y-4">
             <h2 className="font-heading text-xl font-semibold">
@@ -76,54 +76,105 @@ export function MonthStatus({
           </div>
         ) : (
           <>
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="tabular text-3xl font-bold tracking-tight text-primary sm:text-4xl">
-                  {formatCLP(
-                    isCurrentMonth
-                      ? dailyAllowance(free, daysLeft)
-                      : Math.max(0, free)
-                  )}
+            <div className="home-summary-content">
+              <div className="home-summary-head flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="home-summary-title text-primary">
+                    <p className="text-3xl font-bold tracking-tight tabular-nums">
+                      {formatCLP(
+                        isCurrentMonth
+                          ? dailyAllowance(free, daysLeft)
+                          : Math.max(0, free)
+                      )}
+                    </p>
+                    <h2 className="font-heading text-xl font-semibold">
+                      {isCurrentMonth
+                        ? "Libre hoy"
+                        : future
+                          ? "Presupuesto disponible"
+                          : "Sin gastar al cierre"}
+                    </h2>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {isCurrentMonth
+                      ? `${daysLeft} ${daysLeft === 1 ? "día restante" : "días restantes"}`
+                      : `${monthName(period.month)} ${period.year}`}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={onOpenPlan}
+                  className="home-summary-mobile-action min-h-11 shrink-0"
+                  aria-label="Ajustar el plan del mes"
+                >
+                  Ajustar plan
+                </Button>
+              </div>
+              <div className="home-summary-details min-w-0">
+                <p className="home-summary-mobile-budget mb-3 text-sm text-muted-foreground">
+                  Presupuesto{" "}
+                  <span className="font-medium text-foreground tabular-nums">
+                    {formatCLP(globalLimit!)}
+                  </span>
                 </p>
-                <h2 className="mt-1 font-heading text-xl font-semibold">
-                  {isCurrentMonth
-                    ? "Libre hoy"
-                    : future
-                      ? "Presupuesto disponible"
-                      : "Sin gastar al cierre"}
-                </h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {isCurrentMonth
-                    ? `${daysLeft} ${daysLeft === 1 ? "día restante" : "días restantes"}`
-                    : `${monthName(period.month)} ${period.year}`}
-                </p>
+                <dl className="home-summary-totals">
+                  {[
+                    ["Presupuesto", globalLimit!],
+                    ["Gastado", spent],
+                    ["Comprometido", committed],
+                    ["Disponible", Math.max(0, free)],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label}
+                      className={cn(
+                        "min-w-0",
+                        label === "Presupuesto" && "home-summary-budget"
+                      )}
+                    >
+                      <dt className="text-sm text-muted-foreground">{label}</dt>
+                      <dd className="mt-1 text-sm font-semibold break-words tabular-nums sm:text-base">
+                        {formatCLP(Number(value))}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                <div className="mt-3 flex items-center gap-3">
+                  <div
+                    className="flex h-2.5 flex-1 overflow-hidden rounded-full bg-muted"
+                    aria-hidden="true"
+                  >
+                    <span
+                      className="bg-primary"
+                      style={{
+                        width: `${Math.min(100, Math.max(0, (spent / Math.max(1, globalLimit!)) * 100))}%`,
+                      }}
+                    />
+                    <span
+                      className="bg-primary/35"
+                      style={{
+                        width: `${Math.min(Math.max(0, 100 - (spent / Math.max(1, globalLimit!)) * 100), Math.max(0, (committed / Math.max(1, globalLimit!)) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-sm text-muted-foreground tabular-nums">
+                    {globalLimit! > 0
+                      ? Math.round(((spent + committed) / globalLimit!) * 100)
+                      : 0}
+                    %
+                  </span>
+                </div>
               </div>
               <Button
                 variant="outline"
                 onClick={onOpenPlan}
-                className="min-h-11"
+                className="home-summary-desktop-action min-h-11"
                 aria-label="Ajustar el plan del mes"
               >
                 <SlidersHorizontal className="size-4" /> Ajustar plan
               </Button>
             </div>
-            <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 border-t border-border pt-5 sm:grid-cols-4">
-              {[
-                ["Presupuesto", globalLimit!],
-                ["Gastado", spent],
-                ["Comprometido", committed],
-                ["Disponible", Math.max(0, free)],
-              ].map(([label, value]) => (
-                <div key={label} className="min-w-0">
-                  <dt className="text-sm text-muted-foreground">{label}</dt>
-                  <dd className="tabular mt-1 text-sm font-semibold break-words sm:text-base">
-                    {formatCLP(Number(value))}
-                  </dd>
-                </div>
-              ))}
-            </dl>
             {free <= 0 && (
-              <p className="mt-4 text-sm text-muted-foreground">
+              <p className="mt-3 text-sm text-muted-foreground">
                 No queda presupuesto libre en este período.
               </p>
             )}
@@ -203,11 +254,11 @@ function CycleBar({
   }
 
   return (
-    <div className="space-y-4" aria-busy={pending}>
+    <div className="flex flex-wrap items-center gap-3" aria-busy={pending}>
       <div
         role="group"
         aria-label="Modo del presupuesto"
-        className="grid grid-cols-2 rounded-lg border border-border bg-secondary p-1 sm:w-72"
+        className="grid w-full grid-cols-2 rounded-lg border border-border bg-secondary p-1 sm:w-64"
       >
         {(
           [
@@ -235,7 +286,7 @@ function CycleBar({
         ))}
       </div>
       {cycle.mode === "card_cycle" && card ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
+        <div className="flex min-h-11 flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border border-border bg-card px-3 py-1">
           <p className="text-sm">
             <span className="text-muted-foreground">Ciclo </span>
             <span className="font-medium tabular-nums">
@@ -296,7 +347,7 @@ function ClosingPicker({
         <Button
           variant="secondary"
           aria-label={`Cierre de ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}. Corregir`}
-          className="h-11 gap-2 px-3 text-base font-normal sm:h-9 sm:text-sm"
+          className="h-11 gap-2 px-3 text-base font-normal sm:text-sm"
         >
           <CalendarClock className="size-4 text-muted-foreground" />
           <span>
@@ -342,7 +393,7 @@ function ClosingPicker({
             variant="ghost"
             disabled={saving}
             onClick={() => void save(null)}
-            className="h-11 w-full text-base sm:h-9 sm:text-sm"
+            className="h-11 w-full text-base sm:text-sm"
           >
             Usar estimado ({shortDate(estimate)})
           </Button>

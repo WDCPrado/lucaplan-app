@@ -196,12 +196,12 @@ export function Dashboard({
       <button
         key={c.id}
         onClick={() => setDetail(c)}
-        className="grid min-h-24 w-full grid-cols-[2.75rem_minmax(0,1fr)] gap-3 border-b border-border py-5 text-left transition-colors last:border-b-0 hover:bg-secondary lg:block lg:min-h-20"
+        className="home-category-row grid min-h-24 w-full grid-cols-[2.75rem_minmax(0,1fr)] gap-3 border-b border-border py-5 text-left last:border-b-0 hover:bg-secondary"
       >
-        <span className="grid size-11 place-items-center rounded-lg bg-secondary lg:hidden">
+        <span className="home-category-mobile grid size-11 place-items-center rounded-lg bg-secondary">
           <CategoryIcon icon={c.icon} size={21} color={c.color ?? undefined} />
         </span>
-        <div className="min-w-0 space-y-2 lg:hidden">
+        <div className="home-category-mobile min-w-0 space-y-2">
           <div className="flex items-start justify-between gap-3">
             <span className="min-w-0 font-medium break-words">{c.name}</span>
             <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -218,7 +218,8 @@ export function Dashboard({
                 <div
                   style={{
                     width: `${Math.max(0, commPct)}%`,
-                    background: "var(--committed)",
+                    background:
+                      "color-mix(in oklch, var(--primary) 35%, var(--card))",
                   }}
                 />
               </div>
@@ -226,18 +227,18 @@ export function Dashboard({
                 className={cn("text-sm", c.available < 0 && "text-destructive")}
               >
                 {c.available < 0 ? "Excedido " : "Quedan "}
-                <span className="tabular font-semibold">
+                <span className="font-semibold tabular-nums">
                   {formatCLP(Math.abs(c.available))}
                 </span>
               </span>
             </div>
           )}
           <p className="text-sm text-muted-foreground">
-            Gastado <span className="tabular">{formatCLP(c.used)}</span>
+            Gastado <span className="tabular-nums">{formatCLP(c.used)}</span>
             {c.limit > 0 ? (
               <>
                 {" "}
-                de <span className="tabular">{formatCLP(c.limit)}</span>
+                de <span className="tabular-nums">{formatCLP(c.limit)}</span>
               </>
             ) : (
               " · sin tope"
@@ -246,7 +247,7 @@ export function Dashboard({
           {c.committed > 0 && (
             <p className="text-sm text-muted-foreground">
               Comprometido{" "}
-              <span className="tabular">{formatCLP(c.committed)}</span>
+              <span className="tabular-nums">{formatCLP(c.committed)}</span>
             </p>
           )}
           {c.pace && (
@@ -262,42 +263,26 @@ export function Dashboard({
                 ? "Libres "
                 : "Sobre el ritmo "}
               {c.pace.frequency === "daily" ? "hoy: " : "esta semana: "}
-              <span className="tabular">
+              <span className="tabular-nums">
                 {formatCLP(Math.abs(c.pace.budget - c.pace.spent))}
               </span>
             </p>
           )}
         </div>
-        <div className="hidden w-full grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))] items-center gap-3 lg:grid">
-          <div className="min-w-0 space-y-2">
+        <div className="home-category-desktop home-category-columns">
+          <div className="min-w-0">
             <span className="flex items-center gap-2 text-sm font-medium">
               <CategoryIcon
                 icon={c.icon}
-                size={16}
+                size={18}
                 color={c.color ?? undefined}
               />
               <span className="break-words">{c.name}</span>
             </span>
-            {c.limit > 0 && (
-              <div
-                className="flex h-1.5 overflow-hidden rounded-full bg-muted"
-                aria-hidden="true"
-              >
-                <span
-                  style={{ width: `${pct}%`, background: statusVar(c.status) }}
-                />
-                <span
-                  style={{
-                    width: `${Math.max(0, commPct)}%`,
-                    background: "var(--committed)",
-                  }}
-                />
-              </div>
-            )}
             {c.pace && (
               <p
                 className={cn(
-                  "text-xs",
+                  "mt-1 text-sm",
                   c.pace.status === "excedido"
                     ? "text-destructive"
                     : "text-muted-foreground"
@@ -307,29 +292,55 @@ export function Dashboard({
                   ? "Sobre el ritmo "
                   : "Libres "}
                 {c.pace.frequency === "daily" ? "hoy " : "esta semana "}
-                <span className="tabular">
+                <span className="tabular-nums">
                   {formatCLP(Math.abs(c.pace.budget - c.pace.spent))}
                 </span>
               </p>
             )}
           </div>
-          <div className="text-right">
-            <p className="tabular text-xs">{formatCLP(c.used)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {c.limit > 0 ? `de ${formatCLP(c.limit)}` : "sin tope"}
-            </p>
-          </div>
-          <span className="tabular text-right text-xs">
+          <span className="text-right text-sm tabular-nums">
+            {formatCLP(c.used)}
+          </span>
+          <span className="text-right text-sm tabular-nums">
             {formatCLP(c.committed)}
           </span>
           <span
             className={cn(
-              "tabular text-right text-xs font-semibold",
+              "text-right text-sm font-semibold tabular-nums",
               c.available < 0 && "text-destructive"
             )}
           >
             {c.limit > 0 ? formatCLP(c.available) : "—"}
           </span>
+          <div className="flex items-center gap-2">
+            {c.limit > 0 ? (
+              <>
+                <div
+                  className="flex h-2 flex-1 overflow-hidden rounded-full bg-muted"
+                  aria-hidden="true"
+                >
+                  <span
+                    style={{
+                      width: `${pct}%`,
+                      background: statusVar(c.status),
+                    }}
+                  />
+                  <span
+                    style={{
+                      width: `${Math.max(0, commPct)}%`,
+                      background:
+                        "color-mix(in oklch, var(--primary) 35%, var(--card))",
+                    }}
+                  />
+                </div>
+                <span className="w-10 text-right text-sm text-muted-foreground tabular-nums">
+                  {Math.round(((c.used + c.committed) / c.limit) * 100)}%
+                </span>
+              </>
+            ) : (
+              <span className="text-sm text-muted-foreground">Sin tope</span>
+            )}
+          </div>
         </div>
       </button>
     )
@@ -414,7 +425,7 @@ export function Dashboard({
         </div>
       }
     >
-      <div className="mx-auto w-full max-w-6xl px-5 py-6 lg:px-8">
+      <div className="w-full px-5 py-6 md:px-6">
         <div className="flex flex-col gap-8">
           {/* Estado del mes: la respuesta a "¿cuánto puedo gastar hoy?" antes que cualquier
               detalle. Desde acá se abre el plan (ingresos y presupuesto), que es lo que lo
@@ -444,12 +455,9 @@ export function Dashboard({
           {/* Escritorio: categorías a la izquierda; el día elegido y los días anteriores a la
               derecha; las cuentas abajo, a lo ancho. Móvil: una columna en el orden del DOM —
               categorías, día elegido, cuentas—. Todo scrollea con la página (nada fijo). */}
-          <div className="grid gap-x-10 gap-y-8 lg:grid-cols-2 lg:items-start">
-            <section
-              id="presupuestos"
-              className="min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1"
-            >
-              <div className="mb-3 flex items-start justify-between gap-2">
+          <div className="home-workspace grid gap-6 gap-y-8">
+            <section id="presupuestos" className="home-categories min-w-0">
+              <div className="home-category-heading mb-3 flex items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                   <h2 className="font-heading text-lg font-bold">
                     Plan por categoría
@@ -466,13 +474,14 @@ export function Dashboard({
                   <Plus className="size-4" /> Categoría
                 </button>
               </div>
-              <div className="rounded-xl border border-border bg-card px-4">
+              <div className="home-category-list">
                 {expenseCategories.length > 0 && (
-                  <div className="hidden grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))] gap-3 border-b border-border py-4 text-xs text-muted-foreground lg:grid">
+                  <div className="home-category-desktop home-category-columns border-b border-border bg-secondary py-3 text-sm text-muted-foreground">
                     <span>Categoría</span>
                     <span className="text-right">Gastado</span>
                     <span className="text-right">Comprometido</span>
                     <span className="text-right">Disponible</span>
+                    <span>Avance</span>
                   </div>
                 )}
                 {expenseCategories.length === 0 ? (
@@ -523,7 +532,7 @@ export function Dashboard({
                 con la búsqueda (lupa). */}
             <section
               id="movimientos"
-              className="min-w-0 lg:col-start-2 lg:row-start-1"
+              className="home-activity min-w-0 rounded-xl md:border md:border-border md:bg-card md:p-4"
             >
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="truncate font-heading text-lg font-bold">
@@ -564,7 +573,7 @@ export function Dashboard({
                     : "Sin movimientos ese día"}
                 </p>
               ) : (
-                <div className="divide-y divide-border rounded-xl border border-border bg-card p-1">
+                <div className="divide-y divide-border bg-card">
                   {dayTransactions.map((t) => (
                     <MovementRow
                       key={t.id}
@@ -582,7 +591,7 @@ export function Dashboard({
                   frente a una lista de categorías de 900 px. Los días anteriores la completan con
                   lo más reciente, agrupado por fecha como en la búsqueda. */}
             {recentGroups.length > 0 && (
-              <section className="min-w-0 lg:col-start-2 lg:row-start-2">
+              <section className="home-recent min-w-0">
                 <h3 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   Días anteriores
                 </h3>
@@ -608,7 +617,7 @@ export function Dashboard({
 
             {/* Cuentas: consulta, no decisión diaria. Escritorio: bajo las dos columnas, a lo
                 ancho, como filas sólidas con cada moneda por separado. Móvil: al final. */}
-            <section className="min-w-0 lg:col-span-2 lg:row-start-3">
+            <section className="home-accounts min-w-0">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="font-heading text-lg font-bold">Cuentas</h2>
                 <button

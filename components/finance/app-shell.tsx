@@ -130,7 +130,7 @@ export function AppShell({
 
   return (
     <TooltipProvider delayDuration={0}>
-      <SidebarProvider data-product>
+      <SidebarProvider data-product className="bg-background">
         <Sidebar collapsible="icon">
           <SidebarHeader>
             <div className="flex items-center gap-2 px-1 py-1">
@@ -154,10 +154,10 @@ export function AppShell({
           </SidebarFooter>
         </Sidebar>
 
-        <SidebarInset className="min-w-0">
+        <SidebarInset className="min-w-0 bg-background">
           {/* Topbar solo en escritorio; en móvil el selector de mes flota (sticky) centrado. */}
           <header className="pwa-safe-top sticky top-0 z-10 hidden min-h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background px-4 md:flex lg:px-6">
-            <SidebarTrigger className="size-9" />
+            <SidebarTrigger className="size-11" />
             {title && (
               <h1 className="font-heading text-lg font-bold tracking-tight">
                 {title}
@@ -170,7 +170,7 @@ export function AppShell({
                 <Button
                   onClick={() => setAddOpen(true)}
                   title="Nuevo movimiento (N)"
-                  className="h-9"
+                  className="min-h-11"
                 >
                   <Plus className="size-4" />
                   Movimiento
@@ -183,7 +183,7 @@ export function AppShell({
                   variant="secondary"
                   aria-label="Buscar movimientos"
                   title="Buscar (/ o Ctrl K)"
-                  className="size-9"
+                  className="size-11"
                 >
                   <Search className="size-4" />
                 </Button>

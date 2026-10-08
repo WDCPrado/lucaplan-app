@@ -201,7 +201,7 @@ export function Dashboard({
         <span className="home-category-mobile grid size-11 place-items-center rounded-lg bg-secondary">
           <CategoryIcon icon={c.icon} size={21} color={c.color ?? undefined} />
         </span>
-        <div className="home-category-mobile min-w-0 space-y-2">
+        <div className="home-category-mobile min-w-0 space-y-1">
           <div className="flex items-start justify-between gap-3">
             <span className="min-w-0 font-medium break-words">{c.name}</span>
             <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -379,13 +379,14 @@ export function Dashboard({
   return (
     <AppShell
       user={user}
+      active="inicio"
       onSignOut={signOut}
       quickAdd={{ accounts, categories: budget.categories }}
       onSearch={() => setSearchOpen(true)}
       title="Inicio"
       actions={
-        // Móvil: columna invertida → selector arriba y "Hoy" colgando debajo; escritorio: fila.
-        <div className="pointer-events-none flex flex-col-reverse items-center gap-2 *:pointer-events-auto md:flex-row">
+        // Móvil: selector de 44 px junto al título; «Hoy» solo aparece fuera del período actual.
+        <div className="home-period-actions pointer-events-none flex flex-wrap items-center justify-end gap-2 *:pointer-events-auto md:flex-nowrap">
           {!isCurrentMonth && (
             <button
               onClick={() => {
@@ -397,7 +398,7 @@ export function Dashboard({
               Hoy
             </button>
           )}
-          <div className="flex items-center gap-1 rounded-lg bg-secondary px-1.5 py-1">
+          <div className="flex items-center rounded-lg bg-secondary md:gap-1 md:px-1.5 md:py-1">
             <button
               onClick={() => goMonth(-1)}
               className="grid size-11 place-items-center rounded-md hover:bg-background"

@@ -407,7 +407,9 @@ html:has(main[data-landing]) body {
 }
 
 /* Producto: superficies sólidas. La landing conserva su dirección propia. */
-html:has([data-product]) body {
+html:has([data-app-shell]),
+html:has([data-app-shell]) body {
+  background-color: var(--background);
   background-image: none;
 }
 [data-product] .glass,
@@ -453,11 +455,12 @@ html:has([data-product]) body {
 }
 .home-summary-totals {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(5.75rem, 1fr));
   gap: 0.5rem;
 }
 .home-summary-budget,
-.home-summary-desktop-action {
+.home-summary-desktop-action,
+.home-summary-allocation {
   display: none;
 }
 @container (min-width: 900px) {
@@ -481,7 +484,8 @@ html:has([data-product]) body {
     gap: 1rem;
   }
   .home-summary-budget,
-  .home-summary-desktop-action {
+  .home-summary-desktop-action,
+  .home-summary-allocation {
     display: block;
   }
   .home-summary-desktop-action {
@@ -492,22 +496,18 @@ html:has([data-product]) body {
     display: none;
   }
 }
-@container (max-width: 340px) {
-  .home-summary-totals {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
-  }
-  .home-summary-totals > div:not(.home-summary-budget) {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 0.25rem;
-  }
-  .home-summary-totals dd {
-    margin-top: 0;
-  }
+@container (max-width: 290px) {
   .home-summary-head {
     flex-wrap: wrap;
+  }
+}
+.home-summary-totals dt,
+.home-summary-totals dd {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767px) {
+  .home-period-actions {
+    max-width: calc(100% - 3.5rem);
   }
 }
 .home-categories {

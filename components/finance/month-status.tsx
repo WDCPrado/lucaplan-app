@@ -4,8 +4,7 @@ import { useOptimistic, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
-import { CalendarClock, ChevronRight, SlidersHorizontal } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { CalendarClock, Pencil, SlidersHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -27,7 +26,7 @@ import type { CycleProps } from "./dashboard"
  *
  * Este bloque NO dice "te pasaste": ese aviso vive entero en la banda de excedente que va justo
  * debajo (WDC-73). Pasado el presupuesto, acá el número es $0 y punto. Si aún queda plata sin
- * repartir entre categorías, se avisa con un nudge que abre el plan.
+ * repartir entre categorías, se muestra junto al presupuesto; Ajustar plan la distribuye.
  */
 export function MonthStatus({
   period,
@@ -111,12 +110,6 @@ export function MonthStatus({
                 </Button>
               </div>
               <div className="home-summary-details min-w-0">
-                <p className="home-summary-mobile-budget mb-3 text-sm text-muted-foreground">
-                  Presupuesto{" "}
-                  <span className="font-medium text-foreground tabular-nums">
-                    {formatCLP(globalLimit!)}
-                  </span>
-                </p>
                 <dl className="home-summary-totals">
                   {[
                     ["Presupuesto", globalLimit!],
@@ -132,7 +125,7 @@ export function MonthStatus({
                       )}
                     >
                       <dt className="text-sm text-muted-foreground">{label}</dt>
-                      <dd className="mt-1 text-sm font-semibold break-words tabular-nums sm:text-base">
+                      <dd className="mt-1 text-base font-semibold break-words tabular-nums">
                         {formatCLP(Number(value))}
                       </dd>
                     </div>
@@ -163,6 +156,26 @@ export function MonthStatus({
                     %
                   </span>
                 </div>
+                <div className="home-summary-mobile-budget mt-2 flex flex-wrap justify-between gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                  <p>
+                    Presupuesto{" "}
+                    <span className="tabular-nums">
+                      {formatCLP(globalLimit!)}
+                    </span>
+                  </p>
+                  {remainingToAllocate !== null &&
+                    remainingToAllocate !== 0 && (
+                      <p
+                        className={cn(
+                          remainingToAllocate < 0 && "text-destructive"
+                        )}
+                      >
+                        {remainingToAllocate < 0
+                          ? `Sobre-asignado ${formatCLP(Math.abs(remainingToAllocate))}`
+                          : `${formatCLP(remainingToAllocate)} por repartir`}
+                      </p>
+                    )}
+                </div>
               </div>
               <Button
                 variant="outline"
@@ -182,20 +195,16 @@ export function MonthStatus({
         )}
         {children}
         {remainingToAllocate !== null && remainingToAllocate !== 0 && (
-          <button
-            onClick={onOpenPlan}
+          <p
             className={cn(
-              "mt-5 flex min-h-11 w-full items-center justify-between gap-3 rounded-lg bg-secondary px-3 py-3 text-left text-sm",
+              "home-summary-allocation mt-3 text-sm text-muted-foreground",
               remainingToAllocate < 0 && "text-destructive"
             )}
           >
-            <span>
-              {remainingToAllocate < 0
-                ? `Sobre-asignado ${formatCLP(Math.abs(remainingToAllocate))} en categorías`
-                : `${formatCLP(remainingToAllocate)} por repartir`}
-            </span>
-            <ChevronRight className="size-4 shrink-0" />
-          </button>
+            {remainingToAllocate < 0
+              ? `Sobre-asignado ${formatCLP(Math.abs(remainingToAllocate))} en categorías`
+              : `${formatCLP(remainingToAllocate)} por repartir`}
+          </p>
         )}
       </div>
     </section>
@@ -216,8 +225,8 @@ async function apiError(res: Response | null, fallback: string) {
 }
 
 /**
- * Fila del período: en modo tarjeta, el rango del ciclo y su cierre (corregible); a la derecha, el
- * switch de modo. En móvil se parte en dos líneas: el ciclo arriba y el switch debajo.
+ * Modo del presupuesto y ciclo corregible. En móvil el rango y el cierre comparten un
+ * único control de dos líneas debajo del switch.
  */
 function CycleBar({
   period,
@@ -286,14 +295,12 @@ function CycleBar({
         ))}
       </div>
       {cycle.mode === "card_cycle" && card ? (
-        <div className="flex min-h-11 flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border border-border bg-card px-3 py-1">
-          <p className="text-sm">
-            <span className="text-muted-foreground">Ciclo </span>
-            <span className="font-medium tabular-nums">
-              {shortDate(cycle.range.start)} – {shortDate(cycle.range.end)}
-            </span>
-          </p>
-          <ClosingPicker period={period} closing={cycle.closing} />
+        <div className="w-full sm:w-auto sm:flex-1">
+          <ClosingPicker
+            period={period}
+            closing={cycle.closing}
+            range={cycle.range}
+          />
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
@@ -313,9 +320,11 @@ function CycleBar({
 function ClosingPicker({
   period,
   closing,
+  range,
 }: {
   period: { year: number; month: number }
   closing: { date: string; estimated: boolean }
+  range: { start: string; end: string }
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -347,23 +356,20 @@ function ClosingPicker({
         <Button
           variant="secondary"
           aria-label={`Cierre de ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}. Corregir`}
-          className="h-11 gap-2 px-3 text-base font-normal sm:text-sm"
+          className="h-auto min-h-16 w-full justify-start gap-3 border border-border bg-card px-3 py-2 text-sm font-normal hover:bg-accent sm:min-h-11"
         >
-          <CalendarClock className="size-4 text-muted-foreground" />
-          <span>
-            Cierra el{" "}
-            <span className="font-medium tabular-nums">
-              {shortDate(closing.date)}
+          <CalendarClock className="size-5 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 text-left sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-3">
+            <span className="block font-medium tabular-nums">
+              {shortDate(range.start)} – {shortDate(range.end)}
+            </span>
+            <span className="block text-muted-foreground">
+              Cierre{" "}
+              <span className="tabular-nums">{shortDate(closing.date)}</span>
+              {closing.estimated && " · estimado"}
             </span>
           </span>
-          {closing.estimated && (
-            <Badge
-              variant="outline"
-              className="font-normal text-muted-foreground"
-            >
-              estimado
-            </Badge>
-          )}
+          <Pencil className="size-4 shrink-0 text-primary" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto gap-2 p-3">

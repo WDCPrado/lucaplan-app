@@ -104,6 +104,7 @@ export function AppShell({
   const [addOpen, setAddOpen] = React.useState(false)
   const [accountOpen, setAccountOpen] = React.useState(false)
   const canAdd = !!quickAdd
+  const mobileHome = active === "inicio"
 
   // Atajos de escritorio: "/" o Ctrl/⌘+K abre la búsqueda y "n" el nuevo movimiento. No actúan
   // escribiendo en un campo ni con un diálogo abierto: ahí las teclas son del diálogo.
@@ -130,7 +131,7 @@ export function AppShell({
 
   return (
     <TooltipProvider delayDuration={0}>
-      <SidebarProvider data-product className="bg-background">
+      <SidebarProvider data-product data-app-shell className="bg-background">
         <Sidebar collapsible="icon">
           <SidebarHeader>
             <div className="flex items-center gap-2 px-1 py-1">
@@ -155,7 +156,7 @@ export function AppShell({
         </Sidebar>
 
         <SidebarInset className="min-w-0 bg-background">
-          {/* Topbar solo en escritorio; en móvil el selector de mes flota (sticky) centrado. */}
+          {/* Topbar de escritorio; Inicio móvil organiza marca y período en dos filas. */}
           <header className="pwa-safe-top sticky top-0 z-10 hidden min-h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background px-4 md:flex lg:px-6">
             <SidebarTrigger className="size-11" />
             {title && (
@@ -191,14 +192,24 @@ export function AppShell({
               {actions}
             </div>
           </header>
-          {/* Móvil: botones flotando sin barra — buscar | (selector u otras acciones) | usuario.
-              items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar. Sin fondo:
-              solo los hijos reciben toques; lo que queda entre ellos pasa al contenido de abajo. */}
-          <div className="pwa-safe-top sticky top-0 z-20 flex justify-center border-b border-border bg-background px-5 py-3 md:hidden">
-            <div className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-3">
-              {/* Sin trigger del sidebar: en móvil el drawer solo repetía la barra inferior y el
-                  menú de usuario. El hueco lo ocupa la lupa; sin ella, un espaciador del mismo
-                  ancho que el avatar para que las acciones del centro no se descentren. */}
+          {/* Inicio móvil scrollea con el contenido; las otras pantallas conservan su header. */}
+          <div
+            className={cn(
+              "pwa-safe-top z-20 border-b border-border bg-background px-5 md:hidden",
+              mobileHome ? "py-2.5" : "sticky top-0 py-3"
+            )}
+          >
+            <div
+              className={cn(
+                "flex w-full flex-wrap items-center justify-between gap-x-2",
+                mobileHome ? "gap-y-2" : "gap-y-3"
+              )}
+            >
+              {mobileHome && (
+                <span className="mr-auto font-heading text-xl font-semibold">
+                  <span className="text-primary">Luca</span> Plan
+                </span>
+              )}
               {onSearch ? (
                 <button
                   onClick={() => {
@@ -210,13 +221,25 @@ export function AppShell({
                 >
                   <Search className="size-4.5" />
                 </button>
-              ) : (
+              ) : !mobileHome ? (
                 <div className="invisible size-11 shrink-0" aria-hidden />
+              ) : null}
+              {!mobileHome && (
+                <span className="font-heading text-lg font-semibold">
+                  Luca Plan
+                </span>
               )}
-              <span className="font-heading text-lg font-semibold">
-                Luca Plan
-              </span>
-              <div className="order-last flex w-full justify-center">
+              <div
+                className={cn(
+                  "order-last flex w-full items-center",
+                  mobileHome ? "justify-between gap-2" : "justify-center"
+                )}
+              >
+                {mobileHome && (
+                  <h1 className="font-heading text-lg font-bold tracking-tight">
+                    {title}
+                  </h1>
+                )}
                 {actions}
               </div>
               <UserMenu
@@ -224,7 +247,7 @@ export function AppShell({
                 onSignOut={onSignOut}
                 trigger={
                   <button
-                    className="grid size-11 place-items-center rounded-full"
+                    className="grid size-11 shrink-0 place-items-center rounded-full"
                     aria-label="Perfil"
                     onClick={() => haptic("light")}
                   >
@@ -361,7 +384,7 @@ function BottomNav({
             )}
           >
             <Icon className="size-5 shrink-0" />
-            <span className="max-w-full truncate text-[10px] leading-none">
+            <span className="max-w-full truncate text-xs leading-none">
               {label}
             </span>
           </Link>

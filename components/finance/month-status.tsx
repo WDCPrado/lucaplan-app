@@ -372,7 +372,10 @@ function ClosingPicker({
           <Pencil className="size-4 shrink-0 text-primary" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto gap-2 p-3">
+      <PopoverContent
+        align="start"
+        className="w-72 max-w-[calc(100vw-2rem)] gap-2 p-3"
+      >
         <p className="px-1 text-sm text-muted-foreground">
           ¿Qué día cierra la facturación de {mes}?
         </p>
@@ -391,7 +394,12 @@ function ClosingPicker({
             if (key !== closing.date) void save(key)
             else setOpen(false)
           }}
-          classNames={{ nav: "hidden" }}
+          classNames={{
+            root: "w-full",
+            nav: "hidden",
+            month: "flex w-full flex-col gap-2",
+            month_caption: "flex h-8 w-full items-center justify-center",
+          }}
           className="p-0"
         />
         {!closing.estimated && (

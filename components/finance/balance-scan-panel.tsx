@@ -36,7 +36,11 @@ const CHECKING_BUCKETS: BucketField[] = [
 
 const CARD_BUCKETS: BucketField[] = [
   { kind: "credit_national", label: "Cupo nacional", currency: "CLP" },
-  { kind: "credit_international", label: "Cupo internacional", currency: "USD" },
+  {
+    kind: "credit_international",
+    label: "Cupo internacional",
+    currency: "USD",
+  },
 ]
 
 // Los dos montos de un cupo. `null` = "no lo sé", que NO es cero: con el campo vacío el servidor
@@ -89,9 +93,9 @@ export function BalanceScanPanel({
   const fileRef = useRef<HTMLInputElement>(null)
   // Capturas elegidas, ya reescaladas. El banco reparte los datos entre pantallas (nacional en una,
   // internacional en otra), así que se juntan todas y se leen de una sola pasada.
-  const [shots, setShots] = useState<{ id: string; name: string; url: string }[]>(
-    []
-  )
+  const [shots, setShots] = useState<
+    { id: string; name: string; url: string }[]
+  >([])
   const [busy, setBusy] = useState<"reading" | "saving" | null>(null)
   const [values, setValues] = useState<Values | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
@@ -112,7 +116,9 @@ export function BalanceScanPanel({
     const free = MAX_SCAN_IMAGES - shots.length
     if (free <= 0) return
     if (files.length > free)
-      setError(`Se leen hasta ${MAX_SCAN_IMAGES} capturas; se agregaron las primeras.`)
+      setError(
+        `Se leen hasta ${MAX_SCAN_IMAGES} capturas; se agregaron las primeras.`
+      )
     try {
       const added = await Promise.all(
         files.slice(0, free).map(async (file, i) => ({
@@ -201,7 +207,11 @@ export function BalanceScanPanel({
     }
   }
 
-  function setPair(field: BucketField, side: "available" | "used", raw: string) {
+  function setPair(
+    field: BucketField,
+    side: "available" | "used",
+    raw: string
+  ) {
     const value = readAmount(raw, field.currency)
     const total = limitOf(field.kind)
     const other = side === "available" ? "used" : "available"
@@ -253,7 +263,7 @@ export function BalanceScanPanel({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <input
         ref={fileRef}
         type="file"
@@ -270,9 +280,9 @@ export function BalanceScanPanel({
       {!values && (
         <div className="flex flex-col gap-3 py-2">
           <p className="text-center text-sm text-muted-foreground">
-            Sube capturas de la app de tu banco y se leen los saldos. Puedes juntar
-            hasta {MAX_SCAN_IMAGES} si el cupo internacional está en otra pantalla.
-            No se guardan.
+            Sube capturas de la app de tu banco y se leen los saldos. Puedes
+            juntar hasta {MAX_SCAN_IMAGES} si el cupo internacional está en otra
+            pantalla. No se guardan.
           </p>
 
           {shots.length > 0 && (
@@ -298,7 +308,7 @@ export function BalanceScanPanel({
                     }
                     disabled={busy !== null}
                     aria-label={`Quitar ${shot.name}`}
-                    className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent"
+                    className="grid size-11 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent"
                   >
                     <X className="size-4" />
                   </button>
@@ -346,8 +356,8 @@ export function BalanceScanPanel({
       {values && (
         <>
           <p className="text-sm text-muted-foreground">
-            Revisa que los montos coincidan con la captura antes de guardar. El cupo
-            total no se toca: es el que tiene la cuenta.
+            Revisa que los montos coincidan con la captura antes de guardar. El
+            cupo total no se toca: es el que tiene la cuenta.
           </p>
           {/* Descuadre aritmético contra el cupo total guardado. Es la única pista automática de que
               se leyó mal un dígito (o de que el banco cambió el cupo), así que se señala fuerte pero
@@ -359,11 +369,11 @@ export function BalanceScanPanel({
             >
               <TriangleAlert className="mt-0.5 size-4 shrink-0" />
               <span>
-                Lo leído en {BUCKET_LABEL[m.kind] ?? "este cupo"} no cuadra con el
-                cupo total guardado: {m.difference > 0 ? "faltan" : "sobran"}{" "}
-                {formatMoney(Math.abs(m.difference), m.currency)}. Revisa los montos
-                contra la captura; si el banco te cambió el cupo, actualízalo en la
-                cuenta.
+                Lo leído en {BUCKET_LABEL[m.kind] ?? "este cupo"} no cuadra con
+                el cupo total guardado: {m.difference > 0 ? "faltan" : "sobran"}{" "}
+                {formatMoney(Math.abs(m.difference), m.currency)}. Revisa los
+                montos contra la captura; si el banco te cambió el cupo,
+                actualízalo en la cuenta.
               </span>
             </p>
           ))}
@@ -458,11 +468,7 @@ export function BalanceScanPanel({
             )
           })}
 
-          <Button
-            onClick={save}
-            disabled={busy !== null}
-            className="h-12"
-          >
+          <Button onClick={save} disabled={busy !== null} className="h-12">
             {busy === "saving" && <Loader2 className="size-4 animate-spin" />}
             {busy === "saving" ? "Guardando…" : "Guardar saldos"}
           </Button>

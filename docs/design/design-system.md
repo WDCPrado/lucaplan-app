@@ -1,6 +1,6 @@
 # Design System — Luca Plan
 
-Estilo: **fintech moderno y sereno, con liquid glass**. Esquinas sobrias (`--radius: 0.5rem`, ver
+Estilo del producto: **sobrio y claro, con superficies sólidas**. Esquinas sobrias (`--radius: 0.5rem`, ver
 [Formas y uso de componentes](../development.md#formas-y-uso-de-componentes)), neutros
 slate fríos, primario azul vibrante. Light + dark emparejados.
 Fuente de verdad: [app/globals.css](../../app/globals.css). No hardcodees valores en
@@ -13,8 +13,9 @@ componentes — siempre tira de estos tokens (variables CSS / utilidades Tailwin
   (`success`), no es color de marca.
 - **Datos primero.** Los números son el contenido: tipografía tabular y esquinas nítidas
   priorizan la lectura y el análisis por encima de la suavidad visual.
-- **Glass con propósito.** El blur indica superficie elevada/flotante, no adorno
-  (regla `blur-purpose`). Usa `.glass` en cards/paneles que flotan sobre el fondo.
+- **Superficies sólidas en producto.** El Home usa bordes neutros y fondo `card`;
+  bajo `[data-product]` las clases glass heredadas se vuelven sólidas. La landing conserva
+  su dirección visual propia.
 - **Color nunca solo.** Montos positivos/negativos llevan icono o signo además del color
   (`color-not-only`). `text-success` para positivo, `text-destructive` para negativo.
 - **Contraste verificado en ambos modos** (AA 4.5:1 texto). Dark usa tonos desaturados y
@@ -37,7 +38,7 @@ Mapeados a utilidades Tailwind (`bg-*`, `text-*`, `border-*`):
 **Solo del design system** (no shadcn por defecto): `success`, `warning`, `destructive-foreground`,
 y los tokens glass.
 
-## Liquid glass
+## Glass de la landing y superficies heredadas
 
 El efecto depende de **dos cosas juntas**: un fondo con color (los blobs sutiles del
 `body`) y superficies translúcidas que lo refractan. Sobre un fondo plano no se aprecia.
@@ -83,3 +84,20 @@ uno del otro.
 1. ¿Color/valor nuevo? Agrégalo como variable en `:root` **y** `.dark` de `globals.css`.
 2. Si quieres utilidad Tailwind (`bg-foo`), mapéala en `@theme inline` (`--color-foo: var(--foo)`).
 3. Recién entonces úsalo en componentes. Nunca un hex/oklch suelto en un `.tsx`.
+
+## Home: resumen compacto, móvil primero
+
+- Una columna en móvil, con 20 px laterales y 32 px entre secciones. El contenido se
+  recorre con scroll natural: no se comprime para caber sobre el fold.
+- Orden: período y modo Débito/Crédito, Libre hoy, plan por categoría, actividad, cuentas.
+  Desde `lg`, categorías y actividad forman dos columnas; cuentas queda debajo de ambas.
+- Débito usa mes calendario; Crédito usa el ciclo real y permite corregir/restaurar el cierre.
+  El selector guarda la preferencia existente; no filtra movimientos por tarjeta.
+- Libre hoy conserva el cálculo presupuesto menos gastado y comprometido dividido entre
+  los días restantes. Ajustar plan reúne presupuesto e ingresos.
+- Categorías: filas cómodas en móvil; columnas de gastado, comprometido y disponible en
+  escritorio. Pendientes por categorizar se abren explícitamente, sin interrumpir cada carga.
+- Cuentas: filas de consulta, cupos nacional CLP e internacional USD identificados por
+  separado; sobregiro usado se anuncia como deuda. La versión con arte sigue disponible
+  fuera del Home mediante `AccountCard` sin `compact`.
+- Controles táctiles de al menos 44 px; navegación inferior de 64 px y safe areas de PWA.

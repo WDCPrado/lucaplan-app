@@ -94,7 +94,7 @@ export function RecurringLinkPicker({
       title="Elegir movimiento"
       className="sm:max-w-md"
     >
-      <div className="flex flex-col px-4 pb-4">
+      <div className="flex flex-col px-5 pb-4">
         <p className="py-3 text-xs text-muted-foreground">
           Cargos del banco en la categoría de esta recurrente. Elige el que
           corresponde a este período: no se crea nada nuevo, el movimiento pasa
@@ -127,7 +127,7 @@ export function RecurringLinkPicker({
           <span className="block text-xs font-medium text-muted-foreground">
             Días hacia atrás
           </span>
-          <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
+          <div className="flex flex-wrap gap-2">
             {DAY_PRESETS.map((n) => (
               <Chip
                 key={n}

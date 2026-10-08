@@ -93,7 +93,9 @@ function ItemEditor({
         </Button>
         <Button
           size="sm"
-          onClick={() => onSave(new Date(`${date}T12:00:00`).toISOString(), amount)}
+          onClick={() =>
+            onSave(new Date(`${date}T12:00:00`).toISOString(), amount)
+          }
           disabled={busy || amount <= 0 || over}
         >
           Guardar
@@ -181,7 +183,9 @@ export function InstallmentPlanModal({
   async function remove() {
     if (busy) return
     setBusy(true)
-    const res = await fetch(`/api/installments/${plan.id}`, { method: "DELETE" })
+    const res = await fetch(`/api/installments/${plan.id}`, {
+      method: "DELETE",
+    })
     setBusy(false)
     if (!res.ok) {
       haptic("error")
@@ -199,7 +203,7 @@ export function InstallmentPlanModal({
       onOpenChange={onOpenChange}
       title={plan.description}
     >
-      <div className="flex flex-col px-4">
+      <div className="flex flex-col px-5">
         {/* Dato hero: lo que falta. El total pagado va debajo, como contexto. */}
         <section className="border-b border-border/60 py-5">
           <span className="tabular block text-3xl font-semibold">
@@ -315,7 +319,7 @@ export function InstallmentPlanModal({
                       type="button"
                       onClick={() => setEditingId(item.id)}
                       disabled={busy}
-                      className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                      className="min-h-11 shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
                     >
                       Editar
                     </button>
@@ -327,7 +331,7 @@ export function InstallmentPlanModal({
                       type="button"
                       onClick={() => setLinking(item)}
                       disabled={busy}
-                      className="shrink-0 rounded-lg border border-primary px-2.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+                      className="min-h-11 shrink-0 rounded-lg border border-primary px-3 py-2 text-xs text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
                     >
                       Asignar
                     </button>
@@ -344,7 +348,7 @@ export function InstallmentPlanModal({
                         )
                       }
                       disabled={busy}
-                      className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                      className="min-h-11 shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
                     >
                       Soltar
                     </button>
@@ -418,10 +422,7 @@ export function InstallmentPlanModal({
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={remove}
-                  variant="destructive"
-                >
+                <AlertDialogAction onClick={remove} variant="destructive">
                   Eliminar
                 </AlertDialogAction>
               </AlertDialogFooter>

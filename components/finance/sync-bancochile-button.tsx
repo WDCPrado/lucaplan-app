@@ -80,12 +80,14 @@ export function SyncBancoChileButton({
       <button
         onClick={openModal}
         data-card
-        className="flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col items-center justify-center gap-2 rounded-xl border-2 border-primary/40 bg-primary/5 text-primary transition-colors hover:bg-primary/10 lg:w-auto lg:snap-start"
+        className="flex min-h-20 w-full items-center justify-start gap-3 rounded-xl border border-dashed border-border bg-card px-5 py-4 text-primary transition-colors hover:bg-accent"
       >
         <Landmark className="size-6" />
-        <span className="text-sm font-medium">Conectar banco</span>
-        <span className="px-4 text-center text-xs text-muted-foreground">
-          Trae cuentas y movimientos
+        <span className="min-w-0 flex-1 text-left">
+          <span className="block text-sm font-medium">Conectar banco</span>
+          <span className="mt-1 block text-sm text-muted-foreground">
+            Trae cuentas y movimientos
+          </span>
         </span>
       </button>
 
@@ -95,7 +97,7 @@ export function SyncBancoChileButton({
         dismissible={!locked}
         title="Conectar banco"
       >
-        <div className="flex flex-col gap-5 px-4 pb-6">
+        <div className="flex flex-col gap-6 px-5 pb-6">
           <OutlookBankConnection
             status={outlookStatus}
             accounts={accounts.filter(

@@ -53,11 +53,7 @@ import {
 
 // Solo rutas que existen. Movimientos/Presupuestos viven como secciones del
 // dashboard y Cuotas como sección de Recurrentes; cuando sean páginas propias, se agregan aquí.
-export type NavKey =
-  | "inicio"
-  | "recurrentes"
-  | "configuracion"
-  | "perfil"
+export type NavKey = "inicio" | "recurrentes" | "configuracion" | "perfil"
 
 const NAV: {
   key: NavKey
@@ -134,7 +130,7 @@ export function AppShell({
 
   return (
     <TooltipProvider delayDuration={0}>
-      <SidebarProvider>
+      <SidebarProvider data-product>
         <Sidebar collapsible="icon">
           <SidebarHeader>
             <div className="flex items-center gap-2 px-1 py-1">
@@ -160,7 +156,7 @@ export function AppShell({
 
         <SidebarInset className="min-w-0">
           {/* Topbar solo en escritorio; en móvil el selector de mes flota (sticky) centrado. */}
-          <header className="pwa-safe-top sticky top-0 z-10 hidden min-h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-4 backdrop-blur md:flex lg:px-6">
+          <header className="pwa-safe-top sticky top-0 z-10 hidden min-h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background px-4 md:flex lg:px-6">
             <SidebarTrigger className="size-9" />
             {title && (
               <h1 className="font-heading text-lg font-bold tracking-tight">
@@ -198,8 +194,8 @@ export function AppShell({
           {/* Móvil: botones flotando sin barra — buscar | (selector u otras acciones) | usuario.
               items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar. Sin fondo:
               solo los hijos reciben toques; lo que queda entre ellos pasa al contenido de abajo. */}
-          <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center px-4 pt-3 pb-3 md:hidden">
-            <div className="flex w-full items-start justify-between gap-2 *:pointer-events-auto">
+          <div className="pwa-safe-top sticky top-0 z-20 flex justify-center border-b border-border bg-background px-5 py-3 md:hidden">
+            <div className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-3">
               {/* Sin trigger del sidebar: en móvil el drawer solo repetía la barra inferior y el
                   menú de usuario. El hueco lo ocupa la lupa; sin ella, un espaciador del mismo
                   ancho que el avatar para que las acciones del centro no se descentren. */}
@@ -210,24 +206,29 @@ export function AppShell({
                     onSearch()
                   }}
                   aria-label="Buscar movimientos"
-                  className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary transition-colors hover:bg-accent"
+                  className="grid size-11 shrink-0 place-items-center rounded-lg bg-secondary transition-colors hover:bg-accent"
                 >
                   <Search className="size-4.5" />
                 </button>
               ) : (
-                <div className="invisible size-10 shrink-0" aria-hidden />
+                <div className="invisible size-11 shrink-0" aria-hidden />
               )}
-              {actions}
+              <span className="font-heading text-lg font-semibold">
+                Luca Plan
+              </span>
+              <div className="order-last flex w-full justify-center">
+                {actions}
+              </div>
               <UserMenu
                 user={user}
                 onSignOut={onSignOut}
                 trigger={
                   <button
-                    className="grid size-10 place-items-center rounded-full"
+                    className="grid size-11 place-items-center rounded-full"
                     aria-label="Perfil"
                     onClick={() => haptic("light")}
                   >
-                    <Avatar className="size-10 rounded-full">
+                    <Avatar className="size-11 rounded-full">
                       <AvatarFallback className="rounded-full bg-secondary text-sm font-medium text-foreground">
                         {user.initial}
                       </AvatarFallback>
@@ -339,7 +340,7 @@ function BottomNav({
   return (
     <nav
       aria-label="Navegación principal"
-      className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border/60 bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border/60 bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       {NAV.map(({ key, label, Icon, href }, i) => {
         const isActive = activeKey === key
@@ -355,7 +356,7 @@ function BottomNav({
                 window.scrollTo({ top: 0, behavior: "smooth" })
             }}
             className={cn(
-              "flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 transition-colors",
+              "flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 py-2 transition-colors",
               isActive ? "text-primary" : "text-muted-foreground"
             )}
           >

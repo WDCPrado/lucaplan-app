@@ -1,3 +1,4 @@
+import { monthlyBudgetSchema } from "@/lib/finance-form-schemas"
 import {
   withUser,
   financeDeps,
@@ -19,11 +20,12 @@ export async function GET(req: Request) {
 // valida (entero ≥ 0, mes 1–12, año en rango) y responde 422 si el input es inválido.
 export async function POST(req: Request) {
   const body = await req.json()
-  return withUser(req, (userId) =>
-    setMonthlyBudget(financeDeps, userId, {
+  return withUser(req, async (userId) => {
+    const parsed = monthlyBudgetSchema.parse({
       year: Number(body.year),
       month: Number(body.month),
       globalLimit: Number(body.globalLimit),
     })
-  )
+    return setMonthlyBudget(financeDeps, userId, parsed)
+  })
 }

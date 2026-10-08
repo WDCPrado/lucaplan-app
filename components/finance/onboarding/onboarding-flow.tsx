@@ -144,7 +144,7 @@ export function OnboardingFlow({
   const view: Step = step === "triage" ? "income" : step
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background/95 backdrop-blur-xl p-[env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)]">
+    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background p-[env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)]">
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-5 py-8">
         <StepDots step={view} />
         <div
@@ -161,7 +161,7 @@ export function OnboardingFlow({
           )}
 
           {view === "connect" && (
-            <div className="flex flex-1 flex-col gap-5">
+            <div className="flex flex-1 flex-col gap-8">
               <Header
                 icon={Mail}
                 title="Revisemos tus correos"
@@ -212,7 +212,7 @@ export function OnboardingFlow({
         {!locked && view !== "welcome" && view !== "budget" && (
           <button
             onClick={onFinish}
-            className="mt-4 self-center text-sm text-muted-foreground hover:text-foreground"
+            className="mt-6 min-h-11 self-center px-4 text-sm text-muted-foreground hover:text-foreground"
           >
             Omitir por ahora
           </button>
@@ -280,7 +280,7 @@ function Header({
         <h1 className="font-heading text-2xl font-bold text-balance">
           {title}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground text-pretty">
+        <p className="mt-1 text-sm text-pretty text-muted-foreground">
           {subtitle}
         </p>
       </div>
@@ -299,7 +299,7 @@ function Welcome({ onStart }: { onStart: () => void }) {
           <h1 className="font-heading text-3xl font-bold text-balance">
             Armemos tu presupuesto
           </h1>
-          <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground text-pretty">
+          <p className="mx-auto mt-2 max-w-xs text-sm text-pretty text-muted-foreground">
             Leemos los correos de tu banco, ordenamos tus movimientos y creamos
             tu presupuesto del mes. Toma un minuto.
           </p>
@@ -322,7 +322,7 @@ function IncomeStep({
   onContinue: () => void
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-5">
+    <div className="flex flex-1 flex-col gap-8">
       <Header
         icon={Wallet}
         title="¿Cuánto ingresas al mes?"
@@ -387,7 +387,7 @@ function BudgetReady({
         <div>
           <h1 className="font-heading text-2xl font-bold">¡Todo listo!</h1>
           {globalLimit !== null ? (
-            <p className="mt-2 text-sm text-muted-foreground text-pretty">
+            <p className="mt-2 text-sm text-pretty text-muted-foreground">
               Tu presupuesto del mes es de{" "}
               <span className="font-semibold text-foreground">
                 {formatMoney(globalLimit, "CLP")}
@@ -395,7 +395,7 @@ function BudgetReady({
               . Ya llevas {formatMoney(spent, "CLP")} en gastos.
             </p>
           ) : (
-            <p className="mt-2 text-sm text-muted-foreground text-pretty">
+            <p className="mt-2 text-sm text-pretty text-muted-foreground">
               Puedes definir tu presupuesto cuando quieras desde el dashboard.
             </p>
           )}

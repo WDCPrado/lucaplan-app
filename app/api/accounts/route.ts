@@ -1,3 +1,4 @@
+import { accountSchema } from "@/lib/finance-form-schemas"
 import {
   withUser,
   financeDeps,
@@ -11,10 +12,11 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const body = await req.json()
+
   return withUser(
     req,
     async (userId) => {
-      const a = await createAccount(financeDeps, userId, {
+      const parsed = accountSchema.parse({
         bankName: body.bankName || "Mi banco",
         name: body.name,
         accountType: body.accountType || "checking",
@@ -24,6 +26,7 @@ export async function POST(req: Request) {
         color: body.color ?? null,
         cardLast4: body.cardLast4 ?? null,
       })
+      const a = await createAccount(financeDeps, userId, parsed)
       return { id: a.id, name: a.name }
     },
     201

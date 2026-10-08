@@ -1,3 +1,4 @@
+import { transactionUpdateSchema } from "@/lib/finance-form-schemas"
 import {
   withUser,
   financeDeps,
@@ -14,14 +15,19 @@ export async function PATCH(
 ) {
   const { id } = await ctx.params
   const body = await req.json()
+
   return withUser(req, async (userId) => {
-    const t = await updateTransaction(financeDeps, userId, {
-      transactionId: id,
+    const parsed = transactionUpdateSchema.parse({
       description: String(body.description ?? "").trim() || "Movimiento",
       amount: Number(body.amount) || 0,
       direction: body.direction === "credit" ? "credit" : "debit",
       categoryId: body.categoryId ?? null,
-      date: body.date ? new Date(body.date) : new Date(),
+      date: body.date || new Date().toISOString(),
+    })
+    const t = await updateTransaction(financeDeps, userId, {
+      transactionId: id,
+      ...parsed,
+      date: new Date(parsed.date),
     })
     return { id: t.id }
   })

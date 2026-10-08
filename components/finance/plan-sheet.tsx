@@ -1,18 +1,22 @@
 "use client"
 
-import { useState } from "react"
+import { useId, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Check, Pencil, Plus } from "lucide-react"
 import { toast } from "sonner"
 
-import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { useMoneyInput } from "@/hooks/use-money-input"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import {
+  categoryLimitSchema,
+  type CategoryLimitFormValues,
+} from "@/lib/finance-form-schemas"
+import { MoneyFormInput, financeResponseError } from "./finance-form-field"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { CategoryIcon } from "./category-icons"
-import { ProgressRing } from "./progress-ring"
 import {
   formatCLP,
   formatMoney,
@@ -74,6 +78,9 @@ export function PlanSheet({
   // Topes en edición (por id): lo que falta repartir se recalcula mientras se escribe, sin
   // esperar el refresh que trae cada guardado.
   const [drafts, setDrafts] = useState<Record<string, number>>({})
+  // Parent callbacks can close this surface without calling its onOpenChange.
+  // Clearing on the closed render keeps the next session aligned with persisted rows.
+  if (!open && Object.keys(drafts).length > 0) setDrafts({})
   const assigned = expenseCategories.reduce(
     (sum, c) => sum + (drafts[c.id] ?? c.limit),
     0
@@ -91,36 +98,49 @@ export function PlanSheet({
   const previousMonth = previousMonthLabel(period.year, period.month)
 
   async function applySuggested() {
+    if (applying) return
     setApplying(true)
-    const res = await fetch("/api/budgets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        year: period.year,
-        month: period.month,
-        globalLimit: toAllocate,
-      }),
-    })
-    setApplying(false)
-    if (!res.ok) {
+    try {
+      const res = await fetch("/api/budgets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...period, globalLimit: toAllocate }),
+      })
+      if (!res.ok)
+        throw new Error(
+          await financeResponseError(
+            res,
+            "No se pudo actualizar el presupuesto."
+          )
+        )
+      haptic("success")
+      toast.success("Presupuesto actualizado")
+      router.refresh()
+    } catch (error) {
       haptic("error")
-      return toast.error("No se pudo actualizar el presupuesto")
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar el presupuesto."
+      )
+    } finally {
+      setApplying(false)
     }
-    haptic("success")
-    toast.success("Presupuesto actualizado")
-    router.refresh()
   }
 
   return (
     <ResponsiveModal
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        if (!next) setDrafts({})
+        onOpenChange(next)
+      }}
       title={`Plan de ${monthName(period.month).toLowerCase()}`}
     >
-      <div className="flex flex-col gap-6 px-4">
+      <div className="flex flex-col gap-8 px-5">
         {/* Presupuesto del mes */}
         <section>
-          <h3 className="mb-2 text-sm font-medium">Presupuesto del mes</h3>
+          <h3 className="mb-3 text-base font-semibold">Presupuesto del mes</h3>
           {globalLimit === null ? (
             <button
               onClick={onEditBudget}
@@ -140,7 +160,7 @@ export function PlanSheet({
             <button
               onClick={onEditBudget}
               aria-label="Editar presupuesto del mes"
-              className="group w-full rounded-lg bg-secondary/50 px-4 py-3 text-left transition-colors hover:bg-accent"
+              className="group w-full rounded-lg bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-accent"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="tabular text-2xl font-bold">
@@ -184,7 +204,7 @@ export function PlanSheet({
           )}
 
           {suggest && (
-            <div className="mt-3 flex flex-col gap-2 rounded-xl bg-secondary/50 p-3">
+            <div className="mt-3 flex flex-col gap-2 rounded-xl bg-muted/40 p-3">
               <p className="text-sm">
                 Tus ingresos suman{" "}
                 <span className="tabular font-semibold">
@@ -195,7 +215,7 @@ export function PlanSheet({
               <Button
                 onClick={applySuggested}
                 disabled={applying}
-                className="h-10 self-start"
+                className="h-11 self-start"
               >
                 {applying
                   ? "Actualizando…"
@@ -209,7 +229,7 @@ export function PlanSheet({
 
         {/* Ingresos: una fila por fuente, con su estado del mes */}
         <section>
-          <h3 className="mb-1 text-sm font-medium">Ingresos</h3>
+          <h3 className="mb-3 text-base font-semibold">Ingresos</h3>
           <div className="divide-y divide-border/40">
             {incomes.map((inc) => (
               <IncomeRow
@@ -241,7 +261,7 @@ export function PlanSheet({
                     Registra tus ingresos
                   </span>
                   <span className="block text-xs">
-                    Sueldo, arriendo u otros · definen tu presupuesto
+                    Sueldo, arriendo u otros · planifica cuánto entra
                   </span>
                 </span>
               )}
@@ -252,27 +272,26 @@ export function PlanSheet({
         {/* Categorías de ingreso: mismo patrón visual que las de gasto */}
         {incomeCategories.length > 0 && (
           <section>
-            <h3 className="mb-3 text-sm font-medium">Categorías de ingreso</h3>
+            <h3 className="mb-3 text-base font-semibold">
+              Categorías de ingreso
+            </h3>
             <div className="flex flex-wrap gap-4">
               {incomeCategories.map((c) => {
-                // Avance hacia la meta; sin meta definida, lleno si ya entró algo.
-                const pct =
-                  c.limit > 0 ? (c.used / c.limit) * 100 : c.used > 0 ? 100 : 0
                 return (
                   <button
                     key={c.id}
                     onClick={() => onOpenIncomeCategory(c)}
-                    className="flex w-20 shrink-0 flex-col items-center gap-1.5"
+                    className="flex min-h-16 min-w-24 flex-1 items-center gap-3 rounded-lg border p-3 text-left"
                   >
-                    <ProgressRing percent={pct} status={c.status} size={72}>
+                    <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-muted">
                       <CategoryIcon
                         icon={c.icon}
-                        size={22}
+                        size={20}
                         color={c.color ?? undefined}
                       />
-                    </ProgressRing>
-                    <span className="w-full text-center">
-                      <span className="block truncate text-xs font-medium">
+                    </span>
+                    <span className="min-w-0 flex-1 text-left">
+                      <span className="block truncate text-sm font-medium">
                         {c.name}
                       </span>
                       {/* Lo recibido en el mes: el "disponible" de una categoría de ingreso sin
@@ -286,10 +305,10 @@ export function PlanSheet({
               })}
               <button
                 onClick={onNewIncomeCategory}
-                className="flex w-20 shrink-0 flex-col items-center gap-1.5"
+                className="flex min-h-16 min-w-24 flex-1 items-center gap-3 rounded-lg border p-3 text-left"
                 aria-label="Nueva categoría de ingreso"
               >
-                <span className="grid size-18 place-items-center rounded-xl border-2 border-dashed border-border text-2xl text-muted-foreground">
+                <span className="grid size-11 place-items-center rounded-lg border border-border text-2xl text-muted-foreground">
                   +
                 </span>
                 <span className="text-xs text-muted-foreground">Nueva</span>
@@ -299,15 +318,15 @@ export function PlanSheet({
         )}
 
         {/* Topes por categoría: el aviso «Te falta repartir…» abre este plan, así que acá se
-            reparte. Un tope se guarda al salir del campo; el saldo se recalcula al escribir. */}
+            reparte. El saldo se recalcula al escribir; cada tope tiene un guardado explícito. */}
         {expenseCategories.length > 0 && (
           <section className="pb-2">
-            <div className="mb-1 flex items-baseline justify-between gap-3">
-              <h3 className="text-sm font-medium">Topes por categoría</h3>
+            <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
+              <h3 className="text-base font-semibold">Topes por categoría</h3>
               {left !== null && (
                 <span
                   className={cn(
-                    "tabular text-xs",
+                    "tabular text-sm",
                     left < 0 ? "text-destructive" : "text-muted-foreground"
                   )}
                 >
@@ -319,6 +338,10 @@ export function PlanSheet({
                 </span>
               )}
             </div>
+            <p className="mb-3 text-sm leading-relaxed text-muted-foreground">
+              Puedes dejar dinero por repartir. Si superas el presupuesto, te
+              avisamos sin bloquear.
+            </p>
             <div className="divide-y divide-border/40">
               {expenseCategories.map((c) => (
                 <LimitRow
@@ -333,12 +356,24 @@ export function PlanSheet({
           </section>
         )}
       </div>
+      <ModalFooter className="px-5">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-12 flex-1 text-base"
+          onClick={() => {
+            setDrafts({})
+            onOpenChange(false)
+          }}
+        >
+          Cerrar plan
+        </Button>
+      </ModalFooter>
     </ResponsiveModal>
   )
 }
 
-// Fila de tope de una categoría de gasto: el monto se edita en línea y se guarda al salir del
-// campo (POST /api/category-limits, un mes concreto). Vacío es «sin tope» (0).
+// Cada tope tiene un guardado explícito. Salir del campo nunca guarda por sorpresa.
 function LimitRow({
   category,
   period,
@@ -349,69 +384,127 @@ function LimitRow({
   onDraft: (value: number) => void
 }) {
   const router = useRouter()
-  const money = useMoneyInput("CLP", category.limit)
-  const [saving, setSaving] = useState(false)
-
-  async function commit() {
-    if (money.value === category.limit || saving) return
-    setSaving(true)
-    const res = await fetch("/api/category-limits", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        categoryId: category.id,
-        year: period.year,
-        month: period.month,
-        limit: money.value,
-      }),
-    })
-    setSaving(false)
-    if (!res.ok) {
+  const formId = `limit-${useId()}`
+  const fieldId = `${formId}-amount`
+  const form = useForm({
+    resolver: zodResolver(categoryLimitSchema),
+    values: { categoryId: category.id, ...period, limit: category.limit },
+  })
+  const { errors, isSubmitting, isDirty } = form.formState
+  async function save(values: CategoryLimitFormValues) {
+    form.clearErrors("root")
+    try {
+      const response = await fetch("/api/category-limits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      })
+      if (!response.ok)
+        throw new Error(
+          await financeResponseError(
+            response,
+            `No se pudo guardar el tope de ${category.name}.`
+          )
+        )
+      haptic("success")
+      form.reset(values)
+      router.refresh()
+    } catch (error) {
       haptic("error")
-      toast.error(`No se pudo guardar el tope de ${category.name}`)
-      money.reset(category.limit)
-      onDraft(category.limit)
-      return
+      form.setError("root", {
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo guardar el tope.",
+      })
     }
-    haptic("success")
-    router.refresh()
   }
-
   return (
-    <label className="flex items-center gap-3 py-2">
-      <span
-        className="grid size-9 shrink-0 place-items-center rounded-full"
-        style={{
-          background: category.color ? `${category.color}1f` : "var(--muted)",
-        }}
-        aria-hidden
-      >
-        <CategoryIcon
-          icon={category.icon}
-          size={16}
-          color={category.color ?? undefined}
-        />
-      </span>
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-        {category.name}
-      </span>
-      <span className="flex items-baseline gap-1">
-        <span className="text-sm text-muted-foreground" aria-hidden>
-          $
+    <form
+      id={formId}
+      onSubmit={form.handleSubmit(save)}
+      className="space-y-3 py-4"
+    >
+      <div className="flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="grid size-11 shrink-0 place-items-center rounded-lg bg-muted"
+        >
+          <CategoryIcon
+            icon={category.icon}
+            size={18}
+            color={category.color ?? undefined}
+          />
         </span>
-        <Input
-          inputMode="numeric"
-          placeholder="Sin tope"
-          aria-label={`Tope de ${category.name}`}
-          value={money.display}
-          disabled={saving}
-          onChange={(e) => onDraft(money.onChange(e.target.value))}
-          onBlur={commit}
-          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-          className="tabular h-9 w-28 text-right text-base md:text-base"
+        <label
+          htmlFor={fieldId}
+          className="min-w-0 flex-1 text-base font-medium"
+        >
+          {category.name}
+        </label>
+        <Controller
+          name="limit"
+          control={form.control}
+          render={({ field }) => (
+            <MoneyFormInput
+              allowNegative
+              id={fieldId}
+              name={field.name}
+              ref={field.ref}
+              value={field.value}
+              onValueChange={(value) => {
+                field.onChange(value)
+                onDraft(value)
+              }}
+              onBlur={field.onBlur}
+              disabled={isSubmitting}
+              aria-invalid={!!errors.limit}
+              aria-describedby={errors.limit ? `${fieldId}-error` : undefined}
+              placeholder="0"
+              className="w-32 text-right"
+            />
+          )}
         />
-      </span>
-    </label>
+      </div>
+      {errors.limit && (
+        <p
+          id={`${fieldId}-error`}
+          role="alert"
+          className="text-sm text-destructive"
+        >
+          {errors.limit.message}
+        </p>
+      )}
+      {errors.root && (
+        <p role="alert" className="text-sm text-destructive">
+          {errors.root.message}
+        </p>
+      )}
+      {isDirty && (
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11"
+            disabled={isSubmitting}
+            onClick={() => {
+              form.reset()
+              onDraft(category.limit)
+            }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form={formId}
+            className="h-11"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Guardando…" : "Guardar tope"}
+          </Button>
+        </div>
+      )}
+    </form>
   )
 }
 
@@ -438,20 +531,28 @@ function IncomeRow({
   async function toggleGenerated() {
     if (busy) return
     setBusy(true)
-    haptic("light")
-    const res = await fetch(
-      `/api/incomes/${income.id}/generate?year=${period.year}&month=${period.month}`,
-      { method: income.generated ? "DELETE" : "POST" }
-    )
-    setBusy(false)
-    if (!res.ok) {
+    try {
+      const res = await fetch(
+        `/api/incomes/${income.id}/generate?year=${period.year}&month=${period.month}`,
+        { method: income.generated ? "DELETE" : "POST" }
+      )
+      if (!res.ok)
+        throw new Error(
+          await financeResponseError(res, "No se pudo actualizar el ingreso.")
+        )
+      haptic("success")
+      toast.success(income.generated ? "Ingreso deshecho" : "Ingreso recibido")
+      router.refresh()
+    } catch (error) {
       haptic("error")
-      toast.error("No se pudo actualizar el ingreso")
-      return
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar el ingreso."
+      )
+    } finally {
+      setBusy(false)
     }
-    haptic("success")
-    toast.success(income.generated ? "Ingreso deshecho" : "Ingreso recibido")
-    router.refresh()
   }
 
   // Detalle de fecha: día absoluto siempre; en el mes actual, cuánto falta para que llegue.
@@ -475,27 +576,23 @@ function IncomeRow({
   }
 
   return (
-    <div className="flex items-center gap-3 py-2.5">
+    <div className="flex flex-wrap items-center gap-3 py-4">
       <button
         onClick={onOpenCategory}
         aria-label="Ver la categoría del ingreso"
         className="shrink-0"
       >
-        <ProgressRing
-          percent={income.generated ? 100 : 0}
-          status="bueno"
-          size={44}
-        >
+        <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-muted">
           <CategoryIcon
             icon={income.categoryIcon}
-            size={16}
+            size={18}
             color={income.categoryColor ?? undefined}
           />
-        </ProgressRing>
+        </span>
       </button>
       <button
         onClick={onEdit}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left"
       >
         <span className="min-w-0">
           <span className="block truncate text-sm font-medium">
@@ -515,7 +612,7 @@ function IncomeRow({
           disabled={busy}
           title={income.generated ? "Deshacer" : "Registrar el ingreso del mes"}
           className={cn(
-            "flex h-6 items-center gap-1 rounded-lg px-2.5 text-xs font-medium transition duration-150 ease-out active:scale-[0.97] disabled:opacity-50",
+            "flex min-h-11 items-center gap-1 rounded-lg px-3 text-sm font-medium transition-colors disabled:opacity-50",
             income.generated
               ? "bg-success/10 text-success"
               : "bg-primary text-primary-foreground"

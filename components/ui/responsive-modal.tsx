@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import { X } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -32,10 +34,11 @@ export function ModalFooter({
 }) {
   return (
     <div
+      data-slot="modal-footer"
       className={cn(
         // bg-popover, no bg-background: es la superficie del Dialog y de la tarjeta del Drawer.
         // Con background (más oscuro en dark) el footer se ve como una banda de otro color.
-        "sticky bottom-0 z-10 -mx-4 mt-auto flex flex-wrap items-center gap-2 border-t border-border/60 bg-popover px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+        "sticky bottom-0 z-10 -mx-4 mt-6 flex flex-wrap items-center gap-3 border-t border-border bg-popover px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] [&_button]:min-h-11",
         className
       )}
     >
@@ -45,8 +48,8 @@ export function ModalFooter({
 }
 
 // Superficie contextual adaptativa: diálogo centrado en escritorio, drawer inferior estilo iOS
-// en móvil (vaul: full-height, arrastrable, con el fondo escalado vía data-vaul-drawer-wrapper
-// en el layout). Mismo contenido y comportamiento; solo cambia el envoltorio (useIsMobile, 768px).
+// en móvil (vaul: altura según el contenido y arrastrable). Mismo contenido y comportamiento;
+// solo cambia el envoltorio (useIsMobile, 768px).
 export function ResponsiveModal({
   open,
   onOpenChange,
@@ -96,21 +99,39 @@ export function ResponsiveModal({
         dismissible={dismissible}
       >
         <DrawerContent
+          data-product=""
           className={cn(
-            // Altura menos el safe-area del notch: como el drawer está anclado abajo, restar altura
-            // baja todo el borde superior de la tarjeta bajo el notch en la PWA instalada. En
-            // navegador env()=0 y queda 96dvh como antes.
-            "h-[calc(96dvh-env(safe-area-inset-top))] data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))]",
+            // Los paneles cortos usan su contenido; los largos desplazan el cuerpo sin alcanzar
+            // el notch ni tapar las acciones con el teclado.
+            "h-auto rounded-t-xl bg-popover p-0 text-base before:hidden data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))]",
             className
           )}
         >
-          <DrawerHeader className={headerClassName}>
-            <DrawerTitle>{title}</DrawerTitle>
+          <DrawerHeader
+            className={cn(
+              "relative shrink-0 px-5 pt-5 pb-6 text-left",
+              headerClassName
+            )}
+          >
+            <DrawerTitle className="pr-12 text-xl leading-snug font-semibold">
+              {title}
+            </DrawerTitle>
+            {dismissible && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute top-3 right-1 size-11"
+                aria-label="Cerrar"
+                onClick={() => handleOpenChange(false)}
+              >
+                <X aria-hidden="true" />
+              </Button>
+            )}
           </DrawerHeader>
-          {/* Columna flex y el hijo estirado: así el ModalFooter (mt-auto) queda pegado al borde
-              inferior cuando el contenido es más corto que el drawer. Con contenido largo el hijo
-              mide lo que mide y el área scrollea igual que antes. */}
-          <div className="flex min-h-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] flex-col overflow-x-hidden overflow-y-auto [&>*]:flex-1">
+          {/* El contenido se desplaza dentro del drawer; las acciones conservan su superficie
+              opaca y el espacio seguro para el gesto inferior del teléfono. */}
+          <div className="flex min-h-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] flex-col overflow-x-hidden overflow-y-auto [&>[data-slot=modal-footer]]:mx-0">
             {children}
           </div>
         </DrawerContent>
@@ -121,16 +142,19 @@ export function ResponsiveModal({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
+        data-product=""
         showCloseButton={dismissible}
         onEscapeKeyDown={dismissible ? undefined : (e) => e.preventDefault()}
         onInteractOutside={dismissible ? undefined : (e) => e.preventDefault()}
         className={cn(
-          "max-h-[90dvh] [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto p-0 sm:max-w-2xl [&>*]:min-w-0",
+          "max-h-[90dvh] [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto p-0 text-base sm:max-w-2xl [&>*]:min-w-0 [&>[data-slot=dialog-close]]:size-11 [&>[data-slot=modal-footer]]:mx-0",
           className
         )}
       >
         <DialogHeader className={cn("p-6", headerClassName)}>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle className="pr-10 text-xl leading-snug font-semibold">
+            {title}
+          </DialogTitle>
         </DialogHeader>
         {children}
       </DialogContent>

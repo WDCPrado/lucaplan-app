@@ -127,9 +127,7 @@ export function InstallmentModal({
   const overdue = dates
     .map((d, i) => ({ index: i + 1, date: d }))
     .filter(({ index, date }) => index >= startIndex && date <= today)
-  const paidIndexes = overdue
-    .map((o) => o.index)
-    .filter((i) => !unpaid.has(i))
+  const paidIndexes = overdue.map((o) => o.index).filter((i) => !unpaid.has(i))
 
   const canSave =
     !!description.trim() &&
@@ -199,7 +197,7 @@ export function InstallmentModal({
             : "Necesitas una cuenta para registrar un crédito."}
         </div>
       ) : (
-        <div className="flex flex-col px-4">
+        <div className="flex flex-col px-5">
           {/* 1 · Qué se debe ------------------------------------------------- */}
           <Section title="Qué se debe">
             <Input
@@ -385,7 +383,9 @@ export function InstallmentModal({
           <Section title="Cuándo se paga">
             <label className="flex items-center justify-between gap-3 text-sm">
               <span className="text-muted-foreground">
-                {kind === "loan" ? `Mes de la cuota ${startIndex}` : "Primera cuota"}
+                {kind === "loan"
+                  ? `Mes de la cuota ${startIndex}`
+                  : "Primera cuota"}
               </span>
               {/* El selector de mes de la app, no <input type="month">: el nativo salía en
                   inglés ("October 2026") y con el icono del navegador. */}
@@ -483,6 +483,15 @@ export function InstallmentModal({
 
           <ModalFooter>
             <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
+              className="h-12 flex-1"
+            >
+              Cancelar
+            </Button>
+            <Button
               onClick={save}
               disabled={!canSave}
               className="h-12 flex-1 text-base"
@@ -523,7 +532,7 @@ function Section({
   return (
     <section
       className={cn(
-        "flex flex-col gap-3 py-5",
+        "flex flex-col gap-4 py-7",
         !last && "border-b border-border/60"
       )}
     >
@@ -535,7 +544,7 @@ function Section({
 
 function ChipRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="-mx-4 flex scrollbar-none gap-2 overflow-x-auto px-4 pb-1">
+    <div className="-mx-5 flex scrollbar-none gap-2 overflow-x-auto px-5 pb-1">
       {children}
     </div>
   )

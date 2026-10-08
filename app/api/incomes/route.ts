@@ -1,3 +1,4 @@
+import { incomeSchema } from "@/lib/finance-form-schemas"
 import {
   withUser,
   financeDeps,
@@ -21,16 +22,20 @@ export async function GET(req: Request) {
 // ingresos activos. Devuelve la fuente y el resultado de la siembra (para sugerir al usuario).
 export async function POST(req: Request) {
   const body = await req.json()
+
   return withUser(
     req,
     async (userId) => {
-      const { year, month } = await periodOf(req)
-      const income = await createIncome(financeDeps, userId, {
+      const parsed = incomeSchema.parse({
         accountId: String(body.accountId),
         categoryId: String(body.categoryId),
         name: String(body.name ?? ""),
         amount: Number(body.amount),
         dayOfMonth: Number(body.dayOfMonth),
+      })
+      const { year, month } = await periodOf(req)
+      const income = await createIncome(financeDeps, userId, {
+        ...parsed,
         year,
         month,
       })

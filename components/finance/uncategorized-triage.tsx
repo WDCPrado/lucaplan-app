@@ -284,9 +284,9 @@ export function UncategorizedTriage({
     <Dialog open onOpenChange={(o) => !o && handleClose()}>
       <DialogContent
         showCloseButton={false}
-        className="top-0 left-0 flex h-dvh w-dvw max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none bg-background/85 p-0 text-base text-foreground ring-0 backdrop-blur-xl sm:max-w-none motion-reduce:data-open:zoom-in-100 motion-reduce:data-closed:zoom-out-100"
+        className="top-0 left-0 flex h-dvh w-dvw max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none bg-background p-0 text-base text-foreground ring-0 sm:max-w-none motion-reduce:data-open:zoom-in-100 motion-reduce:data-closed:zoom-out-100"
       >
-        <header className="mx-auto flex w-full max-w-md items-start justify-between gap-3 px-4 pt-[max(env(safe-area-inset-top),1.25rem)]">
+        <header className="mx-auto flex w-full max-w-md items-start justify-between gap-3 px-5 pt-[max(env(safe-area-inset-top),1.25rem)]">
           <div className="min-w-0">
             <DialogTitle className="font-heading text-lg font-bold">
               Movimientos por categorizar
@@ -326,7 +326,7 @@ export function UncategorizedTriage({
 
         {/* Montón de hechas: mini-pila + contador + corregir (drag hacia abajo o botón). */}
         {done.length > 0 && (
-          <div className="mx-auto mt-4 w-full max-w-md px-4">
+          <div className="mx-auto mt-4 w-full max-w-md px-5">
             <div
               onPointerDown={onPileDown}
               onPointerMove={onPileMove}
@@ -361,11 +361,11 @@ export function UncategorizedTriage({
           </div>
         )}
 
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-6">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-5 py-8">
           <div className="w-full max-w-md">
             {pending.length === 0 ? (
               // Estado final: resumen + cierre (el refresh va en handleClose).
-              <div className="glass-strong flex animate-in flex-col items-center gap-4 rounded-xl p-8 text-center duration-300 fade-in-0">
+              <div className="flex animate-in flex-col items-center gap-4 rounded-xl border border-border bg-card p-8 text-center duration-300 fade-in-0">
                 <span className="grid size-14 place-items-center rounded-full bg-success/15 text-success">
                   <Check className="size-7" />
                 </span>
@@ -392,7 +392,7 @@ export function UncategorizedTriage({
                     key={t.id}
                     aria-hidden={i > 0 || undefined}
                     className={cn(
-                      "glass-strong rounded-xl transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-opacity motion-reduce:duration-150",
+                      "rounded-xl border border-border bg-card transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-opacity motion-reduce:duration-150",
                       i === 0 && "relative z-3",
                       i === 0 &&
                         returningId === t.id &&

@@ -405,3 +405,36 @@ html:has(main[data-landing]) body {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* Producto: superficies sólidas. La landing conserva su dirección propia. */
+html:has([data-slot="sidebar-wrapper"][data-product]) body {
+  background-image: none;
+}
+[data-product] .glass,
+[data-product] .glass-strong {
+  background: var(--card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  border-color: var(--border);
+}
+[data-product] button:focus-visible,
+[data-product] a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+[data-product] ::selection {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+[data-product] [data-slot="input"],
+[data-product] [data-slot="tabs-list"],
+[data-product] [data-slot="tabs-trigger"][data-state="active"] {
+  background-color: var(--card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-product] [data-slot="input"].bg-transparent {
+  background-color: transparent;
+}

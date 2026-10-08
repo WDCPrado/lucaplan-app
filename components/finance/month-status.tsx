@@ -1,6 +1,6 @@
 "use client"
 
-import { useId, useOptimistic, useState, useTransition } from "react"
+import { useOptimistic, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
@@ -8,27 +8,16 @@ import { CalendarClock, ChevronRight, SlidersHorizontal } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { Label } from "@/components/ui/label"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
-import {
-  formatCLP,
-  formatLongDate,
-  monthName,
-  todayKey,
-  usagePct,
-} from "@/lib/finance-format"
+import { formatCLP, monthName } from "@/lib/finance-format"
 import { dailyAllowance } from "@/lib/day-spend"
-import {
-  estimateClosing,
-  type PeriodMode,
-} from "@/arch/shared/billing-cycle"
+import { estimateClosing, type PeriodMode } from "@/arch/shared/billing-cycle"
 import type { CycleProps } from "./dashboard"
 
 /**
@@ -64,144 +53,109 @@ export function MonthStatus({
   children?: React.ReactNode // la tira de días, debajo del titular
 }) {
   const mes = monthName(period.month).toLowerCase()
-  // Modo y ciclo: van justo encima de la tira de días, que es el rango que describen.
-  const cycleBar = <CycleBar period={period} cycle={cycle} />
-
-  if (globalLimit === null) {
-    return (
-      <section className="glass rounded-xl p-5 lg:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="min-w-0">
-            <h2 className="font-heading text-lg font-bold">
+  const future =
+    period.year * 12 + period.month >
+    cycle.current.year * 12 + cycle.current.month
+  const free = globalLimit === null ? null : globalLimit - spent - committed
+  return (
+    <section aria-label="Resumen del plan" className="space-y-6">
+      <CycleBar period={period} cycle={cycle} />
+      <div className="rounded-xl border border-border bg-card p-5 lg:p-6">
+        {free === null ? (
+          <div className="space-y-4">
+            <h2 className="font-heading text-xl font-semibold">
               Define tu presupuesto de {mes}
             </h2>
-            <p className="mt-1 text-sm text-pretty text-muted-foreground">
-              Con un límite del mes podemos decirte cuánto puedes gastar hoy, ya
-              descontando lo que está comprometido.
+            <p className="text-sm text-muted-foreground">
+              El plan descuenta lo gastado y comprometido para mostrarte cuánto
+              puedes gastar hoy.
             </p>
+            <Button onClick={onOpenPlan} className="min-h-11">
+              Definir presupuesto
+            </Button>
           </div>
-          <Button onClick={onOpenPlan} className="h-11 shrink-0">
-            Definir presupuesto
-          </Button>
-        </div>
-        {cycleBar}
-        {children && <div className="mt-3">{children}</div>}
-      </section>
-    )
-  }
-
-  const free = globalLimit - spent - committed
-  const usedPct = usagePct(spent, globalLimit)
-  const todayIso = `${todayKey()}T00:00:00.000Z`
-
-  return (
-    <section className="glass relative rounded-xl p-5 lg:p-6">
-      {/* Editar el plan (ingresos, presupuesto) vive acá: es el mismo lugar donde se ve su
-          resultado. En móvil se ancla arriba a la derecha para no quitarle ancho al titular. */}
-      <Button
-        variant="secondary"
-        onClick={onOpenPlan}
-        aria-label="Ajustar el plan del mes"
-        // Con nombre también en móvil: el icono de sliders solo no decía qué abría.
-        className="absolute top-5 right-5 z-10 max-sm:h-9 max-sm:px-3 max-sm:text-xs sm:h-10 lg:top-6 lg:right-6"
-      >
-        <SlidersHorizontal className="size-4" />
-        Ajustar plan
-      </Button>
-
-      <div className="sm:pr-40">
-        {isCurrentMonth ? (
-          <>
-            {/* Solo la fecha esquiva el botón; el titular usa el ancho entero. */}
-            <p className="text-sm text-muted-foreground max-sm:pr-32">
-              Hoy, {formatLongDate(todayIso)}
-            </p>
-            <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
-              <span className="tabular text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-                {formatCLP(dailyAllowance(free, daysLeft))}
-              </span>
-              <span className="font-heading text-lg font-semibold sm:text-xl">
-                libre hoy
-              </span>
-            </p>
-            {/* Prosa en la fuente de texto; solo los montos en mono (design system: mono = cifras). */}
-            <p className="mt-2 text-sm text-pretty text-muted-foreground">
-              {free > 0 ? (
-                <>
-                  <span className="tabular">{formatCLP(free)}</span> libres para{" "}
-                  {daysLeft === 1
-                    ? "el día que queda"
-                    : `los ${daysLeft} días que quedan`}
-                  {committed > 0 && (
-                    <>
-                      , ya descontado lo comprometido (
-                      <span className="tabular">{formatCLP(committed)}</span>)
-                    </>
-                  )}
-                  . Cada día sin gastar suma al siguiente.
-                </>
-              ) : (
-                "No queda presupuesto libre este mes."
-              )}
-            </p>
-          </>
         ) : (
           <>
-            <p className="text-sm text-muted-foreground max-sm:pr-32">
-              {monthName(period.month)} {period.year} cerró con
-            </p>
-            <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
-              <span className="tabular text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-                {formatCLP(Math.max(0, free))}
-              </span>
-              <span className="font-heading text-lg font-semibold sm:text-xl">
-                sin gastar
-              </span>
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Gastaste <span className="tabular">{formatCLP(spent)}</span> de{" "}
-              <span className="tabular">{formatCLP(globalLimit)}</span>
-              {usedPct !== null && (
-                <>
-                  {" "}
-                  · <span className="tabular">{Math.round(usedPct)}%</span>
-                </>
-              )}
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="tabular text-3xl font-bold tracking-tight text-primary sm:text-4xl">
+                  {formatCLP(
+                    isCurrentMonth
+                      ? dailyAllowance(free, daysLeft)
+                      : Math.max(0, free)
+                  )}
+                </p>
+                <h2 className="mt-1 font-heading text-xl font-semibold">
+                  {isCurrentMonth
+                    ? "Libre hoy"
+                    : future
+                      ? "Presupuesto disponible"
+                      : "Sin gastar al cierre"}
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {isCurrentMonth
+                    ? `${daysLeft} ${daysLeft === 1 ? "día restante" : "días restantes"}`
+                    : `${monthName(period.month)} ${period.year}`}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={onOpenPlan}
+                className="min-h-11"
+                aria-label="Ajustar el plan del mes"
+              >
+                <SlidersHorizontal className="size-4" /> Ajustar plan
+              </Button>
+            </div>
+            <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 border-t border-border pt-5 sm:grid-cols-4">
+              {[
+                ["Presupuesto", globalLimit!],
+                ["Gastado", spent],
+                ["Comprometido", committed],
+                ["Disponible", Math.max(0, free)],
+              ].map(([label, value]) => (
+                <div key={label} className="min-w-0">
+                  <dt className="text-sm text-muted-foreground">{label}</dt>
+                  <dd className="tabular mt-1 text-sm font-semibold break-words sm:text-base">
+                    {formatCLP(Number(value))}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            {free <= 0 && (
+              <p className="mt-4 text-sm text-muted-foreground">
+                No queda presupuesto libre en este período.
+              </p>
+            )}
           </>
         )}
+        {children}
+        {remainingToAllocate !== null && remainingToAllocate !== 0 && (
+          <button
+            onClick={onOpenPlan}
+            className={cn(
+              "mt-5 flex min-h-11 w-full items-center justify-between gap-3 rounded-lg bg-secondary px-3 py-3 text-left text-sm",
+              remainingToAllocate < 0 && "text-destructive"
+            )}
+          >
+            <span>
+              {remainingToAllocate < 0
+                ? `Sobre-asignado ${formatCLP(Math.abs(remainingToAllocate))} en categorías`
+                : `${formatCLP(remainingToAllocate)} por repartir`}
+            </span>
+            <ChevronRight className="size-4 shrink-0" />
+          </button>
+        )}
       </div>
-
-      {cycleBar}
-      {children && <div className="mt-3">{children}</div>}
-
-      {/* Nudge de asignación: solo aparece cuando hay algo que hacer (falta repartir o te pasaste
-          asignando). Abre el plan, que es donde se reparte. En $0 no molesta. */}
-      {remainingToAllocate !== null && remainingToAllocate !== 0 && (
-        <button
-          onClick={onOpenPlan}
-          className={cn(
-            "mt-4 flex w-full items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-left text-sm transition-colors",
-            remainingToAllocate < 0
-              ? "bg-destructive/10 text-destructive hover:bg-destructive/15"
-              : "bg-secondary/50 hover:bg-accent"
-          )}
-        >
-          <span className="min-w-0">
-            {remainingToAllocate < 0
-              ? `Sobre-asignado ${formatCLP(Math.abs(remainingToAllocate))} en categorías`
-              : `Te falta repartir ${formatCLP(remainingToAllocate)} en categorías`}
-          </span>
-          <ChevronRight className="size-4 shrink-0 opacity-60" />
-        </button>
-      )}
     </section>
   )
 }
 
 // «23 sep», del "YYYY-MM-DD" civil sin pasar por la zona horaria.
 function shortDate(day: string): string {
-  const m = monthName(Number(day.slice(5, 7))).slice(0, 3).toLowerCase()
+  const m = monthName(Number(day.slice(5, 7)))
+    .slice(0, 3)
+    .toLowerCase()
   return `${Number(day.slice(8, 10))} ${m}`
 }
 
@@ -222,7 +176,6 @@ function CycleBar({
   cycle: CycleProps
 }) {
   const router = useRouter()
-  const switchId = useId()
   // Optimista: el switch cambia al toque y, al terminar la transición (guardado + refresco),
   // vuelve solo a lo que diga el servidor: si falló, al modo anterior, con un toast.
   const [mode, setOptimisticMode] = useOptimistic(cycle.mode)
@@ -250,34 +203,54 @@ function CycleBar({
   }
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
-      {/* El rango que trae el servidor es el del modo guardado: se muestra solo cuando el modo
-          guardado y el del switch coinciden en tarjeta. */}
-      {cycle.mode === "card_cycle" && card && (
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-          <p className="text-base text-muted-foreground sm:text-sm">
-            Ciclo{" "}
-            <span className="font-medium text-foreground tabular-nums">
+    <div className="space-y-4" aria-busy={pending}>
+      <div
+        role="group"
+        aria-label="Modo del presupuesto"
+        className="grid grid-cols-2 rounded-lg border border-border bg-secondary p-1 sm:w-72"
+      >
+        {(
+          [
+            ["calendar", "Débito"],
+            ["card_cycle", "Crédito"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            type="button"
+            key={value}
+            aria-pressed={mode === value}
+            disabled={pending}
+            onClick={() => {
+              if (mode !== value) changeMode(value === "card_cycle")
+            }}
+            className={cn(
+              "min-h-11 rounded-md px-4 text-sm font-medium transition-colors disabled:opacity-60",
+              mode === value
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-accent"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {cycle.mode === "card_cycle" && card ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
+          <p className="text-sm">
+            <span className="text-muted-foreground">Ciclo </span>
+            <span className="font-medium tabular-nums">
               {shortDate(cycle.range.start)} – {shortDate(cycle.range.end)}
             </span>
           </p>
           <ClosingPicker period={period} closing={cycle.closing} />
         </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          {pending
+            ? "Actualizando período…"
+            : `Mes calendario · ${shortDate(cycle.range.start)} – ${shortDate(cycle.range.end)}`}
+        </p>
       )}
-      <div className="ml-auto flex min-h-11 items-center gap-3">
-        <Label
-          htmlFor={switchId}
-          className="cursor-pointer text-base font-medium sm:text-sm"
-        >
-          {card ? "Modo tarjeta de crédito" : "Modo débito"}
-        </Label>
-        <Switch
-          id={switchId}
-          checked={card}
-          disabled={pending}
-          onCheckedChange={changeMode}
-        />
-      </div>
     </div>
   )
 }

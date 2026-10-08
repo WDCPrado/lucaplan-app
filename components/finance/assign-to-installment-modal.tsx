@@ -98,7 +98,7 @@ export function AssignToInstallmentModal({
       onOpenChange={onOpenChange}
       title="Marcar como cuota"
     >
-      <div className="flex flex-col px-4 pb-4">
+      <div className="flex flex-col px-5 pb-4">
         {plans === null ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             Buscando planes…
@@ -123,7 +123,7 @@ export function AssignToInstallmentModal({
                     className="flex w-full items-center gap-3 border-b border-border/40 py-3 text-left transition-colors hover:bg-secondary/40"
                   >
                     <span
-                      className="grid size-9 shrink-0 place-items-center rounded-full bg-muted"
+                      className="grid size-11 shrink-0 place-items-center rounded-full bg-muted"
                       aria-hidden
                     >
                       <CategoryIcon

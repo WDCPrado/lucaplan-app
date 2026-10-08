@@ -28,16 +28,25 @@ export function DayStrip({
   onSelect: (day: string) => void
 }) {
   const selectedRef = useRef<HTMLButtonElement>(null)
+  const stripRef = useRef<HTMLDivElement>(null)
   // En móvil la tira desborda: al montar, el día elegido queda a la vista sin mover la página.
   useEffect(() => {
-    selectedRef.current?.scrollIntoView({ block: "nearest", inline: "center" })
-  }, [])
+    const strip = stripRef.current
+    const selected = selectedRef.current
+    if (!strip || !selected) return
+    // Solo desplaza la tira: scrollIntoView también movía la página hasta Actividad.
+    strip.scrollLeft +=
+      selected.getBoundingClientRect().left -
+      strip.getBoundingClientRect().left -
+      (strip.clientWidth - selected.offsetWidth) / 2
+  }, [selectedDay])
 
   const max = Math.max(1, ...spend.filter((a) => a <= OUTLIER_CLP))
 
   return (
     <div
-      role="listbox"
+      ref={stripRef}
+      role="group"
       aria-label="Días del mes"
       // Móvil: la tira desborda y arranca centrada en hoy; el fade en los bordes insinúa que
       // hay más días a los lados. En ancho caben todos y no hace falta.
@@ -58,13 +67,12 @@ export function DayStrip({
           <button
             key={day}
             ref={selected ? selectedRef : undefined}
-            role="option"
-            aria-selected={selected}
+            aria-pressed={selected}
             aria-label={`${n} de ${mon}: ${formatCLP(amount)}`}
             title={formatCLP(amount)}
             onClick={() => onSelect(day)}
             className={cn(
-              "flex h-24 w-9 shrink-0 flex-col items-center justify-end gap-1.5 rounded-lg px-0.5 pt-1.5 pb-1 transition-colors hover:bg-glass sm:w-auto sm:flex-1",
+              "flex h-24 w-11 shrink-0 flex-col items-center justify-end gap-1.5 rounded-lg px-0.5 pt-1.5 pb-1 transition-colors hover:bg-glass lg:w-11 lg:flex-none",
               selected && "bg-accent ring-1 ring-primary/40"
             )}
           >

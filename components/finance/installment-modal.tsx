@@ -58,6 +58,7 @@ function shortDate(d: Date): string {
 export function InstallmentModal({
   open,
   onOpenChange,
+  onCreated,
   accounts,
   categories,
   kind,
@@ -65,6 +66,7 @@ export function InstallmentModal({
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
+  onCreated?: () => void
   accounts: AccountDTO[]
   categories: CategoryDTO[]
   kind: "card" | "loan"
@@ -181,6 +183,7 @@ export function InstallmentModal({
     haptic("success")
     toast.success("Plan de cuotas creado")
     onOpenChange(false)
+    onCreated?.()
     router.refresh()
   }
 
@@ -492,6 +495,7 @@ export function InstallmentModal({
               Cancelar
             </Button>
             <Button
+              type="button"
               onClick={save}
               disabled={!canSave}
               className="h-12 flex-1 text-base"

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useId, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
@@ -309,6 +309,7 @@ function EditForm({
   onClose: () => void
 }) {
   const router = useRouter()
+  const instanceId = useId()
   const [apiError, setApiError] = useState<string | null>(null)
   const form = useForm<TransactionUpdateFormValues>({
     resolver: zodResolver(transactionEditFormSchema),
@@ -428,7 +429,7 @@ function EditForm({
 
   const editor = (
     <form
-      id={`edit-transaction-${tx.id}`}
+      id={`edit-transaction-${tx.id}-${instanceId}`}
       onSubmit={form.handleSubmit(save)}
       className="flex flex-col gap-6 px-5"
       noValidate
@@ -442,12 +443,12 @@ function EditForm({
         </p>
       )}
       <FinanceField
-        id={`transaction-description-${tx.id}`}
+        id={`transaction-description-${tx.id}-${instanceId}`}
         label="Descripción"
         error={form.formState.errors.description?.message}
       >
         <Input
-          id={`transaction-description-${tx.id}`}
+          id={`transaction-description-${tx.id}-${instanceId}`}
           {...form.register("description")}
           inputMode="text"
           className="h-12 text-base"
@@ -466,12 +467,12 @@ function EditForm({
         control={form.control}
         render={({ field, fieldState }) => (
           <FinanceField
-            id={`transaction-amount-${tx.id}`}
+            id={`transaction-amount-${tx.id}-${instanceId}`}
             label={`Monto (${tx.currency})`}
             error={fieldState.error?.message}
           >
             <MoneyFormInput
-              id={`transaction-amount-${tx.id}`}
+              id={`transaction-amount-${tx.id}-${instanceId}`}
               value={field.value}
               onValueChange={field.onChange}
               currency={tx.currency as CurrencyCode}
@@ -479,7 +480,7 @@ function EditForm({
               aria-invalid={!!fieldState.error}
               aria-describedby={
                 fieldState.error
-                  ? `transaction-amount-${tx.id}-error`
+                  ? `transaction-amount-${tx.id}-${instanceId}-error`
                   : undefined
               }
             />
@@ -508,17 +509,19 @@ function EditForm({
         control={form.control}
         render={({ field, fieldState }) => (
           <FinanceField
-            id={`transaction-date-${tx.id}`}
+            id={`transaction-date-${tx.id}-${instanceId}`}
             label="Fecha"
             error={fieldState.error?.message}
           >
             <DatePicker
-              id={`transaction-date-${tx.id}`}
+              id={`transaction-date-${tx.id}-${instanceId}`}
               value={field.value}
               onChange={field.onChange}
               invalid={!!fieldState.error}
               describedBy={
-                fieldState.error ? `transaction-date-${tx.id}-error` : undefined
+                fieldState.error
+                  ? `transaction-date-${tx.id}-${instanceId}-error`
+                  : undefined
               }
             />
           </FinanceField>
@@ -595,7 +598,7 @@ function EditForm({
                 disabled={conversionsDisabled}
                 aria-describedby={
                   form.formState.isDirty
-                    ? `transaction-conversions-${tx.id}`
+                    ? `transaction-conversions-${tx.id}-${instanceId}`
                     : undefined
                 }
                 onClick={() => {
@@ -613,7 +616,7 @@ function EditForm({
                 disabled={conversionsDisabled}
                 aria-describedby={
                   form.formState.isDirty
-                    ? `transaction-conversions-${tx.id}`
+                    ? `transaction-conversions-${tx.id}-${instanceId}`
                     : undefined
                 }
                 onClick={() => {
@@ -629,7 +632,7 @@ function EditForm({
             </div>
             {form.formState.isDirty && (
               <p
-                id={`transaction-conversions-${tx.id}`}
+                id={`transaction-conversions-${tx.id}-${instanceId}`}
                 className="text-sm text-muted-foreground"
               >
                 Guarda los cambios antes de hacer recurrente o pasar a cuotas.
@@ -671,8 +674,12 @@ function EditForm({
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={remove} variant="destructive">
+              <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                type="button"
+                onClick={remove}
+                variant="destructive"
+              >
                 {busy === "delete" ? "Borrando…" : "Eliminar"}
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -680,7 +687,7 @@ function EditForm({
         </AlertDialog>
         <Button
           type="submit"
-          form={`edit-transaction-${tx.id}`}
+          form={`edit-transaction-${tx.id}-${instanceId}`}
           disabled={!canSave}
           className="h-12 flex-1 text-base"
         >
@@ -697,10 +704,8 @@ function EditForm({
       {makeRecurring && (
         <RecurringModal
           open
-          onOpenChange={(open) => {
-            setMakeRecurring(open)
-            if (!open) onClose()
-          }}
+          onOpenChange={setMakeRecurring}
+          onSaved={onClose}
           accounts={accounts}
           categories={categories}
           preset={{
@@ -716,10 +721,8 @@ function EditForm({
       {makeInstallments && (
         <InstallmentModal
           open
-          onOpenChange={(open) => {
-            setMakeInstallments(open)
-            if (!open) onClose()
-          }}
+          onOpenChange={setMakeInstallments}
+          onCreated={onClose}
           accounts={accounts}
           categories={categories}
           kind="card"
@@ -735,10 +738,7 @@ function EditForm({
       {assignInstallment && (
         <AssignToInstallmentModal
           open
-          onOpenChange={(open) => {
-            setAssignInstallment(open)
-            if (!open) onClose()
-          }}
+          onOpenChange={setAssignInstallment}
           transactionId={tx.id}
           onAssigned={onClose}
         />
@@ -1134,6 +1134,7 @@ function ConnectedDetail({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
+                type="button"
                 variant="outline"
                 size="icon"
                 disabled={saving}
@@ -1172,6 +1173,7 @@ function ConnectedDetail({
           showConversions && (
             <>
               <Button
+                type="button"
                 variant="outline"
                 onClick={() => {
                   haptic("light")
@@ -1188,6 +1190,7 @@ function ConnectedDetail({
                   ya existe, y lo que corresponde es asignarlo — no crear nada. */}
               {isCreditCard ? (
                 <Button
+                  type="button"
                   variant="outline"
                   onClick={() => {
                     haptic("light")
@@ -1201,6 +1204,7 @@ function ConnectedDetail({
                 </Button>
               ) : (
                 <Button
+                  type="button"
                   variant="outline"
                   onClick={() => {
                     haptic("light")
@@ -1224,6 +1228,7 @@ function ConnectedDetail({
           !inInstallmentPlan &&
           !tx.installmentForecast && (
             <Button
+              type="button"
               variant="outline"
               size="icon"
               onClick={() => setConfirmDeleteTx(true)}
@@ -1235,6 +1240,7 @@ function ConnectedDetail({
             </Button>
           )}
         <Button
+          type="button"
           onClick={saveCategory}
           disabled={!changed || saving}
           className={cn(
@@ -1257,8 +1263,12 @@ function ConnectedDetail({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={removeTx} variant="destructive">
+            <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              onClick={removeTx}
+              variant="destructive"
+            >
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1275,8 +1285,12 @@ function ConnectedDetail({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteRecurring} variant="destructive">
+            <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              onClick={deleteRecurring}
+              variant="destructive"
+            >
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1306,10 +1320,8 @@ function ConnectedDetail({
       {makeLoan && (
         <InstallmentModal
           open
-          onOpenChange={(o) => {
-            setMakeLoan(o)
-            if (!o) onClose()
-          }}
+          onOpenChange={setMakeLoan}
+          onCreated={onClose}
           accounts={accounts}
           categories={categories}
           kind="loan"
@@ -1330,10 +1342,8 @@ function ConnectedDetail({
       {makeInstallments && (
         <InstallmentModal
           open
-          onOpenChange={(o) => {
-            setMakeInstallments(o)
-            if (!o) onClose()
-          }}
+          onOpenChange={setMakeInstallments}
+          onCreated={onClose}
           accounts={accounts}
           categories={categories}
           kind="card"
@@ -1352,10 +1362,8 @@ function ConnectedDetail({
       {makeRecurring && (
         <RecurringModal
           open
-          onOpenChange={(o) => {
-            setMakeRecurring(o)
-            if (!o) onClose()
-          }}
+          onOpenChange={setMakeRecurring}
+          onSaved={onClose}
           accounts={accounts}
           categories={categories}
           preset={{

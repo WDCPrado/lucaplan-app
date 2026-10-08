@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import type { ReactNode } from "react"
+
+import { useId, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
@@ -31,12 +33,14 @@ import type {
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 export function AddTransactionSheet({
+  children,
   open,
   onOpenChange,
   accounts,
   categories,
   onCreateAccount,
 }: {
+  children?: ReactNode
   open: boolean
   onOpenChange: (o: boolean) => void
   accounts: AccountDTO[]
@@ -130,7 +134,7 @@ export function AddTransactionSheet({
           <p className="text-sm text-muted-foreground">
             Agrega una cuenta para registrar tu primer movimiento.
           </p>
-          <Button onClick={onCreateAccount} className="h-12">
+          <Button type="button" onClick={onCreateAccount} className="h-12">
             Agregar cuenta
           </Button>
         </div>
@@ -166,6 +170,7 @@ export function AddTransactionSheet({
           </TabsContent>
         </Tabs>
       )}
+      {children}
     </ResponsiveModal>
   )
 }
@@ -179,6 +184,7 @@ function ManualTransactionForm({
   categories: CategoryDTO[]
   onClose: () => void
 }) {
+  const formId = `new-manual-transaction-${useId()}`
   const router = useRouter()
   const [apiError, setApiError] = useState<string | null>(null)
   const form = useForm<TransactionFormValues>({
@@ -246,7 +252,7 @@ function ManualTransactionForm({
   }
   return (
     <form
-      id="new-manual-transaction"
+      id={formId}
       onSubmit={form.handleSubmit(save)}
       className="flex flex-col gap-6"
       noValidate
@@ -260,12 +266,12 @@ function ManualTransactionForm({
         </p>
       )}
       <FinanceField
-        id="new-transaction-description"
+        id={`${formId}-description`}
         label="Descripción"
         error={form.formState.errors.description?.message}
       >
         <Input
-          id="new-transaction-description"
+          id={`${formId}-description`}
           {...form.register("description")}
           inputMode="text"
           placeholder={income ? "Ej. Sueldo" : "Ej. Compra supermercado"}
@@ -291,19 +297,19 @@ function ManualTransactionForm({
         control={form.control}
         render={({ field, fieldState }) => (
           <FinanceField
-            id="new-transaction-amount"
+            id={`${formId}-amount`}
             label={`Monto (${currency})`}
             error={fieldState.error?.message}
             required
           >
             <MoneyFormInput
-              id="new-transaction-amount"
+              id={`${formId}-amount`}
               value={field.value}
               onValueChange={field.onChange}
               currency={currency}
               aria-invalid={!!fieldState.error}
               aria-describedby={
-                fieldState.error ? "new-transaction-amount-error" : undefined
+                fieldState.error ? `${formId}-amount-error` : undefined
               }
               required
             />
@@ -315,18 +321,18 @@ function ManualTransactionForm({
         control={form.control}
         render={({ field, fieldState }) => (
           <FinanceField
-            id="new-transaction-date"
+            id={`${formId}-date`}
             label="Fecha"
             error={fieldState.error?.message}
             required
           >
             <DatePicker
-              id="new-transaction-date"
+              id={`${formId}-date`}
               value={field.value}
               onChange={field.onChange}
               invalid={!!fieldState.error}
               describedBy={
-                fieldState.error ? "new-transaction-date-error" : undefined
+                fieldState.error ? `${formId}-date-error` : undefined
               }
             />
           </FinanceField>
@@ -392,7 +398,7 @@ function ManualTransactionForm({
         </Button>
         <Button
           type="submit"
-          form="new-manual-transaction"
+          form={formId}
           disabled={!account || saving}
           className="h-12 flex-1 text-base"
         >

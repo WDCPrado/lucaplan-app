@@ -120,15 +120,14 @@ export function OnboardingFlow({
   // (no el prop) para que corregir la última categoría no lo desmonte.
   if (step === "triage" && triageTxs && triageTxs.length > 0) {
     return (
-      <>
-        <UncategorizedTriage
-          transactions={triageTxs}
-          hasMore={uncategorized.hasMore}
-          accounts={accounts}
-          categories={categories}
-          onClose={() => setStep("income")}
-          onCreateCategory={() => setCatOpen(true)}
-        />
+      <UncategorizedTriage
+        transactions={triageTxs}
+        hasMore={uncategorized.hasMore}
+        accounts={accounts}
+        categories={categories}
+        onClose={() => setStep("income")}
+        onCreateCategory={() => setCatOpen(true)}
+      >
         <CategoryModal
           open={catOpen}
           onOpenChange={setCatOpen}
@@ -136,7 +135,7 @@ export function OnboardingFlow({
           category={null}
           remainingToAllocate={remainingToAllocate}
         />
-      </>
+      </UncategorizedTriage>
     )
   }
 
@@ -227,17 +226,18 @@ export function OnboardingFlow({
         income={null}
         period={period}
         onCreateCategory={() => {
-          setIncomeOpen(false)
           setCatOpen(true)
         }}
-      />
-      <CategoryModal
-        open={catOpen}
-        onOpenChange={setCatOpen}
-        period={period}
-        category={null}
-        remainingToAllocate={remainingToAllocate}
-      />
+      >
+        <CategoryModal
+          open={catOpen}
+          onOpenChange={setCatOpen}
+          period={period}
+          category={null}
+          lockedType="income"
+          remainingToAllocate={remainingToAllocate}
+        />
+      </IncomeModal>
     </div>
   )
 }

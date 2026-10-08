@@ -1,5 +1,7 @@
 "use client"
 
+import type { ReactNode } from "react"
+
 import { useId, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Check, Pencil, Plus } from "lucide-react"
@@ -38,6 +40,7 @@ import type {
  * resultado de lo que se configura acá.
  */
 export function PlanSheet({
+  children,
   open,
   onOpenChange,
   period,
@@ -55,6 +58,7 @@ export function PlanSheet({
   onOpenIncomeCategory,
   onNewIncomeCategory,
 }: {
+  children?: ReactNode
   open: boolean
   onOpenChange: (o: boolean) => void
   period: { year: number; month: number }
@@ -143,6 +147,7 @@ export function PlanSheet({
           <h3 className="mb-3 text-base font-semibold">Presupuesto del mes</h3>
           {globalLimit === null ? (
             <button
+              type="button"
               onClick={onEditBudget}
               className="flex w-full items-center justify-between gap-3 rounded-lg border-2 border-dashed border-border px-4 py-3 text-left text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
             >
@@ -158,6 +163,7 @@ export function PlanSheet({
             </button>
           ) : (
             <button
+              type="button"
               onClick={onEditBudget}
               aria-label="Editar presupuesto del mes"
               className="group w-full rounded-lg bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-accent"
@@ -213,6 +219,7 @@ export function PlanSheet({
                 · presupuesto en {formatMoney(globalLimit ?? 0, "CLP")}
               </p>
               <Button
+                type="button"
                 onClick={applySuggested}
                 disabled={applying}
                 className="h-11 self-start"
@@ -247,6 +254,7 @@ export function PlanSheet({
               />
             ))}
             <button
+              type="button"
               onClick={onAddIncome}
               className="flex w-full items-center gap-3 py-2.5 text-left text-muted-foreground transition-colors hover:text-foreground"
             >
@@ -279,6 +287,7 @@ export function PlanSheet({
               {incomeCategories.map((c) => {
                 return (
                   <button
+                    type="button"
                     key={c.id}
                     onClick={() => onOpenIncomeCategory(c)}
                     className="flex min-h-16 min-w-24 flex-1 items-center gap-3 rounded-lg border p-3 text-left"
@@ -304,6 +313,7 @@ export function PlanSheet({
                 )
               })}
               <button
+                type="button"
                 onClick={onNewIncomeCategory}
                 className="flex min-h-16 min-w-24 flex-1 items-center gap-3 rounded-lg border p-3 text-left"
                 aria-label="Nueva categoría de ingreso"
@@ -369,6 +379,7 @@ export function PlanSheet({
           Cerrar plan
         </Button>
       </ModalFooter>
+      {children}
     </ResponsiveModal>
   )
 }
@@ -578,6 +589,7 @@ function IncomeRow({
   return (
     <div className="flex flex-wrap items-center gap-3 py-4">
       <button
+        type="button"
         onClick={onOpenCategory}
         aria-label="Ver la categoría del ingreso"
         className="shrink-0"
@@ -591,6 +603,7 @@ function IncomeRow({
         </span>
       </button>
       <button
+        type="button"
         onClick={onEdit}
         className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left"
       >
@@ -608,6 +621,7 @@ function IncomeRow({
           +{formatMoney(income.amount, income.currency as CurrencyCode)}
         </span>
         <button
+          type="button"
           onClick={toggleGenerated}
           disabled={busy}
           title={income.generated ? "Deshacer" : "Registrar el ingreso del mes"}

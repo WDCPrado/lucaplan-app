@@ -376,6 +376,94 @@ export function Dashboard({
     router.push("/login")
   }
 
+  const transactionEditor = (
+    <TransactionModal
+      tx={detailTx}
+      categories={budget.categories}
+      accounts={accounts}
+      onOpenChange={(o) => {
+        if (o) return
+        setDetailTx(null)
+        // Saca el `?tx=` de la barra: recargar o volver no debe reabrir el modal.
+        if (openTxId)
+          window.history.replaceState(null, "", window.location.pathname)
+      }}
+    />
+  )
+  const categoryEditor = (
+    <CategoryModal
+      key={editCat?.id ?? `new-${newCatType ?? "libre"}`}
+      open={editCat !== undefined}
+      onOpenChange={(o) => !o && setEditCat(undefined)}
+      onDeleted={(id) => {
+        if (detail?.id === id) setDetail(null)
+      }}
+      period={period}
+      category={editCat}
+      lockedType={editCat ? null : newCatType}
+      remainingToAllocate={budget.remainingToAllocate}
+    />
+  )
+  const incomeEditor = (
+    <IncomeModal
+      key={editIncome?.id ?? "new-income"}
+      open={editIncome !== undefined}
+      onOpenChange={(o) => !o && setEditIncome(undefined)}
+      accounts={accounts}
+      categories={budget.categories}
+      income={editIncome}
+      period={period}
+      onCreateCategory={() => {
+        setNewCatType("income")
+        setEditCat(null)
+      }}
+    >
+      {editIncome !== undefined && categoryEditor}
+    </IncomeModal>
+  )
+  const budgetEditor = (
+    <BudgetLimitModal
+      key={`${period.year}-${period.month}-${budget.globalLimit ?? "unset"}`}
+      open={budgetLimitOpen}
+      onOpenChange={setBudgetLimitOpen}
+      period={period}
+      current={budget.globalLimit}
+    />
+  )
+  const categoryDetail = (
+    <CategoryDetailSheet
+      // Derivada de las props frescas (no del snapshot en estado): si el modal de transacción
+      // guarda encima y refresca, el usado/disponible del detalle se actualiza solo.
+      category={
+        detail && (budget.categories.find((c) => c.id === detail.id) ?? detail)
+      }
+      transactions={transactions}
+      onOpenChange={(o) => !o && setDetail(null)}
+      onEdit={(c) => {
+        setEditCat(c)
+      }}
+      onOpenTx={setDetailTx}
+    >
+      {detail && categoryEditor}
+      {detail && !searchOpen && transactionEditor}
+    </CategoryDetailSheet>
+  )
+  const triage = triageOpen && !onboarding && (
+    <UncategorizedTriage
+      transactions={uncategorized.transactions}
+      hasMore={uncategorized.hasMore}
+      accounts={accounts}
+      categories={budget.categories}
+      onClose={() => setTriageOpen(false)}
+      onCreateCategory={() => {
+        setNewCatType(null)
+        setEditCat(null)
+      }}
+    >
+      {categoryEditor}
+    </UncategorizedTriage>
+  )
+
   return (
     <AppShell
       user={user}
@@ -673,54 +761,14 @@ export function Dashboard({
         account={infoAccount}
         onOpenChange={(o) => !o && setInfoAccount(null)}
       />
-      <CategoryDetailSheet
-        // Derivada de las props frescas (no del snapshot en estado): si el modal de transacción
-        // guarda encima y refresca, el usado/disponible del detalle se actualiza solo.
-        category={
-          detail &&
-          (budget.categories.find((c) => c.id === detail.id) ?? detail)
-        }
-        transactions={transactions}
-        // Con el modal de transacción abierto encima, su X / click fuera llega aquí como
-        // "interact outside": se ignora para que solo se cierre el modal de arriba.
-        onOpenChange={(o) => !o && detailTx === null && setDetail(null)}
-        onEdit={(c) => {
-          setDetail(null)
-          setEditCat(c)
-        }}
-        onOpenTx={setDetailTx}
-      />
-      <CategoryModal
-        key={editCat?.id ?? `new-${newCatType ?? "libre"}`}
-        open={editCat !== undefined}
-        onOpenChange={(o) => !o && setEditCat(undefined)}
-        period={period}
-        category={editCat}
-        lockedType={editCat ? null : newCatType}
-        remainingToAllocate={budget.remainingToAllocate}
-      />
-      <IncomeModal
-        key={editIncome?.id ?? "new-income"}
-        open={editIncome !== undefined}
-        onOpenChange={(o) => !o && setEditIncome(undefined)}
-        accounts={accounts}
-        categories={budget.categories}
-        income={editIncome}
-        period={period}
-        onCreateCategory={() => {
-          setNewCatType("income")
-          setEditCat(null)
-        }}
-      />
-      <BudgetLimitModal
-        key={`${period.year}-${period.month}-${budget.globalLimit ?? "unset"}`}
-        open={budgetLimitOpen}
-        onOpenChange={setBudgetLimitOpen}
-        period={period}
-        current={budget.globalLimit}
-      />
-      {/* Plan del mes. Los sub-modales (límite, ingreso, categoría) reemplazan a este en vez de
-          apilarse: dos superficies encima confunden el cierre, sobre todo en móvil. */}
+      {!planOpen && categoryDetail}
+      {!planOpen &&
+        editIncome === undefined &&
+        !detail &&
+        !triageOpen &&
+        categoryEditor}
+      {!planOpen && incomeEditor}
+      {!planOpen && budgetEditor}
       <PlanSheet
         open={planOpen}
         onOpenChange={setPlanOpen}
@@ -736,64 +784,42 @@ export function Dashboard({
         activeIncomeTotal={activeIncomeTotal}
         previousMonthDebt={previousMonthDebt}
         onEditBudget={() => {
-          setPlanOpen(false)
           setBudgetLimitOpen(true)
         }}
         onAddIncome={() => {
-          setPlanOpen(false)
           setEditIncome(null)
         }}
         onEditIncome={(inc) => {
-          setPlanOpen(false)
           setEditIncome(inc)
         }}
         onOpenIncomeCategory={(cat) => {
-          setPlanOpen(false)
           setDetail(cat)
         }}
         onNewIncomeCategory={() => {
-          setPlanOpen(false)
           setNewCatType("income")
           setEditCat(null)
         }}
-      />
-      <TransactionModal
-        tx={detailTx}
-        categories={budget.categories}
-        accounts={accounts}
-        onOpenChange={(o) => {
-          if (o) return
-          setDetailTx(null)
-          // Saca el `?tx=` de la barra: recargar o volver no debe reabrir el modal.
-          if (openTxId)
-            window.history.replaceState(null, "", window.location.pathname)
-        }}
-      />
+      >
+        {budgetEditor}
+        {incomeEditor}
+        {categoryDetail}
+        {editIncome === undefined && !detail && categoryEditor}
+      </PlanSheet>
+      {!searchOpen && !detail && transactionEditor}
       <TransactionSearch
         open={searchOpen}
+        detailOpen={detailTx !== null}
         onOpenChange={setSearchOpen}
         categories={budget.categories}
         accounts={accounts}
         amountBounds={amountBounds}
         onOpenTransaction={(tx) => {
-          setSearchOpen(false)
           setDetailTx(tx)
         }}
-      />
-      {triageOpen && !onboarding && (
-        <UncategorizedTriage
-          transactions={uncategorized.transactions}
-          hasMore={uncategorized.hasMore}
-          accounts={accounts}
-          categories={budget.categories}
-          onClose={() => setTriageOpen(false)}
-          onCreateCategory={() => {
-            setTriageOpen(false)
-            setNewCatType(null)
-            setEditCat(null) // abre el modal de categoría existente; el triage vuelve en la próxima carga
-          }}
-        />
-      )}
+      >
+        {searchOpen && transactionEditor}
+      </TransactionSearch>
+      {triage}
 
       {onboarding && (
         <OnboardingFlow

@@ -113,6 +113,14 @@ un barrido aparte.
   (`AlertDialog`) queda angosta con su default. El triage a pantalla completa es la única
   excepción (`max-w-none`). Ojo en móvil: el `className` sí llega al drawer, pero el default de
   ancho no, porque vive solo en el diálogo de escritorio; el drawer conserva su altura según el contenido, con tope de 96dvh.
+- **Modales anidados.** El padre permanece abierto y montado; el hijo se compone dentro de su
+  árbol React, con su formulario fuera del formulario del padre. `ResponsiveModal` asigna una
+  identidad por instancia y registra padre/profundidad; usa la raíz anidada de Vaul en móvil.
+  Cerrar, Cancelar, Esc y el fondo cierran solo el hijo y devuelven el foco al padre. Los cierres
+  después de una escritura exitosa tienen callbacks propios, separados de `onOpenChange`.
+  Los formularios y sus botones de envío usan IDs por instancia; las demás acciones llevan
+  `type="button"`. El diálogo de triage a pantalla completa usa `ModalScope` para conservar
+  la misma jerarquía sin cambiar su superficie.
 - **Formularios.** Un `<form id>` por sección; error de cada campo debajo del campo con
   `aria-invalid` y `aria-describedby`; Guardar manda solo lo que cambió y queda deshabilitado
   sin cambios. Dinero con `useMoneyInput`/`formatCLP`, nunca `type="number"` ni formato a mano.

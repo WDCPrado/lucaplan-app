@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { ModalScope } from "@/components/ui/responsive-modal"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { formatCLP, formatDateHeader } from "@/lib/finance-format"
@@ -51,6 +52,7 @@ export function UncategorizedTriage({
   categories,
   onClose,
   onCreateCategory,
+  children,
 }: {
   transactions: TransactionDTO[]
   hasMore: boolean
@@ -58,6 +60,7 @@ export function UncategorizedTriage({
   categories: CategoryDTO[]
   onClose: () => void
   onCreateCategory: () => void
+  children?: React.ReactNode
 }) {
   const router = useRouter()
   const [pending, setPending] = useState(transactions)
@@ -281,165 +284,187 @@ export function UncategorizedTriage({
   }
 
   return (
-    <Dialog open onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent
-        showCloseButton={false}
-        className="top-0 left-0 flex h-dvh w-dvw max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none bg-background p-0 text-base text-foreground ring-0 sm:max-w-none motion-reduce:data-open:zoom-in-100 motion-reduce:data-closed:zoom-out-100"
-      >
-        <header className="mx-auto flex w-full max-w-md items-start justify-between gap-3 px-5 pt-[max(env(safe-area-inset-top),1.25rem)]">
-          <div className="min-w-0">
-            <DialogTitle className="font-heading text-lg font-bold">
-              Movimientos por categorizar
-            </DialogTitle>
-            <DialogDescription className="mt-1">
-              {pending.length > 0
-                ? `${pending.length} pendiente${pending.length === 1 ? "" : "s"}${hasMore ? " · hay más en la próxima carga" : ""}`
-                : "Todo categorizado"}
-            </DialogDescription>
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {pending.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-11 gap-1.5 px-3"
-                onClick={categorizeWithAI}
-                disabled={busy || exiting || aiBusy}
-              >
-                <Sparkles className="size-4" />
-                {aiBusy ? "Categorizando…" : "Con IA"}
-              </Button>
-            )}
-            <DialogClose asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-11 shrink-0"
-                aria-label="Cerrar"
-                disabled={busy || exiting || aiBusy}
-              >
-                <X className="size-5" />
-              </Button>
-            </DialogClose>
-          </div>
-        </header>
-
-        {/* Montón de hechas: mini-pila + contador + corregir (drag hacia abajo o botón). */}
-        {done.length > 0 && (
-          <div className="mx-auto mt-4 w-full max-w-md px-5">
-            <div
-              onPointerDown={onPileDown}
-              onPointerMove={onPileMove}
-              onPointerUp={onPileUp}
-              onPointerCancel={onPileUp}
-              className="flex cursor-grab touch-none items-center justify-between gap-3 rounded-xl bg-secondary/60 py-1.5 pr-1.5 pl-4 transition-transform duration-200 ease-out select-none active:cursor-grabbing"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="relative h-9 w-12 shrink-0" aria-hidden>
-                  {done.length >= 3 && (
-                    <div className="absolute inset-x-2 top-0 h-6 rounded-md border border-border/60 bg-card/60" />
-                  )}
-                  {done.length >= 2 && (
-                    <div className="absolute inset-x-1 top-1 h-6 rounded-md border border-border/80 bg-card/80" />
-                  )}
-                  <div className="absolute inset-x-0 top-2 h-6 rounded-md border border-border bg-card shadow-sm" />
-                </div>
-                <span className="truncate text-sm text-muted-foreground">
-                  {done.length} categorizado{done.length === 1 ? "" : "s"}
-                </span>
+    <ModalScope>
+      {(scope) => (
+        <Dialog open onOpenChange={(o) => !o && handleClose()}>
+          <DialogContent
+            data-modal-id={scope.id}
+            data-modal-parent={scope.parentId}
+            data-modal-depth={scope.depth}
+            onOpenAutoFocus={scope.onOpenAutoFocus}
+            onCloseAutoFocus={scope.onCloseAutoFocus}
+            onSubmit={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+            showCloseButton={false}
+            className="top-0 left-0 flex h-dvh w-dvw max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none bg-background p-0 text-base text-foreground ring-0 sm:max-w-none motion-reduce:data-open:zoom-in-100 motion-reduce:data-closed:zoom-out-100"
+          >
+            <header className="mx-auto flex w-full max-w-md items-start justify-between gap-3 px-5 pt-[max(env(safe-area-inset-top),1.25rem)]">
+              <div className="min-w-0">
+                <DialogTitle className="font-heading text-lg font-bold">
+                  Movimientos por categorizar
+                </DialogTitle>
+                <DialogDescription className="mt-1">
+                  {pending.length > 0
+                    ? `${pending.length} pendiente${pending.length === 1 ? "" : "s"}${hasMore ? " · hay más en la próxima carga" : ""}`
+                    : "Todo categorizado"}
+                </DialogDescription>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-11 shrink-0 gap-1.5 px-3"
-                onClick={restoreLast}
-                disabled={busy || exiting}
-              >
-                <Undo2 className="size-4" /> Corregir última
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-5 py-8">
-          <div className="w-full max-w-md">
-            {pending.length === 0 ? (
-              // Estado final: resumen + cierre (el refresh va en handleClose).
-              <div className="flex animate-in flex-col items-center gap-4 rounded-xl border border-border bg-card p-8 text-center duration-300 fade-in-0">
-                <span className="grid size-14 place-items-center rounded-full bg-success/15 text-success">
-                  <Check className="size-7" />
-                </span>
-                <div>
-                  <p className="font-heading text-xl font-bold">
-                    {done.length} categorizado{done.length === 1 ? "" : "s"}
-                  </p>
-                  {hasMore && (
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Quedan más pendientes: reaparecerán en la próxima carga.
-                    </p>
-                  )}
-                </div>
-                <Button className="h-11 w-full text-base" onClick={handleClose}>
-                  Listo
-                </Button>
-              </div>
-            ) : (
-              // Stack: card frontal + hasta 2 detrás (solo chrome, asoman con scale/translate).
-              // Al salir la frontal, la siguiente hereda su key y transiciona sola a la posición 0.
-              <div className="relative">
-                {pending.slice(0, 3).map((t, i) => (
-                  <div
-                    key={t.id}
-                    aria-hidden={i > 0 || undefined}
-                    className={cn(
-                      "rounded-xl border border-border bg-card transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-opacity motion-reduce:duration-150",
-                      i === 0 && "relative z-3",
-                      i === 0 &&
-                        returningId === t.id &&
-                        "animate-in duration-300 fade-in-0 slide-in-from-top-6 motion-reduce:slide-in-from-top-0",
-                      i === 0 &&
-                        exiting &&
-                        "-translate-y-[120%] rotate-3 opacity-0 motion-reduce:translate-y-0 motion-reduce:rotate-0",
-                      i === 1 &&
-                        "pointer-events-none absolute inset-0 z-2 -translate-y-3 scale-95",
-                      i === 2 &&
-                        "pointer-events-none absolute inset-0 z-1 -translate-y-6 scale-90"
-                    )}
+              <div className="flex shrink-0 items-center gap-1">
+                {pending.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-11 gap-1.5 px-3"
+                    onClick={categorizeWithAI}
+                    disabled={busy || exiting || aiBusy}
                   >
-                    {i === 0 &&
-                      (learn ? (
-                        <div className="p-6">
-                          <CorrectionLearnStep
-                            description={t.description}
-                            sameTextCount={learn.sameTextCount}
-                            learnedCategoryName={
-                              categories.find(
-                                (c) => c.id === learn.learnedCategoryId
-                              )?.name ?? null
-                            }
-                            saving={busy}
-                            onFinish={finishLearn}
-                          />
-                        </div>
-                      ) : (
-                        <TriageCard
-                          tx={t}
-                          account={accounts.find((a) => a.id === t.accountId)}
-                          categories={categories}
-                          busy={busy || exiting}
-                          onPick={pick}
-                          onNone={dismiss}
-                          onCreateCategory={createCategory}
-                        />
-                      ))}
+                    <Sparkles className="size-4" />
+                    {aiBusy ? "Categorizando…" : "Con IA"}
+                  </Button>
+                )}
+                <DialogClose asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-11 shrink-0"
+                    aria-label="Cerrar"
+                    disabled={busy || exiting || aiBusy}
+                  >
+                    <X className="size-5" />
+                  </Button>
+                </DialogClose>
+              </div>
+            </header>
+
+            {/* Montón de hechas: mini-pila + contador + corregir (drag hacia abajo o botón). */}
+            {done.length > 0 && (
+              <div className="mx-auto mt-4 w-full max-w-md px-5">
+                <div
+                  onPointerDown={onPileDown}
+                  onPointerMove={onPileMove}
+                  onPointerUp={onPileUp}
+                  onPointerCancel={onPileUp}
+                  className="flex cursor-grab touch-none items-center justify-between gap-3 rounded-xl bg-secondary/60 py-1.5 pr-1.5 pl-4 transition-transform duration-200 ease-out select-none active:cursor-grabbing"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="relative h-9 w-12 shrink-0" aria-hidden>
+                      {done.length >= 3 && (
+                        <div className="absolute inset-x-2 top-0 h-6 rounded-md border border-border/60 bg-card/60" />
+                      )}
+                      {done.length >= 2 && (
+                        <div className="absolute inset-x-1 top-1 h-6 rounded-md border border-border/80 bg-card/80" />
+                      )}
+                      <div className="absolute inset-x-0 top-2 h-6 rounded-md border border-border bg-card shadow-sm" />
+                    </div>
+                    <span className="truncate text-sm text-muted-foreground">
+                      {done.length} categorizado{done.length === 1 ? "" : "s"}
+                    </span>
                   </div>
-                ))}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-11 shrink-0 gap-1.5 px-3"
+                    onClick={restoreLast}
+                    disabled={busy || exiting}
+                  >
+                    <Undo2 className="size-4" /> Corregir última
+                  </Button>
+                </div>
               </div>
             )}
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-5 py-8">
+              <div className="w-full max-w-md">
+                {pending.length === 0 ? (
+                  // Estado final: resumen + cierre (el refresh va en handleClose).
+                  <div className="flex animate-in flex-col items-center gap-4 rounded-xl border border-border bg-card p-8 text-center duration-300 fade-in-0">
+                    <span className="grid size-14 place-items-center rounded-full bg-success/15 text-success">
+                      <Check className="size-7" />
+                    </span>
+                    <div>
+                      <p className="font-heading text-xl font-bold">
+                        {done.length} categorizado{done.length === 1 ? "" : "s"}
+                      </p>
+                      {hasMore && (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Quedan más pendientes: reaparecerán en la próxima
+                          carga.
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      className="h-11 w-full text-base"
+                      onClick={handleClose}
+                    >
+                      Listo
+                    </Button>
+                  </div>
+                ) : (
+                  // Stack: card frontal + hasta 2 detrás (solo chrome, asoman con scale/translate).
+                  // Al salir la frontal, la siguiente hereda su key y transiciona sola a la posición 0.
+                  <div className="relative">
+                    {pending.slice(0, 3).map((t, i) => (
+                      <div
+                        key={t.id}
+                        aria-hidden={i > 0 || undefined}
+                        className={cn(
+                          "rounded-xl border border-border bg-card transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-opacity motion-reduce:duration-150",
+                          i === 0 && "relative z-3",
+                          i === 0 &&
+                            returningId === t.id &&
+                            "animate-in duration-300 fade-in-0 slide-in-from-top-6 motion-reduce:slide-in-from-top-0",
+                          i === 0 &&
+                            exiting &&
+                            "-translate-y-[120%] rotate-3 opacity-0 motion-reduce:translate-y-0 motion-reduce:rotate-0",
+                          i === 1 &&
+                            "pointer-events-none absolute inset-0 z-2 -translate-y-3 scale-95",
+                          i === 2 &&
+                            "pointer-events-none absolute inset-0 z-1 -translate-y-6 scale-90"
+                        )}
+                      >
+                        {i === 0 &&
+                          (learn ? (
+                            <div className="p-6">
+                              <CorrectionLearnStep
+                                description={t.description}
+                                sameTextCount={learn.sameTextCount}
+                                learnedCategoryName={
+                                  categories.find(
+                                    (c) => c.id === learn.learnedCategoryId
+                                  )?.name ?? null
+                                }
+                                saving={busy}
+                                onFinish={finishLearn}
+                              />
+                            </div>
+                          ) : (
+                            <TriageCard
+                              tx={t}
+                              account={accounts.find(
+                                (a) => a.id === t.accountId
+                              )}
+                              categories={categories}
+                              busy={busy || exiting}
+                              onPick={pick}
+                              onNone={dismiss}
+                              onCreateCategory={createCategory}
+                            />
+                          ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            {children}
+          </DialogContent>
+        </Dialog>
+      )}
+    </ModalScope>
   )
 }
 

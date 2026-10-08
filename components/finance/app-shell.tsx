@@ -285,11 +285,11 @@ export function AppShell({
               accounts={quickAdd.accounts}
               categories={quickAdd.categories}
               onCreateAccount={() => {
-                setAddOpen(false)
                 setAccountOpen(true)
               }}
-            />
-            <AccountModal open={accountOpen} onOpenChange={setAccountOpen} />
+            >
+              <AccountModal open={accountOpen} onOpenChange={setAccountOpen} />
+            </AddTransactionSheet>
           </>
         )}
       </SidebarProvider>

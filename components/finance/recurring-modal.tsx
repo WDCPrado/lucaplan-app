@@ -72,6 +72,7 @@ export type RecurringPreset = {
 export function RecurringModal({
   open,
   onOpenChange,
+  onSaved,
   accounts,
   categories,
   template,
@@ -79,6 +80,7 @@ export function RecurringModal({
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
+  onSaved?: () => void
   accounts: AccountDTO[]
   categories: CategoryDTO[]
   template?: RecurringDTO | null // null/undefined = crear
@@ -173,6 +175,7 @@ export function RecurringModal({
     haptic("success")
     toast.success(template ? "Recurrente actualizada" : "Recurrente creada")
     onOpenChange(false)
+    onSaved?.()
     router.refresh()
   }
 
@@ -313,6 +316,7 @@ export function RecurringModal({
                   cuenta manual, y reemplazarlo lo borraría sin devolver su saldo. */}
               {!template.currentPeriodPaid && (
                 <Button
+                  type="button"
                   variant="outline"
                   onClick={togglePaid}
                   disabled={saving}
@@ -334,6 +338,7 @@ export function RecurringModal({
               {(!template.currentPeriodPaid ||
                 template.currentPeriodPaidManually) && (
                 <Button
+                  type="button"
                   variant="ghost"
                   onClick={openPicker}
                   disabled={saving}
@@ -462,6 +467,7 @@ export function RecurringModal({
                     />
                   </span>
                   <Button
+                    type="button"
                     variant="ghost"
                     onClick={() => {
                       setWithEnd(false)
@@ -539,6 +545,7 @@ export function RecurringModal({
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
+                    type="button"
                     variant="outline"
                     size="icon"
                     disabled={saving}
@@ -559,8 +566,14 @@ export function RecurringModal({
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={remove} variant="destructive">
+                    <AlertDialogCancel type="button">
+                      Cancelar
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      type="button"
+                      onClick={remove}
+                      variant="destructive"
+                    >
                       Eliminar
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -569,6 +582,7 @@ export function RecurringModal({
             )}
             {template && !template.hasEnded && (
               <Button
+                type="button"
                 variant="outline"
                 size="icon"
                 disabled={saving}
@@ -589,6 +603,7 @@ export function RecurringModal({
               </Button>
             )}
             <Button
+              type="button"
               onClick={save}
               disabled={!canSave}
               className="h-12 flex-1 text-base"

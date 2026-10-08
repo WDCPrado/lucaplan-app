@@ -1,5 +1,7 @@
 "use client"
 
+import type { ReactNode } from "react"
+
 import { useId, useState } from "react"
 import { useForm, Controller, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -51,6 +53,7 @@ import type {
 const acceptsIncome = (account: AccountDTO) =>
   account.accountType !== "credit_card" && account.accountType !== "credit_line"
 export function IncomeModal({
+  children,
   open,
   onOpenChange,
   accounts,
@@ -59,6 +62,7 @@ export function IncomeModal({
   period,
   onCreateCategory,
 }: {
+  children?: ReactNode
   open: boolean
   onOpenChange: (open: boolean) => void
   accounts: AccountDTO[]
@@ -415,6 +419,7 @@ export function IncomeModal({
           </ModalFooter>
         </>
       )}
+      {children}
     </ResponsiveModal>
   )
 }

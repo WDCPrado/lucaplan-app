@@ -1,5 +1,7 @@
 "use client"
 
+import type { ReactNode } from "react"
+
 import { Pencil } from "lucide-react"
 import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
@@ -12,12 +14,14 @@ import type {
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 export function CategoryDetailSheet({
+  children,
   category,
   transactions,
   onOpenChange,
   onEdit,
   onOpenTx,
 }: {
+  children?: ReactNode
   category: CategoryDTO | null
   transactions: TransactionDTO[]
   onOpenChange: (open: boolean) => void
@@ -136,6 +140,7 @@ export function CategoryDetailSheet({
           </ModalFooter>
         </>
       )}
+      {children}
     </ResponsiveModal>
   )
 }

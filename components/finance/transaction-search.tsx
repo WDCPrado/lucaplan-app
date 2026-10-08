@@ -1,5 +1,7 @@
 "use client"
 
+import type { ReactNode } from "react"
+
 import { useEffect, useState } from "react"
 import { Search, X, Loader2, CalendarRange } from "lucide-react"
 import type { DateRange } from "react-day-picker"
@@ -51,14 +53,18 @@ const DIRS: { value: Dir; label: string }[] = [
 // Buscador de movimientos: filtros combinados (texto insensible, dirección, categoría, cuenta,
 // rango de fechas) contra el backend con debounce (300ms) y cancelación de la petición anterior.
 export function TransactionSearch({
+  children,
   open,
+  detailOpen,
   onOpenChange,
   categories,
   accounts,
   amountBounds,
   onOpenTransaction,
 }: {
+  children?: ReactNode
   open: boolean
+  detailOpen: boolean
   onOpenChange: (o: boolean) => void
   categories: CategoryDTO[]
   accounts: AccountDTO[]
@@ -93,7 +99,7 @@ export function TransactionSearch({
 
   // Debounce + abort: rearma la búsqueda 300ms después del último cambio de query o filtro.
   useEffect(() => {
-    if (!open) return
+    if (!open || detailOpen) return
     const params = new URLSearchParams()
     if (q.trim()) params.set("q", q.trim())
     if (direction) params.set("direction", direction)
@@ -128,7 +134,17 @@ export function TransactionSearch({
       clearTimeout(t)
       ctrl.abort()
     }
-  }, [open, q, direction, categoryId, bank, range, amount, amountNarrowed])
+  }, [
+    open,
+    detailOpen,
+    q,
+    direction,
+    categoryId,
+    bank,
+    range,
+    amount,
+    amountNarrowed,
+  ])
 
   const hasFilters =
     !!q ||
@@ -179,6 +195,7 @@ export function TransactionSearch({
           />
           {q && (
             <button
+              type="button"
               onClick={() => setQ("")}
               className="absolute top-1/2 right-0 grid size-11 -translate-y-1/2 place-items-center text-muted-foreground hover:text-foreground"
               aria-label="Limpiar búsqueda"
@@ -194,6 +211,7 @@ export function TransactionSearch({
           <div className="flex shrink-0 overflow-hidden rounded-lg border text-sm">
             {DIRS.map((d) => (
               <button
+                type="button"
                 key={d.label}
                 onClick={() => setDirection(d.value)}
                 className={cn(
@@ -244,6 +262,7 @@ export function TransactionSearch({
           <Popover>
             <PopoverTrigger asChild>
               <Button
+                type="button"
                 variant="outline"
                 className={cn(
                   "h-11 shrink-0 justify-start gap-2 font-normal",
@@ -270,6 +289,7 @@ export function TransactionSearch({
           </Popover>
           {hasFilters && (
             <button
+              type="button"
               onClick={clearAll}
               className="ml-auto shrink-0 text-sm text-muted-foreground hover:text-foreground"
             >
@@ -331,6 +351,7 @@ export function TransactionSearch({
           )}
         </div>
       </div>
+      {children}
     </ResponsiveModal>
   )
 }

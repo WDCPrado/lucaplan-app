@@ -47,6 +47,7 @@ const formSchema = categorySchema.extend({
 export function CategoryModal({
   open,
   onOpenChange,
+  onDeleted,
   period,
   category,
   lockedType,
@@ -54,6 +55,7 @@ export function CategoryModal({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onDeleted?: (id: string) => void
   period: { year: number; month: number }
   category?: CategoryDTO | null
   lockedType?: "income" | "expense" | null
@@ -169,6 +171,7 @@ export function CategoryModal({
       setCreatedId(null)
       form.reset()
       onOpenChange(false)
+      onDeleted?.(category.id)
       router.refresh()
     } catch (error) {
       form.setError("root", {

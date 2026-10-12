@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/dialog"
 import {
   Drawer,
-  DrawerClose,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
@@ -230,28 +229,13 @@ export function ResponsiveModal({
                 headerClassName
               )}
             >
-              <DrawerTitle className="pr-12 text-xl leading-snug font-semibold">
+              <DrawerTitle className="text-xl leading-snug font-semibold break-words">
                 {title}
               </DrawerTitle>
-              {dismissible && (
-                <DrawerClose asChild>
-                  <Button
-                    id={`${scope.id}-close`}
-                    data-modal-owner={scope.id}
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-3 right-1 size-11"
-                    aria-label={`Cerrar ${title}`}
-                  >
-                    <X aria-hidden="true" />
-                  </Button>
-                </DrawerClose>
-              )}
             </DrawerHeader>
             {/* El contenido se desplaza dentro del drawer; las acciones conservan su superficie
               opaca y el espacio seguro para el gesto inferior del teléfono. */}
-            <div className="flex min-h-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] flex-col overflow-x-hidden overflow-y-auto [&>[data-slot=modal-footer]]:mx-0">
+            <div className="flex min-h-0 min-w-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] flex-col overflow-x-hidden overflow-y-auto [&>*]:min-w-0 [&>*]:shrink-0 [&>[data-slot=modal-footer]]:mx-0">
               {children}
             </div>
           </DrawerContent>
@@ -294,7 +278,7 @@ export function ResponsiveModal({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute top-4 right-4 size-11"
+                  className="absolute top-4 right-4 hidden size-11 md:inline-flex"
                   aria-label={`Cerrar ${title}`}
                 >
                   <X aria-hidden="true" />

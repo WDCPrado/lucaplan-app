@@ -141,7 +141,7 @@ export function PlanSheet({
       }}
       title={`Plan de ${monthName(period.month).toLowerCase()}`}
     >
-      <div className="flex flex-col gap-8 px-5">
+      <div className="flex min-w-0 flex-col gap-8 px-5">
         {/* Presupuesto del mes */}
         <section>
           <h3 className="mb-3 text-base font-semibold">Presupuesto del mes</h3>
@@ -283,14 +283,14 @@ export function PlanSheet({
             <h3 className="mb-3 text-base font-semibold">
               Categorías de ingreso
             </h3>
-            <div className="flex flex-wrap gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {incomeCategories.map((c) => {
                 return (
                   <button
                     type="button"
                     key={c.id}
                     onClick={() => onOpenIncomeCategory(c)}
-                    className="flex min-h-16 min-w-24 flex-1 items-center gap-3 rounded-lg border p-3 text-left"
+                    className="flex min-h-16 min-w-0 items-center gap-3 rounded-lg border p-3 text-left"
                   >
                     <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-muted">
                       <CategoryIcon
@@ -305,7 +305,7 @@ export function PlanSheet({
                       </span>
                       {/* Lo recibido en el mes: el "disponible" de una categoría de ingreso sin
                           meta era $0 justo debajo de un sueldo ya recibido. */}
-                      <span className="tabular block text-xs text-muted-foreground">
+                      <span className="tabular block text-xs break-words text-muted-foreground">
                         {formatCLP(c.used)}
                       </span>
                     </span>
@@ -315,10 +315,10 @@ export function PlanSheet({
               <button
                 type="button"
                 onClick={onNewIncomeCategory}
-                className="flex min-h-16 min-w-24 flex-1 items-center gap-3 rounded-lg border p-3 text-left"
+                className="flex min-h-16 min-w-0 items-center gap-3 rounded-lg border p-3 text-left"
                 aria-label="Nueva categoría de ingreso"
               >
-                <span className="grid size-11 place-items-center rounded-lg border border-border text-2xl text-muted-foreground">
+                <span className="grid size-11 shrink-0 place-items-center rounded-lg border border-border text-2xl text-muted-foreground">
                   +
                 </span>
                 <span className="text-xs text-muted-foreground">Nueva</span>
@@ -587,7 +587,7 @@ function IncomeRow({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 py-4">
+    <div className="grid grid-cols-[2.75rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 py-4 sm:grid-cols-[2.75rem_minmax(0,1fr)_auto]">
       <button
         type="button"
         onClick={onOpenCategory}
@@ -607,7 +607,7 @@ function IncomeRow({
         onClick={onEdit}
         className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left"
       >
-        <span className="min-w-0">
+        <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">
             {income.name}
           </span>
@@ -616,8 +616,8 @@ function IncomeRow({
           </span>
         </span>
       </button>
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <span className="tabular text-sm font-semibold text-success">
+      <div className="col-start-2 flex min-w-0 flex-wrap items-center justify-between gap-2 sm:col-start-auto sm:flex-col sm:items-end">
+        <span className="tabular min-w-0 text-sm font-semibold break-words text-success">
           +{formatMoney(income.amount, income.currency as CurrencyCode)}
         </span>
         <button

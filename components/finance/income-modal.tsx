@@ -199,7 +199,7 @@ export function IncomeModal({
           <form
             id={formId}
             onSubmit={form.handleSubmit(save)}
-            className="flex flex-col gap-7 px-5"
+            className="flex min-w-0 flex-col gap-7 px-5"
           >
             <fieldset disabled={busy} className="contents">
               {errors.root && (
@@ -241,7 +241,7 @@ export function IncomeModal({
                     >
                       <SelectTrigger
                         id={`${formId}-account`}
-                        className="h-12! w-full text-base"
+                        className="h-12! w-full min-w-0 text-base"
                         aria-invalid={!!errors.accountId}
                         aria-describedby={
                           errors.accountId
@@ -249,12 +249,24 @@ export function IncomeModal({
                             : undefined
                         }
                       >
-                        <SelectValue placeholder="Elige una cuenta" />
+                        <SelectValue
+                          className="min-w-0 flex-1 text-left"
+                          placeholder="Elige una cuenta"
+                        />
                       </SelectTrigger>
-                      <SelectContent className="bg-popover">
+                      <SelectContent
+                        position="popper"
+                        className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)] bg-popover"
+                      >
                         {destinations.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.name} · {account.currency}
+                          <SelectItem
+                            key={account.id}
+                            value={account.id}
+                            className="[&>span:last-child]:min-w-0"
+                          >
+                            <span className="truncate">
+                              {account.name} · {account.currency}
+                            </span>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -304,7 +316,7 @@ export function IncomeModal({
                     >
                       <SelectTrigger
                         id={`${formId}-category`}
-                        className="h-12! w-full text-base"
+                        className="h-12! w-full min-w-0 text-base"
                         aria-invalid={!!errors.categoryId}
                         aria-describedby={
                           errors.categoryId
@@ -312,12 +324,22 @@ export function IncomeModal({
                             : undefined
                         }
                       >
-                        <SelectValue placeholder="Elige una categoría" />
+                        <SelectValue
+                          className="min-w-0 flex-1 text-left"
+                          placeholder="Elige una categoría"
+                        />
                       </SelectTrigger>
-                      <SelectContent className="bg-popover">
+                      <SelectContent
+                        position="popper"
+                        className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)] bg-popover"
+                      >
                         {incomeCategories.map((category) => (
-                          <SelectItem key={category.id} value={category.id}>
-                            {category.name}
+                          <SelectItem
+                            key={category.id}
+                            value={category.id}
+                            className="[&>span:last-child]:min-w-0"
+                          >
+                            <span className="truncate">{category.name}</span>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -328,7 +350,7 @@ export function IncomeModal({
                   type="button"
                   variant="outline"
                   onClick={onCreateCategory}
-                  className="h-11"
+                  className="h-auto min-h-11 w-full min-w-0 py-2 whitespace-normal"
                 >
                   Crear categoría de ingreso
                 </Button>
@@ -355,7 +377,7 @@ export function IncomeModal({
               </FinanceField>
             </fieldset>
           </form>
-          <ModalFooter className="px-5">
+          <ModalFooter className="grid grid-cols-[minmax(0,1fr)_auto] px-5 sm:flex">
             <Button
               type="button"
               variant="outline"
@@ -408,7 +430,7 @@ export function IncomeModal({
                 incomeCategories.length === 0 ||
                 (!!income && !hasDraftChanges)
               }
-              className="h-12 flex-1 text-base"
+              className="col-span-full h-auto min-h-12 min-w-0 py-3 text-base whitespace-normal sm:flex-1"
             >
               {isSubmitting
                 ? "Guardando…"

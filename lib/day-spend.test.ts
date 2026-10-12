@@ -12,12 +12,14 @@ const tx = (
     status: string
     isInternal: boolean
     amountClp: number | null
+    categoryId: string | null
   }> = {}
 ) => ({
   date: `${date}T00:00:00.000Z`,
   direction: "debit",
   status: "confirmed",
   isInternal: false,
+  categoryId: "plan",
   amount,
   amountClp: null,
   ...extra,
@@ -25,6 +27,11 @@ const tx = (
 
 const september = daysOf({ start: "2026-09-01", end: "2026-09-30" })
 const cycle = daysOf({ start: "2026-09-23", end: "2026-10-22" }) // «octubre 2026» en modo tarjeta
+const categories = [
+  { id: "plan", type: "expense", limit: 100000 },
+  { id: "sin-tope", type: "expense", limit: 0 },
+  { id: "ingreso", type: "income", limit: 100000 },
+]
 
 test("dateOf lee la fecha civil del ISO sin pasar por la zona horaria", () => {
   assert.equal(dateOf(tx("2026-09-08", 1)), "2026-09-08")
@@ -39,8 +46,13 @@ test("spendByDate suma solo cargos confirmados, sin internos, en CLP", () => {
       tx("2026-09-07", -42000, { status: "pending" }), // por cobrar: todavía no
       tx("2026-09-07", -9990, { isInternal: true }), // ajuste de saldo: no es gasto
       tx("2026-09-09", -50, { amountClp: 47500 }), // USD → su equivalente CLP
+      tx("2026-09-05", -1000, { categoryId: null }),
+      tx("2026-09-05", -2000, { categoryId: "sin-tope" }),
+      tx("2026-09-05", -3000, { categoryId: "inexistente" }),
+      tx("2026-09-05", -4000, { categoryId: "ingreso" }),
     ],
-    september
+    september,
+    categories
   )
   assert.equal(byDay.length, 30)
   assert.equal(byDay[4], 45350) // día 5
@@ -51,13 +63,17 @@ test("spendByDate suma solo cargos confirmados, sin internos, en CLP", () => {
 test("en un ciclo que cruza meses, el 25/09 y el 25/10 no se mezclan", () => {
   const byDay = spendByDate(
     [tx("2026-09-25", -1000), tx("2026-10-25", -9000), tx("2026-10-20", -500)],
-    cycle
+    cycle,
+    categories
   )
   assert.equal(byDay.length, 30)
   assert.equal(byDay[cycle.indexOf("2026-09-25")], 1000)
   assert.equal(byDay[cycle.indexOf("2026-10-20")], 500)
   // El 25/10 es del ciclo siguiente: no suma en ningún día de este.
-  assert.equal(byDay.reduce((a, b) => a + b, 0), 1500)
+  assert.equal(
+    byDay.reduce((a, b) => a + b, 0),
+    1500
+  )
 })
 
 test("daysLeftIn cuenta desde hoy hasta el fin del rango, hoy incluido", () => {
@@ -66,7 +82,10 @@ test("daysLeftIn cuenta desde hoy hasta el fin del rango, hoy incluido", () => {
   assert.equal(daysLeftIn(oct, "2026-10-22"), 1)
   assert.equal(daysLeftIn(oct, "2026-10-23"), 0) // fuera del rango
   // Modo débito: igual que antes (30/09 − 28/09 + 1).
-  assert.equal(daysLeftIn({ start: "2026-09-01", end: "2026-09-30" }, "2026-09-28"), 3)
+  assert.equal(
+    daysLeftIn({ start: "2026-09-01", end: "2026-09-30" }, "2026-09-28"),
+    3
+  )
 })
 
 test("dailyAllowance reparte lo libre en los días que quedan y nunca baja de cero", () => {

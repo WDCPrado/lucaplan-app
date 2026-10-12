@@ -68,9 +68,7 @@ export function MovementRow({
     <span
       className="absolute -right-0.5 -bottom-0.5 grid size-4 place-items-center rounded-full bg-background ring-2 ring-background"
       title={tx.installmentForecast ? "Cuota por cobrar" : "Cuota de un plan"}
-      aria-label={
-        tx.installmentForecast ? "Cuota por cobrar" : "Cuota de un plan"
-      }
+      aria-label={tx.installmentForecast ? "Cuota por cobrar" : "Cuota de un plan"}
     >
       <CreditCard className="size-3 text-primary" strokeWidth={3} />
     </span>
@@ -105,7 +103,7 @@ export function MovementRow({
   )
 
   return (
-    <div className="flex w-full items-center gap-3 rounded-lg px-3 py-4 text-left transition-colors hover:bg-secondary/60">
+    <div className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-secondary/60">
       {onOpenCategory && tx.categoryId ? (
         <button
           type="button"
@@ -121,9 +119,9 @@ export function MovementRow({
       <button
         type="button"
         onClick={() => onOpen?.(tx)}
-        className="flex min-h-11 min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2 text-left"
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
-        <div className="min-w-24 flex-1">
+        <div className="min-w-0 flex-1">
           <div className="truncate font-medium">{tx.description}</div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="truncate">

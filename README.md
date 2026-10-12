@@ -77,6 +77,10 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
   disponible restante en CLP.
 - Los límites por categoría se **heredan de mes a mes** (carry-forward): configura una
   vez, ajusta cuando cambie tu vida.
+- En débito y crédito, el gastado y el comprometido del plan solo incluyen categorías
+  de gasto con tope efectivo mayor que cero, dentro del período. Sin categoría o sin
+  tope quedan fuera; los excesos sobre un tope cuentan completos. Las categorías sin
+  tope se pueden consultar en un grupo cerrado por defecto.
 - Categorías de ingreso con avance hacia tu meta mensual.
 - Selector de mes para navegar tu historial; movimientos con búsqueda y filtros.
 

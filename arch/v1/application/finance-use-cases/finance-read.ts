@@ -43,6 +43,7 @@ import {
 import type { ExchangeRateProvider } from "../../domain/finance/exchange.domain.ts"
 import { toClp } from "../../domain/finance/exchange.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
+import { isBudgetedExpenseCategory } from "../../domain/finance/budget-scope.domain.ts"
 import {
   computeActiveCash,
   computeNetPosition,
@@ -178,6 +179,8 @@ export type PaceDTO = {
 
 export type BudgetViewDTO = {
   categories: CategoryDTO[]
+  spent: number // confirmado de categorías de gasto con tope efectivo > 0
+  committed: number // pendiente y cuotas por cobrar de esas mismas categorías
   globalLimit: number | null // límite global efectivo del mes (carry); null = no definido
   allocated: number // Σ límites efectivos de las categorías de GASTO
   remainingToAllocate: number | null // globalLimit − allocated; null sin límite global
@@ -303,14 +306,24 @@ export async function getMonthlySummary(
   // Montos en otra moneda (USD) convertidos a CLP por el dólar de su fecha, para que cuenten.
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
 
-  // Solo movimientos CON categoría: los totales del resumen usan el mismo criterio que el
-  // presupuesto (uso por categoría). Lo sin categoría no cuenta hasta clasificarse (triage).
+  const budgetedIds = new Set(
+    withLimit
+      .filter(({ category, limit }) =>
+        isBudgetedExpenseCategory({
+          type: category.type,
+          limit: limit.toMajor(),
+        })
+      )
+      .map(({ category }) => category.id)
+  )
+  // Gastos: solo categorías incluidas en el plan. Los ingresos mantienen su total categorizado.
   const sumClp = (dir: string) =>
     clpTxs
       .filter(
         (t) =>
           t.direction === dir &&
           t.categoryId !== null &&
+          (dir !== "debit" || budgetedIds.has(t.categoryId)) &&
           t.amount.currency === CLP &&
           t.status === "confirmed" &&
           !t.isInternal
@@ -750,13 +763,20 @@ export async function getBudgetView(
     .reduce((s, x) => s.add(x.limit), Money.zero(CLP))
   const globalLimit = effectiveGlobalLimit(budgets, year, month)
   const remaining = remainingToAllocate(globalLimit, allocated)
-  // Gasto del mes: el mismo Σ usado de las categorías de GASTO que la UI muestra como "Gastado"
-  // (los límites de categoría no llevan moneda: siempre CLP). Con él se mide el excedente del mes.
-  const spent = computed
-    .filter(({ category }) => category.type === "expense")
-    .reduce((s, { used }) => s.add(used), Money.zero(CLP))
+  // Una sola selección para gastado, comprometido, disponible y excedente del plan. Las
+  // categorías sin tope conservan su detalle, pero no consumen presupuesto ni generan deuda.
+  const budgeted = computed.filter(({ category, limit }) =>
+    isBudgetedExpenseCategory({ type: category.type, limit: limit.toMajor() })
+  )
+  const spent = budgeted.reduce((s, { used }) => s.add(used), Money.zero(CLP))
+  const committed = budgeted.reduce(
+    (s, { committed }) => s.add(committed),
+    Money.zero(CLP)
+  )
   return {
     categories,
+    spent: spent.toMajor(),
+    committed: committed.toMajor(),
     globalLimit: globalLimit === null ? null : globalLimit.toMajor(),
     allocated: allocated.toMajor(),
     remainingToAllocate: remaining === null ? null : remaining.toMajor(),

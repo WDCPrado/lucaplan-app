@@ -162,8 +162,8 @@ test("listUncategorized: bajo el tope devuelve todas sin hasMore, con DTO mapead
 // --- getBudgetView: los excedentes del mes, con el cableado real ---
 // Las fórmulas puras ya se prueban en finance.test.ts. Lo que se fija acá es lo que ELIGE
 // getBudgetView al llamarlas: que sume `used` y no `committed`, que las categorías de ingreso no
-// entren al gasto del mes, que las de gasto sin tope sí entren al gasto pero no al excedente de
-// topes, y que los internos no cuenten en ninguna de las dos. Un cambio en cualquiera de esas
+// entren al gasto del mes, que las de gasto sin tope queden fuera del plan y sus excedentes,
+// y que los internos no cuenten en ninguna de las dos. Un cambio en cualquiera de esas
 // decisiones deja este test en rojo aunque las fórmulas sigan bien.
 
 const cat = (id: string, type: CategoryType, name = id): Category => ({
@@ -303,9 +303,19 @@ test("getBudgetView: el excedente de topes suma lo confirmado sobre el tope y na
   // Solo Supermercado se pasó: 130.000 de 100.000. Ni el pending de 40.000, ni el interno de
   // 500.000, ni los 200.000 de la categoría sin tope, ni el sueldo.
   assert.equal(view.capsOverspend, 30000)
-  // Gasto del mes = Σ usado de las categorías de GASTO (130.000 + 20.000 + 200.000). El sueldo
-  // queda fuera: si entrara, el excedente del mes se dispararía.
-  assert.equal(view.monthOverspend, 50000) // 350.000 − 300.000
+  // Solo las categorías de gasto CON presupuesto: 130.000 + 20.000.
+  assert.equal(view.spent, 150000)
+  assert.equal(view.committed, 40000)
+  assert.equal(view.monthOverspend, 0)
+})
+
+test("getBudgetView: pasarse del presupuesto global cuenta todo el gasto incluido", async () => {
+  const view = await getBudgetView(
+    budgetDeps(globalBudget(100000)), "u1", 2026, 8
+  )
+  assert.equal(view.spent, 150000)
+  assert.equal(view.monthOverspend, 50000)
+  assert.equal(view.capsOverspend, 30000)
 })
 
 test("getBudgetView: el DTO de la categoría excedida conserva sus cifras", async () => {
@@ -437,7 +447,11 @@ function debtDeps(
         return DEBT_CATS
       },
       async listLimitsByUser() {
-        return [] // sin topes por categoría: acá solo se mide contra el presupuesto global
+        // Pertenece al plan desde diciembre; el carry mantiene ese alcance en los meses siguientes.
+        return [{
+          id: "debt-limit", categoryId: "c-super", year: 2025, month: 12,
+          limit: Money.of(100000, "CLP"),
+        }]
       },
     },
     transactions: {

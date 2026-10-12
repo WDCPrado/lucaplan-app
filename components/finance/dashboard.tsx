@@ -13,6 +13,12 @@ import {
 } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import { isBudgetedExpenseCategory } from "@/arch/v1/domain/finance/budget-scope.domain"
 import { haptic } from "@/lib/haptics"
 import { useCardCarousel } from "@/hooks/use-card-carousel"
 import { AppShell } from "./app-shell"
@@ -157,7 +163,7 @@ export function Dashboard({
   const daysLeft = isCurrentMonth ? daysLeftIn(cycle.range, today) : 0
   // Un día por fecha del rango: en modo tarjeta cruza dos meses (23 sep – 22 oct).
   const days = daysOf(cycle.range)
-  const spend = spendByDate(transactions, days)
+  const spend = spendByDate(transactions, days, budget.categories)
   const lastDay = days[days.length - 1]
   // Día que se lista: hoy en el mes en curso; en otro mes, el último con movimientos. Al cambiar
   // de mes (o de rango) se vuelve al default ajustando el estado en render (mismo patrón que
@@ -191,20 +197,18 @@ export function Dashboard({
     if (cat) setDetail(cat)
   }
   const dayIso = `${selectedDay}T00:00:00.000Z`
-  // Neto del día como en la cabecera de cada fecha: ingresos suman, cargos restan, internos no.
-  const dayNet = dayTransactions.reduce((sum, t) => {
-    if (t.isInternal) return sum
-    const clp = Math.abs(t.amountClp ?? t.amount)
-    return sum + (t.direction === "credit" ? clp : -clp)
-  }, 0)
+  // Misma cifra que la barra del día: solo el gasto que consume presupuesto.
+  const daySpent = spend[days.indexOf(selectedDay)] ?? 0
   // El presupuesto de gastos usa las categorías de gasto (tope/uso). Las de ingreso se muestran
   // en su propio grupo con lo recibido en el mes (y su meta, si tienen límite).
   const expenseCategories = budget.categories.filter(
     (c) => c.type === "expense"
   )
   // Las con tope son las que importan en el mes; las sin tope van aparte, en su propio grupo.
-  const cappedCategories = expenseCategories.filter((c) => c.limit > 0)
-  const uncappedCategories = expenseCategories.filter((c) => c.limit <= 0)
+  const cappedCategories = expenseCategories.filter(isBudgetedExpenseCategory)
+  const uncappedCategories = expenseCategories.filter(
+    (c) => !isBudgetedExpenseCategory(c)
+  )
   const renderExpenseCat = (c: CategoryDTO) => {
     const pct = c.limit > 0 ? Math.min(100, (c.used / c.limit) * 100) : 0
     // El comprometido continúa al gastado en lo que queda de barra (no se suma).
@@ -330,17 +334,8 @@ export function Dashboard({
     .filter((i) => i.isActive && i.currency === "CLP")
     .reduce((s, i) => s + i.amount, 0)
 
-  // Uso REAL del presupuesto total: gastado del mes (categorías de gasto) vs límite global.
-  const totalUsed = expenseCategories.reduce(
-    (s, c) => s + Math.max(0, c.used),
-    0
-  )
-  // Comprometido del mes: recurrentes y cuotas que aún no se cobran. Sin descontarlo, el
-  // "disponible" miente justo con la plata que ya tiene dueño.
-  const totalCommitted = expenseCategories.reduce(
-    (s, c) => s + Math.max(0, c.committed),
-    0
-  )
+  // El servidor resuelve ambos totales con el mismo alcance que el resumen y los excedentes.
+  const { spent: totalUsed, committed: totalCommitted } = budget
 
   function goMonth(delta: number) {
     const d = new Date(Date.UTC(period.year, period.month - 1 + delta, 1))
@@ -581,14 +576,36 @@ export function Dashboard({
                   // del período y lo que queda del mes debajo. El arco sigue viviendo en el detalle.
                   <div className="flex flex-col">
                     {cappedCategories.map(renderExpenseCat)}
-                    {/* Sin tope: separadas para que no compitan con las que sí acotan el mes. */}
+                    {/* Fuera del plan: consultables, cerradas al entrar o cambiar de período. */}
                     {uncappedCategories.length > 0 && (
-                      <>
-                        <div className="mt-3 mb-1 px-1.5 text-xs font-medium text-muted-foreground">
-                          Sin topes
-                        </div>
-                        {uncappedCategories.map(renderExpenseCat)}
-                      </>
+                      <Collapsible
+                        key={periodKey}
+                        defaultOpen={false}
+                        className="mt-3"
+                      >
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className="group flex min-h-11 w-full items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground hover:bg-accent/50 focus-visible:outline-2 focus-visible:outline-ring"
+                          >
+                            <ChevronRight className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+                            <span className="flex-1">
+                              Sin tope · fuera del presupuesto
+                            </span>
+                            <span className="tabular">
+                              {uncappedCategories.length}
+                            </span>
+                          </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <p className="px-1.5 pb-2 text-xs text-muted-foreground">
+                            No afectan lo gastado ni lo disponible del plan.
+                          </p>
+                          <div className="flex flex-col">
+                            {uncappedCategories.map(renderExpenseCat)}
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
                     )}
                     <button
                       onClick={() => {
@@ -632,9 +649,9 @@ export function Dashboard({
                   {formatDateHeader(dayIso)}
                 </h2>
                 {dayTransactions.length > 0 && (
-                  <span className="tabular shrink-0 text-sm text-muted-foreground">
-                    {dayNet >= 0 ? "+" : "−"}
-                    {formatCLP(Math.abs(dayNet))}
+                  <span className="tabular shrink-0 text-right text-sm text-muted-foreground">
+                    <span className="block text-xs">Gastado del plan</span>
+                    {formatCLP(daySpent)}
                   </span>
                 )}
               </div>

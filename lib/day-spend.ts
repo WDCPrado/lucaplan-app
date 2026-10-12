@@ -1,4 +1,8 @@
-import type { TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
+import type {
+  CategoryDTO,
+  TransactionDTO,
+} from "@/arch/v1/application/finance-use-cases/finance-read"
+import { isBudgetedExpenseCategory } from "../arch/v1/domain/finance/budget-scope.domain.ts"
 import { daysOf, type PeriodRange } from "../arch/shared/billing-cycle.ts"
 
 /** Fecha civil "YYYY-MM-DD" de un movimiento: `date` es el ISO de un @db.Date, así que va en el texto. */
@@ -8,21 +12,37 @@ export function dateOf(tx: Pick<TransactionDTO, "date">): string {
 
 /**
  * Gasto por fecha, en CLP, para la tira de días: una cifra por cada fecha de `days`, en su orden.
- * Solo cargos confirmados, sin ajustes de saldo (no son gasto) y con el equivalente CLP cuando la
+ * Solo cargos confirmados de categorías con presupuesto, sin ajustes de saldo y con el equivalente CLP cuando la
  * moneda es otra. Agrupa por fecha y no por día del mes: un ciclo de tarjeta cruza dos meses y el
  * 25/09 no es el 25/10.
  */
 export function spendByDate(
   transactions: Pick<
     TransactionDTO,
-    "date" | "direction" | "status" | "isInternal" | "amount" | "amountClp"
+    | "date"
+    | "direction"
+    | "status"
+    | "isInternal"
+    | "amount"
+    | "amountClp"
+    | "categoryId"
   >[],
-  days: string[]
+  days: string[],
+  categories: Pick<CategoryDTO, "id" | "type" | "limit">[]
 ): number[] {
+  const budgetedIds = new Set(
+    categories.filter(isBudgetedExpenseCategory).map((c) => c.id)
+  )
   const index = new Map(days.map((d, i) => [d, i]))
   const out = new Array<number>(days.length).fill(0)
   for (const t of transactions) {
-    if (t.direction !== "debit" || t.status !== "confirmed" || t.isInternal)
+    if (
+      t.direction !== "debit" ||
+      t.status !== "confirmed" ||
+      t.isInternal ||
+      t.categoryId === null ||
+      !budgetedIds.has(t.categoryId)
+    )
       continue
     const i = index.get(dateOf(t))
     if (i !== undefined) out[i] += Math.abs(t.amountClp ?? t.amount)

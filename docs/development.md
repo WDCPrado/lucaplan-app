@@ -104,8 +104,12 @@ un barrido aparte.
   la sección de responsividad.
 - **Modales, dos tipos y nada más.** `ResponsiveModal` para crear, editar o mostrar contenido
   (dialog en escritorio, drawer en móvil); `AlertDialog` para confirmar una acción al momento.
-  Los dos cierran por X arriba y botón en el pie, además de Esc y fondo. El pie lleva las
+  En escritorio los modales de contenido tienen X arriba; en móvil **no llevan X**: el drawer
+  se cierra por arrastre, fondo o acción del pie. El triage a pantalla completa ofrece «Cerrar»
+  en el pie móvil. Las confirmaciones se resuelven con sus botones. El pie lleva las
   acciones (`ModalFooter`); el botón que envía va con `form="<id>"` del `<form>` del modal.
+  En móvil, las acciones de convertir un movimiento en recurrente o cuota ocupan una fila cada
+  una; desde `sm` pueden compartir fila. Las etiquetas pueden envolver y conservan ≥44px de alto.
   **Ancho en escritorio, una escala y nada inventado por modal:** contenido (formulario,
   detalle, lista) hereda el default de `ResponsiveModal`, `sm:max-w-2xl`, sin pasar
   `className`; denso (varias columnas, como el de cuenta) sube a `sm:max-w-3xl`; un solo campo

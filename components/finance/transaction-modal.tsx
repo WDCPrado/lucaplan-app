@@ -590,8 +590,8 @@ function EditForm({
 
       <ModalFooter>
         {showConversions && (
-          <div className="flex basis-full flex-col gap-2">
-            <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
+          <div className="flex min-w-0 basis-full flex-col gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Button
                 type="button"
                 variant="outline"
@@ -605,7 +605,7 @@ function EditForm({
                   haptic("light")
                   setMakeRecurring(true)
                 }}
-                className="h-12 min-w-0 px-2 text-sm"
+                className="h-auto min-h-12 min-w-0 px-3 py-3 text-sm whitespace-normal"
               >
                 <Repeat className="size-4 shrink-0" />
                 Hacer recurrente
@@ -624,7 +624,7 @@ function EditForm({
                   if (isCreditCard) setMakeInstallments(true)
                   else setAssignInstallment(true)
                 }}
-                className="h-12 min-w-0 px-2 text-sm"
+                className="h-auto min-h-12 min-w-0 px-3 py-3 text-sm whitespace-normal"
               >
                 <CreditCard className="size-4 shrink-0" />
                 {isCreditCard ? "Pasar a cuotas" : "Es una cuota"}
@@ -689,7 +689,7 @@ function EditForm({
           type="submit"
           form={`edit-transaction-${tx.id}-${instanceId}`}
           disabled={!canSave}
-          className="h-12 flex-1 text-base"
+          className="h-auto min-h-12 min-w-0 flex-1 py-3 text-base whitespace-normal"
         >
           {busy === "save" ? "Guardando…" : "Guardar"}
         </Button>
@@ -1121,15 +1121,6 @@ function ConnectedDetail({
       </div>
 
       <ModalFooter>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onClose}
-          disabled={saving}
-          className="h-12"
-        >
-          Cerrar
-        </Button>
         {tx.recurringTemplateId ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1168,10 +1159,9 @@ function ConnectedDetail({
         ) : (
           // Descubrimiento: crear la recurrente se queda a la vista, no escondido en el menú.
           // Una compra ya repartida en cuotas no admite recurrente ni volver a pasarse a cuotas.
-          // Los labels van SIEMPRE visibles (un círculo con icono no explica nada); en móvil no
-          // caben junto a Guardar, así que el footer se apila en dos filas (flex-wrap).
+          // En móvil cada conversión ocupa una fila; Cerrar y Guardar quedan juntos debajo.
           showConversions && (
-            <>
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
               <Button
                 type="button"
                 variant="outline"
@@ -1180,7 +1170,7 @@ function ConnectedDetail({
                   setMakeRecurring(true)
                 }}
                 disabled={saving}
-                className="h-12 flex-1 sm:flex-initial"
+                className="h-auto min-h-12 min-w-0 px-3 py-3 text-sm whitespace-normal"
               >
                 <Repeat className="size-4" />
                 Hacer recurrente
@@ -1197,7 +1187,7 @@ function ConnectedDetail({
                     setMakeInstallments(true)
                   }}
                   disabled={saving}
-                  className="h-12 flex-1 sm:flex-initial"
+                  className="h-auto min-h-12 min-w-0 px-3 py-3 text-sm whitespace-normal"
                 >
                   <CreditCard className="size-4" />
                   Pasar a cuotas
@@ -1211,15 +1201,24 @@ function ConnectedDetail({
                     setAssignInstallment(true)
                   }}
                   disabled={saving}
-                  className="h-12 flex-1 sm:flex-initial"
+                  className="h-auto min-h-12 min-w-0 px-3 py-3 text-sm whitespace-normal"
                 >
                   <CreditCard className="size-4" />
                   Es una cuota
                 </Button>
               )}
-            </>
+            </div>
           )
         )}
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onClose}
+          disabled={saving}
+          className="h-12"
+        >
+          Cerrar
+        </Button>
         {/* Eliminar: los ingresos (los abona el usuario) y los gastos SIN categoría — ruido del
             banco que nadie clasificó. Se mira la categoría GUARDADA, no la elegida en pantalla.
             Nunca los generados por recurrencia o plan de cuotas: se gestionan en su origen. */}
@@ -1243,12 +1242,7 @@ function ConnectedDetail({
           type="button"
           onClick={saveCategory}
           disabled={!changed || saving}
-          className={cn(
-            "h-12 text-base",
-            // Con acciones de conversión, Guardar baja a su propia fila en móvil (basis-full
-            // fuerza el salto de línea del flex-wrap del footer).
-            showConversions ? "grow basis-full sm:basis-0" : "flex-1"
-          )}
+          className="h-auto min-h-12 min-w-0 flex-1 py-3 text-base whitespace-normal"
         >
           {saving ? "Guardando…" : changed ? "Guardar categoría" : "Guardado"}
         </Button>

@@ -328,7 +328,7 @@ export function UncategorizedTriage({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-11 shrink-0"
+                    className="hidden size-11 shrink-0 md:inline-flex"
                     aria-label="Cerrar"
                     disabled={busy || exiting || aiBusy}
                   >
@@ -460,6 +460,20 @@ export function UncategorizedTriage({
                 )}
               </div>
             </div>
+            {pending.length > 0 && (
+              <div className="mx-auto w-full max-w-md shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] md:hidden">
+                <DialogClose asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-12 w-full text-base"
+                    disabled={busy || exiting || aiBusy}
+                  >
+                    Cerrar
+                  </Button>
+                </DialogClose>
+              </div>
+            )}
             {children}
           </DialogContent>
         </Dialog>

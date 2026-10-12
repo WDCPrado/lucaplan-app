@@ -25,7 +25,7 @@ export function FinanceField({
   children: ReactNode
 }) {
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2">
       <Label htmlFor={id} className="text-sm font-medium">
         {label}
         {required && <span aria-hidden="true"> *</span>}

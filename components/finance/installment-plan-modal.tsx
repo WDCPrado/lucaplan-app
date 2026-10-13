@@ -124,13 +124,20 @@ function shortDate(iso: string): string {
 export function InstallmentPlanModal({
   open,
   onOpenChange,
-  plan,
+  plan: initialPlan,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   plan: InstallmentPlanDTO
 }) {
   const router = useRouter()
+  // Una respuesta confirmada actualiza el detalle abierto. Props nuevas del servidor
+  // sustituyen esta vista local; no conservamos un snapshot al volver a abrir el plan.
+  const [updatedPlan, setUpdatedPlan] = useState<{
+    source: InstallmentPlanDTO
+    value: InstallmentPlanDTO
+  } | null>(null)
+  const plan = updatedPlan?.source === initialPlan ? updatedPlan.value : initialPlan
   const [busy, setBusy] = useState(false)
   const mutationInFlight = useRef(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -150,6 +157,7 @@ export function InstallmentPlanModal({
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error ?? fail)
+      setUpdatedPlan({ source: initialPlan, value: data as InstallmentPlanDTO })
       haptic("success")
       toast.success(ok)
       router.refresh()

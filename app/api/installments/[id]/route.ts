@@ -11,6 +11,24 @@ import {
   updateInstallmentItem,
 } from "@/arch/v1/application/finance-use-cases/installment-use-cases"
 
+import { listInstallmentsView } from "@/arch/v1/application/finance-use-cases/finance-read"
+import type { InstallmentPlan } from "@/arch/v1/domain/finance/installment.domain"
+
+// Cada escritura devuelve la misma vista que consume el detalle, con estados y saldos reales.
+// Así el modal puede aplicar el resultado sin esperar la recarga de la página.
+function withUpdatedPlan(
+  req: Request,
+  mutate: (userId: string) => Promise<InstallmentPlan>
+) {
+  return withUser(req, async (userId) => {
+    const updated = await mutate(userId)
+    const plans = await listInstallmentsView(financeDeps, userId)
+    const plan = plans.find((p) => p.id === updated.id)
+    if (!plan) throw new Error("No se pudo leer el plan actualizado")
+    return plan
+  })
+}
+
 // Acciones sobre el plan o una de sus cuotas, según lo que traiga el cuerpo:
 //  · `categoryId` (sin itemId) → recategorizar el plan COMPLETO (plan + todos sus movimientos);
 //  · `transactionId` → asignarle a la cuota un movimiento que YA existe (no crea nada);
@@ -35,12 +53,12 @@ export async function PATCH(
   const itemId = String(body.itemId)
 
   if (body.unlink === true)
-    return withUser(req, (userId) =>
+    return withUpdatedPlan(req, (userId) =>
       unlinkTransactionFromItem(financeDeps, userId, { planId: id, itemId })
     )
 
   if (body.transactionId)
-    return withUser(req, (userId) =>
+    return withUpdatedPlan(req, (userId) =>
       linkTransactionToItem(financeDeps, userId, {
         planId: id,
         itemId,
@@ -49,7 +67,7 @@ export async function PATCH(
     )
 
   if (body.paid === true)
-    return withUser(req, (userId) =>
+    return withUpdatedPlan(req, (userId) =>
       payInstallmentManually(financeDeps, userId, {
         planId: id,
         itemId,
@@ -58,7 +76,7 @@ export async function PATCH(
       })
     )
 
-  return withUser(req, (userId) =>
+  return withUpdatedPlan(req, (userId) =>
     updateInstallmentItem(financeDeps, userId, {
       planId: id,
       itemId,

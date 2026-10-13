@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Check, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -132,30 +132,36 @@ export function InstallmentPlanModal({
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
+  const mutationInFlight = useRef(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [linking, setLinking] = useState<
     InstallmentPlanDTO["items"][number] | null
   >(null)
 
   async function patch(body: object, ok: string, fail: string) {
-    if (busy) return false
+    if (mutationInFlight.current) return false
+    mutationInFlight.current = true
     setBusy(true)
-    const res = await fetch(`/api/installments/${plan.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    const data = await res.json().catch(() => ({}))
-    setBusy(false)
-    if (!res.ok) {
+    try {
+      const res = await fetch(`/api/installments/${plan.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? fail)
+      haptic("success")
+      toast.success(ok)
+      router.refresh()
+      return true
+    } catch (error) {
       haptic("error")
-      toast.error(data.error ?? fail)
+      toast.error(error instanceof Error ? error.message : fail)
       return false
+    } finally {
+      mutationInFlight.current = false
+      setBusy(false)
     }
-    haptic("success")
-    toast.success(ok)
-    router.refresh()
-    return true
   }
 
   async function saveItem(itemId: string, dueDate: string, amount: number) {
@@ -170,13 +176,13 @@ export function InstallmentPlanModal({
   const paidTotal = plan.totalAmount - plan.outstanding
   const pct = Math.round((plan.settledCount / plan.installmentsCount) * 100)
 
-  // Último recurso: CREA el movimiento, para un pago que no dejó rastro en la app (pagaste desde
-  // otro banco, el aviso nunca llegó). Si el movimiento existe hay que asignarlo, no crear otro.
-  async function payManually(itemId: string, amount: number) {
-    await patch(
-      { itemId, paid: true, amount, date: new Date().toISOString() },
-      "Movimiento creado y cuota registrada",
-      "No se pudo registrar la cuota"
+  // El cronograma es suficiente para generar tanto cuotas de tarjeta como de consumo.
+  // Usar su fecha conserva el mes/ciclo de la cuota al registrar pagos anteriores.
+  async function payManually(item: InstallmentPlanDTO["items"][number]) {
+    return patch(
+      { itemId: item.id, paid: true, amount: item.amount, date: item.dueDate },
+      "Movimiento generado y cuota pagada",
+      "No se pudo generar la cuota"
     )
   }
 
@@ -229,12 +235,11 @@ export function InstallmentPlanModal({
           </span>
         </section>
 
-        {plan.kind === "loan" && (
-          <p className="border-b border-border/60 py-4 text-xs text-muted-foreground">
-            Cada cuota se registra con el monto que informa el correo del banco.
-            Los montos de abajo son la estimación con la que se creó el plan.
-          </p>
-        )}
+        <p className="border-b border-border/60 py-4 text-xs text-muted-foreground">
+          Generar cuota crea su gasto y la marca pagada, sin esperar un correo del
+          banco. Usa el monto y la fecha del cronograma; puedes editarlos antes.
+          Si el movimiento ya existe, usa Asignar existente.
+        </p>
 
         <section className="py-5">
           <h3 className="mb-3 text-sm font-semibold">Cronograma</h3>
@@ -272,7 +277,7 @@ export function InstallmentPlanModal({
               return (
                 <li
                   key={item.id}
-                  className="flex items-center gap-3 border-b border-border/40 py-2.5 last:border-0"
+                  className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border/40 py-3 last:border-0"
                 >
                   <span
                     className={cn(
@@ -311,57 +316,66 @@ export function InstallmentPlanModal({
                   <span className="tabular shrink-0 text-sm font-medium">
                     {formatCLP(item.paidAmount ?? item.amount)}
                   </span>
-                  {/* En card una cuota ya registrada sigue siendo editable: su movimiento es un
-                      espejo del cronograma y la edición lo sincroniza. En loan el monto/fecha
-                      reales los fijó el correo: registrada no se toca. */}
-                  {(!settled || plan.kind === "card") && (
-                    <button
-                      type="button"
-                      onClick={() => setEditingId(item.id)}
-                      disabled={busy}
-                      className="min-h-11 shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-                    >
-                      Editar
-                    </button>
-                  )}
-                  {/* Asignar va primero: el caso normal es que el gasto YA esté en la app y haya
-                      que reconocerlo, no fabricar uno nuevo. */}
-                  {!settled && (
-                    <button
-                      type="button"
-                      onClick={() => setLinking(item)}
-                      disabled={busy}
-                      className="min-h-11 shrink-0 rounded-lg border border-primary px-3 py-2 text-xs text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
-                    >
-                      Asignar
-                    </button>
-                  )}
-                  {/* Deshacer una asignación equivocada; si no, la única salida sería borrar el plan. */}
-                  {item.status === "paid" && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        patch(
-                          { itemId: item.id, unlink: true },
-                          "Movimiento soltado",
-                          "No se pudo soltar el movimiento"
-                        )
-                      }
-                      disabled={busy}
-                      className="min-h-11 shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-                    >
-                      Soltar
-                    </button>
-                  )}
+                  <div className="col-span-3 flex flex-wrap justify-end gap-2 empty:hidden">
+                    {/* En card una cuota ya registrada sigue siendo editable: su movimiento es un
+                        espejo del cronograma y la edición lo sincroniza. En loan el monto/fecha
+                        reales quedan registrados en el movimiento: pagada no se toca. */}
+                    {(!settled || plan.kind === "card") && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(item.id)}
+                        disabled={busy}
+                        className="min-h-11 shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                      >
+                        Editar
+                      </button>
+                    )}
+                    {!settled && (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setLinking(item)}
+                          disabled={busy}
+                          className="min-h-11"
+                        >
+                          Asignar existente
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => payManually(item)}
+                          disabled={busy}
+                          className="min-h-11"
+                        >
+                          Generar cuota
+                        </Button>
+                      </>
+                    )}
+                    {/* Deshacer una asignación equivocada; si no, la única salida sería borrar el plan. */}
+                    {item.status === "paid" && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          patch(
+                            { itemId: item.id, unlink: true },
+                            "Movimiento soltado",
+                            "No se pudo soltar el movimiento"
+                          )
+                        }
+                        disabled={busy}
+                        className="min-h-11 shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                      >
+                        Soltar
+                      </button>
+                    )}
+                  </div>
                 </li>
               )
             })}
           </ul>
         </section>
 
-        {/* Selector de movimiento existente para la cuota elegida. La opción de crear uno queda
-            explícitamente como salida de último recurso: crear cuando el gasto ya existe lo
-            contaría dos veces. */}
+        {/* Asignar es opcional: solo se busca cuando ya hay un movimiento. */}
         {linking && (
           <InstallmentLinkPicker
             open
@@ -380,8 +394,8 @@ export function InstallmentPlanModal({
               if (ok) setLinking(null)
             }}
             onCreate={async () => {
-              await payManually(linking.id, linking.amount)
-              setLinking(null)
+              const ok = await payManually(linking)
+              if (ok) setLinking(null)
             }}
           />
         )}

@@ -1050,3 +1050,33 @@ test("un movimiento de un plan no puede quedar sin categoría", async () => {
     InstallmentCategoryRequiredError
   )
 })
+
+
+for (const kind of ["card", "loan"] as const) {
+  test(`${kind}: genera desde el cronograma sin correo y rechaza repetir la cuota`, async () => {
+    const { repo, registered } = makeRepo()
+    const deps = {
+      installments: repo,
+      accounts: makeAccounts(kind === "card" ? "credit_card" : "checking"),
+      categories,
+    }
+    const plan = await createInstallmentPlan(deps, "u1", { ...baseInput, kind })
+    const item = plan.items[0]
+    const input = {
+      planId: plan.id,
+      itemId: item.id,
+      date: item.dueDate,
+      amount: item.amount.toMajor(),
+    }
+    const after = await payInstallmentManually(deps, "u1", input)
+    assert.ok(after.items[0].transactionId)
+    assert.equal(registered.length, 1)
+    assert.equal(registered[0].date.getTime(), item.dueDate.getTime())
+    assert.equal(registered[0].amount.toMajor(), item.amount.toMajor())
+    await assert.rejects(
+      payInstallmentManually(deps, "u1", input),
+      InstallmentItemAlreadySettledError
+    )
+    assert.equal(registered.length, 1)
+  })
+}

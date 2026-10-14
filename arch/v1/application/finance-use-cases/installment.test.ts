@@ -625,6 +625,28 @@ test("si el correo llega después de la marca manual, el ítem no se registra do
   assert.equal(claimed, null, "el movimiento queda como gasto suelto")
 })
 
+test("rechaza generar una cuota cuyo vencimiento aún es futuro", async () => {
+  const { repo, registered } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const future = new Date()
+  future.setFullYear(future.getFullYear() + 1)
+  const plan = await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    startDate: future,
+  })
+  await assert.rejects(
+    () => payInstallmentManually({ installments: repo }, "u1", {
+      planId: plan.id,
+      itemId: plan.items[0].id,
+      date: future,
+      amount: 100_000,
+    }),
+    InvalidInstallmentPlanError
+  )
+  assert.equal(registered.length, 0)
+  assert.equal(plan.items[0].transactionId, null)
+})
+
 // --- Asignar un movimiento existente ---
 
 // Doble de TransactionRepository con lo que usa el caso de uso.

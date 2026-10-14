@@ -42,6 +42,7 @@ import {
   splitMatchesTotal,
 } from "../../domain/finance/installment.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
+import { todayKey } from "../../../shared/today.ts"
 
 type InstallmentDeps = {
   installments: InstallmentPlanRepository
@@ -400,6 +401,12 @@ export async function payInstallmentManually(
   const item = plan.items.find((i) => i.id === input.itemId)
   if (!item) throw new InstallmentPlanNotFoundError(input.itemId)
   if (isSettled(item)) throw new InstallmentItemAlreadySettledError()
+  // Una cuota futura es un compromiso, nunca un pago manual confirmado.
+  // Comparar días civiles en Chile evita falsos positivos cerca de medianoche UTC.
+  if (item.dueDate.toISOString().slice(0, 10) > todayKey())
+    throw new InvalidInstallmentPlanError("No puedes generar una cuota que todavía no vence")
+  if (input.date.toISOString().slice(0, 10) > todayKey())
+    throw new InvalidInstallmentPlanError("No puedes registrar un pago con fecha futura")
 
   await deps.installments.registerItemTransaction(
     plan,

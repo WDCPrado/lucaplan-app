@@ -1,7 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { Check, CreditCard, Plus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { Check, CreditCard, Plus, RefreshCw } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { currentPeriod, formatCLP } from "@/lib/finance-format"
@@ -71,6 +73,8 @@ export function InstallmentsSection({
   accounts: AccountDTO[]
   categories: CategoryDTO[]
 }) {
+  const router = useRouter()
+  const [syncing, setSyncing] = useState(false)
   const [creating, setCreating] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
   // Derivado de las props frescas (no un snapshot en estado): tras una mutación del modal +
@@ -78,6 +82,22 @@ export function InstallmentsSection({
   const detail = detailId
     ? (plans.find((p) => p.id === detailId) ?? null)
     : null
+
+  async function syncInstallments() {
+    if (syncing) return
+    setSyncing(true)
+    try {
+      const res = await fetch("/api/installments/sync", { method: "POST" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "No se pudieron sincronizar las cuotas")
+      toast.success(`${data.removed} movimiento(s) futuro(s) incorrecto(s) corregido(s)`)
+      router.refresh()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Error al sincronizar")
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const active = plans.filter((p) => p.completedAt === null)
   const done = plans.filter((p) => p.completedAt !== null)
@@ -110,10 +130,16 @@ export function InstallmentsSection({
         {/* Crear un plan vive acá, en la cabecera de su sección: el "+" de la barra es el ingreso
             rápido de movimientos y es igual en toda la app. Vacía, el CTA es el del empty state. */}
         {plans.length > 0 && (
-          <Button onClick={() => setCreating(true)} className="shrink-0">
-            <Plus className="size-4" />
-            Nueva compra
-          </Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" onClick={syncInstallments} disabled={syncing}>
+              <RefreshCw className={cn("size-4", syncing && "animate-spin")} />
+              Sincronizar cuotas
+            </Button>
+            <Button onClick={() => setCreating(true)} className="shrink-0">
+              <Plus className="size-4" />
+              Nueva compra
+            </Button>
+          </div>
         )}
       </div>
 

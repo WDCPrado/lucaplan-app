@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { formatCLP } from "@/lib/finance-format"
+import { todayKey } from "@/arch/shared/today"
 import { DatePicker } from "./transaction-modal"
 import { InstallmentLinkPicker } from "./installment-link-picker"
 import type { InstallmentPlanDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
@@ -344,7 +345,8 @@ export function InstallmentPlanModal({
                         <Button
                           type="button"
                           onClick={() => payManually(item)}
-                          disabled={busy}
+                          disabled={busy || item.dueDate.slice(0, 10) > todayKey()}
+                          title={item.dueDate.slice(0, 10) > todayKey() ? "Disponible desde el vencimiento" : undefined}
                           className="min-h-11"
                         >
                           Generar cuota

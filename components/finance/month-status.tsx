@@ -346,9 +346,7 @@ function ClosingPicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto gap-2 p-3">
-        <p className="px-1 text-sm text-muted-foreground">
-          ¿Qué día cierra la facturación de {mes}?
-        </p>
+        <p className="px-1 text-sm text-muted-foreground">Cierre de {mes}</p>
         <Calendar
           mode="single"
           locale={es}

@@ -18,15 +18,15 @@ El paquete portable vive en [`plugins/luca-plan`](../plugins/luca-plan):
 - No incluye una API key ni secretos. El modelo lo aporta el host; el plugin no llama a OpenAI por
   su cuenta.
 
-El `mcp.json` versionado apunta al entorno local de WDC-117 en
-`http://localhost:3117/api/mcp`. Sirve para desarrollo en este computador; no convierte por sí
-solo el paquete en una integración disponible mediante `@`, en la web o en el celular.
+El `mcp.json` versionado apunta al servidor público `https://lucaplan.cl/api/mcp`.
+El despliegue debe incluir estas rutas antes de registrar la conexión. La carpeta por sí sola no
+instala una integración disponible mediante `@`: hace falta crear e instalar la conexión personal.
 
-Para preparar una copia del manifiesto para un despliegue real sin guardar secretos ni inventar
-el dominio, define el origen HTTPS público y genera otro archivo:
+Para preparar una copia del manifiesto para el entorno local de pruebas, sin cambiar el paquete
+de producción ni guardar secretos, genera otro archivo:
 
 ```bash
-APP_ORIGIN=https://luca-plan.example
+APP_ORIGIN=http://localhost:3117
 jq --arg origin "$APP_ORIGIN" '
   .mcpServers["luca-plan"].url = ($origin + "/api/mcp")
   | .mcpServers["luca-plan"].extensions["com.openai"].auth.authorizationServerBase = ($origin + "/api/auth")
@@ -34,8 +34,8 @@ jq --arg origin "$APP_ORIGIN" '
 ' plugins/luca-plan/mcp.json > /tmp/luca-plan-mcp.json
 ```
 
-`APP_ORIGIN` debe ser exactamente el `BETTER_AUTH_URL` canónico del despliegue, sin una barra
-final. El servidor deriva de ahí el emisor OAuth (`/api/auth`) y el recurso MCP (`/api/mcp`); no
+`APP_ORIGIN` debe ser exactamente el `BETTER_AUTH_URL` canónico del entorno, sin una barra
+final (HTTPS en producción). El servidor deriva de ahí el emisor OAuth (`/api/auth`) y el recurso MCP (`/api/mcp`); no
 acepta que el encabezado `Host` de una solicitud cambie esas identidades.
 
 ## Identidad y permisos
@@ -105,13 +105,21 @@ registro no se completa instalando esta carpeta: la persona debe iniciar sesión
 elegir la cuenta y aceptar los scopes. Las políticas de la cuenta o del workspace pueden impedir
 agregar servidores personalizados.
 
-La URL pública de producción todavía no está fijada en este paquete. Cuando exista:
+Con el servidor desplegado:
 
 1. Verifica que `BETTER_AUTH_URL` sea el origen HTTPS público correcto.
-2. Registra `https://<origen>/api/mcp` como servidor MCP personalizado.
-3. Inicia sesión con el usuario de Luca Plan que se quiere conectar y aprueba el consentimiento.
-4. Comprueba primero una consulta y luego una escritura reversible con un `operationId` nuevo.
-5. Revisa o revoca la conexión desde `/plugin` en Luca Plan.
+2. En ChatGPT Plugins, pulsa **+ → Add custom MCP server**. Usa nombre **Luca Plan**, URL
+   `https://lucaplan.cl/api/mcp` y autenticación **OAuth** con registro dinámico del cliente.
+3. Crea el plugin personal, inicia sesión con el usuario de Luca Plan y acepta sus permisos.
+4. Instala el plugin creado, abre un chat nuevo y selecciónalo con `@`.
+5. Comprueba primero una consulta. Una escritura reversible requiere una instrucción explícita
+   del usuario y un `operationId` nuevo; no cambies datos reales solo para probar la conexión.
+6. Revisa o revoca la conexión desde `https://lucaplan.cl/plugin` en Luca Plan.
+
+Si se necesita conectar el paquete local con ese plugin personal, conserva su identificador
+`plugin_asdk_app...` generado por ChatGPT para registrar el vínculo OpenAI. No se inventa ni se
+obtiene de `client_id` OAuth. La creación e instalación del plugin y el consentimiento se hacen
+con la cuenta de la persona; este repositorio no guarda sus credenciales.
 
 El entorno local de WDC-117 usa la app en `http://localhost:3117` y una base aislada en el puerto
 `5117`. Los datos son demo; no se conecta a producción. El usuario base es `demo@lucaplan.cl` con

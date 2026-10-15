@@ -4,7 +4,13 @@ import { getSessionCookie } from "better-auth/cookies"
 // Gating de auth server-side (Next 16: convención `proxy`, antes `middleware`).
 // Chequeo optimista de cookie en el edge; la validación real de sesión la hace cada
 // server component / use-case. Rutas públicas: /login y el aterrizaje del reset.
-const PUBLIC_ROUTES = ["/", "/login", "/reset-password", "/.well-known", "/plugin/consent"]
+const PUBLIC_ROUTES = [
+  "/",
+  "/login",
+  "/reset-password",
+  "/.well-known",
+  "/plugin/consent",
+]
 
 // Deploy landing-only (ej. Railway como vitrina del proyecto open source):
 // con NEXT_PUBLIC_LANDING_ONLY=true existen la landing y /login (sin registro —
@@ -14,6 +20,9 @@ const LANDING_ONLY = process.env.NEXT_PUBLIC_LANDING_ONLY === "true"
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isPublicAsset = /\.[^/]+$/.test(pathname)
+  const isPublic =
+    isPublicAsset ||
+    PUBLIC_ROUTES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
 
   // Con sesión viva la landing no aporta nada: a la app. Optimista por cookie, igual que el
   // gating de abajo; si la cookie sobrevivió a la sesión, /dashboard valida la sesión real y
@@ -22,18 +31,9 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 
-  if (
-    LANDING_ONLY &&
-    !isPublicAsset &&
-    !PUBLIC_ROUTES.includes(pathname) &&
-    !getSessionCookie(request)
-  ) {
+  if (LANDING_ONLY && !isPublic && !getSessionCookie(request)) {
     return NextResponse.redirect(new URL("/", request.url))
   }
-  const isPublic =
-    isPublicAsset ||
-    PUBLIC_ROUTES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
-
   // Solo el caso optimista: sin cookie en ruta protegida → al login.
   // NO redirigimos /login→/ por cookie: la cookie puede estar viva pero la sesión inválida,
   // y eso se trenzaría con la validación real de la home → bucle (ERR_TOO_MANY_REDIRECTS).

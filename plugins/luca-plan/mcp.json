@@ -3,14 +3,16 @@
   "mcpServers": {
     "luca-plan": {
       "type": "streamable-http",
-      "url": "http://localhost:3117/api/mcp",
+      "url": "https://lucaplan.cl/api/mcp",
       "extensions": {
         "com.openai": {
           "auth": {
             "type": "oauth",
-            "client": { "mode": "dcr" },
-            "authorizationServerBase": "http://localhost:3117/api/auth",
-            "resource": "http://localhost:3117/api/mcp",
+            "client": {
+              "mode": "dcr"
+            },
+            "authorizationServerBase": "https://lucaplan.cl/api/auth",
+            "resource": "https://lucaplan.cl/api/mcp",
             "baseScopes": [
               "openid",
               "email",

@@ -25,10 +25,7 @@ import {
   usagePct,
 } from "@/lib/finance-format"
 import { dailyAllowance } from "@/lib/day-spend"
-import {
-  estimateClosing,
-  type PeriodMode,
-} from "@/arch/shared/billing-cycle"
+import { estimateClosing, type PeriodMode } from "@/arch/shared/billing-cycle"
 import type { CycleProps } from "./dashboard"
 
 /**
@@ -201,7 +198,9 @@ export function MonthStatus({
 
 // «23 sep», del "YYYY-MM-DD" civil sin pasar por la zona horaria.
 function shortDate(day: string): string {
-  const m = monthName(Number(day.slice(5, 7))).slice(0, 3).toLowerCase()
+  const m = monthName(Number(day.slice(5, 7)))
+    .slice(0, 3)
+    .toLowerCase()
   return `${Number(day.slice(8, 10))} ${m}`
 }
 
@@ -264,7 +263,9 @@ function CycleBar({
           <ClosingPicker period={period} closing={cycle.closing} />
         </div>
       )}
-      <div className="ml-auto flex min-h-11 items-center gap-3">
+      {/* En móvil, el switch va en su propia fila a lo ancho: el label a la izquierda y el
+          switch pegado a la derecha, en vez de flotar suelto bajo el cierre. */}
+      <div className="flex min-h-11 w-full items-center justify-between gap-3 sm:ml-auto sm:w-auto sm:justify-start">
         <Label
           htmlFor={switchId}
           className="cursor-pointer text-base font-medium sm:text-sm"
@@ -323,7 +324,9 @@ function ClosingPicker({
         <Button
           variant="secondary"
           aria-label={`Cierre de ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}. Corregir`}
-          className="h-11 gap-2 px-3 text-base font-normal sm:h-9 sm:text-sm"
+          // El Button trae shrink-0 y whitespace-nowrap: en un celular angosto el cierre con su
+          // badge se salía de la tarjeta. Aquí puede achicarse y partir el texto.
+          className="h-auto min-h-11 max-w-full shrink gap-2 px-3 text-base font-normal whitespace-normal sm:min-h-9 sm:text-sm"
         >
           <CalendarClock className="size-4 text-muted-foreground" />
           <span>

@@ -430,8 +430,14 @@ function BottomNav({
                 window.scrollTo({ top: 0, behavior: "smooth" })
                 return
               }
-              // Ctrl/⌘/Shift-clic sigue siendo del navegador (pestaña nueva).
-              if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey)
+              // Ctrl/⌘/Shift/Alt-clic sigue siendo del navegador (pestaña nueva, descargar).
+              if (
+                e.button !== 0 ||
+                e.metaKey ||
+                e.ctrlKey ||
+                e.shiftKey ||
+                e.altKey
+              )
                 return
               e.preventDefault()
               React.startTransition(() => {

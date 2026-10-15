@@ -26,6 +26,8 @@ export default async function AppLayout({
   // Deps CRUDAS a propósito: el layout se renderiza en paralelo con la página, y el dashboard
   // abre los períodos de las recurrentes (escribe) antes de leer con `financePageDeps`. Si el
   // layout llenara esa memoización primero, el dashboard leería el mes sin su comprometido.
+  // ponytail: getBudgetView completo solo por sus categorías; en /dashboard cada router.refresh()
+  // lo calcula dos veces (aquí y en la página). Una lectura liviana de categorías si pesa.
   const userId = session.user.id
   const now = await currentBudgetPeriod(financeDeps, todayKey())
   const [accounts, budget] = await Promise.all([

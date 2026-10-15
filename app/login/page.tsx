@@ -35,11 +35,18 @@ async function demoLogin(): Promise<DemoLogin | null> {
   }
 }
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const query = await searchParams
+  const continuingOAuth =
+    typeof query.sig === "string" && query.ba_param !== undefined
   // Chequeo de sesión REAL (no la cookie): si ya hay sesión, a la app. Server-side
   // para evitar el bucle con el proxy.
   const session = await auth.api.getSession({ headers: await headers() })
-  if (session) redirect("/dashboard")
+  if (session && !continuingOAuth) redirect("/dashboard")
 
   // Las variables de Railway son server-only: las cuentas se resuelven aquí y bajan como prop.
   return <LoginForm demo={await demoLogin()} />

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "luca-plan": {
+      "type": "streamable-http",
+      "url": "http://localhost:3117/api/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": { "mode": "dcr" },
+            "authorizationServerBase": "http://localhost:3117/api/auth",
+            "resource": "http://localhost:3117/api/mcp",
+            "baseScopes": [
+              "openid",
+              "email",
+              "offline_access",
+              "finance:read",
+              "finance:write"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

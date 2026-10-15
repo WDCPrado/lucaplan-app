@@ -47,7 +47,7 @@ function scannable(account: Account): ScannableType {
 }
 
 async function requireAccount(
-  deps: Deps,
+  deps: Pick<Deps, "accounts">,
   userId: string,
   accountId: string
 ): Promise<Account> {
@@ -125,7 +125,7 @@ function mismatchesIn(
 // --- Paso 2: aplicar los montos confirmados ---
 
 export async function applyAccountBalance(
-  deps: Deps,
+  deps: Omit<Deps, "balanceScan">,
   userId: string,
   accountId: string,
   confirmed: BalanceReading

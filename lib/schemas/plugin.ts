@@ -286,25 +286,41 @@ export const pluginTools = {
   ),
   lucaplan_crear_plan_cuotas: write(
     "Crea un plan de tarjeta o préstamo. En tarjeta exige la compra origen; startIndex indica la primera cuota seguida y totalAmount el saldo restante en préstamos empezados.",
-    z.strictObject({
-      kind: z.enum(["card", "loan"]),
-      accountId: id,
-      categoryId: id,
-      description: name,
-      totalAmount: positive,
-      installmentsCount: z.number().int().positive().max(MAX_INSTALLMENTS),
-      startDate: date,
-      dayOfMonth: day,
-      tolerancePct: amount.min(0).max(100),
-      startIndex: z.number().int().positive().max(MAX_INSTALLMENTS).optional(),
-      amounts: z.array(positive).max(MAX_INSTALLMENTS).optional(),
-      paidIndexes: z
-        .array(z.number().int().positive().max(MAX_INSTALLMENTS))
-        .max(MAX_INSTALLMENTS)
-        .optional(),
-      sourceTransactionId: id.nullable().optional(),
-      ...operation,
-    })
+    z
+      .strictObject({
+        kind: z.enum(["card", "loan"]),
+        accountId: id,
+        categoryId: id,
+        description: name,
+        totalAmount: positive,
+        installmentsCount: z.number().int().positive().max(MAX_INSTALLMENTS),
+        startDate: date,
+        dayOfMonth: day,
+        tolerancePct: amount.min(0).max(100),
+        startIndex: z
+          .number()
+          .int()
+          .positive()
+          .max(MAX_INSTALLMENTS)
+          .optional(),
+        amounts: z.array(positive).max(MAX_INSTALLMENTS).optional(),
+        paidIndexes: z
+          .array(z.number().int().positive().max(MAX_INSTALLMENTS))
+          .max(MAX_INSTALLMENTS)
+          .optional(),
+        sourceTransactionId: id.nullable().optional(),
+        ...operation,
+      })
+      .refine(
+        (value) =>
+          value.kind === "card"
+            ? Boolean(value.sourceTransactionId)
+            : !value.sourceTransactionId,
+        {
+          message: "La tarjeta exige compra origen; el préstamo no admite una",
+          path: ["sourceTransactionId"],
+        }
+      )
   ),
   lucaplan_editar_cuota: write(
     "Edita monto y vencimiento de una cuota; el dominio redistribuye el capital de tarjeta y protege cuotas de préstamo ya pagadas.",

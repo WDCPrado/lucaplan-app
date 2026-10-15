@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { BellRing, CalendarClock, Check, Gauge, Minus, Plus } from "lucide-react"
 import { toast } from "sonner"
@@ -77,6 +78,15 @@ export function SettingsView({
           <BudgetAlertsSection initialAlerts={initialAlerts} />
           <DueReminderSection initialDays={dueDays} />
           <PaceSection initialFrequency={paceFrequency} />
+          <section className="glass rounded-xl p-5">
+            <h2 className="mb-1 font-heading text-base font-bold">Conexiones del plugin</h2>
+            <p className="mb-5 text-sm text-muted-foreground">
+              Revisa y revoca el acceso de los asistentes a tus datos de Luca Plan.
+            </p>
+            <Button asChild variant="outline" className="h-11">
+              <Link href="/plugin">Gestionar conexiones</Link>
+            </Button>
+          </section>
         </div>
       </div>
     </AppShell>

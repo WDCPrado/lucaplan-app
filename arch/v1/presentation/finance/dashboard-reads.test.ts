@@ -214,7 +214,7 @@ function makeDeps() {
   return { deps, calls }
 }
 
-// La misma secuencia de lecturas que hace app/dashboard/page.tsx.
+// La misma secuencia de lecturas que hace app/(app)/dashboard/page.tsx.
 async function loadDashboard(deps: unknown) {
   const d = deps as Parameters<typeof getBudgetView>[0]
   const [

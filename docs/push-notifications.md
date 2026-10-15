@@ -35,7 +35,7 @@ una vez concedido o denegado el navegador ya no vuelve a preguntar, así que el 
 — desde ahí se gestiona en Configuración. "Ahora no" no recuerda nada: si el dispositivo sigue sin
 configurar, se vuelve a ofrecer la próxima vez.
 
-> La clave **pública** llega al navegador como prop del server component (`app/profile/page.tsx`);
+> La clave **pública** llega al navegador como prop del server component (`app/(app)/profile/page.tsx`);
 > no hace falta duplicarla en un `NEXT_PUBLIC_*`. La **privada** nunca sale del servidor.
 
 ## Requisitos por plataforma

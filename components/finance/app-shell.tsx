@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import {
   Home,
@@ -77,6 +77,68 @@ const NAV: {
   { key: "perfil", label: "Perfil", Icon: UserRound, href: "/profile" },
 ]
 
+function navKeyOf(pathname: string): NavKey | undefined {
+  return NAV.find(
+    (n) => pathname === n.href || pathname.startsWith(n.href + "/")
+  )?.key
+}
+
+type QuickAdd = { accounts: AccountDTO[]; categories: CategoryDTO[] }
+
+// "Abrir nuevo movimiento" del AppFrame. Con él, el AppShell no monta su propia barra inferior ni
+// su sheet: usa los del marco, que viven una sola vez para toda la app.
+const OpenAddContext = React.createContext<(() => void) | null>(null)
+
+// Marco de las pantallas con sesión (layout de app/(app)): la barra inferior móvil y el sheet del
+// "+" quedan montados entre rutas, sin recargarse en cada navegación. El "Movimiento" del topbar y
+// la tecla "n" del AppShell abren este mismo sheet.
+export function AppFrame({
+  quickAdd,
+  children,
+}: {
+  quickAdd: QuickAdd
+  children: React.ReactNode
+}) {
+  const [addOpen, setAddOpen] = React.useState(false)
+  const openAdd = React.useCallback(() => setAddOpen(true), [])
+  return (
+    <OpenAddContext.Provider value={openAdd}>
+      {children}
+      <BottomNav onAdd={openAdd} />
+      <QuickAddSheet
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        quickAdd={quickAdd}
+      />
+    </OpenAddContext.Provider>
+  )
+}
+
+// Van todas las cuentas: el sheet decide cuáles aceptan alta a mano y cuáles se leen de una foto
+// de la cartola (las conectadas, tarjeta de crédito incluida).
+function QuickAddSheet({
+  open,
+  onOpenChange,
+  quickAdd,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  quickAdd: QuickAdd
+}) {
+  const [accountOpen, setAccountOpen] = React.useState(false)
+  return (
+    <AddTransactionSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      accounts={quickAdd.accounts}
+      categories={quickAdd.categories}
+      onCreateAccount={() => setAccountOpen(true)}
+    >
+      <AccountModal open={accountOpen} onOpenChange={setAccountOpen} />
+    </AddTransactionSheet>
+  )
+}
+
 type AppShellProps = {
   user: { name: string; initial: string; email?: string }
   active?: NavKey
@@ -84,8 +146,9 @@ type AppShellProps = {
   onSignOut?: () => void
   // Datos del "+" (centro de la barra inferior en móvil, "Movimiento" en el topbar): el acceso
   // rápido a registrar un movimiento a mano (gasto o ingreso, con el toggle ±), igual en toda la app.
-  // Crear recurrentes/cuotas NO va aquí: eso va en la cabecera de su sección.
-  quickAdd?: { accounts: AccountDTO[]; categories: CategoryDTO[] }
+  // Crear recurrentes/cuotas NO va aquí: eso va en la cabecera de su sección. Dentro de un
+  // AppFrame sobra: el "+" es el del marco. Sin marco (los mocks de /design) lo monta el shell.
+  quickAdd?: QuickAdd
   onSearch?: () => void // si se pasa, muestra la lupa "Buscar" abajo en el sidebar
   title?: string
   actions?: React.ReactNode // topbar derecha: selector de mes u otros
@@ -105,9 +168,10 @@ export function AppShell({
   actions,
   children,
 }: AppShellProps) {
+  const frameOpenAdd = React.useContext(OpenAddContext)
   const [addOpen, setAddOpen] = React.useState(false)
-  const [accountOpen, setAccountOpen] = React.useState(false)
-  const canAdd = !!quickAdd
+  const localOpenAdd = React.useCallback(() => setAddOpen(true), [])
+  const openAdd = frameOpenAdd ?? (quickAdd ? localOpenAdd : undefined)
 
   // Atajos de escritorio: "/" o Ctrl/⌘+K abre la búsqueda y "n" el nuevo movimiento. No actúan
   // escribiendo en un campo ni con un diálogo abierto: ahí las teclas son del diálogo.
@@ -123,14 +187,14 @@ export function AppShell({
       if (onSearch && (key === "/" || (key === "k" && mod))) {
         e.preventDefault()
         onSearch()
-      } else if (canAdd && key === "n" && !mod && !e.altKey) {
+      } else if (openAdd && key === "n" && !mod && !e.altKey) {
         e.preventDefault()
-        setAddOpen(true)
+        openAdd()
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [onSearch, canAdd])
+  }, [onSearch, openAdd])
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -170,9 +234,9 @@ export function AppShell({
             {/* Escritorio: crear, buscar y después el selector de mes, en ese orden. Buscar y crear
                 viven en el topbar, no flotando: tapaban la esquina de la columna derecha. */}
             <div className="ml-auto flex items-center gap-2">
-              {quickAdd && (
+              {openAdd && (
                 <Button
-                  onClick={() => setAddOpen(true)}
+                  onClick={openAdd}
                   title="Nuevo movimiento (N)"
                   className="h-9"
                 >
@@ -244,29 +308,17 @@ export function AppShell({
           </div>
         </SidebarInset>
 
-        {/* Móvil: barra inferior fija con los destinos a un toque y el "+" de registrar al centro. */}
-        <BottomNav
-          active={active}
-          onNavigate={onNavigate}
-          onAdd={quickAdd ? () => setAddOpen(true) : undefined}
-        />
-
-        {quickAdd && (
-          <>
-            {/* Van todas las cuentas: el sheet decide cuáles aceptan alta a mano y cuáles se leen
-                de una foto de la cartola (las conectadas, tarjeta de crédito incluida). */}
-            <AddTransactionSheet
-              open={addOpen}
-              onOpenChange={setAddOpen}
-              accounts={quickAdd.accounts}
-              categories={quickAdd.categories}
-              onCreateAccount={() => {
-                setAccountOpen(true)
-              }}
-            >
-              <AccountModal open={accountOpen} onOpenChange={setAccountOpen} />
-            </AddTransactionSheet>
-          </>
+        {/* Móvil: barra inferior fija con los destinos a un toque y el "+" de registrar al centro.
+            Dentro de un AppFrame la pone el marco, una sola vez para toda la app. */}
+        {!frameOpenAdd && (
+          <BottomNav active={active} onNavigate={onNavigate} onAdd={openAdd} />
+        )}
+        {!frameOpenAdd && quickAdd && (
+          <QuickAddSheet
+            open={addOpen}
+            onOpenChange={setAddOpen}
+            quickAdd={quickAdd}
+          />
         )}
       </SidebarProvider>
     </TooltipProvider>
@@ -284,10 +336,7 @@ function NavMenu({
 }) {
   const pathname = usePathname()
   const { isMobile, setOpenMobile } = useSidebar()
-  const activeKey =
-    active ??
-    NAV.find((n) => pathname === n.href || pathname.startsWith(n.href + "/"))
-      ?.key
+  const activeKey = active ?? navKeyOf(pathname)
 
   return (
     <SidebarMenu>
@@ -321,6 +370,8 @@ function NavMenu({
 // Barra inferior de navegación (solo móvil): los mismos destinos del sidebar, al alcance del
 // pulgar y con el actual siempre visible. Con `onAdd`, el "+" de registrar va al centro, entre
 // las dos mitades; sin él, los destinos se reparten el ancho igual y nada queda descentrado.
+// La píldora de color del activo se desliza de una pestaña a otra: como la barra vive en el
+// layout y no se desmonta al navegar, basta una transición de transform.
 function BottomNav({
   active,
   onNavigate,
@@ -331,16 +382,40 @@ function BottomNav({
   onAdd?: () => void
 }) {
   const pathname = usePathname()
-  const activeKey =
-    active ??
-    NAV.find((n) => pathname === n.href || pathname.startsWith(n.href + "/"))
-      ?.key
+  const router = useRouter()
+  // Toque optimista: la pestaña tocada se marca al instante, sin esperar a que llegue la página.
+  // Dura lo que dura la navegación (su transición); al terminar —llegó, falló o se volvió atrás—
+  // manda el pathname.
+  const [optimisticKey, setOptimisticKey] = React.useOptimistic(
+    navKeyOf(pathname)
+  )
+  const activeKey = active ?? optimisticKey
+
+  // Slots iguales (flex-1): con el "+" al centro, los destinos de la segunda mitad corren uno.
+  const mid = onAdd ? Math.floor(NAV.length / 2) : NAV.length
+  const slots = NAV.length + (onAdd ? 1 : 0)
+  const activeIndex = NAV.findIndex((n) => n.key === activeKey)
+  const activeSlot = activeIndex + (activeIndex >= mid ? 1 : 0)
 
   return (
     <nav
       aria-label="Navegación principal"
       className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border/60 bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
     >
+      {/* translateX en % del propio ancho (un slot): n slots = n × 100%. */}
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute top-1 left-0 flex justify-center transition-[transform,opacity] duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+          activeIndex < 0 && "opacity-0"
+        )}
+        style={{
+          width: `${100 / slots}%`,
+          transform: `translateX(${Math.max(activeSlot, 0) * 100}%)`,
+        }}
+      >
+        <span className="h-7 w-14 rounded-full bg-primary/12" />
+      </span>
       {NAV.map(({ key, label, Icon, href }, i) => {
         const isActive = activeKey === key
         const link = (
@@ -348,14 +423,24 @@ function BottomNav({
             key={key}
             href={href}
             aria-current={isActive ? "page" : undefined}
-            onClick={() => {
+            onClick={(e) => {
               haptic("light")
               onNavigate?.(key)
-              if (pathname === href)
+              if (pathname === href) {
                 window.scrollTo({ top: 0, behavior: "smooth" })
+                return
+              }
+              // Ctrl/⌘/Shift-clic sigue siendo del navegador (pestaña nueva).
+              if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey)
+                return
+              e.preventDefault()
+              React.startTransition(() => {
+                setOptimisticKey(key)
+                router.push(href)
+              })
             }}
             className={cn(
-              "flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 transition-colors",
+              "relative flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 transition-colors",
               isActive ? "text-primary" : "text-muted-foreground"
             )}
           >
@@ -365,10 +450,10 @@ function BottomNav({
             </span>
           </Link>
         )
-        if (!onAdd || i !== Math.floor(NAV.length / 2)) return link
+        if (!onAdd || i !== mid) return link
         return (
           <React.Fragment key={key}>
-            <div className="flex flex-1 items-center justify-center">
+            <div className="relative flex flex-1 items-center justify-center">
               <Button
                 onClick={() => {
                   haptic("medium")

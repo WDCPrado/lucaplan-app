@@ -591,10 +591,10 @@ function EditForm({
       <ModalFooter>
         {showConversions && (
           <div className="flex min-w-0 basis-full flex-col gap-2">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex flex-wrap gap-1">
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 disabled={conversionsDisabled}
                 aria-describedby={
                   form.formState.isDirty
@@ -605,14 +605,14 @@ function EditForm({
                   haptic("light")
                   setMakeRecurring(true)
                 }}
-                className="h-auto min-h-12 min-w-0 px-3 py-3 text-sm whitespace-normal"
+                className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
               >
                 <Repeat className="size-4 shrink-0" />
                 Hacer recurrente
               </Button>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 disabled={conversionsDisabled}
                 aria-describedby={
                   form.formState.isDirty
@@ -624,7 +624,7 @@ function EditForm({
                   if (isCreditCard) setMakeInstallments(true)
                   else setAssignInstallment(true)
                 }}
-                className="h-auto min-h-12 min-w-0 px-3 py-3 text-sm whitespace-normal"
+                className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
               >
                 <CreditCard className="size-4 shrink-0" />
                 {isCreditCard ? "Pasar a cuotas" : "Es una cuota"}
@@ -1159,18 +1159,18 @@ function ConnectedDetail({
         ) : (
           // Descubrimiento: crear la recurrente se queda a la vista, no escondido en el menú.
           // Una compra ya repartida en cuotas no admite recurrente ni volver a pasarse a cuotas.
-          // En móvil cada conversión ocupa una fila; Cerrar y Guardar quedan juntos debajo.
+          // Las conversiones van en una fila discreta (ghost, gris); Cerrar y Guardar quedan debajo.
           showConversions && (
-            <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex w-full min-w-0 flex-wrap gap-1">
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 onClick={() => {
                   haptic("light")
                   setMakeRecurring(true)
                 }}
                 disabled={saving}
-                className="h-auto min-h-12 min-w-0 px-3 py-3 text-sm whitespace-normal"
+                className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
               >
                 <Repeat className="size-4" />
                 Hacer recurrente
@@ -1181,13 +1181,13 @@ function ConnectedDetail({
               {isCreditCard ? (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => {
                     haptic("light")
                     setMakeInstallments(true)
                   }}
                   disabled={saving}
-                  className="h-auto min-h-12 min-w-0 px-3 py-3 text-sm whitespace-normal"
+                  className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
                 >
                   <CreditCard className="size-4" />
                   Pasar a cuotas
@@ -1195,13 +1195,13 @@ function ConnectedDetail({
               ) : (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => {
                     haptic("light")
                     setAssignInstallment(true)
                   }}
                   disabled={saving}
-                  className="h-auto min-h-12 min-w-0 px-3 py-3 text-sm whitespace-normal"
+                  className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
                 >
                   <CreditCard className="size-4" />
                   Es una cuota

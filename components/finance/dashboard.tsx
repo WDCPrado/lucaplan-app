@@ -441,7 +441,6 @@ export function Dashboard({
     <AppShell
       user={user}
       onSignOut={signOut}
-      quickAdd={{ accounts, categories: budget.categories }}
       onSearch={() => setSearchOpen(true)}
       title="Inicio"
       actions={

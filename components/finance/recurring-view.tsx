@@ -133,7 +133,6 @@ export function RecurringView({
       }}
       active="recurrentes"
       onSignOut={signOut}
-      quickAdd={{ accounts, categories }}
       title="Recurrentes"
     >
       {/* En móvil el contenido arranca pegado al header flotante; en escritorio la topbar pide su

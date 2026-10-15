@@ -25,10 +25,7 @@ import {
   usagePct,
 } from "@/lib/finance-format"
 import { dailyAllowance } from "@/lib/day-spend"
-import {
-  estimateClosing,
-  type PeriodMode,
-} from "@/arch/shared/billing-cycle"
+import { estimateClosing, type PeriodMode } from "@/arch/shared/billing-cycle"
 import type { CycleProps } from "./dashboard"
 
 /**
@@ -201,7 +198,9 @@ export function MonthStatus({
 
 // «23 sep», del "YYYY-MM-DD" civil sin pasar por la zona horaria.
 function shortDate(day: string): string {
-  const m = monthName(Number(day.slice(5, 7))).slice(0, 3).toLowerCase()
+  const m = monthName(Number(day.slice(5, 7)))
+    .slice(0, 3)
+    .toLowerCase()
   return `${Number(day.slice(8, 10))} ${m}`
 }
 
@@ -254,9 +253,11 @@ function CycleBar({
       {/* El rango que trae el servidor es el del modo guardado: se muestra solo cuando el modo
           guardado y el del switch coinciden en tarjeta. */}
       {cycle.mode === "card_cycle" && card && (
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-          <p className="text-base text-muted-foreground sm:text-sm">
-            Ciclo{" "}
+        // En móvil, rango y cierre van en una sola fila (como en escritorio): sin las palabras
+        // «Ciclo» y «Cierra el», que el aria-label del botón conserva, cabe en 390 px.
+        <div className="flex w-full min-w-0 items-center gap-x-3 gap-y-1 sm:w-auto sm:flex-wrap">
+          <p className="min-w-0 truncate text-sm text-muted-foreground">
+            <span className="max-sm:sr-only">Ciclo </span>
             <span className="font-medium text-foreground tabular-nums">
               {shortDate(cycle.range.start)} – {shortDate(cycle.range.end)}
             </span>
@@ -264,7 +265,9 @@ function CycleBar({
           <ClosingPicker period={period} closing={cycle.closing} />
         </div>
       )}
-      <div className="ml-auto flex min-h-11 items-center gap-3">
+      {/* En móvil, el switch va en su propia fila a lo ancho: el label a la izquierda y el
+          switch pegado a la derecha, en vez de flotar suelto bajo el cierre. */}
+      <div className="flex min-h-11 w-full items-center justify-between gap-3 sm:ml-auto sm:w-auto sm:justify-start">
         <Label
           htmlFor={switchId}
           className="cursor-pointer text-base font-medium sm:text-sm"
@@ -323,11 +326,11 @@ function ClosingPicker({
         <Button
           variant="secondary"
           aria-label={`Cierre de ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}. Corregir`}
-          className="h-11 gap-2 px-3 text-base font-normal sm:h-9 sm:text-sm"
+          className="h-11 gap-2 px-3 text-sm font-normal sm:h-9"
         >
           <CalendarClock className="size-4 text-muted-foreground" />
           <span>
-            Cierra el{" "}
+            <span className="max-sm:sr-only">Cierra el </span>
             <span className="font-medium tabular-nums">
               {shortDate(closing.date)}
             </span>
@@ -343,9 +346,7 @@ function ClosingPicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto gap-2 p-3">
-        <p className="px-1 text-sm text-muted-foreground">
-          ¿Qué día cierra la facturación de {mes}?
-        </p>
+        <p className="px-1 text-sm text-muted-foreground">Cierre de {mes}</p>
         <Calendar
           mode="single"
           locale={es}
@@ -361,7 +362,8 @@ function ClosingPicker({
             if (key !== closing.date) void save(key)
             else setOpen(false)
           }}
-          classNames={{ nav: "hidden" }}
+          // El mes ya lo dice el título de arriba: su encabezado solo dejaba una fila vacía.
+          classNames={{ nav: "hidden", month_caption: "sr-only" }}
           className="p-0"
         />
         {!closing.estimated && (

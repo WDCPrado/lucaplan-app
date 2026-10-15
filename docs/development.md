@@ -108,8 +108,8 @@ un barrido aparte.
   se cierra por arrastre, fondo o acción del pie. El triage a pantalla completa ofrece «Cerrar»
   en el pie móvil. Las confirmaciones se resuelven con sus botones. El pie lleva las
   acciones (`ModalFooter`); el botón que envía va con `form="<id>"` del `<form>` del modal.
-  En móvil, las acciones de convertir un movimiento en recurrente o cuota ocupan una fila cada
-  una; desde `sm` pueden compartir fila. Las etiquetas pueden envolver y conservan ≥44px de alto.
+  Las acciones de convertir un movimiento en recurrente o cuota van en una fila discreta (`ghost`,
+  `text-muted-foreground`) que envuelve si no cabe. Las etiquetas pueden envolver y conservan ≥44px de alto.
   **Ancho en escritorio, una escala y nada inventado por modal:** contenido (formulario,
   detalle, lista) hereda el default de `ResponsiveModal`, `sm:max-w-2xl`, sin pasar
   `className`; denso (varias columnas, como el de cuenta) sube a `sm:max-w-3xl`; un solo campo

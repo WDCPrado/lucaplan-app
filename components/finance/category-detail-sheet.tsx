@@ -81,17 +81,17 @@ export function CategoryDetailSheet({
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-sm text-muted-foreground">Gastado</dt>
-                    <dd className="tabular mt-1 text-base font-medium break-all">
-                      {formatCLP(category.used)}
-                    </dd>
-                  </div>
-                  <div>
                     <dt className="text-sm text-muted-foreground">
                       Comprometido
                     </dt>
                     <dd className="tabular mt-1 text-base font-medium break-all">
                       {formatCLP(category.committed)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-muted-foreground">Gastado</dt>
+                    <dd className="tabular mt-1 text-base font-medium break-all">
+                      {formatCLP(category.used)}
                     </dd>
                   </div>
                 </dl>

@@ -299,6 +299,19 @@ function AuthForm({
       setError(res.error.message ?? "Algo salió mal. Inténtalo de nuevo.")
       return
     }
+    // OAuth devuelve su continuación después de verificar el query firmado en el servidor.
+    // No se toma ningún destino desde returnTo ni desde parámetros del navegador.
+    if (res.data && "url" in res.data && typeof res.data.url === "string") {
+      window.location.assign(res.data.url)
+      return
+    }
+    const oauthQuery = new URLSearchParams(window.location.search)
+    if (oauthQuery.has("sig") && oauthQuery.has("ba_param")) {
+      setError(
+        "No pudimos continuar la conexión. Vuelve al asistente e inicia la conexión de nuevo."
+      )
+      return
+    }
     router.push("/dashboard")
     router.refresh()
   }

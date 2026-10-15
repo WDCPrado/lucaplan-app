@@ -1,0 +1,28 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "luca-plan": {
+      "type": "streamable-http",
+      "url": "https://lucaplan.cl/api/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": {
+              "mode": "dcr"
+            },
+            "authorizationServerBase": "https://lucaplan.cl/api/auth",
+            "resource": "https://lucaplan.cl/api/mcp",
+            "baseScopes": [
+              "openid",
+              "email",
+              "offline_access",
+              "finance:read",
+              "finance:write"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

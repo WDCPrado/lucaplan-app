@@ -4,7 +4,12 @@
 // administrador. Rol por defecto al registrarse: USER.
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
-import { admin } from "better-auth/plugins"
+import { admin, jwt } from "better-auth/plugins"
+import { oauthProvider } from "@better-auth/oauth-provider"
+import { createAuthMiddleware, APIError } from "better-auth/api"
+import { getPluginConfig } from "./plugin-config.ts"
+import { pluginIssuedAt, getPluginGrant } from "./plugin-request.ts"
+import { pluginConsentSchema } from "../../../../lib/schemas/plugin-auth.ts"
 import { prisma } from "../database/prisma/client.ts"
 import { categoryRepository } from "../database/prisma/finance.infrastructure.ts"
 import { seedDefaultCategories } from "../../application/finance-use-cases/seed-default-categories-use-case.ts"
@@ -20,7 +25,82 @@ if (anyPassword) {
   )
 }
 
+// Build sin secretos: se comprueba otra vez en cada petición OAuth, nunca al importar.
+const canonical = (() => {
+  try {
+    return getPluginConfig()
+  } catch {
+    return undefined
+  }
+})()
+
 export const auth = betterAuth({
+  baseURL: canonical?.issuer,
+  disabledPaths: [
+    "/token",
+    "/oauth2/update-consent",
+    "/oauth2/delete-consent",
+    "/oauth2/introspect",
+  ],
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (!ctx.path.startsWith("/oauth2/")) return
+      try {
+        getPluginConfig()
+      } catch {
+        throw new APIError("SERVICE_UNAVAILABLE", {
+          message: "El plugin no está configurado.",
+        })
+      }
+      if (ctx.path === "/oauth2/userinfo") {
+        const { getPluginActor } = await import("./plugin-auth.ts")
+        try {
+          await getPluginActor(ctx.headers ?? new Headers())
+        } catch {
+          throw new APIError("UNAUTHORIZED", {
+            message: "Conexión no autorizada.",
+          })
+        }
+      }
+      if (ctx.path === "/oauth2/token") {
+        const { preparePluginTokenGrant } =
+          await import("./plugin-token-grant.ts")
+        try {
+          await preparePluginTokenGrant(
+            ctx.headers ?? new Headers(),
+            ctx.body ?? {}
+          )
+        } catch {
+          throw new APIError("BAD_REQUEST", {
+            error: "invalid_grant",
+            error_description: "Conexión no autorizada.",
+          })
+        }
+      }
+      if (ctx.path === "/oauth2/revoke") {
+        const { revokePluginCredential } = await import("./plugin-auth.ts")
+        try {
+          await revokePluginCredential(
+            ctx.headers ?? new Headers(),
+            ctx.body ?? {}
+          )
+        } catch {
+          throw new APIError("UNAUTHORIZED", {
+            message: "Cliente no autorizado.",
+          })
+        }
+        return ctx.json(null)
+      }
+      if (
+        ctx.path === "/oauth2/consent" &&
+        !pluginConsentSchema.safeParse(ctx.body).success
+      ) {
+        throw new APIError("BAD_REQUEST", {
+          message: "Solicitud de autorización inválida.",
+        })
+      }
+    }),
+  },
   appName: "Luca Plan",
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   // Entornos efímeros de PR (Railway): el dominio es dinámico (…-pr-N.up.railway.app), así que
@@ -46,7 +126,58 @@ export const auth = betterAuth({
     // El hash real se sigue guardando y usando; en local solo se salta la comparación.
     ...(anyPassword ? { password: { verify: async () => true } } : {}),
   },
-  plugins: [admin({ defaultRole: "USER", adminRoles: ["ADMIN"] })],
+  plugins: [
+    admin({ defaultRole: "USER", adminRoles: ["ADMIN"] }),
+    jwt({ jwt: { issuer: canonical?.issuer } }),
+    oauthProvider({
+      schema: {
+        oauthClient: { modelName: "oAuthClient" },
+        oauthAccessToken: { modelName: "oAuthAccessToken" },
+        oauthRefreshToken: { modelName: "oAuthRefreshToken" },
+        oauthConsent: { modelName: "oAuthConsent" },
+      },
+      loginPage: "/login",
+      consentPage: "/plugin/consent",
+      scopes: [
+        "openid",
+        "email",
+        "offline_access",
+        "finance:read",
+        "finance:write",
+      ],
+      validAudiences: canonical ? [canonical.resource] : [],
+      grantTypes: ["authorization_code", "refresh_token"],
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      allowPublicClientPrelogin: true,
+      clientRegistrationDefaultScopes: [
+        "openid",
+        "email",
+        "offline_access",
+        "finance:read",
+        "finance:write",
+      ],
+      accessTokenExpiresIn: 600,
+      storeTokens: "hashed",
+      storeClientSecret: "hashed",
+      generateRefreshToken: async () => {
+        const { randomBytes } = await import("node:crypto")
+        return `${getPluginGrant().epoch}_${randomBytes(32).toString("base64url")}`
+      },
+      customAccessTokenClaims: async ({ user, scopes }) => {
+        getPluginConfig()
+        const grant = getPluginGrant()
+        if (!user || user.id !== grant.userId)
+          throw new APIError("UNAUTHORIZED", {
+            message: "Conexión no autorizada.",
+          })
+        const { assertPluginGrantActive } =
+          await import("./plugin-token-grant.ts")
+        await assertPluginGrantActive(grant, scopes)
+        return { plugin_issued_at_ms: grant.epoch }
+      },
+    }),
+  ],
   // 30 días en vez de los 7 del default: Luca Plan se instala como PWA y se abre cada varios
   // días, así que a la semana sacaba al usuario. La ventana se corre sola con cada uso
   // (updateAge default: 1 día), así que usándola nunca expira.
@@ -56,6 +187,30 @@ export const auth = betterAuth({
   // un evento externo y llama a un use-case, igual que el wiring de push (push-deps.ts). Un fallo
   // NO puede tumbar el registro: se loguea y la cuenta queda creada.
   databaseHooks: {
+    verification: {
+      create: {
+        before: async (verification) => {
+          // El provider redondea createdAt a segundos. Guardamos el inicio exacto del
+          // grant dentro del código opaco para que revocar también invalide códigos pendientes.
+          let value
+          try {
+            value = JSON.parse(verification.value)
+          } catch {
+            return
+          }
+          if (value?.type !== "authorization_code") return
+          return {
+            data: {
+              ...verification,
+              value: JSON.stringify({
+                ...value,
+                plugin_grant_epoch_ms: pluginIssuedAt(),
+              }),
+            },
+          }
+        },
+      },
+    },
     user: {
       create: {
         after: async (user) => {

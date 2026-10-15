@@ -7,7 +7,7 @@ export function GET() {
       {
         resource: config.resource,
         authorization_servers: [config.issuer],
-        scopes_supported: ["finance:read", "finance:write"],
+        scopes_supported: ["finance:read", "finance:write", "offline_access"],
         bearer_methods_supported: ["header"],
         resource_name: "Luca Plan",
       },

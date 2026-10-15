@@ -364,7 +364,8 @@ function ClosingPicker({
             if (key !== closing.date) void save(key)
             else setOpen(false)
           }}
-          classNames={{ nav: "hidden" }}
+          // El mes ya lo dice la pregunta de arriba: su encabezado solo dejaba una fila vacía.
+          classNames={{ nav: "hidden", month_caption: "sr-only" }}
           className="p-0"
         />
         {!closing.estimated && (

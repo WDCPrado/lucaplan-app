@@ -253,9 +253,11 @@ function CycleBar({
       {/* El rango que trae el servidor es el del modo guardado: se muestra solo cuando el modo
           guardado y el del switch coinciden en tarjeta. */}
       {cycle.mode === "card_cycle" && card && (
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-          <p className="text-base text-muted-foreground sm:text-sm">
-            Ciclo{" "}
+        // En móvil, rango y cierre van en una sola fila (como en escritorio): sin las palabras
+        // «Ciclo» y «Cierra el», que el aria-label del botón conserva, cabe en 390 px.
+        <div className="flex w-full min-w-0 items-center gap-x-3 gap-y-1 sm:w-auto sm:flex-wrap">
+          <p className="min-w-0 truncate text-sm text-muted-foreground">
+            <span className="max-sm:sr-only">Ciclo </span>
             <span className="font-medium text-foreground tabular-nums">
               {shortDate(cycle.range.start)} – {shortDate(cycle.range.end)}
             </span>
@@ -324,13 +326,11 @@ function ClosingPicker({
         <Button
           variant="secondary"
           aria-label={`Cierre de ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}. Corregir`}
-          // El Button trae shrink-0 y whitespace-nowrap: en un celular angosto el cierre con su
-          // badge se salía de la tarjeta. Aquí puede achicarse y partir el texto.
-          className="h-auto min-h-11 max-w-full shrink gap-2 px-3 text-base font-normal whitespace-normal sm:min-h-9 sm:text-sm"
+          className="h-11 gap-2 px-3 text-sm font-normal sm:h-9"
         >
           <CalendarClock className="size-4 text-muted-foreground" />
           <span>
-            Cierra el{" "}
+            <span className="max-sm:sr-only">Cierra el </span>
             <span className="font-medium tabular-nums">
               {shortDate(closing.date)}
             </span>

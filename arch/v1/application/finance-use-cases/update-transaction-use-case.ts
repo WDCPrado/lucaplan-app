@@ -1,6 +1,8 @@
+import { isDuplicateInstallmentPayment } from "./duplicate-installment-payment.ts"
+import type { BudgetPeriodDeps } from "./budget-period-use-cases.ts"
 // Editar un movimiento MANUAL (los de cuentas conectadas son de solo lectura → se rechazan).
-// Borrar admite además dos casos de cuentas conectadas: los ABONOS (los ingresa el usuario, el
-// banco no los notifica) y los CARGOS SIN CATEGORÍA. El repo reajusta el saldo de la cuenta
+// Borrar admite además cuentas conectadas: ABONOS, CARGOS SIN CATEGORÍA y cobros históricos
+// duplicados de una cuota ya saldada por otro movimiento. El repo reajusta el saldo de la cuenta
 // atómicamente.
 import {
   type AccountRepository,
@@ -28,7 +30,7 @@ export type UpdateTransactionInput = {
   date: Date
 }
 
-type Deps = {
+type Deps = BudgetPeriodDeps & {
   accounts: AccountRepository
   transactions: TransactionRepository
   installments?: InstallmentPlanRepository // opcional: propaga la categoría al plan de cuotas
@@ -98,14 +100,15 @@ export async function deleteTransaction(
 ): Promise<void> {
   // Manual: se borra todo. Conectada: los abonos (los ingresa el usuario) y los cargos SIN
   // categoría — ruido del banco que nadie clasificó; borrarlos revierte el saldo hacia arriba.
-  // Un cargo ya categorizado sostiene el gasto del mes: sigue de solo lectura.
+  // Un cargo categorizado solo se borra si es un sobrante de una cuota ya saldada.
   // ponytail: no revierte los buckets (mismo techo que ungenerateMonthly); se corrigen con
   // "Actualizar saldos".
   const { tx, account } = await loadOwned(deps, userId, transactionId)
   if (
     account.provider !== "manual" &&
     tx.direction !== "credit" &&
-    tx.categoryId
+    tx.categoryId &&
+    !(await isDuplicateInstallmentPayment(deps, userId, tx))
   )
     throw new ConnectedAccountReadOnlyError()
   await deps.transactions.delete(transactionId)

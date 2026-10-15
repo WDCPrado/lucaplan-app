@@ -1,3 +1,4 @@
+import { isDuplicateInstallmentPayment } from "./duplicate-installment-payment.ts"
 // Use-cases de lectura financiera. DTOs con montos en unidad mayor (number). Ownership por userId.
 // Categorías GLOBALES del usuario; el límite es por mes con carry-forward (ver effectiveLimit).
 import type {
@@ -125,6 +126,7 @@ export type TransactionDTO = {
   id: string
   accountId: string
   currency: string
+  duplicateInstallmentPayment?: boolean // cobro sobrante desvinculado; puede eliminarse
   editable: boolean // true solo si su cuenta es manual (las conectadas son de solo lectura)
   description: string
   amount: number
@@ -431,7 +433,7 @@ export async function listTransactions(
         clp
       )
     )
-  const withState = await withRecurringState(deps, userId, dtos)
+  const withState = await withRecurringState(deps, userId, dtos, txs)
   // Cuotas por cobrar del mes: filas DERIVADAS, no transacciones. Se anticipan como "Por cobrar"
   // igual que una recurrente y desaparecen solas al pagarse (ahí nace la transacción real). No se
   // persiste nada: por eso el disparo por correo sigue intacto y no hay doble conteo.
@@ -489,9 +491,12 @@ async function withRecurringState(
   deps: {
     recurring?: RecurringTemplateRepository
     installments?: InstallmentPlanRepository
+    transactions: TransactionRepository
+    budgetPeriod?: BudgetPeriodRepository
   },
   userId: string,
-  dtos: TransactionDTO[]
+  dtos: TransactionDTO[],
+  transactions: Transaction[]
 ): Promise<TransactionDTO[]> {
   const hasRecurring = deps.recurring && dtos.some((d) => d.recurringTemplateId)
   // Una compra transformada en cuotas queda neutralizada: sin este sello se vería como un gasto
@@ -512,19 +517,31 @@ async function withRecurringState(
     if (p.sourceTransactionId)
       sourceCount.set(p.sourceTransactionId, p.installmentsCount)
 
-  return dtos.map((d) => {
-    const template = d.recurringTemplateId
-      ? byId.get(d.recurringTemplateId)
-      : undefined
-    return {
-      ...d,
-      recurringIsActive: template ? template.isActive : null,
-      recurringEndDate: template?.endDate
-        ? template.endDate.toISOString()
-        : null,
-      installmentSourceCount: sourceCount.get(d.id) ?? null,
-    }
-  })
+  const transactionById = new Map(transactions.map((t) => [t.id, t]))
+  return Promise.all(
+    dtos.map(async (d) => {
+      const template = d.recurringTemplateId
+        ? byId.get(d.recurringTemplateId)
+        : undefined
+      return {
+        ...d,
+        duplicateInstallmentPayment:
+          !d.editable &&
+          !!transactionById.get(d.id) &&
+          (await isDuplicateInstallmentPayment(
+            deps,
+            userId,
+            transactionById.get(d.id)!,
+            plans
+          )),
+        recurringIsActive: template ? template.isActive : null,
+        recurringEndDate: template?.endDate
+          ? template.endDate.toISOString()
+          : null,
+        installmentSourceCount: sourceCount.get(d.id) ?? null,
+      }
+    })
+  )
 }
 
 // Tope del triage: se piden TRIAGE_LIMIT+1 filas para señalar "hay más" sin count.
@@ -598,7 +615,7 @@ export async function searchTransactions(
       clpAmounts[i]
     )
   )
-  return withRecurringState(deps, userId, dtos)
+  return withRecurringState(deps, userId, dtos, txs)
 }
 
 export type AmountBoundsDTO = { min: number; max: number }

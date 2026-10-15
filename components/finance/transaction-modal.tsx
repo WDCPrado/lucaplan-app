@@ -1220,9 +1220,10 @@ function ConnectedDetail({
           Cerrar
         </Button>
         {/* Eliminar: los ingresos (los abona el usuario) y los gastos SIN categoría — ruido del
-            banco que nadie clasificó. Se mira la categoría GUARDADA, no la elegida en pantalla.
+            banco que nadie clasificó— y cobros sobrantes de cuotas verificados por el servidor.
+            Se mira la categoría GUARDADA, no la elegida en pantalla.
             Nunca los generados por recurrencia o plan de cuotas: se gestionan en su origen. */}
-        {(income || !tx.categoryId) &&
+        {(income || !tx.categoryId || tx.duplicateInstallmentPayment) &&
           !tx.recurringTemplateId &&
           !inInstallmentPlan &&
           !tx.installmentForecast && (

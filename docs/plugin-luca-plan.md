@@ -74,8 +74,9 @@ se agrupan así:
   ingreso y registrar o deshacer su movimiento del mes.
 - **Recurrentes:** listar y administrar plantillas, marcar el período y vincular el cobro bancario
   existente.
-- **Cuotas:** listar y administrar planes, editar cuotas y vincular, desvincular o registrar sus
-  pagos.
+- **Cuotas:** listar y administrar planes (cada cuota trae el movimiento que la pagó), editar
+  cuotas y vincular, desvincular, registrar o mover sus pagos: `lucaplan_mover_pago_cuota` corrige
+  un pago enganchado en la cuota equivocada sin crear ni borrar movimientos.
 
 Esta versión no administra la configuración global de la aplicación. En cuentas permite crear y listar,
 pero todavía no editar ni eliminar. Tampoco convierte una cartola en movimientos ni categoriza con

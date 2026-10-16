@@ -4,10 +4,11 @@
 // `false` en vez de crear un segundo movimiento.
 import { prisma } from "./client.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
-import type {
-  InstallmentKind,
-  InstallmentPlan,
-  InstallmentPlanRepository,
+import {
+  type InstallmentKind,
+  type InstallmentPlan,
+  type InstallmentPlanRepository,
+  InstallmentItemAlreadySettledError,
 } from "../../../domain/finance/installment.domain.ts"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -296,6 +297,30 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
     await prisma.transaction.update({
       where: { id: transactionId },
       data: { installmentItemId: null },
+    })
+  },
+  async moveItemTransaction(transactionId, to) {
+    await prisma.$transaction(async (db) => {
+      await db.transaction.update({
+        where: { id: transactionId },
+        data: { installmentItemId: null },
+      })
+      if (!to) return
+      const item = await db.installmentItem.findUnique({
+        where: { id: to.itemId },
+        include: { transaction: { select: { id: true } } },
+      })
+      // Se revisa dentro de la transacción: si otro proceso saldó el destino, se deshace todo.
+      if (!item || item.transaction || item.paidOutsideApp)
+        throw new InstallmentItemAlreadySettledError()
+      await db.transaction.update({
+        where: { id: transactionId },
+        data: {
+          categoryId: to.plan.categoryId,
+          installmentItemId: to.itemId,
+          reviewed: true,
+        },
+      })
     })
   },
   async listUnclaimedLoanPayments(userId, accountId) {

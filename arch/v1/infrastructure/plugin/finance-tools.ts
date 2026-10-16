@@ -61,6 +61,7 @@ import {
   payInstallmentManually,
   linkTransactionToItem,
   unlinkTransactionFromItem,
+  moveInstallmentPayment,
 } from "../../application/finance-use-cases/installment-use-cases.ts"
 import {
   listAccounts,
@@ -368,6 +369,8 @@ const handlers: Handlers = {
     linkTransactionToItem(deps, userId, input),
   lucaplan_desvincular_pago_cuota: (userId, input) =>
     unlinkTransactionFromItem(deps, userId, input),
+  lucaplan_mover_pago_cuota: (userId, input) =>
+    moveInstallmentPayment(deps, userId, input),
   lucaplan_actualizar_saldos: (userId, input) =>
     withLock(`email:${userId}`, () =>
       applyAccountBalance(deps, userId, input.accountId, {

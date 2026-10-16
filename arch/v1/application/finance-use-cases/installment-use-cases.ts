@@ -12,6 +12,7 @@ import {
   type AccountRepository,
   type Category,
   type CategoryRepository,
+  type Transaction,
   type TransactionRepository,
   AccountNotFoundError,
   CategoryNotFoundError,
@@ -30,6 +31,7 @@ import {
   InstallmentSplitMismatchError,
   InvalidInstallmentPlanError,
   accountAllowsKind,
+  amountDistance,
   isComplete,
   isSettled,
   isValidTolerance,
@@ -40,6 +42,7 @@ import {
   schedule,
   splitAmount,
   splitMatchesTotal,
+  toleranceRange,
 } from "../../domain/finance/installment.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
 import { todayKey } from "../../../shared/today.ts"
@@ -217,27 +220,45 @@ export async function createInstallmentPlan(
   return (await deps.installments.findById(plan.id)) ?? plan
 }
 
-// Para cada cuota marcada busca el pago ya importado de ESE mes y lo adopta; sin pago que adoptar,
-// la cuota queda registrada como pagada fuera de la app (cuenta para el avance, no genera gasto).
+// Para cada cuota marcada busca un pago ya importado de ESE mes que calce con ella: dentro de su
+// tolerancia y no más cerca de la cuota pendiente de otro crédito activo de la cuenta (a igual
+// distancia sí se toma). Sin pago que calce, la cuota queda pagada fuera de la app (cuenta para el
+// avance, no genera gasto): adoptar el pago de otro crédito lo dejaría huérfano.
 async function adoptOrMarkOutside(
   deps: { installments: InstallmentPlanRepository },
   userId: string,
   plan: InstallmentPlan,
   items: InstallmentItem[]
 ): Promise<void> {
-  const payments = await deps.installments.listUnclaimedLoanPayments(
-    userId,
-    plan.accountId
-  )
+  const [payments, active] = await Promise.all([
+    deps.installments.listUnclaimedLoanPayments(userId, plan.accountId),
+    deps.installments.listActiveByAccount(plan.accountId, "loan"),
+  ])
+  const others = active.filter((p) => p.id !== plan.id)
   const used = new Set<string>()
   const outside: string[] = []
   for (const item of items) {
-    const match = payments.find(
-      (p) =>
-        !used.has(p.transactionId) &&
-        p.date.getFullYear() === item.dueDate.getFullYear() &&
-        p.date.getMonth() === item.dueDate.getMonth()
-    )
+    const { min, max } = toleranceRange(item.amount, plan.tolerancePct)
+    const match = payments.find((p) => {
+      if (
+        used.has(p.transactionId) ||
+        p.date.getFullYear() !== item.dueDate.getFullYear() ||
+        p.date.getMonth() !== item.dueDate.getMonth() ||
+        p.amount.currency !== plan.currency ||
+        p.amount.compare(min) < 0 ||
+        p.amount.compare(max) > 0
+      )
+        return false
+      const own = amountDistance(p.amount, item.amount)
+      return !others.some((o) => {
+        const pending = nextDueItem(o, p.date)
+        return (
+          pending !== null &&
+          o.currency === p.amount.currency &&
+          amountDistance(p.amount, pending.amount) < own
+        )
+      })
+    })
     if (match) {
       used.add(match.transactionId)
       await deps.installments.adoptTransaction(plan, item.id, match.transactionId)
@@ -321,7 +342,8 @@ export async function adoptLoanInstallment(
  * está registrado y fabricar otro lo contaría dos veces.
  *
  * No se exige que el movimiento sea de la misma cuenta del plan: una cuota puede pagarse desde otra
- * cuenta, y aquí el usuario está afirmando la relación explícitamente.
+ * cuenta, y aquí el usuario está afirmando la relación explícitamente. Sí se exige que sea un gasto
+ * real en la moneda del plan (ver `assertCanPayItem`).
  */
 export async function linkTransactionToItem(
   deps: { installments: InstallmentPlanRepository; transactions: TransactionRepository },
@@ -342,11 +364,82 @@ export async function linkTransactionToItem(
     throw new InvalidInstallmentPlanError(
       "Ese movimiento ya está asignado a otra cuota"
     )
-  if (tx.direction !== "debit")
-    throw new InvalidInstallmentPlanError("Una cuota es un gasto, no un ingreso")
+  assertCanPayItem(tx, plan)
 
   await deps.installments.adoptTransaction(plan, item.id, tx.id)
   await closeIfComplete(deps, plan, item, tx.date)
+  return (await deps.installments.findById(plan.id)) ?? plan
+}
+
+// Un movimiento paga una cuota solo si es un gasto real en la moneda del plan: un ingreso, una
+// transferencia entre cuentas propias o un cargo en otra moneda descuadrarían el saldo del plan.
+function assertCanPayItem(tx: Transaction, plan: InstallmentPlan): void {
+  if (tx.direction !== "debit")
+    throw new InvalidInstallmentPlanError("Una cuota es un gasto, no un ingreso")
+  if (tx.isInternal)
+    throw new InvalidInstallmentPlanError(
+      "Un movimiento interno (transferencia entre tus cuentas) no paga una cuota"
+    )
+  if (tx.amount.currency !== plan.currency)
+    throw new InvalidInstallmentPlanError(
+      `El movimiento está en otra moneda (${tx.amount.currency}) que el plan (${plan.currency})`
+    )
+}
+
+/**
+ * Mueve el pago de una cuota a otra —de este u otro plan— o, sin destino, lo suelta como gasto
+ * normal. Es la corrección de un cargo que quedó en la cuota equivocada: el mismo movimiento cambia
+ * de cuota y toma la categoría del plan destino; nunca se crea ni se borra un movimiento.
+ *
+ * Todo se valida antes de escribir, y soltar + vincular ocurre en una sola transacción del repo:
+ * a medio camino el cargo no queda en ninguna cuota.
+ */
+export async function moveInstallmentPayment(
+  deps: { installments: InstallmentPlanRepository; transactions: TransactionRepository },
+  userId: string,
+  input: { planId: string; itemId: string; toPlanId?: string; toItemId?: string }
+): Promise<InstallmentPlan> {
+  const plan = await deps.installments.findById(input.planId)
+  if (!plan) throw new InstallmentPlanNotFoundError(input.planId)
+  if (plan.userId !== userId) throw new NotOwnerError()
+  const item = plan.items.find((i) => i.id === input.itemId)
+  if (!item) throw new InstallmentPlanNotFoundError(input.itemId)
+  if (!item.transactionId)
+    throw new InvalidInstallmentPlanError("Esa cuota no tiene un movimiento que mover")
+  if (Boolean(input.toPlanId) !== Boolean(input.toItemId))
+    throw new InvalidInstallmentPlanError(
+      "El destino necesita el plan y la cuota, o ninguno de los dos"
+    )
+
+  let to: { plan: InstallmentPlan; item: InstallmentItem; paidAt: Date } | null = null
+  if (input.toPlanId && input.toItemId) {
+    const toPlan = await deps.installments.findById(input.toPlanId)
+    if (!toPlan) throw new InstallmentPlanNotFoundError(input.toPlanId)
+    if (toPlan.userId !== userId) throw new NotOwnerError()
+    const toItem = toPlan.items.find((i) => i.id === input.toItemId)
+    if (!toItem) throw new InstallmentPlanNotFoundError(input.toItemId)
+    if (isSettled(toItem)) throw new InstallmentItemAlreadySettledError()
+    const tx = await deps.transactions.findById(item.transactionId)
+    if (!tx) throw new InstallmentPlanNotFoundError(item.transactionId)
+    if (tx.userId !== userId) throw new NotOwnerError()
+    assertCanPayItem(tx, toPlan)
+    to = { plan: toPlan, item: toItem, paidAt: tx.date }
+  }
+
+  await deps.installments.moveItemTransaction(
+    item.transactionId,
+    to && { plan: to.plan, itemId: to.item.id }
+  )
+  // Reabrir una cuota reabre el plan: si estaba cerrado, vuelve a esperar pagos.
+  if (plan.completedAt) await deps.installments.reopen(plan.id)
+  if (to) {
+    // Si el destino es el mismo plan, la cuota origen ya quedó pendiente: el cierre debe verlo.
+    const dest = {
+      ...to.plan,
+      items: to.plan.items.map((i) => (i.id === item.id ? { ...i, transactionId: null } : i)),
+    }
+    await closeIfComplete(deps, dest, to.item, to.paidAt)
+  }
   return (await deps.installments.findById(plan.id)) ?? plan
 }
 

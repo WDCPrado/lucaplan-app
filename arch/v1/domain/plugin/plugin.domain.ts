@@ -60,6 +60,10 @@ export interface PluginOperationStore {
       result: PluginJsonValue
     }
   ): Promise<boolean>
+  // Borra la reserva `pending` de una escritura que el caso de uso rechazó ANTES de escribir (regla,
+  // propiedad o validación): no hubo efecto, así que la misma clave puede reusarse con datos
+  // corregidos. Nunca toca un recibo terminado.
+  release(key: PluginOperationKey): Promise<void>
 }
 
 // Un fallo tras iniciar una escritura puede haber persistido efectos parciales. Se marca

@@ -62,41 +62,87 @@ financieras existentes.
 
 ## Operaciones disponibles
 
-El contrato fuente está en [`lib/schemas/plugin.ts`](../lib/schemas/plugin.ts). Sus 39 herramientas
-se agrupan así:
+El contrato fuente está en [`lib/schemas/plugin.ts`](../lib/schemas/plugin.ts): cada herramienta
+tiene `title`, una descripción que empieza por cuándo usarla (y cuál usar en su lugar) y cada
+argumento con `.describe()`. Hoy son 51, agrupadas así:
 
-- **Operación e idempotencia:** consultar el resultado de una escritura por `operationId`.
-- **Cuentas y saldos:** listar y crear cuentas manuales, actualizar el estado actual y reconciliar
-  un banco conectado por correo desde un snapshot explícito.
-- **Movimientos y categorías:** buscar, crear, corregir, eliminar y categorizar movimientos; crear,
-  editar y eliminar categorías.
-- **Presupuesto e ingresos:** consultar o fijar presupuestos mensuales, administrar fuentes de
-  ingreso y registrar o deshacer su movimiento del mes.
-- **Recurrentes:** listar y administrar plantillas, marcar el período y vincular el cobro bancario
-  existente.
-- **Cuotas:** listar y administrar planes (cada cuota trae el movimiento que la pagó), editar
-  cuotas y vincular, desvincular, registrar o mover sus pagos: `lucaplan_mover_pago_cuota` corrige
-  un pago enganchado en la cuota equivocada sin crear ni borrar movimientos.
+| Grupo | Leer | Escribir |
+| --- | --- | --- |
+| Operaciones | `ver_operacion` | — |
+| Cuentas y saldos | `listar_cuentas`, `previsualizar_eliminar_cuenta` | `crear_cuenta`, `editar_cuenta`, `eliminar_cuenta`, `actualizar_saldos`, `reconciliar_saldos_correo` |
+| Categorías | `listar_categorias` | `crear_categoria`, `editar_categoria`, `eliminar_categoria`, `asignar_categoria`, `aprender_categoria` |
+| Movimientos | `buscar_movimientos`, `ver_movimiento` | `crear_movimiento`, `corregir_movimiento`, `eliminar_movimiento` |
+| Presupuesto | `resumen_mes`, `ver_presupuesto` | `fijar_presupuesto_global`, `fijar_presupuesto_categoria` |
+| Ingresos | `listar_ingresos` | `crear_ingreso`, `editar_ingreso`, `eliminar_ingreso` (finaliza desde un mes), `registrar_ingreso_mes`, `deshacer_ingreso_mes` |
+| Recurrentes | `listar_recurrentes`, `candidatos_pago_recurrente` | `crear_recurrente` (desde un movimiento), `planificar_recurrente` (sin cobro previo), `editar_recurrente`, `activar_recurrente`, `eliminar_recurrente`, `marcar_pago_recurrente`, `vincular_pago_recurrente` |
+| Cuotas | `listar_planes_cuotas`, `ver_plan_cuotas`, `candidatos_pago_cuota` | `crear_plan_cuotas`, `editar_cuota`, `categorizar_plan_cuotas`, `eliminar_plan_cuotas`, `pagar_cuota`, `vincular_pago_cuota`, `desvincular_pago_cuota`, `mover_pago_cuota` |
+| Planificación | `planificar_periodo` | — |
+| Configuración | `ver_configuracion` | — |
 
-Esta versión no administra la configuración global de la aplicación. En cuentas permite crear y listar,
-pero todavía no editar ni eliminar. Tampoco convierte una cartola en movimientos ni categoriza con
-IA: un host puede leer un documento y proponer argumentos, pero Luca Plan solo ejecuta las
-operaciones explícitas que pasen la validación del servidor.
+Todas llevan el prefijo `lucaplan_`. Cómo se navega: **buscar o listar → ver detalle → actuar**.
+
+- `buscar_movimientos` filtra por texto, cuenta, moneda, categoría, sin categoría, banco, fechas,
+  montos, dirección, internos y estado, con orden estable (fecha desc, id desc) y paginación
+  explícita (`total`, `offset`, `limit`, `hasMore`, `nextOffset`). Cada movimiento trae su
+  procedencia (`source`: manual, banco por correo, ingreso, recurrente, cuota), sus relaciones y
+  sus capacidades efectivas (`canEdit`, `editableFields`, `canDelete` y el motivo si no), calculadas
+  con las mismas reglas que el caso de uso.
+- `planificar_periodo` es solo lectura: posición de hoy por moneda (caja, sobregiro usado y
+  disponible, deuda y cupo de tarjetas, desde los buckets en cuentas conectadas), ingresos
+  esperados vs registrados, recurrentes esperadas vs pagadas, cuotas que vencen, movimientos
+  confirmados con fecha futura y el presupuesto como tope. Lo ya pagado por un movimiento no se
+  cuenta dos veces y el presupuesto no se suma como gasto.
+- Eliminar una cuenta manual va en dos pasos. `previsualizar_eliminar_cuenta` calcula el impacto
+  (incluidas las relaciones cruzadas en ambos sentidos) y entrega un `confirmationToken` firmado con
+  `BETTER_AUTH_SECRET` sobre el hash del estado, válido 15 minutos. `eliminar_cuenta` lo exige,
+  vuelve a leer el estado dentro de una transacción serializable y no borra nada si cambió. Nunca
+  borra bancos ni cuentas conectadas; el banco manual se borra si queda vacío.
+- `planificar_recurrente` crea un compromiso sin cobro real previo: sin movimientos y sin texto
+  bancario inventado, así que no reclama cargos por texto. El primer cargo del banco vinculado con
+  `vincular_pago_recurrente` le fija su texto para reconocer los siguientes.
+- `ver_configuracion` muestra la misma fuente que usan la app, los cálculos y las notificaciones
+  (modo del período, cierres, ritmo, alertas, días de aviso). Es **solo lectura** desde el chat: hoy
+  esa configuración es común a toda la instalación (`app_setting`, `budget_alert`) y cambiarla desde
+  un usuario la cambiaría para todos. Escribirla por chat requiere antes hacerla por usuario.
+
+## Respuestas y errores
+
+- `content` lleva un resumen corto legible y `structuredContent` los datos, siempre como
+  `{ result }` (es lo que declara el `outputSchema` genérico de cada herramienta).
+- `annotations` explícitas: `readOnlyHint`, `destructiveHint` (solo borrar, sobrescribir o deshacer),
+  `idempotentHint: true` (toda escritura pasa por `operationId`) y `openWorldHint: false`.
+- Los errores vuelven como resultado con `isError: true` y un texto accionable: qué campo falló y
+  por qué (argumentos), "no existe o no es tuyo" (propiedad) o el motivo de la regla de negocio.
+- Sin token, la respuesta HTTP es 401 con `WWW-Authenticate` (`resource_metadata`, `scope`, `error`,
+  `error_description`). Sin el scope, la herramienta responde con
+  `_meta["mcp/www_authenticate"]` y `error="insufficient_scope"`.
 
 ## Reglas de escritura
 
-- Todas las escrituras llevan un `operationId` elegido por el cliente. Si queda `pending` o
-  `uncertain`, se consulta con `lucaplan_ver_operacion` y se revisan los datos afectados; no se
-  reintenta con otro identificador automáticamente.
-- CLP y USD se mantienen separados. Los campos nacionales, caja y sobregiro son CLP; el cupo
-  internacional es USD.
-- `lucaplan_actualizar_saldos` representa el estado actual. No sirve para una cartola histórica y
-  no cambia cupos totales.
-- `lucaplan_reconciliar_saldos_correo` recibe la fecha real del documento, rechaza fechas futuras o
-  anteriores al snapshot vigente y se detiene si no puede reproyectar con seguridad movimientos
-  ya importados. Cambia saldos; no crea movimientos desde la cartola.
-- Las eliminaciones y vínculos respetan las reglas existentes: por ejemplo, no duplican cobros del
-  banco ni convierten desvincular una cuota en borrar el movimiento.
+- Todas las escrituras llevan un `operationId` elegido por el cliente. Las lecturas (incluidas la
+  planificación y la previsualización) no lo consumen.
+- **Rechazo vs incierto.** Si el caso de uso rechaza antes de escribir (propiedad, validación o regla
+  de negocio), la respuesta empieza con "Rechazado sin cambios" y la reserva se libera: la misma
+  `operationId` puede reusarse con datos corregidos. Si el error ocurre después de empezar a
+  escribir, la operación queda `uncertain`: se consulta con `lucaplan_ver_operacion` y se revisan los
+  datos; no se reintenta con otra clave.
+- CLP y USD se mantienen separados; las conversiones a CLP del presupuesto son referenciales.
+- Caja, sobregiro y cupo son distintos. En cuentas conectadas el sobregiro sale de sus buckets: el
+  saldo de la cuenta nunca se pone negativo para representarlo.
+- Planificar (fuentes de ingreso, recurrentes, planes de cuotas futuros, presupuestos) no crea
+  movimientos, no registra pagos ni cambia la caja.
+- Editar o borrar un movimiento pendiente no mueve la caja: solo un confirmado la movió.
+- Se valida la propiedad de todos los ids de entrada, también los relacionados (`toPlanId`,
+  `transactionId`, `sourceTransactionId`, `categoryId`, `accountId`, `incomeId`).
+- `lucaplan_actualizar_saldos` representa el estado actual; `lucaplan_reconciliar_saldos_correo`
+  recibe la fecha real del documento y rechaza fechas futuras o anteriores al snapshot vigente.
+- Nada de conexiones bancarias, buzones, lectura de correos ni IA desde el plugin.
+
+## Cambiar los metadatos de las herramientas
+
+ChatGPT guarda la lista de herramientas al conectar. Después de cambiar nombres, descripciones,
+esquemas o `instructions`: desplegar, y en ChatGPT abrir el plugin → **Refresh** (o reconectar) para
+que tome la nueva lista. Sin eso sigue usando la anterior.
 
 ## Conectar ChatGPT o Codex
 

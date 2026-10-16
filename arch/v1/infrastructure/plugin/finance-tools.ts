@@ -52,6 +52,7 @@ import {
   deleteRecurringTemplate,
   setRecurringPeriodPaid,
   payRecurringPeriodWith,
+  createPlannedRecurringTemplate,
 } from "../../application/finance-use-cases/recurring-use-cases.ts"
 import {
   createInstallmentPlan,
@@ -62,6 +63,7 @@ import {
   linkTransactionToItem,
   unlinkTransactionFromItem,
   moveInstallmentPayment,
+  listLinkCandidates,
 } from "../../application/finance-use-cases/installment-use-cases.ts"
 import {
   listAccounts,
@@ -70,12 +72,38 @@ import {
   listIncomesView,
   listRecurringView,
   listInstallmentsView,
+  listRecurringCandidates,
 } from "../../application/finance-use-cases/finance-read.ts"
 import { applyAccountBalance } from "../../application/finance-use-cases/balance-scan-use-cases.ts"
 import { rangeOf } from "../../application/finance-use-cases/budget-period-use-cases.ts"
 import { reconcileEmailBalances } from "../../application/finance-use-cases/email-connection-use-cases.ts"
 import { withLock } from "../../../shared/mutex.ts"
-import { searchPluginTransactions } from "./finance-search.ts"
+import { createHash, createHmac } from "node:crypto"
+import { manualAccountRepository } from "../database/prisma/manual-account.infrastructure.ts"
+import { budgetAlertRepository } from "../database/prisma/budget-alert.infrastructure.ts"
+import { dueReminderRepository } from "../database/prisma/due-reminder.infrastructure.ts"
+import { paceFrequencyRepository } from "../database/prisma/pace.infrastructure.ts"
+import {
+  deleteManualAccount,
+  previewManualAccountDeletion,
+  updateManualAccount,
+} from "../../application/finance-use-cases/manual-account-use-cases.ts"
+import { annotateCorrection } from "../../application/finance-use-cases/annotate-correction-use-case.ts"
+import { isDuplicateInstallmentPayment } from "../../application/finance-use-cases/duplicate-installment-payment.ts"
+import { getPeriodPlan } from "../../application/finance-use-cases/plan-period-use-case.ts"
+import { getBudgetPeriod } from "../../application/finance-use-cases/budget-period-use-cases.ts"
+import { getPaceFrequency } from "../../application/finance-use-cases/pace-use-cases.ts"
+import { listBudgetAlerts } from "../../application/notification-use-cases/budget-alert-use-cases.ts"
+import { getDueDays } from "../../application/notification-use-cases/due-reminder-use-cases.ts"
+import {
+  PluginReferenceError,
+  PluginRejection,
+} from "../../application/plugin-use-cases/plugin-tools.ts"
+import { InstallmentPlanNotFoundError } from "../../domain/finance/installment.domain.ts"
+import {
+  getPluginTransaction,
+  searchPluginTransactions,
+} from "./finance-search.ts"
 
 // Misma composición que la app; excluye deliberadamente lectores y categorizadores IA.
 const deps = {
@@ -91,6 +119,20 @@ const deps = {
   corrections: correctionRepository,
   budgetPeriod: budgetPeriodRepository,
   exchangeRates: exchangeRateProvider,
+  manualAccounts: manualAccountRepository,
+  budgetAlerts: budgetAlertRepository,
+  dueReminder: dueReminderRepository,
+  paceFrequency: paceFrequencyRepository,
+}
+
+// Confirmación de borrado de cuenta: hash del estado y firma con el secreto del servidor.
+const deletionDeps = {
+  manualAccounts: manualAccountRepository,
+  hash: (input: string) => createHash("sha256").update(input).digest("hex"),
+  sign: (input: string) =>
+    createHmac("sha256", process.env.BETTER_AUTH_SECRET ?? "")
+      .update(input)
+      .digest("base64url"),
 }
 
 export function pluginJson(value: unknown): PluginJsonValue {
@@ -110,26 +152,43 @@ export function pluginJson(value: unknown): PluginJsonValue {
   throw new Error("Resultado no serializable")
 }
 
+// Todo id de entrada debe ser del usuario, también los relacionados (destino de un movimiento,
+// cuenta de una fuente…). Los casos de uso validan su recurso principal; aquí se cubren todos con
+// el nombre del campo, antes de cualquier escritura.
 async function ownedReferences(userId: string, input: Record<string, unknown>) {
+  const owned = async (
+    field: string,
+    load: (id: string) => Promise<{ userId: string } | null>
+  ) => {
+    const value = input[field]
+    if (typeof value !== "string") return
+    const found = await load(value)
+    if (!found || found.userId !== userId) throw new PluginReferenceError(field)
+  }
+  await owned("accountId", (id) => deps.accounts.findById(id))
   // Algunas altas históricas no validaban categoría: el boundary del plugin sí lo exige.
-  if (typeof input.accountId === "string") {
-    const account = await deps.accounts.findById(input.accountId)
-    if (!account || account.userId !== userId) throw new NotOwnerError()
-  }
-  if (typeof input.categoryId === "string") {
-    const category = await deps.categories.findById(input.categoryId)
-    if (!category || category.userId !== userId) throw new NotOwnerError()
-  }
-  if (typeof input.sourceTransactionId === "string") {
-    const source = await deps.transactions.findById(input.sourceTransactionId)
-    if (
-      !source ||
-      source.userId !== userId ||
-      source.accountId !== input.accountId
-    )
-      throw new NotOwnerError()
-  }
+  await owned("categoryId", (id) => deps.categories.findById(id))
+  await owned("transactionId", (id) => deps.transactions.findById(id))
+  await owned("incomeId", (id) => deps.incomes.findById(id))
+  await owned("planId", (id) => deps.installments.findById(id))
+  await owned("toPlanId", (id) => deps.installments.findById(id))
+  await owned("sourceTransactionId", async (id) => {
+    const source = await deps.transactions.findById(id)
+    return source && source.accountId === input.accountId ? source : null
+  })
 }
+
+// Nombre único por usuario (índice de la BD): se rechaza antes de escribir con un motivo claro.
+async function assertCategoryNameFree(userId: string, name: string, id?: string) {
+  const taken = (await deps.categories.listByUser(userId)).some(
+    (c) => c.name === name.trim() && c.id !== id
+  )
+  if (taken)
+    throw new PluginRejection(
+      `Ya existe una categoría llamada «${name.trim()}». Usa lucaplan_listar_categorias y edítala, o elige otro nombre`
+    )
+}
+
 
 async function reconcile(
   userId: string,
@@ -278,10 +337,46 @@ const handlers: Handlers = {
   },
   lucaplan_asignar_categoria: (userId, input) =>
     categorizeTransaction(deps, userId, input.transactionId, input.categoryId),
-  lucaplan_crear_categoria: (userId, input) =>
-    upsertCategory(deps, userId, input),
-  lucaplan_editar_categoria: (userId, input) =>
-    upsertCategory(deps, userId, input),
+  lucaplan_crear_categoria: async (userId, input) => {
+    await assertCategoryNameFree(userId, input.name)
+    return upsertCategory(deps, userId, input)
+  },
+  lucaplan_editar_categoria: async (userId, input) => {
+    await assertCategoryNameFree(userId, input.name, input.id)
+    return upsertCategory(deps, userId, input)
+  },
+  lucaplan_aprender_categoria: (userId, input) =>
+    annotateCorrection(deps, userId, input.transactionId, input),
+  lucaplan_ver_movimiento: (userId, input) =>
+    getPluginTransaction(userId, input.transactionId, async () => {
+      const tx = await deps.transactions.findById(input.transactionId)
+      return tx ? isDuplicateInstallmentPayment(deps, userId, tx) : false
+    }),
+  lucaplan_editar_cuenta: (userId, input) =>
+    updateManualAccount(deps, userId, input),
+  lucaplan_previsualizar_eliminar_cuenta: (userId, input) =>
+    previewManualAccountDeletion(deletionDeps, userId, input.accountId),
+  lucaplan_eliminar_cuenta: (userId, input) =>
+    deleteManualAccount(deletionDeps, userId, input),
+  lucaplan_planificar_periodo: (userId, input) =>
+    getPeriodPlan(deps, userId, input.year, input.month),
+  lucaplan_ver_configuracion: async () => {
+    const [period, paceFrequency, budgetAlerts, dueDays] = await Promise.all([
+      getBudgetPeriod(deps),
+      getPaceFrequency(deps),
+      listBudgetAlerts(deps),
+      getDueDays(deps),
+    ])
+    return {
+      scope:
+        "Configuración común a toda la instalación de Luca Plan (la que usan la app, los cálculos y las notificaciones). Solo lectura desde el chat: se cambia en Configuración",
+      periodMode: period.mode,
+      closingOverrides: period.overrides,
+      paceFrequency,
+      budgetAlerts,
+      dueDays,
+    }
+  },
   lucaplan_eliminar_categoria: async (userId, input) => {
     await deleteCategory(deps, userId, input.categoryId)
     return { ok: true }
@@ -327,7 +422,44 @@ const handlers: Handlers = {
     setRecurringPeriodPaid(deps, userId, input),
   lucaplan_vincular_pago_recurrente: (userId, input) =>
     payRecurringPeriodWith(deps, userId, input),
+  lucaplan_planificar_recurrente: (userId, input) =>
+    createPlannedRecurringTemplate(deps, userId, {
+      ...input,
+      startDate: new Date(input.startDate),
+      endDate: input.endDate ? new Date(input.endDate) : null,
+    }),
+  lucaplan_candidatos_pago_recurrente: (userId, input) =>
+    listRecurringCandidates(deps, userId, input.id, input),
   lucaplan_listar_planes_cuotas: (userId) => listInstallmentsView(deps, userId),
+  lucaplan_ver_plan_cuotas: async (userId, input) => {
+    const plan = (await listInstallmentsView(deps, userId)).find(
+      (p) => p.id === input.planId
+    )
+    if (!plan) throw new PluginReferenceError("planId")
+    return plan
+  },
+  lucaplan_candidatos_pago_cuota: async (userId, input) => {
+    const plan = await deps.installments.findById(input.planId)
+    if (!plan || plan.userId !== userId) throw new PluginReferenceError("planId")
+    const item = plan.items.find((i) => i.id === input.itemId)
+    if (!item) throw new InstallmentPlanNotFoundError(input.itemId)
+    const candidates = await listLinkCandidates(
+      deps,
+      userId,
+      item.dueDate,
+      input.accountId
+    )
+    return {
+      planCurrency: plan.currency,
+      dueDate: item.dueDate.toISOString().slice(0, 10),
+      expectedAmount: item.amount.toMajor(),
+      items: candidates.map((c) => ({
+        ...c,
+        date: c.date.toISOString().slice(0, 10),
+        usable: c.amount.currency === plan.currency,
+      })),
+    }
+  },
   lucaplan_crear_plan_cuotas: async (userId, input) => {
     if (input.kind === "card") {
       const source = await prisma.transaction.findFirst({

@@ -25,7 +25,7 @@ export type RecurringTemplate = {
   accountId: string // cuenta donde se materializa el comprometido
   categoryId: string // obligatoria: toda ejecución usa ESTA categoría
   label: string // nombre visible/editable; no afecta el match
-  description: string // clave de match (se compara normalizada); del movimiento real, inmutable
+  description: string // clave de match (se compara normalizada); del movimiento real, inmutable. Vacía = planificada sin cobro real aún
   direction: Direction
   baseAmount: Money
   currency: CurrencyCode
@@ -200,6 +200,9 @@ export function matchesTemplate(
   template: RecurringTemplate
 ): boolean {
   if (!template.isActive) return false
+  // Planificada sin cobro real todavía: no tiene clave de match y no reclama nada por texto (un
+  // texto vacío calzaría con cualquier descripción que normalice a vacío). Se vincula a mano.
+  if (!normalizeMovementText(template.description)) return false
   if (movement.direction !== template.direction) return false
   if (movement.amount.currency !== template.baseAmount.currency) return false
   if (

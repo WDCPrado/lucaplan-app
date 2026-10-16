@@ -238,6 +238,18 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
       })
       // Movimiento inexistente o de otra plantilla: se revierte el borrado del comprometido.
       if (count === 0) throw new NotAttached()
+      // Recurrente planificada (sin clave de match): el primer cobro real vinculado le da su
+      // clave, para que los próximos se reconozcan solos. Nunca pisa una clave ya fijada.
+      if (!template.description.trim()) {
+        const tx = await db.transaction.findUniqueOrThrow({
+          where: { id: transactionId },
+          select: { description: true },
+        })
+        await db.recurringTemplate.updateMany({
+          where: { id: template.id, description: "" },
+          data: { description: tx.description },
+        })
+      }
       return true
     }).catch((e) => {
       if (e instanceof NotAttached) return false

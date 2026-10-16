@@ -30,6 +30,7 @@ import type {
   TransactionRepository,
   UpdateTransaction,
 } from "../../../domain/finance/finance.domain.ts"
+import { cashDelta } from "../../../domain/finance/finance.domain.ts"
 
 const BUDGET_CURRENCY: CurrencyCode = "CLP"
 
@@ -92,6 +93,7 @@ function toTransaction(row: any): Transaction {
     status: (row.status ?? "confirmed") as MovementStatus,
     recurringTemplateId: row.recurringTemplateId ?? null,
     installmentItemId: row.installmentItemId ?? null,
+    incomeId: row.incomeId ?? null,
     isInternal: row.isInternal ?? false,
     externalId: row.externalId ?? null,
   }
@@ -446,6 +448,7 @@ export const transactionRepository: TransactionRepository = {
     return toTransaction(row)
   },
   // Edita un movimiento manual reajustando el saldo por la diferencia (nuevo − viejo), atómico.
+  // Solo un confirmado mueve la caja (ver cashDelta).
   async update(input: UpdateTransaction) {
     const row = await prisma.$transaction(async (db) => {
       const old = await db.transaction.findUniqueOrThrow({
@@ -459,16 +462,18 @@ export const transactionRepository: TransactionRepository = {
         old.amount.toString(),
         old.currency as CurrencyCode
       )
-      const oldDelta = old.direction === "credit" ? oldMoney : oldMoney.negate()
-      const newDelta =
-        input.direction === "credit" ? input.amount : input.amount.negate()
-      const balance = Money.of(account.balance.toString(), currency)
-        .add(newDelta)
-        .subtract(oldDelta)
-      await db.financialAccount.update({
-        where: { id: account.id },
-        data: { balance: balance.toDecimalString() },
-      })
+      // Editar no cambia el estado: un pendiente sigue sin tocar la caja (cashDelta = 0).
+      const oldDelta = cashDelta(old.status, old.direction as Direction, oldMoney)
+      const newDelta = cashDelta(old.status, input.direction, input.amount)
+      if (!oldDelta.isZero || !newDelta.isZero) {
+        const balance = Money.of(account.balance.toString(), currency)
+          .add(newDelta)
+          .subtract(oldDelta)
+        await db.financialAccount.update({
+          where: { id: account.id },
+          data: { balance: balance.toDecimalString() },
+        })
+      }
       return db.transaction.update({
         where: { id: input.id },
         data: {
@@ -517,14 +522,17 @@ export const transactionRepository: TransactionRepository = {
         old.amount.toString(),
         old.currency as CurrencyCode
       )
-      const oldDelta = old.direction === "credit" ? oldMoney : oldMoney.negate()
-      const balance = Money.of(account.balance.toString(), currency).subtract(
-        oldDelta
-      )
-      await db.financialAccount.update({
-        where: { id: account.id },
-        data: { balance: balance.toDecimalString() },
-      })
+      // Un pendiente nunca movió la caja: borrarlo tampoco la mueve.
+      const oldDelta = cashDelta(old.status, old.direction as Direction, oldMoney)
+      if (!oldDelta.isZero) {
+        const balance = Money.of(account.balance.toString(), currency).subtract(
+          oldDelta
+        )
+        await db.financialAccount.update({
+          where: { id: account.id },
+          data: { balance: balance.toDecimalString() },
+        })
+      }
       await db.transaction.delete({ where: { id: transactionId } })
     })
   },

@@ -5,6 +5,7 @@ import type { BudgetPeriodDeps } from "./budget-period-use-cases.ts"
 // duplicados de una cuota ya saldada por otro movimiento. El repo reajusta el saldo de la cuenta
 // atómicamente.
 import {
+  type Account,
   type AccountRepository,
   type TransactionRepository,
   type Transaction,
@@ -51,9 +52,33 @@ async function loadOwned(deps: Deps, userId: string, transactionId: string) {
 // "Actualizar saldos".
 async function loadEditable(deps: Deps, userId: string, transactionId: string) {
   const loaded = await loadOwned(deps, userId, transactionId)
-  if (loaded.account.provider !== "manual")
-    throw new ConnectedAccountReadOnlyError()
+  if (editRejection(loaded.account)) throw new ConnectedAccountReadOnlyError()
   return loaded
+}
+
+// Motivo por el que un movimiento NO se puede editar, o null. Lo usan el caso de uso y quien
+// muestra las capacidades del movimiento (plugin), para que ambos digan lo mismo.
+export function editRejection(account: Pick<Account, "provider">): string | null {
+  return account.provider !== "manual"
+    ? "Es de una cuenta conectada por correo: solo se puede cambiar su categoría"
+    : null
+}
+
+// Motivo por el que un movimiento NO se puede borrar, o null. Manual: siempre. Conectada: abonos,
+// cargos sin categoría y cobros sobrantes de una cuota ya saldada (`duplicateInstallment`).
+export function deleteRejection(
+  account: Pick<Account, "provider">,
+  tx: Pick<Transaction, "direction" | "categoryId">,
+  duplicateInstallment: boolean
+): string | null {
+  if (
+    account.provider !== "manual" &&
+    tx.direction !== "credit" &&
+    tx.categoryId &&
+    !duplicateInstallment
+  )
+    return "Es un cargo categorizado de una cuenta conectada: el banco es la fuente y no se borra"
+  return null
 }
 
 export async function updateTransaction(
@@ -104,12 +129,12 @@ export async function deleteTransaction(
   // ponytail: no revierte los buckets (mismo techo que ungenerateMonthly); se corrigen con
   // "Actualizar saldos".
   const { tx, account } = await loadOwned(deps, userId, transactionId)
-  if (
+  const duplicate =
     account.provider !== "manual" &&
     tx.direction !== "credit" &&
-    tx.categoryId &&
-    !(await isDuplicateInstallmentPayment(deps, userId, tx))
-  )
+    !!tx.categoryId &&
+    (await isDuplicateInstallmentPayment(deps, userId, tx))
+  if (deleteRejection(account, tx, duplicate))
     throw new ConnectedAccountReadOnlyError()
   await deps.transactions.delete(transactionId)
 }

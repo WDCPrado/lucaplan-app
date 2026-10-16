@@ -54,4 +54,9 @@ export const pluginOperationStore: PluginOperationStore = {
     })
     return changed.count === 1
   },
+  async release(key) {
+    await prisma.pluginOperation.deleteMany({
+      where: { ...key, status: "pending" },
+    })
+  },
 }

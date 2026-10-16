@@ -1,60 +1,11 @@
 // Helpers HTTP para los Route Handlers financieros: resuelve el actor desde la sesión, inyecta los
 // adapters, y mapea errores de dominio a status (401 sin sesión, 404 ownership/no-encontrado, 422
-// regla de negocio). Sin lógica de negocio.
+// regla de negocio; la lista vive en application/domain-error-status). Sin lógica de negocio.
 import { cache } from "react"
 import { ZodError } from "zod"
 
 import { sessionGateway } from "../../infrastructure/auth/session.gateway.ts"
-import {
-  NotOwnerError,
-  AccountNotFoundError,
-  CategoryInUseError,
-  CategoryNotFoundError,
-  InvalidMonthlyBudgetError,
-  TransactionCurrencyMismatchError,
-  CardLast4RequiredError,
-  ConnectedAccountReadOnlyError,
-  BankConnectionError,
-  WebhookSignatureError,
-} from "../../domain/finance/finance.domain.ts"
-import {
-  ConnectionMethodConflictError,
-  EmailConnectionNotFoundError,
-  EmailReauthRequiredError,
-  EmailSetupStateError,
-  OAuthStateError,
-} from "../../domain/finance/email-connection.domain.ts"
-import {
-  InvalidIncomeError,
-  IncomeNotFoundError,
-} from "../../domain/finance/income.domain.ts"
-import { InvalidPaceFrequencyError } from "../../domain/finance/pace.domain.ts"
-import { InvalidBudgetPeriodError } from "../../domain/finance/budget-period.domain.ts"
-import { BalanceScanError } from "../../domain/finance/balance-scan.domain.ts"
-import { MovementScanError } from "../../domain/finance/movement-scan.domain.ts"
-import {
-  InvalidRecurringTemplateError,
-  RecurringCategoryRequiredError,
-  RecurringPeriodBankPaidError,
-  RecurringPeriodNotManualError,
-  RecurringTemplateEndedError,
-  RecurringTemplateNotFoundError,
-} from "../../domain/finance/recurring.domain.ts"
-import {
-  InstallmentAccountMismatchError,
-  InstallmentAmountReadOnlyError,
-  InstallmentCategoryRequiredError,
-  InstallmentItemAlreadySettledError,
-  InstallmentPlanNotFoundError,
-  InstallmentSplitMismatchError,
-  InvalidInstallmentPlanError,
-} from "../../domain/finance/installment.domain.ts"
-import {
-  DuplicateBudgetAlertError,
-  InvalidBudgetAlertError,
-} from "../../domain/notifications/budget-alert.domain.ts"
-import { InvalidDueDaysError } from "../../domain/notifications/due-reminder.domain.ts"
-import { LockBusyError } from "../../../shared/mutex.ts"
+import { domainErrorStatus } from "../../application/domain-error-status.ts"
 import {
   accountRepository,
   balanceBucketRepository,
@@ -114,55 +65,7 @@ const requestStore = cache((): MemoStore => new Map())
 export const financePageDeps = memoizeReads(financeDeps, requestStore)
 
 function errorStatus(e: unknown): number {
-  if (e instanceof ZodError) return 422
-  if (e instanceof WebhookSignatureError || e instanceof OAuthStateError)
-    return 401
-  if (e instanceof LockBusyError) return 409 // sync ya en curso
-  if (e instanceof ConnectionMethodConflictError) return 409 // otro método de conexión activo
-  if (e instanceof DuplicateBudgetAlertError) return 409 // ya existe una alerta a ese %
-  if (e instanceof RecurringPeriodBankPaidError) return 409 // el período ya lo cobró el banco
-  if (
-    e instanceof InvalidBudgetAlertError ||
-    e instanceof InvalidDueDaysError ||
-    e instanceof InvalidPaceFrequencyError ||
-    e instanceof InvalidBudgetPeriodError
-  )
-    return 422
-  if (
-    e instanceof TransactionCurrencyMismatchError ||
-    e instanceof CategoryInUseError ||
-    e instanceof CardLast4RequiredError ||
-    e instanceof ConnectedAccountReadOnlyError ||
-    e instanceof BankConnectionError ||
-    e instanceof InvalidMonthlyBudgetError ||
-    e instanceof InvalidIncomeError ||
-    e instanceof InvalidRecurringTemplateError ||
-    e instanceof RecurringCategoryRequiredError ||
-    e instanceof RecurringPeriodNotManualError ||
-    e instanceof RecurringTemplateEndedError ||
-    e instanceof InvalidInstallmentPlanError ||
-    e instanceof InstallmentAccountMismatchError ||
-    e instanceof InstallmentSplitMismatchError ||
-    e instanceof InstallmentItemAlreadySettledError ||
-    e instanceof InstallmentCategoryRequiredError ||
-    e instanceof InstallmentAmountReadOnlyError ||
-    e instanceof EmailReauthRequiredError ||
-    e instanceof EmailSetupStateError ||
-    e instanceof BalanceScanError ||
-    e instanceof MovementScanError
-  )
-    return 422
-  if (
-    e instanceof NotOwnerError ||
-    e instanceof AccountNotFoundError ||
-    e instanceof CategoryNotFoundError ||
-    e instanceof IncomeNotFoundError ||
-    e instanceof RecurringTemplateNotFoundError ||
-    e instanceof InstallmentPlanNotFoundError ||
-    e instanceof EmailConnectionNotFoundError
-  )
-    return 404
-  return 500
+  return domainErrorStatus(e) ?? 500
 }
 
 // Serializa a JSON tolerando BigInt (Money interno) → number. Red de seguridad: aunque un handler

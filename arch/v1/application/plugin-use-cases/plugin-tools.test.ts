@@ -82,6 +82,10 @@ class MemoryOperations implements PluginOperationStore {
   async get(input: PluginOperationKey) {
     return this.records.get(keyText(input)) ?? null
   }
+  async release(input: PluginOperationKey) {
+    if (this.records.get(keyText(input))?.status === "pending")
+      this.records.delete(keyText(input))
+  }
   async finish(
     input: PluginOperationKey,
     outcome: Parameters<PluginOperationStore["finish"]>[1]
@@ -545,4 +549,36 @@ test("Dado un pago enganchado en la cuota equivocada, cuando el chat pide moverl
     toPlanId: pedido.toPlanId,
     toItemId: pedido.toItemId,
   })
+})
+
+// Agente financiero — Sin pantalla.
+test("Dado un cambio rechazado por una regla antes de escribir, cuando el chat lo corrige con la misma clave, entonces se ejecuta; un error tras empezar queda incierto", async () => {
+  const { deps, operations } = setup({ id: "ok" })
+  const { NotOwnerError } = await import("../../domain/finance/finance.domain.ts")
+  let fail: Error | null = new NotOwnerError()
+  deps.executor.execute = async () => {
+    if (fail) throw fail
+    return { id: "ok" }
+  }
+  await assert.rejects(
+    run(deps, actor, "lucaplan_crear_categoria", category("rechazo")),
+    /Rechazado sin cambios: .*no existe o no pertenece/
+  )
+  assert.equal(await operations.get(key("rechazo")), null, "el rechazo libera la clave")
+  fail = null
+  assert.deepEqual(
+    await run(deps, actor, "lucaplan_crear_categoria", { ...category("rechazo"), name: "Corregida" }),
+    { id: "ok" }
+  )
+  fail = new Error("conexión cortada")
+  await assert.rejects(
+    run(deps, actor, "lucaplan_crear_categoria", category("incierto")),
+    /Resultado incierto/
+  )
+  assert.equal((await operations.get(key("incierto")))?.status, "uncertain")
+  await assert.rejects(
+    run(deps, actor, "lucaplan_buscar_movimientos", { limit: 0 }),
+    /limit: /,
+    "el error de argumentos dice qué campo falló"
+  )
 })

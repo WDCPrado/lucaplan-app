@@ -152,6 +152,35 @@ export async function createRecurringTemplate(
   return template
 }
 
+/**
+ * Recurrente PLANIFICADA: un compromiso futuro que todavía no tiene un cobro real del cual nacer
+ * (un arriendo que empieza el próximo mes). No crea movimientos ni inventa un texto bancario: la
+ * clave de match queda vacía, así que nunca reclama un cargo por texto. Sus períodos se
+ * materializan como `pending` igual que cualquier recurrente (no mueven caja) y el cobro real se
+ * vincula con `payRecurringPeriodWith`, que además le fija la clave de match desde ese movimiento.
+ */
+export async function createPlannedRecurringTemplate(
+  deps: RecurringDeps,
+  userId: string,
+  input: RecurringInput
+): Promise<RecurringTemplate> {
+  const { money } = await validateInput(deps, userId, input)
+  return deps.recurring.create({
+    userId,
+    accountId: input.accountId,
+    categoryId: input.categoryId,
+    label: input.label.trim(),
+    description: "",
+    direction: input.direction,
+    baseAmount: money,
+    tolerancePct: input.tolerancePct,
+    periodicity: input.periodicity,
+    dayOfMonth: input.dayOfMonth,
+    startDate: input.startDate,
+    endDate: input.endDate,
+  })
+}
+
 export async function updateRecurringTemplate(
   deps: RecurringDeps,
   userId: string,

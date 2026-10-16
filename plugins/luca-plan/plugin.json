@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "luca-plan",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Consulta y administra las finanzas del usuario autenticado en Luca Plan mediante MCP.",
   "author": {
     "name": "WDCPrado"
@@ -14,13 +14,14 @@
       "interface": {
         "displayName": "Luca Plan",
         "shortDescription": "Consulta y administra tus finanzas en Luca Plan.",
-        "longDescription": "Conecta un asistente compatible con MCP a tu cuenta de Luca Plan para consultar cuentas, crear cuentas manuales y administrar movimientos, categorías, presupuestos, ingresos, recurrentes y cuotas con autorización por usuario.",
+        "longDescription": "Conecta un asistente compatible con MCP a tu cuenta de Luca Plan para consultar y administrar cuentas manuales, movimientos, categorías, presupuestos, ingresos, recurrentes y cuotas, ver la configuración, y planificar meses actuales y futuros por moneda, con autorización por usuario.",
         "developerName": "WDCPrado",
         "category": "Productivity",
         "capabilities": ["Read", "Write"],
         "defaultPrompt": [
           "Muéstrame el resumen financiero de este mes en Luca Plan.",
-          "Busca mis movimientos sin categoría en Luca Plan."
+          "Busca mis movimientos sin categoría en Luca Plan.",
+          "Planifica el próximo mes en Luca Plan: qué entra, qué vence y cuánto me queda."
         ]
       }
     }

@@ -77,6 +77,18 @@ export const MOVEMENT_STATUSES = [
 ] as const
 export type MovementStatus = (typeof MOVEMENT_STATUSES)[number]
 
+// Efecto de un movimiento sobre el saldo de su cuenta: el crédito suma y el débito resta, pero SOLO
+// si está confirmado. Un pendiente (el comprometido de una recurrente, un cargo que el banco aún no
+// confirma) nunca movió la caja, así que editarlo o borrarlo tampoco puede moverla.
+export function cashDelta(
+  status: string,
+  direction: Direction,
+  amount: Money
+): Money {
+  if (status !== "confirmed") return amount.subtract(amount)
+  return direction === "credit" ? amount : amount.negate()
+}
+
 // Estado de una categoría según cuánto de su límite se usó.
 export const CATEGORY_STATUSES = [
   "bueno",
@@ -208,6 +220,8 @@ export type Transaction = {
   recurringTemplateId?: string | null
   // Cuota de un plan que este movimiento salda; ausente = no pertenece a ningún plan.
   installmentItemId?: string | null
+  // Fuente de ingreso que generó este movimiento; ausente = no lo generó una fuente.
+  incomeId?: string | null
 }
 
 // --- Inputs de escritura ---

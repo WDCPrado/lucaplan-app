@@ -1109,6 +1109,8 @@ export type InstallmentItemDTO = {
   amount: number // card: definitivo; loan: estimación (el correo manda)
   paidAmount: number | null // lo efectivamente registrado; null si aún no se registró
   status: ItemStatus
+  // Movimiento que pagó la cuota; null si está pendiente o se pagó fuera de la app.
+  transaction: { id: string; description: string; amount: number; date: string } | null
 }
 
 export type InstallmentPlanDTO = {
@@ -1160,22 +1162,23 @@ export async function listInstallmentsView(
 
   const accById = new Map(accounts.map((a) => [a.id, a]))
   const catById = new Map(categories.map((c) => [c.id, c]))
-  // Montos reales de las cuotas ya registradas: una sola consulta para todos los planes.
+  // Movimientos de las cuotas ya registradas: su monto real da el saldo y la cuota los muestra.
+  // ponytail: una lectura por cuota pagada; si los planes crecen, un `findByIds` en el port.
   const txIds = plans.flatMap((p) =>
     p.items
       .map((i) => i.transactionId)
       .filter((id): id is string => id !== null)
   )
-  const paidById = new Map<string, Money>()
+  const txById = new Map<string, Transaction>()
   for (const id of txIds) {
     const tx = await deps.transactions.findById(id)
-    if (tx) paidById.set(id, tx.amount)
+    if (tx) txById.set(id, tx)
   }
 
   return plans.map((plan): InstallmentPlanDTO => {
     const cat = catById.get(plan.categoryId)
     const paid = plan.items
-      .map((i) => (i.transactionId ? paidById.get(i.transactionId) : null))
+      .map((i) => (i.transactionId ? txById.get(i.transactionId)?.amount : null))
       .filter((m): m is Money => m != null)
     const pending = plan.items.find(
       (i) => !i.transactionId && !i.paidOutsideApp
@@ -1200,16 +1203,25 @@ export async function listInstallmentsView(
       outstanding: outstanding(plan, paid).toMajor(),
       nextDueDate: pending ? pending.dueDate.toISOString() : null,
       sourceTransactionId: plan.sourceTransactionId,
-      items: plan.items.map((i) => ({
-        id: i.id,
-        index: i.index,
-        dueDate: i.dueDate.toISOString(),
-        amount: i.amount.toMajor(),
-        paidAmount: i.transactionId
-          ? (paidById.get(i.transactionId)?.toMajor() ?? null)
-          : null,
-        status: itemStatus(i, today),
-      })),
+      items: plan.items.map((i) => {
+        const tx = i.transactionId ? txById.get(i.transactionId) : undefined
+        return {
+          id: i.id,
+          index: i.index,
+          dueDate: i.dueDate.toISOString(),
+          amount: i.amount.toMajor(),
+          paidAmount: tx ? tx.amount.toMajor() : null,
+          status: itemStatus(i, today),
+          transaction: tx
+            ? {
+                id: tx.id,
+                description: tx.description,
+                amount: tx.amount.toMajor(),
+                date: tx.date.toISOString(),
+              }
+            : null,
+        }
+      }),
     }
   })
 }

@@ -173,7 +173,7 @@ export function itemForPayment(
   return nextDueItem(plan, payment.date)
 }
 
-/** Rango [monto·(1−tol), monto·(1+tol)] usado SOLO para desempatar entre planes candidatos. */
+/** Rango [monto·(1−tol), monto·(1+tol)]: si un pago ya importado calza con una cuota al crear el plan. */
 export function toleranceRange(expected: Money, tolerancePct: number): {
   min: Money
   max: Money
@@ -193,51 +193,61 @@ export type LoanPayment = {
   installmentNumber: number | null // "N° Cuota" del correo, cuando viene
 }
 
+/** Distancia en monto entre un pago y una cuota (misma moneda). */
+export function amountDistance(payment: Money, expected: Money): bigint {
+  const d = payment.minor - expected.minor
+  return d < BigInt(0) ? -d : d
+}
+
 /**
- * Plan `loan` al que pertenece un pago de cuota. Se resuelve por especificidad decreciente:
+ * Plan `loan` y cuota que salda un pago:
  *
- *   1. planes activos de esa cuenta de origen — con uno solo, se acabó;
- *   2. el N° de cuota del correo, que fija el ítem sin ambigüedad;
- *   3. la tolerancia sobre el monto esperado de esa cuota.
+ *   1. planes activos de esa cuenta de origen — con uno solo, se acabó, y la cuota la elige
+ *      `itemForPayment` (manda el N° del correo);
+ *   2. con varios, el monto: gana el plan cuya cuota pendiente está más cerca del cargo, calce o no
+ *      la tolerancia (la última cuota de un crédito suele desviarse del cronograma);
+ *   3. solo a igual distancia desempata el N° de cuota del correo.
  *
- * Ambiguo ⇒ null: el movimiento queda como gasto suelto, nunca se adivina.
+ * Con varios candidatos la cuota es la pendiente con la que se comparó el monto, no la que nombra
+ * el correo: dos créditos de la misma cuenta pueden ir en cuotas vecinas, y un cargo de $265.708
+ * con «cuota 6» es la cuota 5 del crédito de $254.156, no la 6 del de $53.450.
  *
- * La tolerancia SOLO desempata. Si decidiera *si el correo es la cuota*, la última cuota —la que
- * más se desvía del cronograma— caería fuera del rango y el plan no se cerraría nunca. Con un
- * único candidato ni siquiera se evalúa.
+ * Ambiguo ⇒ null: el movimiento queda como gasto suelto, nunca se adivina. `item` null ⇒ el plan es
+ * suyo pero no hay cuota que saldar (p. ej. el correo nombra una ya pagada).
  */
+export function pickLoanItemFor(
+  payment: LoanPayment,
+  plans: InstallmentPlan[]
+): { plan: InstallmentPlan; item: InstallmentItem | null } | null {
+  const candidates = plans.flatMap((p) => {
+    const item =
+      p.kind === "loan" &&
+      p.completedAt === null &&
+      p.accountId === payment.accountId &&
+      p.currency === payment.amount.currency
+        ? nextDueItem(p, payment.date)
+        : null
+    return item ? [{ plan: p, item, distance: amountDistance(payment.amount, item.amount) }] : []
+  })
+  if (candidates.length === 0) return null
+  if (candidates.length === 1) {
+    const { plan } = candidates[0]
+    return { plan, item: itemForPayment(plan, payment) }
+  }
+
+  const best = candidates.reduce((min, c) => (c.distance < min ? c.distance : min), candidates[0].distance)
+  const closest = candidates.filter((c) => c.distance === best)
+  if (closest.length === 1) return closest[0]
+  const byNumber = closest.filter((c) => c.item.index === payment.installmentNumber)
+  return byNumber.length === 1 ? byNumber[0] : null
+}
+
+/** Plan `loan` al que pertenece un pago de cuota (ver `pickLoanItemFor`). */
 export function pickLoanPlanFor(
   payment: LoanPayment,
   plans: InstallmentPlan[]
 ): InstallmentPlan | null {
-  const byAccount = plans.filter(
-    (p) =>
-      p.kind === "loan" &&
-      p.completedAt === null &&
-      p.accountId === payment.accountId &&
-      p.currency === payment.amount.currency &&
-      nextDueItem(p, payment.date) !== null
-  )
-  if (byAccount.length <= 1) return byAccount[0] ?? null
-
-  const byNumber =
-    payment.installmentNumber === null
-      ? byAccount
-      : byAccount.filter(
-          (p) => nextDueItem(p, payment.date)?.index === payment.installmentNumber
-        )
-  if (byNumber.length === 1) return byNumber[0]
-
-  const candidates = byNumber.length > 0 ? byNumber : byAccount
-  const withinTolerance = candidates.filter((p) => {
-    const item = nextDueItem(p, payment.date)
-    if (!item) return false
-    const { min, max } = toleranceRange(item.amount, p.tolerancePct)
-    return (
-      payment.amount.compare(min) >= 0 && payment.amount.compare(max) <= 0
-    )
-  })
-  return withinTolerance.length === 1 ? withinTolerance[0] : null
+  return pickLoanItemFor(payment, plans)?.plan ?? null
 }
 
 /** Movimiento existente que el usuario puede asignar a una cuota. */
@@ -421,6 +431,18 @@ export interface InstallmentPlanRepository {
   ): Promise<LinkCandidate[]>
   /** Suelta el movimiento de su cuota (deshacer una asignación equivocada). */
   unlinkTransaction(transactionId: string): Promise<void>
+  /**
+   * En una sola transacción: suelta el movimiento de la cuota `from` (lanza
+   * `InvalidInstallmentPlanError` si ya no está en ella), reabre el plan origen si estaba cerrado y,
+   * con destino, lo vincula a la cuota `to` con la categoría de su plan (lanza
+   * `InstallmentItemAlreadySettledError` si el destino ya está saldado). Si algo falla no cambia
+   * nada. El cierre del plan destino queda fuera: lo decide el caso de uso después.
+   */
+  moveItemTransaction(
+    transactionId: string,
+    to: { plan: InstallmentPlan; itemId: string } | null,
+    from: { plan: InstallmentPlan; itemId: string }
+  ): Promise<void>
 }
 
 // --- Errores de negocio ---

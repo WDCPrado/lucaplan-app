@@ -4,10 +4,12 @@
 // `false` en vez de crear un segundo movimiento.
 import { prisma } from "./client.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
-import type {
-  InstallmentKind,
-  InstallmentPlan,
-  InstallmentPlanRepository,
+import {
+  type InstallmentKind,
+  type InstallmentPlan,
+  type InstallmentPlanRepository,
+  InstallmentItemAlreadySettledError,
+  InvalidInstallmentPlanError,
 } from "../../../domain/finance/installment.domain.ts"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -296,6 +298,38 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
     await prisma.transaction.update({
       where: { id: transactionId },
       data: { installmentItemId: null },
+    })
+  },
+  async moveItemTransaction(transactionId, to, from) {
+    await prisma.$transaction(async (db) => {
+      // Soltar condicionado a la cuota origen: si otro proceso ya lo movió, no se pisa.
+      const { count } = await db.transaction.updateMany({
+        where: { id: transactionId, installmentItemId: from.itemId },
+        data: { installmentItemId: null },
+      })
+      if (count === 0)
+        throw new InvalidInstallmentPlanError("Ese pago ya no está en esa cuota")
+      if (from.plan.completedAt)
+        await db.installmentPlan.update({
+          where: { id: from.plan.id },
+          data: { completedAt: null },
+        })
+      if (!to) return
+      const item = await db.installmentItem.findUnique({
+        where: { id: to.itemId },
+        include: { transaction: { select: { id: true } } },
+      })
+      // Se revisa dentro de la transacción: si otro proceso saldó el destino, se deshace todo.
+      if (!item || item.transaction || item.paidOutsideApp)
+        throw new InstallmentItemAlreadySettledError()
+      await db.transaction.update({
+        where: { id: transactionId },
+        data: {
+          categoryId: to.plan.categoryId,
+          installmentItemId: to.itemId,
+          reviewed: true,
+        },
+      })
     })
   },
   async listUnclaimedLoanPayments(userId, accountId) {

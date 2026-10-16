@@ -358,6 +358,21 @@ export const pluginTools = {
     "Desvincula el movimiento de la cuota según el dominio. No es una orden de borrar el movimiento.",
     z.strictObject({ planId: id, itemId: id, ...operation })
   ),
+  lucaplan_mover_pago_cuota: write(
+    "Corrige un pago que quedó en la cuota equivocada: mueve el movimiento de la cuota origen (planId, itemId) a la cuota destino (toPlanId, toItemId), de este u otro plan, y toma la categoría del plan destino. Sin destino solo lo suelta y queda como gasto normal. La cuota origen vuelve a pendiente y su plan se reabre si estaba cerrado. No crea ni borra movimientos; usa lucaplan_listar_planes_cuotas para ver qué movimiento tiene cada cuota. Rechaza un destino ya pagado o un movimiento interno o en otra moneda.",
+    z
+      .strictObject({
+        planId: id,
+        itemId: id,
+        toPlanId: id.optional(),
+        toItemId: id.optional(),
+        ...operation,
+      })
+      .refine((value) => !value.toPlanId === !value.toItemId, {
+        message: "El destino necesita plan y cuota, o ninguno de los dos",
+        path: ["toItemId"],
+      })
+  ),
   lucaplan_actualizar_saldos: write(
     "Actualiza SOLO el estado actual del banco, con fecha de ahora; no usar para cartolas históricas. Aplica valores explícitos sin llamar IA. national es CLP, international es USD; no recibe ni cambia cupos totales. Los campos null no aparecen en el documento.",
     z.strictObject({

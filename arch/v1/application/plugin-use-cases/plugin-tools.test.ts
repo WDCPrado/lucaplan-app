@@ -520,3 +520,29 @@ test("Dado un cambio ejecutado cuyo resultado no pudo guardarse, cuando el chat 
     "completed"
   )
 })
+
+// WDC-120 — Sin pantalla.
+test("Dado un pago enganchado en la cuota equivocada, cuando el chat pide moverlo dos veces con la misma clave, entonces se mueve una sola vez y solo con permiso de escritura", async () => {
+  const { deps, calls } = setup({ moved: true })
+  const pedido = {
+    operationId: "mover-cargo-265708",
+    planId: "viaje-jo",
+    itemId: "cuota-6",
+    toPlanId: "credito-consumo",
+    toItemId: "cuota-5",
+  }
+  await assert.rejects(() =>
+    run(deps, { ...actor, scopes: ["finance:read"] }, "lucaplan_mover_pago_cuota", pedido)
+  )
+  const first = await run(deps, actor, "lucaplan_mover_pago_cuota", pedido)
+  const again = await run(deps, actor, "lucaplan_mover_pago_cuota", pedido)
+  assert.deepEqual(again, first)
+  assert.equal(calls.length, 1, "repetir la clave no mueve el pago otra vez")
+  assert.equal(calls[0].tool, "lucaplan_mover_pago_cuota")
+  assert.deepEqual(calls[0].args, {
+    planId: pedido.planId,
+    itemId: pedido.itemId,
+    toPlanId: pedido.toPlanId,
+    toItemId: pedido.toItemId,
+  })
+})

@@ -35,9 +35,8 @@ import {
   isComplete,
   isSettled,
   isValidTolerance,
-  itemForPayment,
   nextDueItem,
-  pickLoanPlanFor,
+  pickLoanItemFor,
   requiresExactSplit,
   schedule,
   splitAmount,
@@ -317,10 +316,9 @@ export async function adoptLoanInstallment(
     payment.accountId,
     "loan"
   )
-  const plan = pickLoanPlanFor(payment, plans)
-  if (!plan) return null
-  const item = itemForPayment(plan, payment)
-  if (!item) return null
+  const picked = pickLoanItemFor(payment, plans)
+  if (!picked?.item) return null
+  const { plan, item } = picked
   const adopted = await deps.installments.adoptTransaction(
     plan,
     item.id,
@@ -391,8 +389,12 @@ function assertCanPayItem(tx: Transaction, plan: InstallmentPlan): void {
  * normal. Es la corrección de un cargo que quedó en la cuota equivocada: el mismo movimiento cambia
  * de cuota y toma la categoría del plan destino; nunca se crea ni se borra un movimiento.
  *
- * Todo se valida antes de escribir, y soltar + vincular ocurre en una sola transacción del repo:
- * a medio camino el cargo no queda en ninguna cuota.
+ * Solo para planes `loan`: en `card` el movimiento de la cuota lo creó la app desde el cronograma,
+ * no es un cargo del banco que haya quedado mal enganchado.
+ *
+ * Todo se valida antes de escribir. Soltar, reabrir el plan origen y vincular al destino ocurren en
+ * una sola transacción del repo (`moveItemTransaction`): a medio camino el cargo no queda en ninguna
+ * cuota. El cierre del plan destino, si con esto queda completo, es una escritura aparte.
  */
 export async function moveInstallmentPayment(
   deps: { installments: InstallmentPlanRepository; transactions: TransactionRepository },
@@ -404,6 +406,10 @@ export async function moveInstallmentPayment(
   if (plan.userId !== userId) throw new NotOwnerError()
   const item = plan.items.find((i) => i.id === input.itemId)
   if (!item) throw new InstallmentPlanNotFoundError(input.itemId)
+  if (plan.kind === "card")
+    throw new InvalidInstallmentPlanError(
+      "El pago de una cuota de tarjeta lo genera la app: no se mueve ni se suelta"
+    )
   if (!item.transactionId)
     throw new InvalidInstallmentPlanError("Esa cuota no tiene un movimiento que mover")
   if (Boolean(input.toPlanId) !== Boolean(input.toItemId))
@@ -428,9 +434,11 @@ export async function moveInstallmentPayment(
 
   await deps.installments.moveItemTransaction(
     item.transactionId,
-    to && { plan: to.plan, itemId: to.item.id }
+    to && { plan: to.plan, itemId: to.item.id },
+    { plan, itemId: item.id }
   )
-  // Reabrir una cuota reabre el plan: si estaba cerrado, vuelve a esperar pagos.
+  // El repo ya reabrió el plan dentro de la transacción; esto es idempotente y deja el contrato
+  // explícito para cualquier implementación del puerto.
   if (plan.completedAt) await deps.installments.reopen(plan.id)
   if (to) {
     // Si el destino es el mismo plan, la cuota origen ya quedó pendiente: el cierre debe verlo.

@@ -9,6 +9,7 @@ import {
   type InstallmentPlan,
   type InstallmentPlanRepository,
   InstallmentItemAlreadySettledError,
+  InvalidInstallmentPlanError,
 } from "../../../domain/finance/installment.domain.ts"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -299,12 +300,20 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
       data: { installmentItemId: null },
     })
   },
-  async moveItemTransaction(transactionId, to) {
+  async moveItemTransaction(transactionId, to, from) {
     await prisma.$transaction(async (db) => {
-      await db.transaction.update({
-        where: { id: transactionId },
+      // Soltar condicionado a la cuota origen: si otro proceso ya lo movió, no se pisa.
+      const { count } = await db.transaction.updateMany({
+        where: { id: transactionId, installmentItemId: from.itemId },
         data: { installmentItemId: null },
       })
+      if (count === 0)
+        throw new InvalidInstallmentPlanError("Ese pago ya no está en esa cuota")
+      if (from.plan.completedAt)
+        await db.installmentPlan.update({
+          where: { id: from.plan.id },
+          data: { completedAt: null },
+        })
       if (!to) return
       const item = await db.installmentItem.findUnique({
         where: { id: to.itemId },

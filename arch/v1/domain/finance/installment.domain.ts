@@ -200,21 +200,25 @@ export function amountDistance(payment: Money, expected: Money): bigint {
 }
 
 /**
- * Plan `loan` al que pertenece un pago de cuota:
+ * Plan `loan` y cuota que salda un pago:
  *
- *   1. planes activos de esa cuenta de origen — con uno solo, se acabó;
- *   2. el monto: gana el plan cuya cuota pendiente está más cerca del cargo, calce o no la
- *      tolerancia (la última cuota de un crédito suele desviarse del cronograma);
+ *   1. planes activos de esa cuenta de origen — con uno solo, se acabó, y la cuota la elige
+ *      `itemForPayment` (manda el N° del correo);
+ *   2. con varios, el monto: gana el plan cuya cuota pendiente está más cerca del cargo, calce o no
+ *      la tolerancia (la última cuota de un crédito suele desviarse del cronograma);
  *   3. solo a igual distancia desempata el N° de cuota del correo.
  *
- * El monto manda sobre el N° de cuota porque dos créditos de la misma cuenta pueden ir en cuotas
- * vecinas: un cargo de $265.708 con «cuota 6» es la cuota 5 del crédito de $254.156, no la 6 del
- * de $53.450. Ambiguo ⇒ null: el movimiento queda como gasto suelto, nunca se adivina.
+ * Con varios candidatos la cuota es la pendiente con la que se comparó el monto, no la que nombra
+ * el correo: dos créditos de la misma cuenta pueden ir en cuotas vecinas, y un cargo de $265.708
+ * con «cuota 6» es la cuota 5 del crédito de $254.156, no la 6 del de $53.450.
+ *
+ * Ambiguo ⇒ null: el movimiento queda como gasto suelto, nunca se adivina. `item` null ⇒ el plan es
+ * suyo pero no hay cuota que saldar (p. ej. el correo nombra una ya pagada).
  */
-export function pickLoanPlanFor(
+export function pickLoanItemFor(
   payment: LoanPayment,
   plans: InstallmentPlan[]
-): InstallmentPlan | null {
+): { plan: InstallmentPlan; item: InstallmentItem | null } | null {
   const candidates = plans.flatMap((p) => {
     const item =
       p.kind === "loan" &&
@@ -225,13 +229,25 @@ export function pickLoanPlanFor(
         : null
     return item ? [{ plan: p, item, distance: amountDistance(payment.amount, item.amount) }] : []
   })
-  if (candidates.length <= 1) return candidates[0]?.plan ?? null
+  if (candidates.length === 0) return null
+  if (candidates.length === 1) {
+    const { plan } = candidates[0]
+    return { plan, item: itemForPayment(plan, payment) }
+  }
 
   const best = candidates.reduce((min, c) => (c.distance < min ? c.distance : min), candidates[0].distance)
   const closest = candidates.filter((c) => c.distance === best)
-  if (closest.length === 1) return closest[0].plan
+  if (closest.length === 1) return closest[0]
   const byNumber = closest.filter((c) => c.item.index === payment.installmentNumber)
-  return byNumber.length === 1 ? byNumber[0].plan : null
+  return byNumber.length === 1 ? byNumber[0] : null
+}
+
+/** Plan `loan` al que pertenece un pago de cuota (ver `pickLoanItemFor`). */
+export function pickLoanPlanFor(
+  payment: LoanPayment,
+  plans: InstallmentPlan[]
+): InstallmentPlan | null {
+  return pickLoanItemFor(payment, plans)?.plan ?? null
 }
 
 /** Movimiento existente que el usuario puede asignar a una cuota. */
@@ -416,12 +432,16 @@ export interface InstallmentPlanRepository {
   /** Suelta el movimiento de su cuota (deshacer una asignación equivocada). */
   unlinkTransaction(transactionId: string): Promise<void>
   /**
-   * Suelta el movimiento de su cuota y, con destino, lo vincula a esa otra cuota con la categoría
-   * de su plan, atómico. Lanza `InstallmentItemAlreadySettledError` si el destino ya está saldado.
+   * En una sola transacción: suelta el movimiento de la cuota `from` (lanza
+   * `InvalidInstallmentPlanError` si ya no está en ella), reabre el plan origen si estaba cerrado y,
+   * con destino, lo vincula a la cuota `to` con la categoría de su plan (lanza
+   * `InstallmentItemAlreadySettledError` si el destino ya está saldado). Si algo falla no cambia
+   * nada. El cierre del plan destino queda fuera: lo decide el caso de uso después.
    */
   moveItemTransaction(
     transactionId: string,
-    to: { plan: InstallmentPlan; itemId: string } | null
+    to: { plan: InstallmentPlan; itemId: string } | null,
+    from: { plan: InstallmentPlan; itemId: string }
   ): Promise<void>
 }
 

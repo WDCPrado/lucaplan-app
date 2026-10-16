@@ -259,6 +259,61 @@ test("dos planes indistinguibles dejan el gasto suelto", () => {
   assert.equal(pickLoanPlanFor(payment(), [a, b]), null)
 })
 
+// WDC-120: con varios créditos en la cuenta manda el monto; el N° de cuota solo desempata.
+
+// Plan `loan` con cuotas de `cuota` y las primeras `pagadas` ya saldadas.
+function loanPlan(id: string, cuota: number, pagadas: number, start: Date) {
+  const plan = makePlan({
+    id,
+    totalAmount: clp(cuota * 10),
+    installmentsCount: 10,
+    startDate: start,
+  })
+  for (let i = 0; i < pagadas; i++) plan.items[i].transactionId = `${id}-t${i + 1}`
+  return plan
+}
+
+test("Dado el Crédito Consumo ($254.156, va en la cuota 5) y el Viaje Jo ($53.450, va en la 6), cuando llega un cargo de $265.708 con correo «cuota 6», entonces se registra en el Crédito Consumo", () => {
+  const credito = loanPlan("credito", 254_156, 4, day(2026, 3, 5)) // cuota 5 vence 5/7
+  const viaje = loanPlan("viaje", 53_450, 5, day(2026, 2, 5)) // cuota 6 vence 5/7
+  const cargo = (installmentNumber: number | null) =>
+    payment({ amount: clp(265_708), date: day(2026, 7, 5), installmentNumber })
+  assert.equal(pickLoanPlanFor(cargo(6), [credito, viaje])?.id, "credito")
+  assert.equal(pickLoanPlanFor(cargo(6), [viaje, credito])?.id, "credito", "el orden no importa")
+  assert.equal(pickLoanPlanFor(cargo(5), [credito, viaje])?.id, "credito")
+  assert.equal(pickLoanPlanFor(cargo(null), [credito, viaje])?.id, "credito")
+})
+
+test("Dado dos créditos con cuotas de $100.000 y $110.000, cuando llega un cargo que calza con los dos, entonces gana el más cercano y el N° de cuota solo desempata cuando están a igual distancia", () => {
+  const a = loanPlan("a", 100_000, 1, day(2026, 8, 5)) // pendiente: cuota 2
+  const b = loanPlan("b", 110_000, 0, day(2026, 8, 5)) // pendiente: cuota 1
+  const cargo = (monto: number, installmentNumber: number | null) =>
+    payment({ amount: clp(monto), date: day(2026, 9, 5), installmentNumber })
+  // $104.000 está más cerca de A: gana A, diga lo que diga el correo.
+  assert.equal(pickLoanPlanFor(cargo(104_000, null), [a, b])?.id, "a")
+  assert.equal(pickLoanPlanFor(cargo(104_000, 1), [a, b])?.id, "a", "el N° de cuota no le gana al monto")
+  // $105.000 está a igual distancia: decide el N° de cuota; sin número, gasto suelto.
+  assert.equal(pickLoanPlanFor(cargo(105_000, 2), [a, b])?.id, "a")
+  assert.equal(pickLoanPlanFor(cargo(105_000, 1), [a, b])?.id, "b")
+  assert.equal(pickLoanPlanFor(cargo(105_000, null), [a, b]), null)
+  // Un peso más ya está más cerca de B.
+  assert.equal(pickLoanPlanFor(cargo(105_001, 2), [a, b])?.id, "b")
+})
+
+test("Dado dos créditos de $100.000 y $400.000, cuando llega un cargo que no calza con ninguno, entonces se elige el más cercano en monto y, si están a igual distancia, queda como gasto suelto", () => {
+  const a = loanPlan("a", 100_000, 1, day(2026, 8, 5)) // pendiente: cuota 2
+  const b = loanPlan("b", 400_000, 0, day(2026, 8, 5)) // pendiente: cuota 1
+  const cargo = (monto: number, installmentNumber: number | null) =>
+    payment({ amount: clp(monto), date: day(2026, 9, 5), installmentNumber })
+  assert.equal(pickLoanPlanFor(cargo(150_000, null), [a, b])?.id, "a")
+  assert.equal(
+    pickLoanPlanFor(cargo(150_000, 1), [a, b])?.id,
+    "a",
+    "el N° de cuota no le gana al monto"
+  )
+  assert.equal(pickLoanPlanFor(cargo(250_000, null), [a, b]), null)
+})
+
 test("un pago en otra moneda no elige plan", () => {
   const plan = makePlan()
   const elegido = pickLoanPlanFor(

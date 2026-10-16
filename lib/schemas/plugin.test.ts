@@ -35,3 +35,20 @@ test("Dado un plan de cuotas, cuando lo creo por chat, entonces la tarjeta exige
     true
   )
 })
+
+test("Dado un pago enganchado en la cuota equivocada, cuando el chat pide moverlo, entonces la herramienta lucaplan_mover_pago_cuota es de escritura, exige la clave de operación y acepta destino completo o ninguno", () => {
+  const tools: Record<string, { scope: string; readOnly: boolean; inputSchema: { safeParse(v: unknown): { success: boolean } } }> = pluginTools
+  const tool = tools.lucaplan_mover_pago_cuota
+  assert.ok(tool, "falta la herramienta lucaplan_mover_pago_cuota")
+  assert.equal(tool.scope, "finance:write")
+  assert.equal(tool.readOnly, false)
+  const origen = { operationId: "mover-cuota-6", planId: "viaje-jo", itemId: "cuota-6" }
+  const ok = (v: unknown) => tool.inputSchema.safeParse(v).success
+  assert.equal(ok(origen), true, "soltar sin destino")
+  assert.equal(ok({ ...origen, toPlanId: "credito-consumo", toItemId: "cuota-5" }), true)
+  assert.equal(ok({ planId: origen.planId, itemId: origen.itemId }), false, "sin operationId")
+  assert.equal(ok({ ...origen, toPlanId: "credito-consumo" }), false, "destino sin cuota")
+  assert.equal(ok({ ...origen, toItemId: "cuota-5" }), false, "cuota sin plan destino")
+  assert.equal(ok({ ...origen, userId: "otro" }), false, "claves extra")
+  assert.equal(ok({ ...origen, transactionId: "tx-265708" }), false, "no elige el movimiento: es el de la cuota")
+})

@@ -1419,3 +1419,94 @@ test("Dado el cargo enganchado en mi Viaje Jo, cuando el destino es un plan de o
   assert.equal(viaje.items[5].transactionId, CARGO)
   assert.equal(credito.items[4].transactionId, null)
 })
+
+// --- WDC-120 ronda 3 ---
+
+test("Dado el Crédito Consumo (va en la cuota 5) y el Viaje Jo (va en la 6) en la misma cuenta, cuando llega el cargo de $265.708 con correo «cuota 6», entonces queda en la cuota 5 del Crédito; con un solo crédito sigue mandando el N° del correo", async () => {
+  const ctx = makeRepo()
+  const deps = { installments: ctx.repo, accounts: makeAccounts("checking"), categories }
+  const crear = async (description: string, cuota: number, start: Date, pagadas: number) => {
+    const { id } = await createInstallmentPlan(deps, "u1", {
+      ...baseInput,
+      kind: "loan",
+      description,
+      totalAmount: cuota * 10,
+      installmentsCount: 10,
+      startDate: start,
+    })
+    const plan = ctx.plans.get(id)!
+    for (let i = 0; i < pagadas; i++) plan.items[i].transactionId = `${id}-t${i + 1}`
+    return plan
+  }
+  const credito = await crear("Crédito Consumo", 254_156, day(2026, 3, 5), 4) // la 5 vence el 5/7
+  const viaje = await crear("Viaje Jo Ch - T", 53_450, day(2026, 2, 5), 5) // la 6 vence el 5/7
+  const cargo = {
+    transactionId: CARGO,
+    accountId: "acc1",
+    amount: clp(265_708),
+    date: day(2026, 7, 5),
+    installmentNumber: 6,
+  }
+  const elegido = await adoptLoanInstallment({ installments: ctx.repo }, cargo)
+  assert.equal(elegido?.id, credito.id)
+  assert.equal(credito.items[4].transactionId, CARGO, "queda en la cuota 5, la que eligió el plan")
+  assert.equal(credito.items[5].transactionId, null, "no en la 6 que nombró el correo")
+  assert.equal(viaje.items[5].transactionId, null)
+
+  // Resguardo: con un solo crédito, el N° del correo sigue eligiendo la cuota.
+  const solo = makeRepo()
+  const soloDeps = { installments: solo.repo, accounts: makeAccounts("checking"), categories }
+  const { id } = await createInstallmentPlan(soloDeps, "u1", {
+    ...baseInput,
+    kind: "loan",
+    totalAmount: 2_541_560,
+    installmentsCount: 10,
+    startDate: day(2026, 3, 5),
+  })
+  const unico = solo.plans.get(id)!
+  for (let i = 0; i < 4; i++) unico.items[i].transactionId = `t${i + 1}`
+  await adoptLoanInstallment({ installments: solo.repo }, cargo)
+  assert.equal(unico.items[5].transactionId, CARGO, "con un solo crédito va a la cuota 6 que nombró el correo")
+  assert.equal(unico.items[4].transactionId, null)
+})
+
+test("Dado un plan de tarjeta con una cuota registrada por la app, cuando intento mover o soltar su pago, entonces se rechaza y la cuota sigue pagada", async () => {
+  const { repo } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", baseInput)
+  await executeCardInstallments({ installments: repo }, "acc1", day(2026, 9, 3))
+  const pagado = plan.items[0].transactionId
+  assert.ok(pagado)
+  const transactions = makeTransactions({ [pagado]: { installmentItemId: plan.items[0].id } })
+  for (const destino of [{ toPlanId: plan.id, toItemId: plan.items[1].id }, {}]) {
+    await assert.rejects(
+      () =>
+        moverPago({ installments: repo, transactions }, "u1", {
+          planId: plan.id,
+          itemId: plan.items[0].id,
+          ...destino,
+        }),
+      InvalidInstallmentPlanError,
+      destino.toItemId ? "con destino" : "sin destino"
+    )
+  }
+  assert.equal(plan.items[0].transactionId, pagado)
+  assert.equal(plan.items[1].transactionId, null)
+})
+
+test("Dado un crédito con solo la cuota 5 pendiente y el pago en la 6, cuando muevo ese pago a la 5 del mismo plan, entonces la 6 queda pendiente, la 5 pagada con el mismo movimiento y el plan no se cierra", async () => {
+  const { deps, viaje, registered } = await cargoMalEnganchado()
+  viaje.items.forEach((i, n) => {
+    if (n !== 4 && n !== 5) i.transactionId = `otro-${n}`
+  })
+  await moverPago(deps, "u1", {
+    planId: viaje.id,
+    itemId: viaje.items[5].id,
+    toPlanId: viaje.id,
+    toItemId: viaje.items[4].id,
+  })
+  assert.equal(viaje.items[4].transactionId, CARGO)
+  assert.equal(viaje.items[5].transactionId, null)
+  assert.equal(viaje.completedAt, null, "le queda la 6 pendiente: no se cierra")
+  assert.equal(registered.length, 0)
+})

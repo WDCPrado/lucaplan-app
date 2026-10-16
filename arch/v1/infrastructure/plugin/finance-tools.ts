@@ -179,7 +179,11 @@ async function ownedReferences(userId: string, input: Record<string, unknown>) {
 }
 
 // Nombre único por usuario (índice de la BD): se rechaza antes de escribir con un motivo claro.
-async function assertCategoryNameFree(userId: string, name: string, id?: string) {
+async function assertCategoryNameFree(
+  userId: string,
+  name: string,
+  id?: string
+) {
   const taken = (await deps.categories.listByUser(userId)).some(
     (c) => c.name === name.trim() && c.id !== id
   )
@@ -188,7 +192,6 @@ async function assertCategoryNameFree(userId: string, name: string, id?: string)
       `Ya existe una categoría llamada «${name.trim()}». Usa lucaplan_listar_categorias y edítala, o elige otro nombre`
     )
 }
-
 
 async function reconcile(
   userId: string,
@@ -440,7 +443,8 @@ const handlers: Handlers = {
   },
   lucaplan_candidatos_pago_cuota: async (userId, input) => {
     const plan = await deps.installments.findById(input.planId)
-    if (!plan || plan.userId !== userId) throw new PluginReferenceError("planId")
+    if (!plan || plan.userId !== userId)
+      throw new PluginReferenceError("planId")
     const item = plan.items.find((i) => i.id === input.itemId)
     if (!item) throw new InstallmentPlanNotFoundError(input.itemId)
     const candidates = await listLinkCandidates(

@@ -23,25 +23,43 @@ const description = z.string().max(2000)
 const money = (extra = "") =>
   `Monto en unidades de la moneda de la cuenta: CLP en pesos enteros (25000), USD con hasta 2 decimales (12.5)${extra}`
 const categoryFields = {
-  name: name.describe("Nombre visible, único entre tus categorías, p. ej. «Mascotas»"),
-  icon: z.string().max(100).nullable().describe("Icono lucide o emoji; null sin icono"),
-  color: z.string().max(100).nullable().describe("Color del anillo; null sin color"),
+  name: name.describe(
+    "Nombre visible, único entre tus categorías, p. ej. «Mascotas»"
+  ),
+  icon: z
+    .string()
+    .max(100)
+    .nullable()
+    .describe("Icono lucide o emoji; null sin icono"),
+  color: z
+    .string()
+    .max(100)
+    .nullable()
+    .describe("Color del anillo; null sin color"),
   description: description
     .nullable()
-    .describe("Qué significa esta categoría en tu vida; lo usa la categorización automática"),
+    .describe(
+      "Qué significa esta categoría en tu vida; lo usa la categorización automática"
+    ),
 }
 const incomeFields = {
-  accountId: ref("Cuenta donde entra el ingreso (no tarjeta ni línea de crédito)"),
+  accountId: ref(
+    "Cuenta donde entra el ingreso (no tarjeta ni línea de crédito)"
+  ),
   categoryId: ref("Categoría de tipo ingreso (income)"),
   name: name.describe("Nombre de la fuente, p. ej. «Sueldo»"),
   amount: incomeSchema.shape.amount.describe(money(", mayor que 0")),
-  dayOfMonth: incomeSchema.shape.dayOfMonth.describe("Día del mes en que llega, 1 a 31"),
+  dayOfMonth: incomeSchema.shape.dayOfMonth.describe(
+    "Día del mes en que llega, 1 a 31"
+  ),
 }
 // Límites técnicos de payload; no cambian la regla financiera del dominio.
 const MAX_INSTALLMENTS = 1000
 const MAX_SNAPSHOT_CARDS = 100
 const period = {
-  year: monthlyBudgetSchema.shape.year.describe("Año del período del presupuesto, p. ej. 2026"),
+  year: monthlyBudgetSchema.shape.year.describe(
+    "Año del período del presupuesto, p. ej. 2026"
+  ),
   month: monthlyBudgetSchema.shape.month.describe(
     "Mes del período del presupuesto, 1 a 12. Con modo ciclo de tarjeta el período va del día siguiente al cierre anterior hasta el cierre de este mes"
   ),
@@ -57,26 +75,46 @@ const page = {
     .int()
     .min(0)
     .default(0)
-    .describe("Desde qué resultado empezar; usa nextOffset de la página anterior"),
-  limit: z.number().int().min(1).max(100).default(50).describe("Resultados por página, 1 a 100"),
+    .describe(
+      "Desde qué resultado empezar; usa nextOffset de la página anterior"
+    ),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(50)
+    .describe("Resultados por página, 1 a 100"),
 }
 
 const recurring = {
   accountId: ref("Cuenta donde se cobra o abona"),
-  categoryId: ref("Categoría del mismo lado: expense para gastos (debit), income para ingresos (credit)"),
+  categoryId: ref(
+    "Categoría del mismo lado: expense para gastos (debit), income para ingresos (credit)"
+  ),
   label: name.describe("Nombre visible, p. ej. «Arriendo»"),
-  direction: z.enum(["debit", "credit"]).describe("debit = gasto; credit = ingreso"),
+  direction: z
+    .enum(["debit", "credit"])
+    .describe("debit = gasto; credit = ingreso"),
   baseAmount: positive.describe(money(" esperado por período")),
   tolerancePct: amount
     .min(0)
     .max(100)
-    .describe("Margen ± en % (entero 0 a 100) para reconocer el cobro real, p. ej. 10"),
-  periodicity: z.enum(PERIODICITIES).describe("monthly, biweekly (cada 14 días desde startDate) o yearly"),
+    .describe(
+      "Margen ± en % (entero 0 a 100) para reconocer el cobro real, p. ej. 10"
+    ),
+  periodicity: z
+    .enum(PERIODICITIES)
+    .describe("monthly, biweekly (cada 14 días desde startDate) o yearly"),
   dayOfMonth: day
     .nullable()
-    .describe("Día de cobro 1 a 31 (obligatorio en monthly/yearly; null en biweekly)"),
+    .describe(
+      "Día de cobro 1 a 31 (obligatorio en monthly/yearly; null en biweekly)"
+    ),
   startDate: date.describe("Desde cuándo rige, YYYY-MM-DD"),
-  endDate: date.nullable().describe("Último día de vigencia YYYY-MM-DD; null = indefinida"),
+  endDate: date
+    .nullable()
+    .describe("Último día de vigencia YYYY-MM-DD; null = indefinida"),
 }
 const snapshotBucket = (money: z.ZodNumber) =>
   z
@@ -93,8 +131,12 @@ const usd = amount.nonnegative().multipleOf(0.01)
 const snapshotClpBucket = snapshotBucket(clp)
 const snapshotUsdBucket = snapshotBucket(usd)
 const bucket = z.strictObject({
-  available: amount.nullable().describe("Disponible; null si el documento no lo muestra"),
-  used: amount.nullable().describe("Utilizado (deuda); null si el documento no lo muestra"),
+  available: amount
+    .nullable()
+    .describe("Disponible; null si el documento no lo muestra"),
+  used: amount
+    .nullable()
+    .describe("Utilizado (deuda); null si el documento no lo muestra"),
 })
 
 type ToolOptions = { title: string; destructive?: boolean }
@@ -150,24 +192,36 @@ export const pluginTools = {
     "Úsala cuando el usuario quiere registrar una cuenta que lleva a mano (no conectada por correo). No conecta bancos ni correos. checking y credit_card exigen los últimos 4 dígitos. El saldo inicial es el estado actual de la cuenta; no crea movimientos.",
     accountSchema
       .safeExtend({
-        bankName: name.describe("Banco o institución, p. ej. «Banco Estado»; se reutiliza si ya existe"),
+        bankName: name.describe(
+          "Banco o institución, p. ej. «Banco Estado»; se reutiliza si ya existe"
+        ),
         name: name.describe("Nombre visible de la cuenta"),
         accountType: accountSchema.shape.accountType.describe(
           "checking (corriente), savings, credit_card, credit_line, wallet o investment"
         ),
-        currency: accountSchema.shape.currency.describe("CLP o USD; no se puede cambiar después"),
+        currency: accountSchema.shape.currency.describe(
+          "CLP o USD; no se puede cambiar después"
+        ),
         balance: accountSchema.shape.balance.describe(
-          money(". En checking puede ser negativo (sobregiro usado); en tarjeta, negativo = deuda")
+          money(
+            ". En checking puede ser negativo (sobregiro usado); en tarjeta, negativo = deuda"
+          )
         ),
         overdraftLimit: accountSchema.shape.overdraftLimit.describe(
           "Línea de sobregiro total (solo checking), ≥ 0"
         ),
-        color: z.string().max(100).nullable().describe("Color de la tarjeta; null sin color"),
+        color: z
+          .string()
+          .max(100)
+          .nullable()
+          .describe("Color de la tarjeta; null sin color"),
         cardLast4: z
           .string()
           .regex(/^\d{4}$/)
           .nullable()
-          .describe("Últimos 4 dígitos (obligatorio en checking y credit_card); null en el resto"),
+          .describe(
+            "Últimos 4 dígitos (obligatorio en checking y credit_card); null en el resto"
+          ),
         ...operation,
       })
       .strict()
@@ -183,11 +237,15 @@ export const pluginTools = {
         .string()
         .regex(/^\d{4}$/)
         .nullable()
-        .describe("Últimos 4 dígitos (obligatorio en checking y credit_card); null en el resto"),
+        .describe(
+          "Últimos 4 dígitos (obligatorio en checking y credit_card); null en el resto"
+        ),
       overdraftLimit: amount
         .nonnegative()
         .optional()
-        .describe("Línea de sobregiro total, solo en checking; omitido = sin cambio"),
+        .describe(
+          "Línea de sobregiro total, solo en checking; omitido = sin cambio"
+        ),
       ...operation,
     })
   ),
@@ -205,7 +263,9 @@ export const pluginTools = {
         .string()
         .min(1)
         .max(300)
-        .describe("confirmationToken devuelto por lucaplan_previsualizar_eliminar_cuenta"),
+        .describe(
+          "confirmationToken devuelto por lucaplan_previsualizar_eliminar_cuenta"
+        ),
       ...operation,
     })
   ),
@@ -219,7 +279,9 @@ export const pluginTools = {
         .regex(/^\d{4}$/)
         .nullable()
         .describe("Últimos 4 dígitos de la tarjeta, si aplica"),
-      cash: amount.nullable().describe("Caja disponible en CLP; null si no se muestra"),
+      cash: amount
+        .nullable()
+        .describe("Caja disponible en CLP; null si no se muestra"),
       overdraft: bucket.describe("Sobregiro (CLP)"),
       national: bucket.describe("Cupo nacional de tarjeta (CLP)"),
       international: bucket.describe("Cupo internacional de tarjeta (USD)"),
@@ -237,20 +299,31 @@ export const pluginTools = {
           (value) => new Date(value).getTime() <= Date.now(),
           "La fecha del documento no puede ser futura"
         )
-        .describe("Fecha y hora del documento con zona, p. ej. 2026-10-16T09:30:00-03:00"),
+        .describe(
+          "Fecha y hora del documento con zona, p. ej. 2026-10-16T09:30:00-03:00"
+        ),
       checking: z
         .strictObject({
-          ref: z.string().regex(/^\d{4,40}$/).describe("Número o últimos dígitos de la cuenta corriente"),
+          ref: z
+            .string()
+            .regex(/^\d{4,40}$/)
+            .describe("Número o últimos dígitos de la cuenta corriente"),
           cash: clp.describe("Caja en CLP, entero ≥ 0"),
-          overdraft: snapshotClpBucket.nullable().describe("Línea de sobregiro CLP: limit y used"),
+          overdraft: snapshotClpBucket
+            .nullable()
+            .describe("Línea de sobregiro CLP: limit y used"),
         })
         .nullable(),
       cards: z
         .array(
           z.strictObject({
             last4: z.string().regex(/^\d{4}$/),
-            national: snapshotClpBucket.nullable().describe("Cupo nacional CLP"),
-            international: snapshotUsdBucket.nullable().describe("Cupo internacional USD"),
+            national: snapshotClpBucket
+              .nullable()
+              .describe("Cupo nacional CLP"),
+            international: snapshotUsdBucket
+              .nullable()
+              .describe("Cupo internacional USD"),
           })
         )
         .max(MAX_SNAPSHOT_CARDS),
@@ -271,7 +344,9 @@ export const pluginTools = {
       .omit({ id: true })
       .extend({
         ...categoryFields,
-        type: categorySchema.shape.type.describe("income (ingreso) o expense (gasto)"),
+        type: categorySchema.shape.type.describe(
+          "income (ingreso) o expense (gasto)"
+        ),
         paceEnabled: categorySchema.shape.paceEnabled.describe(
           "¿Muestra el ritmo de gasto del período? Apágalo en gastos de una vez (suscripciones)"
         ),
@@ -304,9 +379,11 @@ export const pluginTools = {
     "Úsala para asignar, cambiar o quitar (null) la categoría de UN movimiento, también de bancos conectados. Si el movimiento es de una recurrente o un plan de cuotas, la categoría pasa a toda la recurrente o el plan. Aprende el texto del comercio si no tenía regla. Responde sameTextCount (cuántos movimientos sin categoría tienen el mismo texto) y learnedCategoryId (regla previa distinta que NO se pisó): si alguno aplica, ofrece lucaplan_aprender_categoria.",
     z.strictObject({
       transactionId: ref("Movimiento a categorizar"),
-      categoryId: ref("Categoría del mismo lado que el movimiento").nullable().describe(
-        "Categoría del mismo lado que el movimiento; null = dejarlo sin categoría"
-      ),
+      categoryId: ref("Categoría del mismo lado que el movimiento")
+        .nullable()
+        .describe(
+          "Categoría del mismo lado que el movimiento; null = dejarlo sin categoría"
+        ),
       ...operation,
     })
   ),
@@ -319,10 +396,14 @@ export const pluginTools = {
         .string()
         .max(500)
         .optional()
-        .describe("Por qué este comercio va en esa categoría, p. ej. «veterinario de la Luna»"),
+        .describe(
+          "Por qué este comercio va en esa categoría, p. ej. «veterinario de la Luna»"
+        ),
       applyToSameText: z
         .boolean()
-        .describe("true = es la regla: propagar a los movimientos equivalentes; false = solo este"),
+        .describe(
+          "true = es la regla: propagar a los movimientos equivalentes; false = solo este"
+        ),
       ...operation,
     })
   ),
@@ -336,34 +417,58 @@ export const pluginTools = {
         .string()
         .max(500)
         .optional()
-        .describe("Texto en descripción o nombre de categoría; si trae dígitos, también monto por prefijo"),
-      direction: z.enum(["debit", "credit"]).optional().describe("debit = cargos; credit = abonos"),
+        .describe(
+          "Texto en descripción o nombre de categoría; si trae dígitos, también monto por prefijo"
+        ),
+      direction: z
+        .enum(["debit", "credit"])
+        .optional()
+        .describe("debit = cargos; credit = abonos"),
       accountId: ref("Solo movimientos de esta cuenta").optional(),
-      currency: z.enum(["CLP", "USD"]).optional().describe("Solo movimientos en esta moneda"),
+      currency: z
+        .enum(["CLP", "USD"])
+        .optional()
+        .describe("Solo movimientos en esta moneda"),
       categoryId: ref("Solo movimientos de esta categoría").optional(),
-      bankName: name.optional().describe("Solo cuentas de bancos con este nombre exacto"),
+      bankName: name
+        .optional()
+        .describe("Solo cuentas de bancos con este nombre exacto"),
       from: date.optional().describe("Desde esta fecha inclusive, YYYY-MM-DD"),
       to: date.optional().describe("Hasta esta fecha inclusive, YYYY-MM-DD"),
-      amountMin: amount.nonnegative().optional().describe("Monto mínimo (magnitud, sin signo)"),
-      amountMax: amount.nonnegative().optional().describe("Monto máximo (magnitud, sin signo)"),
+      amountMin: amount
+        .nonnegative()
+        .optional()
+        .describe("Monto mínimo (magnitud, sin signo)"),
+      amountMax: amount
+        .nonnegative()
+        .optional()
+        .describe("Monto máximo (magnitud, sin signo)"),
       uncategorized: z
         .boolean()
         .optional()
-        .describe("true = solo los pendientes de categorizar (sin categoría, no internos, sin revisar)"),
+        .describe(
+          "true = solo los pendientes de categorizar (sin categoría, no internos, sin revisar)"
+        ),
       internal: z
         .boolean()
         .optional()
-        .describe("true = solo internos (traspasos, pagos de tarjeta; no cuentan en presupuesto); false = excluirlos"),
+        .describe(
+          "true = solo internos (traspasos, pagos de tarjeta; no cuentan en presupuesto); false = excluirlos"
+        ),
       status: z
         .array(z.enum(MOVEMENT_STATUSES))
         .min(1)
         .max(MOVEMENT_STATUSES.length)
         .optional()
-        .describe("Solo estos estados: confirmed, pending, reversed, duplicated. Reemplaza a settledOnly"),
+        .describe(
+          "Solo estos estados: confirmed, pending, reversed, duplicated. Reemplaza a settledOnly"
+        ),
       settledOnly: z
         .boolean()
         .optional()
-        .describe("Por defecto true: excluye anulados, duplicados y recurrentes por cobrar"),
+        .describe(
+          "Por defecto true: excluye anulados, duplicados y recurrentes por cobrar"
+        ),
       ...page,
     })
   ),
@@ -378,14 +483,24 @@ export const pluginTools = {
     transactionSchema
       .extend({
         accountId: ref("Cuenta del movimiento"),
-        categoryId: ref("Categoría del mismo lado").nullable().describe(
-          "Categoría del mismo lado (expense para debit, income para credit); null sin categoría"
-        ),
+        categoryId: ref("Categoría del mismo lado")
+          .nullable()
+          .describe(
+            "Categoría del mismo lado (expense para debit, income para credit); null sin categoría"
+          ),
         description: description.describe("Descripción, p. ej. «Veterinario»"),
-        date: transactionSchema.shape.date.max(40).describe("Fecha del movimiento YYYY-MM-DD"),
-        amount: transactionSchema.shape.amount.describe(money(", mayor que 0 (el signo lo da direction)")),
-        currency: transactionSchema.shape.currency.describe("Moneda: debe ser la de la cuenta"),
-        direction: transactionSchema.shape.direction.describe("debit = gasto; credit = ingreso"),
+        date: transactionSchema.shape.date
+          .max(40)
+          .describe("Fecha del movimiento YYYY-MM-DD"),
+        amount: transactionSchema.shape.amount.describe(
+          money(", mayor que 0 (el signo lo da direction)")
+        ),
+        currency: transactionSchema.shape.currency.describe(
+          "Moneda: debe ser la de la cuenta"
+        ),
+        direction: transactionSchema.shape.direction.describe(
+          "debit = gasto; credit = ingreso"
+        ),
         ...operation,
       })
       .strict()
@@ -396,11 +511,17 @@ export const pluginTools = {
     transactionUpdateSchema
       .extend({
         transactionId: ref("Movimiento a corregir"),
-        categoryId: ref("Categoría").nullable().describe("Categoría; null sin categoría"),
+        categoryId: ref("Categoría")
+          .nullable()
+          .describe("Categoría; null sin categoría"),
         description: description.describe("Descripción"),
-        date: transactionUpdateSchema.shape.date.max(40).describe("Fecha YYYY-MM-DD"),
+        date: transactionUpdateSchema.shape.date
+          .max(40)
+          .describe("Fecha YYYY-MM-DD"),
         amount: transactionUpdateSchema.shape.amount.describe(money()),
-        direction: transactionUpdateSchema.shape.direction.describe("debit = gasto; credit = ingreso"),
+        direction: transactionUpdateSchema.shape.direction.describe(
+          "debit = gasto; credit = ingreso"
+        ),
         ...operation,
       })
       .strict()
@@ -408,7 +529,10 @@ export const pluginTools = {
   lucaplan_eliminar_movimiento: write(
     { title: "Eliminar movimiento", destructive: true },
     "Elimina un movimiento y revierte su efecto en el saldo si estaba confirmado (un pendiente nunca movió la caja). En cuentas conectadas solo se pueden borrar abonos, cargos sin categoría y cobros sobrantes de una cuota ya pagada; revisa canDelete con lucaplan_ver_movimiento. Confirma con el usuario antes.",
-    z.strictObject({ transactionId: ref("Movimiento a eliminar"), ...operation })
+    z.strictObject({
+      transactionId: ref("Movimiento a eliminar"),
+      ...operation,
+    })
   ),
 
   // --- Presupuesto ---
@@ -428,7 +552,9 @@ export const pluginTools = {
     monthlyBudgetSchema
       .extend({
         ...period,
-        globalLimit: monthlyBudgetSchema.shape.globalLimit.describe("Límite global en pesos enteros, p. ej. 1500000"),
+        globalLimit: monthlyBudgetSchema.shape.globalLimit.describe(
+          "Límite global en pesos enteros, p. ej. 1500000"
+        ),
         ...operation,
       })
       .strict()
@@ -476,12 +602,20 @@ export const pluginTools = {
   lucaplan_registrar_ingreso_mes: write(
     { title: "Registrar cobro de ingreso" },
     "Úsala cuando el ingreso del mes ya llegó: crea una sola vez el movimiento (abono) en su cuenta con el monto de la fuente y sube la caja. Repetirlo no abona dos veces. Si el monto real fue otro, corrígelo después con lucaplan_corregir_movimiento (cuentas manuales).",
-    z.strictObject({ incomeId: ref("Fuente de ingreso"), ...period, ...operation })
+    z.strictObject({
+      incomeId: ref("Fuente de ingreso"),
+      ...period,
+      ...operation,
+    })
   ),
   lucaplan_deshacer_ingreso_mes: write(
     { title: "Revertir cobro de ingreso", destructive: true },
     "Deshace el movimiento de ingreso registrado para ese mes y revierte su efecto en la caja. Úsala si se registró por error.",
-    z.strictObject({ incomeId: ref("Fuente de ingreso"), ...period, ...operation })
+    z.strictObject({
+      incomeId: ref("Fuente de ingreso"),
+      ...period,
+      ...operation,
+    })
   ),
 
   // --- Recurrentes ---
@@ -517,7 +651,11 @@ export const pluginTools = {
   lucaplan_activar_recurrente: write(
     { title: "Pausar o reanudar recurrente", destructive: true },
     "Pausa (false) o reanuda (true) una recurrente; conserva los cobros ya confirmados. Una terminada no se reanuda sin correr antes su fecha de fin.",
-    z.strictObject({ id: ref("Recurrente"), isActive: z.boolean().describe("true = reanudar"), ...operation })
+    z.strictObject({
+      id: ref("Recurrente"),
+      isActive: z.boolean().describe("true = reanudar"),
+      ...operation,
+    })
   ),
   lucaplan_eliminar_recurrente: write(
     { title: "Eliminar recurrente", destructive: true },
@@ -527,14 +665,24 @@ export const pluginTools = {
   lucaplan_marcar_pago_recurrente: write(
     { title: "Marcar pago de recurrente", destructive: true },
     "Marca (paid true) o desmarca el pago del período EN CURSO cuando el usuario ya pagó y el banco aún no avisa; no crea otro movimiento ni mueve saldos. No deshace un cobro confirmado por el banco. Si el cargo real ya existe, usa lucaplan_vincular_pago_recurrente.",
-    z.strictObject({ id: ref("Recurrente"), paid: z.boolean().describe("true = ya pagado"), ...operation })
+    z.strictObject({
+      id: ref("Recurrente"),
+      paid: z.boolean().describe("true = ya pagado"),
+      ...operation,
+    })
   ),
   lucaplan_candidatos_pago_recurrente: read(
     "Candidatos de cobro de recurrente",
     "Úsala antes de lucaplan_vincular_pago_recurrente: lista movimientos del banco confirmados y sin vínculo, de la misma dirección, moneda y categoría, de los últimos días.",
     z.strictObject({
       id: ref("Recurrente"),
-      days: z.number().int().min(1).max(365).optional().describe("Ventana hacia atrás en días, por defecto 10"),
+      days: z
+        .number()
+        .int()
+        .min(1)
+        .max(365)
+        .optional()
+        .describe("Ventana hacia atrás en días, por defecto 10"),
       query: z.string().max(500).optional().describe("Texto para filtrar"),
     })
   ),
@@ -543,7 +691,9 @@ export const pluginTools = {
     "Usa un movimiento del banco que ya existe como el cobro del período en curso, aunque su fecha caiga fuera; no duplica el gasto. En una recurrente planificada, además le fija el texto bancario para reconocer los siguientes.",
     z.strictObject({
       id: ref("Recurrente"),
-      transactionId: ref("Movimiento del banco (de lucaplan_candidatos_pago_recurrente)"),
+      transactionId: ref(
+        "Movimiento del banco (de lucaplan_candidatos_pago_recurrente)"
+      ),
       ...operation,
     })
   ),
@@ -564,33 +714,55 @@ export const pluginTools = {
     "Crea un plan. card: exige la compra origen (sourceTransactionId, cargo confirmado de esa tarjeta), que deja de contar entera y se reparte en cuotas. loan: sin compra origen; las cuotas se enganchan a los pagos del banco. No mueve caja. startIndex = número de la primera cuota que sigue el plan (créditos ya empezados: totalAmount es el saldo restante).",
     z
       .strictObject({
-        kind: z.enum(["card", "loan"]).describe("card = compra en cuotas con tarjeta; loan = crédito"),
-        accountId: ref("card: la tarjeta de crédito; loan: la cuenta desde la que se paga"),
+        kind: z
+          .enum(["card", "loan"])
+          .describe("card = compra en cuotas con tarjeta; loan = crédito"),
+        accountId: ref(
+          "card: la tarjeta de crédito; loan: la cuenta desde la que se paga"
+        ),
         categoryId: ref("Categoría de gasto"),
         description: name.describe("Descripción, p. ej. «Notebook 12 cuotas»"),
-        totalAmount: positive.describe(money(": capital total, o saldo restante si startIndex > 1")),
-        installmentsCount: z.number().int().positive().max(MAX_INSTALLMENTS).describe("Número total de cuotas"),
-        startDate: date.describe("Vencimiento de la cuota startIndex, YYYY-MM-DD"),
+        totalAmount: positive.describe(
+          money(": capital total, o saldo restante si startIndex > 1")
+        ),
+        installmentsCount: z
+          .number()
+          .int()
+          .positive()
+          .max(MAX_INSTALLMENTS)
+          .describe("Número total de cuotas"),
+        startDate: date.describe(
+          "Vencimiento de la cuota startIndex, YYYY-MM-DD"
+        ),
         dayOfMonth: day.describe("Día de vencimiento de cada mes, 1 a 31"),
-        tolerancePct: amount.min(0).max(100).describe("Solo desempata pagos entre créditos, 0 a 100"),
+        tolerancePct: amount
+          .min(0)
+          .max(100)
+          .describe("Solo desempata pagos entre créditos, 0 a 100"),
         startIndex: z
           .number()
           .int()
           .positive()
           .max(MAX_INSTALLMENTS)
           .optional()
-          .describe("Primera cuota que sigue el plan; las anteriores quedan pagadas fuera de la app"),
+          .describe(
+            "Primera cuota que sigue el plan; las anteriores quedan pagadas fuera de la app"
+          ),
         amounts: z
           .array(positive)
           .max(MAX_INSTALLMENTS)
           .optional()
-          .describe("Monto de cada cuota pendiente; omitido = reparto en partes iguales"),
+          .describe(
+            "Monto de cada cuota pendiente; omitido = reparto en partes iguales"
+          ),
         paidIndexes: z
           .array(z.number().int().positive().max(MAX_INSTALLMENTS))
           .max(MAX_INSTALLMENTS)
           .optional()
           .describe("Números de cuota ya pagados al crear"),
-        sourceTransactionId: ref("Compra origen (solo card)").nullable().optional(),
+        sourceTransactionId: ref("Compra origen (solo card)")
+          .nullable()
+          .optional(),
         ...operation,
       })
       .refine(
@@ -618,7 +790,11 @@ export const pluginTools = {
   lucaplan_categorizar_plan_cuotas: write(
     { title: "Categorizar plan de cuotas", destructive: true },
     "Cambia la categoría (de gasto) del plan y de todos sus movimientos: cuotas pagadas y compra origen.",
-    z.strictObject({ planId: ref("Plan"), categoryId: ref("Categoría de gasto"), ...operation })
+    z.strictObject({
+      planId: ref("Plan"),
+      categoryId: ref("Categoría de gasto"),
+      ...operation,
+    })
   ),
   lucaplan_eliminar_plan_cuotas: write(
     { title: "Eliminar plan de cuotas", destructive: true },
@@ -642,7 +818,9 @@ export const pluginTools = {
     z.strictObject({
       planId: ref("Plan"),
       itemId: ref("Cuota"),
-      accountId: ref("Solo movimientos de esta cuenta; omitido = todas").optional(),
+      accountId: ref(
+        "Solo movimientos de esta cuenta; omitido = todas"
+      ).optional(),
     })
   ),
   lucaplan_vincular_pago_cuota: write(
@@ -651,7 +829,9 @@ export const pluginTools = {
     z.strictObject({
       planId: ref("Plan"),
       itemId: ref("Cuota pendiente"),
-      transactionId: ref("Movimiento existente (de lucaplan_candidatos_pago_cuota)"),
+      transactionId: ref(
+        "Movimiento existente (de lucaplan_candidatos_pago_cuota)"
+      ),
       ...operation,
     })
   ),

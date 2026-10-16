@@ -16,7 +16,11 @@ export class PluginToolError extends Error {
   readonly status: number
   // Solo en faltas de permiso: el host lo usa para pedir el scope que falta.
   readonly requiredScope: string | null
-  constructor(message: string, status = 400, requiredScope: string | null = null) {
+  constructor(
+    message: string,
+    status = 400,
+    requiredScope: string | null = null
+  ) {
     super(message)
     this.name = "PluginToolError"
     this.status = status
@@ -94,7 +98,9 @@ export async function executePluginTool(
       403,
       tool.scope
     )
-  const parsed = tool.inputSchema.safeParse(rawArgs, { error: spanish.localeError })
+  const parsed = tool.inputSchema.safeParse(rawArgs, {
+    error: spanish.localeError,
+  })
   if (!parsed.success)
     throw new PluginToolError(
       `Argumentos inválidos para ${toolName}: ${zodMessage(parsed.error)}`
@@ -123,7 +129,8 @@ export async function executePluginTool(
     } catch (error) {
       const message = domainMessage(error)
       throw new PluginToolError(
-        message ?? "No se pudo completar la consulta. Intenta de nuevo en un momento",
+        message ??
+          "No se pudo completar la consulta. Intenta de nuevo en un momento",
         message ? (domainErrorStatus(error) ?? 422) : 500
       )
     }

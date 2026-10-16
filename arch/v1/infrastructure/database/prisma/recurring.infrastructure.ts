@@ -188,7 +188,9 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
     })
     // Sin `externalId` no vino del banco: es la marca manual del usuario (o el movimiento de
     // origen de la plantilla, que es la misma afirmación suya).
-    return row ? { id: row.id, status: row.status, isManual: row.externalId === null } : null
+    return row
+      ? { id: row.id, status: row.status, isManual: row.externalId === null }
+      : null
   },
   async setPeriodPaid(templateId, periodKey, paid) {
     const { count } = await prisma.transaction.updateMany({
@@ -206,54 +208,59 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
     return count > 0
   },
   async attachImportedMovement(transactionId, template, periodKey) {
-    return prisma.$transaction(async (db) => {
-      const committed = await db.transaction.findFirst({
-        where: { recurringTemplateId: template.id, periodKey },
-      })
-      // El período ya lo cerró el BANCO: dos cargos reales no se pisan, este sigue el flujo normal.
-      if (
-        committed &&
-        committed.status !== "pending" &&
-        committed.externalId !== null
-      )
-        return false
-      // Queda el comprometido, o una ejecución confirmada A MANO por el usuario: el correo es el
-      // hecho y la reemplaza. Conservar las dos contaría dos veces el mismo gasto.
-      if (committed && committed.id !== transactionId)
-        await db.transaction.delete({ where: { id: committed.id } })
-      const { count } = await db.transaction.updateMany({
-        // El importado conserva su monto, fecha y externalId reales: solo adopta el vínculo. Uno ya
-        // vinculado a OTRA plantilla no se roba (dejaría ese período sin su cobro).
-        where: {
-          id: transactionId,
-          OR: [{ recurringTemplateId: null }, { recurringTemplateId: template.id }],
-        },
-        data: {
-          categoryId: template.categoryId,
-          recurringTemplateId: template.id,
-          periodKey,
-          status: "confirmed",
-          reviewed: true,
-        },
-      })
-      // Movimiento inexistente o de otra plantilla: se revierte el borrado del comprometido.
-      if (count === 0) throw new NotAttached()
-      // Recurrente planificada (sin clave de match): el primer cobro real vinculado le da su
-      // clave, para que los próximos se reconozcan solos. Nunca pisa una clave ya fijada.
-      if (!template.description.trim()) {
-        const tx = await db.transaction.findUniqueOrThrow({
-          where: { id: transactionId },
-          select: { description: true },
+    return prisma
+      .$transaction(async (db) => {
+        const committed = await db.transaction.findFirst({
+          where: { recurringTemplateId: template.id, periodKey },
         })
-        await db.recurringTemplate.updateMany({
-          where: { id: template.id, description: "" },
-          data: { description: tx.description },
+        // El período ya lo cerró el BANCO: dos cargos reales no se pisan, este sigue el flujo normal.
+        if (
+          committed &&
+          committed.status !== "pending" &&
+          committed.externalId !== null
+        )
+          return false
+        // Queda el comprometido, o una ejecución confirmada A MANO por el usuario: el correo es el
+        // hecho y la reemplaza. Conservar las dos contaría dos veces el mismo gasto.
+        if (committed && committed.id !== transactionId)
+          await db.transaction.delete({ where: { id: committed.id } })
+        const { count } = await db.transaction.updateMany({
+          // El importado conserva su monto, fecha y externalId reales: solo adopta el vínculo. Uno ya
+          // vinculado a OTRA plantilla no se roba (dejaría ese período sin su cobro).
+          where: {
+            id: transactionId,
+            OR: [
+              { recurringTemplateId: null },
+              { recurringTemplateId: template.id },
+            ],
+          },
+          data: {
+            categoryId: template.categoryId,
+            recurringTemplateId: template.id,
+            periodKey,
+            status: "confirmed",
+            reviewed: true,
+          },
         })
-      }
-      return true
-    }).catch((e) => {
-      if (e instanceof NotAttached) return false
-      throw e
-    })
+        // Movimiento inexistente o de otra plantilla: se revierte el borrado del comprometido.
+        if (count === 0) throw new NotAttached()
+        // Recurrente planificada (sin clave de match): el primer cobro real vinculado le da su
+        // clave, para que los próximos se reconozcan solos. Nunca pisa una clave ya fijada.
+        if (!template.description.trim()) {
+          const tx = await db.transaction.findUniqueOrThrow({
+            where: { id: transactionId },
+            select: { description: true },
+          })
+          await db.recurringTemplate.updateMany({
+            where: { id: template.id, description: "" },
+            data: { description: tx.description },
+          })
+        }
+        return true
+      })
+      .catch((e) => {
+        if (e instanceof NotAttached) return false
+        throw e
+      })
   },
 }

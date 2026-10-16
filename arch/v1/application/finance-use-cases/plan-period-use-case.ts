@@ -91,7 +91,8 @@ export function currencyPositions(
       const od = own.find((b) => b.kind === "overdraft")
       if (cash) {
         // Sin bucket de sobregiro la caja puede quedar negativa: eso también es deuda, no caja.
-        if (cash.available.isNegative) add(cash.currency, "overdraftUsed", cash.available.negate())
+        if (cash.available.isNegative)
+          add(cash.currency, "overdraftUsed", cash.available.negate())
         else add(cash.currency, "cash", cash.available)
         if (od) {
           add(od.currency, "overdraftUsed", od.used)
@@ -100,7 +101,11 @@ export function currencyPositions(
       } else if (account.balance.isNegative) {
         const used = account.balance.negate()
         add(account.currency, "overdraftUsed", used)
-        add(account.currency, "overdraftAvailable", account.overdraftLimit.subtract(used))
+        add(
+          account.currency,
+          "overdraftAvailable",
+          account.overdraftLimit.subtract(used)
+        )
       } else {
         add(account.currency, "cash", account.balance)
         add(account.currency, "overdraftAvailable", account.overdraftLimit)
@@ -174,17 +179,25 @@ export async function getPeriodPlan(
   today = todayKey()
 ) {
   const range = await rangeOf(deps, year, month)
-  const [accounts, buckets, incomes, incomeAmounts, templates, plans, txs, budget] =
-    await Promise.all([
-      deps.accounts.listByUser(userId),
-      deps.balanceBuckets.listByUser(userId),
-      deps.incomes.listByUser(userId),
-      deps.incomes.listAmountsByUser(userId),
-      deps.recurring.listActiveByUser(userId),
-      deps.installments.listByUser(userId),
-      deps.transactions.listByUserPeriod(userId, range),
-      getBudgetView(deps, userId, year, month),
-    ])
+  const [
+    accounts,
+    buckets,
+    incomes,
+    incomeAmounts,
+    templates,
+    plans,
+    txs,
+    budget,
+  ] = await Promise.all([
+    deps.accounts.listByUser(userId),
+    deps.balanceBuckets.listByUser(userId),
+    deps.incomes.listByUser(userId),
+    deps.incomes.listAmountsByUser(userId),
+    deps.recurring.listActiveByUser(userId),
+    deps.installments.listByUser(userId),
+    deps.transactions.listByUserPeriod(userId, range),
+    getBudgetView(deps, userId, year, month),
+  ])
   const byCurrency = new Map(
     CURRENCIES.map((c) => [
       c,
@@ -227,11 +240,20 @@ export async function getPeriodPlan(
   // Recurrentes: cada período cuya fecha de ejecución cae en el rango, con su estado real.
   const recurringRows = []
   for (const template of templates) {
-    const keys = new Set(daysOf(range).map((d) => periodKeyFor(template, localDay(d))))
+    const keys = new Set(
+      daysOf(range).map((d) => periodKeyFor(template, localDay(d)))
+    )
     for (const key of keys) {
       const executes = executionDateFor(template, key)
-      if (!inRange(executes, range) || !periodIsWithinValidity(template, executes)) continue
-      const periodTx = await deps.recurring.findPeriodTransaction(template.id, key)
+      if (
+        !inRange(executes, range) ||
+        !periodIsWithinValidity(template, executes)
+      )
+        continue
+      const periodTx = await deps.recurring.findPeriodTransaction(
+        template.id,
+        key
+      )
       const paid = periodTx?.status === "confirmed"
       const paidTx = paid ? txs.find((t) => t.id === periodTx!.id) : undefined
       const amount = paidTx?.amount ?? template.baseAmount
@@ -288,13 +310,20 @@ export async function getPeriodPlan(
   // Movimientos ya registrados que no son de ninguna recurrente, cuota ni ingreso (esos ya están
   // arriba): los confirmados con fecha futura y los que el banco aún no confirma.
   for (const t of txs) {
-    if (t.isInternal || t.recurringTemplateId || t.installmentItemId || t.incomeId) continue
+    if (
+      t.isInternal ||
+      t.recurringTemplateId ||
+      t.installmentItemId ||
+      t.incomeId
+    )
+      continue
     const c = totals(t.amount.currency)
     if (t.status === "confirmed" && t.date.toISOString().slice(0, 10) > today) {
       if (t.direction === "debit") c.futureDebit = c.futureDebit.add(t.amount)
       else c.futureCredit = c.futureCredit.add(t.amount)
     } else if (t.status === "pending") {
-      if (t.direction === "debit") c.unconfirmedDebit = c.unconfirmedDebit.add(t.amount)
+      if (t.direction === "debit")
+        c.unconfirmedDebit = c.unconfirmedDebit.add(t.amount)
       else c.unconfirmedCredit = c.unconfirmedCredit.add(t.amount)
     }
   }

@@ -463,7 +463,11 @@ export const transactionRepository: TransactionRepository = {
         old.currency as CurrencyCode
       )
       // Editar no cambia el estado: un pendiente sigue sin tocar la caja (cashDelta = 0).
-      const oldDelta = cashDelta(old.status, old.direction as Direction, oldMoney)
+      const oldDelta = cashDelta(
+        old.status,
+        old.direction as Direction,
+        oldMoney
+      )
       const newDelta = cashDelta(old.status, input.direction, input.amount)
       if (!oldDelta.isZero || !newDelta.isZero) {
         const balance = Money.of(account.balance.toString(), currency)
@@ -523,7 +527,11 @@ export const transactionRepository: TransactionRepository = {
         old.currency as CurrencyCode
       )
       // Un pendiente nunca movió la caja: borrarlo tampoco la mueve.
-      const oldDelta = cashDelta(old.status, old.direction as Direction, oldMoney)
+      const oldDelta = cashDelta(
+        old.status,
+        old.direction as Direction,
+        oldMoney
+      )
       if (!oldDelta.isZero) {
         const balance = Money.of(account.balance.toString(), currency).subtract(
           oldDelta

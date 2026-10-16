@@ -536,7 +536,12 @@ test("Dado un pago enganchado en la cuota equivocada, cuando el chat pide moverl
     toItemId: "cuota-5",
   }
   await assert.rejects(() =>
-    run(deps, { ...actor, scopes: ["finance:read"] }, "lucaplan_mover_pago_cuota", pedido)
+    run(
+      deps,
+      { ...actor, scopes: ["finance:read"] },
+      "lucaplan_mover_pago_cuota",
+      pedido
+    )
   )
   const first = await run(deps, actor, "lucaplan_mover_pago_cuota", pedido)
   const again = await run(deps, actor, "lucaplan_mover_pago_cuota", pedido)
@@ -554,7 +559,8 @@ test("Dado un pago enganchado en la cuota equivocada, cuando el chat pide moverl
 // Agente financiero — Sin pantalla.
 test("Dado un cambio rechazado por una regla antes de escribir, cuando el chat lo corrige con la misma clave, entonces se ejecuta; un error tras empezar queda incierto", async () => {
   const { deps, operations } = setup({ id: "ok" })
-  const { NotOwnerError } = await import("../../domain/finance/finance.domain.ts")
+  const { NotOwnerError } =
+    await import("../../domain/finance/finance.domain.ts")
   let fail: Error | null = new NotOwnerError()
   deps.executor.execute = async () => {
     if (fail) throw fail
@@ -564,10 +570,17 @@ test("Dado un cambio rechazado por una regla antes de escribir, cuando el chat l
     run(deps, actor, "lucaplan_crear_categoria", category("rechazo")),
     /Rechazado sin cambios: .*no existe o no pertenece/
   )
-  assert.equal(await operations.get(key("rechazo")), null, "el rechazo libera la clave")
+  assert.equal(
+    await operations.get(key("rechazo")),
+    null,
+    "el rechazo libera la clave"
+  )
   fail = null
   assert.deepEqual(
-    await run(deps, actor, "lucaplan_crear_categoria", { ...category("rechazo"), name: "Corregida" }),
+    await run(deps, actor, "lucaplan_crear_categoria", {
+      ...category("rechazo"),
+      name: "Corregida",
+    }),
     { id: "ok" }
   )
   fail = new Error("conexión cortada")

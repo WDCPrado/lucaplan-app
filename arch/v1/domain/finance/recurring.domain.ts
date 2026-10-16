@@ -279,9 +279,12 @@ export function paymentCandidateRejection(
   // lo pagué», y el próximo correo del período lo borraría (`attachImportedMovement`).
   if (tx.externalId === null)
     return "Solo se pueden elegir movimientos que vinieron del banco"
-  if (tx.status !== "confirmed") return "El movimiento todavía no está confirmado"
-  if (tx.isInternal) return "Un movimiento interno no puede ser el cobro de una recurrente"
-  if (tx.recurringTemplateId) return "El movimiento ya es el cobro de una recurrente"
+  if (tx.status !== "confirmed")
+    return "El movimiento todavía no está confirmado"
+  if (tx.isInternal)
+    return "Un movimiento interno no puede ser el cobro de una recurrente"
+  if (tx.recurringTemplateId)
+    return "El movimiento ya es el cobro de una recurrente"
   if (tx.installmentItemId) return "El movimiento ya es la cuota de un plan"
   if (tx.amount.currency !== template.currency)
     return "El movimiento está en otra moneda que la recurrente"

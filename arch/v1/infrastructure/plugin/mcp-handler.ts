@@ -33,11 +33,19 @@ export const INSTRUCTIONS = [
 // structuredContent siempre es { result }: el contenido varía por herramienta y se describe en su texto.
 const OUTPUT_SCHEMA = {
   type: "object" as const,
-  properties: { result: { description: "Resultado de la herramienta (objeto, lista o null)" } },
+  properties: {
+    result: {
+      description: "Resultado de la herramienta (objeto, lista o null)",
+    },
+  },
   required: ["result"],
 }
 
-export function toolAnnotations(tool: { readOnly: boolean; destructive: boolean; title: string }) {
+export function toolAnnotations(tool: {
+  readOnly: boolean
+  destructive: boolean
+  title: string
+}) {
   return {
     title: tool.title,
     readOnlyHint: tool.readOnly,
@@ -70,8 +78,9 @@ const money = (value: unknown) =>
 // Resumen corto y legible para el modelo; los datos completos van en structuredContent.
 export function summarize(toolName: string, result: unknown): string {
   const title =
-    (pluginTools as Record<string, { title: string; readOnly: boolean }>)[toolName]?.title ??
-    toolName
+    (pluginTools as Record<string, { title: string; readOnly: boolean }>)[
+      toolName
+    ]?.title ?? toolName
   const parts: string[] = [`${title}: listo.`]
   if (result === null) parts.push("Sin resultado (null).")
   else if (Array.isArray(result)) parts.push(`${result.length} elementos.`)
@@ -85,7 +94,13 @@ export function summarize(toolName: string, result: unknown): string {
       )
       if (r.hasMore) parts.push(`Hay más: repite con offset ${r.nextOffset}.`)
     }
-    for (const key of ["id", "transactionId", "operationId", "status", "confirmationToken"])
+    for (const key of [
+      "id",
+      "transactionId",
+      "operationId",
+      "status",
+      "confirmationToken",
+    ])
       if (typeof r[key] === "string") parts.push(`${key}: ${r[key]}.`)
     for (const key of ["amount", "balance", "baseAmount", "totalAmount"]) {
       const m = money(r[key])

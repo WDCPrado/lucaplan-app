@@ -74,9 +74,13 @@ async function validateInput(
   if (!input.label.trim())
     throw new InvalidRecurringTemplateError("La recurrente necesita un nombre")
   if (!Number.isFinite(input.baseAmount) || input.baseAmount <= 0)
-    throw new InvalidRecurringTemplateError("El monto base debe ser mayor que 0")
+    throw new InvalidRecurringTemplateError(
+      "El monto base debe ser mayor que 0"
+    )
   if (!isValidTolerance(input.tolerancePct))
-    throw new InvalidRecurringTemplateError("La tolerancia debe estar entre 0 y 100")
+    throw new InvalidRecurringTemplateError(
+      "La tolerancia debe estar entre 0 y 100"
+    )
   if (
     requiresDayOfMonth(input.periodicity) &&
     (input.dayOfMonth === null ||
@@ -330,7 +334,9 @@ export async function payRecurringPeriodWith(
   )
   if (periodTx?.status === "confirmed" && !periodTx.isManual)
     throw new RecurringPeriodBankPaidError()
-  if (!(await deps.recurring.attachImportedMovement(tx.id, template, periodKey))) {
+  if (
+    !(await deps.recurring.attachImportedMovement(tx.id, template, periodKey))
+  ) {
     // Algo cambió entre la lectura y la escritura: o el movimiento (borrado o vinculado a otra
     // plantilla → 404/422) o el período (lo cerró el correo → 409).
     await assertCandidate()

@@ -38,7 +38,9 @@ const movementSelect = {
     select: {
       index: true,
       planId: true,
-      plan: { select: { description: true, kind: true, installmentsCount: true } },
+      plan: {
+        select: { description: true, kind: true, installmentsCount: true },
+      },
     },
   },
   income: { select: { name: true } },
@@ -47,7 +49,9 @@ const movementSelect = {
   },
 } satisfies Prisma.TransactionSelect
 
-type MovementRow = Prisma.TransactionGetPayload<{ select: typeof movementSelect }>
+type MovementRow = Prisma.TransactionGetPayload<{
+  select: typeof movementSelect
+}>
 
 const SOURCE_LABEL = {
   bank_email: "Banco conectado por correo",
@@ -91,7 +95,8 @@ function movementView(row: MovementRow, duplicateInstallment = false) {
     status: row.status,
     isInternal: row.isInternal,
     affectsCash: row.status === "confirmed",
-    countsInBudget: row.status === "confirmed" && !row.isInternal && row.categoryId !== null,
+    countsInBudget:
+      row.status === "confirmed" && !row.isInternal && row.categoryId !== null,
     accountId: row.accountId,
     accountName: row.account.name,
     bankName: row.account.bank.name,
@@ -101,7 +106,10 @@ function movementView(row: MovementRow, duplicateInstallment = false) {
     sourceLabel: SOURCE_LABEL[source],
     relations: {
       recurring: row.recurringTemplateId
-        ? { id: row.recurringTemplateId, label: row.recurringTemplate?.label ?? null }
+        ? {
+            id: row.recurringTemplateId,
+            label: row.recurringTemplate?.label ?? null,
+          }
         : null,
       installment:
         row.installmentItemId && row.installmentItem
@@ -114,7 +122,9 @@ function movementView(row: MovementRow, duplicateInstallment = false) {
               kind: row.installmentItem.plan.kind,
             }
           : null,
-      income: row.incomeId ? { id: row.incomeId, name: row.income?.name ?? null } : null,
+      income: row.incomeId
+        ? { id: row.incomeId, name: row.income?.name ?? null }
+        : null,
       sourceOfInstallmentPlan: row.installmentPlanAsSource
         ? {
             planId: row.installmentPlanAsSource.id,
@@ -156,7 +166,8 @@ export async function searchPluginTransactions(
   if (input.accountId) and.push({ accountId: input.accountId })
   if (input.currency) and.push({ currency: input.currency })
   if (input.categoryId) and.push({ categoryId: input.categoryId })
-  if (input.bankName) and.push({ account: { bank: { name: input.bankName, userId } } })
+  if (input.bankName)
+    and.push({ account: { bank: { name: input.bankName, userId } } })
   if (input.internal !== undefined) and.push({ isInternal: input.internal })
   if (input.from || input.to)
     and.push({
@@ -187,7 +198,11 @@ export async function searchPluginTransactions(
   else if (input.settledOnly ?? true)
     and.push(
       { status: { notIn: ["reversed", "duplicated"] } },
-      { NOT: { AND: [{ status: "pending" }, { recurringTemplateId: { not: null } }] } }
+      {
+        NOT: {
+          AND: [{ status: "pending" }, { recurringTemplateId: { not: null } }],
+        },
+      }
     )
   if (input.uncategorized)
     and.push({

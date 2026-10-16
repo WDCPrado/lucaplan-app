@@ -58,7 +58,9 @@ async function loadEditable(deps: Deps, userId: string, transactionId: string) {
 
 // Motivo por el que un movimiento NO se puede editar, o null. Lo usan el caso de uso y quien
 // muestra las capacidades del movimiento (plugin), para que ambos digan lo mismo.
-export function editRejection(account: Pick<Account, "provider">): string | null {
+export function editRejection(
+  account: Pick<Account, "provider">
+): string | null {
   return account.provider !== "manual"
     ? "Es de una cuenta conectada por correo: solo se puede cambiar su categoría"
     : null

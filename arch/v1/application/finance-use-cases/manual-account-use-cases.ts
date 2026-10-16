@@ -32,7 +32,10 @@ type DeletionDeps = {
 }
 
 export async function updateManualAccount(
-  deps: { accounts: AccountRepository; manualAccounts: ManualAccountRepository },
+  deps: {
+    accounts: AccountRepository
+    manualAccounts: ManualAccountRepository
+  },
   userId: string,
   input: {
     accountId: string
@@ -56,9 +59,12 @@ export async function updateManualAccount(
     : null
   if (accountHasCard(account.accountType) && !cardLast4)
     throw new CardLast4RequiredError()
-  const overdraftLimit = input.overdraftLimit ?? account.overdraftLimit.toMajor()
+  const overdraftLimit =
+    input.overdraftLimit ?? account.overdraftLimit.toMajor()
   if (!Number.isFinite(overdraftLimit) || overdraftLimit < 0)
-    throw new InvalidManualAccountError("La línea de sobregiro debe ser un monto ≥ 0")
+    throw new InvalidManualAccountError(
+      "La línea de sobregiro debe ser un monto ≥ 0"
+    )
   if (overdraftLimit > 0 && account.accountType !== "checking")
     throw new InvalidManualAccountError(
       "Solo una cuenta corriente (checking) tiene línea de sobregiro"
@@ -78,7 +84,12 @@ export async function updateManualAccount(
   }
 }
 
-function payload(userId: string, accountId: string, stateHash: string, issuedAt: number) {
+function payload(
+  userId: string,
+  accountId: string,
+  stateHash: string,
+  issuedAt: number
+) {
   return `account-delete:v1:${userId}:${accountId}:${stateHash}:${issuedAt}`
 }
 
@@ -87,7 +98,8 @@ function assertDeletable(
 ): asserts snapshot is ManualAccountSnapshot {
   if (!snapshot) throw new NotOwnerError()
   // Nunca un banco ni una cuenta conectada: su baja es desconectar el correo.
-  if (snapshot.account.provider !== "manual") throw new ConnectedAccountReadOnlyError()
+  if (snapshot.account.provider !== "manual")
+    throw new ConnectedAccountReadOnlyError()
 }
 
 /** Paso 1: impacto de borrar la cuenta y el token que liga la confirmación a este estado. */
@@ -128,12 +140,19 @@ export async function deleteManualAccount(
     now - issuedAt > DELETION_TOKEN_TTL_MS
   )
     throw new StaleAccountDeletionError()
-  const impact = await deps.manualAccounts.deleteChecked(userId, input.accountId, (snapshot) => {
-    assertDeletable(snapshot)
-    const stateHash = deps.hash(canonicalJson(snapshot))
-    if (deps.sign(payload(userId, input.accountId, stateHash, issuedAt)) !== signature)
-      throw new StaleAccountDeletionError()
-    return accountDeletionImpact(snapshot)
-  })
+  const impact = await deps.manualAccounts.deleteChecked(
+    userId,
+    input.accountId,
+    (snapshot) => {
+      assertDeletable(snapshot)
+      const stateHash = deps.hash(canonicalJson(snapshot))
+      if (
+        deps.sign(payload(userId, input.accountId, stateHash, issuedAt)) !==
+        signature
+      )
+        throw new StaleAccountDeletionError()
+      return accountDeletionImpact(snapshot)
+    }
+  )
   return { deleted: true, impact }
 }

@@ -91,7 +91,11 @@ export function accountDeletionImpact(
   const own = s.account.id
   const toOtherAccounts: CrossLink[] = []
   for (const t of s.transactions) {
-    if (t.installmentItemId && t.installmentPlanAccountId && t.installmentPlanAccountId !== own)
+    if (
+      t.installmentItemId &&
+      t.installmentPlanAccountId &&
+      t.installmentPlanAccountId !== own
+    )
       toOtherAccounts.push({
         transactionId: t.id,
         kind: "cuota",
@@ -99,7 +103,11 @@ export function accountDeletionImpact(
         otherAccountId: t.installmentPlanAccountId,
         effect: "La cuota de ese plan vuelve a quedar pendiente",
       })
-    if (t.recurringTemplateId && t.recurringAccountId && t.recurringAccountId !== own)
+    if (
+      t.recurringTemplateId &&
+      t.recurringAccountId &&
+      t.recurringAccountId !== own
+    )
       toOtherAccounts.push({
         transactionId: t.id,
         kind: "recurrente",
@@ -115,7 +123,11 @@ export function accountDeletionImpact(
         otherAccountId: t.incomeAccountId,
         effect: "Ese mes del ingreso vuelve a quedar sin registrar",
       })
-    if (t.sourceOfPlanId && t.sourceOfPlanAccountId && t.sourceOfPlanAccountId !== own)
+    if (
+      t.sourceOfPlanId &&
+      t.sourceOfPlanAccountId &&
+      t.sourceOfPlanAccountId !== own
+    )
       toOtherAccounts.push({
         transactionId: t.id,
         kind: "compra_origen",
@@ -125,7 +137,11 @@ export function accountDeletionImpact(
       })
   }
   const fromOtherAccounts = s.foreignTransactions.map((t) => {
-    const base = { transactionId: t.id, otherAccountId: t.accountId, accountName: t.accountName }
+    const base = {
+      transactionId: t.id,
+      otherAccountId: t.accountId,
+      accountName: t.accountName,
+    }
     if (t.installmentItemId)
       return {
         ...base,
@@ -151,7 +167,9 @@ export function accountDeletionImpact(
     account: s.account,
     deletes: {
       transactions: s.transactions.length,
-      pendingTransactions: s.transactions.filter((t) => t.status !== "confirmed").length,
+      pendingTransactions: s.transactions.filter(
+        (t) => t.status !== "confirmed"
+      ).length,
       buckets: s.buckets,
       cards: s.cards,
       incomes: s.incomes,
@@ -172,7 +190,10 @@ export function accountDeletionImpact(
 export interface ManualAccountRepository {
   update(accountId: string, input: ManualAccountUpdate): Promise<void>
   /** Foto del estado de la cuenta del usuario; null si no existe o no es suya. */
-  snapshot(userId: string, accountId: string): Promise<ManualAccountSnapshot | null>
+  snapshot(
+    userId: string,
+    accountId: string
+  ): Promise<ManualAccountSnapshot | null>
   /**
    * En UNA transacción: vuelve a leer la foto, se la pasa a `check` (que lanza para abortar sin
    * escribir), reabre los planes de otras cuentas que pierden un pago, borra la cuenta —la

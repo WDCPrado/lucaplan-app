@@ -299,6 +299,7 @@ export type TransactionSearchFilters = {
   amountMin?: number
   amountMax?: number
   limit?: number
+  offset?: number // filas a saltar (paginación); con `limit` arma la página
   // Triage: solo movimientos sin categoría ELEGIBLES (excluye reversed/duplicated e internos).
   // El repo mete el criterio completo al filtro, no post-filtra: el límite no se consume con
   // filas inelegibles.
@@ -382,6 +383,11 @@ export interface TransactionRepository {
     userId: string,
     filters: TransactionSearchFilters
   ): Promise<Transaction[]>
+  // Cuántos movimientos cumplen los mismos filtros que `searchByUser` (ignora limit/offset).
+  countByUser(
+    userId: string,
+    filters: TransactionSearchFilters
+  ): Promise<number>
   // Rango [min, max] de las magnitudes de monto del usuario, para acotar el slider del buscador.
   // ponytail: opcional para no obligar a los repos de test a implementarlo; hazlo requerido si
   // otro caso además de la UI lo necesita.

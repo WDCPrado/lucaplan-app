@@ -73,6 +73,9 @@ function makeDeps(provider: CategorizationProvider, categories: Category[]) {
       async searchByUser() {
         return []
       },
+      async countByUser() {
+        return 0
+      },
       async create() {
         throw new Error("no usado")
       },

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   ChevronLeft,
@@ -11,6 +12,7 @@ import {
   Plus,
   TrendingUp,
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import {
@@ -23,7 +25,7 @@ import { haptic } from "@/lib/haptics"
 import { useCardCarousel } from "@/hooks/use-card-carousel"
 import { AppShell } from "./app-shell"
 import { MonthPicker } from "./month-picker"
-import { MonthStatus } from "./month-status"
+import { AllocationNudge, MonthStatus } from "./month-status"
 import { OverspendBanner } from "./overspend-banner"
 import { PlanSheet } from "./plan-sheet"
 import { AccountCard } from "./account-card"
@@ -178,19 +180,6 @@ export function Dashboard({
     setDayState({ key: periodKey, day: defaultDay })
   const selectedDay = dayState.day
   const dayTransactions = transactions.filter((t) => dateOf(t) === selectedDay)
-  // Escritorio: los movimientos más recientes ANTES del día elegido, agrupados por fecha, para
-  // que la columna del día no quede vacía. Ocho filas bastan para llenar la primera pantalla.
-  const recentGroups: { key: string; header: string; txs: TransactionDTO[] }[] =
-    []
-  for (const t of transactions
-    .filter((t) => dateOf(t) < selectedDay)
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 8)) {
-    const key = t.date.slice(0, 10)
-    const last = recentGroups[recentGroups.length - 1]
-    if (last?.key === key) last.txs.push(t)
-    else recentGroups.push({ key, header: formatDateHeader(t.date), txs: [t] })
-  }
   // Tocar el arco de un movimiento abre el detalle de SU categoría (no el movimiento).
   const openCategory = (id: string) => {
     const cat = budget.categories.find((c) => c.id === id)
@@ -496,7 +485,6 @@ export function Dashboard({
             globalLimit={budget.globalLimit}
             spent={totalUsed}
             committed={totalCommitted}
-            remainingToAllocate={budget.remainingToAllocate}
             onOpenPlan={() => setPlanOpen(true)}
           >
             <DayStrip
@@ -510,6 +498,10 @@ export function Dashboard({
               }}
             />
           </MonthStatus>
+          <AllocationNudge
+            remainingToAllocate={budget.remainingToAllocate}
+            onOpenPlan={() => setPlanOpen(true)}
+          />
 
           {/* Cuánto te pasaste, junto: el excedente del mes (contra el presupuesto global) y el de
               los topes por categoría, que no son la misma cifra. Con ambos en $0 no se renderiza. */}
@@ -521,8 +513,7 @@ export function Dashboard({
             categories={budget.categories}
           />
 
-          {/* Escritorio: categorías a la izquierda; el día elegido y los días anteriores a la
-              derecha; las cuentas abajo, a lo ancho. Móvil: una columna en el orden del DOM —
+          {/* Escritorio: categorías a la izquierda; el día elegido a la derecha; las cuentas abajo, a lo ancho. Móvil: una columna en el orden del DOM —
               categorías, día elegido, cuentas—. Todo scrollea con la página (nada fijo). */}
           <div className="grid gap-x-6 gap-y-8 lg:grid-cols-2 lg:items-start">
             <section
@@ -641,7 +632,7 @@ export function Dashboard({
                 con la búsqueda (lupa). */}
             <section
               id="movimientos"
-              className="min-w-0 lg:col-start-2 lg:row-start-1"
+              className="min-w-0 max-lg:pb-6 lg:col-start-2 lg:row-start-1"
             >
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h2 className="truncate font-heading text-lg font-bold">
@@ -673,35 +664,11 @@ export function Dashboard({
                   ))}
                 </div>
               )}
+              {/* El resto del período (y la búsqueda) vive en Movimientos. */}
+              <Button asChild variant="outline" className="mt-3 h-11 w-full">
+                <Link href="/movements">Ver todos los movimientos</Link>
+              </Button>
             </section>
-
-            {/* Solo escritorio: con un día de uno o dos movimientos la columna quedaba vacía
-                  frente a una lista de categorías de 900 px. Los días anteriores la completan con
-                  lo más reciente, agrupado por fecha como en la búsqueda. */}
-            {recentGroups.length > 0 && (
-              <section className="max-lg:hidden lg:col-start-2 lg:row-start-2">
-                <h3 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Días anteriores
-                </h3>
-                <div className="glass flex flex-col gap-0.5 rounded-xl p-2">
-                  {recentGroups.map((g) => (
-                    <div key={g.key}>
-                      <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground">
-                        {g.header}
-                      </div>
-                      {g.txs.map((t) => (
-                        <MovementRow
-                          key={t.id}
-                          tx={t}
-                          onOpen={setDetailTx}
-                          onOpenCategory={openCategory}
-                        />
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
 
             {/* Cuentas: consulta, no decisión diaria. Escritorio: bajo las dos columnas, a lo
                 ancho, como grilla de tarjetas. Móvil: al final, como carrusel. */}

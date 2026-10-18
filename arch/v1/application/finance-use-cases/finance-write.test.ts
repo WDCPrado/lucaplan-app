@@ -61,6 +61,9 @@ class FakeTx implements TransactionRepository {
   async searchByUser(): Promise<Transaction[]> {
     return []
   }
+  async countByUser() {
+    return 0
+  }
   async create(tx: NewTransaction): Promise<Transaction> {
     this.created.push(tx)
     return {

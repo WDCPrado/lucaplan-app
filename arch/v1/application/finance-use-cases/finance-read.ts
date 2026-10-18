@@ -593,13 +593,62 @@ export async function searchTransactions(
   userId: string,
   filters: TransactionSearchFilters
 ): Promise<TransactionDTO[]> {
+  // El buscador mira la cartola: solo lo que ya ocurrió. Se fuerza acá (no en el endpoint) para
+  // que ninguna llamada pueda pedir las recurrentes por cobrar por accidente.
   const [txs, cats, accounts] = await Promise.all([
-    // El buscador mira la cartola: solo lo que ya ocurrió. Se fuerza acá (no en el endpoint) para
-    // que ninguna llamada pueda pedir las recurrentes por cobrar por accidente.
     deps.transactions.searchByUser(userId, { ...filters, settledOnly: true }),
     deps.categories.listByUser(userId),
     deps.accounts.listByUser(userId),
   ])
+  return searchResultDTOs(deps, userId, txs, cats, accounts)
+}
+
+export type TransactionPage = {
+  items: TransactionDTO[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+// Búsqueda paginada (pantalla Movimientos): mismos filtros, orden y DTO que `searchTransactions`;
+// `total` cuenta con el mismo where. `page` desde 1; inválido → 1. `pageSize` 1..100; inválido → 20.
+// Una página pasada del final devuelve items vacíos con el total real.
+export async function searchTransactionsPage(
+  deps: ReadDeps,
+  userId: string,
+  filters: TransactionSearchFilters,
+  page: number,
+  pageSize: number
+): Promise<TransactionPage> {
+  const p = Number.isInteger(page) && page >= 1 ? page : 1
+  const size =
+    Number.isInteger(pageSize) && pageSize >= 1 && pageSize <= 100
+      ? pageSize
+      : 20
+  const where = { ...filters, settledOnly: true }
+  const [txs, total, cats, accounts] = await Promise.all([
+    deps.transactions.searchByUser(userId, {
+      ...where,
+      limit: size,
+      offset: (p - 1) * size,
+    }),
+    deps.transactions.countByUser(userId, where),
+    deps.categories.listByUser(userId),
+    deps.accounts.listByUser(userId),
+  ])
+  const items = await searchResultDTOs(deps, userId, txs, cats, accounts)
+  return { items, total, page: p, pageSize: size }
+}
+
+// Mapeo común del buscador: categoría, editable según el origen de la cuenta, monto en CLP y
+// estado de recurrencia.
+async function searchResultDTOs(
+  deps: ReadDeps,
+  userId: string,
+  txs: Transaction[],
+  cats: Category[],
+  accounts: Account[]
+): Promise<TransactionDTO[]> {
   const { clpAmounts } = await clpView(deps.exchangeRates, txs)
   const catById = new Map(cats.map((c) => [c.id, c]))
   const manual = new Set(

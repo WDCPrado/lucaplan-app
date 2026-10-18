@@ -19,6 +19,7 @@ import {
   getPreviousMonthDebt,
   listUncategorized,
   searchTransactions,
+  searchTransactionsPage,
 } from "./finance-read.ts"
 import { inRange } from "./budget-formulas.ts"
 import type { PeriodMode, PeriodRange } from "../../../shared/billing-cycle.ts"
@@ -58,7 +59,11 @@ function makeDeps(rows: Transaction[], accounts: Account[]) {
   const transactions: TransactionRepository = {
     async searchByUser(_userId, filters) {
       received = filters
-      return rows.slice(0, filters.limit)
+      const from = filters.offset ?? 0
+      return rows.slice(from, from + (filters.limit ?? rows.length))
+    },
+    async countByUser() {
+      return rows.length
     },
     async listByUserPeriod() {
       return []
@@ -125,6 +130,80 @@ test("searchTransactions: pide solo movimientos ocurridos (sin las recurrentes p
   )
   assert.equal(filters()?.settledOnly, true)
   assert.equal(filters()?.query, "jumbo") // el resto del filtro llega intacto
+})
+
+// Deps completas para el buscador (categorías y tipo de cambio no influyen en la paginación).
+function searchDeps(rows: Transaction[]) {
+  const { deps, filters } = makeDeps(rows, [account("a1", "bancochile")])
+  return {
+    deps: {
+      ...deps,
+      categories: {
+        async listByUser() {
+          return []
+        },
+      },
+      exchangeRates: {
+        async clpPerUsdAt() {
+          return 950
+        },
+      },
+    } as unknown as Parameters<typeof searchTransactionsPage>[0],
+    filters,
+  }
+}
+
+test("searchTransactionsPage: total real, páginas sin repetir ni saltar filas y en orden", async () => {
+  const rows = ["t1", "t2", "t3", "t4", "t5"].map((id) => mov(id))
+  const { deps, filters } = searchDeps(rows)
+  const p1 = await searchTransactionsPage(deps, "u1", { query: "x" }, 1, 2)
+  assert.equal(filters()?.settledOnly, true)
+  assert.equal(filters()?.query, "x")
+  assert.equal(filters()?.offset, 0)
+  assert.equal(filters()?.limit, 2)
+  const p2 = await searchTransactionsPage(deps, "u1", {}, 2, 2)
+  assert.equal(filters()?.offset, 2)
+  const p3 = await searchTransactionsPage(deps, "u1", {}, 3, 2)
+  assert.deepEqual(
+    [p1, p2, p3].map((p) => ({
+      total: p.total,
+      page: p.page,
+      pageSize: p.pageSize,
+    })),
+    [
+      { total: 5, page: 1, pageSize: 2 },
+      { total: 5, page: 2, pageSize: 2 },
+      { total: 5, page: 3, pageSize: 2 },
+    ]
+  )
+  assert.deepEqual(
+    [...p1.items, ...p2.items, ...p3.items].map((t) => t.id),
+    ["t1", "t2", "t3", "t4", "t5"]
+  )
+})
+
+test("searchTransactionsPage: página pasada del final devuelve vacío con el total", async () => {
+  const { deps } = searchDeps([mov("t1"), mov("t2")])
+  const p = await searchTransactionsPage(deps, "u1", {}, 9, 20)
+  assert.deepEqual(p.items, [])
+  assert.equal(p.total, 2)
+  assert.equal(p.page, 9)
+})
+
+test("searchTransactionsPage: page y pageSize inválidos caen a 1 y 20", async () => {
+  const { deps, filters } = searchDeps([mov("t1")])
+  for (const [page, size] of [
+    [0, 0],
+    [-3, 101],
+    [1.5, 2.5],
+    [Number.NaN, Number.NaN],
+  ]) {
+    const p = await searchTransactionsPage(deps, "u1", {}, page, size)
+    assert.equal(p.page, 1)
+    assert.equal(p.pageSize, 20)
+    assert.equal(filters()?.offset, 0)
+    assert.equal(filters()?.limit, 20)
+  }
 })
 
 test("listUncategorized: acota al mes (from/to), delega el criterio y pide limit+1 (51)", async () => {

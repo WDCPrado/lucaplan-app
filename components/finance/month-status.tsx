@@ -34,8 +34,8 @@ import type { CycleProps } from "./dashboard"
  * titular es con cuánto cerró; sin presupuesto, lo que corresponde es definirlo.
  *
  * Este bloque NO dice "te pasaste": ese aviso vive entero en la banda de excedente que va justo
- * debajo (WDC-73). Pasado el presupuesto, acá el número es $0 y punto. Si aún queda plata sin
- * repartir entre categorías, se avisa con un nudge que abre el plan.
+ * debajo (WDC-73). Pasado el presupuesto, acá el número es $0 y punto. Lo que falta repartir
+ * entre categorías es `AllocationNudge`, que va debajo de esta tarjeta (WDC-121).
  */
 export function MonthStatus({
   period,
@@ -45,7 +45,6 @@ export function MonthStatus({
   globalLimit,
   spent,
   committed,
-  remainingToAllocate,
   onOpenPlan,
   children,
 }: {
@@ -56,7 +55,6 @@ export function MonthStatus({
   globalLimit: number | null
   spent: number
   committed: number
-  remainingToAllocate: number | null // lo que falta repartir entre categorías (null = sin presupuesto)
   onOpenPlan: () => void
   children?: React.ReactNode // la tira de días, debajo del titular
 }) {
@@ -171,28 +169,39 @@ export function MonthStatus({
 
       {cycleBar}
       {children && <div className="mt-3">{children}</div>}
-
-      {/* Nudge de asignación: solo aparece cuando hay algo que hacer (falta repartir o te pasaste
-          asignando). Abre el plan, que es donde se reparte. En $0 no molesta. */}
-      {remainingToAllocate !== null && remainingToAllocate !== 0 && (
-        <button
-          onClick={onOpenPlan}
-          className={cn(
-            "mt-4 flex w-full items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-left text-sm transition-colors",
-            remainingToAllocate < 0
-              ? "bg-destructive/10 text-destructive hover:bg-destructive/15"
-              : "bg-secondary/50 hover:bg-accent"
-          )}
-        >
-          <span className="min-w-0">
-            {remainingToAllocate < 0
-              ? `Sobre-asignado ${formatCLP(Math.abs(remainingToAllocate))} en categorías`
-              : `Te falta repartir ${formatCLP(remainingToAllocate)} en categorías`}
-          </span>
-          <ChevronRight className="size-4 shrink-0 opacity-60" />
-        </button>
-      )}
     </section>
+  )
+}
+
+/**
+ * Nudge de asignación, debajo de la tarjeta del día: solo aparece cuando hay algo que hacer (falta
+ * repartir o te pasaste asignando). Abre el plan, que es donde se reparte. En $0 no molesta.
+ */
+export function AllocationNudge({
+  remainingToAllocate,
+  onOpenPlan,
+}: {
+  remainingToAllocate: number | null // null = sin presupuesto
+  onOpenPlan: () => void
+}) {
+  if (remainingToAllocate === null || remainingToAllocate === 0) return null
+  return (
+    <button
+      onClick={onOpenPlan}
+      className={cn(
+        "flex w-full items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-left text-sm transition-colors",
+        remainingToAllocate < 0
+          ? "bg-destructive/10 text-destructive hover:bg-destructive/15"
+          : "bg-secondary/50 hover:bg-accent"
+      )}
+    >
+      <span className="min-w-0">
+        {remainingToAllocate < 0
+          ? `Sobre-asignado ${formatCLP(Math.abs(remainingToAllocate))} en categorías`
+          : `Te falta repartir ${formatCLP(remainingToAllocate)} en categorías`}
+      </span>
+      <ChevronRight className="size-4 shrink-0 opacity-60" />
+    </button>
   )
 }
 

@@ -80,6 +80,9 @@ function fakeTransactions(byId: Record<string, Transaction>) {
     async searchByUser() {
       return []
     },
+    async countByUser() {
+      return 0
+    },
     async findById(id: string) {
       return byId[id] ?? null
     },

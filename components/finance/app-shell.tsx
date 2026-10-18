@@ -15,6 +15,7 @@ import {
   ChevronsUpDown,
   Plus,
   Search,
+  ListFilter,
 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -51,11 +52,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-// Solo rutas que existen. Movimientos/Presupuestos viven como secciones del
-// dashboard y Cuotas como sección de Recurrentes; cuando sean páginas propias, se agregan aquí.
+// Solo rutas que existen. Presupuestos vive como sección del dashboard y Cuotas como sección de
+// Recurrentes; cuando sean páginas propias, se agregan aquí.
 export type NavKey =
   | "inicio"
   | "recurrentes"
+  | "movimientos"
   | "configuracion"
   | "perfil"
 
@@ -72,10 +74,19 @@ const NAV: {
     Icon: Repeat,
     href: "/recurring",
   },
+  {
+    key: "movimientos",
+    label: "Movimientos",
+    Icon: ListFilter,
+    href: "/movements",
+  },
   // Un solo nombre por sección: el mismo en la barra lateral, la inferior y el título.
   { key: "configuracion", label: "Ajustes", Icon: Settings, href: "/settings" },
   { key: "perfil", label: "Perfil", Icon: UserRound, href: "/profile" },
 ]
+
+// La barra inferior no lleva Perfil: ya está en el avatar.
+const BOTTOM_NAV = NAV.filter((n) => n.key !== "perfil")
 
 function navKeyOf(pathname: string): NavKey | undefined {
   return NAV.find(
@@ -392,9 +403,9 @@ function BottomNav({
   const activeKey = active ?? optimisticKey
 
   // Slots iguales (flex-1): con el "+" al centro, los destinos de la segunda mitad corren uno.
-  const mid = onAdd ? Math.floor(NAV.length / 2) : NAV.length
-  const slots = NAV.length + (onAdd ? 1 : 0)
-  const activeIndex = NAV.findIndex((n) => n.key === activeKey)
+  const mid = onAdd ? Math.floor(BOTTOM_NAV.length / 2) : BOTTOM_NAV.length
+  const slots = BOTTOM_NAV.length + (onAdd ? 1 : 0)
+  const activeIndex = BOTTOM_NAV.findIndex((n) => n.key === activeKey)
   const activeSlot = activeIndex + (activeIndex >= mid ? 1 : 0)
 
   return (
@@ -416,7 +427,7 @@ function BottomNav({
       >
         <span className="h-7 w-14 rounded-full bg-primary/12" />
       </span>
-      {NAV.map(({ key, label, Icon, href }, i) => {
+      {BOTTOM_NAV.map(({ key, label, Icon, href }, i) => {
         const isActive = activeKey === key
         const link = (
           <Link

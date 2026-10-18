@@ -28,6 +28,7 @@ import type {
   Provider,
   Transaction,
   TransactionRepository,
+  TransactionSearchFilters,
   UpdateTransaction,
 } from "../../../domain/finance/finance.domain.ts"
 import { cashDelta } from "../../../domain/finance/finance.domain.ts"
@@ -340,68 +341,23 @@ export const transactionRepository: TransactionRepository = {
     return rows.map(toTransaction)
   },
   // Búsqueda con filtros combinados (AND). El texto matchea descripción o nombre de categoría,
-  // case-insensitive. Devuelve los más recientes primero, acotado por `limit`.
+  // case-insensitive. Devuelve los más recientes primero (desempate por id: páginas estables),
+  // acotado por `limit` y desde `offset`.
   async searchByUser(userId, f) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const where: any = { userId }
-    if (f.direction) where.direction = f.direction
-    if (f.categoryId) where.categoryId = f.categoryId
-    // Filtra por banco (nombre): todas las cuentas de bancos con ese nombre, aunque haya varios.
-    if (f.bankName) where.account = { bank: { name: f.bankName } }
-    if (f.from || f.to)
-      where.transactionDate = {
-        ...(f.from ? { gte: f.from } : {}),
-        ...(f.to ? { lte: f.to } : {}),
-      }
-    // Rango del slider: compara contra la magnitud (columna positiva). AND con el resto.
-    if (f.amountMin != null || f.amountMax != null)
-      where.amount = {
-        ...(f.amountMin != null ? { gte: f.amountMin } : {}),
-        ...(f.amountMax != null ? { lte: f.amountMax } : {}),
-      }
-    if (f.query) {
-      // Match textual O por monto: si la query tiene dígitos, además matchea montos cuyo entero
-      // EMPIEZA con esos dígitos (prefijo). Ambas alternativas conviven en el mismo campo.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const or: any[] = [
-        { description: { contains: f.query, mode: "insensitive" } },
-        { category: { name: { contains: f.query, mode: "insensitive" } } },
-      ]
-      for (const r of amountPrefixRanges(amountDigits(f.query)))
-        or.push({ amount: { gte: r.gte, lt: r.lt } })
-      where.OR = or
-    }
-    // Triage: el flag mete el criterio de elegibilidad COMPLETO al where (no post-filtrado),
-    // para que el `take` no se consuma con filas inelegibles.
-    if (f.uncategorized) {
-      where.categoryId = null
-      where.status = { notIn: ["reversed", "duplicated"] }
-      where.isInternal = false
-      where.reviewed = false // el usuario ya decidió (aunque sea dejarla vacía) no vuelve al triage
-    }
-    // Buscador: fuera el ruido y las recurrentes por cobrar. Un pending SIN plantilla sí queda:
-    // es un cargo real que el banco todavía no confirma, y el usuario lo busca igual.
-    if (f.settledOnly) {
-      where.status = { notIn: ["reversed", "duplicated"] }
-      where.NOT = {
-        AND: [{ status: "pending" }, { recurringTemplateId: { not: null } }],
-      }
-    }
-    if (f.currency) where.currency = f.currency
-    // Va después de `settledOnly`: pisa su `status` con uno más estricto.
-    if (f.recurringCandidates) {
-      where.status = "confirmed"
-      where.isInternal = false
-      where.recurringTemplateId = null
-      where.installmentItemId = null
-      where.externalId = { not: null } // solo lo que vino del banco
-    }
     const rows = await prisma.transaction.findMany({
-      where,
-      orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
+      where: searchWhere(userId, f),
+      orderBy: [
+        { transactionDate: "desc" },
+        { createdAt: "desc" },
+        { id: "desc" },
+      ],
+      skip: Math.max(f.offset ?? 0, 0),
       take: Math.min(Math.max(f.limit ?? 50, 1), 100),
     })
     return rows.map(toTransaction)
+  },
+  async countByUser(userId, f) {
+    return prisma.transaction.count({ where: searchWhere(userId, f) })
   },
   async amountBounds(userId) {
     // Magnitudes (columna positiva) excluyendo ruido; {0,0} si el usuario no tiene movimientos.
@@ -547,6 +503,66 @@ export const transactionRepository: TransactionRepository = {
 }
 
 // Filtro [inicio del rango, día siguiente a su fin) sobre transactionDate (DATE, medianoche UTC).
+// Where de la búsqueda de movimientos: lo comparten `searchByUser` y `countByUser` para que el
+// total de la paginación cuente exactamente lo mismo que se lista.
+function searchWhere(userId: string, f: TransactionSearchFilters) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = { userId }
+  if (f.direction) where.direction = f.direction
+  if (f.categoryId) where.categoryId = f.categoryId
+  // Filtra por banco (nombre): todas las cuentas de bancos con ese nombre, aunque haya varios.
+  if (f.bankName) where.account = { bank: { name: f.bankName } }
+  if (f.from || f.to)
+    where.transactionDate = {
+      ...(f.from ? { gte: f.from } : {}),
+      ...(f.to ? { lte: f.to } : {}),
+    }
+  // Rango del slider: compara contra la magnitud (columna positiva). AND con el resto.
+  if (f.amountMin != null || f.amountMax != null)
+    where.amount = {
+      ...(f.amountMin != null ? { gte: f.amountMin } : {}),
+      ...(f.amountMax != null ? { lte: f.amountMax } : {}),
+    }
+  if (f.query) {
+    // Match textual O por monto: si la query tiene dígitos, además matchea montos cuyo entero
+    // EMPIEZA con esos dígitos (prefijo). Ambas alternativas conviven en el mismo campo.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const or: any[] = [
+      { description: { contains: f.query, mode: "insensitive" } },
+      { category: { name: { contains: f.query, mode: "insensitive" } } },
+    ]
+    for (const r of amountPrefixRanges(amountDigits(f.query)))
+      or.push({ amount: { gte: r.gte, lt: r.lt } })
+    where.OR = or
+  }
+  // Triage: el flag mete el criterio de elegibilidad COMPLETO al where (no post-filtrado),
+  // para que el `take` no se consuma con filas inelegibles.
+  if (f.uncategorized) {
+    where.categoryId = null
+    where.status = { notIn: ["reversed", "duplicated"] }
+    where.isInternal = false
+    where.reviewed = false // el usuario ya decidió (aunque sea dejarla vacía) no vuelve al triage
+  }
+  // Buscador: fuera el ruido y las recurrentes por cobrar. Un pending SIN plantilla sí queda:
+  // es un cargo real que el banco todavía no confirma, y el usuario lo busca igual.
+  if (f.settledOnly) {
+    where.status = { notIn: ["reversed", "duplicated"] }
+    where.NOT = {
+      AND: [{ status: "pending" }, { recurringTemplateId: { not: null } }],
+    }
+  }
+  if (f.currency) where.currency = f.currency
+  // Va después de `settledOnly`: pisa su `status` con uno más estricto.
+  if (f.recurringCandidates) {
+    where.status = "confirmed"
+    where.isInternal = false
+    where.recurringTemplateId = null
+    where.installmentItemId = null
+    where.externalId = { not: null } // solo lo que vino del banco
+  }
+  return where
+}
+
 function periodWhere(range: PeriodRange) {
   const start = new Date(`${range.start}T00:00:00Z`)
   const end = new Date(`${range.end}T00:00:00Z`)

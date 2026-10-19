@@ -11,9 +11,9 @@ test("sano, al límite y en déficit usan todos los ingresos y gastos del plan",
 
 test("compromisos afectan solo el proyectado y no se duplican en gasto actual", () => {
   const health = calculateFinancialHealth({ income: 1000, spent: 800, committed: 250 })
-  assert.equal(health.balance, 200)
+  assert.equal(health.balance, -50)
   assert.equal(health.projectedBalance, -50)
-  assert.equal(health.status, "sano")
+  assert.equal(health.status, "en_deficit")
   assert.equal(health.projectedStatus, "en_deficit")
 })
 

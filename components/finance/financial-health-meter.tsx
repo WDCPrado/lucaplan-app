@@ -46,15 +46,10 @@ export function FinancialHealthMeter({ income, spent, committed }: {
         <span className="text-destructive">Déficit · &gt;100%</span>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-2 text-xs">
-        <span>Ingresos {formatCLP(income)} · Gastos {formatCLP(spent)}</span>
+        <span>Ingresos {formatCLP(income)} · Gastos {formatCLP(spent)} · Comprometido {formatCLP(committed)}</span>
         <strong className={tone}>{health.balance < 0 ? "Faltan " : "Quedan "}{formatCLP(Math.abs(health.balance))}</strong>
       </div>
-      {committed > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Con compromisos pendientes: {health.projectedBalance < 0 ? "déficit de " : "margen de "}
-          {formatCLP(Math.abs(health.projectedBalance))}
-        </p>
-      )}
+
     </div>
   )
 }

@@ -501,7 +501,14 @@ export function Dashboard({
             onOpenPlan={() => setPlanOpen(true)}
           >
             {dashboardChart === "health" ? (
-              <FinancialHealthMeter income={activeIncomeTotal} spent={totalUsed} committed={totalCommitted} />
+              <div className="flex flex-col gap-3">
+                <FinancialHealthMeter income={activeIncomeTotal} spent={totalUsed} committed={totalCommitted} />
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground" aria-label="Navegar movimientos por día">
+                  <button type="button" className="flex min-h-11 items-center gap-1 rounded-lg px-2 hover:bg-accent disabled:opacity-40" disabled={days.indexOf(selectedDay) <= 0} onClick={() => setDayState({ key: periodKey, day: days[days.indexOf(selectedDay) - 1] })}><ChevronLeft className="size-4" /> Anterior</button>
+                  <span className="tabular-nums">{selectedDay}</span>
+                  <button type="button" className="flex min-h-11 items-center gap-1 rounded-lg px-2 hover:bg-accent disabled:opacity-40" disabled={days.indexOf(selectedDay) >= days.length - 1} onClick={() => setDayState({ key: periodKey, day: days[days.indexOf(selectedDay) + 1] })}>Siguiente <ChevronRight className="size-4" /></button>
+                </div>
+              </div>
             ) : (
               <DayStrip
               days={days}

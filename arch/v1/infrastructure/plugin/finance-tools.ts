@@ -7,6 +7,7 @@ import type {
   PluginToolName,
 } from "../../../../lib/schemas/plugin.ts"
 import { Money } from "../../domain/finance/money.ts"
+import { calculateFinancialHealth } from "../../../../lib/financial-health.ts"
 import { NotOwnerError } from "../../domain/finance/finance.domain.ts"
 import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
 import { prisma } from "../database/prisma/client.ts"
@@ -383,6 +384,20 @@ const handlers: Handlers = {
   lucaplan_eliminar_categoria: async (userId, input) => {
     await deleteCategory(deps, userId, input.categoryId)
     return { ok: true }
+  },
+  lucaplan_medidor_financiero: async (userId, input) => {
+    const [budget, incomes, range] = await Promise.all([
+      getBudgetView(deps, userId, input.year, input.month),
+      listIncomesView(deps, userId, input.year, input.month),
+      rangeOf(deps, input.year, input.month),
+    ])
+    const income = incomes.filter((i) => i.isActive && i.currency === "CLP").reduce((sum, i) => sum + i.amount, 0)
+    return {
+      period: { year: input.year, month: input.month, range },
+      currency: "CLP",
+      ...calculateFinancialHealth({ income, spent: budget.spent, committed: budget.committed }),
+      notice: "Los ingresos planificados incluyen todas las fuentes; solo cuentan gastos de categorías presupuestadas. El resultado no representa caja bancaria ni total facturado de la tarjeta.",
+    }
   },
   lucaplan_ver_presupuesto: async (userId, input) => ({
     currency: "CLP",

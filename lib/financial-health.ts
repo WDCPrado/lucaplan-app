@@ -10,9 +10,9 @@ export function calculateFinancialHealth(input: {
   const spent = Math.max(0, input.spent)
   const committed = Math.max(0, input.committed ?? 0)
   const projectedSpent = spent + committed
-  const balance = income - spent
+  const balance = income - projectedSpent
   const projectedBalance = income - projectedSpent
-  const utilization = income > 0 ? (spent / income) * 100 : spent > 0 ? null : 0
+  const utilization = income > 0 ? (projectedSpent / income) * 100 : projectedSpent > 0 ? null : 0
   const projectedUtilization =
     income > 0 ? (projectedSpent / income) * 100 : projectedSpent > 0 ? null : 0
 
@@ -32,7 +32,7 @@ export function calculateFinancialHealth(input: {
     projectedBalance,
     utilization,
     projectedUtilization,
-    status: status(spent),
+    status: status(projectedSpent),
     projectedStatus: status(projectedSpent),
   }
 }

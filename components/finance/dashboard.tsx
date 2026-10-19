@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -31,6 +31,8 @@ import { PlanSheet } from "./plan-sheet"
 import { AccountCard } from "./account-card"
 import { MovementRow } from "./movement-row"
 import { DayStrip } from "./day-strip"
+import { FinancialHealthMeter } from "./financial-health-meter"
+import { getDashboardChartPreference, type DashboardChart } from "@/lib/dashboard-chart-preference"
 import { CategoryIcon } from "./category-icons"
 import { CategoryModal } from "./category-modal"
 import { BudgetLimitModal } from "./budget-limit-modal"
@@ -114,6 +116,17 @@ export function Dashboard({
   openTxId,
 }: Props) {
   const router = useRouter()
+  const [dashboardChart, setDashboardChart] = useState<DashboardChart>("health")
+  useEffect(() => {
+    const sync = () => setDashboardChart(getDashboardChartPreference())
+    sync()
+    window.addEventListener("storage", sync)
+    window.addEventListener("lucaplan:dashboard-chart-changed", sync)
+    return () => {
+      window.removeEventListener("storage", sync)
+      window.removeEventListener("lucaplan:dashboard-chart-changed", sync)
+    }
+  }, [])
   // Primera conexión de correo (callback OAuth ?outlook=setup, aún sin banco): onboarding fullscreen.
   const [onboarding, setOnboarding] = useState(outlookResult === "setup")
   const [showBalance, setShowBalance] = useState(true)
@@ -487,7 +500,13 @@ export function Dashboard({
             committed={totalCommitted}
             onOpenPlan={() => setPlanOpen(true)}
           >
-            <DayStrip
+            {dashboardChart === "health" ? (
+              <div className="flex flex-col gap-3">
+                <FinancialHealthMeter income={activeIncomeTotal} spent={totalUsed} committed={totalCommitted} />
+
+              </div>
+            ) : (
+              <DayStrip
               days={days}
               spend={spend}
               selectedDay={selectedDay}
@@ -496,7 +515,8 @@ export function Dashboard({
                 haptic("light")
                 setDayState({ key: periodKey, day })
               }}
-            />
+              />
+            )}
           </MonthStatus>
           <AllocationNudge
             remainingToAllocate={budget.remainingToAllocate}

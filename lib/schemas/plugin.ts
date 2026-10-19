@@ -541,6 +541,11 @@ export const pluginTools = {
     "Úsala para un vistazo del período: caja, deudas, ingresos y gastos del mes. Los totales del presupuesto van en CLP con conversión referencial; movementTotalsByCurrency trae los montos originales separados por moneda, sin sumar CLP y USD. Para planificar lo que falta usa lucaplan_planificar_periodo.",
     z.strictObject(period)
   ),
+  lucaplan_medidor_financiero: read(
+    "Medidor de salud financiera",
+    "Consulta el estado sano (<90%), al límite (90–100%) o en déficit (>100%) del período. Compara todos los ingresos planificados activos contra los gastos confirmados de categorías con tope >0, más una proyección separada de compromisos pendientes sin doble conteo. Crédito y débito usan el mismo cálculo; cambia solo el rango del período. Devuelve balance, porcentaje y estados; no equivale al saldo disponible en banco.",
+    z.strictObject(period)
+  ),
   lucaplan_ver_presupuesto: read(
     "Ver presupuesto del mes",
     "Úsala para ver el límite global y el tope, gastado, comprometido y disponible de cada categoría en un mes (actual, pasado o futuro). Los topes se heredan del último mes definido (carry-forward). Todo en CLP; los gastos USD entran convertidos de forma referencial. Los movimientos internos no consumen presupuesto.",

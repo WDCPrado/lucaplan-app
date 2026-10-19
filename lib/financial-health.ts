@@ -1,0 +1,38 @@
+/** Semáforo del período: ingresos planificados contra gastos del plan, sin doble conteo. */
+export type FinancialHealthStatus = "sano" | "al_limite" | "en_deficit"
+
+export function calculateFinancialHealth(input: {
+  income: number
+  spent: number
+  committed?: number
+}) {
+  const income = Math.max(0, input.income)
+  const spent = Math.max(0, input.spent)
+  const committed = Math.max(0, input.committed ?? 0)
+  const projectedSpent = spent + committed
+  const balance = income - spent
+  const projectedBalance = income - projectedSpent
+  const utilization = income > 0 ? (spent / income) * 100 : spent > 0 ? null : 0
+  const projectedUtilization =
+    income > 0 ? (projectedSpent / income) * 100 : projectedSpent > 0 ? null : 0
+
+  function status(amount: number): FinancialHealthStatus {
+    if (income <= 0) return amount > 0 ? "en_deficit" : "al_limite"
+    if (amount > income) return "en_deficit"
+    if (amount >= income * 0.9) return "al_limite"
+    return "sano"
+  }
+
+  return {
+    income,
+    spent,
+    committed,
+    projectedSpent,
+    balance,
+    projectedBalance,
+    utilization,
+    projectedUtilization,
+    status: status(spent),
+    projectedStatus: status(projectedSpent),
+  }
+}

@@ -1,9 +1,10 @@
 "use client"
 
 import { useRef, useState } from "react"
+import { getDashboardChartPreference, setDashboardChartPreference, type DashboardChart } from "@/lib/dashboard-chart-preference"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { BellRing, CalendarClock, Check, Gauge, Minus, Plus } from "lucide-react"
+import { BellRing, CalendarClock, Check, Gauge, Minus, Plus, ChartNoAxesColumn } from "lucide-react"
 import { toast } from "sonner"
 import type { PaceFrequency } from "@/arch/v1/domain/finance/pace.domain"
 
@@ -68,6 +69,7 @@ export function SettingsView({
           <BudgetAlertsSection initialAlerts={initialAlerts} />
           <DueReminderSection initialDays={dueDays} />
           <PaceSection initialFrequency={paceFrequency} />
+          <DashboardChartSection />
           <section className="glass rounded-xl p-5">
             <h2 className="mb-1 font-heading text-base font-bold">Conexiones del plugin</h2>
             <p className="mb-5 text-sm text-muted-foreground">
@@ -80,6 +82,33 @@ export function SettingsView({
         </div>
       </div>
     </AppShell>
+  )
+}
+
+function DashboardChartSection() {
+  const [chart, setChart] = useState<DashboardChart>(() => getDashboardChartPreference())
+  function change(next: DashboardChart) {
+    haptic("light")
+    setChart(next)
+    setDashboardChartPreference(next)
+  }
+  return (
+    <section className="glass rounded-xl p-5">
+      <div className="mb-1 flex items-center gap-2">
+        <ChartNoAxesColumn className="size-4 text-muted-foreground" />
+        <h2 className="font-heading text-base font-bold">Gráfico del inicio</h2>
+      </div>
+      <p className="mb-4 text-sm text-muted-foreground">Elige qué gráfico aparece en la tarjeta principal. Por defecto se muestra el medidor financiero.</p>
+      <div role="radiogroup" aria-label="Gráfico predeterminado" className="flex flex-wrap gap-2">
+        {([{value:"health",label:"Salud financiera"},{value:"daily",label:"Gasto diario"}] as const).map(option => (
+          <button key={option.value} type="button" role="radio" aria-checked={chart === option.value}
+            onClick={() => change(option.value)}
+            className={cn("h-11 rounded-lg px-3 text-sm font-medium", chart === option.value ? "bg-primary text-primary-foreground" : "bg-secondary hover:bg-accent")}>
+            {chart === option.value && <Check className="mr-1 inline size-4" />}{option.label}
+          </button>
+        ))}
+      </div>
+    </section>
   )
 }
 

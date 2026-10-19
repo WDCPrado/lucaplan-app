@@ -501,7 +501,7 @@ export function Dashboard({
             onOpenPlan={() => setPlanOpen(true)}
           >
             {dashboardChart === "health" && budget.globalLimit !== null ? (
-              <FinancialHealthMeter income={budget.globalLimit} spent={totalUsed} committed={totalCommitted} />
+              <FinancialHealthMeter income={activeIncomeTotal} spent={totalUsed} committed={totalCommitted} />
             ) : (
               <DayStrip
               days={days}

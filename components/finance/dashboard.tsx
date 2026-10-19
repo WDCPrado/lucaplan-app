@@ -500,7 +500,7 @@ export function Dashboard({
             committed={totalCommitted}
             onOpenPlan={() => setPlanOpen(true)}
           >
-            {dashboardChart === "health" && budget.globalLimit !== null ? (
+            {dashboardChart === "health" ? (
               <FinancialHealthMeter income={activeIncomeTotal} spent={totalUsed} committed={totalCommitted} />
             ) : (
               <DayStrip

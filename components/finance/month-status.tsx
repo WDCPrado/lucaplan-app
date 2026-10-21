@@ -24,18 +24,13 @@ import {
   todayKey,
   usagePct,
 } from "@/lib/finance-format"
-import { dailyAllowance } from "@/lib/day-spend"
 import { estimateClosing, type PeriodMode } from "@/arch/shared/billing-cycle"
 import type { CycleProps } from "./dashboard"
 
 /**
- * Estado del mes convertido en UNA decisión: cuánto puedes gastar hoy. Es lo libre del mes
- * (presupuesto − gastado − comprometido) repartido en los días que quedan. En un mes pasado el
- * titular es con cuánto cerró; sin presupuesto, lo que corresponde es definirlo.
- *
- * Este bloque NO dice "te pasaste": ese aviso vive entero en la banda de excedente que va justo
- * debajo (WDC-73). Pasado el presupuesto, acá el número es $0 y punto. Lo que falta repartir
- * entre categorías es `AllocationNudge`, que va debajo de esta tarjeta (WDC-121).
+ * Estado temporal del período activo: días que faltan para el cierre del ciclo de tarjeta
+ * o del mes calendario. El presupuesto y su salud financiera se presentan aparte.
+ * Para períodos históricos se conserva el saldo final sin gastar.
  */
 export function MonthStatus({
   period,
@@ -71,8 +66,7 @@ export function MonthStatus({
               Define tu presupuesto de {mes}
             </h2>
             <p className="mt-1 text-sm text-pretty text-muted-foreground">
-              Con un límite del mes podemos decirte cuánto puedes gastar hoy, ya
-              descontando lo que está comprometido.
+              Configura el plan de este período para organizar tus ingresos y gastos.
             </p>
           </div>
           <Button onClick={onOpenPlan} className="h-11 shrink-0">
@@ -88,6 +82,8 @@ export function MonthStatus({
   const free = globalLimit - spent - committed
   const usedPct = usagePct(spent, globalLimit)
   const todayIso = `${todayKey()}T00:00:00.000Z`
+  // daysLeft incluye hoy; el contador muestra días completos hasta la fecha de cierre.
+  const remainingDays = Math.max(0, daysLeft - 1)
 
   return (
     <section className="glass relative rounded-xl p-5 lg:p-6">
@@ -113,31 +109,18 @@ export function MonthStatus({
             </p>
             <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
               <span className="tabular text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-                {formatCLP(dailyAllowance(free, daysLeft))}
+                {remainingDays}
               </span>
               <span className="font-heading text-lg font-semibold sm:text-xl">
-                libre hoy
+                {remainingDays === 1 ? "día para cerrar el período" : "días para cerrar el período"}
               </span>
             </p>
-            {/* Prosa en la fuente de texto; solo los montos en mono (design system: mono = cifras). */}
             <p className="mt-2 text-sm text-pretty text-muted-foreground">
-              {free > 0 ? (
-                <>
-                  <span className="tabular">{formatCLP(free)}</span> libres para{" "}
-                  {daysLeft === 1
-                    ? "el día que queda"
-                    : `los ${daysLeft} días que quedan`}
-                  {committed > 0 && (
-                    <>
-                      , ya descontado lo comprometido (
-                      <span className="tabular">{formatCLP(committed)}</span>)
-                    </>
-                  )}
-                  . Cada día sin gastar suma al siguiente.
-                </>
-              ) : (
-                "No queda presupuesto libre este mes."
-              )}
+              {daysLeft === 1
+                ? "El período termina hoy."
+                : cycle.mode === "card_cycle"
+                  ? `Cierre ${cycle.closing.estimated ? "estimado" : "confirmado"}: ${shortDate(cycle.range.end)}.`
+                  : `Fin de mes: ${shortDate(cycle.range.end)}.`}
             </p>
           </>
         ) : (

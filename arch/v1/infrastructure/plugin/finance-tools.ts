@@ -359,7 +359,7 @@ const handlers: Handlers = {
         // La operación por fila reutiliza las validaciones del alta individual.
         const created = await handlers.lucaplan_registrar_cargo_bancario(userId, {
           ...row, accountId:input.accountId, currency:input.currency,
-        })
+        }) as { transactionId: string; created: boolean }
         results.push({index,status:"created",transactionId:created.transactionId})
       } catch (error) {
         if (error instanceof PluginRejection || error instanceof PluginReferenceError) {

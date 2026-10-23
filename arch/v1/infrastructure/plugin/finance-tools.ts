@@ -339,7 +339,7 @@ const handlers: Handlers = {
     if (account.provider === "manual") throw new PluginRejection("Esta herramienta es solo para cuentas conectadas")
     if (account.currency !== input.currency) throw new PluginRejection("La moneda no corresponde a la cuenta")
     const day = new Date(input.date + "T00:00:00.000Z")
-    if (day.toISOString().slice(0, 10) !== input.date || day > new Date())
+    if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== input.date || day > new Date())
       throw new PluginRejection("Fecha inválida o futura")
     // Sin editar el origen bancario, sin sumar cuotas o pagos como si fueran gastos.
     const description = input.description.trim()

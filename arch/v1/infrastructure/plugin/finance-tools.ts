@@ -380,8 +380,17 @@ const handlers: Handlers = {
     const category = await deps.categories.findById(input.categoryId)
     if (!category || category.userId !== userId) throw new PluginReferenceError("categoryId")
     if (category.type !== "income") throw new PluginRejection("Se requiere categoría de ingreso")
-    const tx = await createTransaction(deps,userId,{...input, direction:"credit",
-      date:new Date(input.date+"T00:00:00Z")})
+    const date = new Date(input.date+"T00:00:00Z")
+    if (!Number.isFinite(date.getTime()) || date > new Date()) throw new PluginRejection("Fecha inválida o futura")
+    const start = new Date(date); start.setUTCDate(start.getUTCDate()-1)
+    const end = new Date(date); end.setUTCDate(end.getUTCDate()+1)
+    const existing = await deps.transactions.listByUserPeriod(userId, {
+      start:start.toISOString().slice(0,10),end:end.toISOString().slice(0,10),
+    })
+    if (existing.some(t=> t.accountId===input.accountId && t.direction==="credit" &&
+      t.status==="confirmed" && t.amount.currency===input.currency && t.amount.toMajor()===input.amount))
+      throw new PluginRejection("Ya existe un abono del mismo monto en fecha cercana; no se creó ingreso")
+    const tx = await createTransaction(deps,userId,{...input, direction:"credit",date})
     return {transactionId:tx.id,created:true}
   },
   lucaplan_registrar_cargo_bancario: async (userId, input) => {

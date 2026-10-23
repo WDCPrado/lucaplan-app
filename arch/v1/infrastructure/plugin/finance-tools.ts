@@ -8,6 +8,7 @@ import type {
 } from "../../../../lib/schemas/plugin.ts"
 import { Money } from "../../domain/finance/money.ts"
 import { calculateFinancialHealth } from "../../../../lib/financial-health.ts"
+import { reconcileBankRows } from "../../../../lib/bank-reconciliation.ts"
 import { NotOwnerError } from "../../domain/finance/finance.domain.ts"
 import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
 import { prisma } from "../database/prisma/client.ts"
@@ -333,6 +334,56 @@ const handlers: Handlers = {
     searchPluginTransactions(userId, input),
   lucaplan_crear_movimiento: (userId, input) =>
     createTransaction(deps, userId, { ...input, date: new Date(input.date) }),
+  lucaplan_conciliar_cartola: async (userId, input) => {
+    const account = await deps.accounts.findById(input.accountId)
+    if (!account || account.userId !== userId) throw new PluginReferenceError("accountId")
+    if (account.currency !== input.currency) throw new PluginRejection("Moneda distinta a la cuenta")
+    const dates = input.movements.map((m) => m.date).sort()
+    const start = new Date(dates[0] + "T00:00:00Z")
+    const end = new Date(dates.at(-1) + "T00:00:00Z")
+    start.setUTCDate(start.getUTCDate()-1)
+    end.setUTCDate(end.getUTCDate()+1)
+    const existing = (await deps.transactions.listByUserPeriod(userId, {
+      start: start.toISOString().slice(0,10), end: end.toISOString().slice(0,10),
+    })).filter(t => t.accountId === input.accountId && !t.isInternal &&
+      t.status !== "reversed" && t.status !== "duplicated" && t.amount.currency === input.currency)
+    return { results: reconcileBankRows(input.movements, existing.map(t=>({
+      id:t.id, date:t.date.toISOString().slice(0,10), amount:t.amount.toMajor(),
+      direction:t.direction, description:t.description,
+    }))), notice:"Previsualización sin modificaciones. Los ambiguos requieren revisión manual." }
+  },
+  lucaplan_importar_cargos_bancarios: async (userId, input) => {
+    const results: Array<{ index:number; status:string; transactionId?:string; reason?:string }> = []
+    for (const [index, row] of input.movements.entries()) {
+      try {
+        // La operación por fila reutiliza las validaciones del alta individual.
+        const created = await handlers.lucaplan_registrar_cargo_bancario(userId, {
+          ...row, accountId:input.accountId, currency:input.currency,
+        })
+        results.push({index,status:"created",transactionId:created.transactionId})
+      } catch (error) {
+        if (error instanceof PluginRejection || error instanceof PluginReferenceError) {
+          results.push({index,status:"rejected",reason:error.message})
+        } else {
+          throw error // El runner informa resultado incierto; consultar operación antes de repetir.
+        }
+      }
+    }
+    return {results,created:results.filter(r=>r.status==="created").length,
+      rejected:results.filter(r=>r.status==="rejected").length}
+  },
+  lucaplan_registrar_ingreso_extraordinario: async (userId, input) => {
+    const account = await deps.accounts.findById(input.accountId)
+    if (!account || account.userId !== userId) throw new PluginReferenceError("accountId")
+    if (account.accountType !== "checking" || account.currency !== input.currency)
+      throw new PluginRejection("Se requiere cuenta corriente con moneda coincidente")
+    const category = await deps.categories.findById(input.categoryId)
+    if (!category || category.userId !== userId) throw new PluginReferenceError("categoryId")
+    if (category.type !== "income") throw new PluginRejection("Se requiere categoría de ingreso")
+    const tx = await createTransaction(deps,userId,{...input, direction:"credit",
+      date:new Date(input.date+"T00:00:00Z")})
+    return {transactionId:tx.id,created:true}
+  },
   lucaplan_registrar_cargo_bancario: async (userId, input) => {
     const account = await deps.accounts.findById(input.accountId)
     if (!account || account.userId !== userId) throw new PluginReferenceError("accountId")

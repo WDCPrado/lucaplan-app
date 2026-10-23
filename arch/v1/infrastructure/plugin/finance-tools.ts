@@ -333,6 +333,40 @@ const handlers: Handlers = {
     searchPluginTransactions(userId, input),
   lucaplan_crear_movimiento: (userId, input) =>
     createTransaction(deps, userId, { ...input, date: new Date(input.date) }),
+  lucaplan_registrar_cargo_bancario: async (userId, input) => {
+    const account = await deps.accounts.findById(input.accountId)
+    if (!account || account.userId !== userId) throw new PluginReferenceError("accountId")
+    if (account.provider === "manual") throw new PluginRejection("Esta herramienta es solo para cuentas conectadas")
+    if (account.currency !== input.currency) throw new PluginRejection("La moneda no corresponde a la cuenta")
+    const day = new Date(input.date + "T00:00:00.000Z")
+    if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== input.date || day > new Date())
+      throw new PluginRejection("Fecha inválida o futura")
+    // Sin editar el origen bancario, sin sumar cuotas o pagos como si fueran gastos.
+    const description = input.description.trim()
+    if (/pago\s*(?:tarjeta|tc)|transferencia\s*(?:desde|a)\s*linea|traspaso\s*(?:de|a)\s*cuenta\s*propia/i.test(description))
+      throw new PluginRejection("Los pagos y traspasos internos deben conciliarse, no crearse como gastos")
+    const before = new Date(day)
+    before.setUTCDate(before.getUTCDate() - 1)
+    const after = new Date(day)
+    after.setUTCDate(after.getUTCDate() + 1)
+    const matches = await deps.transactions.listByUserPeriod(userId, {
+      start: before.toISOString().slice(0,10),
+      end: after.toISOString().slice(0,10),
+    })
+    if (matches.some((t) =>
+      t.accountId === input.accountId && t.direction === "debit" &&
+      t.status !== "reversed" && t.status !== "duplicated" &&
+      t.amount.currency === input.currency && t.amount.toMajor() === input.amount
+    ))
+      throw new PluginRejection("Posible duplicado: mismo monto, cuenta y fecha cercana. Revisa los movimientos antes de importar")
+    const tx = await createTransaction(deps, userId, {
+      accountId: input.accountId, categoryId: null, date: day,
+      description, amount: input.amount, currency: input.currency,
+      direction: "debit", source: "bank-scan",
+    })
+    return { transactionId: tx.id, created: true, categoryId: null,
+      notice: "Movimiento bancario registrado sin categoría. Categorízalo mediante lucaplan_asignar_categoria y verifica el saldo con la cartola." }
+  },
   lucaplan_corregir_movimiento: (userId, input) =>
     updateTransaction(deps, userId, { ...input, date: new Date(input.date) }),
   lucaplan_eliminar_movimiento: async (userId, input) => {

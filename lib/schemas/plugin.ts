@@ -505,6 +505,18 @@ export const pluginTools = {
       })
       .strict()
   ),
+  lucaplan_registrar_cargo_bancario: write(
+    { title: "Registrar cargo bancario faltante", destructive: true },
+    "Registra un cargo real de cartola en una cuenta conectada por correo cuando falta su aviso. Comprueba antes la cuenta, moneda, fecha y monto con lucaplan_buscar_movimientos. Rechaza coincidencias del mismo importe dentro de +/-1 día para impedir duplicados; si hay dos cargos legítimos iguales, usa la importación visual para revisión. No sirve para pagos de tarjeta, traspasos internos, cuotas ya planificadas ni ingresos. Se crea sin categoría; después usa lucaplan_asignar_categoria para categorizarlo. La escritura usa operationId idempotente.",
+    z.strictObject({
+      accountId: ref("Cuenta conectada del banco"),
+      date: date.describe("Fecha de la cartola, YYYY-MM-DD"),
+      description: description.min(1).describe("Descripción bancaria real, no una interpretación"),
+      amount: positive.describe("Importe positivo en moneda de la cuenta"),
+      currency: z.enum(["CLP", "USD"]).describe("Moneda de la cuenta"),
+      ...operation,
+    })
+  ),
   lucaplan_corregir_movimiento: write(
     { title: "Corregir movimiento", destructive: true },
     "Úsala para corregir descripción, fecha, monto, dirección o categoría de un movimiento de cuenta MANUAL (revisa canEdit con lucaplan_ver_movimiento). Reemplaza todos esos campos: envía también los que no cambian. No cambia cuenta ni moneda. Un movimiento pendiente no mueve la caja al editarlo. En cuotas el monto se corrige en el plan (lucaplan_editar_cuota). Para solo la categoría usa lucaplan_asignar_categoria.",

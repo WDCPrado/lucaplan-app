@@ -507,13 +507,14 @@ export const pluginTools = {
   ),
   lucaplan_registrar_cargo_bancario: write(
     { title: "Registrar cargo bancario faltante", destructive: true },
-    "Registra un cargo real de cartola en una cuenta conectada por correo cuando falta su aviso. Comprueba antes la cuenta, moneda, fecha y monto con lucaplan_buscar_movimientos. Rechaza coincidencias del mismo importe dentro de +/-1 día para impedir duplicados; si hay dos cargos legítimos iguales, usa la importación visual para revisión. No sirve para pagos de tarjeta, traspasos internos, cuotas ya planificadas ni ingresos. Se crea sin categoría; después usa lucaplan_asignar_categoria para categorizarlo. La escritura usa operationId idempotente.",
+    "Registra un cargo real de cartola en una cuenta conectada por correo cuando falta su aviso. Comprueba antes la cuenta, moneda, fecha y monto con lucaplan_buscar_movimientos. Rechaza coincidencias del mismo importe dentro de +/-1 día para impedir duplicados; si hay dos cargos legítimos iguales, usa la importación visual para revisión. No sirve para pagos de tarjeta, traspasos internos, cuotas ya planificadas ni ingresos. Acepta categoryId opcional para clasificar al crear; null mantiene sin categoría. Si se rechaza, explica el motivo y no crea movimiento. La escritura usa operationId idempotente.",
     z.strictObject({
       accountId: ref("Cuenta conectada del banco"),
       date: date.describe("Fecha de la cartola, YYYY-MM-DD"),
       description: description.min(1).describe("Descripción bancaria real, no una interpretación"),
       amount: positive.describe("Importe positivo en moneda de la cuenta"),
       currency: z.enum(["CLP", "USD"]).describe("Moneda de la cuenta"),
+      categoryId: ref("Categoría de gasto perteneciente al usuario").nullable().optional().describe("Categoría opcional; null para dejar sin categorizar"),
       ...operation,
     })
   ),

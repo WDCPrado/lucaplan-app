@@ -18,3 +18,9 @@ test("registro bancario MCP solo acepta datos completos y operationId", () => {
   assert.equal(tool.inputSchema.safeParse({ ...valid, operationId: undefined }).success, false)
   assert.equal(tool.inputSchema.safeParse({ ...valid, unknown: true }).success, false)
 })
+
+test("acepta categoría opcional y rechaza identificadores vacíos", () => {
+  assert.equal(tool.inputSchema.safeParse({ ...valid, categoryId: "categoria-gasto" }).success, true)
+  assert.equal(tool.inputSchema.safeParse({ ...valid, categoryId: null }).success, true)
+  assert.equal(tool.inputSchema.safeParse({ ...valid, categoryId: "" }).success, false)
+})

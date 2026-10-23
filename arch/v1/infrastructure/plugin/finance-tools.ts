@@ -358,14 +358,19 @@ const handlers: Handlers = {
       t.status !== "reversed" && t.status !== "duplicated" &&
       t.amount.currency === input.currency && t.amount.toMajor() === input.amount
     ))
-      throw new PluginRejection("Posible duplicado: mismo monto, cuenta y fecha cercana. Revisa los movimientos antes de importar")
+      throw new PluginRejection("Posible duplicado: ya existe un cargo del mismo monto en esta cuenta dentro de ±1 día. Revisa sus movimientos antes de importar; no se creó un cargo nuevo")
+    if (input.categoryId) {
+      const category = await deps.categories.findById(input.categoryId)
+      if (!category || category.userId !== userId) throw new PluginReferenceError("categoryId")
+      if (category.type !== "expense") throw new PluginRejection("La categoría debe ser de tipo gasto")
+    }
     const tx = await createTransaction(deps, userId, {
-      accountId: input.accountId, categoryId: null, date: day,
+      accountId: input.accountId, categoryId: input.categoryId ?? null, date: day,
       description, amount: input.amount, currency: input.currency,
       direction: "debit", source: "bank-scan",
     })
-    return { transactionId: tx.id, created: true, categoryId: null,
-      notice: "Movimiento bancario registrado sin categoría. Categorízalo mediante lucaplan_asignar_categoria y verifica el saldo con la cartola." }
+    return { transactionId: tx.id, created: true, categoryId: input.categoryId ?? null,
+      notice: "Cargo registrado. Revisa la proyección del saldo y su impacto en el presupuesto; si llega el correo del banco, comprueba que no se duplique." }
   },
   lucaplan_corregir_movimiento: (userId, input) =>
     updateTransaction(deps, userId, { ...input, date: new Date(input.date) }),

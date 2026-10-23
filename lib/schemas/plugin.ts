@@ -505,6 +505,42 @@ export const pluginTools = {
       })
       .strict()
   ),
+  lucaplan_conciliar_cartola: read(
+    "Conciliar cartola",
+    "Previsualiza coincidencias de una cartola ya extraída, sin escribir: importe exacto, misma cuenta y moneda, fechas ±1 día; si hay varias coincidencias marca ambiguo. Los pagos y transferencias internas deben excluirse del lote de cargos. No interpreta PDF directamente.",
+    z.strictObject({
+      accountId: ref("Cuenta bancaria"),
+      currency: z.enum(["CLP","USD"]),
+      movements: z.array(z.strictObject({
+        date, description: description.min(1), amount: positive,
+        direction: z.enum(["debit","credit"]),
+      })).min(1).max(50),
+    })
+  ),
+  lucaplan_importar_cargos_bancarios: write(
+    { title: "Importar cargos bancarios en lote", destructive: true },
+    "Importa hasta 20 cargos confirmados de cartola y opcionalmente categoriza cada uno. Revisa duplicados contra movimientos existentes antes de crear cada cargo. Devuelve el resultado individual: creado, duplicado/revisión o error, además de un resumen. Usa operationId idempotente y no repitas el lote si una respuesta queda incierta.",
+    z.strictObject({
+      accountId: ref("Cuenta bancaria conectada"),
+      currency: z.enum(["CLP","USD"]),
+      movements: z.array(z.strictObject({
+        date, description: description.min(1), amount: positive,
+        categoryId: ref("Categoría de gasto").nullable().optional(),
+      })).min(1).max(20),
+      ...operation,
+    })
+  ),
+  lucaplan_registrar_ingreso_extraordinario: write(
+    { title: "Registrar ingreso extraordinario", destructive: true },
+    "Registra un abono real único en cuenta corriente y categoría de ingreso, sin generar una fuente mensual recurrente. No registrar transferencias entre cuentas propias como ingresos. Verifica antes que no exista el abono. Idempotente por operationId.",
+    z.strictObject({
+      accountId: ref("Cuenta corriente"),
+      categoryId: ref("Categoría de ingreso"),
+      date, description: description.min(1), amount: positive,
+      currency: z.enum(["CLP","USD"]),
+      ...operation,
+    })
+  ),
   lucaplan_registrar_cargo_bancario: write(
     { title: "Registrar cargo bancario faltante", destructive: true },
     "Registra un cargo real de cartola en una cuenta conectada por correo cuando falta su aviso. Comprueba antes la cuenta, moneda, fecha y monto con lucaplan_buscar_movimientos. Rechaza coincidencias del mismo importe dentro de +/-1 día para impedir duplicados; si hay dos cargos legítimos iguales, usa la importación visual para revisión. No sirve para pagos de tarjeta, traspasos internos, cuotas ya planificadas ni ingresos. Acepta categoryId opcional para clasificar al crear; null mantiene sin categoría. Si se rechaza, explica el motivo y no crea movimiento. La escritura usa operationId idempotente.",

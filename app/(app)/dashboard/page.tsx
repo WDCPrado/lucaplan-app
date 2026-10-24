@@ -107,8 +107,18 @@ export default async function DashboardPage({
     // Degradando a 0 el plan se comporta como antes de existir el descuento, que es el modo de
     // fallo correcto.
     getPreviousMonthDebt(financePageDeps, userId, year, month).catch(() => 0),
+    // La cobertura del ciclo anterior es informativa: si falla la lectura histórica,
+    // la Home debe seguir cargando el período actual.
     mode === "card_cycle"
-      ? listIncomesView(financePageDeps, userId, month === 1 ? year - 1 : year, month === 1 ? 12 : month - 1)
+      ? listIncomesView(
+          financePageDeps,
+          userId,
+          month === 1 ? year - 1 : year,
+          month === 1 ? 12 : month - 1
+        ).catch((error) => {
+          console.error("[dashboard] No se pudieron consultar los ingresos del ciclo anterior", error)
+          return []
+        })
       : Promise.resolve([]),
   ])
 

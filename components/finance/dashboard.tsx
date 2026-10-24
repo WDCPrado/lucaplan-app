@@ -489,14 +489,14 @@ export function Dashboard({
     >
       <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
         <div className="flex flex-col gap-5">
-          {cycle.mode === "card_cycle" && previousCycleIncomes.some((income) => !income.generated) && (
+          {cycle.mode === "card_cycle" && previousCycleIncomes.length > 0 && (
             <section aria-label="Ingresos pendientes del ciclo anterior" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-950 dark:text-amber-100">
               <div className="font-semibold">Ingresos pendientes del ciclo anterior</div>
-              <p className="mt-1 text-sm">Estos ingresos siguen pendientes de cobro. Se usarán para cubrir la factura del ciclo anterior; no se suman otra vez al presupuesto del ciclo actual.</p>
+              <p className="mt-1 text-sm">Estos ingresos corresponden a la cobertura de la factura anterior, aunque su depósito ocurra después del cierre. «Registrado» significa registrado en Luca Plan, no necesariamente conciliado con el banco. No se suman al presupuesto actual.</p>
               <ul className="mt-3 space-y-2 text-sm">
-                {previousCycleIncomes.filter((income) => !income.generated).map((income) => (
+                {previousCycleIncomes.map((income) => (
                   <li key={income.id} className="flex items-center justify-between gap-3">
-                    <span>{income.name} · día {income.dayOfMonth}</span>
+                    <span>{income.name} · día {income.dayOfMonth} · {income.generated ? "Registrado en app" : "Pendiente de registrar"}</span>
                     <span className="font-semibold tabular-nums">{income.currency === "CLP" ? formatCLP(income.amount) : `${income.amount} ${income.currency}`}</span>
                   </li>
                 ))}

@@ -173,3 +173,12 @@ test("paceStatus: <80% ok, 80–100% alerta, >100% excedido", () => {
   assert.equal(paceStatus(clp(10000), budget), "alerta")
   assert.equal(paceStatus(clp(10001), budget), "excedido")
 })
+
+test("semana modo crédito comienza en inicio del ciclo, no el lunes calendario", () => {
+  const cycle = { start: "2026-10-23", end: "2026-11-20" }
+  assert.deepEqual(pacePeriod("2026-10-24", "weekly", cycle, true), { start: "2026-10-23", end: "2026-10-29" })
+  assert.deepEqual(pacePeriod("2026-11-19", "weekly", cycle, true), { start: "2026-11-13", end: "2026-11-19" })
+  assert.deepEqual(pacePeriod("2026-11-20", "weekly", cycle, true), { start: "2026-11-20", end: "2026-11-20" })
+  assert.deepEqual(pacePeriod("2026-10-24", "daily", cycle, true), { start: "2026-10-24", end: "2026-10-24" })
+  assert.deepEqual(pacePeriod("2026-10-24", "weekly", cycle), { start: "2026-10-23", end: "2026-10-25" })
+})

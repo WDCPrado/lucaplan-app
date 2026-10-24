@@ -48,6 +48,7 @@ export function PlanSheet({
   globalLimit,
   allocated,
   incomes,
+  previousCycleIncomes,
   incomeCategories,
   expenseCategories,
   activeIncomeTotal,
@@ -66,6 +67,7 @@ export function PlanSheet({
   globalLimit: number | null
   allocated: number
   incomes: IncomeDTO[]
+  previousCycleIncomes: IncomeDTO[]
   incomeCategories: CategoryDTO[]
   expenseCategories: CategoryDTO[]
   activeIncomeTotal: number
@@ -142,6 +144,51 @@ export function PlanSheet({
       title={`Plan de ${monthName(period.month).toLowerCase()}`}
     >
       <div className="flex min-w-0 flex-col gap-8 px-5">
+        {/* Exclusivo de modo crédito: el padre pasa [] en modo calendario. No confundir
+            "generated" con depósito bancario; las fechas futuras prevalecen. */}
+        {previousCycleIncomes.filter((inc) => {
+          const payDate = new Date(Date.UTC(
+            period.month === 1 ? period.year - 1 : period.year,
+            period.month === 1 ? 11 : period.month - 2,
+            inc.dayOfMonth
+          ))
+          const planned = payDate.toISOString().slice(0, 10)
+          return !inc.generated || planned > todayKey()
+        }).length > 0 && (
+          <section className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+            <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+              Ingresos pendientes del ciclo anterior
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Son para cubrir la factura anterior. Un ingreso generado en la app no significa que el banco lo haya abonado.
+            </p>
+            {previousCycleIncomes.filter((inc) => {
+              const payDate = new Date(Date.UTC(
+                period.month === 1 ? period.year - 1 : period.year,
+                period.month === 1 ? 11 : period.month - 2,
+                inc.dayOfMonth
+              ))
+              return !inc.generated || payDate.toISOString().slice(0, 10) > todayKey()
+            }).map((inc) => (
+              <div key={inc.id} className="border-b border-amber-500/20 last:border-0">
+                <IncomeRow
+                  income={inc}
+                  period={{
+                    year: period.month === 1 ? period.year - 1 : period.year,
+                    month: period.month === 1 ? 12 : period.month - 1,
+                  }}
+                  isCurrentMonth={false}
+                  onEdit={() => onEditIncome(inc)}
+                  onOpenCategory={() => {
+                    const cat = incomeCategories.find((c) => c.id === inc.categoryId)
+                    if (cat) onOpenIncomeCategory(cat)
+                  }}
+                  priorCycle
+                />
+              </div>
+            ))}
+          </section>
+        )}
         {/* Presupuesto del mes */}
         <section>
           <h3 className="mb-3 text-base font-semibold">Presupuesto del mes</h3>
@@ -529,12 +576,14 @@ function IncomeRow({
   isCurrentMonth,
   onEdit,
   onOpenCategory,
+  priorCycle = false,
 }: {
   income: IncomeDTO
   period: { year: number; month: number }
   isCurrentMonth: boolean
   onEdit: () => void
   onOpenCategory: () => void
+  priorCycle?: boolean
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
@@ -570,7 +619,7 @@ function IncomeRow({
   const day = income.dayOfMonth
   let when: string
   if (income.generated) {
-    when = `Llegó el ${day}`
+    when = priorCycle ? `Registrado en Luca Plan · confirmar depósito del día ${day}` : `Llegó el ${day}`
   } else if (isCurrentMonth) {
     // Días reales hasta el pago: en modo tarjeta el mes en curso puede ser el siguiente.
     const diff = daysUntilPayDay(period, day, todayKey())
@@ -623,7 +672,7 @@ function IncomeRow({
         <button
           type="button"
           onClick={toggleGenerated}
-          disabled={busy}
+          disabled={busy || (priorCycle && income.generated)}
           title={income.generated ? "Deshacer" : "Registrar el ingreso del mes"}
           className={cn(
             "flex min-h-11 items-center gap-1 rounded-lg px-3 text-sm font-medium transition-colors disabled:opacity-50",
@@ -633,7 +682,7 @@ function IncomeRow({
           )}
         >
           {income.generated && <Check className="size-3" />}
-          {income.generated ? "Recibido" : "Generar"}
+          {income.generated ? (priorCycle ? "Verificar" : "Recibido") : "Generar"}
         </button>
       </div>
     </div>

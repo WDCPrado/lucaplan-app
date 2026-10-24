@@ -461,8 +461,28 @@ const handlers: Handlers = {
     previewManualAccountDeletion(deletionDeps, userId, input.accountId),
   lucaplan_eliminar_cuenta: (userId, input) =>
     deleteManualAccount(deletionDeps, userId, input),
-  lucaplan_planificar_periodo: (userId, input) =>
-    getPeriodPlan(deps, userId, input.year, input.month),
+  lucaplan_planificar_periodo: async (userId, input) => {
+    const plan = await getPeriodPlan(deps, userId, input.year, input.month)
+    const periodConfig = await getBudgetPeriod(deps)
+    if (periodConfig.mode !== "card_cycle") return plan
+    const previousYear = input.month === 1 ? input.year - 1 : input.year
+    const previousMonth = input.month === 1 ? 12 : input.month - 1
+    const previous = await listIncomesView(deps, userId, previousYear, previousMonth)
+    return {
+      ...plan,
+      creditCycleCoverage: {
+        explanation: "En modo crédito, los ingresos asociados a un ciclo sirven para liquidar la factura de ese ciclo, incluso si se reciben después del cierre. Los ingresos del ciclo actual respaldan su próxima facturación; no sumes ambos ciclos ni confundas un ingreso generado en la app con un abono conciliado del banco.",
+        previousCycle: { year: previousYear, month: previousMonth },
+        previousCycleIncomes: previous.map(i => ({
+          id: i.id, name: i.name, amount: i.amount, currency: i.currency,
+          dayOfMonth: i.dayOfMonth,
+          status: i.generated ? "registrado_en_app" : "pendiente_en_app",
+        })),
+        previousCyclePendingCLP: previous.filter(i => !i.generated && i.currency === "CLP").reduce((sum, i) => sum + i.amount, 0),
+        verification: "El estado registrado_en_app no confirma necesariamente la recepción bancaria; concilia el correo o la cartola antes de declarar una factura cubierta.",
+      },
+    }
+  },
   lucaplan_ver_configuracion: async () => {
     const [period, paceFrequency, budgetAlerts, dueDays] = await Promise.all([
       getBudgetPeriod(deps),

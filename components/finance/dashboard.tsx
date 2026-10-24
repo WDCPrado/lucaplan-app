@@ -85,6 +85,7 @@ type Props = {
   transactions: TransactionDTO[]
   uncategorized: UncategorizedDTO
   incomes: IncomeDTO[]
+  previousCycleIncomes: IncomeDTO[]
   amountBounds: AmountBoundsDTO
   // Excedente del mes ANTERIOR: plata ya gastada que el plan descuenta del total a repartir.
   // Llega resuelta del servidor; el front no la recalcula. 0 = el mes pasado cerró en regla.
@@ -108,6 +109,7 @@ export function Dashboard({
   transactions,
   uncategorized,
   incomes,
+  previousCycleIncomes,
   amountBounds,
   previousMonthDebt,
   user,
@@ -487,6 +489,20 @@ export function Dashboard({
     >
       <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
         <div className="flex flex-col gap-5">
+          {cycle.mode === "card_cycle" && previousCycleIncomes.length > 0 && (
+            <section aria-label="Ingresos pendientes del ciclo anterior" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-950 dark:text-amber-100">
+              <div className="font-semibold">Ingresos pendientes del ciclo anterior</div>
+              <p className="mt-1 text-sm">Estos ingresos corresponden a la cobertura de la factura anterior, aunque su depósito ocurra después del cierre. «Registrado» significa registrado en Luca Plan, no necesariamente conciliado con el banco. No se suman al presupuesto actual.</p>
+              <ul className="mt-3 space-y-2 text-sm">
+                {previousCycleIncomes.map((income) => (
+                  <li key={income.id} className="flex items-center justify-between gap-3">
+                    <span>{income.name} · día {income.dayOfMonth} · {income.generated ? "Registrado en app" : "Pendiente de registrar"}</span>
+                    <span className="font-semibold tabular-nums">{income.currency === "CLP" ? formatCLP(income.amount) : `${income.amount} ${income.currency}`}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {/* Estado del mes: la respuesta a "¿cuánto puedo gastar hoy?" antes que cualquier
               detalle. Desde acá se abre el plan (ingresos y presupuesto), que es lo que lo
               determina. La tira de días vive adentro: es el mes que ese número reparte. */}

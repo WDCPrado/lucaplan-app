@@ -87,6 +87,7 @@ export default async function DashboardPage({
     incomes,
     amountBounds,
     previousMonthDebt,
+    previousCycleIncomes,
   ] = await Promise.all([
     getMonthlySummary(financePageDeps, userId, year, month),
     listAccounts(financePageDeps, userId),
@@ -106,6 +107,9 @@ export default async function DashboardPage({
     // Degradando a 0 el plan se comporta como antes de existir el descuento, que es el modo de
     // fallo correcto.
     getPreviousMonthDebt(financePageDeps, userId, year, month).catch(() => 0),
+    mode === "card_cycle"
+      ? listIncomesView(financePageDeps, userId, month === 1 ? year - 1 : year, month === 1 ? 12 : month - 1)
+      : Promise.resolve([]),
   ])
 
   const user = {
@@ -133,6 +137,7 @@ export default async function DashboardPage({
         transactions={transactions}
         uncategorized={uncategorized}
         incomes={incomes}
+        previousCycleIncomes={previousCycleIncomes}
         amountBounds={amountBounds}
         previousMonthDebt={previousMonthDebt}
         user={user}

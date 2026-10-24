@@ -914,7 +914,7 @@ export const pluginTools = {
   // --- Planificación ---
   lucaplan_planificar_periodo: read(
     "Planificar período",
-    "Úsala para planificar un mes actual o futuro: posición de hoy por moneda (caja, sobregiro usado y disponible, deuda y cupo de tarjetas), ingresos esperados vs registrados, recurrentes esperadas vs pagadas, cuotas que vencen, movimientos confirmados con fecha futura y el presupuesto como tope. Separado por moneda y sin doble conteo. Solo lectura: no crea movimientos ni pagos y no cambia saldos.",
+    "Úsala para planificar un mes actual o futuro: posición de hoy por moneda (caja, sobregiro usado y disponible, deuda y cupo de tarjetas), ingresos esperados vs registrados, recurrentes esperadas vs pagadas, cuotas que vencen, movimientos confirmados con fecha futura y el presupuesto como tope. Separado por moneda y sin doble conteo. Solo lectura: no crea movimientos ni pagos y no cambia saldos. En modo card_cycle devuelve creditCycleCoverage con los ingresos del ciclo anterior que sirven para pagar su factura después del cierre, e indica los pendientes de registro. No atribuyas automáticamente al ciclo actual el sueldo recibido después del cierre anterior; evita duplicar ingresos entre facturaciones. El estado registrado_en_app no prueba recepción bancaria.",
     z.strictObject(period)
   ),
 

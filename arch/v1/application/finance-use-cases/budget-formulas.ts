@@ -144,9 +144,18 @@ export function computeCategoryCommitted(
 export function pacePeriod(
   today: string, // "YYYY-MM-DD", dentro de `range`
   frequency: PaceFrequency,
-  range: PeriodRange
+  range: PeriodRange,
+  cycleAligned = false
 ): PeriodRange {
   if (frequency === "daily") return { start: today, end: today }
+  if (cycleAligned) {
+    const elapsed = Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${range.start}T00:00:00Z`)) / 86400000)
+    const firstDay = new Date(`${range.start}T00:00:00Z`)
+    firstDay.setUTCDate(firstDay.getUTCDate() + Math.floor(elapsed / 7) * 7)
+    const lastDay = new Date(firstDay)
+    lastDay.setUTCDate(lastDay.getUTCDate() + 6)
+    return { start: firstDay.toISOString().slice(0, 10), end: lastDay.toISOString().slice(0, 10) < range.end ? lastDay.toISOString().slice(0, 10) : range.end }
+  }
   const monday = new Date(`${today}T00:00:00Z`)
   // 0=lunes … 6=domingo (getUTCDay da 0=domingo; se rota para partir la semana en lunes).
   monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7))
@@ -173,9 +182,10 @@ export function computeCategoryPace(
   transactions: Transaction[],
   today: string, // "YYYY-MM-DD", dentro de `range`
   frequency: PaceFrequency,
-  range: PeriodRange // el mes del presupuesto
+  range: PeriodRange, // el mes del presupuesto
+  cycleAligned = false
 ): { spent: Money; budget: Money } {
-  const period = pacePeriod(today, frequency, range)
+  const period = pacePeriod(today, frequency, range, cycleAligned)
   const spent = transactions
     .filter(
       (t) =>

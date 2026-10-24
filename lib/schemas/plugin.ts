@@ -554,6 +554,16 @@ export const pluginTools = {
       ...operation,
     })
   ),
+  lucaplan_corregir_metadatos_movimiento: write(
+    { title: "Corregir fecha y descripción de movimiento", destructive: true },
+    "Corrige la fecha o descripción de un movimiento propio importado o creado por el agente, incluso en cuenta conectada. No permite alterar importe, moneda, dirección, categoría ni movimientos con ID externo bancario. No modifica saldo. Los ingresos vinculados a una fuente siguen perteneciendo a su mes de generación; para cambiar ese mes se debe deshacer y regenerar con verificación bancaria.",
+    z.strictObject({
+      transactionId: ref("Movimiento a corregir"),
+      date: date.describe("Fecha real del movimiento YYYY-MM-DD"),
+      description: description.min(1),
+      ...operation,
+    })
+  ),
   lucaplan_corregir_movimiento: write(
     { title: "Corregir movimiento", destructive: true },
     "Úsala para corregir descripción, fecha, monto, dirección o categoría de un movimiento de cuenta MANUAL (revisa canEdit con lucaplan_ver_movimiento). Reemplaza todos esos campos: envía también los que no cambian. No cambia cuenta ni moneda. Un movimiento pendiente no mueve la caja al editarlo. En cuotas el monto se corrige en el plan (lucaplan_editar_cuota). Para solo la categoría usa lucaplan_asignar_categoria.",

@@ -432,6 +432,27 @@ const handlers: Handlers = {
     return { transactionId: tx.id, created: true, categoryId: input.categoryId ?? null,
       notice: "Cargo registrado. Revisa la proyección del saldo y su impacto en el presupuesto; si llega el correo del banco, comprueba que no se duplique." }
   },
+  lucaplan_corregir_metadatos_movimiento: async (userId, input) => {
+    const tx = await deps.transactions.findById(input.transactionId)
+    if (!tx || tx.userId !== userId) throw new PluginReferenceError("transactionId")
+    if (tx.externalId || tx.installmentItemId || tx.recurringTemplateId)
+      throw new PluginRejection("No se pueden alterar los datos originales del banco ni movimientos ligados a cuotas o recurrentes")
+    const changedDate = new Date(input.date + "T00:00:00.000Z")
+    if (!Number.isFinite(changedDate.getTime()) ||
+        changedDate.toISOString().slice(0, 10) !== input.date)
+      throw new PluginRejection("Fecha inválida")
+    if (tx.incomeId)
+      throw new PluginRejection("Es un ingreso generado desde una fuente mensual: la fecha debe corregirse desde el flujo de ingresos para conservar su ciclo de origen; no se modificó nada")
+    const updated = await prisma.transaction.updateMany({
+      where: { id: tx.id, userId, externalId: null,
+        installmentItemId: null, recurringTemplateId: null, incomeId: null },
+      data: { transactionDate: changedDate, description: input.description.trim() },
+    })
+    if (updated.count !== 1)
+      throw new PluginRejection("Movimiento cambiado por otra operación; vuelve a consultarlo")
+    return { transactionId: tx.id, updated: true,
+      date: input.date, description: input.description.trim(), affectsBalance: false }
+  },
   lucaplan_corregir_movimiento: (userId, input) =>
     updateTransaction(deps, userId, { ...input, date: new Date(input.date) }),
   lucaplan_eliminar_movimiento: async (userId, input) => {

@@ -619,7 +619,7 @@ function IncomeRow({
   const day = income.dayOfMonth
   let when: string
   if (income.generated) {
-    when = priorCycle ? `Registrado en app · verificar abono del día ${day}` : `Llegó el ${day}`
+    when = priorCycle ? `Registrado en Luca Plan · confirmar depósito del día ${day}` : `Llegó el ${day}`
   } else if (isCurrentMonth) {
     // Días reales hasta el pago: en modo tarjeta el mes en curso puede ser el siguiente.
     const diff = daysUntilPayDay(period, day, todayKey())
@@ -682,7 +682,7 @@ function IncomeRow({
           )}
         >
           {income.generated && <Check className="size-3" />}
-          {income.generated ? (priorCycle ? "Por verificar" : "Recibido") : "Generar"}
+          {income.generated ? (priorCycle ? "Verificar" : "Recibido") : "Generar"}
         </button>
       </div>
     </div>

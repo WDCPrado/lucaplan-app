@@ -472,6 +472,7 @@ export function Dashboard({
             <MonthPicker
               period={period}
               current={cycle.current}
+              cycleRange={cycle.mode === "card_cycle" ? cycle.range : undefined}
               onSelect={(y, m) =>
                 router.push(`/dashboard?year=${y}&month=${m}`)
               }
@@ -790,6 +791,7 @@ export function Dashboard({
         open={planOpen}
         onOpenChange={setPlanOpen}
         period={period}
+        cycleRange={cycle.mode === "card_cycle" ? cycle.range : undefined}
         isCurrentMonth={isCurrentMonth}
         globalLimit={budget.globalLimit}
         allocated={budget.allocated}

@@ -44,6 +44,7 @@ export function PlanSheet({
   open,
   onOpenChange,
   period,
+  cycleRange,
   isCurrentMonth,
   globalLimit,
   allocated,
@@ -63,6 +64,7 @@ export function PlanSheet({
   open: boolean
   onOpenChange: (o: boolean) => void
   period: { year: number; month: number }
+  cycleRange?: { start: string; end: string }
   isCurrentMonth: boolean
   globalLimit: number | null
   allocated: number
@@ -141,7 +143,7 @@ export function PlanSheet({
         if (!next) setDrafts({})
         onOpenChange(next)
       }}
-      title={`Plan de ${monthName(period.month).toLowerCase()}`}
+      title={cycleRange ? `Plan del ciclo · ${cycleRange.start.slice(8, 10)} ${monthName(Number(cycleRange.start.slice(5, 7))).slice(0, 3).toLowerCase()} – ${cycleRange.end.slice(8, 10)} ${monthName(Number(cycleRange.end.slice(5, 7))).slice(0, 3).toLowerCase()}` : `Plan de ${monthName(period.month).toLowerCase()}`}
     >
       <div className="flex min-w-0 flex-col gap-8 px-5">
         {/* Exclusivo de modo crédito: el padre pasa [] en modo calendario. No confundir

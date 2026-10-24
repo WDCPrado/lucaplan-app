@@ -19,11 +19,13 @@ export function MonthPicker({
   withYear,
   current,
   className,
+  cycleRange,
 }: {
   period: { year: number; month: number }
   onSelect: (year: number, month: number) => void
   withYear?: boolean // "octubre 2026" en vez de "octubre": fuera de la topbar el año no es obvio
   current?: { year: number; month: number } // mes en curso según el modo (tarjeta: el 28/09 ya es octubre)
+  cycleRange?: { start: string; end: string } // muestra el rango real en modo tarjeta
   className?: string // estilo del botón que abre el selector
 }) {
   const [open, setOpen] = useState(false)
@@ -45,7 +47,7 @@ export function MonthPicker({
             className
           )}
         >
-          {monthName(period.month)}
+          {cycleRange ? `Ciclo ${cycleRange.start.slice(8, 10)} ${monthName(Number(cycleRange.start.slice(5, 7))).slice(0, 3).toLowerCase()} – ${cycleRange.end.slice(8, 10)} ${monthName(Number(cycleRange.end.slice(5, 7))).slice(0, 3).toLowerCase()}` : monthName(period.month)}
           {withYear && <span className="tabular-nums"> {period.year}</span>}
         </button>
       </PopoverTrigger>

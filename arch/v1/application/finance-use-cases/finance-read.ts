@@ -689,6 +689,7 @@ export async function getBudgetView(
   pace?: { frequency: PaceFrequency; today: string }
 ): Promise<BudgetViewDTO> {
   const range = await rangeOf(deps, year, month)
+  const cycleAligned = (await deps.budgetPeriod?.get())?.mode === "card_cycle"
   const [withLimit, txs, budgets, plans, incomesList, incomeAmounts] =
     await Promise.all([
       categoriesWithLimit(deps, userId, year, month),
@@ -767,7 +768,8 @@ export async function getBudgetView(
               clpTxs,
               pace.today,
               pace.frequency,
-              range
+              range,
+              cycleAligned
             )
             return {
               frequency: pace.frequency,

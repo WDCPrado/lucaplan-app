@@ -518,6 +518,8 @@ model Transaction {
   bucket                  BalanceBucket?     @relation(fields: [bucketId], references: [id], onDelete: SetNull)
   incomeId                String? // fuente de ingreso que generó este movimiento (gancho para recurrencia); null en el resto
   income                  Income?            @relation(fields: [incomeId], references: [id], onDelete: SetNull)
+  reimbursementsPaid      ExpenseReimbursement[] @relation("ReimbursedExpense")
+  reimbursementsReceived  ExpenseReimbursement[] @relation("ReimbursementCredit")
   // plantilla recurrente que materializó este movimiento; borrar la plantilla conserva lo confirmado
   recurringTemplateId     String?
   recurringTemplate       RecurringTemplate? @relation(fields: [recurringTemplateId], references: [id], onDelete: SetNull)
@@ -689,4 +691,21 @@ model PluginGrantRevocation {
 
   @@id([userId, clientId])
   @@map("plugin_grant_revocation")
+}
+
+// Compensación presupuestaria: el gasto y el abono bancarios permanecen intactos.
+model ExpenseReimbursement {
+  id           String      @id @default(uuid())
+  userId       String
+  expenseId    String
+  expense      Transaction @relation("ReimbursedExpense", fields: [expenseId], references: [id], onDelete: Cascade)
+  creditId     String
+  credit       Transaction @relation("ReimbursementCredit", fields: [creditId], references: [id], onDelete: Cascade)
+  amount       Decimal     @db.Decimal(18, 2)
+  createdAt    DateTime    @default(now())
+
+  @@unique([expenseId, creditId])
+  @@index([userId, expenseId])
+  @@index([creditId])
+  @@map("expense_reimbursement")
 }

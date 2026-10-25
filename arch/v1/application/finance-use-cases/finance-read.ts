@@ -308,18 +308,6 @@ export async function getMonthlySummary(
   const withLimit = await categoriesWithLimit(deps, userId, year, month)
   // Montos en otra moneda (USD) convertidos a CLP por el dólar de su fecha, para que cuenten.
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
-  const reimbursementRows = await prisma.expenseReimbursement.findMany({
-    where: { userId, expenseId: { in: txs.filter(t => t.direction === "debit").map(t => t.id) } },
-    select: { expenseId: true, amount: true },
-  })
-  const reimbursed = new Map<string, number>()
-  for (const row of reimbursementRows)
-    reimbursed.set(row.expenseId, (reimbursed.get(row.expenseId) ?? 0) + Number(row.amount))
-  const netBudgetTxs = clpTxs.map(t => {
-    const deducted = reimbursed.get(t.id) ?? 0
-    if (!deducted || t.direction !== "debit") return t
-    return { ...t, amount: Money.of(Math.max(0, t.amount.toMajor() - deducted), "CLP") }
-  })
 
   const budgetedIds = new Set(
     withLimit
@@ -714,6 +702,19 @@ export async function getBudgetView(
     ])
   // USD → CLP por fecha para que el uso por categoría cuente esos movimientos.
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
+  const reimbursementRows = await prisma.expenseReimbursement.findMany({
+    where: { userId, expenseId: { in: txs.filter(t => t.direction === "debit").map(t => t.id) } },
+    select: { expenseId: true, amount: true },
+  })
+  const reimbursed = new Map<string, number>()
+  for (const row of reimbursementRows)
+    reimbursed.set(row.expenseId, (reimbursed.get(row.expenseId) ?? 0) + Number(row.amount))
+  const netBudgetTxs = clpTxs.map(t => {
+    const deducted = reimbursed.get(t.id) ?? 0
+    if (!deducted || t.direction !== "debit") return t
+    return { ...t, amount: Money.of(Math.max(0, t.amount.toMajor() - deducted), "CLP") }
+  })
+
   // Comprometido de cuotas por categoría: la cuota que vence en el rango y aún no se paga se anticipa
   // como comprometida, igual que una recurrente. Derivado, no filas: al pagarse pasa a `used` y
   // desaparece de aquí, sin doble conteo.

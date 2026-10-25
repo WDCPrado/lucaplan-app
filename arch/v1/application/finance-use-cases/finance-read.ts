@@ -1,3 +1,4 @@
+import { prisma } from "../../infrastructure/database/prisma/client.ts"
 import { isDuplicateInstallmentPayment } from "./duplicate-installment-payment.ts"
 // Use-cases de lectura financiera. DTOs con montos en unidad mayor (number). Ownership por userId.
 // Categorías GLOBALES del usuario; el límite es por mes con carry-forward (ver effectiveLimit).

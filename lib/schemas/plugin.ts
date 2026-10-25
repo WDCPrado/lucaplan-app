@@ -374,6 +374,25 @@ export const pluginTools = {
     "Elimina una categoría: sus movimientos quedan sin categoría y se eliminan las fuentes de ingreso que la usan. Rechaza la eliminación si la usan recurrentes o planes de cuotas (recategorízalos primero). Confirma con el usuario antes.",
     z.strictObject({ categoryId: ref("Categoría a eliminar"), ...operation })
   ),
+  lucaplan_vincular_reembolso: write(
+    { title: "Vincular reembolso a gasto" },
+    "Vincula una transferencia bancaria recibida a una compra compartida, conservando ambos movimientos originales. Compensa solo el gasto del presupuesto, nunca el saldo bancario. El importe acumulado no puede exceder ni el gasto ni el abono. No uses ingresos ficticios.",
+    z.strictObject({
+      expenseId: ref("ID del gasto bancario confirmado"),
+      creditId: ref("ID del ingreso bancario confirmado"),
+      amount: z.number().int().positive().describe("Importe compensado en CLP"),
+      ...operation,
+    })
+  ),
+  lucaplan_vincular_abono_ingreso: write(
+    { title: "Vincular abono a ingreso planificado" },
+    "Vincula un abono bancario ya existente a su fuente de ingreso. No genera un abono nuevo, no modifica el saldo ni la fecha bancaria original. La fuente y el abono deben pertenecer al usuario y coincidir en cuenta, categoría y moneda.",
+    z.strictObject({
+      incomeId: ref("Fuente de ingreso planificada"),
+      transactionId: ref("Abono real confirmado"),
+      ...operation,
+    })
+  ),
   lucaplan_asignar_categoria: write(
     { title: "Categorizar movimiento", destructive: true },
     "Úsala para asignar, cambiar o quitar (null) la categoría de UN movimiento, también de bancos conectados. Si el movimiento es de una recurrente o un plan de cuotas, la categoría pasa a toda la recurrente o el plan. Aprende el texto del comercio si no tenía regla. Responde sameTextCount (cuántos movimientos sin categoría tienen el mismo texto) y learnedCategoryId (regla previa distinta que NO se pisó): si alguno aplica, ofrece lucaplan_aprender_categoria.",

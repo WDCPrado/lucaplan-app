@@ -307,6 +307,18 @@ export async function getMonthlySummary(
   const withLimit = await categoriesWithLimit(deps, userId, year, month)
   // Montos en otra moneda (USD) convertidos a CLP por el dólar de su fecha, para que cuenten.
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
+  const reimbursementRows = await prisma.expenseReimbursement.findMany({
+    where: { userId, expenseId: { in: txs.filter(t => t.direction === "debit").map(t => t.id) } },
+    select: { expenseId: true, amount: true },
+  })
+  const reimbursed = new Map<string, number>()
+  for (const row of reimbursementRows)
+    reimbursed.set(row.expenseId, (reimbursed.get(row.expenseId) ?? 0) + Number(row.amount))
+  const netBudgetTxs = clpTxs.map(t => {
+    const deducted = reimbursed.get(t.id) ?? 0
+    if (!deducted || t.direction !== "debit") return t
+    return { ...t, amount: Money.of(Math.max(0, t.amount.toMajor() - deducted), "CLP") }
+  })
 
   const budgetedIds = new Set(
     withLimit
@@ -733,7 +745,7 @@ export async function getBudgetView(
     const { used, available } = computeCategoryUsage(
       category.id,
       limit,
-      clpTxs,
+      netBudgetTxs,
       range,
       direction
     )
@@ -741,7 +753,7 @@ export async function getBudgetView(
     const committed = computeCategoryCommitted(
       category.id,
       limit.currency,
-      clpTxs,
+      netBudgetTxs,
       range,
       direction
     ).add(
@@ -765,7 +777,7 @@ export async function getBudgetView(
             const p = computeCategoryPace(
               category.id,
               available,
-              clpTxs,
+              netBudgetTxs,
               pace.today,
               pace.frequency,
               range,

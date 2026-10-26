@@ -430,7 +430,7 @@ export const pluginTools = {
   // --- Movimientos ---
   lucaplan_buscar_movimientos: read(
     "Buscar movimientos",
-    "Úsala para encontrar movimientos y sus ids: combina filtros (todos con AND) y pagina con offset/limit. Orden estable: fecha desc y luego id. La respuesta trae total, hasMore y nextOffset para recorrer todo y conciliar. Cada movimiento trae su procedencia (manual, banco por correo, ingreso, recurrente, cuota), sus relaciones y qué se puede hacer con él (canEdit, canDelete y el motivo si no). Por defecto (settledOnly) excluye anulados, duplicados y recurrentes por cobrar; usa status para verlos. Para el detalle completo de uno usa lucaplan_ver_movimiento.",
+    "Úsala para encontrar movimientos y sus ids: combina filtros (todos con AND) y pagina con offset/limit. Orden estable: fecha desc y luego id. La respuesta trae total, hasMore y nextOffset para recorrer todo y conciliar. Cada movimiento trae su procedencia (manual, banco por correo, ingreso, recurrente, cuota), sus relaciones y qué se puede hacer con él (canEdit, canDelete y el motivo si no). Por defecto (settledOnly) excluye anulados, duplicados y recurrentes por cobrar; usa status para verlos. financialContext distingue importe guardado, impacto registrado en cupo, evidencia bancaria no verificada y equivalente CLP referencial. affectsCash solo corresponde a cuenta corriente; countsInBudget indica gasto confirmado dentro de categoría con tope en budgetPeriod, no ingreso ni gasto neto. Para el detalle completo de uno usa lucaplan_ver_movimiento.",
     z.strictObject({
       query: z
         .string()
@@ -493,7 +493,7 @@ export const pluginTools = {
   ),
   lucaplan_ver_movimiento: read(
     "Ver detalle de movimiento",
-    "Úsala antes de editar, borrar o re-vincular un movimiento: devuelve sus datos, procedencia, relaciones (recurrente, cuota y plan, ingreso, compra origen de un plan) y capacidades exactas (canEdit, editableFields, canDelete, canCategorize con su motivo).",
+    "Úsala antes de editar, borrar o re-vincular un movimiento: devuelve sus datos, procedencia, relaciones (recurrente, cuota y plan, ingreso, compra origen de un plan) y capacidades exactas (canEdit, editableFields, canDelete, canCategorize con su motivo). Incluye financialContext y budgetPeriod: moneda guardada, impacto registrado, cupo vinculado, equivalente CLP referencial y evidencia no verificada. canCorrectMetadata y canCorrectCurrency indican si las herramientas actuales permiten esas correcciones; no deducir liquidación bancaria desde un correo en pesos.",
     z.strictObject({ transactionId: ref("Movimiento a consultar") })
   ),
   lucaplan_crear_movimiento: write(
@@ -959,3 +959,4 @@ export type PluginToolName = keyof typeof pluginTools
 export type PluginToolInput<N extends PluginToolName> = z.infer<
   (typeof pluginTools)[N]["inputSchema"]
 >
+

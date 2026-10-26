@@ -691,7 +691,7 @@ async function searchResultDTOs(
       clpAmounts[i]
     )
   )
-  return withReimbursementCounts(userId, await withRecurringState(deps, userId, dtos, txs))
+  return withReimbursementCounts(deps, userId, await withRecurringState(deps, userId, dtos, txs))
 }
 
 export type AmountBoundsDTO = { min: number; max: number }

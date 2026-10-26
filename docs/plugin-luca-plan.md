@@ -245,3 +245,21 @@ por compatibilidad. Para documentos históricos y correcciones usa el flujo nuev
 `actualizar_saldos` fingiendo que un saldo histórico es actual.
 
 Búsqueda y detalle exponen `bankReconciliation` con evidencia cuando existe.
+
+### Resolver conflictos de conciliación
+
+La similitud de monto o comercio en ±4 días es un candidato, no prueba de duplicación.
+Si el documento demuestra cargos independientes, cada alta puede declarar `distinctFrom`
+con el ID de **cada** candidato y evidencia de su fila distinta. El error enumera los IDs
+pendientes. IDs ajenos, repetidos o sin evidencia se rechazan. Dos altas similares deben
+aplicarse en lotes separados para revisar también el nuevo ID. La revisión queda en la
+auditoría y participa del token: un candidato nuevo obliga a repetir la previsualización.
+
+Un cobro confirmado ligado únicamente a una recurrente admite `settleRecurringCharge: true`
+para corregir importe y moneda **liquidados**, conservando categoría e identidad. El vínculo,
+la marca de cobro y las condiciones futuras del plan permanecen intactos: el monto esperado
+del plan puede estar expresado en la moneda original del comercio y el cobro liquidado en
+otra. No usar esta opción para cambiar el precio futuro de una suscripción. Ingresos,
+cuotas, compras origen de cuotas, transferencias y reembolsos mantienen sus restricciones.
+Ambas opciones están disponibles en el mismo contrato de la API y del MCP; siempre requieren
+previsualizar y aplicar con el mismo token y evidencia bancaria.

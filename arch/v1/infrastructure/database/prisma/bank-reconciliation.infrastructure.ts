@@ -88,6 +88,11 @@ export async function reconcileBankAccount(
             status: m.status,
             isInternal: m.isInternal,
             bankReceivedAt: m.bankReceivedAt?.toISOString() ?? null,
+            recurringOnly:
+              !!m.recurringTemplateId &&
+              !m.incomeId &&
+              !m.installmentItemId &&
+              !m.installmentPlanAsSource,
             linked: !!(
               m.incomeId ||
               m.recurringTemplateId ||
@@ -149,6 +154,8 @@ export async function reconcileBankAccount(
               reconciliation: json({
                 source: input.source,
                 evidence: c.after.evidence,
+                recurringSettlement: c.after.settleRecurringCharge === true,
+                recurringTemplateId: row.recurringTemplateId,
                 bankPostingDate: c.after.date,
                 snapshotAt: input.snapshotAt,
                 reconciledAt: now.toISOString(),
@@ -175,6 +182,7 @@ export async function reconcileBankAccount(
               reconciliation: json({
                 source: input.source,
                 evidence: a.evidence,
+                distinctFrom: a.distinctFrom ?? [],
                 bankPostingDate: a.date,
                 snapshotAt: input.snapshotAt,
                 reconciledAt: now.toISOString(),

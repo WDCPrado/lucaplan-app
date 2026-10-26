@@ -527,12 +527,12 @@ export const pluginTools = {
   ),
   lucaplan_previsualizar_conciliacion: read(
     "Previsualizar conciliación bancaria completa",
-    "Simula correcciones explícitas por ID (moneda, importe, fecha, categoría), altas sin contraparte y saldos de UNA cuenta. Conserva vínculos, rechaza ambigüedad y reejecuta solo movimientos posteriores al corte. Incluye todos los buckets de esa cuenta e IDs del día del corte que el documento ya incluye. Devuelve previewToken y diferencias; no escribe. No adivinar categorías ni convertir CLP a USD por tipo de cambio estimado: usar moneda e importe de cartola.",
+    "Simula correcciones explícitas por ID (moneda, importe, fecha, categoría), altas sin contraparte y saldos de UNA cuenta. Conserva vínculos, rechaza ambigüedad y reejecuta solo movimientos posteriores al corte. Incluye todos los buckets de esa cuenta e IDs del día del corte que el documento ya incluye. Devuelve previewToken y diferencias; no escribe. No adivinar categorías ni convertir CLP a USD por tipo de cambio estimado: usar moneda e importe de cartola. Si un alta tiene candidatos, devuelve sus IDs para revisarlos con distinctFrom y evidencia por operación distinta. Para liquidar un cobro recurrente conservando su plan usa settleRecurringCharge=true.",
     bankReconciliationSchema
   ),
   lucaplan_aplicar_conciliacion: write(
     {title:"Aplicar conciliación bancaria",destructive:true},
-    "Aplica atómicamente la propuesta verificada por lucaplan_previsualizar_conciliacion, con los mismos datos y previewToken. Conserva identidad y vínculos; guarda auditoría y protege las correcciones del reproceso del correo. No duplica movimientos anteriores al corte. Si cambiaron datos, vuelve a previsualizar. No cambia importe/moneda/categoría de planes vinculados automáticamente; esos casos requieren revisar el plan.",
+    "Aplica atómicamente la propuesta verificada por lucaplan_previsualizar_conciliacion, con los mismos datos y previewToken. Conserva identidad y vínculos; guarda auditoría y protege las correcciones del reproceso del correo. No duplica movimientos anteriores al corte. Si cambiaron datos, vuelve a previsualizar. Los cobros recurrentes permiten settleRecurringCharge=true para corregir el importe y moneda liquidados sin cambiar categoría ni plan futuro. Ingresos y cuotas conservan restricciones. Las altas distintas de candidatos cercanos exigen distinctFrom con sus IDs y evidencia individual.",
     bankReconciliationSchema.extend({previewToken:z.string().length(64),...operation})
   ),
   lucaplan_conciliar_cartola: read(

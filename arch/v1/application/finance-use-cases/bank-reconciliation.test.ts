@@ -124,7 +124,7 @@ test("fecha corrida de ingreso conserva vínculo y monto", () => {
       categoryId: "income",
       linked: true,
       date: "2026-11-23",
-        amount: 43000,
+      amount: 43000,
     }),
   ]
   const i = input()
@@ -204,4 +204,95 @@ test("alta duplicada o convertida del mismo comercio se rechaza", () => {
     },
   ]
   assert.throws(() => planBankReconciliation(state(), i, now), /duplicado/)
+})
+
+test("liquida cobro recurrente explícito sin soltar vínculo ni cambiar categoría", () => {
+  const s = state()
+  s.movements[0].linked = true
+  s.movements[0].recurringOnly = true
+  const i = input()
+  assert.throws(() => planBankReconciliation(s, i, now), /vinculado/)
+  i.corrections[0].settleRecurringCharge = true
+  const p = planBankReconciliation(s, i, now)
+  assert.equal(p.corrections[0].after.linked, true)
+  assert.equal(p.corrections[0].after.bucketId, "usd")
+  assert.equal(p.corrections[0].after.categoryId, "expense")
+  assert.equal(s.movements[0].amount, 84000)
+  assert.equal(p.projectedBuckets[1].used, 100)
+})
+test("liquidación recurrente no habilita ingresos, cuotas, internos ni recategorización", () => {
+  for (const changes of [
+    { recurringOnly: false },
+    { direction: "credit" },
+    { isInternal: true },
+    { categoryId: null },
+  ]) {
+    const s = state()
+    Object.assign(
+      s.movements[0],
+      { linked: true, recurringOnly: true },
+      changes
+    )
+    const i = input()
+    i.corrections[0].settleRecurringCharge = true
+    assert.throws(() => planBankReconciliation(s, i, now))
+  }
+})
+const distinctAddition = (): BankReconciliationInput => {
+  const i = input()
+  i.corrections = []
+  i.additions = [
+    {
+      date: "2026-10-07",
+      description: "Compra demo",
+      amount: 84000,
+      currency: "CLP",
+      categoryId: "expense",
+      evidence: "Cartola fila B",
+      direction: "debit",
+      isInternal: false,
+      distinctFrom: [
+        {
+          transactionId: "m1",
+          evidence:
+            "m1 corresponde a fila A del día 5, B es otro cargo del día 7",
+        },
+      ],
+    },
+  ]
+  return i
+}
+test("alta independiente conserva revisión de candidatos y no suma nuevamente al saldo", () => {
+  const p = planBankReconciliation(state(), distinctAddition(), now)
+  assert.equal(p.additions.length, 1)
+  assert.equal(p.additions[0].distinctFrom?.[0].transactionId, "m1")
+  assert.equal(p.projectedBuckets[0].used, 200000)
+})
+test("IDs ajenos, repetidos, omitidos y evidencia vacía no autorizan altas", () => {
+  for (const reviewed of [
+    [],
+    [{ transactionId: "foreign", evidence: "fila" }],
+    [{ transactionId: "m1", evidence: " " }],
+    [
+      { transactionId: "m1", evidence: "fila" },
+      { transactionId: "m1", evidence: "fila" },
+    ],
+  ]) {
+    const i = distinctAddition()
+    i.additions[0].distinctFrom = reviewed
+    assert.throws(() => planBankReconciliation(state(), i, now))
+  }
+})
+test("un candidato nuevo invalida la revisión anterior y devuelve el ID pendiente", () => {
+  const s = state()
+  s.movements.push(movement({ id: "new-candidate" }))
+  assert.throws(
+    () => planBankReconciliation(s, distinctAddition(), now),
+    /new-candidate/
+  )
+})
+test("la revisión no permite duplicar altas dentro del mismo lote", () => {
+  const i = distinctAddition()
+  i.additions.push({ ...i.additions[0] })
+  assert.throws(() => planBankReconciliation(state(), i, now), /entre altas/)
 })

@@ -1,4 +1,4 @@
-import { CreditCard, Repeat } from "lucide-react"
+import { CreditCard, Repeat, Link2 } from "lucide-react"
 import type { TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
@@ -99,6 +99,11 @@ export function MovementRow({
         </div>
       )}
       {recurringBadge}
+      {!!tx.reimbursementCount && (
+        <span className="absolute -top-1 -right-1 grid size-4 place-items-center rounded-full bg-primary text-primary-foreground ring-2 ring-background" title="Movimiento con reembolso relacionado" aria-label="Movimiento con reembolso relacionado">
+          <Link2 className="size-2.5" strokeWidth={2.5} />
+        </span>
+      )}
     </div>
   )
 
@@ -131,6 +136,9 @@ export function MovementRow({
               <span className="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
                 {committed ? "Por cobrar" : "Pendiente"}
               </span>
+            )}
+            {!!tx.reimbursementCount && (
+              <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">Vinculado</span>
             )}
             {tx.isInternal && (
               <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">

@@ -20,6 +20,7 @@ export type ReconciliationMovement = {
   status: string
   isInternal: boolean
   bankReceivedAt: string | null
+  recurringOnly?: boolean
   linked: boolean
   reimbursementAmount: number
   updatedAt: string
@@ -143,9 +144,23 @@ export function planBankReconciliation(
       )
     )
       reject("Categoría ajena o incompatible con cargo/abono")
+    const recurringSettlement = c.settleRecurringCharge === true
+    if (
+      recurringSettlement &&
+      (!old.recurringOnly ||
+        old.direction !== "debit" ||
+        old.isInternal ||
+        old.categoryId !== c.categoryId)
+    )
+      reject(
+        "La liquidación recurrente exige un cobro confirmado sin otros vínculos y conserva categoría"
+      )
     if (
       old.linked &&
-      (old.currency !== c.currency || old.categoryId !== c.categoryId || old.amount !== c.amount)
+      !recurringSettlement &&
+      (old.currency !== c.currency ||
+        old.categoryId !== c.categoryId ||
+        old.amount !== c.amount)
     )
       reject(
         "El movimiento está vinculado a un ingreso, recurrente o cuota: conserva importe, moneda y categoría o concilia primero su plan"
@@ -189,19 +204,41 @@ export function planBankReconciliation(
       reject("Categoría inválida")
     // Conservador: incluso otra moneda del mismo comercio es candidata, no un alta automática.
     const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "")
-    const candidates = [
-      ...movements,
-      ...input.additions.slice(0, index),
-    ].filter(
-      (m) =>
-        m.direction === a.direction &&
-        Math.abs(Date.parse(m.date) - Date.parse(a.date)) <= 4 * 86400000 &&
-        ((m.currency === a.currency && m.amount === a.amount) ||
-          norm(m.description) === norm(a.description))
-    )
-    if (candidates.length)
+    const similar = (m: {
+      date: string
+      direction: string
+      currency: string
+      amount: number
+      description: string
+    }) =>
+      m.direction === a.direction &&
+      Math.abs(Date.parse(m.date) - Date.parse(a.date)) <= 4 * 86400000 &&
+      ((m.currency === a.currency && m.amount === a.amount) ||
+        norm(m.description) === norm(a.description))
+    // Las altas del mismo lote no tienen identidad persistida: resolver en lotes separados.
+    if (input.additions.slice(0, index).some(similar))
       reject(
-        `Posible duplicado en alta ${index}; revisa y corrige el movimiento existente`
+        `Posible duplicado entre altas del lote ${index}; concilia por separado`
+      )
+    const candidates = movements.filter(similar)
+    const reviewed = a.distinctFrom ?? []
+    if (
+      new Set(reviewed.map((r) => r.transactionId)).size !== reviewed.length ||
+      reviewed.some(
+        (r) =>
+          !r.evidence.trim() ||
+          !candidates.some((m) => m.id === r.transactionId)
+      )
+    )
+      reject(
+        `Revisión de candidatos inválida en alta ${index}: IDs ajenos, repetidos o evidencia vacía`
+      )
+    const unresolved = candidates.filter(
+      (m) => !reviewed.some((r) => r.transactionId === m.id)
+    )
+    if (unresolved.length)
+      reject(
+        `Posible duplicado en alta ${index}; revisa con distinctFrom los candidatos: ${unresolved.map((m) => m.id).join(", ")}`
       )
     return { ...a, bucketId: target(a.currency, false, null) }
   })

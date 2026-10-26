@@ -46,12 +46,43 @@ export const bankReconciliationSchema = z.strictObject({
     .describe(
       "IDs del día del corte que el documento ya incluye; no asumir por fecha de importación"
     ),
-  corrections: z.array(settled.extend({ transactionId: id })).max(200),
+  corrections: z
+    .array(
+      settled.extend({
+        transactionId: id,
+        settleRecurringCharge: z
+          .boolean()
+          .optional()
+          .describe(
+            "True solo para liquidar un cobro recurrente confirmado con evidencia bancaria. Conserva vínculo, categoría y condiciones futuras del plan; no aplica a ingresos ni cuotas."
+          ),
+      })
+    )
+    .max(200),
   additions: z
     .array(
       settled.extend({
         direction: z.enum(["debit", "credit"]),
         isInternal: z.boolean(),
+        distinctFrom: z
+          .array(
+            z.strictObject({
+              transactionId: id,
+              evidence: z
+                .string()
+                .trim()
+                .min(1)
+                .max(2000)
+                .describe(
+                  "Fila bancaria independiente del candidato: explica por qué son dos operaciones distintas"
+                ),
+            })
+          )
+          .max(200)
+          .optional()
+          .describe(
+            "Candidatos revisados que son otros cargos reales. Debe enumerar exactamente todos los candidatos detectados, sin IDs ajenos ni omisiones."
+          ),
       })
     )
     .max(200)

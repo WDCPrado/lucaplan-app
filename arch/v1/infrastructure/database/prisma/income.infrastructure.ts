@@ -2,7 +2,7 @@
 // "generar" crea una Transaction credit vinculada a la fuente (incomeId), idempotente por (income, mes)
 // vía check-then-insert dentro de una $transaction, ajustando el saldo de la cuenta destino.
 import { prisma } from "./client.ts"
-import type { PeriodRange } from "../../../shared/billing-cycle.ts"
+import type { PeriodRange } from "../../../../shared/billing-cycle.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import {
   IncomeNotFoundError,

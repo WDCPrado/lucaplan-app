@@ -27,7 +27,9 @@ export const INSTRUCTIONS = [
   "Toda escritura lleva operationId nuevo por pedido; si queda incierta o pendiente, consulta lucaplan_ver_operacion y no reintentes con otra clave. Un rechazo no cambia nada.",
   "Planificar no mueve dinero. Navega: buscar o listar → ver detalle → actuar. Confirma antes de borrar.",
   "Caja, sobregiro y cupo de tarjeta son distintos: la línea y el cupo no son caja, y el presupuesto restante es un tope, no dinero disponible. Los movimientos internos no consumen presupuesto.",
-  "Estas herramientas no leen correos ni usan IA; los movimientos del banco llegan solos.",
+  "Un aviso en CLP no prueba cupo nacional: el banco puede notificar convertido un cargo internacional. recordedAmount es lo guardado, no una liquidación validada. financialContext separa impacto registrado, cupo vinculado y conversión presupuestaria referencial. Valores null son desconocidos, no cero.",
+  "Conciliar exige contrastar cartola/no facturados, fechas corridas, comercio, moneda y vínculos. No crear otro gasto por diferencia de moneda o fecha. Un saldo bancario al corte ya incluye sus movimientos; no volver a sumarlos. No inferir que faltan cargos solo porque no aparecen en USD.",
+  "Estas herramientas no leen correos ni usan IA; la sincronización puede ser incompleta y el correo no sustituye la cartola.",
 ].join(" ")
 
 // structuredContent siempre es { result }: el contenido varía por herramienta y se describe en su texto.
@@ -310,3 +312,4 @@ export async function handlePluginMcp(request: Request): Promise<Response> {
     )
   }
 }
+

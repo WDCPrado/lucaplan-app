@@ -1,3 +1,10 @@
+import { movementFinancialContext } from "../../application/finance-use-cases/movement-financial-context.ts"
+import { effectiveLimit } from "../../application/finance-use-cases/budget-formulas.ts"
+import { getBudgetPeriod } from "../../application/finance-use-cases/budget-period-use-cases.ts"
+import { periodOfDay, periodRange } from "../../../shared/billing-cycle.ts"
+import { categoryRepository } from "../database/prisma/finance.infrastructure.ts"
+import { budgetPeriodRepository } from "../database/prisma/budget-period.infrastructure.ts"
+import { exchangeRateProvider } from "../http/exchange/usd-clp.ts"
 import type { Prisma } from "../database/prisma/generated/client.ts"
 import { prisma } from "../database/prisma/client.ts"
 import {
@@ -29,8 +36,14 @@ const movementSelect = {
   recurringTemplateId: true,
   installmentItemId: true,
   incomeId: true,
+  bucket: { select: { kind: true, currency: true } },
   account: {
-    select: { name: true, provider: true, bank: { select: { name: true } } },
+    select: {
+      name: true,
+      provider: true,
+      accountType: true,
+      bank: { select: { name: true } },
+    },
   },
   category: { select: { name: true, type: true } },
   recurringTemplate: { select: { label: true } },
@@ -63,7 +76,11 @@ const SOURCE_LABEL = {
 
 // Procedencia, relaciones y capacidades efectivas: lo que el chat necesita para decidir qué
 // herramienta usar sin probar y fallar. Las capacidades usan las MISMAS reglas que el caso de uso.
-function movementView(row: MovementRow, duplicateInstallment = false) {
+function movementView(
+  row: MovementRow,
+  context: ReturnType<typeof movementFinancialContext>,
+  duplicateInstallment = false
+) {
   const source: keyof typeof SOURCE_LABEL = row.externalId
     ? "bank_email"
     : row.incomeId
@@ -94,9 +111,7 @@ function movementView(row: MovementRow, duplicateInstallment = false) {
     direction: row.direction,
     status: row.status,
     isInternal: row.isInternal,
-    affectsCash: row.status === "confirmed",
-    countsInBudget:
-      row.status === "confirmed" && !row.isInternal && row.categoryId !== null,
+    ...context,
     accountId: row.accountId,
     accountName: row.account.name,
     bankName: row.account.bank.name,
@@ -134,6 +149,14 @@ function movementView(row: MovementRow, duplicateInstallment = false) {
         : null,
     },
     capabilities: {
+      canCorrectMetadata:
+        !row.externalId &&
+        !row.installmentItemId &&
+        !row.recurringTemplateId &&
+        !row.incomeId,
+      canCorrectCurrency: false,
+      currencyCorrectionBlockedReason:
+        "No existe una operación de conciliación que cambie moneda y cupo preservando trazabilidad y vínculos; no reemplazar con crear + borrar.",
       canEdit: editBlocked === null,
       editableFields:
         editBlocked !== null
@@ -154,6 +177,77 @@ function movementView(row: MovementRow, duplicateInstallment = false) {
         : null,
     },
   }
+}
+
+// Shared by list and detail: one configuration/limits read per response, one FX lookup per day.
+async function contextualViews(
+  userId: string,
+  rows: MovementRow[],
+  duplicateInstallment = false
+) {
+  if (!rows.length) return []
+  const [settings, limits] = await Promise.all([
+    getBudgetPeriod({ budgetPeriod: budgetPeriodRepository }),
+    categoryRepository.listLimitsByUser(userId),
+  ])
+  const dates = [
+    ...new Set(
+      rows
+        .filter((row) => row.currency === "USD")
+        .map((row) => row.transactionDate.toISOString().slice(0, 10))
+    ),
+  ]
+  const rates = new Map(
+    await Promise.all(
+      dates.map(async (day) => {
+        try {
+          return [
+            day,
+            await exchangeRateProvider.clpPerUsdAt(new Date(day)),
+          ] as const
+        } catch {
+          return [day, null] as const
+        }
+      })
+    )
+  )
+  return rows.map((row) => {
+    const day = row.transactionDate.toISOString().slice(0, 10)
+    const period = periodOfDay(day, settings.mode, settings.overrides)
+    const context = movementFinancialContext({
+      amount: Number(row.amount),
+      currency: row.currency,
+      direction: row.direction,
+      status: row.status,
+      isInternal: row.isInternal,
+      externalId: row.externalId,
+      accountType: row.account.accountType,
+      bucket: row.bucket,
+      categoryType: row.category?.type ?? null,
+      categoryLimit: row.categoryId
+        ? effectiveLimit(
+            limits,
+            row.categoryId,
+            period.year,
+            period.month
+          ).toMajor()
+        : 0,
+      clpPerUsd: rates.get(day) ?? null,
+    })
+    return {
+      ...movementView(row, context, duplicateInstallment),
+      budgetPeriod: {
+        ...period,
+        mode: settings.mode,
+        range: periodRange(
+          period.year,
+          period.month,
+          settings.mode,
+          settings.overrides
+        ),
+      },
+    }
+  })
 }
 
 // Consulta acotada en la DB; nunca pagina después de traer todos los movimientos.
@@ -224,7 +318,7 @@ export async function searchPluginTransactions(
   ])
   const hasMore = input.offset + rows.length < total
   return {
-    items: rows.map((row) => movementView(row)),
+    items: await contextualViews(userId, rows),
     total,
     offset: input.offset,
     limit: input.limit,
@@ -244,5 +338,7 @@ export async function getPluginTransaction(
     select: movementSelect,
   })
   if (!row) throw new NotOwnerError()
-  return movementView(row, await isDuplicateInstallment())
+  return (
+    await contextualViews(userId, [row], await isDuplicateInstallment())
+  )[0]
 }

@@ -178,3 +178,20 @@ sin tokens para revisar sus permisos y revocarla desde Ajustes → Gestionar con
 La estructura portable y el flujo para registrar un MCP personalizado están documentados en
 [Package your plugin](https://developers.openai.com/plugins/build/plugins) y
 [Connect and test your plugin](https://developers.openai.com/plugins/deploy/connect-chatgpt).
+
+
+
+### Contexto financiero de búsqueda y detalle
+
+`lucaplan_buscar_movimientos` y `lucaplan_ver_movimiento` comparten `financialContext`:
+
+- `recordedAmount`: importe/moneda guardados, no necesariamente el cargo definitivo de la cartola.
+- `recordedImpact`: destino deducido de cuenta/moneda y vínculo de bucket guardado (si existe). `bucketConflict` detecta discrepancias entre ambos. No confirma que la proyección de saldos haya sido ejecutada ni identifica el cupo definitivo del banco.
+- `budget`: equivalente bruto en CLP con el mismo proveedor de cambio que la app. USD se marca `reference_only`; falla de cotización se informa como `unavailable` con importe null. No cambia moneda ni cupo, ni incorpora el neteo de reembolsos.
+- `reconciliation`: evidencia del registro y campos desconocidos explícitos. Actualmente no se guardan por separado importe original, fecha contable ni verificación contra cartola; null no significa cero ni falso.
+
+Un aviso bancario en pesos puede corresponder a un consumo internacional. Antes de crear o corregir, comparar cartola/no facturados, comercio, fechas corridas y vínculos. No duplicar por diferencia de moneda o fecha ni inferir tipo de cambio oficial desde una conversión aproximada.
+
+`affectsCash` se limita a movimientos confirmados de cuenta corriente. `countsInBudget` indica elegibilidad como gasto confirmado no interno en categoría de gasto con tope positivo del `budgetPeriod` del movimiento (incluye carry-forward y ciclo de tarjeta). No representa ingreso, compromiso pendiente ni gasto neto después de reembolsos. Usar presupuesto/medidor para esos totales.
+
+Las capacidades distinguen editar, corregir metadatos y corregir moneda. Las herramientas actuales no permiten corregir moneda/cupo con trazabilidad: `canCorrectCurrency` es false. Este contrato de lectura no añade un flujo de escritura ni repara registros históricos.

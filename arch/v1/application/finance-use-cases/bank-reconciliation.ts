@@ -1,6 +1,12 @@
 import type { BankReconciliationInput } from "../../../../lib/schemas/bank-reconciliation.ts"
 import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
+import type {
+  BankReconciliationPlan,
+  BankReconciliationStore,
+  ReconciliationMovement,
+  ReconciliationState,
+} from "../../domain/finance/bank-reconciliation.domain.ts"
 import {
   applyDebitToCash,
   applyInternalCredit,
@@ -8,34 +14,11 @@ import {
   applyInternalPayment,
 } from "./email-projection.ts"
 
-export type ReconciliationMovement = {
-  id: string
-  date: string
-  description: string
-  amount: number
-  currency: string
-  direction: string
-  categoryId: string | null
-  bucketId: string | null
-  status: string
-  isInternal: boolean
-  bankReceivedAt: string | null
-  recurringOnly?: boolean
-  linked: boolean
-  reimbursementAmount: number
-  updatedAt: string
-}
-export type ReconciliationState = {
-  accountType: string
-  buckets: {
-    id: string
-    kind: string
-    currency: string
-    reconciledAt: string | null
-  }[]
-  movements: ReconciliationMovement[]
-  categories: { id: string; type: string }[]
-}
+export type {
+  ReconciliationMovement,
+  ReconciliationState,
+} from "../../domain/finance/bank-reconciliation.domain.ts"
+
 const reject = (message: string): never => {
   throw new EmailSetupStateError(message)
 }
@@ -59,7 +42,7 @@ export function planBankReconciliation(
   state: ReconciliationState,
   input: BankReconciliationInput,
   now: Date
-) {
+): BankReconciliationPlan {
   if (new Date(input.snapshotAt) > now)
     reject("El corte bancario no puede estar en el futuro")
   const cutoffDay = civil(input.snapshotAt)
@@ -327,4 +310,24 @@ export function planBankReconciliation(
     snapshotAt: input.snapshotAt,
     source: input.source,
   }
+}
+
+/**
+ * Previsualiza (sin `previewToken`) o aplica la conciliación. Preview y aplicación recorren la misma
+ * validación; el token incluye el día civil de `now` (`todayKey`), así que vence al cambiar el día.
+ * Un token ya aplicado con el mismo input devuelve su recibo.
+ */
+export async function reconcileBankAccount(
+  deps: { bankReconciliation: BankReconciliationStore },
+  userId: string,
+  input: BankReconciliationInput,
+  previewToken?: string,
+  now: Date = new Date()
+): Promise<unknown> {
+  void deps
+  void userId
+  void input
+  void previewToken
+  void now
+  throw new Error("no implementado")
 }

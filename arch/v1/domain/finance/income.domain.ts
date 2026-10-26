@@ -4,6 +4,7 @@
 
 import type { AccountType } from "./finance.domain.ts"
 import type { CurrencyCode, Money } from "./money.ts"
+import type { PeriodRange } from "../../../shared/billing-cycle.ts"
 
 // --- Entidad ---
 
@@ -101,7 +102,8 @@ export interface IncomeRepository {
   hasGeneratedFor(
     incomeId: string,
     year: number,
-    month: number
+    month: number,
+    range?: PeriodRange
   ): Promise<boolean>
   // Crea el movimiento de ingreso del mes (credit) en la cuenta destino, vinculado a la fuente
   // (incomeId), ajustando el saldo. Idempotente y atómico (check-then-insert en una transacción DB):
@@ -111,7 +113,8 @@ export interface IncomeRepository {
   generateMonthly(
     income: Income,
     year: number,
-    month: number
+    month: number,
+    range?: PeriodRange
   ): Promise<{ transactionId: string; created: boolean; amount: Money }>
   // Deshace la generación: borra el movimiento de (income, year, month) y revierte el saldo con el
   // monto REAL del movimiento (no el de la fuente, que pudo cambiarse). Atómico. `deleted` = si había
@@ -120,7 +123,8 @@ export interface IncomeRepository {
   ungenerateMonthly(
     incomeId: string,
     year: number,
-    month: number
+    month: number,
+    range?: PeriodRange
   ): Promise<{ deleted: boolean; amount?: Money; accountId?: string }>
 }
 

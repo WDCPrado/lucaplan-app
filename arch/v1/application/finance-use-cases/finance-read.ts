@@ -127,6 +127,7 @@ export type TransactionDTO = {
   id: string
   accountId: string
   currency: string
+  reimbursementCount?: number
   duplicateInstallmentPayment?: boolean // cobro sobrante desvinculado; puede eliminarse
   editable: boolean // true solo si su cuenta es manual (las conectadas son de solo lectura)
   description: string
@@ -399,6 +400,22 @@ export async function listAccounts(
   })
 }
 
+// Metadata de enlaces, en una consulta por página. Nunca modifica montos bancarios.
+async function withReimbursementCounts(userId: string, rows: TransactionDTO[]): Promise<TransactionDTO[]> {
+  const ids = rows.filter(t => !t.installmentForecast).map(t => t.id)
+  if (!ids.length) return rows
+  const links = await prisma.expenseReimbursement.findMany({
+    where: { userId, OR: [{ expenseId: { in: ids } }, { creditId: { in: ids } }] },
+    select: { expenseId: true, creditId: true },
+  })
+  const counts = new Map<string, number>()
+  for (const link of links) {
+    counts.set(link.expenseId, (counts.get(link.expenseId) ?? 0) + 1)
+    counts.set(link.creditId, (counts.get(link.creditId) ?? 0) + 1)
+  }
+  return rows.map(tx => ({ ...tx, reimbursementCount: counts.get(tx.id) ?? 0 }))
+}
+
 export async function listTransactions(
   deps: ReadDeps,
   userId: string,
@@ -442,9 +459,9 @@ export async function listTransactions(
   // Orden por fecha desc para TODO el conjunto: la lista agrupa por día filas CONTIGUAS, así que
   // un forecast fuera de orden partiría un día en dos grupos (keys duplicadas en React) y además
   // mostraría la cuota lejos de su fecha. El sort es estable: dentro del día, forecast primero.
-  return [...forecast, ...withState].sort((a, b) =>
+  return withReimbursementCounts(userId, [...forecast, ...withState].sort((a, b) =>
     b.date.localeCompare(a.date)
-  )
+  ))
 }
 
 // Construye las filas de pronóstico de las cuotas que vencen en el rango del mes y aún no se pagan.
@@ -589,6 +606,14 @@ export async function listUncategorized(
 
 // Búsqueda de movimientos con filtros combinados. Devuelve TransactionDTO[] (sin "quedan" histórico,
 // que es propio de la vista por periodo). editable según el origen de la cuenta.
+/** Detalle de un movimiento para navegación directa desde un reembolso relacionado. */
+export async function getLinkedTransactionDTO(deps: ReadDeps, userId: string, transactionId: string): Promise<TransactionDTO | null> {
+  const tx = await deps.transactions.findById(transactionId)
+  if (!tx || tx.userId !== userId || tx.status !== "confirmed") return null
+  const [cats, accounts] = await Promise.all([deps.categories.listByUser(userId), deps.accounts.listByUser(userId)])
+  return (await searchResultDTOs(deps, userId, [tx], cats, accounts))[0] ?? null
+}
+
 export async function searchTransactions(
   deps: ReadDeps,
   userId: string,
@@ -665,7 +690,7 @@ async function searchResultDTOs(
       clpAmounts[i]
     )
   )
-  return withRecurringState(deps, userId, dtos, txs)
+  return withReimbursementCounts(userId, await withRecurringState(deps, userId, dtos, txs))
 }
 
 export type AmountBoundsDTO = { min: number; max: number }

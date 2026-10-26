@@ -242,6 +242,7 @@ export async function ungenerateMonthlyIncome(
     incomes: IncomeRepository
     accounts?: AccountRepository
     balanceBuckets?: BalanceBucketRepository
+    budgetPeriod?: BudgetPeriodRepository
   },
   userId: string,
   input: { incomeId: string; year: number; month: number }

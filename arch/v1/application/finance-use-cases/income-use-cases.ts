@@ -24,6 +24,8 @@ import {
 import { Money } from "../../domain/finance/money.ts"
 import { effectiveGlobalLimit, latestUpTo } from "./budget-formulas.ts"
 import { projectCashEvent } from "./bucket-projection.ts"
+import { rangeOf } from "./budget-period-use-cases.ts"
+import type { BudgetPeriodRepository } from "../../domain/finance/budget-period.domain.ts"
 
 const CLP = "CLP" as const
 
@@ -111,18 +113,19 @@ export async function listIncomes(
 
 // Lista las fuentes con la marca de si su ingreso de (year, month) ya fue generado (para el dashboard).
 export async function listIncomesForMonth(
-  deps: { incomes: IncomeRepository },
+  deps: { incomes: IncomeRepository; budgetPeriod?: BudgetPeriodRepository },
   userId: string,
   year: number,
   month: number
 ): Promise<Array<Income & { generated: boolean }>> {
   validatePeriod(year, month)
   const incomes = await deps.incomes.listByUser(userId)
+  const range = await rangeOf(deps, year, month)
   // ponytail: hasGeneratedFor por fuente; son pocas por usuario. Batch si algún usuario tiene muchas.
   return Promise.all(
     incomes.map(async (income) => ({
       ...income,
-      generated: await deps.incomes.hasGeneratedFor(income.id, year, month),
+      generated: await deps.incomes.hasGeneratedFor(income.id, year, month, range),
     }))
   )
 }
@@ -209,6 +212,7 @@ export async function generateMonthlyIncome(
     incomes: IncomeRepository
     accounts?: AccountRepository // requeridos en la práctica para cuentas conectadas
     balanceBuckets?: BalanceBucketRepository
+    budgetPeriod?: BudgetPeriodRepository
   },
   userId: string,
   input: { incomeId: string; year: number; month: number }
@@ -217,7 +221,8 @@ export async function generateMonthlyIncome(
   const income = await deps.incomes.findById(input.incomeId)
   if (!income) throw new IncomeNotFoundError(input.incomeId)
   if (income.userId !== userId) throw new NotOwnerError()
-  const res = await deps.incomes.generateMonthly(income, input.year, input.month)
+  const range = await rangeOf(deps, input.year, input.month)
+  const res = await deps.incomes.generateMonthly(income, input.year, input.month, range)
   // Solo si escribió: regenerar un mes ya generado no debe abonar dos veces.
   // ponytail: create + proyección no son atómicos; si esto falla, "Actualizar saldos" reconcilia.
   if (res.created && deps.accounts && deps.balanceBuckets)
@@ -248,7 +253,8 @@ export async function ungenerateMonthlyIncome(
   const res = await deps.incomes.ungenerateMonthly(
     input.incomeId,
     input.year,
-    input.month
+    input.month,
+    await rangeOf(deps, input.year, input.month)
   )
   // accountId del movimiento borrado (la fuente pudo cambiar de cuenta después de generar).
   if (res.deleted && res.amount && deps.accounts && deps.balanceBuckets)

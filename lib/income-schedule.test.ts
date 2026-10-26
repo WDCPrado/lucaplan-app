@@ -32,3 +32,9 @@ test("daysUntilPayDay cuenta días reales hasta el pago, aunque cruce de mes", (
   // Día 31 en febrero se recorta al 28.
   assert.equal(daysUntilPayDay({ year: 2026, month: 2 }, 31, "2026-02-20"), 8)
 })
+
+test("ingreso de día 25 en ciclo 23/oct–20/nov llega el 25/oct", () => {
+  assert.equal(incomeDueDateInRange({ year: 2026, month: 11 }, 25, { start: "2026-10-23", end: "2026-11-20" }), "2026-10-25")
+  assert.equal(incomeDueDateInRange({ year: 2026, month: 11 }, 5, { start: "2026-10-23", end: "2026-11-20" }), "2026-11-05")
+  assert.equal(incomeDueDateInRange({ year: 2026, month: 11 }, 25), "2026-11-25")
+})

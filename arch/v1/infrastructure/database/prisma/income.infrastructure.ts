@@ -2,6 +2,7 @@
 // "generar" crea una Transaction credit vinculada a la fuente (incomeId), idempotente por (income, mes)
 // vía check-then-insert dentro de una $transaction, ajustando el saldo de la cuenta destino.
 import { prisma } from "./client.ts"
+import type { PeriodRange } from "../../../../shared/billing-cycle.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import {
   IncomeNotFoundError,
@@ -27,10 +28,22 @@ function toIncome(row: any): Income {
 }
 
 // Filtro [primer día del mes, primer día del mes siguiente) sobre transactionDate.
-function periodWhere(year: number, month: number) {
-  const start = new Date(Date.UTC(year, month - 1, 1))
-  const end = new Date(Date.UTC(year, month, 1))
+function periodWhere(year: number, month: number, range?: PeriodRange) {
+  const start = range ? new Date(range.start + "T00:00:00Z") : new Date(Date.UTC(year, month - 1, 1))
+  const end = range ? new Date(Date.parse(range.end + "T00:00:00Z") + 86400000) : new Date(Date.UTC(year, month, 1))
   return { transactionDate: { gte: start, lt: end } }
+}
+
+// El cobro nominal del mes de cierre puede ocurrir en el mes calendario anterior.
+// Ejemplo: ciclo 23/oct–20/nov, día 25 => 25/oct, nunca 25/nov.
+function incomeDateInRange(year: number, month: number, day: number, range?: PeriodRange): Date {
+  if (!range) return incomeDate(year, month, day)
+  const begin = new Date(range.start + "T00:00:00Z")
+  for (let offset = 0; offset < 3; offset++) {
+    const candidate = incomeDate(begin.getUTCFullYear(), begin.getUTCMonth() + 1 + offset, day)
+    if (candidate >= begin && candidate <= new Date(range.end + "T00:00:00Z")) return candidate
+  }
+  throw new Error("El día del ingreso no cae dentro del ciclo seleccionado")
 }
 
 // Día efectivo del ingreso: el dayOfMonth de la fuente, recortado al último día del mes (ej. 31 → 28/29
@@ -134,16 +147,16 @@ export const incomeRepository: IncomeRepository = {
       data: { endedYear: year, endedMonth: month },
     })
   },
-  async hasGeneratedFor(incomeId, year, month) {
+  async hasGeneratedFor(incomeId, year, month, range) {
     const count = await prisma.transaction.count({
-      where: { incomeId, ...periodWhere(year, month) },
+      where: { incomeId, ...periodWhere(year, month, range) },
     })
     return count > 0
   },
-  async generateMonthly(income, year, month) {
+  async generateMonthly(income, year, month, range) {
     return prisma.$transaction(async (db) => {
       const existing = await db.transaction.findFirst({
-        where: { incomeId: income.id, ...periodWhere(year, month) },
+        where: { incomeId: income.id, ...periodWhere(year, month, range) },
       })
       if (existing)
         return {
@@ -188,7 +201,7 @@ export const incomeRepository: IncomeRepository = {
           accountId: income.accountId,
           categoryId: income.categoryId,
           incomeId: income.id,
-          transactionDate: incomeDate(year, month, income.dayOfMonth),
+          transactionDate: incomeDateInRange(year, month, income.dayOfMonth, range),
           description: income.name,
           amount: monthAmount.toDecimalString(),
           currency: income.currency,
@@ -198,10 +211,10 @@ export const incomeRepository: IncomeRepository = {
       return { transactionId: row.id, created: true, amount: monthAmount }
     })
   },
-  async ungenerateMonthly(incomeId, year, month) {
+  async ungenerateMonthly(incomeId, year, month, range) {
     return prisma.$transaction(async (db) => {
       const tx = await db.transaction.findFirst({
-        where: { incomeId, ...periodWhere(year, month) },
+        where: { incomeId, ...periodWhere(year, month, range) },
       })
       if (!tx) return { deleted: false }
 

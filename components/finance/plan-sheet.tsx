@@ -25,7 +25,7 @@ import {
   monthName,
   todayKey,
 } from "@/lib/finance-format"
-import { daysUntilPayDay } from "@/lib/income-schedule"
+import { incomeDueDateInRange } from "@/lib/income-schedule"
 import { planTotal, previousMonthLabel, shouldSuggest } from "@/lib/plan-total"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type {
@@ -292,6 +292,7 @@ export function PlanSheet({
                 key={inc.id}
                 income={inc}
                 period={period}
+                cycleRange={cycleRange}
                 isCurrentMonth={isCurrentMonth}
                 onEdit={() => onEditIncome(inc)}
                 onOpenCategory={() => {
@@ -575,6 +576,7 @@ function LimitRow({
 function IncomeRow({
   income,
   period,
+  cycleRange,
   isCurrentMonth,
   onEdit,
   onOpenCategory,
@@ -582,6 +584,7 @@ function IncomeRow({
 }: {
   income: IncomeDTO
   period: { year: number; month: number }
+  cycleRange?: { start: string; end: string }
   isCurrentMonth: boolean
   onEdit: () => void
   onOpenCategory: () => void
@@ -618,13 +621,14 @@ function IncomeRow({
   }
 
   // Detalle de fecha: día absoluto siempre; en el mes actual, cuánto falta para que llegue.
-  const day = income.dayOfMonth
+  const scheduledDate = incomeDueDateInRange(period, income.dayOfMonth, cycleRange)
+  const day = Number(scheduledDate.slice(-2))
   let when: string
   if (income.generated) {
     when = priorCycle ? `Registrado en Luca Plan · confirmar depósito del día ${day}` : `Llegó el ${day}`
   } else if (isCurrentMonth) {
     // Días reales hasta el pago: en modo tarjeta el mes en curso puede ser el siguiente.
-    const diff = daysUntilPayDay(period, day, todayKey())
+    const diff = Math.round((Date.parse(`${scheduledDate}T00:00:00Z`) - Date.parse(`${todayKey()}T00:00:00Z`)) / 86400000)
     when =
       diff > 1
         ? `Llega el ${day} · en ${diff} días`

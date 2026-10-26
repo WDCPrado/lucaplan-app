@@ -501,10 +501,17 @@ const handlers: Handlers = {
         income.categoryId !== credit.categoryId ||
         (credit.incomeId && credit.incomeId !== income.id))
       throw new PluginRejection("El abono debe coincidir en cuenta, moneda y categoría y estar sin otra fuente")
+    // La fuente se genera por período: bloquear una segunda transacción de la misma fuente
+    // en el mes calendario de este abono, aunque ocurra otro día.
+    const year = credit.transactionDate.getUTCFullYear()
+    const month = credit.transactionDate.getUTCMonth()
+    const from = new Date(Date.UTC(year, month, 1))
+    const to = new Date(Date.UTC(year, month + 1, 1))
     const existingIncomeMatch = await prisma.transaction.findFirst({
-      where: { userId, incomeId: income.id, transactionDate: credit.transactionDate, id: { not: credit.id } },
+      where: { userId, incomeId: income.id,
+        transactionDate: { gte: from, lt: to }, id: { not: credit.id } },
     })
-    if (existingIncomeMatch) throw new PluginRejection("Ya hay un ingreso generado o vinculado para esta fecha")
+    if (existingIncomeMatch) throw new PluginRejection("Ya hay un abono de esta fuente en ese mes")
     const updated = await prisma.transaction.updateMany({
       where: { id: credit.id, userId, OR: [{ incomeId: null }, { incomeId: income.id }] },
       data: { incomeId: income.id },

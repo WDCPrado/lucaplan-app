@@ -16,6 +16,7 @@ import {
 } from "../../infrastructure/database/prisma/finance.infrastructure.ts"
 import { correctionRepository } from "../../infrastructure/database/prisma/categorization-correction.infrastructure.ts"
 import { incomeRepository } from "../../infrastructure/database/prisma/income.infrastructure.ts"
+import { reimbursementReadRepository } from "../../infrastructure/database/prisma/reimbursement-read.infrastructure.ts"
 import { recurringTemplateRepository } from "../../infrastructure/database/prisma/recurring.infrastructure.ts"
 import { installmentPlanRepository } from "../../infrastructure/database/prisma/installment.infrastructure.ts"
 import { budgetPeriodRepository } from "../../infrastructure/database/prisma/budget-period.infrastructure.ts"
@@ -37,6 +38,7 @@ export const financeDeps = {
   transactions: transactionRepository,
   monthlyBudgets: monthlyBudgetRepository,
   incomes: incomeRepository,
+  reimbursements: reimbursementReadRepository,
   recurring: recurringTemplateRepository,
   installments: installmentPlanRepository,
   budgetPeriod: budgetPeriodRepository,

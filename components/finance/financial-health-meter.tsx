@@ -3,12 +3,13 @@
 import { formatCLP } from "@/lib/finance-format"
 import { calculateFinancialHealth } from "@/lib/financial-health"
 
-export function FinancialHealthMeter({ income, spent, committed }: {
+export function FinancialHealthMeter({ income, spent, committed, reimbursementAdjustment = 0 }: {
+  reimbursementAdjustment?: number
   income: number
   spent: number
   committed: number
 }) {
-  const health = calculateFinancialHealth({ income, spent, committed })
+  const health = calculateFinancialHealth({ income, spent, committed, reimbursementAdjustment })
   const label = {
     sano: "Sano",
     al_limite: "Al límite",
@@ -46,10 +47,11 @@ export function FinancialHealthMeter({ income, spent, committed }: {
         <span className="text-destructive">Déficit · &gt;100%</span>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-2 text-xs">
-        <span>Ingresos {formatCLP(income)} · Gastos {formatCLP(spent)} · Comprometido {formatCLP(committed)}</span>
+        <span>Ingresos {formatCLP(income)} · Gastos {formatCLP(spent + reimbursementAdjustment)} · Comprometido {formatCLP(committed)}</span>
         <strong className={tone}>{health.balance < 0 ? "Faltan " : "Quedan "}{formatCLP(Math.abs(health.balance))}</strong>
       </div>
-
+      <p className="text-[11px] text-muted-foreground">Margen del plan; no es saldo bancario.{reimbursementAdjustment > 0 ? " Los reembolsos incluidos en ingresos se compensan una sola vez." : ""}</p>
     </div>
   )
 }
+

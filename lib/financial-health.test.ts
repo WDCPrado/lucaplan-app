@@ -43,3 +43,11 @@ test("gastos confirmados siguen contando tras eliminar la recurrente", () => {
   assert.equal(resultado.status, "en_deficit")
   assert.equal(resultado.balance, -100)
 })
+
+
+test("reembolso planificado financia el gasto una sola vez", () => {
+  const health = calculateFinancialHealth({ income: 1040000, spent: 20000, committed: 0, reimbursementAdjustment: 40000 })
+  assert.equal(health.balance, 980000)
+  assert.equal(health.projectedSpent, 60000)
+  assert.equal(calculateFinancialHealth({ income: 100, spent: 20, reimbursementAdjustment: -5 }).balance, 80)
+})

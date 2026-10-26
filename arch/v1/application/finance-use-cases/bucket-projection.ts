@@ -1,5 +1,4 @@
-// Proyección con IO sobre los buckets de una cuenta: aplica un abono (paga sobregiro primero,
-// el resto sube la caja) o un cargo (consume caja, el exceso usa sobregiro) y fija el saldo
+// Proyección con IO sobre los buckets de una cuenta: aplica un abono (sube la caja sin amortizar la línea) o un cargo (consume caja, el exceso usa sobregiro) y fija el saldo
 // derivado de la cuenta (balance = caja disponible). En una tarjeta de crédito —que no tiene caja—
 // el cargo consume cupo y el abono lo paga. Sin buckets —cuentas manuales— es no-op: ahí la
 // columna balance ya la ajustó el adapter. La usan el abono manual, el generar/deshacer del ingreso
@@ -68,3 +67,4 @@ export async function projectCashEvent(
     await deps.balanceBuckets.updateAmounts(od.id, { ...res.overdraft, asOf })
   await deps.accounts.setBalance(accountId, res.cash.available)
 }
+

@@ -794,3 +794,52 @@ test("modo tarjeta: el triage acota al rango del ciclo", async () => {
   assert.equal(filters()?.from?.toISOString(), "2026-09-23T00:00:00.000Z")
   assert.equal(filters()?.to?.toISOString(), "2026-10-22T00:00:00.000Z")
 })
+
+
+for (const scenario of [
+  { name: "planificado", planned: 40000, active: true, category: "c-super", incomeId: "refund", expected: 40000 },
+  { name: "parcial", planned: 15000, active: true, category: "c-super", incomeId: "refund", expected: 15000 },
+  { name: "sin fuente", planned: 40000, active: true, category: "c-super", incomeId: null, expected: 0 },
+  { name: "inactivo", planned: 40000, active: false, category: "c-super", incomeId: "refund", expected: 0 },
+  { name: "sin tope", planned: 40000, active: true, category: "c-transfer", incomeId: "refund", expected: 0 },
+]) {
+  test(`reembolso ${scenario.name}: conserva neto por categoría y neutraliza solo ingreso incluido`, async () => {
+    const rows = [
+      budgetTx({ id: "expense", categoryId: scenario.category, amount: Money.of(60000, "CLP") }),
+      budgetTx({ id: "credit", direction: "credit", categoryId: "c-sueldo", incomeId: scenario.incomeId, amount: Money.of(40000, "CLP") }),
+    ]
+    const deps = budgetDeps([])
+    deps.transactions.listByUserPeriod = async () => rows
+    deps.incomes = {
+      listByUser: async () => [{ id: "refund", userId: "u1", accountId: "a1", categoryId: "c-sueldo", name: "Reembolso", currency: "CLP", dayOfMonth: 10, isActive: scenario.active, endedYear: null, endedMonth: null }],
+      listAmountsByUser: async () => [{ incomeId: "refund", year: 2026, month: 8, amount: Money.of(scenario.planned, "CLP") }],
+    } as unknown as NonNullable<typeof deps.incomes>
+    deps.reimbursements = { listForTransactions: async () => [{ expenseId: "expense", creditId: "credit", amount: 40000 }] }
+    const result = await getBudgetView(deps, "u1", 2026, 8)
+    assert.equal(result.spent, scenario.category === "c-super" ? 20000 : 0)
+    assert.equal(result.reimbursementAdjustment, scenario.expected)
+    assert.equal(rows[0].amount.toMajor(), 60000, "no altera el movimiento bancario")
+    rows[1].date = new Date("2026-09-01")
+    assert.equal((await getBudgetView(deps, "u1", 2026, 8)).reimbursementAdjustment, 0, "otro ciclo no cuenta dos veces")
+  })
+}
+
+test("resumen y plan usan los mismos buckets aunque el saldo legado esté desactualizado", async () => {
+  const { getMonthlySummary } = await import("./finance-read.ts")
+  const deps = budgetDeps([])
+  deps.accounts = { listByUser: async () => [
+    { ...account("a1", "bancochile"), balance: Money.of(999999, "CLP") },
+    { ...account("card", "bancochile"), accountType: "credit_card", balance: Money.of(-999999, "CLP") },
+  ] } as unknown as typeof deps.accounts
+  deps.balanceBuckets = { listByUser: async () => [
+    { accountId: "a1", kind: "cash", currency: "CLP", available: Money.of(80000, "CLP") },
+    { accountId: "a1", kind: "overdraft", currency: "CLP", used: Money.of(200000, "CLP"), available: Money.of(800000, "CLP") },
+    { accountId: "card", kind: "credit_national", currency: "CLP", used: Money.of(300000, "CLP"), available: Money.of(700000, "CLP") },
+    { accountId: "card", kind: "credit_international", currency: "USD", used: Money.of(125, "USD"), available: Money.of(875, "USD") },
+  ] } as unknown as NonNullable<typeof deps.balanceBuckets>
+  const result = await getMonthlySummary(deps, "u1", 2026, 8)
+  assert.equal(result.activeCash, 80000)
+  assert.equal(result.overdraftDebt, 200000)
+  assert.equal(result.netPosition, -120000)
+  assert.deepEqual(result.creditCardDebts, [{ accountId: "card", name: "card", debt: 300000 }])
+})

@@ -351,7 +351,7 @@ function connectedDeps(buckets: FakeBuckets, balances: number[]) {
   }
 }
 
-test("generateMonthlyIncome en cuenta conectada paga el sobregiro primero y fija balance = caja", async () => {
+test("generateMonthlyIncome en cuenta conectada conserva el sobregiro y fija balance = caja", async () => {
   const balances: number[] = []
   const buckets = new FakeBuckets([
     bucket({ id: "cash", kind: "cash", available: clp(0) }),
@@ -371,16 +371,16 @@ test("generateMonthlyIncome en cuenta conectada paga el sobregiro primero y fija
     year: 2026,
     month: 7,
   })
-  // 900.000: 290.967 pagan el sobregiro completo; 609.033 suben la caja.
+  // El ingreso aumenta caja; no constituye un pago de la línea.
   assert.deepEqual(
     buckets.updated.find((u) => u.id === "od"),
-    { id: "od", used: 0, available: 1000000 }
+    { id: "od", used: 290967, available: 709033 }
   )
   assert.deepEqual(
     buckets.updated.find((u) => u.id === "cash"),
-    { id: "cash", used: 0, available: 609033 }
+    { id: "cash", used: 0, available: 900000 }
   )
-  assert.deepEqual(balances, [609033])
+  assert.deepEqual(balances, [900000])
 })
 
 test("regenerar un mes ya generado no proyecta el abono dos veces", async () => {
@@ -398,17 +398,17 @@ test("regenerar un mes ya generado no proyecta el abono dos veces", async () => 
   assert.equal(balances.length, 1)
 })
 
-test("ungenerateMonthlyIncome revierte la proyección: la caja baja y el excedente vuelve al sobregiro", async () => {
+test("ungenerateMonthlyIncome revierte la proyección: la caja baja y conserva la deuda previa", async () => {
   const balances: number[] = []
-  // Estado post-generación: sobregiro pagado, caja con el remanente del sueldo.
+  // Estado post-generación: caja con el sueldo y deuda previa intacta.
   const buckets = new FakeBuckets([
-    bucket({ id: "cash", kind: "cash", available: clp(609033) }),
+    bucket({ id: "cash", kind: "cash", available: clp(900000) }),
     bucket({
       id: "od",
       kind: "overdraft",
       limitAmount: clp(1000000),
-      used: clp(0),
-      available: clp(1000000),
+      used: clp(290967),
+      available: clp(709033),
     }),
   ])
   const deps = connectedDeps(buckets, balances)
@@ -419,7 +419,7 @@ test("ungenerateMonthlyIncome revierte la proyección: la caja baja y el exceden
   await generateMonthlyIncome({ incomes: deps.incomes }, "u1", period)
   const undo = await ungenerateMonthlyIncome(deps, "u1", period)
   assert.equal(undo.deleted, true)
-  // Débito de 900.000: consume los 609.033 de caja y los 290.967 restantes usan sobregiro.
+  // Deshacer el ingreso consume la caja y conserva el sobregiro previo.
   assert.deepEqual(
     buckets.updated.find((u) => u.id === "cash"),
     { id: "cash", used: 0, available: 0 }
@@ -575,3 +575,4 @@ test("una fuente terminada deja de sumar en el presupuesto desde su mes de fin",
   assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 8)).toMajor(), 900_000)
   assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 9)).toMajor(), 0)
 })
+

@@ -46,10 +46,7 @@ import { toClp } from "../../domain/finance/exchange.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
 import { isBudgetedExpenseCategory } from "../../domain/finance/budget-scope.domain.ts"
 import {
-  computeActiveCash,
-  computeNetPosition,
-  computeOverdraftDebt,
-  creditCardDebts,
+  inRange,
   computeCategoryUsage,
   computeCategoryCommitted,
   computeCategoryPace,
@@ -67,11 +64,14 @@ import type { PeriodRange } from "../../../shared/billing-cycle.ts"
 import { rangeOf } from "./budget-period-use-cases.ts"
 import { todayKey } from "../../../shared/today.ts"
 
+import { currencyPositions } from "./financial-position.ts"
+
 const CLP = "CLP" as const
 
 type ReimbursementRead = { expenseId: string; creditId: string; amount: number }
 
 type ReadDeps = {
+  balanceBuckets?: BalanceBucketRepository
   reimbursements?: {
     listForTransactions(userId: string, ids: string[]): Promise<ReimbursementRead[]>
   }
@@ -188,6 +188,7 @@ export type PaceDTO = {
 export type BudgetViewDTO = {
   categories: CategoryDTO[]
   spent: number // confirmado de categorías de gasto con tope efectivo > 0
+  reimbursementAdjustment?: number // compensación ya incluida en los ingresos del medidor
   committed: number // pendiente y cuotas por cobrar de esas mismas categorías
   globalLimit: number | null // límite global efectivo del mes (carry); null = no definido
   allocated: number // Σ límites efectivos de las categorías de GASTO
@@ -338,15 +339,18 @@ export async function getMonthlySummary(
       )
       .reduce((s, t) => s.add(t.amount), Money.zero(CLP))
 
+  const buckets = await deps.balanceBuckets?.listByUser(userId) ?? []
+  const position = currencyPositions(accounts, buckets).find(p => p.currency === CLP)!
+
   return {
-    activeCash: computeActiveCash(accounts, CLP).toMajor(),
-    netPosition: computeNetPosition(accounts, CLP).toMajor(),
-    overdraftDebt: computeOverdraftDebt(accounts, CLP).toMajor(),
-    creditCardDebts: creditCardDebts(accounts).map((d) => ({
-      accountId: d.account.id,
-      name: d.account.name,
-      debt: d.debt.toMajor(),
-    })),
+    activeCash: position.cash,
+    netPosition: position.cash - position.overdraftUsed,
+    overdraftDebt: position.overdraftUsed,
+    creditCardDebts: accounts.filter(a => a.accountType === "credit_card").map(a => ({
+      accountId: a.id,
+      name: a.name,
+      debt: currencyPositions([a], buckets).find(p => p.currency === CLP)!.cardDebt,
+    })).filter(d => d.debt > 0),
     income: sumClp("credit").toMajor(),
     expense: sumClp("debit").toMajor(),
     // Solo categorías de gasto: mismo criterio que `allocated` en la vista de presupuestos.
@@ -880,8 +884,41 @@ export async function getBudgetView(
     (s, { committed }) => s.add(committed),
     Money.zero(CLP)
   )
+  // Las categorías siguen mostrando gasto personal neto. El medidor conserva TODOS los
+  // ingresos planificados: neutraliza únicamente la compensación que ya financia una fuente
+  // activa de este mismo período. Sin fuente, sin tope o en otro ciclo no hay doble beneficio.
+  const budgetedIds = new Set(budgeted.map(({ category }) => category.id))
+  const incomeRemaining = new Map<string, number>()
+  for (const inc of incomesList) {
+    if (!inc.isActive || isIncomeEndedAt(inc, year, month)) continue
+    const amount = effectiveIncomeAmount(incomeAmounts, inc.id, year, month)
+    if (amount?.currency === CLP) incomeRemaining.set(inc.id, amount.toMajor())
+  }
+  const byId = new Map(txs.map(t => [t.id, t]))
+  const expenseRemaining = new Map<string, number>()
+  const creditRemaining = new Map<string, number>()
+  let reimbursementAdjustment = 0
+  for (const row of reimbursementRows) {
+    const expense = byId.get(row.expenseId)
+    const credit = byId.get(row.creditId)
+    if (!expense || !credit || expense.direction !== "debit" || credit.direction !== "credit" ||
+        expense.status !== "confirmed" || credit.status !== "confirmed" ||
+        expense.isInternal || credit.isInternal || !credit.incomeId ||
+        !expense.categoryId || !budgetedIds.has(expense.categoryId) ||
+        expense.amount.currency !== CLP || credit.amount.currency !== CLP ||
+        !inRange(expense.date, range) || !inRange(credit.date, range)) continue
+    const expenseLeft = expenseRemaining.get(expense.id) ?? expense.amount.toMajor()
+    const creditLeft = creditRemaining.get(credit.id) ?? credit.amount.toMajor()
+    const incomeLeft = incomeRemaining.get(credit.incomeId) ?? 0
+    const adjustment = Math.max(0, Math.min(Number(row.amount), expenseLeft, creditLeft, incomeLeft))
+    reimbursementAdjustment += adjustment
+    expenseRemaining.set(expense.id, expenseLeft - adjustment)
+    creditRemaining.set(credit.id, creditLeft - adjustment)
+    incomeRemaining.set(credit.incomeId, incomeLeft - adjustment)
+  }
   return {
     categories,
+    reimbursementAdjustment,
     spent: spent.toMajor(),
     committed: committed.toMajor(),
     globalLimit: globalLimit === null ? null : globalLimit.toMajor(),
@@ -1317,3 +1354,4 @@ export async function listInstallmentsView(
     }
   })
 }
+

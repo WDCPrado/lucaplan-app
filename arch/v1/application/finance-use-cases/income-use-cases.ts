@@ -204,8 +204,8 @@ export async function deleteIncome(
 }
 
 // Genera el movimiento de ingreso de un mes desde una fuente (idempotente en el repo). En cuentas
-// conectadas el saldo vive en los buckets (caja + sobregiro): el abono se proyecta ahí —paga
-// sobregiro primero, como un abono manual— y el balance queda = caja. En manuales no hay buckets
+// conectadas el saldo vive en los buckets (caja + sobregiro): el abono se proyecta ahí —aumenta
+// la caja sin amortizar sobregiro, como un abono manual— y el balance queda = caja. En manuales no hay buckets
 // y la columna balance ya la ajustó el repo (la proyección es no-op).
 export async function generateMonthlyIncome(
   deps: {
@@ -317,3 +317,4 @@ export async function seedGlobalLimitFromIncomes(
   })
   return { seeded: true, total: total.toMajor(), alreadyDefined: false }
 }
+

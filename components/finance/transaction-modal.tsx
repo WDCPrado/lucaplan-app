@@ -253,6 +253,8 @@ export function DatePicker({
 }
 
 // Movimiento manual → editable (form tipo crear + eliminar). Movimiento conectado → solo lectura.
+type ReimbursementCounterpart = { id: string; amount: number; transaction: TransactionDTO }
+
 export function TransactionModal({
   tx,
   categories,
@@ -264,33 +266,46 @@ export function TransactionModal({
   accounts: AccountDTO[]
   onOpenChange: (o: boolean) => void
 }) {
-  const account = tx ? accounts.find((a) => a.id === tx.accountId) : undefined
+  const [relatedTx, setRelatedTx] = useState<TransactionDTO | null>(null)
+  const activeTx = relatedTx ?? tx
+  const [links, setLinks] = useState<ReimbursementCounterpart[]>([])
+  useEffect(() => { setRelatedTx(null) }, [tx?.id])
+  useEffect(() => {
+    setLinks([])
+    if (!activeTx?.reimbursementCount) return
+    const controller = new AbortController()
+    fetch(`/api/transactions/${activeTx.id}/reimbursements`, { signal: controller.signal })
+      .then(res => { if (!res.ok) throw new Error("No se pudieron cargar los movimientos relacionados"); return res.json() })
+      .then((data: { links: ReimbursementCounterpart[] }) => { if (!controller.signal.aborted) setLinks(data.links) })
+      .catch(() => { /* Modal sigue utilizable aunque falle la consulta de enlaces. */ })
+    return () => controller.abort()
+  }, [activeTx?.id, activeTx?.reimbursementCount])
+  const account = activeTx ? accounts.find(a => a.id === activeTx.accountId) : undefined
   return (
     <ResponsiveModal
       open={tx !== null}
       onOpenChange={onOpenChange}
-      title={tx?.editable ? "Editar movimiento" : "Movimiento del banco"}
+      title={activeTx?.editable ? "Editar movimiento" : "Movimiento del banco"}
     >
-      {tx &&
-        (tx.editable ? (
-          <EditForm
-            key={tx.id}
-            tx={tx}
-            account={account}
-            accounts={accounts}
-            categories={categories}
-            onClose={() => onOpenChange(false)}
-          />
-        ) : (
-          <ConnectedDetail
-            key={tx.id}
-            tx={tx}
-            account={account}
-            accounts={accounts}
-            categories={categories}
-            onClose={() => onOpenChange(false)}
-          />
-        ))}
+      {!!links.length && (
+        <section aria-label="Movimientos relacionados" className="space-y-2 rounded-lg border border-border/70 p-3">
+          <p className="text-xs font-medium text-muted-foreground">Reembolso vinculado</p>
+          {links.map(link => (
+            <button key={link.id} type="button" onClick={() => setRelatedTx(link.transaction)}
+              className="flex w-full items-center justify-between gap-3 rounded-md bg-secondary/50 px-3 py-2 text-left hover:bg-secondary">
+              <span className="min-w-0"><span className="block truncate text-sm font-medium">{link.transaction.description}</span>
+                <span className="block text-xs text-muted-foreground">{link.transaction.date.slice(0, 10)} · {link.transaction.direction === "credit" ? "Ingreso recibido" : "Compra original"}</span>
+              </span>
+              <span className="shrink-0 text-sm font-semibold tabular-nums">${link.amount.toLocaleString("es-CL")} CLP →</span>
+            </button>
+          ))}
+        </section>
+      )}
+      {activeTx && (activeTx.editable ? (
+        <EditForm key={activeTx.id} tx={activeTx} account={account} accounts={accounts} categories={categories} onClose={() => onOpenChange(false)} />
+      ) : (
+        <ConnectedDetail key={activeTx.id} tx={activeTx} account={account} accounts={accounts} categories={categories} onClose={() => onOpenChange(false)} />
+      ))}
     </ResponsiveModal>
   )
 }

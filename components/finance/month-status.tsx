@@ -264,15 +264,17 @@ function CycleBar({
           htmlFor={switchId}
           className="cursor-pointer text-base font-medium sm:text-sm"
         >
-          {card ? "Modo tarjeta de crédito" : "Modo débito"}
+          {card ? "Modo crédito · ciclo" : "Modo débito · mes"}
         </Label>
         <Switch
           id={switchId}
+          aria-describedby={`${switchId}-scope`}
           checked={card}
           disabled={pending}
           onCheckedChange={changeMode}
         />
       </div>
+      <p id={`${switchId}-scope`} className="w-full text-xs text-muted-foreground">Ambos modos incluyen cuenta corriente y tarjeta. Solo cambia el período del plan.</p>
     </div>
   )
 }
@@ -372,3 +374,4 @@ function ClosingPicker({
     </Popover>
   )
 }
+

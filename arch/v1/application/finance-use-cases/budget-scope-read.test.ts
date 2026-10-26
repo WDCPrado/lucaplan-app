@@ -268,3 +268,17 @@ for (const mode of ["calendar", "card_cycle"] as const) {
     assert.equal(dailyTotal, expected)
   })
 }
+
+
+for (const mode of ["calendar", "card_cycle"] as const) {
+  test(`${mode}: corriente y tarjeta participan juntas; el modo solo cambia fechas`, async () => {
+    const { txs, read } = fixture(mode)
+    const base = txs[0]
+    txs.push({ ...base, id: "tarjeta", accountId: "credit-card", amount: Money.of(7000, "CLP") })
+    txs.push({ ...base, id: "corriente-septiembre", accountId: "checking", date: new Date("2026-09-25T00:00:00Z"), amount: Money.of(3000, "CLP") })
+    const result = await read()
+    const expected = mode === "calendar" ? 17000 : 20000
+    assert.equal(result.view.spent, expected)
+    assert.equal(result.summary.expense, expected)
+  })
+}

@@ -7,7 +7,7 @@ import type {
   PluginToolName,
 } from "../../../../lib/schemas/plugin.ts"
 import { Money } from "../../domain/finance/money.ts"
-import { calculateFinancialHealth } from "../../../../lib/financial-health.ts"
+import { calculateFinancialOverview } from "../../../../lib/financial-health.ts"
 import { reconcileBankRows } from "../../../../lib/bank-reconciliation.ts"
 import { NotOwnerError } from "../../domain/finance/finance.domain.ts"
 import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
@@ -588,17 +588,18 @@ const handlers: Handlers = {
     return { ok: true }
   },
   lucaplan_medidor_financiero: async (userId, input) => {
-    const [budget, incomes, range] = await Promise.all([
+    const [budget, incomes, range, summary] = await Promise.all([
       getBudgetView(deps, userId, input.year, input.month),
       listIncomesView(deps, userId, input.year, input.month),
       rangeOf(deps, input.year, input.month),
+      getMonthlySummary(deps, userId, input.year, input.month),
     ])
     const income = incomes.filter((i) => i.isActive && i.currency === "CLP").reduce((sum, i) => sum + i.amount, 0)
     return {
       period: { year: input.year, month: input.month, range },
       currency: "CLP",
-      ...calculateFinancialHealth({ income, spent: budget.spent, committed: budget.committed, reimbursementAdjustment: budget.reimbursementAdjustment }),
-      notice: "Los ingresos planificados incluyen todas las fuentes; solo cuentan gastos de categorías presupuestadas. La compensación de reembolsos incluidos en ingresos se cuenta una sola vez. El resultado no representa caja bancaria ni total facturado de la tarjeta.",
+      ...calculateFinancialOverview({ cash: summary.activeCash, overdraftDebt: summary.overdraftDebt, income, spent: budget.spent, committed: budget.committed, reimbursementAdjustment: budget.reimbursementAdjustment }),
+      notice: "Los ingresos planificados incluyen todas las fuentes; solo cuentan gastos de categorías presupuestadas. La compensación de reembolsos incluidos en ingresos se cuenta una sola vez. balance es margen del plan, no caja. planStatus describe el presupuesto; status combina plan y liquidez. liquidity usa los últimos saldos registrados, no un saldo histórico ni proyectado del período. Ambos modos incluyen corriente y tarjeta; solo cambia el rango temporal.",
     }
   },
   lucaplan_ver_presupuesto: async (userId, input) => ({

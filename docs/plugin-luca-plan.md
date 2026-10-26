@@ -195,3 +195,19 @@ Un aviso bancario en pesos puede corresponder a un consumo internacional. Antes 
 `affectsCash` se limita a movimientos confirmados de cuenta corriente. `countsInBudget` indica elegibilidad como gasto confirmado no interno en categoría de gasto con tope positivo del `budgetPeriod` del movimiento (incluye carry-forward y ciclo de tarjeta). No representa ingreso, compromiso pendiente ni gasto neto después de reembolsos. Usar presupuesto/medidor para esos totales.
 
 Las capacidades distinguen editar, corregir metadatos y corregir moneda. Las herramientas actuales no permiten corregir moneda/cupo con trazabilidad: `canCorrectCurrency` es false. Este contrato de lectura no añade un flujo de escritura ni repara registros históricos.
+
+### Plan y liquidez en el medidor
+
+`lucaplan_medidor_financiero` distingue `planStatus` (ingresos, gastos y compromisos del
+período) de `status` (plan más liquidez). `balance`, `projectedBalance` y porcentajes
+siguen siendo métricas del plan: no se les vuelve a descontar la deuda de la línea.
+`liquidity` contiene caja CLP, línea utilizada y posición neta (caja menos línea), basada
+en los últimos saldos registrados, incluso si se consulta un período pasado o futuro.
+Una posición negativa implica `en_deficit`; cero o línea utilizada impiden `sano` y
+suponen al menos `al_limite`. `projectedStatus` combina la proyección del plan con esa
+misma liquidez registrada: no predice un saldo bancario futuro. No incluye cupos como
+caja, ni resta toda la deuda de tarjeta a un plan que ya cuenta sus compras/cuotas.
+
+Modo débito (`calendar`) organiza por mes; modo crédito (`card_cycle`) por ciclo.
+Ambos incluyen corriente y tarjeta. Cambiar de modo nunca filtra cuentas ni altera saldos.
+Los saldos desactualizados requieren conciliación: el medidor no verifica el banco.

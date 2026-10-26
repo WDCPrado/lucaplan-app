@@ -82,6 +82,11 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
   tope quedan fuera; los excesos sobre un tope cuentan completos. Las categorías sin
   tope se pueden consultar en un grupo cerrado por defecto.
 - Categorías de ingreso con avance hacia tu meta mensual.
+- Modo débito usa mes calendario; modo crédito usa ciclo de tarjeta. Ambos incluyen
+  movimientos de corriente y tarjeta: el modo solo cambia las fechas del plan.
+- El medidor separa el margen del plan de la liquidez registrada (caja menos línea usada).
+  Un plan cubierto no oculta corriente negativa. Los saldos son los últimos registrados,
+  no una reconstrucción histórica del mes seleccionado.
 - Selector de mes para navegar tu historial; movimientos con búsqueda y filtros.
 
 ### 🤖 Categorización con IA que aprende de ti
@@ -555,3 +560,4 @@ Hecho en Chile 🇨🇱 por [Welliton da Costa Prado](https://www.linkedin.com/i
 Privacidad conforme a la Ley 19.628 y preparada para la Ley 21.719 (Chile).
 
 </div>
+

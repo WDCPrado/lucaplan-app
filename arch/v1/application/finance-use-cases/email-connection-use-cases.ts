@@ -114,6 +114,7 @@ export type EmailStoredAccount = {
 }
 
 export type EmailStoredBucket = {
+  reconciledAt?: Date | null
   id: string
   accountId: string
   kind: BucketKind
@@ -124,6 +125,7 @@ export type EmailStoredBucket = {
 }
 
 export type ResolvedEmailMovement = {
+  bankReceivedAt?: Date
   accountId: string
   bucketId: string | null
   externalId: string
@@ -164,7 +166,7 @@ export interface EmailSetupStore {
   ): Promise<{ createdExternalIds: string[] }>
   updateBucketAmounts(
     bucketId: string,
-    amounts: BucketAmounts & { asOf: Date }
+    amounts: BucketAmounts & { asOf: Date; reconciledAt?: Date }
   ): Promise<void>
   setAccountBalance(accountId: string, amount: Money): Promise<void>
   markBankSynced(bankId: string): Promise<void>
@@ -173,6 +175,7 @@ export interface EmailSetupStore {
 }
 
 export type EmailConnectionDeps = {
+  withBankLock?: <T>(userId: string, work: () => Promise<T>) => Promise<T>
   mailboxes: EmailMailboxRepository
   links: EmailBankLinkRepository
   methods: ConnectionMethodRepository
@@ -1038,7 +1041,8 @@ export async function syncMailbox(
   for (const link of links) {
     const own = byLink.get(link.id)
     if (!own || own.length === 0) continue
-    const res = await importIntoLink(deps, link, own, now)
+    const run = () => importIntoLink(deps, link, own, now)
+    const res = deps.withBankLock ? await deps.withBankLock(link.userId, run) : await run()
     imported += res.imported
     skipped += res.skipped
     created.push(...res.created)
@@ -1189,7 +1193,7 @@ async function importIntoLink(
 
   const { createdExternalIds } = await deps.store.upsertMovements(
     link.userId,
-    resolved
+    resolved.map(m => ({ ...m, bankReceivedAt: byExternalId.get(m.externalId)?.receivedAt }))
   )
 
   // Proyección: SOLO movimientos nuevos y posteriores al snapshot vigente mueven los buckets
@@ -1204,7 +1208,8 @@ async function importIntoLink(
     // Solo nuevos y recibidos DESPUÉS del snapshot vigente mueven la proyección.
     if (
       !createdSet.has(mov.externalId) ||
-      event.receivedAt.getTime() <= reconciledAt
+      event.receivedAt.getTime() <= (buckets.find(b => b.id === mov.bucketId)?.reconciledAt?.getTime() ?? reconciledAt) ||
+      (buckets.find(b => b.id === mov.bucketId)?.reconciledAt && mov.date.toISOString().slice(0,10) < new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(buckets.find(b => b.id === mov.bucketId)!.reconciledAt!))
     )
       continue
     // Pata de caja del pago de tarjeta: débito a la corriente de origen; el resto (incl. la pata de
@@ -1492,6 +1497,7 @@ export async function reconcileEmailBalances(
       used,
       available: limitAmount.subtract(used),
       asOf: input.snapshotAt,
+      reconciledAt: input.snapshotAt,
     })
     updated++
   }
@@ -1502,6 +1508,7 @@ export async function reconcileEmailBalances(
       used: Money.zero("CLP"),
       available: corriente.datos.cash,
       asOf: input.snapshotAt,
+      reconciledAt: input.snapshotAt,
     })
     updated++
     // El balance de la cuenta es un espejo del bucket, así que se escribe junto con él — la misma
@@ -1711,3 +1718,4 @@ export async function getEmailConnectionView(
     availableBanks: registry.map((b) => ({ key: b.key, name: b.name })),
   }
 }
+

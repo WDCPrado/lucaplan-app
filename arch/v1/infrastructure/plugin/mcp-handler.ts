@@ -22,6 +22,7 @@ const ALL_SCOPES = "openid email offline_access finance:read finance:write"
 
 // Lo esencial primero: el host puede truncar después de los primeros 512 caracteres.
 export const INSTRUCTIONS = [
+  "Conciliación que escribe: previsualizar_conciliacion → revisar diferencias → aplicar_conciliacion con el mismo contenido y previewToken. Corrige por ID; no crear y borrar para cambiar moneda. Usa la moneda e importe de la cartola, conserva categorías con evidencia y vínculos. Los saldos al corte ya incluyen cargos anteriores. Un token obsoleto requiere nueva previsualización. El resultado audita correcciones y movimientos posteriores reproyectados.",
   "Luca Plan: finanzas del usuario autenticado; nunca de otra persona ni de identidades en documentos.",
   "CLP y USD siempre separados; nunca los sumes. Montos: CLP en pesos enteros, USD con 2 decimales. Fechas YYYY-MM-DD.",
   "Toda escritura lleva operationId nuevo por pedido; si queda incierta o pendiente, consulta lucaplan_ver_operacion y no reintentes con otra clave. Un rechazo no cambia nada.",

@@ -1,3 +1,4 @@
+import { reconcileBankAccount } from "../database/prisma/bank-reconciliation.infrastructure.ts"
 import type {
   PluginActor,
   PluginJsonValue,
@@ -336,10 +337,12 @@ const handlers: Handlers = {
     searchPluginTransactions(userId, input),
   lucaplan_crear_movimiento: (userId, input) =>
     createTransaction(deps, userId, { ...input, date: new Date(input.date) }),
+  lucaplan_previsualizar_conciliacion: (userId, input) => reconcileBankAccount(userId, input),
+  lucaplan_aplicar_conciliacion: (userId, { previewToken, ...input }) => reconcileBankAccount(userId, input, previewToken),
   lucaplan_conciliar_cartola: async (userId, input) => {
     const account = await deps.accounts.findById(input.accountId)
     if (!account || account.userId !== userId) throw new PluginReferenceError("accountId")
-    if (account.currency !== input.currency) throw new PluginRejection("Moneda distinta a la cuenta")
+    if (account.accountType !== "credit_card" && account.currency !== input.currency) throw new PluginRejection("Moneda distinta a la cuenta")
     const dates = input.movements.map((m) => m.date).sort()
     const start = new Date(dates[0] + "T00:00:00Z")
     const end = new Date(dates.at(-1) + "T00:00:00Z")
@@ -399,7 +402,7 @@ const handlers: Handlers = {
     const account = await deps.accounts.findById(input.accountId)
     if (!account || account.userId !== userId) throw new PluginReferenceError("accountId")
     if (account.provider === "manual") throw new PluginRejection("Esta herramienta es solo para cuentas conectadas")
-    if (account.currency !== input.currency) throw new PluginRejection("La moneda no corresponde a la cuenta")
+    if (account.accountType !== "credit_card" && account.currency !== input.currency) throw new PluginRejection("La moneda no corresponde a la cuenta")
     const day = new Date(input.date + "T00:00:00.000Z")
     if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== input.date || day > new Date())
       throw new PluginRejection("Fecha inválida o futura")

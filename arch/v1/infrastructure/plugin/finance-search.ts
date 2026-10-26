@@ -33,6 +33,9 @@ const movementSelect = {
   status: true,
   isInternal: true,
   externalId: true,
+  reconciliation: true,
+  bankReceivedAt: true,
+  updatedAt: true,
   recurringTemplateId: true,
   installmentItemId: true,
   incomeId: true,
@@ -104,6 +107,9 @@ function movementView(
       : null
   return {
     id: row.id,
+    revision: row.updatedAt.toISOString(),
+    bankReceivedAt: row.bankReceivedAt?.toISOString() ?? null,
+    bankReconciliation: row.reconciliation,
     date: row.transactionDate.toISOString().slice(0, 10),
     description: row.description,
     amount: Number(row.amount),
@@ -154,9 +160,10 @@ function movementView(
         !row.installmentItemId &&
         !row.recurringTemplateId &&
         !row.incomeId,
-      canCorrectCurrency: false,
+      canReconcile: ["checking", "credit_card"].includes(row.account.accountType),
+      canCorrectCurrency: !row.incomeId && !row.recurringTemplateId && !row.installmentItemId && !row.installmentPlanAsSource && !row.isInternal,
       currencyCorrectionBlockedReason:
-        "No existe una operación de conciliación que cambie moneda y cupo preservando trazabilidad y vínculos; no reemplazar con crear + borrar.",
+        "Usar previsualizar_conciliacion y aplicar_conciliacion con cartola y snapshot. Cambios de moneda/categoría de movimientos vinculados requieren revisar su plan; reembolsos y transferencias internas tienen restricciones.",
       canEdit: editBlocked === null,
       editableFields:
         editBlocked !== null
@@ -234,6 +241,14 @@ async function contextualViews(
         : 0,
       clpPerUsd: rates.get(day) ?? null,
     })
+    if (row.reconciliation && typeof row.reconciliation === "object" && !Array.isArray(row.reconciliation)) {
+      Object.assign(context.financialContext.reconciliation, {
+        bankSettlementVerified: true,
+        bankPostingDate: row.reconciliation.bankPostingDate ?? null,
+        evidence: "bank_document_reconciliation",
+        notice: "Conciliado con documento aportado; valores originales y evidencia en bankReconciliation. La conversión CLP del presupuesto sigue siendo referencial.",
+      })
+    }
     return {
       ...movementView(row, context, duplicateInstallment),
       budgetPeriod: {

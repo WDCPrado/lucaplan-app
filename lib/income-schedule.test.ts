@@ -1,7 +1,7 @@
 // Corre con: node --test lib/income-schedule.test.ts
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { daysUntilPayDay, payDayState } from "./income-schedule.ts"
+import { daysUntilPayDay, payDayState, incomeDueDateInRange } from "./income-schedule.ts"
 
 const now = new Date(2026, 6, 20) // 20 jul 2026 (mes local 6 = julio)
 

@@ -927,6 +927,7 @@ export async function listIncomesView(
     incomes: IncomeRepository
     accounts: AccountRepository
     categories: CategoryRepository
+    budgetPeriod?: BudgetPeriodRepository
   },
   userId: string,
   year: number,
@@ -938,6 +939,7 @@ export async function listIncomesView(
     deps.accounts.listByUser(userId),
     deps.categories.listByUser(userId),
   ])
+  const incomeRange = await rangeOf(deps, year, month)
   const accById = new Map(accounts.map((a) => [a.id, a]))
   const catById = new Map(categories.map((c) => [c.id, c]))
   // Monto vigente en ESE mes (carry-forward). Sin monto = la fuente no existía aún: no se lista,
@@ -965,7 +967,7 @@ export async function listIncomesView(
         currency: i.currency,
         dayOfMonth: i.dayOfMonth,
         isActive: i.isActive,
-        generated: await deps.incomes.hasGeneratedFor(i.id, year, month),
+        generated: await deps.incomes.hasGeneratedFor(i.id, year, month, incomeRange),
       }
     })
   )

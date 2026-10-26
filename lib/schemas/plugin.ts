@@ -621,7 +621,7 @@ export const pluginTools = {
   ),
   lucaplan_medidor_financiero: read(
     "Medidor de salud financiera",
-    "Consulta el estado sano (<90%), al límite (90–100%) o en déficit (>100%) del período. Compara todos los ingresos planificados activos contra los gastos confirmados de categorías con tope >0, más una proyección separada de compromisos pendientes sin doble conteo. Crédito y débito usan el mismo cálculo; cambia solo el rango del período. Devuelve balance, porcentaje y estados; no equivale al saldo disponible en banco.",
+    "Consulta planStatus (presupuesto) y status (plan más liquidez registrada). Una posición neta negativa impide sano, y caja neta cero o línea utilizada implica al menos al_limite. Compara todos los ingresos planificados activos contra los gastos confirmados de categorías con tope >0, más una proyección separada de compromisos pendientes sin doble conteo. Crédito y débito usan el mismo cálculo; cambia solo el rango del período. balance y porcentaje corresponden solo al plan; liquidity separa caja, línea utilizada y posición neta CLP con los últimos saldos registrados, no saldos históricos del período. Ambos modos incluyen corriente y tarjeta; nunca sumar cupos a caja.",
     z.strictObject(period)
   ),
   lucaplan_ver_presupuesto: read(

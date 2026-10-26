@@ -51,3 +51,23 @@ test("reembolso planificado financia el gasto una sola vez", () => {
   assert.equal(health.projectedSpent, 60000)
   assert.equal(calculateFinancialHealth({ income: 100, spent: 20, reimbursementAdjustment: -5 }).balance, 80)
 })
+
+test("plan cubierto no oculta corriente negativa ni descuenta la deuda dos veces", async () => {
+  const { calculateFinancialOverview } = await import("./financial-health.ts")
+  const health = calculateFinancialOverview({ income: 1000000, spent: 200000, committed: 300000, cash: 80000, overdraftDebt: 200000 })
+  assert.equal(health.planStatus, "sano")
+  assert.equal(health.status, "en_deficit")
+  assert.equal(health.projectedStatus, "en_deficit")
+  assert.equal(health.balance, 500000)
+  assert.equal(health.liquidity.netPosition, -120000)
+  assert.equal(health.liquidity.basis, "latest_recorded_balances")
+})
+
+test("caja cero o línea utilizada impiden sano aunque el plan esté cubierto", async () => {
+  const { calculateFinancialOverview } = await import("./financial-health.ts")
+  const base = { income: 1000, spent: 100, cash: 0, overdraftDebt: 0 }
+  assert.equal(calculateFinancialOverview(base).status, "al_limite")
+  assert.equal(calculateFinancialOverview({ ...base, cash: 200, overdraftDebt: 100 }).status, "al_limite")
+  assert.equal(calculateFinancialOverview({ ...base, cash: 200 }).status, "sano")
+  assert.equal(calculateFinancialOverview({ ...base, cash: 200, spent: 1001 }).status, "en_deficit")
+})

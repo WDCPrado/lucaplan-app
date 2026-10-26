@@ -40,3 +40,32 @@ export function calculateFinancialHealth(input: {
   }
 }
 
+
+/** Plan del período + liquidez registrada; nunca suma cupos ni descuenta deuda al plan otra vez. */
+export function calculateFinancialOverview(input: Parameters<typeof calculateFinancialHealth>[0] & {
+  cash: number
+  overdraftDebt: number
+}) {
+  const plan = calculateFinancialHealth(input)
+  const netPosition = input.cash - input.overdraftDebt
+  const liquidityStatus = netPosition < 0 ? "negative" : netPosition === 0 ? "zero" : "positive"
+  const status: FinancialHealthStatus = plan.status === "en_deficit" || netPosition < 0
+    ? "en_deficit"
+    : plan.status === "al_limite" || netPosition === 0 || input.overdraftDebt > 0
+      ? "al_limite"
+      : "sano"
+  return {
+    ...plan,
+    planStatus: plan.status,
+    status,
+    projectedStatus: status,
+    liquidity: {
+      currency: "CLP" as const,
+      basis: "latest_recorded_balances" as const,
+      cash: input.cash,
+      overdraftDebt: input.overdraftDebt,
+      netPosition,
+      status: liquidityStatus,
+    },
+  }
+}

@@ -214,7 +214,7 @@ export const incomeRepository: IncomeRepository = {
   async ungenerateMonthly(incomeId, year, month, range) {
     return prisma.$transaction(async (db) => {
       const tx = await db.transaction.findFirst({
-        where: { incomeId, ...periodWhere(year, month) },
+        where: { incomeId, ...periodWhere(year, month, range) },
       })
       if (!tx) return { deleted: false }
 

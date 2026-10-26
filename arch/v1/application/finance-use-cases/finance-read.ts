@@ -1,4 +1,3 @@
-import { prisma } from "../../infrastructure/database/prisma/client.ts"
 import { isDuplicateInstallmentPayment } from "./duplicate-installment-payment.ts"
 // Use-cases de lectura financiera. DTOs con montos en unidad mayor (number). Ownership por userId.
 // Categorías GLOBALES del usuario; el límite es por mes con carry-forward (ver effectiveLimit).
@@ -70,7 +69,12 @@ import { todayKey } from "../../../shared/today.ts"
 
 const CLP = "CLP" as const
 
+type ReimbursementRead = { expenseId: string; creditId: string; amount: number }
+
 type ReadDeps = {
+  reimbursements?: {
+    listForTransactions(userId: string, ids: string[]): Promise<ReimbursementRead[]>
+  }
   // Opcional: solo las vistas que muestran movimientos marcan su estado de recurrencia.
   recurring?: RecurringTemplateRepository
   // Opcional: el presupuesto suma las cuotas del mes al comprometido de su categoría.
@@ -401,13 +405,10 @@ export async function listAccounts(
 }
 
 // Metadata de enlaces, en una consulta por página. Nunca modifica montos bancarios.
-async function withReimbursementCounts(userId: string, rows: TransactionDTO[]): Promise<TransactionDTO[]> {
+async function withReimbursementCounts(deps: ReadDeps, userId: string, rows: TransactionDTO[]): Promise<TransactionDTO[]> {
   const ids = rows.filter(t => !t.installmentForecast).map(t => t.id)
   if (!ids.length) return rows
-  const links = await prisma.expenseReimbursement.findMany({
-    where: { userId, OR: [{ expenseId: { in: ids } }, { creditId: { in: ids } }] },
-    select: { expenseId: true, creditId: true },
-  })
+  const links = await deps.reimbursements?.listForTransactions(userId, ids) ?? []
   const counts = new Map<string, number>()
   for (const link of links) {
     counts.set(link.expenseId, (counts.get(link.expenseId) ?? 0) + 1)
@@ -459,7 +460,7 @@ export async function listTransactions(
   // Orden por fecha desc para TODO el conjunto: la lista agrupa por día filas CONTIGUAS, así que
   // un forecast fuera de orden partiría un día en dos grupos (keys duplicadas en React) y además
   // mostraría la cuota lejos de su fecha. El sort es estable: dentro del día, forecast primero.
-  return withReimbursementCounts(userId, [...forecast, ...withState].sort((a, b) =>
+  return withReimbursementCounts(deps, userId, [...forecast, ...withState].sort((a, b) =>
     b.date.localeCompare(a.date)
   ))
 }
@@ -727,10 +728,9 @@ export async function getBudgetView(
     ])
   // USD → CLP por fecha para que el uso por categoría cuente esos movimientos.
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
-  const reimbursementRows = await prisma.expenseReimbursement.findMany({
-    where: { userId, expenseId: { in: txs.filter(t => t.direction === "debit").map(t => t.id) } },
-    select: { expenseId: true, amount: true },
-  })
+  const reimbursementRows = await deps.reimbursements?.listForTransactions(
+    userId, txs.filter(t => t.direction === "debit").map(t => t.id)
+  ) ?? []
   const reimbursed = new Map<string, number>()
   for (const row of reimbursementRows)
     reimbursed.set(row.expenseId, (reimbursed.get(row.expenseId) ?? 0) + Number(row.amount))

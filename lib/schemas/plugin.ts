@@ -532,7 +532,7 @@ export const pluginTools = {
   ),
   lucaplan_aplicar_conciliacion: write(
     {title:"Aplicar conciliación bancaria",destructive:true},
-    "Aplica atómicamente la propuesta verificada por lucaplan_previsualizar_conciliacion, con los mismos datos y previewToken. Conserva identidad y vínculos; guarda auditoría y protege las correcciones del reproceso del correo. No duplica movimientos anteriores al corte. Si cambiaron datos, vuelve a previsualizar. No cambia moneda/categoría de planes vinculados automáticamente; esos casos requieren revisar el plan.",
+    "Aplica atómicamente la propuesta verificada por lucaplan_previsualizar_conciliacion, con los mismos datos y previewToken. Conserva identidad y vínculos; guarda auditoría y protege las correcciones del reproceso del correo. No duplica movimientos anteriores al corte. Si cambiaron datos, vuelve a previsualizar. No cambia importe/moneda/categoría de planes vinculados automáticamente; esos casos requieren revisar el plan.",
     bankReconciliationSchema.extend({previewToken:z.string().length(64),...operation})
   ),
   lucaplan_conciliar_cartola: read(

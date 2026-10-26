@@ -234,8 +234,8 @@ corte sin hora de recepción conocida deben declararse expresamente en
 `includedSameDayIds`; los futuros del plan no son efectivo bancario ocurrido. La salida
 identifica lo que se reproyectará. Un cambio concurrente invalida el token del dry run.
 
-Los movimientos vinculados admiten corregir fecha, texto e importe conservando sus enlaces;
-para cambiar su moneda/categoría hay que revisar primero el ingreso, recurrente o cuota.
+Los movimientos vinculados admiten corregir fecha y texto conservando sus enlaces;
+para cambiar su importe/moneda/categoría hay que revisar primero el ingreso, recurrente o cuota.
 Los reembolsos impiden bajar el gasto/abono por debajo de lo ya vinculado o cambiarlo de CLP.
 Las altas se rechazan si existe un candidato cercano; no se crean transferencias internas
 sin sus dos patas. Las categorías se eligen con evidencia del usuario, nunca por adivinación.

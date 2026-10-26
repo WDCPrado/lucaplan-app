@@ -145,10 +145,10 @@ export function planBankReconciliation(
       reject("Categoría ajena o incompatible con cargo/abono")
     if (
       old.linked &&
-      (old.currency !== c.currency || old.categoryId !== c.categoryId)
+      (old.currency !== c.currency || old.categoryId !== c.categoryId || old.amount !== c.amount)
     )
       reject(
-        "El movimiento está vinculado a un ingreso, recurrente o cuota: conserva moneda y categoría o concilia primero su plan"
+        "El movimiento está vinculado a un ingreso, recurrente o cuota: conserva importe, moneda y categoría o concilia primero su plan"
       )
     if (
       old.reimbursementAmount &&

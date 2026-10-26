@@ -124,6 +124,7 @@ test("fecha corrida de ingreso conserva vínculo y monto", () => {
       categoryId: "income",
       linked: true,
       date: "2026-11-23",
+        amount: 43000,
     }),
   ]
   const i = input()

@@ -1,4 +1,5 @@
-import { reconcileBankAccount } from "../database/prisma/bank-reconciliation.infrastructure.ts"
+import { bankReconciliationStore } from "../database/prisma/bank-reconciliation.infrastructure.ts"
+import { reconcileBankAccount } from "../../application/finance-use-cases/bank-reconciliation.ts"
 import type {
   PluginActor,
   PluginJsonValue,
@@ -13,6 +14,7 @@ import { reconcileBankRows } from "../../../../lib/bank-reconciliation.ts"
 import { NotOwnerError } from "../../domain/finance/finance.domain.ts"
 import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
 import { prisma } from "../database/prisma/client.ts"
+import { Prisma } from "../database/prisma/generated/client.ts"
 import {
   accountRepository,
   bankRepository,
@@ -128,6 +130,7 @@ const deps = {
   budgetAlerts: budgetAlertRepository,
   dueReminder: dueReminderRepository,
   paceFrequency: paceFrequencyRepository,
+  bankReconciliation: bankReconciliationStore,
 }
 
 // Confirmación de borrado de cuenta: hash del estado y firma con el secreto del servidor.
@@ -337,8 +340,8 @@ const handlers: Handlers = {
     searchPluginTransactions(userId, input),
   lucaplan_crear_movimiento: (userId, input) =>
     createTransaction(deps, userId, { ...input, date: new Date(input.date) }),
-  lucaplan_previsualizar_conciliacion: (userId, input) => reconcileBankAccount(userId, input),
-  lucaplan_aplicar_conciliacion: (userId, { previewToken, ...input }) => reconcileBankAccount(userId, input, previewToken),
+  lucaplan_previsualizar_conciliacion: (userId, input) => reconcileBankAccount(deps, userId, input),
+  lucaplan_aplicar_conciliacion: (userId, { previewToken, ...input }) => reconcileBankAccount(deps, userId, input, previewToken),
   lucaplan_conciliar_cartola: async (userId, input) => {
     const account = await deps.accounts.findById(input.accountId)
     if (!account || account.userId !== userId) throw new PluginReferenceError("accountId")
@@ -355,7 +358,7 @@ const handlers: Handlers = {
     return { results: reconcileBankRows(input.movements, existing.map(t=>({
       id:t.id, date:t.date.toISOString().slice(0,10), amount:t.amount.toMajor(),
       direction:t.direction, description:t.description,
-    }))), notice:"Previsualización sin modificaciones. Los ambiguos requieren revisión manual." }
+    })), input.currency), notice:"Previsualización sin modificaciones. Los ambiguos requieren revisión manual." }
   },
   lucaplan_importar_cargos_bancarios: async (userId, input) => {
     const results: Array<{ index:number; status:string; transactionId?:string; reason?:string }> = []
@@ -448,10 +451,13 @@ const handlers: Handlers = {
       throw new PluginRejection("Fecha inválida")
     if (tx.incomeId)
       throw new PluginRejection("Es un ingreso generado desde una fuente mensual: la fecha debe corregirse desde el flujo de ingresos para conservar su ciclo de origen; no se modificó nada")
+    // Otra fecha ya no es la que conciliaba la cartola: se borra la conciliación (WDC-123).
+    const dateChanged = tx.date.toISOString().slice(0, 10) !== input.date
     const updated = await prisma.transaction.updateMany({
       where: { id: tx.id, userId, externalId: null,
         installmentItemId: null, recurringTemplateId: null, incomeId: null },
-      data: { transactionDate: changedDate, description: input.description.trim() },
+      data: { transactionDate: changedDate, description: input.description.trim(),
+        ...(dateChanged ? { reconciliation: Prisma.DbNull } : {}) },
     })
     if (updated.count !== 1)
       throw new PluginRejection("Movimiento cambiado por otra operación; vuelve a consultarlo")

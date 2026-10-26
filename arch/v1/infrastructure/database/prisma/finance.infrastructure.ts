@@ -1,6 +1,7 @@
 // Adapters Postgres del dominio finance. Implementan los ports mapeando Prisma Decimal ↔ Money.
 // El dominio nunca ve tipos de Prisma. Los presupuestos/categorías se asumen en CLP (base).
 import { prisma } from "./client.ts"
+import { Prisma } from "./generated/client.ts"
 import type { PeriodRange } from "../../../../shared/billing-cycle.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import {
@@ -418,12 +419,12 @@ export const transactionRepository: TransactionRepository = {
         old.amount.toString(),
         old.currency as CurrencyCode
       )
-      // Editar no cambia el estado: un pendiente sigue sin tocar la caja (cashDelta = 0).
-      const oldDelta = cashDelta(
-        old.status,
-        old.direction as Direction,
-        oldMoney
-      )
+      // Editar no cambia el estado: un pendiente sigue sin tocar la caja (cashDelta = 0). Uno en
+      // otra moneda (USD conciliado en una tarjeta CLP) no estaba en el saldo de la cuenta.
+      const oldDelta =
+        oldMoney.currency === currency
+          ? cashDelta(old.status, old.direction as Direction, oldMoney)
+          : Money.zero(currency)
       const newDelta = cashDelta(old.status, input.direction, input.amount)
       if (!oldDelta.isZero || !newDelta.isZero) {
         const balance = Money.of(account.balance.toString(), currency)
@@ -444,6 +445,9 @@ export const transactionRepository: TransactionRepository = {
           currency: input.amount.currency,
           direction: input.direction,
           reviewed: true, // edición del usuario: decidió la categoría (o su ausencia)
+          ...(input.clearReconciliation
+            ? { reconciliation: Prisma.DbNull }
+            : {}),
         },
       })
     })

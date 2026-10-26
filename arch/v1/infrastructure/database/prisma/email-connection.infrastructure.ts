@@ -5,6 +5,7 @@ import { LockBusyError } from "../../../../shared/mutex.ts"
 // Prisma ni tokens en claro.
 import { prisma } from "./client.ts"
 import { Prisma } from "./generated/client.ts"
+import { isSameBankMovement } from "../../../domain/finance/bank-reconciliation.domain.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import type { BucketKind } from "../../../domain/finance/finance.domain.ts"
 import {
@@ -383,22 +384,14 @@ export const emailSetupStore: EmailSetupStore = {
   },
 
   // Upsert idempotente por (accountId, externalId); el update NO toca categoryId (categoría
-  // preservada). Devuelve los externalId nuevos para proyectar los buckets una sola vez.
+  // preservada). Devuelve los externalId creados de verdad (para proyectar los buckets una sola
+  // vez) y los ambiguos contra altas conciliadas, que no se escriben y quedan para revisión.
   async upsertMovements(userId, movements: ResolvedEmailMovement[]) {
-    if (movements.length === 0) return { createdExternalIds: [] }
-    const existing = await prisma.transaction.findMany({
-      where: { userId, externalId: { in: movements.map((m) => m.externalId) } },
-      select: { accountId: true, externalId: true },
-    })
-    const existingKeys = new Set(
-      existing.map((t) => `${t.accountId}:${t.externalId}`)
-    )
-    const createdExternalIds: string[] = []
+    const created = new Set<string>()
+    const ambiguous = new Set<string>()
     for (let i = 0; i < movements.length; i += CHUNK) {
       await Promise.all(
         movements.slice(i, i + CHUNK).map((m) => {
-          if (!existingKeys.has(`${m.accountId}:${m.externalId}`))
-            createdExternalIds.push(m.externalId)
           const fields = {
             bankReceivedAt: m.bankReceivedAt,
             bucketId: m.bucketId,
@@ -413,40 +406,54 @@ export const emailSetupStore: EmailSetupStore = {
           }
           return prisma.$transaction(async db => {
             const previous = await db.transaction.findUnique({ where: { accountId_externalId: { accountId:m.accountId, externalId:m.externalId } } })
-            if (previous?.reconciliation) return previous // cartola prevalece sobre el aviso reprocesado
+            if (previous?.reconciliation) return // cartola prevalece sobre el aviso reprocesado
             // Una alta conciliada sin externalId puede recibir su aviso después. Solo enlace inequívoco.
             if (!previous) {
               const start=new Date(m.date);start.setUTCDate(start.getUTCDate()-4)
               const end=new Date(m.date);end.setUTCDate(end.getUTCDate()+4)
               const nearby = await db.transaction.findMany({where:{userId,accountId:m.accountId,externalId:null,reconciliation:{not:Prisma.DbNull},transactionDate:{gte:start,lte:end},direction:m.direction}})
-              const norm=(s:string)=>s.toUpperCase().replace(/[^A-Z0-9]/g, "")
-              const candidates=nearby.filter(c=>(c.currency===m.amount.currency && Number(c.amount)===m.amount.toMajor()) || norm(c.description)===norm(m.description))
-              if (candidates.length === 1 && candidates[0].currency===m.amount.currency && Number(candidates[0].amount)===m.amount.toMajor() && norm(candidates[0].description)===norm(m.description)) {
-                const index=createdExternalIds.indexOf(m.externalId); if(index>=0) createdExternalIds.splice(index,1)
-                return db.transaction.update({where:{id:candidates[0].id,userId},data:{externalId:m.externalId,bankReceivedAt:m.bankReceivedAt}})
+              const key = (date: Date, amount: number, currency: string, description: string) =>
+                ({ date: date.toISOString().slice(0, 10), direction: m.direction, amount, currency, description })
+              const notice = key(m.date, m.amount.toMajor(), m.amount.currency, m.description)
+              const candidates = nearby.filter(c => isSameBankMovement(notice,
+                key(c.transactionDate, Number(c.amount), c.currency, c.description), { days: 4, match: "amountOrDescription" }))
+              if (candidates.length === 1 && isSameBankMovement(notice,
+                key(candidates[0].transactionDate, Number(candidates[0].amount), candidates[0].currency, candidates[0].description),
+                { days: 4, match: "amountAndDescription" })) {
+                await db.transaction.update({where:{id:candidates[0].id,userId},data:{externalId:m.externalId,bankReceivedAt:m.bankReceivedAt}})
+                return
               }
-              if (candidates.length) throw new Error("Aviso ambiguo contra altas conciliadas; requiere revisión")
+              if (candidates.length) {
+                ambiguous.add(m.externalId)
+                return
+              }
             }
-            return db.transaction.upsert({
-            where: {
-              accountId_externalId: {
+            await db.transaction.upsert({
+              where: {
+                accountId_externalId: {
+                  accountId: m.accountId,
+                  externalId: m.externalId,
+                },
+              },
+              create: {
+                userId,
                 accountId: m.accountId,
                 externalId: m.externalId,
+                ...fields,
               },
-            },
-            create: {
-              userId,
-              accountId: m.accountId,
-              externalId: m.externalId,
-              ...fields,
-            },
-            update: fields, // categoryId intacto → categoría preservada
-          })
+              update: fields, // categoryId intacto → categoría preservada
+            })
+            if (!previous) created.add(m.externalId)
           })
         })
       )
     }
-    return { createdExternalIds }
+    // En el orden de entrada: las escrituras del lote terminan en cualquier orden.
+    const ids = movements.map((m) => m.externalId)
+    return {
+      createdExternalIds: ids.filter((id) => created.has(id)),
+      ambiguousExternalIds: ids.filter((id) => ambiguous.has(id)),
+    }
   },
 
   async updateBucketAmounts(bucketId, amounts) {

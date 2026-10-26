@@ -6,6 +6,8 @@ import { categoryRepository } from "../database/prisma/finance.infrastructure.ts
 import { budgetPeriodRepository } from "../database/prisma/budget-period.infrastructure.ts"
 import { exchangeRateProvider } from "../http/exchange/usd-clp.ts"
 import type { Prisma } from "../database/prisma/generated/client.ts"
+import { reconciliationLinks } from "../database/prisma/bank-reconciliation.infrastructure.ts"
+import { canReconcileCorrection } from "../../domain/finance/bank-reconciliation.domain.ts"
 import { prisma } from "../database/prisma/client.ts"
 import {
   amountDigits,
@@ -63,6 +65,8 @@ const movementSelect = {
   installmentPlanAsSource: {
     select: { id: true, description: true, installmentsCount: true },
   },
+  reimbursementsPaid: { select: { amount: true } },
+  reimbursementsReceived: { select: { amount: true } },
 } satisfies Prisma.TransactionSelect
 
 type MovementRow = Prisma.TransactionGetPayload<{
@@ -78,7 +82,8 @@ const SOURCE_LABEL = {
 } as const
 
 // Procedencia, relaciones y capacidades efectivas: lo que el chat necesita para decidir qué
-// herramienta usar sin probar y fallar. Las capacidades usan las MISMAS reglas que el caso de uso.
+// herramienta usar sin probar y fallar. Editar y borrar usan las reglas de su caso de uso
+// (`editRejection`, `deleteRejection`); corregir moneda, la regla única de la conciliación.
 function movementView(
   row: MovementRow,
   context: ReturnType<typeof movementFinancialContext>,
@@ -163,12 +168,10 @@ function movementView(
       canReconcile: ["checking", "credit_card"].includes(
         row.account.accountType
       ),
-      canCorrectCurrency:
-        !row.incomeId &&
-        !row.installmentItemId &&
-        !row.installmentPlanAsSource &&
-        !row.isInternal &&
-        (!row.recurringTemplateId || row.direction === "debit"),
+      canCorrectCurrency: canReconcileCorrection({
+        ...row,
+        ...reconciliationLinks(row),
+      }),
       currencyCorrectionBlockedReason:
         "Usar previsualizar_conciliacion y aplicar_conciliacion con cartola y snapshot. Cobros recurrentes: settleRecurringCharge=true permite liquidar importe/moneda conservando categoría, vínculo y plan futuro. Ingresos y cuotas vinculados requieren revisar su plan; reembolsos y transferencias internas tienen restricciones.",
       canEdit: editBlocked === null,

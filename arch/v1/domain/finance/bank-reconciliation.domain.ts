@@ -116,8 +116,8 @@ export interface BankReconciliationStore {
 }
 
 /**
- * Regla única: si el movimiento admite que la conciliación le corrija importe o moneda.
- * Hoy implícita en `planBankReconciliation` y copiada distinta en `canCorrectCurrency` de la búsqueda.
+ * Regla única: si el movimiento admite que la conciliación le corrija importe o moneda. La usan
+ * `planBankReconciliation` y `canCorrectCurrency` de la búsqueda del plugin.
  */
 export function canReconcileCorrection(
   movement: Pick<
@@ -130,14 +130,23 @@ export function canReconcileCorrection(
     | "reimbursementAmount"
   >
 ): boolean {
-  void movement
-  throw new Error("no implementado")
+  return (
+    movement.status === "confirmed" &&
+    !movement.isInternal &&
+    !movement.reimbursementAmount &&
+    (!movement.linked ||
+      (!!movement.recurringOnly && movement.direction === "debit"))
+  )
 }
 
 /** Nombre de comercio comparable: mayúsculas, solo letras y dígitos. */
 export function normalizeMerchant(s: string): string {
-  void s
-  throw new Error("no implementado")
+  // NFD separa la tilde de su letra: «Í» → «I» + tilde, y se borra solo la tilde.
+  return s
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
 }
 
 /** Lo mínimo de un movimiento (aviso, cartola o registrado) para decidir si es el mismo. Fecha YYYY-MM-DD. */
@@ -164,8 +173,14 @@ export function isSameBankMovement(
     match: "amount" | "amountOrDescription" | "amountAndDescription"
   }
 ): boolean {
-  void a
-  void b
-  void opts
-  throw new Error("no implementado")
+  if (a.direction !== b.direction) return false
+  if (Math.abs(Date.parse(a.date) - Date.parse(b.date)) > opts.days * 86400000)
+    return false
+  const amount = a.currency === b.currency && a.amount === b.amount
+  if (opts.match === "amount") return amount
+  const merchant =
+    normalizeMerchant(a.description) === normalizeMerchant(b.description)
+  return opts.match === "amountOrDescription"
+    ? amount || merchant
+    : amount && merchant
 }

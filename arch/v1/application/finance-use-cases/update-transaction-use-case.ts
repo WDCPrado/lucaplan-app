@@ -94,11 +94,14 @@ export async function updateTransaction(
   const amount = Money.of(input.amount, account.currency) // misma moneda de la cuenta
   // Movimiento de una cuota: la categoría es del plan (no puede quedar sin ella) y el monto es un
   // espejo del cronograma — se corrige en el plan, que sincroniza el movimiento, nunca al revés.
+  // Moneda antes que importe: `compare` entre monedas distintas lanza.
+  const amountChanged =
+    amount.currency !== tx.amount.currency || amount.compare(tx.amount) !== 0
   if (tx.installmentItemId) {
     if (!input.categoryId) throw new InstallmentCategoryRequiredError()
-    if (amount.compare(tx.amount) !== 0)
-      throw new InstallmentAmountReadOnlyError()
+    if (amountChanged) throw new InstallmentAmountReadOnlyError()
   }
+  const dayOf = (d: Date) => d.toISOString().slice(0, 10) // día civil (medianoche UTC)
   const updated = await deps.transactions.update({
     id: input.transactionId,
     description: input.description,
@@ -106,6 +109,8 @@ export async function updateTransaction(
     amount,
     direction: input.direction,
     categoryId: input.categoryId,
+    // Otro importe, moneda o día ya no es lo que concilió la cartola; categoría y descripción sí.
+    clearReconciliation: amountChanged || dayOf(input.date) !== dayOf(tx.date),
   })
   // Recategorizar una cuota recategoriza su plan completo, igual que desde el modal conectado.
   if (

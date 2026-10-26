@@ -243,6 +243,8 @@ export type UpdateTransaction = {
   amount: Money
   direction: Direction
   categoryId: string | null
+  // Borra la conciliación bancaria: el importe, la moneda o el día ya no son los de la cartola.
+  clearReconciliation?: boolean
 }
 
 export type NewBank = { userId: string; name: string }

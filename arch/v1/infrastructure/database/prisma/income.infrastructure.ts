@@ -205,6 +205,11 @@ export const incomeRepository: IncomeRepository = {
       })
       if (!tx) return { deleted: false }
 
+      // Un abono externo vinculado a una fuente no fue generado por esta función. Nunca borrarlo ni modificar caja.
+      if (tx.externalId) {
+        await db.transaction.update({ where: { id: tx.id }, data: { incomeId: null } })
+        return { deleted: false }
+      }
       // Revierte el credit: resta del saldo el monto REAL del movimiento (la fuente pudo cambiar).
       const account = await db.financialAccount.findUniqueOrThrow({
         where: { id: tx.accountId },

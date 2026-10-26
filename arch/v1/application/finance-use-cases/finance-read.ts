@@ -1,3 +1,4 @@
+import { prisma } from "../../infrastructure/database/prisma/client.ts"
 import { isDuplicateInstallmentPayment } from "./duplicate-installment-payment.ts"
 // Use-cases de lectura financiera. DTOs con montos en unidad mayor (number). Ownership por userId.
 // Categorías GLOBALES del usuario; el límite es por mes con carry-forward (ver effectiveLimit).
@@ -701,6 +702,19 @@ export async function getBudgetView(
     ])
   // USD → CLP por fecha para que el uso por categoría cuente esos movimientos.
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
+  const reimbursementRows = await prisma.expenseReimbursement.findMany({
+    where: { userId, expenseId: { in: txs.filter(t => t.direction === "debit").map(t => t.id) } },
+    select: { expenseId: true, amount: true },
+  })
+  const reimbursed = new Map<string, number>()
+  for (const row of reimbursementRows)
+    reimbursed.set(row.expenseId, (reimbursed.get(row.expenseId) ?? 0) + Number(row.amount))
+  const netBudgetTxs = clpTxs.map(t => {
+    const deducted = reimbursed.get(t.id) ?? 0
+    if (!deducted || t.direction !== "debit") return t
+    return { ...t, amount: Money.of(Math.max(0, t.amount.toMajor() - deducted), "CLP") }
+  })
+
   // Comprometido de cuotas por categoría: la cuota que vence en el rango y aún no se paga se anticipa
   // como comprometida, igual que una recurrente. Derivado, no filas: al pagarse pasa a `used` y
   // desaparece de aquí, sin doble conteo.
@@ -733,7 +747,7 @@ export async function getBudgetView(
     const { used, available } = computeCategoryUsage(
       category.id,
       limit,
-      clpTxs,
+      netBudgetTxs,
       range,
       direction
     )
@@ -741,7 +755,7 @@ export async function getBudgetView(
     const committed = computeCategoryCommitted(
       category.id,
       limit.currency,
-      clpTxs,
+      netBudgetTxs,
       range,
       direction
     ).add(
@@ -765,7 +779,7 @@ export async function getBudgetView(
             const p = computeCategoryPace(
               category.id,
               available,
-              clpTxs,
+              netBudgetTxs,
               pace.today,
               pace.frequency,
               range,

@@ -459,6 +459,66 @@ const handlers: Handlers = {
     await deleteTransaction(deps, userId, input.transactionId)
     return { ok: true }
   },
+  lucaplan_vincular_reembolso: async (userId, input) => {
+    return prisma.$transaction(async (db) => {
+      const [expense, credit] = await Promise.all([
+        db.transaction.findFirst({ where: { id: input.expenseId, userId } }),
+        db.transaction.findFirst({ where: { id: input.creditId, userId } }),
+      ])
+      if (!expense || !credit) throw new PluginReferenceError(!expense ? "expenseId" : "creditId")
+      if (expense.direction !== "debit" || credit.direction !== "credit" ||
+          expense.status !== "confirmed" || credit.status !== "confirmed" ||
+          expense.isInternal || credit.isInternal || expense.currency !== "CLP" || credit.currency !== "CLP")
+        throw new PluginRejection("Se requiere gasto y abono confirmados no internos en CLP")
+      const current = await db.expenseReimbursement.findUnique({
+        where: { expenseId_creditId: { expenseId: expense.id, creditId: credit.id } },
+      })
+      if (current) {
+        if (Number(current.amount) !== input.amount) throw new PluginRejection("Vínculo existente con otro importe")
+        return { reimbursementId: current.id, amount: input.amount, created: false }
+      }
+      const [expenseLinks, creditLinks] = await Promise.all([
+        db.expenseReimbursement.aggregate({ where: { expenseId: expense.id }, _sum: { amount: true } }),
+        db.expenseReimbursement.aggregate({ where: { creditId: credit.id }, _sum: { amount: true } }),
+      ])
+      if (Number(expenseLinks._sum.amount ?? 0) + input.amount > Number(expense.amount) ||
+          Number(creditLinks._sum.amount ?? 0) + input.amount > Number(credit.amount))
+        throw new PluginRejection("La compensación excede el saldo libre del gasto o abono")
+      const linked = await db.expenseReimbursement.create({
+        data: { userId, expenseId: expense.id, creditId: credit.id, amount: input.amount },
+      })
+      return { reimbursementId: linked.id, amount: input.amount, created: true }
+    }, { isolationLevel: "Serializable" })
+  },
+  lucaplan_vincular_abono_ingreso: async (userId, input) => {
+    const [income, credit] = await Promise.all([
+      prisma.income.findFirst({ where: { id: input.incomeId, userId } }),
+      prisma.transaction.findFirst({ where: { id: input.transactionId, userId } }),
+    ])
+    if (!income || !credit) throw new PluginReferenceError(!income ? "incomeId" : "transactionId")
+    if (credit.direction !== "credit" || credit.status !== "confirmed" || credit.isInternal ||
+        income.accountId !== credit.accountId || income.currency !== credit.currency ||
+        income.categoryId !== credit.categoryId ||
+        (credit.incomeId && credit.incomeId !== income.id))
+      throw new PluginRejection("El abono debe coincidir en cuenta, moneda y categoría y estar sin otra fuente")
+    // La fuente se genera por período: bloquear una segunda transacción de la misma fuente
+    // en el mes calendario de este abono, aunque ocurra otro día.
+    const year = credit.transactionDate.getUTCFullYear()
+    const month = credit.transactionDate.getUTCMonth()
+    const from = new Date(Date.UTC(year, month, 1))
+    const to = new Date(Date.UTC(year, month + 1, 1))
+    const existingIncomeMatch = await prisma.transaction.findFirst({
+      where: { userId, incomeId: income.id,
+        transactionDate: { gte: from, lt: to }, id: { not: credit.id } },
+    })
+    if (existingIncomeMatch) throw new PluginRejection("Ya hay un abono de esta fuente en ese mes")
+    const updated = await prisma.transaction.updateMany({
+      where: { id: credit.id, userId, OR: [{ incomeId: null }, { incomeId: income.id }] },
+      data: { incomeId: income.id },
+    })
+    if (!updated.count) throw new PluginRejection("El abono está vinculado a otra fuente")
+    return { incomeId: income.id, transactionId: credit.id, linked: true, createdTransaction: false }
+  },
   lucaplan_asignar_categoria: (userId, input) =>
     categorizeTransaction(deps, userId, input.transactionId, input.categoryId),
   lucaplan_crear_categoria: async (userId, input) => {

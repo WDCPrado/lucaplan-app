@@ -52,3 +52,20 @@ test("Dado un pago enganchado en la cuota equivocada, cuando el chat pide moverl
   assert.equal(ok({ ...origen, userId: "otro" }), false, "claves extra")
   assert.equal(ok({ ...origen, transactionId: "tx-265708" }), false, "no elige el movimiento: es el de la cuota")
 })
+
+test("reembolso MCP exige gasto, abono, cantidad positiva e idempotencia", () => {
+  const schema = pluginTools.lucaplan_vincular_reembolso.inputSchema
+  const valid = { expenseId: "gasto-banco", creditId: "abono-banco", amount: 50000, operationId: "reembolso-caso-1" }
+  assert.equal(schema.safeParse(valid).success, true)
+  assert.equal(schema.safeParse({ ...valid, amount: 0 }).success, false)
+  assert.equal(schema.safeParse({ ...valid, amount: -10 }).success, false)
+  assert.equal(schema.safeParse({ ...valid, amount: 500.5 }).success, false)
+  assert.equal(schema.safeParse({ ...valid, operationId: "" }).success, false)
+})
+test("vinculación de abono bancario con fuente de ingreso requiere identificadores e idempotencia", () => {
+  const schema = pluginTools.lucaplan_vincular_abono_ingreso.inputSchema
+  const valid = { incomeId: "fuente", transactionId: "abono", operationId: "vinculacion-1" }
+  assert.equal(schema.safeParse(valid).success, true)
+  assert.equal(schema.safeParse({ ...valid, transactionId: "" }).success, false)
+  assert.equal(schema.safeParse({ ...valid, operationId: "" }).success, false)
+})

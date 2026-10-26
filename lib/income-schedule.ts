@@ -36,3 +36,24 @@ export function daysUntilPayDay(
   const pay = Date.UTC(period.year, period.month - 1, Math.min(dayOfMonth, lastDay))
   return Math.round((pay - Date.parse(`${today}T00:00:00Z`)) / 86_400_000)
 }
+
+/** Fecha efectiva del ingreso dentro del ciclo: 23/oct–20/nov y día 25 => 25/oct. */
+export function incomeDueDateInRange(
+  period: { year: number; month: number },
+  dayOfMonth: number,
+  range?: { start: string; end: string }
+): string {
+  if (!range) {
+    const last = new Date(Date.UTC(period.year, period.month, 0)).getUTCDate()
+    return `${period.year}-${String(period.month).padStart(2, "0")}-${String(Math.min(dayOfMonth, last)).padStart(2, "0")}`
+  }
+  const first = new Date(`${range.start}T00:00:00Z`)
+  for (let m = 0; m < 3; m++) {
+    const year = first.getUTCFullYear()
+    const month = first.getUTCMonth() + m
+    const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
+    const candidate = new Date(Date.UTC(year, month, Math.min(dayOfMonth, last))).toISOString().slice(0, 10)
+    if (candidate >= range.start && candidate <= range.end) return candidate
+  }
+  throw new Error("Día de ingreso fuera del ciclo")
+}

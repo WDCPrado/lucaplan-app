@@ -31,7 +31,7 @@ import { PlanSheet } from "./plan-sheet"
 import { AccountCard } from "./account-card"
 import { MovementRow } from "./movement-row"
 import { DayStrip } from "./day-strip"
-import { FinancialHealthMeter } from "./financial-health-meter"
+import { FinancialHealthMeter, PlanSummary } from "./financial-health-meter"
 import { getDashboardChartPreference, type DashboardChart } from "@/lib/dashboard-chart-preference"
 import { CategoryIcon } from "./category-icons"
 import { CategoryModal } from "./category-modal"
@@ -441,6 +441,16 @@ export function Dashboard({
     </UncategorizedTriage>
   )
 
+  // Medidor y diario muestran el mismo resumen del plan; la liquidez es la CLP registrada.
+  const planProps = {
+    cash: summary.activeCash,
+    overdraftDebt: summary.overdraftDebt,
+    income: activeIncomeTotal,
+    spent: totalUsed,
+    committed: totalCommitted,
+    reimbursementAdjustment: budget.reimbursementAdjustment,
+  }
+
   return (
     <AppShell
       user={user}
@@ -504,21 +514,21 @@ export function Dashboard({
             onOpenPlan={() => setPlanOpen(true)}
           >
             {dashboardChart === "health" ? (
-              <div className="flex flex-col gap-3">
-                <FinancialHealthMeter cash={summary.activeCash} overdraftDebt={summary.overdraftDebt} income={activeIncomeTotal} spent={totalUsed} committed={totalCommitted} reimbursementAdjustment={budget.reimbursementAdjustment} />
-
-              </div>
+              <FinancialHealthMeter {...planProps} />
             ) : (
-              <DayStrip
-              days={days}
-              spend={spend}
-              selectedDay={selectedDay}
-              today={todayInRange ? today : null}
-              onSelect={(day) => {
-                haptic("light")
-                setDayState({ key: periodKey, day })
-              }}
-              />
+              <div className="flex flex-col gap-4">
+                <PlanSummary {...planProps} />
+                <DayStrip
+                  days={days}
+                  spend={spend}
+                  selectedDay={selectedDay}
+                  today={todayInRange ? today : null}
+                  onSelect={(day) => {
+                    haptic("light")
+                    setDayState({ key: periodKey, day })
+                  }}
+                />
+              </div>
             )}
           </MonthStatus>
           <AllocationNudge

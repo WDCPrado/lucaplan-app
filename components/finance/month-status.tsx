@@ -108,19 +108,20 @@ export function MonthStatus({
               Hoy, {formatLongDate(todayIso)}
             </p>
             <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
-              <span className="tabular text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-                {remainingDays}
+              <span className="tabular text-4xl font-bold tracking-tight">
+                {daysLeft === 1 ? "Hoy" : remainingDays}
               </span>
               <span className="font-heading text-lg font-semibold sm:text-xl">
-                {remainingDays === 1 ? "día para cerrar el período" : "días para cerrar el período"}
+                {daysLeft === 1
+                  ? "termina el período"
+                  : remainingDays === 1
+                    ? "día para cerrar"
+                    : "días para cerrar"}
+                {/* En crédito, la fecha y si es estimada ya las dicen el ciclo y el botón del cierre. */}
+                {cycle.mode === "calendar" && (
+                  <span className="tabular-nums"> · {shortDate(cycle.range.end)}.</span>
+                )}
               </span>
-            </p>
-            <p className="mt-2 text-sm text-pretty text-muted-foreground">
-              {daysLeft === 1
-                ? "El período termina hoy."
-                : cycle.mode === "card_cycle"
-                  ? `Cierre ${cycle.closing.estimated ? "estimado" : "confirmado"}: ${shortDate(cycle.range.end)}.`
-                  : `Fin de mes: ${shortDate(cycle.range.end)}.`}
             </p>
           </>
         ) : (
@@ -129,7 +130,7 @@ export function MonthStatus({
               {monthName(period.month)} {period.year} cerró con
             </p>
             <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
-              <span className="tabular text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
+              <span className="tabular text-4xl font-bold tracking-tight">
                 {formatCLP(Math.max(0, free))}
               </span>
               <span className="font-heading text-lg font-semibold sm:text-xl">
@@ -274,7 +275,7 @@ function CycleBar({
           onCheckedChange={changeMode}
         />
       </div>
-      <p id={`${switchId}-scope`} className="w-full text-xs text-muted-foreground">Ambos modos incluyen cuenta corriente y tarjeta. Solo cambia el período del plan.</p>
+      <p id={`${switchId}-scope`} className="sr-only">Ambos modos incluyen cuenta corriente y tarjeta. Solo cambia el período del plan.</p>
     </div>
   )
 }

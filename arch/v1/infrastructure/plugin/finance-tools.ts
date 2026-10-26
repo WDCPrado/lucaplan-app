@@ -597,8 +597,8 @@ const handlers: Handlers = {
     return {
       period: { year: input.year, month: input.month, range },
       currency: "CLP",
-      ...calculateFinancialHealth({ income, spent: budget.spent, committed: budget.committed }),
-      notice: "Los ingresos planificados incluyen todas las fuentes; solo cuentan gastos de categorías presupuestadas. El resultado no representa caja bancaria ni total facturado de la tarjeta.",
+      ...calculateFinancialHealth({ income, spent: budget.spent, committed: budget.committed, reimbursementAdjustment: budget.reimbursementAdjustment }),
+      notice: "Los ingresos planificados incluyen todas las fuentes; solo cuentan gastos de categorías presupuestadas. La compensación de reembolsos incluidos en ingresos se cuenta una sola vez. El resultado no representa caja bancaria ni total facturado de la tarjeta.",
     }
   },
   lucaplan_ver_presupuesto: async (userId, input) => ({
@@ -752,3 +752,4 @@ export const pluginFinanceExecutor = {
     return pluginJson(await handler(actor.userId, args))
   },
 }
+

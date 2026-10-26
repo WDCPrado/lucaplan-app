@@ -39,29 +39,16 @@ export function applyDebitToCash(
   }
 }
 
-// Abono interno recibido: reduce primero el sobregiro usado; el remanente aumenta la caja.
+// Un abono aumenta caja. La línea solo se amortiza ante un pago explícito del banco:
+// caja positiva y deuda de sobregiro pueden coexistir.
 export function applyInternalCredit(
   cash: BucketAmounts,
   overdraft: BucketAmounts | null,
   amount: Money
 ): { cash: BucketAmounts; overdraft: BucketAmounts | null } {
-  const zero = Money.zero(amount.currency)
-  if (!overdraft || overdraft.used.compare(zero) <= 0) {
-    return {
-      cash: { ...cash, available: cash.available.add(amount) },
-      overdraft,
-    }
-  }
-  const paid = overdraft.used.compare(amount) <= 0 ? overdraft.used : amount
-  const used = overdraft.used.subtract(paid)
-  const remainder = amount.subtract(paid)
   return {
-    cash: { ...cash, available: cash.available.add(remainder) },
-    overdraft: {
-      ...overdraft,
-      used,
-      available: overdraft.limitAmount.subtract(used),
-    },
+    cash: { ...cash, available: cash.available.add(amount) },
+    overdraft,
   }
 }
 
@@ -84,3 +71,4 @@ export function applyInternalPayment(
   const used = max(bucket.used.subtract(amount), Money.zero(amount.currency))
   return { ...bucket, used, available: bucket.limitAmount.subtract(used) }
 }
+

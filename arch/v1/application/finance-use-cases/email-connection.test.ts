@@ -711,7 +711,7 @@ test("detección agrupa cargos CLP/USD del mismo last4 en una tarjeta con dos mo
   ])
 })
 
-test("proyección consume caja, usa sobregiro, abona primero la deuda y separa crédito USD", () => {
+test("proyección consume caja, usa sobregiro, conserva deuda al abonar y separa crédito USD", () => {
   const cash = {
     limitAmount: Money.zero("CLP"),
     used: Money.zero("CLP"),
@@ -731,8 +731,11 @@ test("proyección consume caja, usa sobregiro, abona primero la deuda y separa c
     debited.overdraft,
     Money.of(15000, "CLP")
   )
-  assert.equal(credited.overdraft?.used.toMajor(), 0)
-  assert.equal(credited.cash.available.toMajor(), 2000)
+  assert.equal(credited.overdraft?.used.toMajor(), 13000)
+  assert.equal(credited.cash.available.toMajor(), 15000)
+  const paid = applyInternalPayment(credited.overdraft!, Money.of(13000, "CLP"))
+  assert.equal(paid.used.toMajor(), 0)
+  assert.equal(paid.available.toMajor(), 50000)
 
   const usd = applyCreditPurchase(
     {
@@ -2090,3 +2093,4 @@ test("actualizar saldos: un cupo internacional encendido sin su bucket anula el 
     /cupo internacional/i
   )
 })
+

@@ -58,6 +58,7 @@ test("Dado un mes futuro, cuando planifico, entonces no escribe nada y separa CL
         listByUser: async () => [account({ balance: clp(200000) })],
       }),
       banks: readOnly({}),
+      budgetPeriod: readOnly({ get: async () => ({ mode: "card_cycle", overrides: { "2030-02": "2030-02-20", "2030-03": "2030-03-20" } }) }),
       balanceBuckets: readOnly({ listByUser: async () => [] }),
       categories: readOnly({
         listByUser: async () => [],
@@ -127,7 +128,10 @@ test("Dado un mes futuro, cuando planifico, entonces no escribe nada y separa CL
         listAmountsByUser: async () => [
           { incomeId: "sueldo", year: 2030, month: 1, amount: clp(1000000) },
         ],
-        hasGeneratedFor: async () => false,
+        hasGeneratedFor: async (_id: string, _year: number, _month: number, range: unknown) => {
+          assert.deepEqual(range, { start: "2030-02-21", end: "2030-03-20" })
+          return false
+        },
       }),
       recurring: readOnly({ listActiveByUser: async () => [] }),
       installments: readOnly({
@@ -407,3 +411,4 @@ test("Dadas las herramientas, cuando el host las lista, entonces solo borrar o s
   assert.equal(tools.lucaplan_planificar_periodo.readOnly, true)
   assert.equal(tools.lucaplan_previsualizar_eliminar_cuenta.readOnly, true)
 })
+

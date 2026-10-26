@@ -505,7 +505,7 @@ export function Dashboard({
           >
             {dashboardChart === "health" ? (
               <div className="flex flex-col gap-3">
-                <FinancialHealthMeter income={activeIncomeTotal} spent={totalUsed} committed={totalCommitted} />
+                <FinancialHealthMeter income={activeIncomeTotal} spent={totalUsed} committed={totalCommitted} reimbursementAdjustment={budget.reimbursementAdjustment} />
 
               </div>
             ) : (
@@ -879,3 +879,4 @@ function Stat({
     </div>
   )
 }
+

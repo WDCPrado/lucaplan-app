@@ -7,9 +7,7 @@
 // pendiente; un movimiento confirmado que paga una recurrente, una cuota o un ingreso no vuelve a
 // sumarse como "movimiento futuro". El presupuesto se informa como TOPE, nunca como gasto extra.
 import type {
-  Account,
   AccountRepository,
-  BalanceBucket,
   BalanceBucketRepository,
   BankRepository,
   CategoryRepository,
@@ -42,102 +40,9 @@ import { getBudgetView } from "./finance-read.ts"
 
 const CURRENCIES: CurrencyCode[] = ["CLP", "USD"]
 
-export type CurrencyPosition = {
-  currency: CurrencyCode
-  cash: number // caja propia disponible (cuentas corrientes)
-  overdraftUsed: number // deuda de sobregiro: NO es caja
-  overdraftAvailable: number // línea disponible: capacidad de endeudarse, NO es caja
-  cardDebt: number // deuda de tarjetas de crédito en esta moneda
-  cardAvailable: number // cupo disponible de tarjetas conectadas: NO es caja
-  otherBalances: number // ahorro, billeteras e inversiones (no cuentan como caja activa)
-}
-
-/**
- * Posición por moneda. Cuentas conectadas: caja, sobregiro y cupos salen de sus buckets (el saldo
- * de la cuenta nunca se pone negativo para representar sobregiro). Cuentas manuales: el saldo
- * negativo de una corriente es sobregiro usado, y el de una tarjeta, su deuda.
- */
-export function currencyPositions(
-  accounts: Account[],
-  buckets: BalanceBucket[]
-): CurrencyPosition[] {
-  const pos = new Map(
-    CURRENCIES.map((currency) => [
-      currency,
-      {
-        currency,
-        cash: Money.zero(currency),
-        overdraftUsed: Money.zero(currency),
-        overdraftAvailable: Money.zero(currency),
-        cardDebt: Money.zero(currency),
-        cardAvailable: Money.zero(currency),
-        otherBalances: Money.zero(currency),
-      },
-    ])
-  )
-  const add = (
-    currency: CurrencyCode,
-    field: Exclude<keyof CurrencyPosition, "currency">,
-    amount: Money
-  ) => {
-    const p = pos.get(currency)
-    if (p) p[field] = p[field].add(amount)
-  }
-  for (const account of accounts) {
-    const own = buckets.filter((b) => b.accountId === account.id)
-    const zero = Money.zero(account.currency)
-    if (account.accountType === "checking") {
-      const cash = own.find((b) => b.kind === "cash")
-      const od = own.find((b) => b.kind === "overdraft")
-      if (cash) {
-        // Sin bucket de sobregiro la caja puede quedar negativa: eso también es deuda, no caja.
-        if (cash.available.isNegative)
-          add(cash.currency, "overdraftUsed", cash.available.negate())
-        else add(cash.currency, "cash", cash.available)
-        if (od) {
-          add(od.currency, "overdraftUsed", od.used)
-          add(od.currency, "overdraftAvailable", od.available)
-        }
-      } else if (account.balance.isNegative) {
-        const used = account.balance.negate()
-        add(account.currency, "overdraftUsed", used)
-        add(
-          account.currency,
-          "overdraftAvailable",
-          account.overdraftLimit.subtract(used)
-        )
-      } else {
-        add(account.currency, "cash", account.balance)
-        add(account.currency, "overdraftAvailable", account.overdraftLimit)
-      }
-    } else if (account.accountType === "credit_card") {
-      const cards = own.filter(
-        (b) => b.kind === "credit_national" || b.kind === "credit_international"
-      )
-      if (cards.length > 0)
-        for (const b of cards) {
-          add(b.currency, "cardDebt", b.used)
-          add(b.currency, "cardAvailable", b.available)
-        }
-      else if (account.balance.isNegative)
-        add(account.currency, "cardDebt", account.balance.negate())
-    } else if (account.accountType === "credit_line") {
-      if (account.balance.isNegative)
-        add(account.currency, "overdraftUsed", account.balance.negate())
-    } else if (account.balance.compare(zero) !== 0) {
-      add(account.currency, "otherBalances", account.balance)
-    }
-  }
-  return [...pos.values()].map((p) => ({
-    currency: p.currency,
-    cash: p.cash.toMajor(),
-    overdraftUsed: p.overdraftUsed.toMajor(),
-    overdraftAvailable: p.overdraftAvailable.toMajor(),
-    cardDebt: p.cardDebt.toMajor(),
-    cardAvailable: p.cardAvailable.toMajor(),
-    otherBalances: p.otherBalances.toMajor(),
-  }))
-}
+import { currencyPositions } from "./financial-position.ts"
+export { currencyPositions } from "./financial-position.ts"
+export type { CurrencyPosition } from "./financial-position.ts"
 
 type PlanDeps = {
   accounts: AccountRepository
@@ -150,6 +55,7 @@ type PlanDeps = {
   recurring: RecurringTemplateRepository
   installments: InstallmentPlanRepository
   exchangeRates: ExchangeRateProvider
+  reimbursements?: Parameters<typeof getBudgetView>[0]["reimbursements"]
   budgetPeriod?: BudgetPeriodRepository
 }
 
@@ -221,7 +127,7 @@ export async function getPeriodPlan(
     if (!income.isActive || isIncomeEndedAt(income, year, month)) continue
     const amount = effectiveIncomeAmount(incomeAmounts, income.id, year, month)
     if (!amount) continue
-    const received = await deps.incomes.hasGeneratedFor(income.id, year, month)
+    const received = await deps.incomes.hasGeneratedFor(income.id, year, month, range)
     const t = totals(amount.currency).income
     t.expected = t.expected.add(amount)
     if (received) t.done = t.done.add(amount)
@@ -366,6 +272,7 @@ export async function getPeriodPlan(
       allocated: budget.allocated,
       remainingToAllocate: budget.remainingToAllocate,
       spent: budget.spent,
+      reimbursementAdjustment: budget.reimbursementAdjustment,
       committed: budget.committed,
       capsOverspend: budget.capsOverspend,
       monthOverspend: budget.monthOverspend,
@@ -385,3 +292,4 @@ export async function getPeriodPlan(
     installments: installmentRows,
   }
 }
+

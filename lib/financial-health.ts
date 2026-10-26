@@ -4,12 +4,14 @@ export type FinancialHealthStatus = "sano" | "al_limite" | "en_deficit"
 export function calculateFinancialHealth(input: {
   income: number
   spent: number
+  reimbursementAdjustment?: number
   committed?: number
 }) {
   const income = Math.max(0, input.income)
   const spent = Math.max(0, input.spent)
   const committed = Math.max(0, input.committed ?? 0)
-  const projectedSpent = spent + committed
+  const reimbursementAdjustment = Math.max(0, input.reimbursementAdjustment ?? 0)
+  const projectedSpent = spent + committed + reimbursementAdjustment
   const balance = income - projectedSpent
   const projectedBalance = income - projectedSpent
   const utilization = income > 0 ? (projectedSpent / income) * 100 : projectedSpent > 0 ? null : 0
@@ -25,6 +27,7 @@ export function calculateFinancialHealth(input: {
 
   return {
     income,
+    reimbursementAdjustment,
     spent,
     committed,
     projectedSpent,
@@ -36,3 +39,4 @@ export function calculateFinancialHealth(input: {
     projectedStatus: status(projectedSpent),
   }
 }
+

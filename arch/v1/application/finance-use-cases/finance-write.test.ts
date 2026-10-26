@@ -241,7 +241,7 @@ test("createTransaction: gasto en cuenta conectada por correo → ReadOnly (los 
   )
 })
 
-test("createTransaction: abono en corriente conectada paga sobregiro, sube caja y fija balance", async () => {
+test("createTransaction: abono en corriente conectada conserva sobregiro, sube caja y fija balance", async () => {
   const balances: number[] = []
   const accounts = new FakeAccounts([acc({ provider: "bancochile" })])
   accounts.setBalance = async (_id: string, b: Money) => {
@@ -271,16 +271,16 @@ test("createTransaction: abono en corriente conectada paga sobregiro, sube caja 
     }
   )
   assert.equal(tx.direction, "credit")
-  // 40.000: 30.000 pagan el sobregiro, 10.000 suben la caja (50.000 → 60.000).
+  // El abono aumenta caja (50.000 → 90.000), sin inventar un pago de línea.
   assert.deepEqual(
     buckets.updated.find((u) => u.id === "od"),
-    { id: "od", used: 0, available: 100000 }
+    { id: "od", used: 30000, available: 70000 }
   )
   assert.deepEqual(
     buckets.updated.find((u) => u.id === "cash"),
-    { id: "cash", used: 0, available: 60000 }
+    { id: "cash", used: 0, available: 90000 }
   )
-  assert.deepEqual(balances, [60000]) // balance = caja disponible
+  assert.deepEqual(balances, [90000]) // balance = caja disponible
 })
 
 // --- deleteTransaction: en conectadas, abonos y cargos SIN categoría ---
@@ -636,3 +636,4 @@ test("deleteTransaction: respeta ciclo de tarjeta entre dos meses calendario", a
   )
   assert.deepEqual(deps.deleted, ["t1"])
 })
+

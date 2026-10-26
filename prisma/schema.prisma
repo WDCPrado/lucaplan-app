@@ -213,6 +213,7 @@ model BalanceBucket {
   limitAmount  Decimal          @default(0) @db.Decimal(18, 2)
   used         Decimal          @default(0) @db.Decimal(18, 2) // usado = deuda (overdraft/crédito)
   available    Decimal          @default(0) @db.Decimal(18, 2)
+  reconciledAt DateTime? // corte bancario propio; no se adelanta al proyectar movimientos
   asOf         DateTime? // marca de tiempo del dato del banco
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
@@ -514,6 +515,8 @@ model Transaction {
   account                 FinancialAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   categoryId              String?
   category                Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  bankReceivedAt          DateTime? // recepción original del aviso, no fecha de importación
+  reconciliation          Json? // evidencia bancaria y valores originales; protege del reproceso de correo
   bucketId                String? // bucket/cupo al que corresponde (solo si el banco lo identifica sin ambigüedad)
   bucket                  BalanceBucket?     @relation(fields: [bucketId], references: [id], onDelete: SetNull)
   incomeId                String? // fuente de ingreso que generó este movimiento (gancho para recurrencia); null en el resto
@@ -708,4 +711,19 @@ model ExpenseReimbursement {
   @@index([userId, expenseId])
   @@index([creditId])
   @@map("expense_reimbursement")
+}
+
+
+// Recibo atómico de conciliación: token de previsualización + auditoría completa.
+model BankReconciliation {
+  id String @id @default(uuid())
+  userId String
+  accountId String
+  token String
+  input Json
+  result Json
+  createdAt DateTime @default(now())
+  @@unique([userId, token])
+  @@index([userId, accountId])
+  @@map("bank_reconciliation")
 }

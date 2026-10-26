@@ -105,7 +105,9 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
 ### 💬 Operaciones financieras desde un asistente
 
 El paquete MCP de Luca Plan permite que un host compatible consulte y administre los datos del
-usuario que autorizó la conexión. La identidad y los permisos se resuelven en el servidor mediante
+usuario que autorizó la conexión. La conciliación bancaria permite previsualizar y aplicar
+correcciones de moneda, importe, fecha y categoría por ID, junto con saldos al corte y auditoría,
+sin duplicar cargos ni perder vínculos. La identidad y los permisos se resuelven en el servidor mediante
 OAuth; el modelo no elige el usuario. Alcance, instalación y límites en la
 [guía del plugin](docs/plugin-luca-plan.md).
 

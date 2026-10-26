@@ -1,8 +1,10 @@
+import { LockBusyError } from "../../../../shared/mutex.ts"
 // Persistencia Prisma de la conexión por CORREO: repositorios de buzones (tokens cifrados) y de
 // vínculos con bancos, método de conexión exclusivo por (usuario, banco, buzón) y el store del
 // setup/sync (creación atómica de instrumentos + importación idempotente). El dominio nunca ve
 // Prisma ni tokens en claro.
 import { prisma } from "./client.ts"
+import { Prisma } from "./generated/client.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import type { BucketKind } from "../../../domain/finance/finance.domain.ts"
 import {
@@ -240,6 +242,7 @@ function toStoredBucket(row: any): EmailStoredBucket {
     limitAmount: Money.of(row.limitAmount.toString(), currency),
     used: Money.of(row.used.toString(), currency),
     available: Money.of(row.available.toString(), currency),
+    reconciledAt: row.reconciledAt ?? null,
   }
 }
 
@@ -397,6 +400,7 @@ export const emailSetupStore: EmailSetupStore = {
           if (!existingKeys.has(`${m.accountId}:${m.externalId}`))
             createdExternalIds.push(m.externalId)
           const fields = {
+            bankReceivedAt: m.bankReceivedAt,
             bucketId: m.bucketId,
             transactionDate: m.date,
             description: m.description,
@@ -407,7 +411,23 @@ export const emailSetupStore: EmailSetupStore = {
             pending: false,
             isInternal: m.isInternal,
           }
-          return prisma.transaction.upsert({
+          return prisma.$transaction(async db => {
+            const previous = await db.transaction.findUnique({ where: { accountId_externalId: { accountId:m.accountId, externalId:m.externalId } } })
+            if (previous?.reconciliation) return previous // cartola prevalece sobre el aviso reprocesado
+            // Una alta conciliada sin externalId puede recibir su aviso después. Solo enlace inequívoco.
+            if (!previous) {
+              const start=new Date(m.date);start.setUTCDate(start.getUTCDate()-4)
+              const end=new Date(m.date);end.setUTCDate(end.getUTCDate()+4)
+              const nearby = await db.transaction.findMany({where:{userId,accountId:m.accountId,externalId:null,reconciliation:{not:Prisma.DbNull},transactionDate:{gte:start,lte:end},direction:m.direction}})
+              const norm=(s:string)=>s.toUpperCase().replace(/[^A-Z0-9]/g, "")
+              const candidates=nearby.filter(c=>(c.currency===m.amount.currency && Number(c.amount)===m.amount.toMajor()) || norm(c.description)===norm(m.description))
+              if (candidates.length === 1 && candidates[0].currency===m.amount.currency && Number(candidates[0].amount)===m.amount.toMajor() && norm(candidates[0].description)===norm(m.description)) {
+                const index=createdExternalIds.indexOf(m.externalId); if(index>=0) createdExternalIds.splice(index,1)
+                return db.transaction.update({where:{id:candidates[0].id,userId},data:{externalId:m.externalId,bankReceivedAt:m.bankReceivedAt}})
+              }
+              if (candidates.length) throw new Error("Aviso ambiguo contra altas conciliadas; requiere revisión")
+            }
+            return db.transaction.upsert({
             where: {
               accountId_externalId: {
                 accountId: m.accountId,
@@ -421,6 +441,7 @@ export const emailSetupStore: EmailSetupStore = {
               ...fields,
             },
             update: fields, // categoryId intacto → categoría preservada
+          })
           })
         })
       )
@@ -436,6 +457,7 @@ export const emailSetupStore: EmailSetupStore = {
         used: amounts.used.toDecimalString(),
         available: amounts.available.toDecimalString(),
         asOf: amounts.asOf,
+        ...(amounts.reconciledAt ? { reconciledAt: amounts.reconciledAt } : {}),
       },
     })
   },
@@ -498,6 +520,11 @@ export const emailSetupStore: EmailSetupStore = {
 // Deps completas de los use-cases de correo, listas para inyectar desde las rutas.
 export function makeEmailConnectionDeps(): EmailConnectionDeps {
   return {
+    withBankLock: (userId, work) => prisma.$transaction(async db => {
+      const [lock] = await db.$queryRaw<{locked:boolean}[]>`SELECT pg_try_advisory_xact_lock(hashtext(${userId})) AS locked`
+      if (!lock.locked) throw new LockBusyError("Hay una sincronización o conciliación en curso")
+      return work()
+    },{timeout:120000}),
     mailboxes: emailMailboxRepository,
     links: emailBankLinkRepository,
     methods: connectionMethodRepository,
@@ -509,3 +536,4 @@ export function makeEmailConnectionDeps(): EmailConnectionDeps {
     notify: notifyImportedForSync,
   }
 }
+

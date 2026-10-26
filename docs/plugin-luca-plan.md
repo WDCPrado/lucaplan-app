@@ -194,7 +194,7 @@ Un aviso bancario en pesos puede corresponder a un consumo internacional. Antes 
 
 `affectsCash` se limita a movimientos confirmados de cuenta corriente. `countsInBudget` indica elegibilidad como gasto confirmado no interno en categoría de gasto con tope positivo del `budgetPeriod` del movimiento (incluye carry-forward y ciclo de tarjeta). No representa ingreso, compromiso pendiente ni gasto neto después de reembolsos. Usar presupuesto/medidor para esos totales.
 
-Las capacidades distinguen editar, corregir metadatos y corregir moneda. Las herramientas actuales no permiten corregir moneda/cupo con trazabilidad: `canCorrectCurrency` es false. Este contrato de lectura no añade un flujo de escritura ni repara registros históricos.
+Las capacidades distinguen edición ordinaria y conciliación. `canReconcile` identifica cuentas compatibles; `canCorrectCurrency` está condicionado por vínculos y transferencias. La previsualización bancaria valida además reembolsos, categorías y buckets antes de autorizar el lote.
 
 ### Plan y liquidez en el medidor
 
@@ -211,3 +211,37 @@ caja, ni resta toda la deuda de tarjeta a un plan que ya cuenta sus compras/cuot
 Modo débito (`calendar`) organiza por mes; modo crédito (`card_cycle`) por ciclo.
 Ambos incluyen corriente y tarjeta. Cambiar de modo nunca filtra cuentas ni altera saldos.
 Los saldos desactualizados requieren conciliación: el medidor no verifica el banco.
+
+### Conciliación que aplica cambios
+
+`lucaplan_previsualizar_conciliacion` valida una cuenta completa y devuelve un
+`previewToken`, diferencias antes/después y movimientos posteriores que reproyectará.
+`lucaplan_aplicar_conciliacion` recibe el mismo contenido y ese token, además de su
+`operationId`. También está disponible en `POST /api/accounts/:id/reconciliation`
+para la app: sin token previsualiza, con token aplica. Comparte validaciones y servicio.
+
+El documento manda en importe y moneda: las correcciones usan IDs explícitos y preservan
+identidad, externalId, categoría elegida y vínculos. No reemplazan el movimiento con un alta.
+Los cambios se guardan en una transacción serializable con auditoría y recibo idempotente.
+La sincronización y la conciliación toman un bloqueo PostgreSQL común por usuario.
+Un correo reprocesado no sobrescribe un movimiento conciliado. Un aviso tardío que pueda
+corresponder a un alta conciliada se vincula solo si es inequívoco; si no, requiere revisión.
+
+El corte es propio de los buckets de la cuenta, no la fecha de importación ni del último
+refresh del buzón. Se exige medir todos sus buckets, se conserva un corte bancario más
+reciente y se reproyectan únicamente movimientos confirmados posteriores. Los del día del
+corte sin hora de recepción conocida deben declararse expresamente en
+`includedSameDayIds`; los futuros del plan no son efectivo bancario ocurrido. La salida
+identifica lo que se reproyectará. Un cambio concurrente invalida el token del dry run.
+
+Los movimientos vinculados admiten corregir fecha, texto e importe conservando sus enlaces;
+para cambiar su moneda/categoría hay que revisar primero el ingreso, recurrente o cuota.
+Los reembolsos impiden bajar el gasto/abono por debajo de lo ya vinculado o cambiarlo de CLP.
+Las altas se rechazan si existe un candidato cercano; no se crean transferencias internas
+sin sus dos patas. Las categorías se eligen con evidencia del usuario, nunca por adivinación.
+
+Las herramientas antiguas de previsualización simple y reconciliación de saldos se conservan
+por compatibilidad. Para documentos históricos y correcciones usa el flujo nuevo, no
+`actualizar_saldos` fingiendo que un saldo histórico es actual.
+
+Búsqueda y detalle exponen `bankReconciliation` con evidencia cuando existe.

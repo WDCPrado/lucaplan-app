@@ -1,3 +1,4 @@
+import { bankReconciliationSchema } from "./bank-reconciliation.ts"
 import { z } from "zod"
 import type { PluginScope } from "../../arch/v1/domain/plugin/plugin.domain.ts"
 import { PERIODICITIES } from "../../arch/v1/domain/finance/recurring.domain.ts"
@@ -523,6 +524,16 @@ export const pluginTools = {
         ...operation,
       })
       .strict()
+  ),
+  lucaplan_previsualizar_conciliacion: read(
+    "Previsualizar conciliación bancaria completa",
+    "Simula correcciones explícitas por ID (moneda, importe, fecha, categoría), altas sin contraparte y saldos de UNA cuenta. Conserva vínculos, rechaza ambigüedad y reejecuta solo movimientos posteriores al corte. Incluye todos los buckets de esa cuenta e IDs del día del corte que el documento ya incluye. Devuelve previewToken y diferencias; no escribe. No adivinar categorías ni convertir CLP a USD por tipo de cambio estimado: usar moneda e importe de cartola.",
+    bankReconciliationSchema
+  ),
+  lucaplan_aplicar_conciliacion: write(
+    {title:"Aplicar conciliación bancaria",destructive:true},
+    "Aplica atómicamente la propuesta verificada por lucaplan_previsualizar_conciliacion, con los mismos datos y previewToken. Conserva identidad y vínculos; guarda auditoría y protege las correcciones del reproceso del correo. No duplica movimientos anteriores al corte. Si cambiaron datos, vuelve a previsualizar. No cambia moneda/categoría de planes vinculados automáticamente; esos casos requieren revisar el plan.",
+    bankReconciliationSchema.extend({previewToken:z.string().length(64),...operation})
   ),
   lucaplan_conciliar_cartola: read(
     "Conciliar cartola",

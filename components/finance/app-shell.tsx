@@ -94,6 +94,11 @@ function navKeyOf(pathname: string): NavKey | undefined {
   )?.key
 }
 
+function subscribeToScroll(onChange: () => void) {
+  window.addEventListener("scroll", onChange, { passive: true })
+  return () => window.removeEventListener("scroll", onChange)
+}
+
 type QuickAdd = { accounts: AccountDTO[]; categories: CategoryDTO[] }
 
 // "Abrir nuevo movimiento" del AppFrame. Con él, el AppShell no monta su propia barra inferior ni
@@ -179,6 +184,11 @@ export function AppShell({
   actions,
   children,
 }: AppShellProps) {
+  const hasScrolled = React.useSyncExternalStore(
+    subscribeToScroll,
+    () => window.scrollY > 0,
+    () => false
+  )
   const frameOpenAdd = React.useContext(OpenAddContext)
   const [addOpen, setAddOpen] = React.useState(false)
   const localOpenAdd = React.useCallback(() => setAddOpen(true), [])
@@ -270,10 +280,15 @@ export function AppShell({
               {actions}
             </div>
           </header>
-          {/* Móvil: botones flotando sin barra — buscar | (selector u otras acciones) | usuario.
-              items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar. Sin fondo:
-              solo los hijos reciben toques; lo que queda entre ellos pasa al contenido de abajo. */}
-          <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center px-4 pt-3 pb-3 md:hidden">
+          {/* Móvil: fondo oscuro al inicio; al bajar, los controles flotan sin fondo ni blur.
+              items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar.
+              Solo los hijos reciben toques; el espacio entre ellos deja pasar los del contenido. */}
+          <div
+            className={cn(
+              "pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center px-4 pt-3 pb-3 md:hidden",
+              !hasScrolled && "dark bg-background"
+            )}
+          >
             <div className="flex w-full items-start justify-between gap-2 *:pointer-events-auto">
               {/* Sin trigger del sidebar: en móvil el drawer solo repetía la barra inferior y el
                   menú de usuario. El hueco lo ocupa la lupa; sin ella, un espaciador del mismo

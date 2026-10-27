@@ -499,7 +499,7 @@ export const pluginTools = {
   ),
   lucaplan_crear_movimiento: write(
     { title: "Crear movimiento manual" },
-    "Úsala para registrar un gasto o ingreso real en una cuenta manual, con su fecha. En cuentas conectadas solo admite abonos (credit) en la cuenta corriente: los cargos llegan por correo y se duplicarían. Mueve el saldo de la cuenta. No la uses para planificar algo futuro (usa ingresos, recurrentes o cuotas) ni para pagar una cuota (usa lucaplan_pagar_cuota o lucaplan_vincular_pago_cuota).",
+    "Úsala para registrar un gasto o ingreso real en una cuenta manual, con su fecha. En cuentas conectadas solo admite abonos (credit) en la cuenta corriente: los cargos llegan por correo y se duplicarían. Mueve el saldo de la cuenta. Un abono confirmado independiente (sin incomeId) participa una sola vez en el ajuste de ingresos del ciclo; uno vinculado a fuente se considera desde la fuente y no se suma dos veces. No la uses para planificar algo futuro (usa ingresos, recurrentes o cuotas) ni para pagar una cuota (usa lucaplan_pagar_cuota o lucaplan_vincular_pago_cuota).",
     transactionSchema
       .extend({
         accountId: ref("Cuenta del movimiento"),
@@ -562,7 +562,7 @@ export const pluginTools = {
   ),
   lucaplan_registrar_ingreso_extraordinario: write(
     { title: "Registrar ingreso extraordinario", destructive: true },
-    "Registra un abono real único en cuenta corriente y categoría de ingreso, sin generar una fuente mensual recurrente. No registrar transferencias entre cuentas propias como ingresos. Verifica antes que no exista el abono. Idempotente por operationId.",
+    "Registra un abono real único en cuenta corriente y categoría de ingreso, sin generar una fuente mensual recurrente. No registrar transferencias entre cuentas propias como ingresos. Los abonos confirmados sin fuente de ingreso vinculada sí cuentan para ajustar el presupuesto del ciclo; si ya están vinculados a una fuente, no vuelvas a sumarlos. Verifica antes que no exista el abono. Idempotente por operationId.",
     z.strictObject({
       accountId: ref("Cuenta corriente"),
       categoryId: ref("Categoría de ingreso"),
@@ -639,7 +639,7 @@ export const pluginTools = {
   ),
   lucaplan_ver_presupuesto: read(
     "Ver presupuesto del mes",
-    "Úsala para ver el límite global y el tope, gastado, comprometido y disponible de cada categoría en un mes (actual, pasado o futuro). Los topes se heredan del último mes definido (carry-forward). Todo en CLP; los gastos USD entran convertidos de forma referencial. Los movimientos internos no consumen presupuesto.",
+    "Úsala para ver el límite global y el tope, gastado, comprometido y disponible de cada categoría en un mes (actual, pasado o futuro). Los topes se heredan del último mes definido (carry-forward). Todo en CLP; los gastos USD entran convertidos de forma referencial. Los movimientos internos no consumen presupuesto. Para ajustar el límite global: fuentes de ingreso vigentes + abonos confirmados independientes (sin incomeId), sin duplicar los abonos vinculados a ingresos planificados.",
     z.strictObject(period)
   ),
   lucaplan_fijar_presupuesto_global: write(
@@ -956,7 +956,7 @@ export const pluginTools = {
   // --- Planificación ---
   lucaplan_planificar_periodo: read(
     "Planificar período",
-    "Úsala para planificar un mes actual o futuro: posición de hoy por moneda (caja, sobregiro usado y disponible, deuda y cupo de tarjetas), ingresos esperados vs registrados, recurrentes esperadas vs pagadas, cuotas que vencen, movimientos confirmados con fecha futura y el presupuesto como tope. Separado por moneda y sin doble conteo. Solo lectura: no crea movimientos ni pagos y no cambia saldos. En modo card_cycle devuelve creditCycleCoverage con los ingresos del ciclo anterior que sirven para pagar su factura después del cierre, e indica los pendientes de registro. No atribuyas automáticamente al ciclo actual el sueldo recibido después del cierre anterior; evita duplicar ingresos entre facturaciones. El estado registrado_en_app no prueba recepción bancaria.",
+    "Úsala para planificar un mes actual o futuro: posición de hoy por moneda (caja, sobregiro usado y disponible, deuda y cupo de tarjetas), ingresos esperados vs registrados, recurrentes esperadas vs pagadas, cuotas que vencen, movimientos confirmados con fecha futura y el presupuesto como tope. Los abonos confirmados independientes aumentan el ingreso del período una sola vez; los vinculados a fuentes planificadas no vuelven a sumarse. Separado por moneda y sin doble conteo. Solo lectura: no crea movimientos ni pagos y no cambia saldos. En modo card_cycle devuelve creditCycleCoverage con los ingresos del ciclo anterior que sirven para pagar su factura después del cierre, e indica los pendientes de registro. No atribuyas automáticamente al ciclo actual el sueldo recibido después del cierre anterior; evita duplicar ingresos entre facturaciones. El estado registrado_en_app no prueba recepción bancaria.",
     z.strictObject(period)
   ),
 

@@ -11,6 +11,7 @@
 // Qué es de quién: la autorización, el delta y la suscripción son del BUZÓN; el snapshot, los
 // instrumentos y los mensajes omitidos son del VÍNCULO con cada banco.
 import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
+import { todayKey } from "../../../shared/today.ts"
 import type {
   BucketKind,
   CardType,
@@ -159,11 +160,12 @@ export interface EmailSetupStore {
     bankId: string
   ): Promise<{ accounts: EmailStoredAccount[]; buckets: EmailStoredBucket[] }>
   // Upsert idempotente por (accountId, externalId) preservando categoría; devuelve los externalId
-  // que resultaron NUEVOS (la proyección se aplica una sola vez por movimiento).
+  // que resultaron NUEVOS (la proyección se aplica una sola vez por movimiento) y los que no
+  // escribió por ambiguos frente a altas conciliadas (se omiten y se cuentan en `skipped`).
   upsertMovements(
     userId: string,
     movements: ResolvedEmailMovement[]
-  ): Promise<{ createdExternalIds: string[] }>
+  ): Promise<{ createdExternalIds: string[]; ambiguousExternalIds: string[] }>
   updateBucketAmounts(
     bucketId: string,
     amounts: BucketAmounts & { asOf: Date; reconciledAt?: Date }
@@ -1191,10 +1193,11 @@ async function importIntoLink(
     }
   }
 
-  const { createdExternalIds } = await deps.store.upsertMovements(
+  const { createdExternalIds, ambiguousExternalIds } = await deps.store.upsertMovements(
     link.userId,
     resolved.map(m => ({ ...m, bankReceivedAt: byExternalId.get(m.externalId)?.receivedAt }))
   )
+  skipped += ambiguousExternalIds.length
 
   // Proyección: SOLO movimientos nuevos y posteriores al snapshot vigente mueven los buckets
   // (reprocesos por webhook/delta no descuentan dos veces).
@@ -1209,7 +1212,7 @@ async function importIntoLink(
     if (
       !createdSet.has(mov.externalId) ||
       event.receivedAt.getTime() <= (buckets.find(b => b.id === mov.bucketId)?.reconciledAt?.getTime() ?? reconciledAt) ||
-      (buckets.find(b => b.id === mov.bucketId)?.reconciledAt && mov.date.toISOString().slice(0,10) < new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(buckets.find(b => b.id === mov.bucketId)!.reconciledAt!))
+      (buckets.find(b => b.id === mov.bucketId)?.reconciledAt && mov.date.toISOString().slice(0,10) < todayKey(buckets.find(b => b.id === mov.bucketId)!.reconciledAt!))
     )
       continue
     // Pata de caja del pago de tarjeta: débito a la corriente de origen; el resto (incl. la pata de
@@ -1258,7 +1261,7 @@ async function importIntoLink(
     }))
 
   return {
-    imported: resolved.length,
+    imported: resolved.length - ambiguousExternalIds.length,
     skipped,
     created: createdExternalIds,
     notifiable,

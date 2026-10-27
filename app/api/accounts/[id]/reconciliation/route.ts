@@ -1,7 +1,10 @@
 import { z } from "zod"
 import { bankReconciliationSchema } from "@/lib/schemas/bank-reconciliation"
-import { withUser } from "@/arch/v1/presentation/finance/finance-http"
-import { reconcileBankAccount } from "@/arch/v1/infrastructure/database/prisma/bank-reconciliation.infrastructure"
+import {
+  withUser,
+  financeDeps,
+} from "@/arch/v1/presentation/finance/finance-http"
+import { reconcileBankAccount } from "@/arch/v1/application/finance-use-cases/bank-reconciliation"
 
 const schema = bankReconciliationSchema
   .omit({ accountId: true })
@@ -12,8 +15,11 @@ export async function POST(
 ) {
   const { id } = await ctx.params
   return withUser(req, async (userId) => {
-    const { previewToken, ...input } = schema.parse(await req.json())
+    const { previewToken, ...input } = schema.parse(
+      await req.json().catch(() => ({}))
+    )
     return reconcileBankAccount(
+      financeDeps,
       userId,
       { ...input, accountId: id },
       previewToken

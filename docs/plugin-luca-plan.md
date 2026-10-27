@@ -225,18 +225,23 @@ identidad, externalId, categoría elegida y vínculos. No reemplazan el movimien
 Los cambios se guardan en una transacción serializable con auditoría y recibo idempotente.
 La sincronización y la conciliación toman un bloqueo PostgreSQL común por usuario.
 Un correo reprocesado no sobrescribe un movimiento conciliado. Un aviso tardío que pueda
-corresponder a un alta conciliada se vincula solo si es inequívoco; si no, requiere revisión.
+corresponder a un alta conciliada se vincula solo si es inequívoco; si no, se omite y se cuenta
+en `skipped` (no hay cola de revisión).
 
 El corte es propio de los buckets de la cuenta, no la fecha de importación ni del último
 refresh del buzón. Se exige medir todos sus buckets, se conserva un corte bancario más
 reciente y se reproyectan únicamente movimientos confirmados posteriores. Los del día del
 corte sin hora de recepción conocida deben declararse expresamente en
 `includedSameDayIds`; los futuros del plan no son efectivo bancario ocurrido. La salida
-identifica lo que se reproyectará. Un cambio concurrente invalida el token del dry run.
+identifica lo que se reproyectará. Un cambio concurrente invalida el token del dry run, y
+también vence al cambiar el día en Chile.
 
-Los movimientos vinculados admiten corregir fecha y texto conservando sus enlaces;
-para cambiar su importe/moneda/categoría hay que revisar primero el ingreso, recurrente o cuota.
-Los reembolsos impiden bajar el gasto/abono por debajo de lo ya vinculado o cambiarlo de CLP.
+Los movimientos vinculados admiten corregir fecha y texto conservando sus enlaces; solo los
+cobros recurrentes vinculados admiten además corregir importe o moneda. Para ingresos y cuotas
+vinculados hay que revisar primero el ingreso o la cuota. Con un reembolso vinculado no se
+corrige importe ni moneda, y una transferencia interna tampoco lo admite.
+Editar el importe o la fecha de un movimiento conciliado (en la app, en el MCP o al editar su
+cuota) borra su conciliación; cambiar solo categoría o descripción la conserva.
 Las altas se rechazan si existe un candidato cercano; no se crean transferencias internas
 sin sus dos patas. Las categorías se eligen con evidencia del usuario, nunca por adivinación.
 

@@ -607,7 +607,9 @@ export const pluginTools = {
         date: transactionUpdateSchema.shape.date
           .max(40)
           .describe("Fecha YYYY-MM-DD"),
-        amount: transactionUpdateSchema.shape.amount.describe(money()),
+        amount: transactionUpdateSchema.shape.amount.describe(
+          "Monto en la moneda del movimiento (no se convierte): CLP en pesos enteros (25000), USD con hasta 2 decimales (12.5)"
+        ),
         direction: transactionUpdateSchema.shape.direction.describe(
           "debit = gasto; credit = ingreso"
         ),

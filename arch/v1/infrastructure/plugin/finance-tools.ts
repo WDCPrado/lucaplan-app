@@ -1,4 +1,5 @@
-import { reconcileBankAccount } from "../database/prisma/bank-reconciliation.infrastructure.ts"
+import { bankReconciliationStore } from "../database/prisma/bank-reconciliation.infrastructure.ts"
+import { reconcileBankAccount } from "../../application/finance-use-cases/bank-reconciliation.ts"
 import type {
   PluginActor,
   PluginJsonValue,
@@ -10,9 +11,11 @@ import type {
 import { Money } from "../../domain/finance/money.ts"
 import { calculateFinancialOverview } from "../../../../lib/financial-health.ts"
 import { reconcileBankRows } from "../../../../lib/bank-reconciliation.ts"
-import { NotOwnerError } from "../../domain/finance/finance.domain.ts"
+import { isSameBankMovement } from "../../domain/finance/bank-reconciliation.domain.ts"
+import { NotOwnerError, type Transaction } from "../../domain/finance/finance.domain.ts"
 import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
 import { prisma } from "../database/prisma/client.ts"
+import { Prisma } from "../database/prisma/generated/client.ts"
 import {
   accountRepository,
   bankRepository,
@@ -128,7 +131,13 @@ const deps = {
   budgetAlerts: budgetAlertRepository,
   dueReminder: dueReminderRepository,
   paceFrequency: paceFrequencyRepository,
+  bankReconciliation: bankReconciliationStore,
 }
+
+// Un movimiento registrado como clave de `isSameBankMovement` (día civil UTC).
+const bankKey = (t: Transaction) => ({ date: t.date.toISOString().slice(0, 10),
+  direction: t.direction, amount: t.amount.toMajor(), currency: t.amount.currency,
+  description: t.description })
 
 // Confirmación de borrado de cuenta: hash del estado y firma con el secreto del servidor.
 const deletionDeps = {
@@ -337,8 +346,8 @@ const handlers: Handlers = {
     searchPluginTransactions(userId, input),
   lucaplan_crear_movimiento: (userId, input) =>
     createTransaction(deps, userId, { ...input, date: new Date(input.date) }),
-  lucaplan_previsualizar_conciliacion: (userId, input) => reconcileBankAccount(userId, input),
-  lucaplan_aplicar_conciliacion: (userId, { previewToken, ...input }) => reconcileBankAccount(userId, input, previewToken),
+  lucaplan_previsualizar_conciliacion: (userId, input) => reconcileBankAccount(deps, userId, input),
+  lucaplan_aplicar_conciliacion: (userId, { previewToken, ...input }) => reconcileBankAccount(deps, userId, input, previewToken),
   lucaplan_conciliar_cartola: async (userId, input) => {
     const account = await deps.accounts.findById(input.accountId)
     if (!account || account.userId !== userId) throw new PluginReferenceError("accountId")
@@ -392,8 +401,9 @@ const handlers: Handlers = {
     const existing = await deps.transactions.listByUserPeriod(userId, {
       start:start.toISOString().slice(0,10),end:end.toISOString().slice(0,10),
     })
-    if (existing.some(t=> t.accountId===input.accountId && t.direction==="credit" &&
-      t.status==="confirmed" && t.amount.currency===input.currency && t.amount.toMajor()===input.amount))
+    if (existing.some(t=> t.accountId===input.accountId && t.status==="confirmed" &&
+      isSameBankMovement(bankKey(t), {date:input.date,direction:"credit",amount:input.amount,
+        currency:input.currency,description:input.description}, {days:1,match:"amount"})))
       throw new PluginRejection("Ya existe un abono del mismo monto en fecha cercana; no se creó ingreso")
     const tx = await createTransaction(deps,userId,{...input, direction:"credit",date})
     return {transactionId:tx.id,created:true}
@@ -419,9 +429,10 @@ const handlers: Handlers = {
       end: after.toISOString().slice(0,10),
     })
     if (matches.some((t) =>
-      t.accountId === input.accountId && t.direction === "debit" &&
+      t.accountId === input.accountId &&
       t.status !== "reversed" && t.status !== "duplicated" &&
-      t.amount.currency === input.currency && t.amount.toMajor() === input.amount
+      isSameBankMovement(bankKey(t), { date: input.date, direction: "debit", amount: input.amount,
+        currency: input.currency, description }, { days: 1, match: "amount" })
     ))
       throw new PluginRejection("Posible duplicado: ya existe un cargo del mismo monto en esta cuenta dentro de ±1 día. Revisa sus movimientos antes de importar; no se creó un cargo nuevo")
     if (input.categoryId) {
@@ -448,10 +459,13 @@ const handlers: Handlers = {
       throw new PluginRejection("Fecha inválida")
     if (tx.incomeId)
       throw new PluginRejection("Es un ingreso generado desde una fuente mensual: la fecha debe corregirse desde el flujo de ingresos para conservar su ciclo de origen; no se modificó nada")
+    // Otra fecha ya no es la que conciliaba la cartola: se borra la conciliación (WDC-123).
+    const dateChanged = tx.date.toISOString().slice(0, 10) !== input.date
     const updated = await prisma.transaction.updateMany({
       where: { id: tx.id, userId, externalId: null,
         installmentItemId: null, recurringTemplateId: null, incomeId: null },
-      data: { transactionDate: changedDate, description: input.description.trim() },
+      data: { transactionDate: changedDate, description: input.description.trim(),
+        ...(dateChanged ? { reconciliation: Prisma.DbNull } : {}) },
     })
     if (updated.count !== 1)
       throw new PluginRejection("Movimiento cambiado por otra operación; vuelve a consultarlo")

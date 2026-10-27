@@ -1,6 +1,18 @@
+import { createHash } from "node:crypto"
 import type { BankReconciliationInput } from "../../../../lib/schemas/bank-reconciliation.ts"
+import { canonicalJson } from "../../../shared/canonical-json.ts"
+import { todayKey } from "../../../shared/today.ts"
 import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
+import { NotOwnerError } from "../../domain/finance/finance.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
+import {
+  canReconcileCorrection,
+  isSameBankMovement,
+  type BankReconciliationPlan,
+  type BankReconciliationStore,
+  type ReconciliationMovement,
+  type ReconciliationState,
+} from "../../domain/finance/bank-reconciliation.domain.ts"
 import {
   applyDebitToCash,
   applyInternalCredit,
@@ -8,44 +20,14 @@ import {
   applyInternalPayment,
 } from "./email-projection.ts"
 
-export type ReconciliationMovement = {
-  id: string
-  date: string
-  description: string
-  amount: number
-  currency: string
-  direction: string
-  categoryId: string | null
-  bucketId: string | null
-  status: string
-  isInternal: boolean
-  bankReceivedAt: string | null
-  recurringOnly?: boolean
-  linked: boolean
-  reimbursementAmount: number
-  updatedAt: string
-}
-export type ReconciliationState = {
-  accountType: string
-  buckets: {
-    id: string
-    kind: string
-    currency: string
-    reconciledAt: string | null
-  }[]
-  movements: ReconciliationMovement[]
-  categories: { id: string; type: string }[]
-}
+export type {
+  ReconciliationMovement,
+  ReconciliationState,
+} from "../../domain/finance/bank-reconciliation.domain.ts"
+
 const reject = (message: string): never => {
   throw new EmailSetupStateError(message)
 }
-const civil = (timestamp: string) =>
-  new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Santiago",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(timestamp))
 const precise = (amount: number, currency: string) =>
   Number.isFinite(amount) &&
   Number.isSafeInteger(Math.round(amount * (currency === "CLP" ? 1 : 100))) &&
@@ -59,11 +41,11 @@ export function planBankReconciliation(
   state: ReconciliationState,
   input: BankReconciliationInput,
   now: Date
-) {
+): BankReconciliationPlan {
   if (new Date(input.snapshotAt) > now)
     reject("El corte bancario no puede estar en el futuro")
-  const cutoffDay = civil(input.snapshotAt)
-  const today = civil(now.toISOString())
+  const cutoffDay = todayKey(new Date(input.snapshotAt))
+  const today = todayKey(now)
   if (!["checking", "credit_card"].includes(state.accountType))
     reject("Solo corriente o tarjeta")
   const expectedKinds =
@@ -166,13 +148,15 @@ export function planBankReconciliation(
         "El movimiento está vinculado a un ingreso, recurrente o cuota: conserva importe, moneda y categoría o concilia primero su plan"
       )
     if (
-      old.reimbursementAmount &&
-      (c.currency !== "CLP" || c.amount < old.reimbursementAmount)
+      (old.currency !== c.currency || old.amount !== c.amount) &&
+      !canReconcileCorrection(old)
     )
-      reject("La corrección invalidaría reembolsos vinculados")
-    if (old.isInternal && old.currency !== c.currency)
       reject(
-        "No cambiar moneda de una transferencia interna sin conciliar ambas patas"
+        old.reimbursementAmount
+          ? "La corrección invalidaría reembolsos vinculados"
+          : old.isInternal
+            ? "No cambiar importe ni moneda de una transferencia interna sin conciliar ambas patas"
+            : "El movimiento está vinculado a un ingreso o cuota: conserva importe y moneda o concilia primero su plan"
       )
     return {
       before: old,
@@ -203,18 +187,8 @@ export function planBankReconciliation(
     )
       reject("Categoría inválida")
     // Conservador: incluso otra moneda del mismo comercio es candidata, no un alta automática.
-    const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "")
-    const similar = (m: {
-      date: string
-      direction: string
-      currency: string
-      amount: number
-      description: string
-    }) =>
-      m.direction === a.direction &&
-      Math.abs(Date.parse(m.date) - Date.parse(a.date)) <= 4 * 86400000 &&
-      ((m.currency === a.currency && m.amount === a.amount) ||
-        norm(m.description) === norm(a.description))
+    const similar = (m: Parameters<typeof isSameBankMovement>[1]) =>
+      isSameBankMovement(a, m, { days: 4, match: "amountOrDescription" })
     // Las altas del mismo lote no tienen identidad persistida: resolver en lotes separados.
     if (input.additions.slice(0, index).some(similar))
       reject(
@@ -327,4 +301,46 @@ export function planBankReconciliation(
     snapshotAt: input.snapshotAt,
     source: input.source,
   }
+}
+
+/**
+ * Previsualiza (sin `previewToken`) o aplica la conciliación. Preview y aplicación recorren la misma
+ * validación; el token incluye el día civil de `now` (`todayKey`), así que vence al cambiar el día.
+ * Un token ya aplicado con el mismo input devuelve su recibo.
+ */
+export async function reconcileBankAccount(
+  deps: { bankReconciliation: BankReconciliationStore },
+  userId: string,
+  input: BankReconciliationInput,
+  previewToken?: string,
+  now: Date = new Date()
+): Promise<unknown> {
+  return deps.bankReconciliation.withUserLock(userId, async (tx) => {
+    if (previewToken) {
+      const receipt = await tx.findReceipt(userId, previewToken)
+      if (receipt) {
+        if (canonicalJson(receipt.input) !== canonicalJson(input))
+          throw new EmailSetupStateError("Token ya usado con otros datos")
+        return receipt.result
+      }
+    }
+    const loaded = await tx.loadState(userId, input.accountId)
+    if (!loaded) throw new NotOwnerError()
+    const { state, version, beforeBuckets } = loaded
+    const plan = {
+      ...planBankReconciliation(state, input, now),
+      beforeBuckets,
+    }
+    const token = createHash("sha256")
+      .update(
+        canonicalJson({ userId, input, state, version, day: todayKey(now) })
+      )
+      .digest("hex")
+    if (!previewToken) return { dryRun: true, previewToken: token, ...plan }
+    if (token !== previewToken)
+      throw new EmailSetupStateError(
+        "Los datos cambiaron desde la previsualización; repite el dry run"
+      )
+    return tx.apply(userId, input, plan, token, now)
+  })
 }

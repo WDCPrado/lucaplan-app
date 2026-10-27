@@ -845,7 +845,7 @@ test("confirmación vincula al bucket y no redescuenta movimientos anteriores al
         }
       },
       listInstruments: async () => ({ accounts: [], buckets: [] }),
-      upsertMovements: async () => ({ createdExternalIds: [] }),
+      upsertMovements: async () => ({ createdExternalIds: [], ambiguousExternalIds: [] }),
       updateBucketAmounts: async () => {},
       setAccountBalance: async () => {},
       markBankSynced: async () => {},
@@ -949,7 +949,7 @@ test("sync repetido es idempotente: crea y proyecta una sola vez", async () => {
           .filter((movement) => !seen.has(movement.externalId))
           .map((movement) => movement.externalId)
         createdExternalIds.forEach((id) => seen.add(id))
-        return { createdExternalIds }
+        return { createdExternalIds, ambiguousExternalIds: [] }
       },
       updateBucketAmounts: async (
         _id: string,
@@ -1038,7 +1038,7 @@ test("reproceso: relee desde la fecha, acota por remitente y no mueve el cursor 
         movements: 0,
       }),
       listInstruments: async () => ({ accounts: [], buckets: [] }),
-      upsertMovements: async () => ({ createdExternalIds: [] }),
+      upsertMovements: async () => ({ createdExternalIds: [], ambiguousExternalIds: [] }),
       updateBucketAmounts: async () => {},
       setAccountBalance: async () => {},
       markBankSynced: async () => {},
@@ -1153,7 +1153,7 @@ const syncDepsForCardPayment = (
           .filter((m) => !captured.seen.has(m.externalId))
           .map((m) => m.externalId)
         createdExternalIds.forEach((id) => captured.seen.add(id))
-        return { createdExternalIds }
+        return { createdExternalIds, ambiguousExternalIds: [] }
       },
       updateBucketAmounts: async (
         id: string,
@@ -1578,7 +1578,7 @@ test("la confirmación importa la misma ventana que mostró el escaneo", async (
           }
         },
         listInstruments: async () => ({ accounts: [], buckets: [] }),
-        upsertMovements: async () => ({ createdExternalIds: [] }),
+        upsertMovements: async () => ({ createdExternalIds: [], ambiguousExternalIds: [] }),
         updateBucketAmounts: async () => {},
         setAccountBalance: async () => {},
         markBankSynced: async () => {},
@@ -1647,7 +1647,7 @@ const disconnectDeps = (
       movements: 0,
     }),
     listInstruments: async () => ({ accounts: [], buckets: [] }),
-    upsertMovements: async () => ({ createdExternalIds: [] }),
+    upsertMovements: async () => ({ createdExternalIds: [], ambiguousExternalIds: [] }),
     updateBucketAmounts: async () => {},
     setAccountBalance: async () => {},
     markBankSynced: async () => {},
@@ -1749,7 +1749,7 @@ const reconcileDeps = (
         accounts,
         buckets: storedBuckets ?? bucketsFor(accounts),
       }),
-      upsertMovements: async () => ({ createdExternalIds: [] }),
+      upsertMovements: async () => ({ createdExternalIds: [], ambiguousExternalIds: [] }),
       updateBucketAmounts: async (bucketId: string) => {
         escrito.buckets.push(bucketId)
       },

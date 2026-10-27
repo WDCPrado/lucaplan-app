@@ -213,7 +213,7 @@ function depsFor(
         const list = captured.byBank.get(currentBank) ?? []
         list.push(...movements.map((m) => m.description))
         captured.byBank.set(currentBank, list)
-        return { createdExternalIds: movements.map((m) => m.externalId) }
+        return { createdExternalIds: movements.map((m) => m.externalId), ambiguousExternalIds: [] }
       },
       updateBucketAmounts: async () => {},
       setAccountBalance: async () => {},

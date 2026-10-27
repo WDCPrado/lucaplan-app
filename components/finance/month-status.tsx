@@ -247,8 +247,9 @@ function CycleBar({
           guardado y el del switch coinciden en tarjeta. */}
       {cycle.mode === "card_cycle" && card && (
         // En móvil, rango y cierre van en una sola fila (como en escritorio): sin las palabras
-        // «Ciclo» y «Cierra el», que el aria-label del botón conserva, cabe en 390 px.
-        <div className="flex w-full min-w-0 items-center gap-x-3 gap-y-1 sm:w-auto sm:flex-wrap">
+        // «Ciclo» y «Cierra el», que el aria-label del botón conserva, cabe en 390 px. El botón va
+        // pegado a la derecha, como el switch de abajo.
+        <div className="flex w-full min-w-0 items-center justify-between gap-x-3 gap-y-1 sm:w-auto sm:flex-wrap sm:justify-start">
           <p className="min-w-0 truncate text-sm text-muted-foreground">
             <span className="max-sm:sr-only">Ciclo </span>
             <span className="font-medium text-foreground tabular-nums">

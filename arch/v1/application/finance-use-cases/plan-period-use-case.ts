@@ -36,6 +36,7 @@ import { todayKey } from "../../../shared/today.ts"
 import { rangeOf } from "./budget-period-use-cases.ts"
 import { inRange } from "./budget-formulas.ts"
 import { effectiveIncomeAmount } from "./income-use-cases.ts"
+import { isUnlinkedIncome } from "../../../../lib/unlinked-income-total.ts"
 import { getBudgetView } from "./finance-read.ts"
 
 const CURRENCIES: CurrencyCode[] = ["CLP", "USD"]
@@ -141,6 +142,15 @@ export async function getPeriodPlan(
       currency: amount.currency,
       status: received ? "registrado" : "esperado",
     })
+  }
+
+  // Abonos reales independientes: incrementan la capacidad del ciclo una sola vez.
+  // Los vinculados a Income ya fueron incluidos arriba como fuente planificada.
+  for (const t of txs) {
+    if (!isUnlinkedIncome(t)) continue
+    const c = totals(t.amount.currency).income
+    c.expected = c.expected.add(t.amount)
+    c.done = c.done.add(t.amount)
   }
 
   // Recurrentes: cada período cuya fecha de ejecución cae en el rango, con su estado real.

@@ -140,6 +140,7 @@ export type TransactionDTO = {
   date: string
   status: string // confirmed | pending | reversed | duplicated (solo confirmed cuenta)
   isInternal?: boolean // ajuste de saldo; no participa en ingresos, gastos ni presupuesto
+  incomeId?: string | null // permite evitar contar dos veces abonos vinculados a una fuente
   categoryId: string | null
   categoryName: string | null
   categoryIcon: string | null
@@ -218,6 +219,7 @@ function txToDTO(
     date: t.date.toISOString(),
     status: t.status,
     isInternal: t.isInternal,
+    incomeId: t.incomeId ?? null,
     categoryId: t.categoryId,
     categoryName: cat?.name ?? null,
     categoryIcon: cat?.icon ?? null,

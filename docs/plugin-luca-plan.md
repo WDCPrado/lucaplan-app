@@ -117,6 +117,18 @@ Todas llevan el prefijo `lucaplan_`. Cómo se navega: **buscar o listar → ver 
   `error_description`). Sin el scope, la herramienta responde con
   `_meta["mcp/www_authenticate"]` y `error="insufficient_scope"`.
 
+## Ingresos para el ajuste del plan
+
+El importe que se ofrece con **Ajustar plan** es la suma de las fuentes de ingreso
+vigentes del período **más** las transacciones `credit` confirmadas del mismo
+período que no estén vinculadas a una fuente (`incomeId = null`). Un abono
+vinculado a una fuente ya está representado por ella y **no se vuelve a sumar**.
+Quedan excluidos movimientos internos, pendientes, anulados, duplicados,
+cuotas y recurrentes que el plan contabiliza por separado. La selección temporal
+respeta modo calendario o ciclo de tarjeta. Esta regla también aplica a
+`lucaplan_planificar_periodo`, sin crear ingresos ficticios ni modificar saldos.
+No confundas el ingreso planificado con la acreditación bancaria confirmada.
+
 ## Reglas de escritura
 
 - Todas las escrituras llevan un `operationId` elegido por el cliente. Las lecturas (incluidas la

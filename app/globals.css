@@ -393,6 +393,17 @@ html:has(main[data-landing]) body {
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
+  /* Con black-translucent el contenido pasa bajo la barra de estado e iOS lo difumina (franja
+     borrosa al scrollear). Una franja sólida del fondo tapa esa zona; bajo los modales (z-50). */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0 0 auto;
+    height: env(safe-area-inset-top);
+    background: var(--background);
+    z-index: 40;
+    pointer-events: none;
+  }
   .pwa-safe-top {
     padding-top: max(env(safe-area-inset-top), 0.75rem);
   }

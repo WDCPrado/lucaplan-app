@@ -375,6 +375,7 @@ function NavMenu({
           >
             <Link
               href={href}
+              prefetch
               onClick={() => {
                 haptic("light")
                 onNavigate?.(key)
@@ -448,6 +449,7 @@ function BottomNav({
           <Link
             key={key}
             href={href}
+            prefetch
             aria-current={isActive ? "page" : undefined}
             onClick={(e) => {
               haptic("light")

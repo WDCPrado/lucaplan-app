@@ -57,7 +57,9 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Luca Plan",
-    statusBarStyle: "black-translucent",
+    // "default" y no "black-translucent": translúcida, la página queda bajo la barra de estado e
+    // iOS 26 difumina esa zona (y los botones del header) sin forma de apagarlo desde la web.
+    statusBarStyle: "default",
   },
 }
 

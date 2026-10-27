@@ -1,4 +1,4 @@
-// Editar un movimiento conciliado (WDC-123): tocar importe, moneda o fecha borra su conciliación;
+// Editar un movimiento conciliado (WDC-123): tocar importe o fecha borra su conciliación;
 // tocar solo categoría o descripción la conserva. Contrato propuesto: `UpdateTransaction`
 // lleva `clearReconciliation?: boolean` y el repo deja `reconciliation` en null cuando es true.
 // Corre con: node --test arch/v1/application/finance-use-cases/update-transaction-reconciliation.test.ts
@@ -69,7 +69,7 @@ const edit = (over: Partial<Parameters<typeof updateTransaction>[2]> = {}) => ({
   ...over,
 })
 
-test("editar el importe, la fecha o la moneda de un movimiento conciliado le quita la conciliación; cambiar solo categoría o descripción la conserva", async () => {
+test("editar el importe o la fecha de un movimiento conciliado le quita la conciliación; cambiar solo categoría o descripción la conserva", async () => {
   // Importe: un peso de diferencia ya cuenta.
   const importe = depsWith(conciliado())
   await updateTransaction(importe.deps, "u1", edit({ amount: 12991 }))
@@ -80,10 +80,18 @@ test("editar el importe, la fecha o la moneda de un movimiento conciliado le qui
   await updateTransaction(fecha.deps, "u1", edit({ date: new Date("2026-10-07") }))
   assert.equal(fecha.row.reconciliation, null, "fecha")
 
-  // Moneda: conciliado en USD sobre una tarjeta en CLP; editarlo lo guarda en CLP.
-  const moneda = depsWith(conciliado({ amount: Money.of(13.5, "USD") }))
-  await updateTransaction(moneda.deps, "u1", edit({ amount: 13.5 }))
-  assert.equal(moneda.row.reconciliation, null, "moneda")
+  // Moneda: conciliado en USD sobre una tarjeta en CLP; editarlo lo deja en USD, sin conversión
+  // ni cambio del saldo CLP. Editar solo la descripción conserva la conciliación.
+  const usd = depsWith(conciliado({ amount: Money.of(13.5, "USD") }))
+  await updateTransaction(usd.deps, "u1", edit({ amount: 13.5, description: "AMAZON" }))
+  assert.deepEqual(usd.row.tx.amount, Money.of(13.5, "USD"), "sigue en USD con el mismo importe")
+  assert.deepEqual(account.balance, Money.of(0, "CLP"), "saldo CLP sin cambio")
+  assert.notEqual(usd.row.reconciliation, null, "USD: solo descripción la conserva")
+  // Editar su importe sí la borra.
+  const usdImporte = depsWith(conciliado({ amount: Money.of(13.5, "USD") }))
+  await updateTransaction(usdImporte.deps, "u1", edit({ amount: 14 }))
+  assert.deepEqual(usdImporte.row.tx.amount, Money.of(14, "USD"), "nuevo importe en USD")
+  assert.equal(usdImporte.row.reconciliation, null, "USD: importe la borra")
 
   // Solo categoría y descripción, misma fecha civil e importe: se conserva.
   const meta = depsWith(conciliado())

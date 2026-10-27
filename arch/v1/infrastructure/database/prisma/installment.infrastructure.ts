@@ -3,6 +3,7 @@
 // —no una comprobación previa sujeta a carrera—: por eso escribir sobre un ítem ya saldado devuelve
 // `false` en vez de crear un segundo movimiento.
 import { prisma } from "./client.ts"
+import { Prisma } from "./generated/client.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import {
   type InstallmentKind,
@@ -193,16 +194,28 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
             amount: u.amount.toDecimalString(),
             ...(u.dueDate ? { dueDate: u.dueDate } : {}),
           },
-          include: { transaction: { select: { id: true } } },
+          include: {
+            transaction: {
+              select: { id: true, amount: true, transactionDate: true },
+            },
+          },
         })
-        if (item.transaction)
+        const tx = item.transaction
+        if (tx) {
+          // Otro importe o día ya no es lo que concilió la cartola: se borra la conciliación.
+          const day = (d: Date) => d.toISOString().slice(0, 10)
+          const changed =
+            !tx.amount.equals(u.amount.toDecimalString()) ||
+            (!!u.dueDate && day(u.dueDate) !== day(tx.transactionDate))
           await db.transaction.update({
-            where: { id: item.transaction.id },
+            where: { id: tx.id },
             data: {
               amount: u.amount.toDecimalString(),
               ...(u.dueDate ? { transactionDate: u.dueDate } : {}),
+              ...(changed ? { reconciliation: Prisma.DbNull } : {}),
             },
           })
+        }
       }
     })
   },

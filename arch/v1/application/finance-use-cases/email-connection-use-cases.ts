@@ -161,11 +161,11 @@ export interface EmailSetupStore {
   ): Promise<{ accounts: EmailStoredAccount[]; buckets: EmailStoredBucket[] }>
   // Upsert idempotente por (accountId, externalId) preservando categoría; devuelve los externalId
   // que resultaron NUEVOS (la proyección se aplica una sola vez por movimiento) y los que no
-  // escribió por ambiguos frente a altas conciliadas (quedan omitidos para revisión).
+  // escribió por ambiguos frente a altas conciliadas (se omiten y se cuentan en `skipped`).
   upsertMovements(
     userId: string,
     movements: ResolvedEmailMovement[]
-  ): Promise<{ createdExternalIds: string[]; ambiguousExternalIds?: string[] }>
+  ): Promise<{ createdExternalIds: string[]; ambiguousExternalIds: string[] }>
   updateBucketAmounts(
     bucketId: string,
     amounts: BucketAmounts & { asOf: Date; reconciledAt?: Date }
@@ -1193,7 +1193,7 @@ async function importIntoLink(
     }
   }
 
-  const { createdExternalIds, ambiguousExternalIds = [] } = await deps.store.upsertMovements(
+  const { createdExternalIds, ambiguousExternalIds } = await deps.store.upsertMovements(
     link.userId,
     resolved.map(m => ({ ...m, bankReceivedAt: byExternalId.get(m.externalId)?.receivedAt }))
   )

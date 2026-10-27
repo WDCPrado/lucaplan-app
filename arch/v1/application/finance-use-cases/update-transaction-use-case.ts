@@ -25,7 +25,7 @@ import {
 export type UpdateTransactionInput = {
   transactionId: string
   description: string
-  amount: number // unidad mayor, en la moneda de la cuenta
+  amount: number // unidad mayor, en la moneda del movimiento
   direction: Direction
   categoryId: string | null
   date: Date
@@ -88,15 +88,14 @@ export async function updateTransaction(
   userId: string,
   input: UpdateTransactionInput
 ): Promise<Transaction> {
-  const { tx, account } = await loadEditable(deps, userId, input.transactionId)
+  const { tx } = await loadEditable(deps, userId, input.transactionId)
   if (!input.categoryId && tx.recurringTemplateId)
     throw new RecurringCategoryRequiredError()
-  const amount = Money.of(input.amount, account.currency) // misma moneda de la cuenta
+  // Conserva la moneda del movimiento: uno en USD en una tarjeta CLP sigue en USD (sin conversión).
+  const amount = Money.of(input.amount, tx.amount.currency)
   // Movimiento de una cuota: la categoría es del plan (no puede quedar sin ella) y el monto es un
   // espejo del cronograma — se corrige en el plan, que sincroniza el movimiento, nunca al revés.
-  // Moneda antes que importe: `compare` entre monedas distintas lanza.
-  const amountChanged =
-    amount.currency !== tx.amount.currency || amount.compare(tx.amount) !== 0
+  const amountChanged = amount.compare(tx.amount) !== 0
   if (tx.installmentItemId) {
     if (!input.categoryId) throw new InstallmentCategoryRequiredError()
     if (amountChanged) throw new InstallmentAmountReadOnlyError()
@@ -109,7 +108,7 @@ export async function updateTransaction(
     amount,
     direction: input.direction,
     categoryId: input.categoryId,
-    // Otro importe, moneda o día ya no es lo que concilió la cartola; categoría y descripción sí.
+    // Otro importe o día ya no es lo que concilió la cartola; categoría y descripción sí.
     clearReconciliation: amountChanged || dayOf(input.date) !== dayOf(tx.date),
   })
   // Recategorizar una cuota recategoriza su plan completo, igual que desde el modal conectado.

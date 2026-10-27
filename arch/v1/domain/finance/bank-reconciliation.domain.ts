@@ -184,3 +184,40 @@ export function isSameBankMovement(
     ? amount || merchant
     : amount && merchant
 }
+
+/** Qué hacer con un aviso por correo: ver `decideEmailNotice`. */
+export type EmailNoticeDecision =
+  | { kind: "keep" }
+  | { kind: "link"; id: string }
+  | { kind: "ambiguous" }
+  | { kind: "create" }
+  | { kind: "update" }
+
+/**
+ * Regla única del aviso por correo. `previous` es la fila con su mismo externalId (o null);
+ * `nearby`, las altas conciliadas sin externalId de la misma cuenta y dirección a ±4 días.
+ * - fila previa conciliada → `keep`: la cartola prevalece sobre el aviso reprocesado.
+ * - fila previa sin conciliar → `update`.
+ * - sin fila previa: un solo candidato (importe o comercio) que coincide en importe Y comercio →
+ *   `link` (se le pone el externalId); cualquier otro candidato → `ambiguous` (no se escribe);
+ *   ninguno → `create`.
+ */
+export function decideEmailNotice(
+  notice: BankMovementKey,
+  previous: { reconciled: boolean } | null,
+  nearby: (BankMovementKey & { id: string })[]
+): EmailNoticeDecision {
+  if (previous) return previous.reconciled ? { kind: "keep" } : { kind: "update" }
+  const candidates = nearby.filter((c) =>
+    isSameBankMovement(notice, c, { days: 4, match: "amountOrDescription" })
+  )
+  if (
+    candidates.length === 1 &&
+    isSameBankMovement(notice, candidates[0], {
+      days: 4,
+      match: "amountAndDescription",
+    })
+  )
+    return { kind: "link", id: candidates[0].id }
+  return candidates.length ? { kind: "ambiguous" } : { kind: "create" }
+}

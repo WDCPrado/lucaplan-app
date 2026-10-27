@@ -420,12 +420,14 @@ export const transactionRepository: TransactionRepository = {
         old.currency as CurrencyCode
       )
       // Editar no cambia el estado: un pendiente sigue sin tocar la caja (cashDelta = 0). Uno en
-      // otra moneda (USD conciliado en una tarjeta CLP) no estaba en el saldo de la cuenta.
-      const oldDelta =
-        oldMoney.currency === currency
-          ? cashDelta(old.status, old.direction as Direction, oldMoney)
+      // otra moneda (USD conciliado en una tarjeta CLP) no está en el saldo de la cuenta, ni
+      // antes ni después de editarlo.
+      const delta = (direction: Direction, money: Money) =>
+        money.currency === currency
+          ? cashDelta(old.status, direction, money)
           : Money.zero(currency)
-      const newDelta = cashDelta(old.status, input.direction, input.amount)
+      const oldDelta = delta(old.direction as Direction, oldMoney)
+      const newDelta = delta(input.direction, input.amount)
       if (!oldDelta.isZero || !newDelta.isZero) {
         const balance = Money.of(account.balance.toString(), currency)
           .add(newDelta)

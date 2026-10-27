@@ -11,7 +11,8 @@ import type {
 import { Money } from "../../domain/finance/money.ts"
 import { calculateFinancialOverview } from "../../../../lib/financial-health.ts"
 import { reconcileBankRows } from "../../../../lib/bank-reconciliation.ts"
-import { NotOwnerError } from "../../domain/finance/finance.domain.ts"
+import { isSameBankMovement } from "../../domain/finance/bank-reconciliation.domain.ts"
+import { NotOwnerError, type Transaction } from "../../domain/finance/finance.domain.ts"
 import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
 import { prisma } from "../database/prisma/client.ts"
 import { Prisma } from "../database/prisma/generated/client.ts"
@@ -132,6 +133,11 @@ const deps = {
   paceFrequency: paceFrequencyRepository,
   bankReconciliation: bankReconciliationStore,
 }
+
+// Un movimiento registrado como clave de `isSameBankMovement` (día civil UTC).
+const bankKey = (t: Transaction) => ({ date: t.date.toISOString().slice(0, 10),
+  direction: t.direction, amount: t.amount.toMajor(), currency: t.amount.currency,
+  description: t.description })
 
 // Confirmación de borrado de cuenta: hash del estado y firma con el secreto del servidor.
 const deletionDeps = {
@@ -358,7 +364,7 @@ const handlers: Handlers = {
     return { results: reconcileBankRows(input.movements, existing.map(t=>({
       id:t.id, date:t.date.toISOString().slice(0,10), amount:t.amount.toMajor(),
       direction:t.direction, description:t.description,
-    })), input.currency), notice:"Previsualización sin modificaciones. Los ambiguos requieren revisión manual." }
+    }))), notice:"Previsualización sin modificaciones. Los ambiguos requieren revisión manual." }
   },
   lucaplan_importar_cargos_bancarios: async (userId, input) => {
     const results: Array<{ index:number; status:string; transactionId?:string; reason?:string }> = []
@@ -395,8 +401,9 @@ const handlers: Handlers = {
     const existing = await deps.transactions.listByUserPeriod(userId, {
       start:start.toISOString().slice(0,10),end:end.toISOString().slice(0,10),
     })
-    if (existing.some(t=> t.accountId===input.accountId && t.direction==="credit" &&
-      t.status==="confirmed" && t.amount.currency===input.currency && t.amount.toMajor()===input.amount))
+    if (existing.some(t=> t.accountId===input.accountId && t.status==="confirmed" &&
+      isSameBankMovement(bankKey(t), {date:input.date,direction:"credit",amount:input.amount,
+        currency:input.currency,description:input.description}, {days:1,match:"amount"})))
       throw new PluginRejection("Ya existe un abono del mismo monto en fecha cercana; no se creó ingreso")
     const tx = await createTransaction(deps,userId,{...input, direction:"credit",date})
     return {transactionId:tx.id,created:true}
@@ -422,9 +429,10 @@ const handlers: Handlers = {
       end: after.toISOString().slice(0,10),
     })
     if (matches.some((t) =>
-      t.accountId === input.accountId && t.direction === "debit" &&
+      t.accountId === input.accountId &&
       t.status !== "reversed" && t.status !== "duplicated" &&
-      t.amount.currency === input.currency && t.amount.toMajor() === input.amount
+      isSameBankMovement(bankKey(t), { date: input.date, direction: "debit", amount: input.amount,
+        currency: input.currency, description }, { days: 1, match: "amount" })
     ))
       throw new PluginRejection("Posible duplicado: ya existe un cargo del mismo monto en esta cuenta dentro de ±1 día. Revisa sus movimientos antes de importar; no se creó un cargo nuevo")
     if (input.categoryId) {

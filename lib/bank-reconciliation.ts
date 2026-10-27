@@ -16,12 +16,12 @@ export type Reconciliation = {
 
 // A bank line can consume at most one existing movement, even when names differ.
 // Ambiguity is intentionally not resolved by guessing.
-// Ambas filas van en `currency`: quien llama filtra los registrados por la moneda de la cartola.
-export function reconcileBankRows(bank: BankRow[], existing: RegisteredRow[], currency = "CLP"): Reconciliation[] {
+// Una sola moneda: quien llama filtra los registrados por la moneda de la cartola.
+export function reconcileBankRows(bank: BankRow[], existing: RegisteredRow[]): Reconciliation[] {
   const used = new Set<string>()
   return bank.map((b, index) => {
     const candidates = existing.filter(e => !used.has(e.id) &&
-      isSameBankMovement({ ...b, currency }, { ...e, currency }, { days: 1, match: "amount" }))
+      isSameBankMovement({ ...b, currency: "" }, { ...e, currency: "" }, { days: 1, match: "amount" }))
     if (candidates.length !== 1) {
       return { index, status: candidates.length ? "ambiguous" : "missing",
         candidateIds: candidates.map(c => c.id) }

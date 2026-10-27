@@ -5,7 +5,7 @@ import { LockBusyError } from "../../../../shared/mutex.ts"
 // Prisma ni tokens en claro.
 import { prisma } from "./client.ts"
 import { Prisma } from "./generated/client.ts"
-import { isSameBankMovement } from "../../../domain/finance/bank-reconciliation.domain.ts"
+import { decideEmailNotice } from "../../../domain/finance/bank-reconciliation.domain.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import type { BucketKind } from "../../../domain/finance/finance.domain.ts"
 import {
@@ -405,28 +405,30 @@ export const emailSetupStore: EmailSetupStore = {
             isInternal: m.isInternal,
           }
           return prisma.$transaction(async db => {
-            const previous = await db.transaction.findUnique({ where: { accountId_externalId: { accountId:m.accountId, externalId:m.externalId } } })
-            if (previous?.reconciliation) return // cartola prevalece sobre el aviso reprocesado
-            // Una alta conciliada sin externalId puede recibir su aviso después. Solo enlace inequívoco.
+            const previous = await db.transaction.findUnique({ where: { accountId_externalId: { accountId: m.accountId, externalId: m.externalId } } })
+            const key = (date: Date, amount: number, currency: string, description: string) =>
+              ({ date: date.toISOString().slice(0, 10), direction: m.direction, amount, currency, description })
+            // Una alta conciliada sin externalId puede recibir su aviso después: candidatas a ±4 días.
+            let nearby: Parameters<typeof decideEmailNotice>[2] = []
             if (!previous) {
-              const start=new Date(m.date);start.setUTCDate(start.getUTCDate()-4)
-              const end=new Date(m.date);end.setUTCDate(end.getUTCDate()+4)
-              const nearby = await db.transaction.findMany({where:{userId,accountId:m.accountId,externalId:null,reconciliation:{not:Prisma.DbNull},transactionDate:{gte:start,lte:end},direction:m.direction}})
-              const key = (date: Date, amount: number, currency: string, description: string) =>
-                ({ date: date.toISOString().slice(0, 10), direction: m.direction, amount, currency, description })
-              const notice = key(m.date, m.amount.toMajor(), m.amount.currency, m.description)
-              const candidates = nearby.filter(c => isSameBankMovement(notice,
-                key(c.transactionDate, Number(c.amount), c.currency, c.description), { days: 4, match: "amountOrDescription" }))
-              if (candidates.length === 1 && isSameBankMovement(notice,
-                key(candidates[0].transactionDate, Number(candidates[0].amount), candidates[0].currency, candidates[0].description),
-                { days: 4, match: "amountAndDescription" })) {
-                await db.transaction.update({where:{id:candidates[0].id,userId},data:{externalId:m.externalId,bankReceivedAt:m.bankReceivedAt}})
-                return
-              }
-              if (candidates.length) {
-                ambiguous.add(m.externalId)
-                return
-              }
+              const start = new Date(m.date); start.setUTCDate(start.getUTCDate() - 4)
+              const end = new Date(m.date); end.setUTCDate(end.getUTCDate() + 4)
+              const rows = await db.transaction.findMany({ where: { userId, accountId: m.accountId, externalId: null, reconciliation: { not: Prisma.DbNull }, transactionDate: { gte: start, lte: end }, direction: m.direction } })
+              nearby = rows.map((c) => ({ id: c.id, ...key(c.transactionDate, Number(c.amount), c.currency, c.description) }))
+            }
+            const decision = decideEmailNotice(
+              key(m.date, m.amount.toMajor(), m.amount.currency, m.description),
+              previous && { reconciled: !!previous.reconciliation },
+              nearby
+            )
+            if (decision.kind === "keep") return
+            if (decision.kind === "link") {
+              await db.transaction.update({ where: { id: decision.id, userId }, data: { externalId: m.externalId, bankReceivedAt: m.bankReceivedAt } })
+              return
+            }
+            if (decision.kind === "ambiguous") {
+              ambiguous.add(m.externalId)
+              return
             }
             await db.transaction.upsert({
               where: {
@@ -443,7 +445,7 @@ export const emailSetupStore: EmailSetupStore = {
               },
               update: fields, // categoryId intacto → categoría preservada
             })
-            if (!previous) created.add(m.externalId)
+            if (decision.kind === "create") created.add(m.externalId)
           })
         })
       )

@@ -14,9 +14,10 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params
-  const body = await req.json().catch(() => ({}))
   return withUser(req, async (userId) => {
-    const { previewToken, ...input } = schema.parse(body)
+    const { previewToken, ...input } = schema.parse(
+      await req.json().catch(() => ({}))
+    )
     return reconcileBankAccount(
       financeDeps,
       userId,

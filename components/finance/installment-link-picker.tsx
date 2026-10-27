@@ -116,7 +116,7 @@ export function InstallmentLinkPicker({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por descripción"
             aria-label="Buscar movimiento"
-            className="h-10 w-full rounded-lg border border-border bg-transparent pr-3 pl-9 text-sm outline-none focus:border-primary"
+            className="h-10 w-full rounded-lg border border-border bg-transparent pr-3 pl-9 text-base outline-none focus:border-primary md:text-sm"
           />
         </div>
 

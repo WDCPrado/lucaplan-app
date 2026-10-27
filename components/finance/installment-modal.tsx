@@ -308,7 +308,7 @@ export function InstallmentModal({
                   setCountAndReset(Math.min(n, 240))
                 }}
                 aria-label="Número total de cuotas"
-                className="tabular h-10 w-20 rounded-lg border border-border bg-transparent px-3 text-right text-sm"
+                className="tabular h-10 w-20 rounded-lg border border-border bg-transparent px-3 text-right text-base md:text-sm"
               />
             </label>
             {/* Un crédito rara vez se registra desde la cuota 1: el banco dice "vas en la 5 de 49",
@@ -332,7 +332,7 @@ export function InstallmentModal({
                       setAmounts(null)
                     }}
                     aria-label="Número de la próxima cuota"
-                    className="tabular h-10 w-16 rounded-lg border border-border bg-transparent px-3 text-right text-sm"
+                    className="tabular h-10 w-16 rounded-lg border border-border bg-transparent px-3 text-right text-base md:text-sm"
                   />
                   <span className="text-muted-foreground">de {count}</span>
                 </span>
@@ -448,7 +448,7 @@ export function InstallmentModal({
                         )
                       }
                       aria-label={`Monto de la cuota ${index}`}
-                      className="tabular min-w-0 flex-1 rounded-lg bg-secondary/40 px-2 py-1.5 text-right text-sm outline-none focus:bg-secondary"
+                      className="tabular min-w-0 flex-1 rounded-lg bg-secondary/40 px-2 py-1.5 text-right text-base outline-none focus:bg-secondary md:text-sm"
                     />
                     {isOverdue ? (
                       <button

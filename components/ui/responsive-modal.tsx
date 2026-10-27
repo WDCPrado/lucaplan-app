@@ -205,6 +205,7 @@ export function ResponsiveModal({
         open={open}
         onOpenChange={handleOpenChange}
         dismissible={dismissible}
+        repositionInputs={false}
       >
         <ModalScopeContext.Provider value={scope}>
           <DrawerContent
@@ -218,7 +219,7 @@ export function ResponsiveModal({
             onSubmit={isolateModalEvent}
             className={cn(
               // Los paneles cortos usan su contenido; los largos desplazan el cuerpo sin alcanzar
-              // el notch ni tapar las acciones con el teclado.
+              // el notch. El teclado se superpone sin redimensionar ni elevar el panel.
               "h-auto rounded-t-xl bg-popover p-0 text-base before:hidden data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))]",
               className
             )}

@@ -226,6 +226,8 @@ export async function getPeriodPlan(
   // Movimientos ya registrados que no son de ninguna recurrente, cuota ni ingreso (esos ya están
   // arriba): los confirmados con fecha futura y los que el banco aún no confirma.
   for (const t of txs) {
+    // Ya agregado a income.done/expected arriba: no repetir como crédito futuro.
+    if (isUnlinkedIncome(t)) continue
     if (
       t.isInternal ||
       t.recurringTemplateId ||

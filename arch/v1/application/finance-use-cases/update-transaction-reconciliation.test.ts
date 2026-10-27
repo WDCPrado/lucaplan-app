@@ -81,11 +81,10 @@ test("editar el importe o la fecha de un movimiento conciliado le quita la conci
   assert.equal(fecha.row.reconciliation, null, "fecha")
 
   // Moneda: conciliado en USD sobre una tarjeta en CLP; editarlo lo deja en USD, sin conversión
-  // ni cambio del saldo CLP. Editar solo la descripción conserva la conciliación.
+  // (el saldo lo ajusta el adapter Prisma; no se prueba aquí). Editar solo la descripción conserva la conciliación.
   const usd = depsWith(conciliado({ amount: Money.of(13.5, "USD") }))
   await updateTransaction(usd.deps, "u1", edit({ amount: 13.5, description: "AMAZON" }))
   assert.deepEqual(usd.row.tx.amount, Money.of(13.5, "USD"), "sigue en USD con el mismo importe")
-  assert.deepEqual(account.balance, Money.of(0, "CLP"), "saldo CLP sin cambio")
   assert.notEqual(usd.row.reconciliation, null, "USD: solo descripción la conserva")
   // Editar su importe sí la borra.
   const usdImporte = depsWith(conciliado({ amount: Money.of(13.5, "USD") }))

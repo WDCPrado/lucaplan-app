@@ -34,6 +34,7 @@ import { DayStrip } from "./day-strip"
 import { FinancialHealthMeter, PlanSummary } from "./financial-health-meter"
 import { getDashboardChartPreference, type DashboardChart } from "@/lib/dashboard-chart-preference"
 import { CategoryIcon } from "./category-icons"
+import { unlinkedIncomeTotal } from "@/lib/unlinked-income-total"
 import { CategoryModal } from "./category-modal"
 import { BudgetLimitModal } from "./budget-limit-modal"
 import { CategoryDetailSheet } from "./category-detail-sheet"
@@ -336,7 +337,7 @@ export function Dashboard({
   // se ofrece actualizarlo (acción explícita, nunca automática — mismo criterio que antes).
   const activeIncomeTotal = incomes
     .filter((i) => i.isActive && i.currency === "CLP")
-    .reduce((s, i) => s + i.amount, 0)
+    .reduce((s, i) => s + i.amount, 0) + unlinkedIncomeTotal(transactions)
 
   // El servidor resuelve ambos totales con el mismo alcance que el resumen y los excedentes.
   const { spent: totalUsed, committed: totalCommitted } = budget

@@ -84,7 +84,7 @@ export function PlanSummary({ income, spent, committed, reimbursementAdjustment 
   )
 }
 
-/** Medidor: el resumen del plan y el gauge; en móvil uno sobre otro, desde `sm` lado a lado. */
+/** Medidor: resumen y gauge apilados hasta escritorio para que los montos quepan con sidebar. */
 export function FinancialHealthMeter(props: PlanInput) {
   const { income, spent, committed, reimbursementAdjustment = 0, cash, overdraftDebt } = props
   const health = calculateFinancialOverview({ income, spent, committed, reimbursementAdjustment, cash, overdraftDebt })
@@ -94,7 +94,7 @@ export function FinancialHealthMeter(props: PlanInput) {
   const thresholds = "Cubierto bajo 90%, al límite entre 90 y 100%, déficit sobre 100%."
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
       <PlanSummary {...props} />
       <div className="mx-auto w-full max-w-56 shrink-0 sm:w-56">
         <svg

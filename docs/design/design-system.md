@@ -46,10 +46,16 @@ Tres superficies, todas desde tokens de `globals.css`:
 | Superficie | Clase / token | Dónde |
 | --- | --- | --- |
 | Liquid Glass | `liquid-glass` (`--glass-fill`, `--glass-fill-large` en el sidebar) | barras, topbar, sidebar, cápsulas y botones flotantes |
-| Material regular | `material` (`--material`) y `[data-slot]` de menús, select, popover, tooltip, toasts y alertas | lo que lleva texto encima del contenido |
+| Material regular | `material` (`--material`) y `[data-slot]` de menús, select, popover, tooltip, toasts y alertas | lectura sobre contenido y aviso de refresco PWA |
 | Sólido | `card`, `--sheet`, `--sheet-cell` | contenido, listas, hojas y diálogos |
 
-`liquid-glass-active` (`--glass-active`) es la pastilla activa: el acento tiñe el fondo, no el texto.
+El vidrio usa un relleno neutro, desenfoque de 16 px y saturación de 120 %. El sidebar reutiliza el
+acabado de `liquid-glass` con más relleno. El borde combina un contorno tenue de 0.5 px con un
+reflejo localizado arriba-izquierda y un eco más débil abajo-derecha; no ilumina todo el perímetro.
+Los cinco niveles de Apariencia cambian la transparencia, conservando el desenfoque.
+
+`liquid-glass-active` (`--glass-active`, `--glass-active-shadow`) es la selección neutra de pestañas
+y sidebar: clara en light, oscura en dark. Textos e íconos conservan `foreground`.
 `scroll-edge-top` / `scroll-edge-bottom` (`--scroll-edge`, `--scroll-edge-amount`, `--scroll-edge-blur`)
 separan los controles del contenido que pasa por debajo, con un velo tenue y el mismo fundido largo
 arriba y abajo. Los controles (`input`, segmentado) usan `--glass-control` / `--glass-control-active`.
@@ -57,9 +63,10 @@ arriba y abajo. Los controles (`input`, segmentado) usan `--glass-control` / `--
 `--card-art-*` colorea el cupo sobre el arte de las tarjetas de cuenta. `--scrollbar` pinta el
 scrollbar fino de escritorio.
 
-Accesibilidad: con `prefers-reduced-transparency: reduce` todo material cae a sólido; con
-`prefers-contrast: more` el vidrio gana relleno y contorno. No se usa `prefers-reduced-motion` para
-esto (es para animaciones).
+Accesibilidad: con `prefers-reduced-transparency: reduce` todo material cae a sólido y pierde el
+desenfoque; con `prefers-contrast: more` el vidrio y su selección ganan relleno y contorno. Ambas
+apagan `--glass-reflection-opacity`, también en el sidebar y las variantes responsive. Sin soporte
+de desenfoque, los materiales caen a sólido. `prefers-reduced-motion` sigue siendo para animaciones.
 
 ## Forma y tipografía
 

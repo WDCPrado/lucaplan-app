@@ -146,21 +146,24 @@
        sidebar, topbar, cápsulas y botones flotantes). Variante «regular»: desenfoque + luminosidad;
        sin color propio. Lo grande (sidebar) un poco más opaco que lo chico (barra, botones).
        Ajustes → Apariencia (`data-glass` en <html>; por usuario, en la base: lib/appearance.ts) lo mueve: 2 (sin atributo)
-       es el vidrio por defecto (ya aclarado un 35 %); 0–1 lo aclaran más (`--glass-clear`) y 3–4 lo tiñen hacia la celda
-       sólida (`--glass-tint`). Los menús (`--material`) no se aclaran: llevan texto. */
+       es el vidrio por defecto; 0–1 lo aclaran más (`--glass-clear`) y 3–4 lo tiñen hacia la celda
+       sólida (`--glass-tint`). El desenfoque se conserva en los cinco niveles: transparencia no
+       significa dejar que las letras del fondo compitan con los controles. Los menús no se aclaran. */
     --glass-tint: 0%;
-    --glass-clear: 35%;
+    --glass-clear: 20%;
     --scroll-edge-amount: 22%; /* velo del scroll edge, suave: baja con el nivel de vidrio */
-    --glass-fill: color-mix(in oklch, color-mix(in oklch, oklch(1 0 0 / 0.6), transparent var(--glass-clear)), var(--card) var(--glass-tint));
-    --glass-fill-large: color-mix(in oklch, color-mix(in oklch, oklch(0.985 0.002 286 / 0.72), transparent var(--glass-clear)), var(--card) var(--glass-tint));
-    --glass-blur: 14px;
-    --glass-saturate: 180%;
-    --glass-highlight: oklch(1 0 0 / 0.9);           /* brillo especular del canto superior */
-    --glass-edge: oklch(0.359 0.012 285.8 / 0.12);   /* contorno fino */
-    --glass-rim: oklch(1 0 0 / 0.32);                /* luz que el canto devuelve hacia adentro */
+    --glass-fill: color-mix(in oklch, color-mix(in oklch, oklch(1 0 0 / 0.72), transparent var(--glass-clear)), var(--card) var(--glass-tint));
+    --glass-fill-large: color-mix(in oklch, color-mix(in oklch, oklch(0.985 0 0 / 0.86), transparent var(--glass-clear)), var(--card) var(--glass-tint));
+    --glass-blur: 16px;
+    --glass-saturate: 120%;
+    --glass-highlight: oklch(1 0 0 / 0.9);           /* reflejo localizado, no un aro uniforme */
+    --glass-edge: oklch(0.359 0 0 / 0.08);
+    --glass-rim: oklch(1 0 0 / 0.2);
+    --glass-reflection-opacity: 0.8;
     --glass-shadow: 0 1px 2px oklch(0.2 0.01 286 / 0.06), 0 8px 24px -6px oklch(0.2 0.01 286 / 0.16);
-    /* Estado activo dentro del vidrio: se tiñe el FONDO del control con el acento, no el texto. */
-    --glass-active: color-mix(in oklch, var(--primary) 16%, transparent);
+    /* Selección neutra: clara en light, oscura en dark; no vuelve a colorear el vidrio. */
+    --glass-active: oklch(1 0 0 / 0.72);
+    --glass-active-shadow: inset 0 0 0 0.5px var(--glass-edge), 0 1px 3px oklch(0 0 0 / 0.12);
     /* Material «regular» de iOS para lo que lleva texto encima del contenido (menús, popovers,
        select, tooltip, toasts, alertas): la misma familia, más opaco y con más desenfoque. */
     --material: color-mix(in oklch, oklch(0.985 0.002 286 / 0.86), var(--card) var(--glass-tint));
@@ -281,13 +284,15 @@ html:has(main[data-landing]) body {
     --sidebar-ring: oklch(0.624 0.206 255.5);
 
     /* Materiales */
-    --glass-fill: color-mix(in oklch, color-mix(in oklch, oklch(0.27 0.004 286 / 0.55), transparent var(--glass-clear)), var(--card) var(--glass-tint));
-    --glass-fill-large: color-mix(in oklch, color-mix(in oklch, oklch(0.25 0.004 286 / 0.7), transparent var(--glass-clear)), var(--card) var(--glass-tint));
-    --glass-highlight: oklch(1 0 0 / 0.22);
-    --glass-edge: oklch(1 0 0 / 0.08);
-    --glass-rim: oklch(1 0 0 / 0.07);
+    --glass-fill: color-mix(in oklch, color-mix(in oklch, oklch(0.32 0 0 / 0.64), transparent var(--glass-clear)), var(--card) var(--glass-tint));
+    --glass-fill-large: color-mix(in oklch, color-mix(in oklch, oklch(0.3 0 0 / 0.8), transparent var(--glass-clear)), var(--card) var(--glass-tint));
+    --glass-highlight: oklch(1 0 0 / 0.34);
+    --glass-edge: oklch(1 0 0 / 0.05);
+    --glass-rim: oklch(1 0 0 / 0.045);
+    --glass-reflection-opacity: 0.8;
     --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 8px 24px -6px oklch(0 0 0 / 0.55);
-    --glass-active: color-mix(in oklch, var(--primary) 26%, transparent);
+    --glass-active: oklch(0.1 0 0 / 0.6);
+    --glass-active-shadow: inset 0 0 0 0.5px var(--glass-edge), 0 1px 3px oklch(0 0 0 / 0.18);
     --material: color-mix(in oklch, oklch(0.26 0.004 286 / 0.84), var(--card) var(--glass-tint));
     --material-shadow: 0 0 0 0.5px var(--glass-edge), 0 12px 40px -8px oklch(0 0 0 / 0.6);
     --scroll-edge: color-mix(in oklch, var(--background) var(--scroll-edge-amount), transparent);
@@ -353,7 +358,7 @@ html:has(main[data-landing]) body {
 
 /* === Liquid Glass (iOS 26) ===
    Una sola receta para toda la capa de controles, igual en Safari, Firefox y Chrome: desenfoque con
-   saturación, relleno translúcido, brillo especular arriba, rim interior (la luz que el canto
+   saturación moderada, relleno neutro, brillo especular localizado, rim interior (la luz que el canto
    devuelve hacia adentro, solo en el borde: no toca el texto), contorno fino y sombra difusa. El
    ::before dibuja el reflejo del canto en un anillo de 1px con una luz fija arriba-izquierda (cónico:
    máximo en el canto de arriba-izquierda, un eco débil abajo-derecha).
@@ -368,9 +373,8 @@ html:has(main[data-landing]) body {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) var(--glass-refraction,);
   box-shadow:
-    inset 0 1px 0 0 var(--glass-highlight),
-    inset 0 0 0 1px var(--glass-edge),
-    inset 0 0 6px 0 var(--glass-rim),
+    inset 0 0 0 0.5px var(--glass-edge),
+    inset 0 0 8px 0 var(--glass-rim),
     var(--glass-shadow);
   &::before {
     content: "";
@@ -380,16 +384,16 @@ html:has(main[data-landing]) body {
     padding: 1px;
     background: conic-gradient(
       from 225deg,
-      transparent 0deg,
+      transparent 35deg,
       var(--glass-highlight) 90deg,
-      transparent 170deg,
-      color-mix(in oklch, var(--glass-highlight) 45%, transparent) 270deg,
-      transparent 350deg
+      transparent 145deg 215deg,
+      color-mix(in oklch, var(--glass-highlight) 35%, transparent) 270deg,
+      transparent 325deg
     );
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
-    opacity: 0.85;
+    opacity: var(--glass-reflection-opacity);
     pointer-events: none;
   }
 }
@@ -411,10 +415,17 @@ html:has(main[data-landing]) body {
     }
   }
 }
-/* Pastilla del estado activo dentro del vidrio (pestaña, segmento): el acento tiñe el fondo. */
+/* Pastilla de selección neutra, sin otro desenfoque ni refracción dentro del vidrio. */
 @utility liquid-glass-active {
   background-color: var(--glass-active);
-  box-shadow: inset 0 1px 0 0 var(--glass-highlight);
+  box-shadow: var(--glass-active-shadow);
+}
+/* Material de lectura para menús, avisos y alertas: misma saturación, más opacidad que las barras. */
+@utility material {
+  background-color: var(--material);
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--material-shadow);
 }
 /* Scroll edge effect (apple-hig/components/scroll-views): desenfoque suave y fundido del contenido
    que pasa por debajo de los controles flotantes. Uno arriba (detrás de la fila superior móvil o la
@@ -712,21 +723,16 @@ html:has(main[data-landing]) body {
    el radio de superficie. Fuera de @layer para ganarle a bg-sidebar/rounded-lg/ring/shadow que
    shadcn le pone a su panel interno (components/ui no se edita). */
 [data-variant="floating"] > [data-slot="sidebar-container"] > [data-slot="sidebar-inner"] {
+  @apply liquid-glass;
   border-radius: var(--radius-xl);
   background-color: var(--glass-fill-large);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  box-shadow:
-    inset 0 1px 0 0 var(--glass-highlight),
-    inset 0 0 0 1px var(--glass-edge),
-    inset 0 0 6px 0 var(--glass-rim),
-    var(--glass-shadow);
 }
 
-/* Nivel del vidrio elegido en Ajustes (0 = transparente, el de siempre; 4 = teñido, casi sólido).
+/* Nivel del vidrio elegido en Ajustes (0 = más transparente; 4 = teñido, casi sólido).
+   Solo cambia el relleno y el velo: el desenfoque de 16px protege la lectura en los cinco pasos.
    Más contraste y menos transparencia del sistema, abajo, siguen ganando. */
-:root[data-glass="0"] { --glass-clear: 85%; --glass-blur: 6px; --scroll-edge-amount: 0%; }
-:root[data-glass="1"] { --glass-clear: 65%; --glass-blur: 10px; --scroll-edge-amount: 10%; }
+:root[data-glass="0"] { --glass-clear: 65%; --scroll-edge-amount: 0%; }
+:root[data-glass="1"] { --glass-clear: 40%; --scroll-edge-amount: 10%; }
 :root[data-glass="3"] { --glass-clear: 0%; --glass-tint: 30%; --scroll-edge-amount: 34%; }
 :root[data-glass="4"] { --glass-clear: 0%; --glass-tint: 75%; --scroll-edge-amount: 42%; }
 
@@ -739,6 +745,9 @@ html:has(main[data-landing]) body {
     --glass-fill-large: oklch(1 0 0 / 0.94);
     --material: oklch(1 0 0 / 0.96);
     --glass-edge: oklch(0.359 0.012 285.8 / 0.45);
+    --glass-active: oklch(1 0 0);
+    --glass-active-shadow: inset 0 0 0 1px var(--glass-edge);
+    --glass-reflection-opacity: 0;
     --border: oklch(0.359 0.012 285.8 / 0.45);
   }
   .dark {
@@ -746,6 +755,9 @@ html:has(main[data-landing]) body {
     --glass-fill-large: oklch(0.2 0.004 286 / 0.95);
     --material: oklch(0.2 0.004 286 / 0.96);
     --glass-edge: oklch(1 0 0 / 0.4);
+    --glass-active: oklch(0.1 0 0);
+    --glass-active-shadow: inset 0 0 0 1px var(--glass-edge);
+    --glass-reflection-opacity: 0;
     --border: oklch(1 0 0 / 0.4);
   }
 }
@@ -758,9 +770,16 @@ html:has(main[data-landing]) body {
     --glass-blur: 0px;
     --material-blur: 0px;
     --scroll-edge-blur: 0px;
+    --glass-reflection-opacity: 0;
   }
-  .liquid-glass::before {
-    display: none;
+}
+/* Respaldo legible si el motor no puede desenfocar el fondo. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root, .dark {
+    --glass-fill: var(--card);
+    --glass-fill-large: var(--card);
+    --material: var(--card);
+    --glass-reflection-opacity: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -941,10 +960,7 @@ html:has(main[data-landing]) body {
 [data-slot="select-content"],
 [data-slot="popover-content"],
 [data-slot="tooltip-content"] {
-  background-color: var(--material);
-  backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
-  box-shadow: var(--material-shadow);
+  @apply material;
   color: var(--popover-foreground);
 }
 :is([data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="select-content"])::before {
@@ -986,14 +1002,11 @@ html:has(main[data-landing]) body {
 
 /* Alerta de iOS: angosta, centrada, título headline, mensaje en subheadline y botones lado a lado. */
 [data-slot="alert-dialog-content"] {
+  @apply material;
   max-width: min(20rem, calc(100% - 2.5rem));
   gap: 1.25rem;
   padding: 1.25rem;
   border-radius: var(--radius-sheet);
-  background-color: var(--material);
-  backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
-  box-shadow: var(--material-shadow);
 }
 [data-slot="alert-dialog-header"] {
   place-items: center;

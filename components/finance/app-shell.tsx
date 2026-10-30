@@ -499,12 +499,12 @@ function NavMenu({
     <SidebarMenu>
       {NAV.map(({ key, label, Icon, href }) => (
         <SidebarMenuItem key={key}>
-          {/* Activo: la misma pastilla translúcida y el mismo azul que la pestaña activa móvil. */}
+          {/* Activo: la misma selección neutra que la pestaña activa móvil. */}
           <SidebarMenuButton
             asChild
             isActive={activeKey === key}
             tooltip={label}
-            className="h-9 rounded-(--radius-bar-inner) text-subheadline data-active:bg-(--glass-active) data-active:font-semibold"
+            className="h-9 rounded-(--radius-bar-inner) text-subheadline data-active:bg-(--glass-active) data-active:shadow-(--glass-active-shadow) data-active:font-semibold"
           >
             <Link
               href={href}
@@ -531,7 +531,7 @@ function NavMenu({
 // destinos del sidebar y, suelta a la derecha, la búsqueda (`trailing`). La pastilla del activo
 // (concéntrica: rounded-full dentro de rounded-full) se desliza de una pestaña a otra: como la barra
 // vive en el layout y no se desmonta al navegar, basta una transición de transform. Las etiquetas
-// van en el color y el peso del texto; el activo se marca solo tiñendo el fondo de su pastilla, así
+// van en el color y el peso del texto; el activo se marca con el fondo neutro de su pastilla, así
 // ningún ancho cambia al cambiar de pestaña.
 // Al deslizarse la pastilla se estira como una gota: el borde que va adelante llega antes que el de
 // atrás (`.tab-pill[data-dir]`, globals.css). La cápsula hace squish al tocar una pestaña y, en

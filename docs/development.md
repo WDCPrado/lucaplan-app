@@ -153,7 +153,24 @@ agrupaciones, la tipografía y los controles.
     barra de pestañas en móvil, sidebar y topbar en escritorio, cápsulas y botones flotantes. Nunca
     en el contenido (tarjetas, listas, hojas), que va sólido en `card` sobre el fondo agrupado.
     Variante regular (desenfoque + luminosidad), sin «clear». Lo grande (sidebar) un poco más opaco
-    que lo chico. Se hace con CSS, nunca con filtros SVG de desplazamiento, que Safari no dibuja.
+    que lo chico. La base es CSS y se ve igual en Safari, Firefox y Chrome: desenfoque, relleno,
+    brillo especular de canto con luz fija arriba-izquierda (`::before` cónico), rim interior
+    (`--glass-rim`), contorno y sombra.
+  - **Refracción real, solo Chromium y como extra** (técnica de kube.io/blog/liquid-glass-css-svg):
+    un filtro SVG (`feDisplacementMap` con un mapa de canto «convex squircle» + brillo especular)
+    entra al final del `backdrop-filter` de `liquid-glass` por `--glass-refraction`. Solo la llevan
+    la cápsula de pestañas, el círculo de búsqueda y la cápsula móvil del `MonthNav`
+    (`useLiquidRefraction`, `hooks/use-liquid-refraction.ts`); nunca contenido, menús ni nada con
+    texto que leer. Safari y Firefox no dibujan SVG en `backdrop-filter` y no descargan el módulo
+    (import dinámico). Se apaga sola fuera de Blink (`navigator.userAgentData`), con ahorro de
+    datos, en gama baja (≤ 4 núcleos o ≤ 4 GB), con la pestaña oculta, con menos transparencia o
+    más contraste y en los niveles de vidrio 3–4; el nivel 0–2 regula su intensidad. Los mapas
+    salen de `lib/liquid-refraction.ts` (lógica pura, con test) y se regeneran solo al cambiar el
+    tamaño, nunca en una animación: el press anima el `scale` del filtro.
+  - **Movimiento del vidrio**: `liquid-squish` encoge la cápsula al 97 % al presionarla (ella o un
+    control suyo con `data-squish`) y vuelve con un spring (`--ease-spring`); la pastilla activa de
+    las pestañas se estira como gota al deslizarse (`.tab-pill`). Solo CSS, interrumpible, y nada
+    con movimiento reducido.
   - **Material regular (`--material`)** para lo que lleva texto encima del contenido:
     menús, select, popover, tooltip, toasts y alertas. Más opaco que el vidrio de las barras. Las
     hojas (drawer y diálogo) van sólidas (`--sheet`).

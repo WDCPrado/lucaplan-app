@@ -36,6 +36,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { authClient } from "@/lib/auth-client"
+import { useLiquidRefraction } from "@/hooks/use-liquid-refraction"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
 import { TransactionSearch } from "./transaction-search"
 import { TransactionModal } from "./transaction-modal"
@@ -240,12 +241,16 @@ export function AppFrame({
 // Móvil: la búsqueda va suelta a la derecha de la cápsula de pestañas (iOS 26, como Música o Fotos),
 // del alto de la cápsula. Está en todas las vistas, así la cápsula no cambia de ancho al navegar.
 function SearchCircle({ onSearch }: { onSearch: () => void }) {
+  const ref = React.useRef<HTMLButtonElement>(null)
+  useLiquidRefraction(ref)
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onSearch}
       aria-label="Buscar movimientos"
-      className="press liquid-glass pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full"
+      data-squish
+      className="press liquid-glass liquid-squish pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full"
     >
       <Search className="size-6" />
     </button>
@@ -515,6 +520,11 @@ function NavMenu({
 // vive en el layout y no se desmonta al navegar, basta una transición de transform. Las etiquetas
 // van en el color y el peso del texto; el activo se marca solo tiñendo el fondo de su pastilla, así
 // ningún ancho cambia al cambiar de pestaña.
+// Al deslizarse la pastilla se estira como una gota: el borde que va adelante llega antes que el de
+// atrás (`.tab-pill[data-dir]`, globals.css). La cápsula hace squish al tocar una pestaña y, en
+// Chromium, refracta lo que pasa por debajo (useLiquidRefraction). La pastilla no refracta: vive
+// dentro del vidrio de la cápsula, que es su «backdrop root», así que debajo solo tiene el relleno
+// liso de la cápsula y no habría nada que desviar.
 function BottomNav({
   active,
   onNavigate,
@@ -541,6 +551,12 @@ function BottomNav({
     (sum, n) => sum + n.weight,
     0
   )
+  // Hacia dónde se movió la pastilla la última vez, derivado en render al cambiar la pestaña activa.
+  const [move, setMove] = React.useState({ index: activeIndex, dir: 0 })
+  if (move.index !== activeIndex)
+    setMove({ index: activeIndex, dir: activeIndex > move.index ? 1 : -1 })
+  const navRef = React.useRef<HTMLElement>(null)
+  useLiquidRefraction(navRef)
 
   return (
     <div
@@ -550,21 +566,23 @@ function BottomNav({
       )}
     >
       <nav
+        ref={navRef}
         aria-label="Navegación principal"
-        className="liquid-glass pointer-events-auto flex h-16 min-w-0 flex-1 rounded-full p-1"
+        className="liquid-glass liquid-squish pointer-events-auto flex h-16 min-w-0 flex-1 rounded-full p-1"
       >
         <div className="relative flex min-w-0 flex-1">
-          {/* Las pestañas no miden lo mismo: la pastilla se ubica con left/width en % de la fila
+          {/* Las pestañas no miden lo mismo: la pastilla se ubica con left/right en % de la fila
               (es un elemento chico; animarlos no pesa). */}
           <span
             aria-hidden
+            data-dir={move.dir > 0 ? "next" : move.dir < 0 ? "prev" : undefined}
             className={cn(
-              "pointer-events-none absolute inset-y-0 flex transition-[left,width,opacity] duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+              "tab-pill pointer-events-none absolute inset-y-0 flex",
               activeIndex < 0 && "opacity-0"
             )}
             style={{
               left: `${(pillLeft / TAB_TOTAL) * 100}%`,
-              width: `${(pill.weight / TAB_TOTAL) * 100}%`,
+              right: `${((TAB_TOTAL - pillLeft - pill.weight) / TAB_TOTAL) * 100}%`,
             }}
           >
             <span className="liquid-glass-active w-full rounded-full" />
@@ -599,6 +617,7 @@ function BottomNav({
                     router.push(href)
                   })
                 }}
+                data-squish
                 style={{ flexGrow: weight }}
                 // Sin negrita en la activa: la marcan la pastilla y aria-current; un peso distinto
                 // ensancharía su etiqueta y movería a las vecinas bajo la pastilla.

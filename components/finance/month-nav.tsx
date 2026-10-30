@@ -1,9 +1,10 @@
 "use client"
 
-import { startTransition, useOptimistic, useState } from "react"
+import { startTransition, useOptimistic, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
+import { useLiquidRefraction } from "@/hooks/use-liquid-refraction"
 import { MonthPicker, periodLabel } from "./month-picker"
 
 type Period = { year: number; month: number }
@@ -16,6 +17,9 @@ type Period = { year: number; month: number }
  * El cambio es optimista: la etiqueta se mueve al toque y entra deslizándose desde el lado de la
  * navegación; la página llega después. Fuera del mes en curso aparece «Hoy» en la misma fila y la
  * cápsula le hace sitio.
+ *
+ * Las flechas hacen squish sobre la cápsula (`liquid-squish`) y, en Chromium, la cápsula móvil
+ * refracta lo que pasa por debajo (useLiquidRefraction; en escritorio no es vidrio y no se monta).
  *
  * `disabled`: la misma cápsula, del mismo ancho, con el período en curso atenuado y sin acción. La
  * pone el marco en las vistas sin selector de mes, así la fila superior es igual en todas.
@@ -39,6 +43,8 @@ export function MonthNav({
   const [anim, setAnim] = useState({ key, dir: 0 })
   if (anim.key !== key) setAnim({ key, dir: key > anim.key ? 1 : -1 })
   const isCurrent = shown.year === current.year && shown.month === current.month
+  const capsule = useRef<HTMLDivElement>(null)
+  useLiquidRefraction(capsule)
 
   function go(year: number, month: number) {
     startTransition(() => {
@@ -66,12 +72,16 @@ export function MonthNav({
       aria-disabled={disabled || undefined}
       className="flex w-full min-w-0 items-center md:w-auto"
     >
-      <div className="flex min-h-11 min-w-0 flex-1 items-center rounded-full max-md:liquid-glass md:min-h-10 md:rounded-(--radius-bar-inner) md:bg-(--glass-control)">
+      <div
+        ref={capsule}
+        className="liquid-squish flex min-h-11 min-w-0 flex-1 items-center rounded-full max-md:liquid-glass md:min-h-10 md:rounded-(--radius-bar-inner) md:bg-(--glass-control)"
+      >
         <button
           type="button"
           onClick={() => step(-1)}
           disabled={disabled}
           className={arrow}
+          data-squish
           aria-label="Mes anterior"
         >
           <ChevronLeft className="size-5 md:size-4" />
@@ -110,6 +120,7 @@ export function MonthNav({
           onClick={() => step(1)}
           disabled={disabled}
           className={arrow}
+          data-squish
           aria-label="Mes siguiente"
         >
           <ChevronRight className="size-5 md:size-4" />

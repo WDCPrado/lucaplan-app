@@ -152,6 +152,7 @@
     --glass-saturate: 180%;
     --glass-highlight: oklch(1 0 0 / 0.9);           /* brillo especular del canto superior */
     --glass-edge: oklch(0.359 0.012 285.8 / 0.12);   /* contorno fino */
+    --glass-rim: oklch(1 0 0 / 0.32);                /* luz que el canto devuelve hacia adentro */
     --glass-shadow: 0 1px 2px oklch(0.2 0.01 286 / 0.06), 0 8px 24px -6px oklch(0.2 0.01 286 / 0.16);
     /* Estado activo dentro del vidrio: se tiñe el FONDO del control con el acento, no el texto. */
     --glass-active: color-mix(in oklch, var(--primary) 16%, transparent);
@@ -166,6 +167,8 @@
     /* Relleno de controles (systemFill): pista del segmentado, inputs y controles de la topbar. */
     --glass-control: oklch(0.569 0.015 285.9 / 0.12);
     --glass-control-active: oklch(1 0 0);
+    /* Spring corto de iOS (amortiguación 0.72, respuesta 0.42 s) para el rebote al soltar. */
+    --ease-spring: linear(0, 0.058, 0.193, 0.358, 0.523, 0.67, 0.791, 0.884, 0.951, 0.995, 1.021, 1.034, 1.038, 1.037, 1.032, 1.025, 1.019, 1.013, 1.008, 1.005, 1);
     /* Scrollbar minimalista (escritorio): pulgar translúcido del color del texto, pista invisible. */
     --scrollbar: color-mix(in oklch, var(--foreground) 20%, transparent);
     --scrollbar-hover: color-mix(in oklch, var(--foreground) 35%, transparent);
@@ -279,6 +282,7 @@ html:has(main[data-landing]) body {
     --glass-fill-large: color-mix(in oklch, color-mix(in oklch, oklch(0.25 0.004 286 / 0.7), transparent var(--glass-clear)), var(--card) var(--glass-tint));
     --glass-highlight: oklch(1 0 0 / 0.22);
     --glass-edge: oklch(1 0 0 / 0.08);
+    --glass-rim: oklch(1 0 0 / 0.07);
     --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 8px 24px -6px oklch(0 0 0 / 0.55);
     --glass-active: color-mix(in oklch, var(--primary) 26%, transparent);
     --material: color-mix(in oklch, oklch(0.26 0.004 286 / 0.84), var(--card) var(--glass-tint));
@@ -345,19 +349,25 @@ html:has(main[data-landing]) body {
 
 
 /* === Liquid Glass (iOS 26) ===
-   Una sola receta para toda la capa de controles. Sin distorsión SVG (Safari no la aplica a
-   backdrop-filter): desenfoque con saturación, relleno translúcido, brillo especular arriba, contorno
-   fino y sombra difusa. El ::before dibuja el reflejo del canto, recortado a un anillo de 1px.
+   Una sola receta para toda la capa de controles, igual en Safari, Firefox y Chrome: desenfoque con
+   saturación, relleno translúcido, brillo especular arriba, rim interior (la luz que el canto
+   devuelve hacia adentro, solo en el borde: no toca el texto), contorno fino y sombra difusa. El
+   ::before dibuja el reflejo del canto en un anillo de 1px con una luz fija arriba-izquierda (cónico:
+   máximo en el canto de arriba-izquierda, un eco débil abajo-derecha).
+   En Chromium, hooks/use-liquid-refraction.ts suma la refracción real con `--glass-refraction` (un
+   filtro SVG al final del backdrop-filter, después del desenfoque); sin ella la lista queda igual.
    Son utilidades (no componentes) para poder usarlas con variantes: `max-md:liquid-glass`.
    No se combinan con fixed/sticky/absolute: fijan `position: relative` para el reflejo. */
 @utility liquid-glass {
   position: relative;
   background-color: var(--glass-fill);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  /* El prefijo va antes: si un motor lo trata como alias, gana la línea con la refracción. */
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) var(--glass-refraction,);
   box-shadow:
     inset 0 1px 0 0 var(--glass-highlight),
     inset 0 0 0 1px var(--glass-edge),
+    inset 0 0 6px 0 var(--glass-rim),
     var(--glass-shadow);
   &::before {
     content: "";
@@ -365,18 +375,35 @@ html:has(main[data-landing]) body {
     inset: 0;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(
-      135deg,
-      var(--glass-highlight) 0%,
-      transparent 35%,
-      transparent 65%,
-      var(--glass-highlight) 100%
+    background: conic-gradient(
+      from 225deg,
+      transparent 0deg,
+      var(--glass-highlight) 90deg,
+      transparent 170deg,
+      color-mix(in oklch, var(--glass-highlight) 45%, transparent) 270deg,
+      transparent 350deg
     );
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
-    opacity: 0.6;
+    opacity: 0.85;
     pointer-events: none;
+  }
+}
+/* Squish de iOS al presionar: la cápsula se encoge un 3 % y al soltar vuelve con un spring corto. La
+   dispara la propia cápsula o un control suyo marcado con `data-squish` (pestañas, flechas del mes).
+   Solo transform y transiciones de CSS: interrumpible y sin JS. Repite las transiciones de `.press`
+   porque esta propiedad las pisa. Sin :has (Firefox < 121) solo la cápsula que se toca a sí misma
+   hace squish. Con movimiento reducido, nada. */
+@utility liquid-squish {
+  transition: transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 120ms ease-out, background-color 120ms ease-out;
+  transition: transform 500ms var(--ease-spring), opacity 120ms ease-out, background-color 120ms ease-out;
+  @media (prefers-reduced-motion: no-preference) {
+    &:is([data-squish]:active, :has([data-squish]:active)) {
+      transform: scale(0.97);
+      transition-duration: 120ms;
+      transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
   }
 }
 /* Pastilla del estado activo dentro del vidrio (pestaña, segmento): el acento tiñe el fondo. */
@@ -550,6 +577,26 @@ html:has(main[data-landing]) body {
   }
 }
 
+/* Pastilla activa de las pestañas (BottomNav): se mueve con left/right y, según hacia dónde va
+   (`data-dir`), el borde de adelante llega antes que el de atrás, así se estira como una gota y se
+   recoge al llegar. Solo transiciones: un toque a mitad de camino la redirige desde donde está. */
+.tab-pill {
+  transition: left 260ms cubic-bezier(0.2, 0.8, 0.2, 1), right 260ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 240ms ease-out;
+}
+.tab-pill[data-dir="next"] {
+  transition-duration: 360ms, 220ms, 240ms;
+  transition-delay: 50ms, 0ms, 0ms;
+}
+.tab-pill[data-dir="prev"] {
+  transition-duration: 220ms, 360ms, 240ms;
+  transition-delay: 0ms, 50ms, 0ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-pill {
+    transition: none;
+  }
+}
+
 /* Relleno de controles shadcn (systemFill de iOS). Fuera de @layer para ganar a las utilidades de
    Tailwind; solo background (no bordes) para no romper focus ring / aria-invalid. */
 [data-slot="input"],
@@ -637,6 +684,7 @@ html:has(main[data-landing]) body {
   box-shadow:
     inset 0 1px 0 0 var(--glass-highlight),
     inset 0 0 0 1px var(--glass-edge),
+    inset 0 0 6px 0 var(--glass-rim),
     var(--glass-shadow);
 }
 

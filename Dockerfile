@@ -15,7 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -
 COPY . .
 # prisma generate + next build no conectan a la DB, pero prisma.config.ts exige DATABASE_URL presente
 # al cargar. Placeholder solo para este RUN (no persiste en la imagen); el valor real llega en runtime.
-RUN DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public" pnpm build
+ARG NEXT_PUBLIC_LANDING_ONLY=false
+RUN NEXT_PUBLIC_LANDING_ONLY="$NEXT_PUBLIC_LANDING_ONLY" DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public" pnpm build
 
 EXPOSE 3005
 # Arranque: aplica migraciones pendientes (incremental, NUNCA borra datos), siembra datos falsos si

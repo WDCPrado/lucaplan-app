@@ -1,0 +1,74 @@
+name: lucaplan-production
+
+x-app: &app
+  image: lucaplan-local:wdc-151
+  restart: unless-stopped
+  env_file: ${APP_ENV_FILE:-.env.production}
+  environment:
+    NODE_ENV: production
+    DATABASE_URL: postgresql://lucaplan:${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD}@postgres:5432/lucaplan?schema=public
+    BETTER_AUTH_URL: https://lucaplan.cl
+    OUTLOOK_REDIRECT_URI: https://lucaplan.cl/api/email-connection/callback
+    OUTLOOK_WEBHOOK_URL: https://lucaplan.cl/api/email-connection/webhook
+    DEV_ANY_PASSWORD: "false"
+    NEXT_PUBLIC_LANDING_ONLY: ${NEXT_PUBLIC_LANDING_ONLY:-true}
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lucaplan
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD}
+      POSTGRES_DB: lucaplan
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lucaplan -d lucaplan"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    <<: *app
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_LANDING_ONLY: ${NEXT_PUBLIC_LANDING_ONLY:-true}
+    ports:
+      - "127.0.0.1:3005:3005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3005/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+
+  cron:
+    <<: *app
+    command: ["node", "scripts/local-cron.mjs"]
+    depends_on:
+      app:
+        condition: service_healthy
+
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.0
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/secrets/cloudflare_tunnel_token"]
+    secrets:
+      - cloudflare_tunnel_token
+    depends_on:
+      app:
+        condition: service_healthy
+
+secrets:
+  cloudflare_tunnel_token:
+    file: ${CLOUDFLARE_TUNNEL_TOKEN_FILE:?Define CLOUDFLARE_TUNNEL_TOKEN_FILE}
+
+volumes:
+  pgdata:
+    external: true
+    name: lucaplan-production-pgdata

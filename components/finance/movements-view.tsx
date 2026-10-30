@@ -3,17 +3,20 @@
 import { useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { SlidersHorizontal } from "lucide-react"
 
 import { authClient } from "@/lib/auth-client"
 import { formatDateHeader, monthName } from "@/lib/finance-format"
 import { Button } from "@/components/ui/button"
+import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { AppShell } from "./app-shell"
-import { MonthPicker } from "./month-picker"
+import { MonthNav } from "./month-nav"
 import { MovementRow } from "./movement-row"
 import { TransactionModal } from "./transaction-modal"
 import {
-  TransactionFilters,
+  FilterControls,
+  SearchField,
+  activeFilterCount,
   filtersToParams,
   fromYmd,
   type Dir,
@@ -29,8 +32,9 @@ import type {
 
 const SEARCH_INPUT_ID = "movements-q"
 
-// Pantalla Movimientos: la cartola del mes (o ciclo) paginada por el servidor, con el buscador y
-// sus filtros abiertos al lado (escritorio) o arriba (celular). Los filtros viven en la URL: el
+// Pantalla Movimientos: la cartola del mes (o ciclo) paginada por el servidor, con el campo que
+// filtra la lista y sus filtros al lado (escritorio) o, en el celular, el campo arriba y el resto
+// tras «Filtros (n)». Los filtros viven en la URL: el
 // servidor lee la página con ellos, y recargar o compartir el enlace muestra lo mismo.
 export function MovementsView({
   user,
@@ -63,6 +67,7 @@ export function MovementsView({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [detailTx, setDetailTx] = useState<TransactionDTO | null>(null)
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   // Estado local del panel (el input responde al tiro); la URL se actualiza después. Se inicializa
   // una vez desde la URL.
@@ -115,11 +120,6 @@ export function MovementsView({
     setValues((v) => ({ ...v, range: undefined }))
     router.push(`/movements?${params.toString()}`)
   }
-  function goMonth(delta: number) {
-    const d = new Date(Date.UTC(period.year, period.month - 1 + delta, 1))
-    goPeriod(d.getUTCFullYear(), d.getUTCMonth() + 1)
-  }
-
   function pageHref(page: number) {
     const params = new URLSearchParams(searchParams.toString())
     if (page > 1) params.set("page", String(page))
@@ -130,6 +130,15 @@ export function MovementsView({
   async function signOut() {
     await authClient.signOut()
     router.push("/login")
+  }
+
+  const filterCount = activeFilterCount(values, amountBounds)
+  const filterProps = {
+    value: values,
+    onChange: changeFilters,
+    categories,
+    accounts,
+    amountBounds,
   }
 
   // Agrupa por día (vienen más reciente primero).
@@ -150,60 +159,77 @@ export function MovementsView({
     <AppShell
       user={{ name: user.name, initial: user.initial, email: user.email }}
       onSignOut={signOut}
-      showAdd
-      onSearch={() => document.getElementById(SEARCH_INPUT_ID)?.focus()}
       title="Movimientos"
       actions={
-        <div className="liquid-glass min-h-11 rounded-full px-1 flex items-center gap-1 md:min-h-0 md:rounded-lg md:bg-secondary md:py-1 md:shadow-none md:backdrop-blur-none md:before:hidden">
-          <button
-            onClick={() => goMonth(-1)}
-            className="relative grid size-8 place-items-center rounded-md after:absolute after:-inset-1.5 hover:bg-background"
-            aria-label="Mes anterior"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-          <MonthPicker
-            period={period}
-            current={current}
-            onSelect={goPeriod}
-          />
-          <button
-            onClick={() => goMonth(1)}
-            className="relative grid size-8 place-items-center rounded-md after:absolute after:-inset-1.5 hover:bg-background"
-            aria-label="Mes siguiente"
-          >
-            <ChevronRight className="size-4" />
-          </button>
-        </div>
+        <MonthNav period={period} current={current} onNavigate={goPeriod} />
       }
     >
-      <div className="mx-auto w-full max-w-6xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
-        <h1 className="sr-only">Movimientos</h1>
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-16">
-          <section aria-label="Lista de movimientos" className="min-w-0">
+      <div className="mx-auto w-full max-w-6xl px-4 pt-1 pb-6 md:pt-6 lg:px-8">
+        {/* Móvil: título grande de iOS, como el Inicio; en escritorio el título vive en el topbar. */}
+        <h1 className="mb-3 text-large-title font-bold md:hidden">Movimientos</h1>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-16">
+          {/* Filtrar la lista (no es la búsqueda global). Móvil: el campo y «Filtros (n)», que abre
+              el resto en una hoja; escritorio: todo abierto en el panel lateral. */}
+          <aside
+            aria-label="Filtrar movimientos"
+            className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:col-start-2 lg:row-start-1 lg:gap-6 lg:rounded-xl lg:bg-card lg:px-5 lg:pt-5 lg:pb-6"
+          >
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <SearchField
+                  value={values}
+                  onChange={changeFilters}
+                  inputId={SEARCH_INPUT_ID}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setFiltersOpen(true)}
+                className="h-11 shrink-0 text-subheadline lg:hidden"
+              >
+                <SlidersHorizontal className="size-4" />
+                Filtros{filterCount > 0 && ` (${filterCount})`}
+              </Button>
+            </div>
+            <div className="flex flex-col gap-6 max-lg:hidden">
+              <FilterControls {...filterProps} />
+            </div>
+          </aside>
+
+          <section aria-label="Lista de movimientos" className="min-w-0 lg:col-start-1 lg:row-start-1">
             {result.items.length === 0 ? (
               <div className="glass rounded-xl px-6 py-12 text-center">
-                <p className="font-medium">
+                <p className="text-body font-medium">
                   {hasFilters
                     ? "No hay movimientos con estos filtros"
                     : `No hay movimientos en ${monthName(period.month).toLowerCase()}`}
                 </p>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="mt-1 text-subheadline text-muted-foreground">
                   {hasFilters
                     ? "Prueba otra descripción, cambia los filtros o elige otro mes."
                     : "Cuando lleguen los cargos del banco o registres uno, aparecen aquí."}
                 </p>
               </div>
             ) : (
-              <div className="glass flex flex-col gap-0.5 rounded-xl p-2">
+              // Mismo patrón que el Inicio: el día en footnote fuera de la tarjeta y una lista
+              // agrupada por día.
+              <div className="flex flex-col gap-5">
                 {groups.map((g) => (
                   <div key={g.key}>
-                    <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground">
+                    <h2 className="mb-1.5 px-4 text-footnote font-medium text-muted-foreground">
                       {g.header}
+                    </h2>
+                    <div className="glass inset-list flex flex-col overflow-hidden rounded-xl [--inset:4.5rem]">
+                      {g.txs.map((tx) => (
+                        <MovementRow
+                          key={tx.id}
+                          tx={tx}
+                          onOpen={setDetailTx}
+                          className="press rounded-none px-4 hover:bg-accent"
+                        />
+                      ))}
                     </div>
-                    {g.txs.map((tx) => (
-                      <MovementRow key={tx.id} tx={tx} onOpen={setDetailTx} />
-                    ))}
                   </div>
                 ))}
               </div>
@@ -214,7 +240,7 @@ export function MovementsView({
                 aria-label="Paginación"
                 className="flex flex-col gap-3 px-1 pt-4 sm:flex-row sm:items-center sm:justify-between"
               >
-                <p className="tabular text-sm text-muted-foreground">
+                <p className="tabular text-subheadline text-muted-foreground">
                   {result.items.length > 0
                     ? `Mostrando ${first}–${last} de ${result.total} movimientos`
                     : `${result.total} movimientos`}
@@ -225,7 +251,7 @@ export function MovementsView({
                   >
                     Anterior
                   </PageButton>
-                  <span className="tabular px-2 text-sm text-muted-foreground">
+                  <span className="tabular px-2 text-subheadline text-muted-foreground">
                     {result.page} / {totalPages}
                   </span>
                   <PageButton
@@ -242,21 +268,18 @@ export function MovementsView({
             )}
           </section>
 
-          <aside
-            aria-label="Buscar y filtrar"
-            className="glass flex min-w-0 flex-col gap-6 rounded-xl px-5 pt-5 pb-6 max-lg:order-first lg:sticky lg:top-6"
-          >
-            <TransactionFilters
-              value={values}
-              onChange={changeFilters}
-              categories={categories}
-              accounts={accounts}
-              amountBounds={amountBounds}
-              inputId={SEARCH_INPUT_ID}
-            />
-          </aside>
         </div>
       </div>
+
+      <ResponsiveModal
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        title="Filtros"
+      >
+        <div className="flex flex-col gap-6 px-5 pb-6">
+          <FilterControls {...filterProps} />
+        </div>
+      </ResponsiveModal>
 
       <TransactionModal
         tx={detailTx}

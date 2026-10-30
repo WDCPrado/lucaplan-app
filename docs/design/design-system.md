@@ -1,10 +1,12 @@
 # Design System — Luca Plan
 
-Estilo: **fintech moderno y sereno, con liquid glass**. Esquinas sobrias (`--radius: 0.5rem`, ver
-[Formas y uso de componentes](../development.md#formas-y-uso-de-componentes)), neutros
-slate fríos, primario azul vibrante. Light + dark emparejados.
+Estilo: **iOS 26 / macOS 26 con Liquid Glass** (WDC-147): fondos agrupados, celdas sólidas y una
+capa de controles de vidrio. Esquinas sobrias (`--radius: 0.625rem`, ver
+[Formas y uso de componentes](../development.md#formas-y-uso-de-componentes)), colores de sistema de
+Apple ajustados a AA. Light + dark emparejados.
 Fuente de verdad: [app/globals.css](../../app/globals.css). No hardcodees valores en
-componentes — siempre tira de estos tokens (variables CSS / utilidades Tailwind v4).
+componentes — siempre tira de estos tokens (variables CSS / utilidades Tailwind v4). Las reglas de
+uso están en [Lenguaje visual](../development.md#lenguaje-visual-ios-y-liquid-glass).
 
 ## Principios
 
@@ -13,8 +15,8 @@ componentes — siempre tira de estos tokens (variables CSS / utilidades Tailwin
   (`success`), no es color de marca.
 - **Datos primero.** Los números son el contenido: tipografía tabular y esquinas nítidas
   priorizan la lectura y el análisis por encima de la suavidad visual.
-- **Glass con propósito.** El blur indica superficie elevada/flotante, no adorno
-  (regla `blur-purpose`). Usa `.glass` en cards/paneles que flotan sobre el fondo.
+- **Vidrio con propósito.** El vidrio marca la capa de controles que flota sobre el contenido,
+  nunca el contenido. `.glass` (nombre heredado) es hoy la celda sólida de `card`.
 - **Color nunca solo.** Montos positivos/negativos llevan icono o signo además del color
   (`color-not-only`). `text-success` para positivo, `text-destructive` para negativo.
 - **Contraste verificado en ambos modos** (AA 4.5:1 texto). Dark usa tonos desaturados y
@@ -37,40 +39,34 @@ Mapeados a utilidades Tailwind (`bg-*`, `text-*`, `border-*`):
 **Solo del design system** (no shadcn por defecto): `success`, `warning`, `destructive-foreground`,
 y los tokens glass.
 
-## Liquid glass
+## Materiales
 
-El efecto depende de **dos cosas juntas**: un fondo con color (los blobs sutiles del
-`body`) y superficies translúcidas que lo refractan. Sobre un fondo plano no se aprecia.
+Tres superficies, todas desde tokens de `globals.css`:
 
-Tokens (light y dark): `--glass-tint-1` / `--glass-tint-2` (fill en gradiente, casi sólido),
-`--glass-border` (hairline neutro), `--glass-shadow` (sombra corta y difusa — sin insets ni
-brillos, que sobre fondo plano se ven como recortes), `--glass-blur`, y para controles
-`--glass-control` / `--glass-control-active`.
+| Superficie | Clase / token | Dónde |
+| --- | --- | --- |
+| Liquid Glass | `liquid-glass` (`--glass-fill`, `--glass-fill-large` en el sidebar) | barras, topbar, sidebar, cápsulas y botones flotantes |
+| Material regular | `material` (`--material`) y `[data-slot]` de menús, select, popover, tooltip, toasts y alertas | lo que lleva texto encima del contenido |
+| Sólido | `card`, `--sheet`, `--sheet-cell` | contenido, listas, hojas y diálogos |
 
-- `.glass` — card/panel flotante: fill en gradiente + blur fuerte + borde + sombra con
-  highlight superior. Úsalo en `<div>` (no en el `Card` de shadcn, cuyo `bg-card` ganaría).
-- `.glass-strong` — más opaco, para contenido denso (tablas, formularios largos).
-- **Controles** (`input`, `tabs-list`, `tabs-trigger` activo): frosted automáticamente vía
-  selectores `[data-slot=...]` definidos **fuera de `@layer`** (para ganar a las utilidades
-  de Tailwind). Solo tocan `background` + `blur`, nunca el borde, para no romper el focus
-  ring ni `aria-invalid`. Un `Input` con `bg-transparent` queda fuera (los títulos y montos
-  grandes de los modales): sin esa excepción se veía desnudo en claro y con caja en oscuro.
+`liquid-glass-active` (`--glass-active`) es la pastilla activa: el acento tiñe el fondo, no el texto.
+`scroll-edge-top` / `scroll-edge-bottom` (`--scroll-edge`) separan los controles del contenido que pasa
+por debajo. Los controles (`input`, segmentado) usan `--glass-control` / `--glass-control-active`.
+`--radius-bar-inner` es el radio concéntrico de lo que va dentro de una barra `rounded-xl`.
+`--card-art-*` colorea el cupo sobre el arte de las tarjetas de cuenta. `--scrollbar` pinta el
+scrollbar fino de escritorio.
 
-Accesibilidad: bajo `prefers-reduced-transparency: reduce` el blur se desactiva y todo cae
-a `--card` sólido (sigue legible). Ojo: **no** uses `prefers-reduced-motion` para esto
-(es para animaciones) — apagaría el glass a cualquiera con efectos de animación reducidos.
+Accesibilidad: con `prefers-reduced-transparency: reduce` todo material cae a sólido; con
+`prefers-contrast: more` el vidrio gana relleno y contorno. No se usa `prefers-reduced-motion` para
+esto (es para animaciones).
 
 ## Forma y tipografía
 
-- `--radius: 0.5rem` (esquinas sobrias); escala `radius-sm…4xl` derivada.
-- Tipografía (cargada vía `next/font/google` en `app/layout.tsx`):
-  - **Geist** (`--font-sans`) — UI y texto: moderna, neutra, muy legible en cuerpo pequeño.
-  - **Space Grotesk** (`--font-heading`, utilidad `font-heading`) — headings y marca:
-    la personalidad fintech de Luca Plan. Pesos 500–700.
-  - **Geist Mono** (`--font-mono`) — cifras.
-  - Cuerpo ≥16px, line-height 1.5–1.75.
-- Cifras: montos/precios usan **`font-mono` + `tabular-nums`** (utilidad `.tabular` = mono +
-  `tabular-nums slashed-zero`) para alineación estable y lectura de análisis.
+- `--radius: 0.625rem`; jerarquía de tres niveles (controles `rounded-lg`, superficies `rounded-xl`,
+  ítems `rounded-md`) y `--radius-sheet` para hojas y alertas.
+- Tipografía del sistema: SF en Apple, Geist en el resto (`--font-sans`), con la escala de iOS
+  (`text-large-title` … `text-caption`). Cifras con `.tabular` (cifras tabulares de la fuente del
+  sistema). La landing conserva Geist, Space Grotesk y cifras mono.
 
 ## Dark mode
 
@@ -86,7 +82,7 @@ uno del otro.
 
 ## Modales del producto
 
-Los modales conservan superficies sólidas mediante `[data-product]`, sin cambiar el
-fondo ni las tarjetas glass del Home. `ResponsiveModal` conserva la altura según el
-contenido en móvil, los formularios validados y la jerarquía de modales anidados:
-cerrar un hijo mantiene abierto al padre y devuelve el foco al control de origen.
+Los modales son hojas sólidas (`--sheet`) con celdas `--sheet-cell` encima, mediante `[data-product]`.
+`ResponsiveModal` conserva la altura según el contenido en móvil, los formularios validados y la
+jerarquía de modales anidados: cerrar un hijo mantiene abierto al padre y devuelve el foco al control
+de origen.

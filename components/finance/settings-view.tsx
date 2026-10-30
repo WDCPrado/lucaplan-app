@@ -1,10 +1,9 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { getDashboardChartPreference, setDashboardChartPreference, type DashboardChart } from "@/lib/dashboard-chart-preference"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { BellRing, CalendarClock, Check, Gauge, Minus, Plus, ChartNoAxesColumn } from "lucide-react"
+import { ChevronRight, Minus, Plus } from "lucide-react"
 import { toast } from "sonner"
 import type { PaceFrequency } from "@/arch/v1/domain/finance/pace.domain"
 
@@ -49,65 +48,55 @@ export function SettingsView({
       onSignOut={signOut}
       title="Ajustes"
     >
-      <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
-        <h1 className="font-heading text-xl font-bold md:sr-only">
-          Ajustes
-        </h1>
-        <p className="mt-1 mb-6 text-sm text-muted-foreground">
-          Preferencias de la app. Valen para todo Luca Plan, no para un mes en
-          particular.
-        </p>
-        <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+      <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 md:pt-6 lg:px-8">
+        {/* Móvil: título grande de iOS bajo la barra; en escritorio el título vive en el topbar. */}
+        <h1 className="mb-3 text-large-title font-bold md:hidden">Ajustes</h1>
+        <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
           {vapidPublicKey && (
-            <section className="glass rounded-xl p-5 lg:col-span-2">
-              <h2 className="mb-4 font-heading text-base font-bold">
-                Notificaciones
-              </h2>
-              <PushToggle vapidPublicKey={vapidPublicKey} />
-            </section>
+            <SettingsSection title="Notificaciones" className="lg:col-span-2">
+              <div className="glass rounded-xl p-4">
+                <PushToggle vapidPublicKey={vapidPublicKey} />
+              </div>
+            </SettingsSection>
           )}
           <BudgetAlertsSection initialAlerts={initialAlerts} />
           <DueReminderSection initialDays={dueDays} />
           <PaceSection initialFrequency={paceFrequency} />
-          <DashboardChartSection />
-          <section className="glass rounded-xl p-5">
-            <h2 className="mb-1 font-heading text-base font-bold">Conexiones del plugin</h2>
-            <p className="mb-5 text-sm text-muted-foreground">
-              Revisa y revoca el acceso de los asistentes a tus datos de Luca Plan.
-            </p>
-            <Button asChild variant="outline" className="h-11">
-              <Link href="/plugin">Gestionar conexiones</Link>
-            </Button>
-          </section>
+          {/* Una fila que lleva a otra pantalla: chevron y nada más, como en Ajustes de iOS. */}
+          <div className="glass overflow-hidden rounded-xl">
+            <Link
+              href="/plugin"
+              className="press flex min-h-11 items-center justify-between gap-3 py-3 pr-3 pl-4 text-body hover:bg-accent/60"
+            >
+              Conexiones del plugin
+              <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+            </Link>
+          </div>
         </div>
       </div>
     </AppShell>
   )
 }
 
-function DashboardChartSection() {
-  const [chart, setChart] = useState<DashboardChart>(() => getDashboardChartPreference())
-  function change(next: DashboardChart) {
-    haptic("light")
-    setChart(next)
-    setDashboardChartPreference(next)
-  }
+// Sección de lista agrupada: título y una frase fuera de la tarjeta; el control, dentro.
+function SettingsSection({
+  title,
+  description,
+  className,
+  children,
+}: {
+  title: string
+  description?: React.ReactNode
+  className?: string
+  children: React.ReactNode
+}) {
   return (
-    <section className="glass rounded-xl p-5">
-      <div className="mb-1 flex items-center gap-2">
-        <ChartNoAxesColumn className="size-4 text-muted-foreground" />
-        <h2 className="font-heading text-base font-bold">Gráfico del inicio</h2>
-      </div>
-      <p className="mb-4 text-sm text-muted-foreground">Elige qué gráfico aparece en la tarjeta principal. Por defecto se muestra el medidor financiero.</p>
-      <div role="radiogroup" aria-label="Gráfico predeterminado" className="flex flex-wrap gap-2">
-        {([{value:"health",label:"Salud financiera"},{value:"daily",label:"Gasto diario"}] as const).map(option => (
-          <button key={option.value} type="button" role="radio" aria-checked={chart === option.value}
-            onClick={() => change(option.value)}
-            className={cn("h-11 rounded-lg px-3 text-sm font-medium", chart === option.value ? "bg-primary text-primary-foreground" : "bg-secondary hover:bg-accent")}>
-            {chart === option.value && <Check className="mr-1 inline size-4" />}{option.label}
-          </button>
-        ))}
-      </div>
+    <section className={cn("min-w-0", className)}>
+      <h2 className="text-title-3 font-bold">{title}</h2>
+      {description && (
+        <p className="mt-1 text-subheadline text-muted-foreground">{description}</p>
+      )}
+      <div className="mt-3">{children}</div>
     </section>
   )
 }
@@ -145,14 +134,11 @@ function DueReminderSection({ initialDays }: { initialDays: number }) {
   }
 
   return (
-    <section className="glass rounded-xl p-5">
-      <div className="mb-1 flex items-center gap-2">
-        <CalendarClock className="size-4 text-muted-foreground" />
-        <h2 className="font-heading text-base font-bold">Pagos por vencer</h2>
-      </div>
-      <p className="mb-5 text-sm text-muted-foreground">
-        Con cuánta anticipación te avisamos de recurrentes y cuotas por cobrar.
-      </p>
+    <SettingsSection
+      title="Pagos por vencer"
+      description="Cuántos días antes te avisamos de recurrentes y cuotas."
+    >
+      <div className="glass rounded-xl p-4">
       <div className="flex items-center gap-3">
         <Button
           variant="secondary"
@@ -166,7 +152,7 @@ function DueReminderSection({ initialDays }: { initialDays: number }) {
         </Button>
         <p
           aria-live="polite"
-          className="font-heading w-36 text-center text-lg font-bold tabular-nums"
+          className="tabular flex-1 text-center text-title-3 font-bold"
         >
           {days === 0 ? "El mismo día" : `${days} día${days === 1 ? "" : "s"}`}
         </p>
@@ -182,17 +168,18 @@ function DueReminderSection({ initialDays }: { initialDays: number }) {
         </Button>
       </div>
       {/* El ajuste se confirma con su efecto, no con el número suelto. */}
-      <p className="mt-3 text-sm text-muted-foreground">
+      <p className="mt-3 text-center text-subheadline text-muted-foreground">
         {days === 0
           ? "Recibirás el aviso el mismo día del cobro."
           : `Un cobro del día 20 se avisaría el día ${20 - days}.`}
       </p>
-    </section>
+      </div>
+    </SettingsSection>
   )
 }
 
 // Frecuencia del ritmo de gasto que muestra cada categoría en el inicio: lo gastado del período
-// contra el presupuesto del período. Dos valores discretos → dos botones, no un select.
+// contra el presupuesto del período. Dos valores excluyentes → control segmentado de iOS.
 const PACE_OPTIONS: { value: PaceFrequency; label: string }[] = [
   { value: "weekly", label: "Semanal" },
   { value: "daily", label: "Diario" },
@@ -225,44 +212,42 @@ function PaceSection({
   }
 
   return (
-    <section className="glass rounded-xl p-5">
-      <div className="mb-1 flex items-center gap-2">
-        <Gauge className="size-4 text-muted-foreground" />
-        <h2 className="font-heading text-base font-bold">Ritmo de gasto</h2>
-      </div>
-      <p className="mb-5 text-sm text-muted-foreground">
-        Cada categoría del inicio compara lo gastado del período con su
-        presupuesto: el día, o la semana de lunes a domingo.
-      </p>
-      <div className="flex gap-2" role="radiogroup" aria-label="Frecuencia del ritmo">
+    <SettingsSection
+      title="Ritmo de gasto"
+      description={
+        frequency === "weekly"
+          ? "La semana parte el lunes aunque la mires el jueves."
+          : "Un gasto grande puede reventar el día; la semana lo absorbe mejor."
+      }
+    >
+      <div
+        role="radiogroup"
+        aria-label="Frecuencia del ritmo"
+        className="flex gap-0.5 rounded-lg bg-(--glass-control) p-0.5"
+      >
         {PACE_OPTIONS.map((opt) => {
           const active = opt.value === frequency
           return (
             <button
               key={opt.value}
+              type="button"
               role="radio"
               aria-checked={active}
               disabled={pending}
               onClick={() => change(opt.value)}
               className={cn(
-                "flex h-11 items-center gap-1.5 rounded-lg px-4 text-sm font-medium transition-colors disabled:opacity-60",
+                "h-11 flex-1 rounded-md px-4 text-subheadline font-medium transition-colors disabled:opacity-60",
                 active
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-secondary hover:bg-accent"
+                  ? "bg-(--glass-control-active) text-foreground shadow-sm"
+                  : "text-muted-foreground"
               )}
             >
-              {active && <Check className="size-4" />}
               {opt.label}
             </button>
           )
         })}
       </div>
-      <p className="mt-3 text-sm text-muted-foreground">
-        {frequency === "weekly"
-          ? "Verás “gastado de presupuesto esta semana”. La semana parte el lunes aunque la mires el jueves."
-          : "Verás “gastado de presupuesto hoy”. Un gasto grande puede reventar el día; la semana lo absorbe mejor."}
-      </p>
-    </section>
+    </SettingsSection>
   )
 }
 
@@ -307,20 +292,10 @@ function BudgetAlertsSection({
   }
 
   return (
-    <section className="glass rounded-xl p-5">
-      <div className="mb-1 flex items-center gap-2">
-        <BellRing className="size-4 text-muted-foreground" />
-        <h2 className="font-heading text-base font-bold">
-          Alertas de presupuesto
-        </h2>
-      </div>
-      <p className="mb-5 text-sm text-muted-foreground">
-        Te avisamos cuando una categoría cruza estos porcentajes de{" "}
-        <strong>su</strong> límite del mes. Valen para todas. Llega un solo
-        aviso por categoría: el del umbral más alto que cruzó. Si te pasas del
-        100%, el aviso dice cuánto (125%, 180%…).
-      </p>
-
+    <SettingsSection
+      title="Alertas de presupuesto"
+      description="Te avisamos cuando una categoría cruza estos % de su límite."
+    >
       {/* Grilla de tres y no wrap: seis chips en flex se partían 5 + 1. */}
       <div className="grid grid-cols-3 gap-2">
         {percents.map((p) => {
@@ -333,27 +308,17 @@ function BudgetAlertsSection({
               disabled={pending !== null}
               onClick={() => toggle(p)}
               className={cn(
-                "tabular h-11 rounded-lg border px-3 text-sm transition-colors disabled:opacity-60",
+                "tabular h-11 rounded-lg px-3 text-subheadline transition-colors disabled:opacity-60",
                 on
-                  ? "border-primary bg-primary/10 font-medium text-primary"
-                  : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-(--glass-control) text-muted-foreground hover:text-foreground"
               )}
             >
-              {on && <Check className="mr-1.5 inline size-3.5" />}
               {p}%
             </button>
           )
         })}
       </div>
-
-      <p className="mt-3 text-sm text-muted-foreground">
-        {alerts.length === 0
-          ? "Sin alertas: no recibirás avisos de presupuesto."
-          : `Avisaremos al ${alerts
-              .map((a) => a.percent)
-              .sort((a, b) => a - b)
-              .join("%, ")}% del límite de cada categoría.`}
-      </p>
-    </section>
+    </SettingsSection>
   )
 }

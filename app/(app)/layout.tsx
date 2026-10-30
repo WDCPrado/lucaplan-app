@@ -8,13 +8,14 @@ import { financeDeps } from "@/arch/v1/presentation/finance/finance-http"
 import {
   listAccounts,
   getBudgetView,
+  getAmountBounds,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { AppFrame } from "@/components/finance/app-shell"
 
-// Marco de las pantallas con sesión: la barra inferior móvil y el "+" de nuevo movimiento se
+// Marco de las pantallas con sesión: la barra inferior móvil y la búsqueda se
 // montan una vez aquí y no se desmontan al cambiar de ruta (un layout no se vuelve a renderizar en
-// la navegación; sí con router.refresh(), que es lo que hacen el sheet y el modal de cuenta al
-// guardar, así las cuentas y categorías del "+" se ponen al día).
+// la navegación; sí con router.refresh(), que es lo que hacen los modales al guardar, así las
+// cuentas y categorías de la búsqueda se ponen al día).
 export default async function AppLayout({
   children,
 }: {
@@ -30,13 +31,19 @@ export default async function AppLayout({
   // lo calcula dos veces (aquí y en la página). Una lectura liviana de categorías si pesa.
   const userId = session.user.id
   const now = await currentBudgetPeriod(financeDeps, todayKey())
-  const [accounts, budget] = await Promise.all([
+  // Los topes del slider de monto de la búsqueda global, que vive en el marco.
+  const [accounts, budget, amountBounds] = await Promise.all([
     listAccounts(financeDeps, userId),
     getBudgetView(financeDeps, userId, now.year, now.month),
+    getAmountBounds(financeDeps, userId),
   ])
 
   return (
-    <AppFrame quickAdd={{ accounts, categories: budget.categories }}>
+    <AppFrame
+      accounts={accounts}
+      categories={budget.categories}
+      amountBounds={amountBounds}
+    >
       {children}
     </AppFrame>
   )

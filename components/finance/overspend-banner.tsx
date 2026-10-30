@@ -1,42 +1,32 @@
-import { TriangleAlert } from "lucide-react"
+import { ChevronRight, TriangleAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { CategoryIcon } from "./category-icons"
 import { formatCLP, monthName } from "@/lib/finance-format"
 import type { CategoryDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 /**
- * Cuánto te pasaste este mes, en una sola cifra. El dashboard ya avisa categoría por categoría
- * ("$3.379 sobre el tope"), pero sumarlas de cabeza no es tarea del usuario.
- *
- * Esta banda es la ÚNICA superficie que dice "te pasaste": el card de presupuesto de arriba se
- * queda con cuánto es y cuánto llevas gastado. Un mismo aviso repetido dos veces, uno encima del
- * otro, no avisa el doble.
+ * Cuánto te pasaste este mes, en UNA línea. Es la ÚNICA superficie que dice la cifra del
+ * excedente: el titular del mes no lo anuncia y las filas de categoría solo dicen lo suyo.
  *
  * Son DOS cifras distintas y la banda no las suma:
- * - **excedente del mes** (`monthOverspend`): gasto por sobre el presupuesto global. Plata que no
- *   había. Es la que duele, así que cuando existe es la cifra grande.
- * - **excedente de topes** (`capsOverspend`): lo que se pasó categoría por categoría. Es un
- *   descuadre del reparto: puede ser alto con presupuesto del mes de sobra, y ahí la banda lo dice
- *   con todas sus letras para que nadie lea "me pasé $68.120" como "debo $68.120".
+ * - **excedente del mes** (`monthOverspend`): gasto por sobre el presupuesto global. Cuando existe,
+ *   es la que se dice.
+ * - **excedente de topes** (`capsOverspend`): lo que se pasó categoría por categoría.
  *
- * Sin presupuesto del mes (`globalLimit === null`) esa tranquilidad no se puede afirmar: no hay
- * contra qué medir, y decir "el presupuesto todavía alcanza" contradiría al card de arriba, que
- * justo está pidiendo definirlo.
- *
- * Con ambos excedentes en $0 no se renderiza nada: un mes cuadrado no necesita aviso.
+ * Tocarla abre la categoría más pasada (el mismo detalle que abre su fila). Con ambos excedentes en
+ * $0 no se renderiza nada.
  */
 export function OverspendBanner({
   period,
-  globalLimit,
   capsOverspend,
   monthOverspend,
   categories,
+  onOpenCategory,
 }: {
   period: { year: number; month: number }
-  globalLimit: number | null // presupuesto del mes; null = todavía sin definir
   capsOverspend: number
   monthOverspend: number
   categories: CategoryDTO[]
+  onOpenCategory: (id: string) => void
 }) {
   if (monthOverspend <= 0 && capsOverspend <= 0) return null
 
@@ -49,69 +39,52 @@ export function OverspendBanner({
   const cuantas = `${culprits.length} ${culprits.length === 1 ? "categoría" : "categorías"}`
   const overMonth = monthOverspend > 0
 
-  return (
-    <section
-      aria-label="Cuánto te pasaste este mes"
+  const worst = culprits[0]
+  const text = overMonth ? (
+    <>
+      Te pasaste{" "}
+      <span className="tabular font-semibold">{formatCLP(monthOverspend)}</span>{" "}
+      del presupuesto de {mes}
+    </>
+  ) : (
+    <>
+      Te pasaste{" "}
+      <span className="tabular font-semibold">{formatCLP(capsOverspend)}</span>{" "}
+      de topes · {cuantas}
+    </>
+  )
+  const className = cn(
+    "flex min-h-11 w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-subheadline",
+    overMonth ? "bg-destructive/10" : "bg-warning/10"
+  )
+  // El color del estado vive en el ícono y el tinte: ámbar como texto sobre su tinte no llega a AA.
+  const icon = (
+    <TriangleAlert
+      aria-hidden
       className={cn(
-        "flex items-start gap-3 rounded-xl p-5 lg:p-6",
-        overMonth ? "bg-destructive/10" : "bg-warning/10"
+        "size-5 shrink-0",
+        overMonth ? "text-destructive" : "text-warning"
       )}
+    />
+  )
+
+  if (!worst)
+    return (
+      <p role="status" className={className}>
+        {icon}
+        <span className="min-w-0 flex-1">{text}</span>
+      </p>
+    )
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenCategory(worst.id)}
+      title={`Ver ${worst.name}`}
+      className={cn("press", className)}
     >
-      {/* El color del estado vive en el ícono y el tinte del fondo. En la cifra no: ámbar sobre su propio
-          tinte da 1.95:1 en tema claro, y es el contenido principal de la banda. Decorativo
-          (aria-hidden) porque el texto ya dice todo lo que el color insinúa. */}
-      <TriangleAlert
-        aria-hidden
-        className={cn(
-          "mt-0.5 size-5 shrink-0",
-          overMonth ? "text-destructive" : "text-warning"
-        )}
-      />
-      <div className="min-w-0 flex-1">
-        <p className="text-subheadline font-semibold">
-          {overMonth
-            ? `Te pasaste del presupuesto de ${mes}`
-            : `Te pasaste de los topes de ${cuantas}`}
-        </p>
-        <p className="tabular mt-0.5 text-title-1 font-bold">
-          {formatCLP(overMonth ? monthOverspend : capsOverspend)}
-        </p>
-        <p className="mt-1 text-subheadline text-muted-foreground">
-          {overMonth
-            ? // Con el mes excedido, el descuadre entre categorías pasa a ser el detalle.
-              capsOverspend > 0
-              ? `Es gasto que el presupuesto del mes ya no cubre. Además hay ${formatCLP(capsOverspend)} sobre los topes de ${cuantas}:`
-              : "Es gasto que el presupuesto del mes ya no cubre."
-            : globalLimit === null
-              ? // Sin presupuesto del mes no hay tranquilidad que dar: solo se puede decir qué mide
-                // la cifra. Afirmar que "alcanza" chocaría con el "Define tu presupuesto" de arriba.
-                `Es solo lo que se pasó de los topes: ${mes} todavía no tiene un presupuesto del mes contra el cual medirlo.`
-              : `El presupuesto de ${mes} todavía alcanza: es un descuadre entre categorías, no plata que te falte.`}
-        </p>
-        {culprits.length > 0 && (
-          // Scroll-x sin wrap: con seis categorías reventadas la banda no puede crecer hacia abajo
-          // hasta empujar las cuentas fuera de pantalla.
-          <ul className="-mx-1 mt-2.5 flex scrollbar-none gap-2 overflow-x-auto px-1 py-0.5">
-            {culprits.map((c) => (
-              <li
-                key={c.id}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-card px-2.5 py-1 text-footnote"
-              >
-                <CategoryIcon
-                  icon={c.icon}
-                  size={14}
-                  color={c.color ?? undefined}
-                />
-                <span className="font-medium">{c.name}</span>
-                {/* El "+" evita leer la cifra como lo gastado: es lo que se pasó del tope. */}
-                <span className="tabular text-muted-foreground">
-                  +{formatCLP(c.used - c.limit)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </section>
+      {icon}
+      <span className="min-w-0 flex-1">{text}</span>
+      <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+    </button>
   )
 }

@@ -1,9 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { toast } from "sonner"
-import { Check, CreditCard, Plus, RefreshCw } from "lucide-react"
+import { Check, Plus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { currentPeriod, formatCLP } from "@/lib/finance-format"
@@ -17,26 +15,12 @@ import type {
   InstallmentPlanDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
-const KIND_LABEL: Record<string, string> = {
-  card: "Tarjeta",
-  loan: "Crédito",
-}
-
 function shortDate(iso: string): string {
   return new Date(iso).toLocaleDateString("es-CL", {
     day: "numeric",
     month: "short",
     year: "numeric",
     timeZone: "UTC", // @db.Date es medianoche UTC: en local (Chile) mostraría el día anterior
-  })
-}
-
-// "septiembre 2026": el final del plan se lee mejor por mes que por día exacto.
-function monthYear(iso: string): string {
-  return new Date(iso).toLocaleDateString("es-CL", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
   })
 }
 
@@ -73,8 +57,6 @@ export function InstallmentsSection({
   accounts: AccountDTO[]
   categories: CategoryDTO[]
 }) {
-  const router = useRouter()
-  const [syncing, setSyncing] = useState(false)
   const [creating, setCreating] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
   // Derivado de las props frescas (no un snapshot en estado): tras una mutación del modal +
@@ -82,22 +64,6 @@ export function InstallmentsSection({
   const detail = detailId
     ? (plans.find((p) => p.id === detailId) ?? null)
     : null
-
-  async function syncInstallments() {
-    if (syncing) return
-    setSyncing(true)
-    try {
-      const res = await fetch("/api/installments/sync", { method: "POST" })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "No se pudieron sincronizar las cuotas")
-      toast.success(`${data.removed} movimiento(s) futuro(s) incorrecto(s) corregido(s)`)
-      router.refresh()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Error al sincronizar")
-    } finally {
-      setSyncing(false)
-    }
-  }
 
   const active = plans.filter((p) => p.completedAt === null)
   const done = plans.filter((p) => p.completedAt !== null)
@@ -112,34 +78,26 @@ export function InstallmentsSection({
         .reduce((s, i) => s + (i.paidAmount ?? i.amount), 0),
     0
   )
-  const lastDue = active
-    .flatMap((p) => p.items.filter((i) => i.status !== "paid"))
-    .map((i) => i.dueDate)
-    .sort()
-    .at(-1)
 
   return (
     // scroll-mt: los enlaces a /recurring#cuotas no quedan bajo el header fijo.
     <section id="cuotas" aria-labelledby="cuotas-title" className="min-w-0 scroll-mt-24">
-      {/* min-h-9: la fila mide lo mismo con o sin el botón, así los títulos de las dos secciones
-          quedan alineados cuando van lado a lado. */}
-      <div className="mb-3 flex min-h-9 items-end justify-between gap-3">
-        <h2 id="cuotas-title" className="font-heading text-lg font-bold">
+      {/* min-h-11: la fila mide lo mismo con o sin la acción, así los títulos de las dos
+          secciones quedan alineados cuando van lado a lado. */}
+      <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
+        <h2 id="cuotas-title" className="text-title-3 font-bold">
           Cuotas
         </h2>
-        {/* Crear un plan vive acá, en la cabecera de su sección: el "+" de la barra es el ingreso
-            rápido de movimientos y es igual en toda la app. Vacía, el CTA es el del empty state. */}
+        {/* Crear un plan es la acción de la sección: texto azul a la derecha del encabezado.
+            Vacía, el CTA es el del empty state. */}
         {plans.length > 0 && (
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="outline" onClick={syncInstallments} disabled={syncing}>
-              <RefreshCw className={cn("size-4", syncing && "animate-spin")} />
-              Sincronizar cuotas
-            </Button>
-            <Button onClick={() => setCreating(true)} className="shrink-0">
-              <Plus className="size-4" />
-              Nueva compra
-            </Button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="press flex min-h-11 shrink-0 items-center gap-1 text-body text-primary"
+          >
+            <Plus className="size-4" /> Nueva compra
+          </button>
         )}
       </div>
 
@@ -147,29 +105,18 @@ export function InstallmentsSection({
         <EmptyState onCreate={() => setCreating(true)} />
       ) : (
         <div className="flex flex-col gap-6">
-          {/* El resumen del mes va primero: es el titular de la sección. */}
+          {/* El resumen del mes va primero: lo que cargan las cuotas este mes, y lo que falta. */}
           <div className="glass rounded-xl p-4">
-            <p className="text-sm text-muted-foreground">Pagas en cuotas este mes</p>
-            <p className="tabular text-2xl font-bold">{formatCLP(monthTotal)}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {active.length}{" "}
-              {active.length === 1 ? "compra activa" : "compras activas"}
+            <p className="text-subheadline text-muted-foreground">Pagas en cuotas este mes</p>
+            <p className="tabular text-hero font-bold">{formatCLP(monthTotal)}</p>
+            <p className="mt-2 flex justify-between gap-2 text-subheadline">
+              <span className="text-muted-foreground">Deuda total restante</span>
+              <span className="tabular font-semibold">{formatCLP(debt)}</span>
             </p>
-            <div className="mt-4 space-y-2 border-t border-border/60 pt-3 text-sm">
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Deuda total restante</span>
-                <span className="tabular font-semibold">{formatCLP(debt)}</span>
-              </div>
-              {lastDue && (
-                <p className="text-muted-foreground">
-                  La última cuota vence en {monthYear(lastDue)}.
-                </p>
-              )}
-            </div>
           </div>
 
           {active.length > 0 && (
-            <ul className="glass divide-y divide-border/50 rounded-xl px-3">
+            <ul className="glass inset-list overflow-hidden rounded-xl [--inset:4.25rem]">
               {active.map((p) => (
                 <PlanRow key={p.id} plan={p} onOpen={() => setDetailId(p.id)} />
               ))}
@@ -177,10 +124,10 @@ export function InstallmentsSection({
           )}
           {done.length > 0 && (
             <section>
-              <h3 className="mb-2 text-xs font-medium text-muted-foreground">
+              <h3 className="mb-1.5 px-4 text-footnote tracking-wide text-muted-foreground uppercase">
                 Pagadas
               </h3>
-              <ul className="glass divide-y divide-border/50 rounded-xl px-3">
+              <ul className="glass inset-list overflow-hidden rounded-xl [--inset:4.25rem]">
                 {done.map((p) => (
                   <PlanRow key={p.id} plan={p} onOpen={() => setDetailId(p.id)} />
                 ))}
@@ -219,20 +166,19 @@ function PlanRow({
   onOpen: () => void
 }) {
   const completed = p.completedAt !== null
-  const pct = Math.round((p.settledCount / p.installmentsCount) * 100)
   const item = currentItem(p)
   const monthPaid = !completed && thisMonthSettled(p)
-  const endsOn = p.items.at(-1)?.dueDate
 
+  // Dos líneas: nombre y cuota del mes; debajo, en qué cuota va y cuándo vence la próxima.
   return (
     <li className={cn(completed && "opacity-60")}>
       <button
         type="button"
         onClick={onOpen}
-        className="flex w-full gap-3 py-3 text-left"
+        className="press flex min-h-11 w-full items-center gap-3 py-2.5 pr-4 pl-4 text-left hover:bg-accent/60"
       >
         <span
-          className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-full"
+          className="grid size-10 shrink-0 place-items-center rounded-full"
           style={{
             background: p.categoryColor ? `${p.categoryColor}1f` : "var(--muted)",
           }}
@@ -246,100 +192,46 @@ function PlanRow({
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline justify-between gap-3">
-            <span className="min-w-0 truncate font-medium">
-              {p.description}
-            </span>
-            {/* La cuota del mes manda: el total del plan se paga en meses que no son este. */}
-            <span className="shrink-0 text-sm whitespace-nowrap">
-              {completed || !item ? (
-                <span className="tabular font-semibold">
-                  {formatCLP(p.outstanding)}
-                </span>
-              ) : (
-                <>
-                  <span className="tabular font-semibold">
-                    {formatCLP(item.amount)}
-                  </span>
-                  {/* Pagada del mes = la cuota de este mes ya está saldada; manda sobre "al mes". */}
-                  {monthPaid ? (
-                    <span className="ml-1 inline-flex items-center gap-0.5 text-xs text-primary">
-                      <Check className="size-3.5" />
-                      Pagada
-                    </span>
-                  ) : (
-                    <span className="ml-1 text-xs text-muted-foreground">
-                      al mes
-                    </span>
-                  )}
-                </>
-              )}
+            <span className="min-w-0 truncate text-body">{p.description}</span>
+            {/* La cuota del mes manda: el total del plan se paga en meses que no son este. Pagada,
+                el total del plan. */}
+            <span className="tabular shrink-0 text-body font-semibold">
+              {formatCLP(completed ? p.totalAmount : item ? item.amount : p.outstanding)}
             </span>
           </span>
-          <span className="mt-1 flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
-            <span>
-              {KIND_LABEL[p.kind] ?? p.kind} · cuota {p.settledCount} de{" "}
-              {p.installmentsCount}
-              {p.nextDueDate &&
-                !completed &&
-                ` · vence ${shortDate(p.nextDueDate)}`}
-              {/* El fin del plan es contexto, no urgencia: en móvil cede el espacio. */}
-              {endsOn && !completed && (
-                <span className="max-sm:hidden">
-                  {` · termina en ${monthYear(endsOn)}`}
+          {!completed && (
+            <span className="mt-0.5 flex items-center justify-between gap-3 text-footnote text-muted-foreground">
+              <span className="min-w-0 truncate">
+                cuota {p.settledCount} de {p.installmentsCount}
+                {p.nextDueDate && ` · vence ${shortDate(p.nextDueDate)}`}
+              </span>
+              {/* La cuota de este mes ya está saldada. */}
+              {monthPaid && (
+                <span className="flex shrink-0 items-center gap-0.5 text-primary">
+                  <Check className="size-3.5" />
+                  Pagada
                 </span>
               )}
             </span>
-            {/* Prosa en Geist; solo la cifra en mono. */}
-            <span>
-              {completed ? (
-                "Pagada"
-              ) : (
-                <>
-                  quedan{" "}
-                  <span className="tabular">{formatCLP(p.outstanding)}</span>
-                </>
-              )}
-            </span>
-          </span>
-          {/* El avance cierra la fila: puesto bajo el título parecía un subrayado del nombre. */}
-          <span
-            className="mt-2 block h-1 w-full overflow-hidden rounded-full bg-muted"
-            aria-hidden
-          >
-            <span
-              className="block h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
-              style={{ width: `${pct}%` }}
-            />
-          </span>
+          )}
         </span>
       </button>
     </li>
   )
 }
 
-// Empty state que explica qué problema resuelve, no que la lista está vacía.
+// Empty state: qué resuelve y el CTA.
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="glass rounded-xl px-6 py-10 text-center">
-      <span
-        className="mx-auto mb-3 grid size-11 place-items-center rounded-full bg-primary/10"
-        aria-hidden
-      >
-        <CreditCard className="size-5 text-primary" />
-      </span>
-      <h3 className="font-medium">Reparte una deuda en los meses que dura</h3>
-      <p className="mx-auto mt-1 max-w-sm text-sm text-balance text-muted-foreground">
-        Una compra en cuotas se cobra entera hoy pero se paga durante un año.
-        Convertirla en un plan hace que cada mes cargue solo su cuota, y te dice
-        cuánto falta de verdad.
+      <h3 className="text-headline">Reparte una deuda en los meses que dura</h3>
+      <p className="mx-auto mt-1 max-w-sm text-subheadline text-balance text-muted-foreground">
+        Una compra en cuotas convertida en plan hace que cada mes cargue solo su cuota, y te dice cuánto falta de verdad.
       </p>
-      <Button onClick={onCreate} className="mt-5">
+      <Button onClick={onCreate} className="mt-5 h-11 text-body">
         <Plus className="size-4" />
         Registrar un crédito
       </Button>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Las compras con tarjeta se pasan a cuotas desde el propio movimiento.
-      </p>
     </div>
   )
 }

@@ -28,6 +28,8 @@ import {
 import { incomeDueDateInRange } from "@/lib/income-schedule"
 import { planTotal, previousMonthLabel, shouldSuggest } from "@/lib/plan-total"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
+import type { PeriodMode } from "@/arch/shared/billing-cycle"
+import { PeriodModeControl } from "./month-status"
 import type {
   CategoryDTO,
   IncomeDTO,
@@ -45,6 +47,7 @@ export function PlanSheet({
   onOpenChange,
   period,
   cycleRange,
+  mode,
   isCurrentMonth,
   globalLimit,
   allocated,
@@ -65,6 +68,7 @@ export function PlanSheet({
   onOpenChange: (o: boolean) => void
   period: { year: number; month: number }
   cycleRange?: { start: string; end: string }
+  mode: PeriodMode // modo guardado del período: mes calendario o ciclo de la tarjeta
   isCurrentMonth: boolean
   globalLimit: number | null
   allocated: number
@@ -146,6 +150,11 @@ export function PlanSheet({
       title={cycleRange ? `Plan del ciclo · ${cycleRange.start.slice(8, 10)} ${monthName(Number(cycleRange.start.slice(5, 7))).slice(0, 3).toLowerCase()} – ${cycleRange.end.slice(8, 10)} ${monthName(Number(cycleRange.end.slice(5, 7))).slice(0, 3).toLowerCase()}` : `Plan de ${monthName(period.month).toLowerCase()}`}
     >
       <div className="flex min-w-0 flex-col gap-8 px-5">
+        {/* Período del plan: decide el rango de todo lo de abajo, por eso va primero. */}
+        <section>
+          <h3 className="mb-2 px-4 text-headline font-semibold">Período</h3>
+          <PeriodModeControl mode={mode} />
+        </section>
         {/* Exclusivo de modo crédito: el padre pasa [] en modo calendario. No confundir
             "generated" con depósito bancario; las fechas futuras prevalecen. */}
         {previousCycleIncomes.filter((inc) => {
@@ -381,7 +390,7 @@ export function PlanSheet({
             reparte. El saldo se recalcula al escribir; cada tope tiene un guardado explícito. */}
         {expenseCategories.length > 0 && (
           <section className="pb-2">
-            <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3 px-4">
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3 px-4">
               <h3 className="text-headline font-semibold">Topes por categoría</h3>
               {left !== null && (
                 <span
@@ -398,10 +407,6 @@ export function PlanSheet({
                 </span>
               )}
             </div>
-            <p className="mb-3 px-4 text-footnote text-muted-foreground">
-              Puedes dejar dinero por repartir. Si superas el presupuesto, te
-              avisamos sin bloquear.
-            </p>
             <div className="sheet-group inset-list px-4 [--inset:3.5rem]">
               {expenseCategories.map((c) => (
                 <LimitRow

@@ -1,6 +1,6 @@
 "use client"
 
-import { useId, useOptimistic, useState, useTransition } from "react"
+import { useOptimistic, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
@@ -8,28 +8,23 @@ import { CalendarClock, ChevronRight, SlidersHorizontal } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { Label } from "@/components/ui/label"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
-import {
-  formatCLP,
-  formatLongDate,
-  monthName,
-  todayKey,
-  usagePct,
-} from "@/lib/finance-format"
+import { formatCLP, monthName, usagePct } from "@/lib/finance-format"
 import { estimateClosing, type PeriodMode } from "@/arch/shared/billing-cycle"
+import { PlanSummary, type PlanInput } from "./financial-health-meter"
+import { Segmented } from "./segmented"
 import type { CycleProps } from "./dashboard"
 
 /**
- * Estado temporal del período activo: días que faltan para el cierre del ciclo de tarjeta
- * o del mes calendario. El presupuesto y su salud financiera se presentan aparte.
+ * Estado del período en el Inicio. En el mes en curso, lo primero y más grande es cuánto queda del
+ * plan; los días para cerrar van en la línea de abajo. Al pie, el rango del ciclo con su cierre (en
+ * modo tarjeta) y «Ajustar plan», que abre donde se decide todo esto (también el modo del período).
  * Para períodos históricos se conserva el saldo final sin gastar.
  */
 export function MonthStatus({
@@ -40,6 +35,7 @@ export function MonthStatus({
   globalLimit,
   spent,
   committed,
+  plan,
   onOpenPlan,
   children,
 }: {
@@ -50,12 +46,38 @@ export function MonthStatus({
   globalLimit: number | null
   spent: number
   committed: number
+  plan: PlanInput // resumen del plan (ingresos − gastos − comprometido) y liquidez
   onOpenPlan: () => void
-  children?: React.ReactNode // la tira de días, debajo del titular
+  children?: React.ReactNode // la tira de días
 }) {
   const mes = monthName(period.month).toLowerCase()
-  // Modo y ciclo: van justo encima de la tira de días, que es el rango que describen.
-  const cycleBar = <CycleBar period={period} cycle={cycle} />
+
+  // Pie: el rango del ciclo y su cierre (solo en modo tarjeta) y el acceso al plan.
+  const footer = (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+      {cycle.mode === "card_cycle" ? (
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="min-w-0 truncate text-subheadline text-muted-foreground">
+            <span className="max-sm:sr-only">Ciclo </span>
+            <span className="font-medium text-foreground tabular-nums">
+              {shortDate(cycle.range.start)} – {shortDate(cycle.range.end)}
+            </span>
+          </p>
+          <ClosingPicker period={period} closing={cycle.closing} />
+        </div>
+      ) : (
+        <span />
+      )}
+      <Button
+        variant="secondary"
+        onClick={onOpenPlan}
+        className="h-11 text-subheadline"
+      >
+        <SlidersHorizontal className="size-4" />
+        Ajustar plan
+      </Button>
+    </div>
+  )
 
   if (globalLimit === null) {
     return (
@@ -73,86 +95,62 @@ export function MonthStatus({
             Definir presupuesto
           </Button>
         </div>
-        {cycleBar}
-        {children && <div className="mt-3">{children}</div>}
+        <div className="mt-4">
+          <PlanSummary {...plan} />
+        </div>
+        {children && <div className="mt-4">{children}</div>}
+        {cycle.mode === "card_cycle" && footer}
+      </section>
+    )
+  }
+
+  if (isCurrentMonth) {
+    // daysLeft incluye hoy; el contador muestra días completos hasta la fecha de cierre.
+    const remainingDays = Math.max(0, daysLeft - 1)
+    const daysLine =
+      daysLeft === 1
+        ? "Hoy termina el período"
+        : `${remainingDays} ${remainingDays === 1 ? "día" : "días"} para cerrar${
+            // En crédito, la fecha ya la dice el cierre del pie.
+            cycle.mode === "calendar" ? ` · ${shortDate(cycle.range.end)}` : ""
+          }`
+    return (
+      <section className="glass rounded-xl p-5 lg:p-6">
+        <PlanSummary {...plan} subtitle={daysLine} />
+        {children && <div className="mt-4">{children}</div>}
+        {footer}
       </section>
     )
   }
 
   const free = globalLimit - spent - committed
   const usedPct = usagePct(spent, globalLimit)
-  const todayIso = `${todayKey()}T00:00:00.000Z`
-  // daysLeft incluye hoy; el contador muestra días completos hasta la fecha de cierre.
-  const remainingDays = Math.max(0, daysLeft - 1)
-
   return (
-    <section className="glass relative rounded-xl p-5 lg:p-6">
-      {/* Editar el plan (ingresos, presupuesto) vive acá: es el mismo lugar donde se ve su
-          resultado. En móvil se ancla arriba a la derecha para no quitarle ancho al titular. */}
-      <Button
-        variant="secondary"
-        onClick={onOpenPlan}
-        aria-label="Ajustar el plan del mes"
-        // Con nombre también en móvil: el icono de sliders solo no decía qué abría.
-        className="absolute top-5 right-5 z-10 max-sm:h-9 max-sm:px-3 max-sm:text-footnote sm:h-10 lg:top-6 lg:right-6"
-      >
-        <SlidersHorizontal className="size-4" />
-        Ajustar plan
-      </Button>
-
-      <div className="sm:pr-40">
-        {isCurrentMonth ? (
+    <section className="glass rounded-xl p-5 lg:p-6">
+      <p className="text-subheadline text-muted-foreground">
+        {monthName(period.month)} {period.year} cerró con
+      </p>
+      <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
+        <span className="tabular text-hero font-bold">
+          {formatCLP(Math.max(0, free))}
+        </span>
+        <span className="text-headline font-semibold">sin gastar</span>
+      </p>
+      <p className="mt-2 text-subheadline text-muted-foreground">
+        Gastaste <span className="tabular">{formatCLP(spent)}</span> de{" "}
+        <span className="tabular">{formatCLP(globalLimit)}</span>
+        {usedPct !== null && (
           <>
-            {/* Solo la fecha esquiva el botón; el titular usa el ancho entero. */}
-            <p className="text-subheadline text-muted-foreground max-sm:pr-32">
-              Hoy, {formatLongDate(todayIso)}
-            </p>
-            <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
-              <span className="tabular text-title-1 font-bold">
-                {daysLeft === 1 ? "Hoy" : remainingDays}
-              </span>
-              <span className="text-headline font-semibold">
-                {daysLeft === 1
-                  ? "termina el período"
-                  : remainingDays === 1
-                    ? "día para cerrar"
-                    : "días para cerrar"}
-                {/* En crédito, la fecha y si es estimada ya las dicen el ciclo y el botón del cierre. */}
-                {cycle.mode === "calendar" && (
-                  <span className="tabular-nums"> · {shortDate(cycle.range.end)}.</span>
-                )}
-              </span>
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="text-subheadline text-muted-foreground max-sm:pr-32">
-              {monthName(period.month)} {period.year} cerró con
-            </p>
-            <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
-              <span className="tabular text-hero font-bold">
-                {formatCLP(Math.max(0, free))}
-              </span>
-              <span className="text-headline font-semibold">
-                sin gastar
-              </span>
-            </p>
-            <p className="mt-2 text-subheadline text-muted-foreground">
-              Gastaste <span className="tabular">{formatCLP(spent)}</span> de{" "}
-              <span className="tabular">{formatCLP(globalLimit)}</span>
-              {usedPct !== null && (
-                <>
-                  {" "}
-                  · <span className="tabular">{Math.round(usedPct)}%</span>
-                </>
-              )}
-            </p>
+            {" "}
+            · <span className="tabular">{Math.round(usedPct)}%</span>
           </>
         )}
+      </p>
+      <div className="mt-4 border-t border-border pt-4">
+        <PlanSummary {...plan} />
       </div>
-
-      {cycleBar}
-      {children && <div className="mt-3">{children}</div>}
+      {children && <div className="mt-4">{children}</div>}
+      {footer}
     </section>
   )
 }
@@ -190,7 +188,7 @@ export function AllocationNudge({
 }
 
 // «23 sep», del "YYYY-MM-DD" civil sin pasar por la zona horaria.
-function shortDate(day: string): string {
+export function shortDate(day: string): string {
   const m = monthName(Number(day.slice(5, 7)))
     .slice(0, 3)
     .toLowerCase()
@@ -203,26 +201,16 @@ async function apiError(res: Response | null, fallback: string) {
 }
 
 /**
- * Fila del período: en modo tarjeta, el rango del ciclo y su cierre (corregible); a la derecha, el
- * switch de modo. En móvil se parte en dos líneas: el ciclo arriba y el switch debajo.
+ * Período del plan: mes calendario o ciclo de la tarjeta. Vive en «Ajustar plan». Optimista: el
+ * segmento cambia al toque y, al terminar la transición (guardado + refresco), vuelve solo a lo que
+ * diga el servidor: si falló, al modo anterior, con un toast.
  */
-function CycleBar({
-  period,
-  cycle,
-}: {
-  period: { year: number; month: number }
-  cycle: CycleProps
-}) {
+export function PeriodModeControl({ mode: savedMode }: { mode: PeriodMode }) {
   const router = useRouter()
-  const switchId = useId()
-  // Optimista: el switch cambia al toque y, al terminar la transición (guardado + refresco),
-  // vuelve solo a lo que diga el servidor: si falló, al modo anterior, con un toast.
-  const [mode, setOptimisticMode] = useOptimistic(cycle.mode)
+  const [mode, setOptimisticMode] = useOptimistic(savedMode)
   const [pending, startTransition] = useTransition()
-  const card = mode === "card_cycle"
 
-  function changeMode(checked: boolean) {
-    const next: PeriodMode = checked ? "card_cycle" : "calendar"
+  function changeMode(next: PeriodMode) {
     haptic("light")
     startTransition(async () => {
       setOptimisticMode(next)
@@ -242,41 +230,20 @@ function CycleBar({
   }
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
-      {/* El rango que trae el servidor es el del modo guardado: se muestra solo cuando el modo
-          guardado y el del switch coinciden en tarjeta. */}
-      {cycle.mode === "card_cycle" && card && (
-        // En móvil, rango y cierre van en una sola fila (como en escritorio): sin las palabras
-        // «Ciclo» y «Cierra el», que el aria-label del botón conserva, cabe en 390 px. El botón va
-        // pegado a la derecha, como el switch de abajo.
-        <div className="flex w-full min-w-0 items-center justify-between gap-x-3 gap-y-1 sm:w-auto sm:flex-wrap sm:justify-start">
-          <p className="min-w-0 truncate text-subheadline text-muted-foreground">
-            <span className="max-sm:sr-only">Ciclo </span>
-            <span className="font-medium text-foreground tabular-nums">
-              {shortDate(cycle.range.start)} – {shortDate(cycle.range.end)}
-            </span>
-          </p>
-          <ClosingPicker period={period} closing={cycle.closing} />
-        </div>
-      )}
-      {/* En móvil, el switch va en su propia fila a lo ancho: el label a la izquierda y el
-          switch pegado a la derecha, en vez de flotar suelto bajo el cierre. */}
-      <div className="flex min-h-11 w-full items-center justify-between gap-3 sm:ml-auto sm:w-auto sm:justify-start">
-        <Label
-          htmlFor={switchId}
-          className="cursor-pointer text-body font-normal sm:text-subheadline"
-        >
-          {card ? "Modo crédito · ciclo" : "Modo débito · mes"}
-        </Label>
-        <Switch
-          id={switchId}
-          aria-describedby={`${switchId}-scope`}
-          checked={card}
-          disabled={pending}
-          onCheckedChange={changeMode}
-        />
-      </div>
-      <p id={`${switchId}-scope`} className="sr-only">Ambos modos incluyen cuenta corriente y tarjeta. Solo cambia el período del plan.</p>
+    <div className="flex flex-col gap-2">
+      <Segmented
+        label="Período del plan"
+        value={mode}
+        disabled={pending}
+        onChange={changeMode}
+        options={[
+          { value: "calendar", label: "Mes calendario" },
+          { value: "card_cycle", label: "Ciclo de tarjeta" },
+        ]}
+      />
+      <p className="px-4 text-footnote text-muted-foreground">
+        Ambos incluyen cuenta corriente y tarjeta. Solo cambia el período del plan.
+      </p>
     </div>
   )
 }
@@ -322,7 +289,7 @@ function ClosingPicker({
         <Button
           variant="secondary"
           aria-label={`Cierre de ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}. Corregir`}
-          className="h-11 gap-2 px-3 text-subheadline font-normal sm:h-9"
+          className="h-11 gap-2 px-3 text-subheadline font-normal"
         >
           <CalendarClock className="size-4 text-muted-foreground" />
           <span>

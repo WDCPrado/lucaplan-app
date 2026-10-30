@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Eye, EyeOff, Loader2 } from "lucide-react"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
@@ -42,24 +42,22 @@ export function ProfileView({
     >
       {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para
           el enlace "Volver", que ya no está (la navegación vive en el shell). */}
-      <div className="mx-auto w-full max-w-4xl px-4 pt-1 pb-6 lg:px-8 lg:py-6">
-        {/* En escritorio el título ya está en la topbar; en móvil no hay, así que se muestra. */}
-        <h1 className="mb-3 font-heading text-xl font-bold md:sr-only">
-          Perfil
-        </h1>
+      <div className="mx-auto w-full max-w-4xl px-4 pt-1 pb-6 md:pt-6 lg:px-8">
+        {/* Móvil: título grande de iOS bajo la barra; en escritorio el título vive en el topbar. */}
+        <h1 className="mb-3 text-large-title font-bold md:hidden">Perfil</h1>
 
         {/* Cabecera: identidad (ancho completo) */}
-        <div className="glass flex items-center gap-4 rounded-xl p-5">
+        <div className="glass flex items-center gap-4 rounded-xl p-4">
           <Avatar className="size-14 rounded-full bg-primary">
-            <AvatarFallback className="rounded-full bg-primary text-xl font-semibold text-primary-foreground">
+            <AvatarFallback className="rounded-full bg-primary text-title-3 font-semibold text-primary-foreground">
               {user.initial}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <div className="truncate text-lg font-semibold">
+            <div className="truncate text-headline">
               {user.name || "Sin nombre"}
             </div>
-            <div className="truncate text-sm text-muted-foreground">
+            <div className="truncate text-subheadline text-muted-foreground">
               {user.email}
             </div>
             {/* «Usuario» no informa nada: el chip solo aparece cuando el rol dice algo. */}
@@ -71,12 +69,10 @@ export function ProfileView({
           </div>
         </div>
 
-        {/* Móvil: una columna; escritorio: 2 columnas (nombre+correo | contraseña) */}
-        <div className="mt-4 grid gap-4 lg:grid-cols-2 lg:items-start">
-          <div className="grid gap-4">
-            <NameForm initialName={user.name} />
-            <EmailField email={user.email} />
-          </div>
+        {/* Móvil: una columna; escritorio: 2 columnas (nombre | contraseña). El correo no tiene
+            sección: ya está en la cabecera y no se puede cambiar. */}
+        <div className="mt-8 grid gap-8 lg:grid-cols-2 lg:items-start">
+          <NameForm initialName={user.name} />
           <PasswordForm />
         </div>
       </div>
@@ -92,9 +88,10 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <section className="glass rounded-xl p-5">
-      <h2 className="mb-4 font-heading text-base font-bold">{title}</h2>
-      {children}
+    // Lista agrupada: el título va fuera de la tarjeta; los campos, dentro.
+    <section className="min-w-0">
+      <h2 className="mb-3 text-title-3 font-bold">{title}</h2>
+      <div className="glass rounded-xl p-4">{children}</div>
     </section>
   )
 }
@@ -135,7 +132,7 @@ function NameForm({ initialName }: { initialName: string }) {
             autoComplete="name"
             maxLength={80}
             placeholder="Tu nombre"
-            className="h-11 text-base"
+            className="h-11 text-body md:text-body"
           />
         </div>
         <Button
@@ -151,19 +148,6 @@ function NameForm({ initialName }: { initialName: string }) {
   )
 }
 
-function EmailField({ email }: { email: string }) {
-  return (
-    <Section title="Correo">
-      {/* Texto, no un input deshabilitado: un campo gris con el valor apagado se lee como
-          "editable pero roto" y hasta como vacío. Si no se puede cambiar, no es un campo. */}
-      <p className="truncate text-base">{email}</p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        El correo no se puede cambiar por ahora.
-      </p>
-    </Section>
-  )
-}
-
 function PasswordForm() {
   const [current, setCurrent] = useState("")
   const [next, setNext] = useState("")
@@ -171,12 +155,10 @@ function PasswordForm() {
   const [show, setShow] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    setDone(false)
     if (next.length < 8) {
       setError("La nueva contraseña debe tener al menos 8 caracteres.")
       return
@@ -200,7 +182,6 @@ function PasswordForm() {
     setCurrent("")
     setNext("")
     setConfirm("")
-    setDone(true)
     toast.success("Contraseña actualizada.")
   }
 
@@ -217,7 +198,7 @@ function PasswordForm() {
             onChange={(e) => setCurrent(e.target.value)}
             autoComplete="current-password"
             required
-            className="h-11 text-base"
+            className="h-11 text-body md:text-body"
           />
         </div>
         <div className="space-y-2">
@@ -231,18 +212,18 @@ function PasswordForm() {
               autoComplete="new-password"
               required
               minLength={8}
-              className="h-11 pr-11 text-base"
+              className="h-11 pr-11 text-body md:text-body"
             />
             <button
               type="button"
               onClick={() => setShow((v) => !v)}
               aria-label={show ? "Ocultar contraseña" : "Mostrar contraseña"}
-              className="absolute top-1 right-1 grid size-9 place-items-center rounded-md text-muted-foreground hover:text-foreground"
+              className="absolute top-0 right-0 grid size-11 place-items-center rounded-lg text-muted-foreground hover:text-foreground"
             >
               {show ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
             </button>
           </div>
-          <p className="text-xs text-muted-foreground">Mínimo 8 caracteres.</p>
+          <p className="text-footnote text-muted-foreground">Mínimo 8 caracteres.</p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="confirm">Repite la nueva contraseña</Label>
@@ -254,19 +235,13 @@ function PasswordForm() {
             autoComplete="new-password"
             required
             minLength={8}
-            className="h-11 text-base"
+            className="h-11 text-body md:text-body"
           />
         </div>
 
         {error && (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="text-subheadline text-destructive">
             {error}
-          </p>
-        )}
-        {done && (
-          <p className="flex items-center gap-2 text-sm text-success">
-            <Check className="size-4" />
-            Contraseña actualizada.
           </p>
         )}
 

@@ -10,10 +10,10 @@ export function ImportProgressTimeline({ current }: { current: number }) {
   return (
     <div className="flex flex-col gap-5 px-6 py-8">
       <div className="text-center">
-        <h3 className="font-heading text-lg font-bold">
+        <h3 className="text-title-3 font-bold">
           Conectando Banco de Chile
         </h3>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-subheadline text-muted-foreground">
           No cierres esta ventana; toma unos segundos.
         </p>
       </div>
@@ -48,16 +48,19 @@ export function ImportProgressTimeline({ current }: { current: number }) {
               >
                 <div
                   className={cn(
-                    "text-sm font-medium",
+                    "text-body",
                     active && "text-foreground",
                     done && "text-foreground"
                   )}
                 >
                   {step.title}
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {step.detail}
-                </div>
+                {/* El detalle solo del paso en curso: es lo que está pasando ahora. */}
+                {active && (
+                  <div className="text-footnote text-muted-foreground">
+                    {step.detail}
+                  </div>
+                )}
               </div>
             </li>
           )

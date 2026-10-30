@@ -190,7 +190,7 @@ export function MovementScanPanel({
 
       {!rows && (
         <div className="flex flex-col gap-3 py-2">
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-subheadline text-muted-foreground">
             Sube una foto de la cartola o del historial de tu banco y se leen
             los movimientos que falten. Hasta {MAX_SCAN_IMAGES} fotos. No se
             guardan.
@@ -209,7 +209,7 @@ export function MovementScanPanel({
                     alt=""
                     className="size-12 shrink-0 rounded-md object-cover object-top"
                   />
-                  <span className="min-w-0 flex-1 truncate text-sm">
+                  <span className="min-w-0 flex-1 truncate text-subheadline">
                     {shot.name}
                   </span>
                   <button
@@ -261,7 +261,7 @@ export function MovementScanPanel({
               </Button>
             )}
 
-            <Button variant="ghost" onClick={addRow} disabled={busy !== null}>
+            <Button variant="ghost" onClick={addRow} disabled={busy !== null} className="h-11">
               Escribirlos a mano
             </Button>
           </div>
@@ -270,13 +270,13 @@ export function MovementScanPanel({
 
       {rows && (
         <>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-subheadline text-muted-foreground">
             {rows.length === 0
               ? "No se reconoció ningún movimiento en la foto. Agrégalos a mano."
               : "Revisa los montos y las fechas contra la foto. Solo se registran los marcados."}
           </p>
           {skipped > 0 && (
-            <p className="flex items-start gap-2 text-sm text-muted-foreground">
+            <p className="flex items-start gap-2 text-subheadline text-muted-foreground">
               <TriangleAlert className="mt-0.5 size-4 shrink-0" />
               {skipped === 1
                 ? "Una línea no se pudo leer (monto o fecha ilegible)."
@@ -312,7 +312,7 @@ export function MovementScanPanel({
                     placeholder="Descripción"
                     aria-label="Descripción del movimiento"
                     inputMode="text"
-                    className="h-12 min-w-0 flex-1 text-base"
+                    className="h-12 min-w-0 flex-1 text-body"
                   />
                   <button
                     type="button"
@@ -329,7 +329,7 @@ export function MovementScanPanel({
                         : "Es un ingreso; cambiar a gasto"
                     }
                     className={cn(
-                      "size-11 shrink-0 rounded-lg border text-xl",
+                      "size-11 shrink-0 rounded-lg border text-title-3",
                       row.direction === "debit"
                         ? "text-destructive"
                         : "bg-success/10 text-success"
@@ -355,7 +355,7 @@ export function MovementScanPanel({
                     }
                     placeholder="0"
                     aria-label="Monto del movimiento"
-                    className="tabular h-12 min-w-0 flex-1 text-right text-base"
+                    className="tabular h-12 min-w-0 flex-1 text-right text-body"
                   />
                   <button
                     type="button"
@@ -371,7 +371,7 @@ export function MovementScanPanel({
                   </button>
                 </div>
                 {row.duplicate && (
-                  <p className="pl-8 text-xs text-muted-foreground">
+                  <p className="pl-8 text-footnote text-muted-foreground">
                     Ya tienes uno igual ese día: márcalo solo si de verdad
                     fueron dos.
                   </p>
@@ -380,7 +380,7 @@ export function MovementScanPanel({
             ))}
           </ul>
 
-          <Button variant="outline" onClick={addRow} disabled={busy !== null}>
+          <Button variant="outline" onClick={addRow} disabled={busy !== null} className="h-11">
             <Plus className="size-4" /> Agregar movimiento
           </Button>
 
@@ -412,7 +412,7 @@ export function MovementScanPanel({
       {error && (
         <p
           role="alert"
-          className="flex items-start gap-2 text-sm text-destructive"
+          className="flex items-start gap-2 text-subheadline text-destructive"
         >
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
           {error}

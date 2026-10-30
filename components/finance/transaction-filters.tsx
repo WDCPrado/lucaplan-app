@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { Segmented } from "./segmented"
 import { formatCompact } from "@/lib/finance-format"
 import type {
   AccountDTO,
@@ -45,8 +47,8 @@ export function fromYmd(s: string | undefined): Date | undefined {
 }
 
 export type Dir = "" | "debit" | "credit"
-const DIRS: { value: Dir; label: string }[] = [
-  { value: "", label: "Todos" },
+const DIRS: { value: "all" | "debit" | "credit"; label: string }[] = [
+  { value: "all", label: "Todos" },
   { value: "debit", label: "Gastos" },
   { value: "credit", label: "Ingresos" },
 ]
@@ -92,28 +94,99 @@ export function filtersToParams(
   return params
 }
 
-// Campo de búsqueda + filtros combinados (dirección, categoría, banco, fechas, monto). Controlado:
-// quien lo usa decide qué hacer con los valores (el modal busca contra la API; la página
-// /movements los escribe en la URL).
-export function TransactionFilters({
-  value,
-  onChange,
-  categories,
-  accounts,
-  amountBounds,
-  autoFocus,
-  inputId,
-}: {
+type FilterProps = {
   value: FilterValues
   onChange: (v: FilterValues) => void
   categories: CategoryDTO[]
   accounts: AccountDTO[]
   amountBounds: AmountBoundsDTO
+}
+
+// Cuántos filtros (fuera del texto) están puestos: el «Filtros (n)» de Movimientos en móvil.
+export function activeFilterCount(v: FilterValues, bounds: AmountBoundsDTO) {
+  const amountNarrowed =
+    bounds.max > bounds.min &&
+    (v.amount[0] > bounds.min || v.amount[1] < bounds.max)
+  return [
+    !!v.direction,
+    v.categoryId !== "all",
+    v.bank !== "all",
+    !!v.range?.from,
+    amountNarrowed,
+  ].filter(Boolean).length
+}
+
+// Campo de búsqueda + filtros combinados (dirección, categoría, banco, fechas, monto). Controlado:
+// quien lo usa decide qué hacer con los valores (el modal busca contra la API; la página
+// /movements los escribe en la URL). Movimientos en móvil los usa por separado.
+export function TransactionFilters({
+  autoFocus,
+  inputId,
+  ...props
+}: FilterProps & { autoFocus?: boolean; inputId?: string }) {
+  return (
+    <>
+      <SearchField
+        value={props.value}
+        onChange={props.onChange}
+        autoFocus={autoFocus}
+        inputId={inputId}
+      />
+      <FilterControls {...props} />
+    </>
+  )
+}
+
+export function SearchField({
+  value,
+  onChange,
+  autoFocus,
+  inputId,
+}: {
+  value: FilterValues
+  onChange: (v: FilterValues) => void
   autoFocus?: boolean
   inputId?: string
 }) {
+  const q = value.q
+  const set = (patch: Partial<FilterValues>) => onChange({ ...value, ...patch })
+  return (
+    <div className="relative">
+      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        id={inputId}
+        autoFocus={autoFocus}
+        value={q}
+        onChange={(e) => set({ q: e.target.value })}
+        aria-label="Buscar movimientos por descripción o categoría"
+        inputMode="search"
+        placeholder="Buscar por descripción o categoría…"
+        className="h-11 pr-10 pl-10 text-body"
+      />
+      {q && (
+        <button
+          type="button"
+          onClick={() => set({ q: "" })}
+          className="absolute top-1/2 right-0 grid size-11 -translate-y-1/2 place-items-center text-muted-foreground hover:text-foreground"
+          aria-label="Limpiar búsqueda"
+        >
+          <X className="size-4" />
+        </button>
+      )}
+    </div>
+  )
+}
+
+export function FilterControls({
+  value,
+  onChange,
+  categories,
+  accounts,
+  amountBounds,
+}: FilterProps) {
   const { q, direction, categoryId, bank, range, amount } = value
   const set = (patch: Partial<FilterValues>) => onChange({ ...value, ...patch })
+  const isMobile = useIsMobile()
 
   // Slider de monto: solo si hay rango real (>1 monto distinto). El paso reparte el rango en ~100.
   const showAmount = amountBounds.max > amountBounds.min
@@ -137,60 +210,16 @@ export function TransactionFilters({
 
   return (
     <>
-      {/* Campo de búsqueda */}
-      <div className="relative">
-        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          id={inputId}
-          autoFocus={autoFocus}
-          value={q}
-          onChange={(e) => set({ q: e.target.value })}
-          aria-label="Buscar movimientos por descripción o categoría"
-          inputMode="search"
-          placeholder="Buscar por descripción o categoría…"
-          className="h-12 pr-10 pl-10 text-base"
-        />
-        {q && (
-          <button
-            type="button"
-            onClick={() => set({ q: "" })}
-            className="absolute top-1/2 right-0 grid size-11 -translate-y-1/2 place-items-center text-muted-foreground hover:text-foreground"
-            aria-label="Limpiar búsqueda"
-          >
-            <X className="size-4" />
-          </button>
-        )}
-      </div>
+      {/* Tipo: segmentado de iOS, un solo estilo activo para las tres opciones. */}
+      <Segmented
+        label="Tipo de movimiento"
+        value={direction === "" ? "all" : direction}
+        onChange={(v) => set({ direction: v === "all" ? "" : v })}
+        options={DIRS}
+      />
 
       {/* Filtros combinados: envuelven en angosto. */}
       <div className="flex flex-wrap items-center gap-3">
-        <div
-          role="group"
-          aria-label="Tipo de movimiento"
-          className="flex shrink-0 overflow-hidden rounded-lg border text-sm"
-        >
-          {DIRS.map((d) => (
-            <button
-              type="button"
-              key={d.label}
-              aria-pressed={direction === d.value}
-              onClick={() => set({ direction: d.value })}
-              className={cn(
-                "h-11 px-3.5 transition-colors",
-                direction === d.value
-                  ? d.value === "credit"
-                    ? "bg-success text-success-foreground"
-                    : d.value === "debit"
-                      ? "bg-destructive text-destructive-foreground"
-                      : "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-secondary"
-              )}
-            >
-              {d.label}
-            </button>
-          ))}
-        </div>
-
         <Select
           value={categoryId}
           onValueChange={(v) => set({ categoryId: v })}
@@ -253,7 +282,8 @@ export function TransactionFilters({
               mode="range"
               selected={range}
               onSelect={(r) => set({ range: r })}
-              numberOfMonths={1}
+              // Dos meses donde caben (md+); en el teléfono, uno.
+              numberOfMonths={isMobile ? 1 : 2}
               autoFocus
             />
           </PopoverContent>
@@ -262,7 +292,7 @@ export function TransactionFilters({
           <button
             type="button"
             onClick={() => onChange(emptyFilters(amountBounds))}
-            className="ml-auto h-11 shrink-0 text-sm text-muted-foreground hover:text-foreground"
+            className="ml-auto h-11 shrink-0 text-subheadline text-primary"
           >
             Limpiar
           </button>
@@ -272,7 +302,7 @@ export function TransactionFilters({
       {/* Rango de monto */}
       {showAmount && (
         <div className="flex flex-col gap-2 pt-1">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center justify-between text-footnote text-muted-foreground">
             <span>Monto</span>
             <span className="tabular-nums">
               {formatCompact(amount[0])} – {formatCompact(amount[1])}

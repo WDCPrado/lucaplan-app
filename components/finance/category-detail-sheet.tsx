@@ -120,14 +120,8 @@ export function CategoryDetailSheet({
             </section>
           </div>
           <ModalFooter className="px-5">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12 text-body"
-              onClick={() => onOpenChange(false)}
-            >
-              Cerrar
-            </Button>
+            {/* Sin «Cerrar»: en móvil el drawer se cierra arrastrando o tocando el fondo; en
+                escritorio, con la X. */}
             <Button
               type="button"
               variant="outline"

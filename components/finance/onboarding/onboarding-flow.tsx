@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Check, Mail, Sparkles, Wallet } from "lucide-react"
+import { ArrowRight, Check, Plus, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { formatMoney } from "@/lib/finance-format"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
@@ -10,7 +10,6 @@ import {
   OutlookBankConnection,
   type OutlookStatus,
 } from "../outlook-bank-connection"
-import { UncategorizedTriage } from "../uncategorized-triage"
 import { CategoryModal } from "../category-modal"
 import { IncomeModal } from "../income-modal"
 import { CategoryIcon } from "../category-icons"
@@ -18,38 +17,9 @@ import type {
   AccountDTO,
   CategoryDTO,
   IncomeDTO,
-  TransactionDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
-type Step = "welcome" | "connect" | "triage" | "income" | "budget"
-
-// Cuántos grupos de comercio más frecuentes se preguntan en el onboarding (el resto queda para el
-// triage normal del dashboard).
-const MAX_TRIAGE_GROUPS = 8
-
-// Normaliza la descripción para agrupar variantes del mismo comercio (recorta dígitos/ruido).
-const groupKey = (desc: string) =>
-  desc
-    .toLowerCase()
-    .replace(/[0-9]+/g, " ")
-    .replace(/[^a-záéíóúñ ]+/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-
-// Deja solo los movimientos de los ~8 grupos de comercio más frecuentes.
-function topGroups(txs: TransactionDTO[]): TransactionDTO[] {
-  const groups = new Map<string, TransactionDTO[]>()
-  for (const t of txs) {
-    const k = groupKey(t.description) || t.description
-    const arr = groups.get(k) ?? []
-    arr.push(t)
-    groups.set(k, arr)
-  }
-  return [...groups.values()]
-    .sort((a, b) => b.length - a.length)
-    .slice(0, MAX_TRIAGE_GROUPS)
-    .flat()
-}
+type Step = "welcome" | "connect" | "income" | "budget"
 
 // Onboarding fullscreen de la primera conexión. Orquesta pasos reutilizando los componentes
 // existentes; el estado del paso vive en el cliente y sobrevive a los router.refresh() (el shell no
@@ -57,7 +27,6 @@ function topGroups(txs: TransactionDTO[]): TransactionDTO[] {
 export function OnboardingFlow({
   accounts,
   categories,
-  uncategorized,
   incomes,
   period,
   globalLimit,
@@ -67,7 +36,6 @@ export function OnboardingFlow({
 }: {
   accounts: AccountDTO[]
   categories: CategoryDTO[]
-  uncategorized: { transactions: TransactionDTO[]; hasMore: boolean }
   incomes: IncomeDTO[]
   period: { year: number; month: number }
   globalLimit: number | null
@@ -81,11 +49,6 @@ export function OnboardingFlow({
   const [locked, setLocked] = useState(false) // import en curso: no permitir cerrar
   const [incomeOpen, setIncomeOpen] = useState(false)
   const [catOpen, setCatOpen] = useState(false)
-  // Snapshot ESTABLE de los movimientos a categorizar: se arma al terminar el import (datos frescos,
-  // no del prop que llega atrasado) y no cambia mientras el triage está abierto, para que corregir la
-  // última categoría no lo desmonte.
-  const [triageTxs, setTriageTxs] = useState<TransactionDTO[] | null>(null)
-
   const loadStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/email-connection/status", {
@@ -97,50 +60,14 @@ export function OnboardingFlow({
     }
   }, [])
 
-  // Import terminado (OutlookBankConnection llama onReload): refresca datos y arma el triage con los
-  // sin-categoría FRESCOS (traídos por API, no del prop que puede ir atrasado tras el import). Si no
-  // hay nada que categorizar, salta al paso de ingresos.
+  // Import terminado (OutlookBankConnection llama onReload): refresca datos y sigue a ingresos.
   async function afterImport() {
     await loadStatus()
     router.refresh()
-    try {
-      const res = await fetch("/api/transactions/search?uncategorized=1", {
-        cache: "no-store",
-      })
-      const txs = (await res.json()) as TransactionDTO[]
-      const top = topGroups(Array.isArray(txs) ? txs : [])
-      setTriageTxs(top)
-      setStep(top.length > 0 ? "triage" : "income")
-    } catch {
-      setStep("income")
-    }
+    setStep("income")
   }
 
-  // El triage trae su propio Dialog fullscreen; se monta en vez del shell. Usa el snapshot estable
-  // (no el prop) para que corregir la última categoría no lo desmonte.
-  if (step === "triage" && triageTxs && triageTxs.length > 0) {
-    return (
-      <UncategorizedTriage
-        transactions={triageTxs}
-        hasMore={uncategorized.hasMore}
-        accounts={accounts}
-        categories={categories}
-        onClose={() => setStep("income")}
-        onCreateCategory={() => setCatOpen(true)}
-      >
-        <CategoryModal
-          open={catOpen}
-          onOpenChange={setCatOpen}
-          period={period}
-          category={null}
-          remainingToAllocate={remainingToAllocate}
-        />
-      </UncategorizedTriage>
-    )
-  }
-
-  // Fuera del triage, la vista es el paso actual (si quedó en "triage" sin movimientos, muestra ingresos).
-  const view: Step = step === "triage" ? "income" : step
+  const view = step
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background p-[env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)]">
@@ -162,22 +89,17 @@ export function OnboardingFlow({
           {view === "connect" && (
             <div className="flex flex-1 flex-col gap-8">
               <Header
-                icon={Mail}
                 title="Revisemos tus correos"
                 subtitle="Detectamos tus cuentas y tarjetas desde las notificaciones del banco."
               />
-              <div className="flex items-start gap-2 rounded-xl border border-primary/25 bg-primary/5 p-3 text-sm text-muted-foreground">
+              <div className="flex items-start gap-2 rounded-xl border border-primary/25 bg-primary/5 p-3 text-subheadline text-muted-foreground">
                 <Wallet className="mt-0.5 size-4 shrink-0 text-primary" />
                 <span>
                   Ingresa el{" "}
                   <span className="font-medium text-foreground">
                     saldo actual
                   </span>{" "}
-                  de cada cuenta y tarjeta. Los movimientos que detectamos los{" "}
-                  <span className="font-medium text-foreground">
-                    revisarás y validarás
-                  </span>{" "}
-                  en el paso siguiente.
+                  de cada cuenta y tarjeta.
                 </span>
               </div>
               <OutlookBankConnection
@@ -211,7 +133,7 @@ export function OnboardingFlow({
         {!locked && view !== "welcome" && view !== "budget" && (
           <button
             onClick={onFinish}
-            className="mt-6 min-h-11 self-center px-4 text-sm text-muted-foreground hover:text-foreground"
+            className="mt-6 min-h-11 self-center px-4 text-subheadline text-muted-foreground hover:text-foreground"
           >
             Omitir por ahora
           </button>
@@ -242,15 +164,24 @@ export function OnboardingFlow({
   )
 }
 
-const STEPS: Step[] = ["welcome", "connect", "triage", "income", "budget"]
+const STEPS: Step[] = ["welcome", "connect", "income", "budget"]
 
 function StepDots({ step }: { step: Step }) {
   const idx = STEPS.indexOf(step)
   return (
-    <div className="mb-8 flex justify-center gap-1.5" aria-hidden>
+    <div
+      role="progressbar"
+      aria-valuemin={1}
+      aria-valuemax={STEPS.length}
+      aria-valuenow={idx + 1}
+      aria-valuetext={`Paso ${idx + 1} de ${STEPS.length}`}
+      aria-label={`Paso ${idx + 1} de ${STEPS.length}`}
+      className="mb-8 flex justify-center gap-1.5"
+    >
       {STEPS.map((s, i) => (
         <span
           key={s}
+          aria-hidden
           className={
             i <= idx
               ? "h-1.5 w-6 rounded-full bg-primary transition-all"
@@ -262,28 +193,13 @@ function StepDots({ step }: { step: Step }) {
   )
 }
 
-function Header({
-  icon: Icon,
-  title,
-  subtitle,
-}: {
-  icon: typeof Mail
-  title: string
-  subtitle: string
-}) {
+function Header({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div className="flex flex-col gap-3">
-      <span className="grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
-        <Icon className="size-6" />
-      </span>
-      <div>
-        <h1 className="font-heading text-2xl font-bold text-balance">
-          {title}
-        </h1>
-        <p className="mt-1 text-sm text-pretty text-muted-foreground">
-          {subtitle}
-        </p>
-      </div>
+    <div>
+      <h1 className="text-title-1 font-bold text-balance">{title}</h1>
+      <p className="mt-1 text-body text-pretty text-muted-foreground">
+        {subtitle}
+      </p>
     </div>
   )
 }
@@ -292,20 +208,17 @@ function Welcome({ onStart }: { onStart: () => void }) {
   return (
     <div className="flex flex-1 flex-col justify-center gap-8 text-center">
       <div className="flex flex-col items-center gap-4">
-        <span className="grid size-16 place-items-center rounded-full bg-primary/10 text-primary">
-          <Sparkles className="size-8" />
-        </span>
         <div>
-          <h1 className="font-heading text-3xl font-bold text-balance">
+          <h1 className="text-large-title font-bold text-balance">
             Armemos tu presupuesto
           </h1>
-          <p className="mx-auto mt-2 max-w-xs text-sm text-pretty text-muted-foreground">
+          <p className="mx-auto mt-2 max-w-xs text-subheadline text-pretty text-muted-foreground">
             Leemos los correos de tu banco, ordenamos tus movimientos y creamos
             tu presupuesto del mes. Toma un minuto.
           </p>
         </div>
       </div>
-      <Button onClick={onStart} className="h-12 w-full text-base">
+      <Button onClick={onStart} className="h-12 w-full text-body">
         Comenzar <ArrowRight className="size-4" />
       </Button>
     </div>
@@ -324,7 +237,6 @@ function IncomeStep({
   return (
     <div className="flex flex-1 flex-col gap-8">
       <Header
-        icon={Wallet}
         title="¿Cuánto ingresas al mes?"
         subtitle="Agrega tus fuentes de ingreso (sueldo, arriendo…). Con eso armamos tu presupuesto."
       />
@@ -340,28 +252,25 @@ function IncomeStep({
                 size={20}
                 color={i.categoryColor ?? undefined}
               />
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+              <span className="min-w-0 flex-1 truncate text-subheadline font-medium">
                 {i.name}
               </span>
-              <span className="tabular text-sm font-semibold text-success">
+              <span className="tabular text-subheadline font-semibold text-success">
                 +{formatMoney(i.amount, i.currency as CurrencyCode)}
               </span>
             </li>
           ))}
         </ul>
       )}
-      <Button
-        variant="outline"
-        onClick={onAdd}
-        className="h-12 w-full border-dashed"
-      >
-        + Agregar ingreso
+      <Button variant="outline" onClick={onAdd} className="h-12 w-full text-body">
+        <Plus className="size-4" />
+        Agregar ingreso
       </Button>
       <div className="flex-1" />
       <Button
         onClick={onContinue}
         disabled={incomes.length === 0}
-        className="h-12 w-full text-base"
+        className="h-12 w-full text-body"
       >
         Continuar <ArrowRight className="size-4" />
       </Button>
@@ -385,9 +294,9 @@ function BudgetReady({
           <Check className="size-8" />
         </span>
         <div>
-          <h1 className="font-heading text-2xl font-bold">¡Todo listo!</h1>
+          <h1 className="text-title-1 font-bold">¡Todo listo!</h1>
           {globalLimit !== null ? (
-            <p className="mt-2 text-sm text-pretty text-muted-foreground">
+            <p className="mt-2 text-subheadline text-pretty text-muted-foreground">
               Tu presupuesto del mes es de{" "}
               <span className="font-semibold text-foreground">
                 {formatMoney(globalLimit, "CLP")}
@@ -395,13 +304,13 @@ function BudgetReady({
               . Ya llevas {formatMoney(spent, "CLP")} en gastos.
             </p>
           ) : (
-            <p className="mt-2 text-sm text-pretty text-muted-foreground">
+            <p className="mt-2 text-subheadline text-pretty text-muted-foreground">
               Puedes definir tu presupuesto cuando quieras desde el dashboard.
             </p>
           )}
         </div>
       </div>
-      <Button onClick={onFinish} className="h-12 w-full text-base">
+      <Button onClick={onFinish} className="h-12 w-full text-body">
         Ir al dashboard <ArrowRight className="size-4" />
       </Button>
     </div>

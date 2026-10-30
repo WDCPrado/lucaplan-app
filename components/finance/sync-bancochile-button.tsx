@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Landmark } from "lucide-react"
+import { Landmark, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
@@ -22,11 +22,15 @@ const COMING_SOON = [
   "Scotiabank",
 ]
 
+// Conectar el correo del banco. Sin cuentas conectadas es un tile del tamaño de una cuenta en el
+// carrusel (`tile`); con alguna ya conectada, una fila de texto al pie de la sección (`row`).
 export function SyncBancoChileButton({
+  variant = "tile",
   accounts = [],
   outlookResult,
   outlookReason,
 }: {
+  variant?: "tile" | "row"
   accounts?: AccountDTO[]
   outlookResult?: string | null
   outlookReason?: string | null
@@ -77,17 +81,29 @@ export function SyncBancoChileButton({
 
   return (
     <>
-      <button
-        onClick={openModal}
-        data-card
-        className="flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col items-center justify-center gap-2 rounded-xl border-2 border-primary/40 bg-primary/5 text-primary transition-colors hover:bg-primary/10 lg:w-auto lg:snap-start"
-      >
-        <Landmark className="size-6" />
-        <span className="text-sm font-medium">Conectar banco</span>
-        <span className="px-4 text-center text-xs text-muted-foreground">
-          Trae cuentas y movimientos
-        </span>
-      </button>
+      {variant === "row" ? (
+        <button
+          type="button"
+          onClick={openModal}
+          className="press flex min-h-11 items-center gap-1 text-body text-primary"
+        >
+          <Plus className="size-4" />
+          Conectar correo del banco
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={openModal}
+          data-card
+          className="press flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col items-center justify-center gap-2 rounded-xl bg-card text-primary hover:bg-accent lg:w-auto lg:snap-start"
+        >
+          <Landmark className="size-6" />
+          <span className="text-body font-medium">Conectar correo del banco</span>
+          <span className="px-4 text-center text-footnote text-muted-foreground">
+            Trae cuentas y movimientos
+          </span>
+        </button>
+      )}
 
       <ResponsiveModal
         open={open}
@@ -107,7 +123,7 @@ export function SyncBancoChileButton({
 
           {/* Otros bancos, aún no soportados */}
           <div className="flex flex-col gap-2">
-            <span className="text-xs font-medium text-muted-foreground">
+            <span className="text-footnote font-medium text-muted-foreground">
               Próximamente
             </span>
             {COMING_SOON.map((name) => (
@@ -117,7 +133,7 @@ export function SyncBancoChileButton({
               >
                 <Landmark className="size-5 shrink-0 text-muted-foreground" />
                 <span className="font-medium">{name}</span>
-                <span className="ml-auto text-xs text-muted-foreground">
+                <span className="ml-auto text-footnote text-muted-foreground">
                   Próximamente
                 </span>
               </div>

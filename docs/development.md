@@ -105,8 +105,7 @@ un barrido aparte.
 - **Modales, dos tipos y nada más.** `ResponsiveModal` para crear, editar o mostrar contenido
   (dialog en escritorio, drawer en móvil); `AlertDialog` para confirmar una acción al momento.
   En escritorio los modales de contenido tienen X arriba; en móvil **no llevan X**: el drawer
-  se cierra por arrastre, fondo o acción del pie. El triage a pantalla completa ofrece «Cerrar»
-  en el pie móvil. Las confirmaciones se resuelven con sus botones. El pie lleva las
+  se cierra por arrastre, fondo o acción del pie, sin un «Cerrar» que repita eso. Las confirmaciones se resuelven con sus botones. El pie lleva las
   acciones (`ModalFooter`); el botón que envía va con `form="<id>"` del `<form>` del modal.
   Las acciones de convertir un movimiento en recurrente o cuota van en una fila discreta (`ghost`,
   `text-muted-foreground`) que envuelve si no cabe. Las etiquetas pueden envolver y conservan ≥44px de alto.
@@ -114,8 +113,7 @@ un barrido aparte.
   detalle, lista) hereda el default de `ResponsiveModal`, `sm:max-w-2xl`, sin pasar
   `className`; denso (varias columnas, como el de cuenta) sube a `sm:max-w-3xl`; un solo campo
   o un aviso de dos líneas baja a `sm:max-w-md`, porque estirado se ve vacío; una confirmación
-  (`AlertDialog`) queda angosta con su default. El triage a pantalla completa es la única
-  excepción (`max-w-none`). Ojo en móvil: el `className` sí llega al drawer, pero el default de
+  (`AlertDialog`) queda angosta con su default. Ojo en móvil: el `className` sí llega al drawer, pero el default de
   ancho no, porque vive solo en el diálogo de escritorio; el drawer conserva su altura según el contenido, con tope de 96dvh.
 - **Modales anidados.** El padre permanece abierto y montado; el hijo se compone dentro de su
   árbol React, con su formulario fuera del formulario del padre. `ResponsiveModal` asigna una
@@ -123,8 +121,8 @@ un barrido aparte.
   Cerrar, Cancelar, Esc y el fondo cierran solo el hijo y devuelven el foco al padre. Los cierres
   después de una escritura exitosa tienen callbacks propios, separados de `onOpenChange`.
   Los formularios y sus botones de envío usan IDs por instancia; las demás acciones llevan
-  `type="button"`. El diálogo de triage a pantalla completa usa `ModalScope` para conservar
-  la misma jerarquía sin cambiar su superficie.
+  `type="button"`. Una superficie propia que no sea `ResponsiveModal` usa `ModalScope` para
+  entrar en la misma jerarquía.
 - **Formularios.** Un `<form id>` por sección; error de cada campo debajo del campo con
   `aria-invalid` y `aria-describedby`; Guardar manda solo lo que cambió y queda deshabilitado
   sin cambios. Dinero con `useMoneyInput`/`formatCLP`, nunca `type="number"` ni formato a mano.
@@ -146,17 +144,33 @@ agrupaciones, la tipografía y los controles.
   responde a qué decisión o acción de la persona sirve. Si no sirve ninguna o repite algo que ya
   está, se quita o se funde; si sirve, su peso visual corresponde a su importancia. Quitar va antes
   que agregar.
-- **El vidrio (`.liquid-glass`) es solo para lo que flota sobre el contenido**: la fila de
-  controles superior y la barra de pestañas en móvil, el sidebar y la toolbar en escritorio. El
-  contenido (tarjetas, listas, modales) va en superficies sólidas de `card` sobre el fondo
-  agrupado. El vidrio se hace con CSS (blur, saturación, brillo en el canto y sombra suave), nunca
-  con filtros SVG de desplazamiento, que Safari no dibuja; con `prefers-reduced-transparency` cae a
-  sólido.
-- **Navegación móvil flotante, sin barras a lo ancho**: arriba, un círculo de vidrio a la izquierda
-  (cuenta) y las acciones de la vista en cápsulas; abajo, una cápsula con las pestañas (la activa
-  con pastilla) y la búsqueda en un círculo suelto a la derecha. Crear un movimiento vive en la
-  vista Movimientos, no en la barra. Todo respeta `env(safe-area-inset-*)` y el contenido deja
-  aire para no quedar tapado.
+- **Materiales (apple-hig `foundations/materials`, `color`, `components/scroll-views`).** Todo sale
+  de los tokens y utilidades de `app/globals.css`; ningún componente pone su propio blur o fondo.
+  - **Liquid Glass (`liquid-glass`) solo en la capa de controles y navegación**: fila superior y
+    barra de pestañas en móvil, sidebar y topbar en escritorio, cápsulas y botones flotantes. Nunca
+    en el contenido (tarjetas, listas, hojas), que va sólido en `card` sobre el fondo agrupado.
+    Variante regular (desenfoque + luminosidad), sin «clear». Lo grande (sidebar) un poco más opaco
+    que lo chico. Se hace con CSS, nunca con filtros SVG de desplazamiento, que Safari no dibuja.
+  - **Material regular (`material`, `--material`)** para lo que lleva texto encima del contenido:
+    menús, select, popover, tooltip, toasts y alertas. Más opaco que el vidrio de las barras. Las
+    hojas (drawer y diálogo) van sólidas (`--sheet`).
+  - **Color con moderación**: el vidrio no tiene color propio; textos e íconos encima van en
+    `foreground`. El estado activo o la acción primaria tiñen el FONDO del control
+    (`liquid-glass-active`, `bg-primary`), no el texto, y nunca varios controles a la vez.
+  - **Scroll edge effect** (`scroll-edge-top` / `scroll-edge-bottom`) separa los controles del
+    contenido que pasa por debajo, no un fondo sólido: uno por vista, solo donde hay scroll bajo
+    controles flotantes.
+  - **Concentricidad**: lo que va dentro de una barra o cápsula usa el radio externo menos el
+    margen (`--radius-bar-inner` en la topbar y el sidebar; `rounded-full` dentro de cápsulas).
+  - Con `prefers-reduced-transparency` todo material cae a sólido; con `prefers-contrast: more`
+    gana relleno y contorno.
+- **Navegación flotante, sin barras a lo ancho**: en móvil, arriba un círculo de vidrio a la
+  izquierda (cuenta) y las acciones de la vista a todo el ancho (el selector de mes `MonthNav`);
+  abajo, una cápsula con las pestañas (la activa con pastilla) y la búsqueda global en un círculo
+  suelto a la derecha, en todas las vistas. En escritorio, sidebar y topbar flotantes de la misma
+  familia (mismo margen, radio y vidrio); la topbar lleva la búsqueda global en todas las vistas.
+  Crear un movimiento no está en la navegación: entran desde el correo del banco. Todo respeta `env(safe-area-inset-*)` y el
+  contenido deja aire para no quedar tapado.
 - **Listas agrupadas («inset grouped»)**: secciones en tarjetas con filas de ≥44 px, separadores
   finos con inset desde el texto (`.inset-list`), chevron cuando la fila abre algo y la acción de la
   sección en texto azul a la derecha del encabezado. Las superficies se separan por el fondo, no

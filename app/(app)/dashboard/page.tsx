@@ -18,9 +18,7 @@ import {
   getBudgetView,
   getPreviousMonthDebt,
   listTransactions,
-  listUncategorized,
   listIncomesView,
-  getAmountBounds,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { materializeUserPeriods } from "@/arch/v1/application/finance-use-cases/recurring-use-cases"
 import { getPaceFrequency } from "@/arch/v1/application/finance-use-cases/pace-use-cases"
@@ -83,9 +81,7 @@ export default async function DashboardPage({
     accounts,
     budget,
     transactions,
-    uncategorized,
     incomes,
-    amountBounds,
     previousMonthDebt,
     previousCycleIncomes,
   ] = await Promise.all([
@@ -96,9 +92,7 @@ export default async function DashboardPage({
       today,
     }),
     listTransactions(financePageDeps, userId, year, month),
-    listUncategorized(financePageDeps, userId, year, month),
     listIncomesView(financePageDeps, userId, year, month),
-    getAmountBounds(financePageDeps, userId),
     // Lo que el mes anterior gastó por sobre su presupuesto: el plan del mes lo descuenta del
     // total que ofrece repartir. Va acá y no en `getBudgetView` porque el único que la necesita es
     // el plan; meterla al DTO se la cobraría a todos los consumidores de la vista.
@@ -145,10 +139,8 @@ export default async function DashboardPage({
         accounts={accounts}
         budget={budget}
         transactions={transactions}
-        uncategorized={uncategorized}
         incomes={incomes}
         previousCycleIncomes={previousCycleIncomes}
-        amountBounds={amountBounds}
         previousMonthDebt={previousMonthDebt}
         user={user}
         outlookResult={sp.outlook ?? null}

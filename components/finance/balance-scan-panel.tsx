@@ -279,7 +279,7 @@ export function BalanceScanPanel({
 
       {!values && (
         <div className="flex flex-col gap-3 py-2">
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-subheadline text-muted-foreground">
             Sube capturas de la app de tu banco y se leen los saldos. Puedes
             juntar hasta {MAX_SCAN_IMAGES} si el cupo internacional está en otra
             pantalla. No se guardan.
@@ -298,7 +298,7 @@ export function BalanceScanPanel({
                     alt=""
                     className="size-12 shrink-0 rounded-md object-cover object-top"
                   />
-                  <span className="min-w-0 flex-1 truncate text-sm">
+                  <span className="min-w-0 flex-1 truncate text-subheadline">
                     {shot.name}
                   </span>
                   <button
@@ -355,7 +355,7 @@ export function BalanceScanPanel({
 
       {values && (
         <>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-subheadline text-muted-foreground">
             Revisa que los montos coincidan con la captura antes de guardar. El
             cupo total no se toca: es el que tiene la cuenta.
           </p>
@@ -365,7 +365,7 @@ export function BalanceScanPanel({
           {mismatches.map((m) => (
             <p
               key={m.kind}
-              className="flex items-start gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
+              className="flex items-start gap-2 rounded-lg bg-destructive/10 p-3 text-subheadline text-destructive"
             >
               <TriangleAlert className="mt-0.5 size-4 shrink-0" />
               <span>
@@ -410,12 +410,12 @@ export function BalanceScanPanel({
                       ? "Está en negativo; cambiar a positivo"
                       : "Está en positivo; cambiar a negativo"
                   }
-                  className="size-10 shrink-0 rounded-lg border text-xl disabled:opacity-40"
+                  className="size-11 shrink-0 rounded-lg border text-title-3 disabled:opacity-40"
                 >
                   {(values.cash ?? 0) < 0 ? "−" : "+"}
                 </button>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-footnote text-muted-foreground">
                 Conserva el signo que muestra el banco. La línea se informa aparte.
               </p>
             </div>
@@ -430,13 +430,13 @@ export function BalanceScanPanel({
                 className="flex flex-col gap-3 rounded-lg border border-border/60 p-3"
               >
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-sm font-medium">
+                  <span className="text-subheadline font-medium">
                     {f.label}
                     {f.currency === "USD" && (
                       <span className="ml-1 text-muted-foreground">(USD)</span>
                     )}
                   </span>
-                  <span className="tabular text-xs text-muted-foreground">
+                  <span className="tabular text-footnote text-muted-foreground">
                     {total === null
                       ? "Sin cupo total guardado"
                       : `Cupo total ${formatMoney(total, f.currency)}`}
@@ -459,7 +459,7 @@ export function BalanceScanPanel({
                   </div>
                 ))}
 
-                <p className="text-xs text-muted-foreground">
+                <p className="text-footnote text-muted-foreground">
                   {total === null
                     ? "Escribe los dos: sin cupo total guardado, de su suma sale el de la cuenta."
                     : "Escribe el que muestre la captura; el otro sale del cupo total."}
@@ -487,7 +487,7 @@ export function BalanceScanPanel({
 
       {(error || warning) && (
         <p
-          className={`flex items-start gap-2 text-sm ${error ? "text-destructive" : "text-muted-foreground"}`}
+          className={`flex items-start gap-2 text-subheadline ${error ? "text-destructive" : "text-muted-foreground"}`}
         >
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
           {error ?? warning}

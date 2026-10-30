@@ -100,18 +100,18 @@ export function AssignToInstallmentModal({
     >
       <div className="flex flex-col px-5 pb-4">
         {plans === null ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
+          <p className="py-8 text-center text-subheadline text-muted-foreground">
             Buscando planes…
           </p>
         ) : plans.length === 0 ? (
-          <p className="py-8 text-center text-sm text-balance text-muted-foreground">
+          <p className="py-8 text-center text-subheadline text-balance text-muted-foreground">
             {onCreateLoan
               ? "No tienes planes de cuotas con cuotas pendientes. Registra el crédito y este pago quedará enganchado como su cuota."
               : "No tienes planes de cuotas con cuotas pendientes. Crea uno desde Cuotas, o pasa una compra de tarjeta a cuotas."}
           </p>
         ) : !plan ? (
           <>
-            <p className="py-3 text-xs text-muted-foreground">
+            <p className="py-3 text-subheadline">
               ¿De qué deuda es este pago?
             </p>
             <ul className="flex flex-col">
@@ -133,10 +133,10 @@ export function AssignToInstallmentModal({
                       />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">
+                      <span className="block truncate text-subheadline font-medium">
                         {p.description}
                       </span>
-                      <span className="block truncate text-xs text-muted-foreground">
+                      <span className="block truncate text-footnote text-muted-foreground">
                         cuota {p.settledCount} de {p.installmentsCount} ·{" "}
                         {formatCLP(p.outstanding)} por pagar
                       </span>
@@ -149,14 +149,14 @@ export function AssignToInstallmentModal({
         ) : (
           <>
             <div className="flex items-center justify-between gap-2 py-3">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-subheadline">
                 ¿Qué cuota de {plan.description} salda?
               </p>
               {(plans?.length ?? 0) > 1 && (
                 <button
                   type="button"
                   onClick={() => setPlanId(null)}
-                  className="shrink-0 text-xs text-muted-foreground underline"
+                  className="min-h-11 shrink-0 text-subheadline text-primary"
                 >
                   Cambiar
                 </button>
@@ -175,16 +175,16 @@ export function AssignToInstallmentModal({
                       disabled={busy}
                       className="flex w-full items-center gap-3 border-b border-border/40 py-2.5 text-left transition-colors hover:bg-secondary/40 disabled:opacity-50"
                     >
-                      <span className="tabular w-6 shrink-0 text-xs text-muted-foreground">
+                      <span className="tabular w-6 shrink-0 text-footnote text-muted-foreground">
                         {item.index}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm">
+                        <span className="block text-subheadline">
                           {shortDate(item.dueDate)}
                         </span>
                         <span
                           className={cn(
-                            "block text-xs",
+                            "block text-footnote",
                             item.status === "overdue"
                               ? "text-destructive"
                               : "text-muted-foreground"
@@ -193,7 +193,7 @@ export function AssignToInstallmentModal({
                           {item.status === "overdue" ? "Vencida" : "Por venir"}
                         </span>
                       </span>
-                      <span className="tabular shrink-0 text-sm font-medium">
+                      <span className="tabular shrink-0 text-subheadline font-medium">
                         {formatCLP(item.amount)}
                       </span>
                     </button>

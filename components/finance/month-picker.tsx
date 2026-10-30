@@ -43,7 +43,7 @@ export function MonthPicker({
       <PopoverTrigger asChild>
         <button
           className={cn(
-            "h-8 min-w-20 rounded-lg px-2 text-center text-sm font-semibold transition-colors hover:bg-background",
+            "press min-h-11 max-w-full truncate rounded-full px-3 text-center text-headline font-semibold md:min-h-8 md:text-subheadline",
             className
           )}
         >

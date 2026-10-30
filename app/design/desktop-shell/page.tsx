@@ -265,7 +265,6 @@ export default function DesktopShellMock() {
       active={active}
       onNavigate={setActive}
       onSignOut={() => alert("Cerrar sesión (mock)")}
-      quickAdd={{ accounts: ACCOUNTS, categories: CATEGORIES }}
       title="Resumen"
       actions={
         <div className="flex items-center gap-1 rounded-full bg-secondary px-1.5 py-1">

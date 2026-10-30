@@ -225,17 +225,12 @@ export function AccountInfoModal({
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-              {disconnectError ? (
+              {disconnectError && (
                 <p
                   role="alert"
                   className="text-center text-subheadline text-destructive"
                 >
                   {disconnectError}
-                </p>
-              ) : (
-                <p className="text-center text-subheadline text-muted-foreground">
-                  Elimina la conexión, sus credenciales y todos sus datos de
-                  Luca Plan.
                 </p>
               )}
             </div>

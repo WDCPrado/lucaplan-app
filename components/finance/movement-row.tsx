@@ -113,7 +113,7 @@ export function MovementRow({
   return (
     <div
       className={cn(
-        "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-secondary/60",
+        "flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-foreground/5",
         className
       )}
     >
@@ -135,37 +135,35 @@ export function MovementRow({
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
         <div className="min-w-0 flex-1">
-          <div className="truncate font-medium">{tx.description}</div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div className="truncate text-body font-medium">{tx.description}</div>
+          <div className="flex items-center gap-1.5 text-footnote text-muted-foreground">
             <span className="truncate">
               {tx.categoryName ?? "Sin categoría"}
             </span>
             {pending && (
-              <span className="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
+              <span className="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-caption font-medium text-warning">
                 {committed ? "Por cobrar" : "Pendiente"}
               </span>
             )}
             {!!tx.reimbursementCount && (
-              <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">Vinculado</span>
+              <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-caption font-medium text-primary">Vinculado</span>
             )}
             {tx.isInternal && (
-              <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-caption font-medium text-primary">
                 Ajuste de saldo
               </span>
             )}
           </div>
-          {tx.remaining !== null && tx.remaining !== undefined && (
-            // Restante negativo = categoría excedida: en rojo, como el "Libre" del mes. El resto
-            // queda neutro para no llenar la lista de color (el arco ya lleva el semáforo).
-            <div
-              className={`tabular text-xs ${tx.remaining < 0 ? "text-destructive" : "text-muted-foreground"}`}
-            >
+          {/* Solo cuando la categoría quedó en negativo: es lo único que pide atención. El resto
+              lo dice el arco del icono. */}
+          {tx.remaining != null && tx.remaining < 0 && (
+            <div className="tabular text-footnote text-destructive">
               Quedan {formatCLP(tx.remaining)}
             </div>
           )}
         </div>
         <div
-          className={`tabular shrink-0 text-right text-sm font-semibold ${income ? "text-success" : "text-foreground"}`}
+          className={`tabular shrink-0 text-right text-subheadline font-semibold ${income ? "text-success" : "text-foreground"}`}
         >
           <div>
             {income ? "+" : "−"}
@@ -175,7 +173,7 @@ export function MovementRow({
           </div>
           {/* Moneda extranjera: equivalente CLP estimado (dólar del día) usado en los cálculos. */}
           {tx.amountClp != null && (
-            <div className="text-[10px] font-normal text-muted-foreground">
+            <div className="text-caption font-normal text-muted-foreground">
               ≈ {formatCLP(Math.abs(tx.amountClp))}
             </div>
           )}

@@ -190,7 +190,7 @@ Después de validar, el usuario MUST registrar un snapshot con fecha/hora: saldo
 
 ### Requirement: Proyección y reconciliación de balances
 
-Solo los eventos posteriores al snapshot vigente SHALL actualizar balances estimados. Un débito CLP MUST consumir primero caja y luego aumentar sobregiro usado; un abono interno MUST reducir primero sobregiro usado y después aumentar caja. Una compra de crédito MUST aumentar `used` y reducir `available` del cupo de su moneda; un pago interno inequívoco MUST reducir `used` sin dejarlo bajo cero. El usuario SHALL poder reemplazar los valores estimados mediante “Actualizar saldos”, creando un nuevo snapshot.
+Solo los eventos posteriores al snapshot vigente SHALL actualizar balances estimados. Un débito CLP MUST consumir primero caja y luego aumentar sobregiro usado; un abono interno MUST reducir primero sobregiro usado y después aumentar caja. Una compra de crédito MUST aumentar `used` y reducir `available` del cupo de su moneda; un pago interno inequívoco MUST reducir `used` sin dejarlo bajo cero. El usuario SHALL poder reemplazar los valores estimados desde el plugin MCP (`lucaplan_reconciliar_saldos_correo` para un banco conectado por correo, `lucaplan_actualizar_saldos` para una cuenta), creando un nuevo snapshot. La app no ofrece esa acción en su UI.
 
 #### Scenario: Débito usa caja y sobregiro
 - **WHEN** entra un débito CLP posterior al snapshot por un monto mayor que la caja disponible
@@ -205,7 +205,7 @@ Solo los eventos posteriores al snapshot vigente SHALL actualizar balances estim
 - **THEN** crea las transacciones vinculadas pero no vuelve a descontarlas de los balances iniciales
 
 #### Scenario: Reconciliación manual
-- **WHEN** el usuario selecciona “Actualizar saldos” e ingresa valores actuales
+- **WHEN** el usuario ingresa los valores actuales con la herramienta `lucaplan_reconciliar_saldos_correo` del plugin MCP
 - **THEN** el sistema reemplaza los buckets, guarda una nueva fecha de snapshot y proyecta solo eventos posteriores
 
 ### Requirement: Carga inicial e incremental recuperable
@@ -289,7 +289,7 @@ fecha de reconciliación, la etiqueta y el conteo de omitidos SHALL mostrarse po
 
 #### Scenario: Visualización de cuenta por correo
 - **WHEN** el usuario abre un banco conectado por Outlook
-- **THEN** ve “Saldo estimado desde <fecha>”, la última sincronización, el estado de la conexión y la acción “Actualizar saldos”
+- **THEN** ve “Saldo estimado desde <fecha>”, la última sincronización y el estado de la conexión, sin una acción para actualizar saldos (eso se hace por el plugin MCP)
 
 #### Scenario: OAuth revocado
 - **WHEN** Microsoft rechaza la renovación del token por autorización revocada

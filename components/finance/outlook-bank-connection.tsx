@@ -1,15 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useId, useRef, useState } from "react"
-import {
-  Check,
-  CircleAlert,
-  Loader2,
-  Mail,
-  Plus,
-  RefreshCw,
-  Unplug,
-} from "lucide-react"
+import { Check, CircleAlert, Loader2, Mail, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { haptic } from "@/lib/haptics"
 import {
@@ -25,16 +17,20 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
+import {
+  ModalActions,
+  ModalDangerRow,
+  ModalSection,
+} from "@/components/ui/responsive-modal"
 import { DatePicker } from "./transaction-modal"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
-import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import type { CardVariant } from "@/lib/bank-cards"
 import {
   confirmBlocker,
   plural,
   proposedChecking,
-  reconcileBlocker,
   refComplete,
   scanGuidance,
   type ScanCandidate,
@@ -127,49 +123,6 @@ const nowLocal = () => {
   return d.toISOString().slice(0, 16)
 }
 
-function formsFromAccounts(accounts: AccountDTO[]): {
-  checking: CheckingForm | null
-  cards: CardForm[]
-} {
-  const checkingAccount = accounts.find((a) => a.accountType === "checking")
-  const checking = checkingAccount
-    ? {
-        ref: checkingAccount.cardLast4 ?? "",
-        cash:
-          checkingAccount.buckets?.find((b) => b.kind === "cash")?.available ??
-          checkingAccount.balance,
-        hasOverdraft: Boolean(
-          checkingAccount.buckets?.some((b) => b.kind === "overdraft")
-        ),
-        overdraftLimit:
-          checkingAccount.buckets?.find((b) => b.kind === "overdraft")?.limit ??
-          0,
-        overdraftAvailable:
-          checkingAccount.buckets?.find((b) => b.kind === "overdraft")
-            ?.available ?? 0,
-      }
-    : null
-  const cards = accounts
-    .filter((a) => a.accountType === "credit_card")
-    .map((a) => {
-      const national = a.buckets?.find((b) => b.kind === "credit_national")
-      const international = a.buckets?.find(
-        (b) => b.kind === "credit_international"
-      )
-      return {
-        id: crypto.randomUUID(),
-        last4: a.cardLast4 ?? "",
-        national: Boolean(national),
-        nationalLimit: national?.limit ?? 0,
-        nationalAvailable: national?.available ?? 0,
-        international: Boolean(international),
-        internationalLimit: international?.limit ?? 0,
-        internationalAvailable: international?.available ?? 0,
-      }
-    })
-  return { checking, cards }
-}
-
 // Lo que el formulario le muestra al usuario (qué se le propone, los avisos y qué le falta) vive
 // en lib/, para que se pruebe sin montar la UI.
 const formOf = (
@@ -217,33 +170,31 @@ const REPROCESO_DIAS = 7
 
 export function OutlookBankConnection({
   status,
-  accounts,
   onReload,
   onImportingChange,
+  inline = false,
 }: {
   status: OutlookStatus | null
-  accounts: AccountDTO[]
   onReload: () => Promise<void>
   // Aviso al padre de que la importación inicial está en curso (para bloquear el cierre del modal).
   onImportingChange?: (v: boolean) => void
+  // Fuera de un modal (onboarding): las acciones van en el flujo, al final del contenido, y no se
+  // listan los bancos que vienen: ahí la persona conecta el suyo y sigue.
+  inline?: boolean
 }) {
+  const actionsClass = inline ? INLINE_ACTIONS_CLASS : ACTIONS_CLASS
   const [busy, setBusy] = useState(false)
   const [scan, setScan] = useState<Scan | null>(null)
   const [snapshotAt, setSnapshotAt] = useState(nowLocal)
   const [checking, setChecking] = useState<CheckingForm | null>(null)
   const [cards, setCards] = useState<CardForm[]>([])
-  // Banco en curso: el que está en setup (escaneo → snapshot) o el que se está reconciliando.
-  const [reconciling, setReconciling] = useState<OutlookBankDTO | null>(null)
   const [scanError, setScanError] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const [importStepIdx, setImportStepIdx] = useState(0)
   const automaticScanStarted = useRef(false)
   const invalidSnapshot = snapshotInvalid(checking, cards)
-  // Qué falta para poder confirmar. La conexión inicial CREA instrumentos y exige más que la
-  // reconciliación, que solo actualiza saldos de los que ya existen.
-  const setupForm = formOf(checking, cards)
-  const blockingHint = confirmBlocker(setupForm)
-  const reconcileHint = reconcileBlocker(setupForm)
+  // Qué falta para poder confirmar la conexión inicial, que CREA instrumentos.
+  const blockingHint = confirmBlocker(formOf(checking, cards))
 
   const mailboxes = status?.mailboxes ?? []
   // Solo los que el servidor puede autorizar. El nombre se busca en el catálogo completo: un buzón
@@ -454,25 +405,6 @@ export function OutlookBankConnection({
     await onReload()
   }
 
-  async function saveReconcile(linkId: string) {
-    setBusy(true)
-    const res = await fetch("/api/email-connection/reconcile", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(snapshotBody(linkId)),
-    })
-    const data = await res.json().catch(() => ({}))
-    setBusy(false)
-    if (!res.ok) {
-      haptic("error")
-      return toast.error(data.error ?? "No se pudieron guardar los saldos")
-    }
-    haptic("success")
-    toast.success("Saldos actualizados")
-    setReconciling(null)
-    await onReload()
-  }
-
   async function refresh() {
     setBusy(true)
     // Además del delta, relee este último mes de avisos de los bancos vinculados: así vuelven los
@@ -517,97 +449,78 @@ export function OutlookBankConnection({
   }
 
   // Importación inicial en curso: el overlay de pasos toma toda la superficie del modal (bloqueado).
-  if (importing) return <ImportProgressTimeline current={importStepIdx} />
+  if (importing)
+    return (
+      <ImportProgressTimeline
+        current={importStepIdx}
+        bankName={pending?.bankName ?? "tu banco"}
+      />
+    )
 
   if (!status)
     return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="size-5 animate-spin text-primary" />
+      <div role="status" className="flex justify-center py-8">
+        <Loader2 className="size-5 animate-spin text-primary" aria-hidden />
+        <span className="sr-only">Cargando la conexión del banco</span>
       </div>
     )
-  // Reconciliación de un banco concreto ("Actualizar saldos").
-  if (reconciling) {
-    return (
-      <div className="space-y-5">
-        <SnapshotForm
-          bankName={reconciling.bankName}
-          snapshotAt={snapshotAt}
-          setSnapshotAt={setSnapshotAt}
-          checking={checking}
-          setChecking={setChecking}
-          cards={cards}
-          setCards={setCards}
-        />
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setReconciling(null)}
-              className="h-11 flex-1"
-            >
-              Cancelar
-            </Button>
-            {/* Con la referencia vacía reconcileEmailBalances rechaza el guardado entero (es todo
-                o nada desde WDC-81): no rompería nada, pero volvería con 422. Se bloquea antes. */}
-            <Button
-              onClick={() => saveReconcile(reconciling.id)}
-              disabled={busy || invalidSnapshot || Boolean(reconcileHint)}
-              className="h-11 flex-1"
-            >
-              Guardar saldos
-            </Button>
-          </div>
-          {reconcileHint && (
-            <p className="text-center text-subheadline">{reconcileHint}</p>
-          )}
-        </div>
-      </div>
-    )
-  }
-
   // Banco recién agregado: escaneo del mes y snapshot antes de crear nada.
   if (pending) {
+    const cancelPending = (
+      <DisconnectButton
+        busy={busy}
+        label="Cancelar conexión"
+        title={`¿Cancelar la conexión de ${pending.bankName}?`}
+        description="Aún no se creó ninguna cuenta ni movimiento."
+        onConfirm={() => disconnect({ linkId: pending.id })}
+      />
+    )
     if (!scan) {
       return (
-        <div className="space-y-4">
-          <Notice icon={Check}>
-            {pending.bankName} en {pending.mailbox.emailAddress}. Aún no se creó
-            ninguna cuenta ni movimiento.
-          </Notice>
-          {scanError ? (
-            <>
-              <Notice icon={CircleAlert} tone="warning">
+        <div className="flex flex-col gap-7">
+          <ModalSection footer="Aún no se creó ninguna cuenta ni movimiento.">
+            <div className={ROW}>
+              <Check className="size-5 shrink-0 text-success" aria-hidden />
+              <div className="min-w-0">
+                <p className="text-body">{pending.bankName}</p>
+                <p className="truncate text-subheadline text-muted-foreground">
+                  {pending.mailbox.emailAddress}
+                </p>
+              </div>
+            </div>
+            {scanError ? (
+              <Notice icon={CircleAlert} tone="warning" role="alert">
                 {scanError}
               </Notice>
-              <Button
-                onClick={() => detect(pending.id)}
-                disabled={busy}
-                className="h-12 w-full"
-              >
-                <RefreshCw /> Reintentar revisión
-              </Button>
-            </>
-          ) : (
-            <div
-              className="flex items-center justify-center gap-2 rounded-xl border bg-muted/30 p-5 text-subheadline text-muted-foreground"
-              role="status"
-            >
-              <Loader2 className="size-4 animate-spin text-primary" />
-              Revisando las notificaciones de tu banco…
-            </div>
+            ) : (
+              <div role="status" className={ROW}>
+                <Loader2
+                  className="size-5 shrink-0 animate-spin text-primary"
+                  aria-hidden
+                />
+                <span className="text-subheadline text-muted-foreground">
+                  Revisando las notificaciones de tu banco…
+                </span>
+              </div>
+            )}
+          </ModalSection>
+          {cancelPending}
+          {scanError && (
+            <ModalActions
+              primary={{
+                label: "Reintentar revisión",
+                mobileLabel: "Reintentar",
+                onClick: () => detect(pending.id),
+                disabled: busy,
+              }}
+              className={actionsClass}
+            />
           )}
-          <DisconnectButton
-            busy={busy}
-            label="Cancelar conexión"
-            title={`¿Cancelar la conexión de ${pending.bankName}?`}
-            description="Aún no se creó ninguna cuenta ni movimiento."
-            onConfirm={() => disconnect({ linkId: pending.id })}
-          />
         </div>
       )
     }
     return (
-      <div className="space-y-5">
+      <div className="flex flex-col gap-7">
         <ScanSummary scan={scan} bankName={pending.bankName} />
         <ScanGuidance
           scan={scan}
@@ -624,27 +537,19 @@ export function OutlookBankConnection({
           cards={cards}
           setCards={setCards}
         />
-        <div className="space-y-2">
-          <Button
-            onClick={() => startInitialImport(pending.id)}
-            disabled={busy || invalidSnapshot || Boolean(blockingHint)}
-            className="h-12 w-full"
-          >
-            Validar e importar movimientos
-          </Button>
-          {/* Por qué el botón está apagado: un disabled sin motivo deja al usuario probando clics.
-              El mismo motivo viaja además en el campo que lo causa (aria-describedby), que es donde
-              se arregla y donde sí lo alcanza un lector de pantalla. */}
-          {blockingHint && (
-            <p className="text-center text-subheadline">{blockingHint}</p>
-          )}
-        </div>
-        <DisconnectButton
-          busy={busy}
-          label="Cancelar conexión"
-          title={`¿Cancelar la conexión de ${pending.bankName}?`}
-          description="Aún no se creó ninguna cuenta ni movimiento."
-          onConfirm={() => disconnect({ linkId: pending.id })}
+        {/* Por qué la acción está apagada: un disabled sin motivo deja al usuario probando clics.
+            El mismo motivo viaja además en el campo que lo causa (aria-describedby), que es donde
+            se arregla y donde sí lo alcanza un lector de pantalla. */}
+        {blockingHint && <BlockingHint>{blockingHint}</BlockingHint>}
+        {cancelPending}
+        <ModalActions
+          primary={{
+            label: "Validar e importar movimientos",
+            mobileLabel: "Importar",
+            onClick: () => startInitialImport(pending.id),
+            disabled: busy || invalidSnapshot || Boolean(blockingHint),
+          }}
+          className={actionsClass}
         />
       </div>
     )
@@ -653,18 +558,24 @@ export function OutlookBankConnection({
   // Sin correos conectados: primer OAuth, trayendo el banco elegido.
   if (mailboxes.length === 0) {
     return (
-      <div className="space-y-4">
-        <Notice icon={Mail}>
-          Luca Plan solo leerá notificaciones de tu banco con el permiso
-          Mail.Read. No puede enviar ni borrar correos.
-        </Notice>
+      <div className="flex flex-col gap-7">
+        <ModalSection>
+          <Notice icon={Mail}>
+            Luca Plan solo leerá notificaciones de tu banco con el permiso
+            Mail.Read. No puede enviar ni borrar correos.
+          </Notice>
+        </ModalSection>
         {configuredProviders.length === 0 ? (
-          <NotConfiguredNotice />
+          <ModalSection>
+            <NotConfiguredNotice />
+          </ModalSection>
         ) : (
           <FirstBankPicker
             banks={status.availableBanks}
             providers={configuredProviders}
             busy={busy}
+            actionsClass={actionsClass}
+            showComingSoon={!inline}
             onSubmit={(bank, provider) => connect(bank, null, provider)}
           />
         )}
@@ -673,9 +584,9 @@ export function OutlookBankConnection({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-7">
       {mailboxes.map((mailbox) => (
-        <MailboxCard
+        <MailboxSection
           key={mailbox.id}
           mailbox={mailbox}
           providerName={providerName(mailbox.emailProvider)}
@@ -690,25 +601,9 @@ export function OutlookBankConnection({
               mailbox.emailProvider
             )
           }
-          onReconcile={(bank) => {
-            // Solo las cuentas de ESTE banco: con varios conectados, cargar todas metía en el
-            // formulario las tarjetas de otro banco.
-            const forms = formsFromAccounts(
-              accounts.filter((a) => a.bankId === bank.bankId)
-            )
-            setChecking(forms.checking)
-            setCards(forms.cards)
-            setSnapshotAt(nowLocal())
-            setReconciling(bank)
-          }}
           onDisconnectBank={(bank) => disconnect({ linkId: bank.id })}
-          onDisconnectMailbox={() => disconnect({ mailboxId: mailbox.id })}
         />
       ))}
-
-      <Button onClick={refresh} disabled={busy} className="h-12 w-full">
-        <RefreshCw /> Sincronizar ahora
-      </Button>
 
       <AddBankSection
         availableBanks={status.availableBanks}
@@ -716,10 +611,69 @@ export function OutlookBankConnection({
         mailboxes={mailboxes}
         allBanks={banks}
         busy={busy}
+        showComingSoon={!inline}
         onAdd={addBank}
         onConnect={connect}
       />
+
+      {/* Lo destructivo va al final, una fila por correo: nunca junto a la acción principal. */}
+      {mailboxes.map((mailbox) => (
+        <DisconnectButton
+          key={mailbox.id}
+          busy={busy}
+          label={`Desconectar ${mailbox.emailAddress}`}
+          className="[overflow-wrap:anywhere]"
+          title="¿Desconectar el correo?"
+          description={`Se desconectarán todos los bancos de ${mailbox.emailAddress}, con sus cuentas y movimientos importados.`}
+          onConfirm={() => disconnect({ mailboxId: mailbox.id })}
+        />
+      ))}
+
+      <ModalActions
+        primary={{
+          label: "Sincronizar ahora",
+          mobileLabel: "Sincronizar",
+          onClick: refresh,
+          disabled: busy,
+        }}
+        className={actionsClass}
+      />
     </div>
+  )
+}
+
+// Fila de una lista agrupada (≥44 px) y la variante que es una acción en texto azul.
+const ROW = "flex min-h-11 items-center gap-3 px-4 py-2.5"
+const ACTION_ROW =
+  "press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary disabled:opacity-50"
+// Botón de texto dentro de una fila (Desconectar): sin relleno, 44 px de alto.
+const TEXT_BUTTON =
+  "press h-11 px-3 text-body font-normal hover:bg-transparent dark:hover:bg-transparent"
+// Pie de escritorio (en la hoja de móvil van al encabezado): llega a los bordes del contenedor, que
+// tiene px-5 pb-6 tanto en el modal como en el onboarding.
+const ACTIONS_CLASS = "-mx-5 mt-0 -mb-6 px-5"
+// Sin modal no hay pie que anclar: los botones quedan en el flujo, sobre el fondo de la página.
+const INLINE_ACTIONS_CLASS =
+  "static mx-0 mt-0 border-0 bg-transparent px-0 py-0 pb-0"
+
+// Bancos que todavía no se pueden conectar: se nombran al pie de la lista de bancos, que es donde
+// la persona busca el suyo.
+const COMING_SOON = `Próximamente: ${new Intl.ListFormat("es", {
+  type: "conjunction",
+}).format([
+  "Santander",
+  "BCI",
+  "Banco Estado",
+  "Itaú",
+  "Banco Falabella",
+  "Scotiabank",
+])}.`
+
+function BlockingHint({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="px-4 text-center text-subheadline text-muted-foreground">
+      {children}
+    </p>
   )
 }
 
@@ -744,6 +698,7 @@ function AddBankSection({
   mailboxes,
   allBanks,
   busy,
+  showComingSoon,
   onAdd,
   onConnect,
 }: {
@@ -752,6 +707,7 @@ function AddBankSection({
   mailboxes: OutlookMailboxDTO[]
   allBanks: OutlookBankDTO[]
   busy: boolean
+  showComingSoon: boolean
   onAdd: (mailboxId: string, bankProvider: string, label: string | null) => void
   onConnect: (
     bankProvider: string,
@@ -780,24 +736,35 @@ function AddBankSection({
   const effectiveTarget = taken(target, bank) ? NEW_MAILBOX : target
   const targetMailbox = mailboxes.find((m) => m.id === effectiveTarget)
   const bankName = availableBanks.find((b) => b.key === bank)?.name ?? "banco"
+  const pickBank = availableBanks.length > 1
 
   return (
-    <div className="space-y-4 rounded-xl border p-4">
-      <p className="text-subheadline font-medium">Agregar un banco</p>
-
-      {availableBanks.length > 1 && (
-        <OptionList
-          options={availableBanks.map((b) => ({ value: b.key, label: b.name }))}
-          selected={bank}
-          onSelect={setBank}
-        />
+    <>
+      {pickBank && (
+        <ModalSection
+          title="Agregar un banco"
+          footer={showComingSoon ? COMING_SOON : undefined}
+        >
+          <OptionRows
+            options={availableBanks.map((b) => ({
+              value: b.key,
+              label: b.name,
+            }))}
+            selected={bank}
+            onSelect={setBank}
+          />
+        </ModalSection>
       )}
 
-      <div className="space-y-2">
-        <p className="text-footnote text-muted-foreground">
-          ¿A qué correo llegan sus avisos?
-        </p>
-        <OptionList
+      <ModalSection
+        title={
+          pickBank
+            ? "¿A qué correo llegan sus avisos?"
+            : `¿A qué correo llegan los avisos de ${bankName}?`
+        }
+        footer={!pickBank && showComingSoon ? COMING_SOON : undefined}
+      >
+        <OptionRows
           options={[
             ...mailboxes.map((m) => ({
               value: m.id,
@@ -810,64 +777,73 @@ function AddBankSection({
           selected={effectiveTarget}
           onSelect={setTarget}
         />
-      </div>
+      </ModalSection>
 
       {/* Conectar un correo nuevo pasa por OAuth; agregar un banco a uno ya autorizado, no. */}
-      {!targetMailbox && providers.length === 0 && <NotConfiguredNotice />}
+      {!targetMailbox && providers.length === 0 && (
+        <ModalSection>
+          <NotConfiguredNotice />
+        </ModalSection>
+      )}
 
       {/* De qué proveedor es el correo nuevo. Con uno solo configurado no hay nada que preguntar. */}
       {!targetMailbox && providers.length > 1 && (
-        <div className="space-y-2">
-          <p className="text-footnote text-muted-foreground">
-            ¿De qué proveedor es el correo nuevo?
-          </p>
-          <OptionList
+        <ModalSection title="¿De qué proveedor es el correo nuevo?">
+          <OptionRows
             options={providers.map((p) => ({ value: p.key, label: p.name }))}
             selected={provider}
             onSelect={setProvider}
           />
-        </div>
+        </ModalSection>
       )}
 
       {requiresLabel && (
-        <div className="space-y-1">
+        <ModalSection
+          title="Etiqueta"
+          footer={`Ya tienes ${bankName} conectado desde otro correo: la etiqueta los distingue en toda la app.`}
+        >
           <Input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="Etiqueta: Empresa, Personal…"
+            placeholder="Empresa, Personal…"
+            aria-label="Etiqueta"
             maxLength={24}
-            className="h-11"
+            className="h-11 rounded-none border-0 bg-transparent px-4 text-body shadow-none focus-visible:ring-0 md:text-body"
           />
-          <p className="text-footnote text-muted-foreground">
-            Ya tienes {bankName} conectado desde otro correo: la etiqueta los
-            distingue en toda la app.
-          </p>
-        </div>
+        </ModalSection>
       )}
 
-      <Button
-        onClick={() =>
-          targetMailbox
-            ? onAdd(targetMailbox.id, bank, label.trim() || null)
-            : onConnect(bank, label.trim() || null, provider)
-        }
-        disabled={
-          busy ||
-          !bank ||
-          (!targetMailbox && !provider) ||
-          (requiresLabel && !label.trim())
-        }
-        className="h-12 w-full"
-      >
-        {busy ? <Loader2 className="animate-spin" /> : <Plus />}
-        {targetMailbox ? `Agregar ${bankName}` : "Conectar otro correo"}
-      </Button>
-    </div>
+      <ModalSection>
+        <button
+          type="button"
+          onClick={() =>
+            targetMailbox
+              ? onAdd(targetMailbox.id, bank, label.trim() || null)
+              : onConnect(bank, label.trim() || null, provider)
+          }
+          disabled={
+            busy ||
+            !bank ||
+            (!targetMailbox && !provider) ||
+            (requiresLabel && !label.trim())
+          }
+          className={ACTION_ROW}
+        >
+          {busy ? (
+            <Loader2 className="size-5 shrink-0 animate-spin" aria-hidden />
+          ) : (
+            <Plus className="size-5 shrink-0" aria-hidden />
+          )}
+          {targetMailbox ? `Agregar ${bankName}` : "Conectar otro correo"}
+        </button>
+      </ModalSection>
+    </>
   )
 }
 
-// Lista de opciones en una columna (banco, correo destino): toque grande, sin desplegables.
-function OptionList({
+// Opciones de una lista agrupada (banco, correo destino, proveedor): una fila por opción y la
+// elegida con su check, como en Ajustes. Toque grande, sin desplegables.
+function OptionRows({
   options,
   selected,
   onSelect,
@@ -881,142 +857,132 @@ function OptionList({
   selected: string
   onSelect: (value: string) => void
 }) {
-  return (
-    <div className="flex flex-col gap-2">
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          disabled={option.disabled}
-          onClick={() => onSelect(option.value)}
-          className={cn(
-            "flex h-12 items-center justify-between gap-3 rounded-lg border px-4 text-left transition-colors",
-            selected === option.value && !option.disabled
-              ? "border-primary bg-primary/10"
-              : "border-border",
-            option.disabled && "opacity-45"
-          )}
-        >
-          <span className="min-w-0 truncate font-medium">{option.label}</span>
-          {option.hint && (
-            <span className="shrink-0 text-footnote text-muted-foreground">
-              {option.hint}
-            </span>
-          )}
-        </button>
-      ))}
-    </div>
-  )
+  return options.map((option) => {
+    const isSelected = selected === option.value && !option.disabled
+    return (
+      <button
+        key={option.value}
+        type="button"
+        disabled={option.disabled}
+        aria-pressed={isSelected}
+        onClick={() => onSelect(option.value)}
+        className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body disabled:opacity-45"
+      >
+        <span className="min-w-0 flex-1 truncate">{option.label}</span>
+        {option.hint && (
+          <span className="shrink-0 text-footnote text-muted-foreground">
+            {option.hint}
+          </span>
+        )}
+        {isSelected && (
+          <Check className="size-5 shrink-0 text-primary" aria-hidden />
+        )}
+      </button>
+    )
+  })
 }
 
 // Un correo conectado con los bancos que alimenta. El estado de la autorización es del correo y sus
 // bancos lo heredan: una sola reconexión los arregla a todos.
-function MailboxCard({
+function MailboxSection({
   mailbox,
   providerName,
   canReconnect,
   busy,
   onReconnect,
-  onReconcile,
   onDisconnectBank,
-  onDisconnectMailbox,
 }: {
   mailbox: OutlookMailboxDTO
   providerName: string
   canReconnect: boolean // el servidor tiene credenciales del proveedor de ESTE buzón
   busy: boolean
   onReconnect: () => void
-  onReconcile: (bank: OutlookBankDTO) => void
   onDisconnectBank: (bank: OutlookBankDTO) => void
-  onDisconnectMailbox: () => void
 }) {
-  const statusLabel =
-    mailbox.status === "active"
-      ? "Autorización activa"
-      : mailbox.status === "reauth_required"
-        ? "Requiere reconexión"
-        : "Error de sincronización"
-  const tone =
-    mailbox.status === "active"
-      ? "border-success/40 bg-success/5"
-      : "border-destructive/40 bg-destructive/5"
+  const active = mailbox.status === "active"
+  const statusLabel = active
+    ? "Autorización activa"
+    : mailbox.status === "reauth_required"
+      ? "Requiere reconexión"
+      : "Error de sincronización"
   return (
-    <div className={cn("space-y-3 rounded-xl border p-4 text-subheadline", tone)}>
-      <div className="flex flex-wrap items-center gap-2 font-medium">
-        <Mail className="size-4 text-primary" /> {mailbox.emailAddress}
+    <ModalSection
+      title={<span className="block truncate">{mailbox.emailAddress}</span>}
+      footer={`Última sincronización: ${
+        mailbox.lastSyncedAt
+          ? new Date(mailbox.lastSyncedAt).toLocaleString("es-CL")
+          : "pendiente"
+      } · webhook ${mailbox.webhookActive ? "activo" : "no configurado"}`}
+    >
+      <div className={ROW}>
+        <span
+          aria-hidden
+          className={cn(
+            "size-2 shrink-0 rounded-full",
+            active ? "bg-success" : "bg-destructive"
+          )}
+        />
+        <span
+          className={cn(
+            "min-w-0 flex-1 text-body",
+            !active && "text-destructive"
+          )}
+        >
+          {statusLabel}
+        </span>
         {/* De qué proveedor es este correo: con varios conectados es lo que los distingue. */}
-        <span className="rounded-lg bg-muted px-2 py-0.5 text-footnote font-medium text-muted-foreground">
+        <span className="shrink-0 text-subheadline text-muted-foreground">
           {providerName}
         </span>
       </div>
-      <div className="space-y-1 text-footnote text-muted-foreground">
-        <p>Estado: {statusLabel}</p>
-        <p>
-          Última sincronización:{" "}
-          {mailbox.lastSyncedAt
-            ? new Date(mailbox.lastSyncedAt).toLocaleString("es-CL")
-            : "pendiente"}
-        </p>
-        <p>webhook {mailbox.webhookActive ? "activo" : "no configurado"}</p>
-      </div>
       {mailbox.lastError && (
-        <Notice icon={CircleAlert}>{mailbox.lastError}</Notice>
+        <Notice icon={CircleAlert} tone="warning">
+          {mailbox.lastError}
+        </Notice>
       )}
       {mailbox.status === "reauth_required" &&
         (canReconnect ? (
-          <Button onClick={onReconnect} disabled={busy} className="h-11 w-full">
-            <Mail /> Reconectar este correo
-          </Button>
+          <button
+            type="button"
+            onClick={onReconnect}
+            disabled={busy}
+            className={ACTION_ROW}
+          >
+            <Mail className="size-5 shrink-0" aria-hidden /> Reconectar este
+            correo
+          </button>
         ) : (
           <NotConfiguredNotice />
         ))}
 
-      <ul className="space-y-2">
-        {mailbox.banks.map((bank) => (
-          <li key={bank.id} className="rounded-lg border bg-background/60 p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">{bank.bankName}</span>
-              {/* La etiqueta distingue este origen cuando el mismo banco viene de dos correos. */}
-              {bank.label && (
-                <span className="rounded-lg bg-primary/10 px-2 py-0.5 text-footnote font-medium text-primary">
-                  {bank.label}
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-footnote text-muted-foreground">
-              Saldo estimado desde{" "}
-              {bank.lastBalanceReconciledAt
-                ? new Date(bank.lastBalanceReconciledAt).toLocaleString("es-CL")
-                : "sin fecha"}{" "}
-              · {bank.skippedCount} mensajes omitidos
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                onClick={() => onReconcile(bank)}
-                disabled={busy}
-                className="h-11"
-              >
-                Actualizar saldos
-              </Button>
-              <DisconnectBankButton
-                busy={busy}
-                bank={bank}
-                onConfirm={() => onDisconnectBank(bank)}
-              />
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      <DisconnectButton
-        busy={busy}
-        label="Desconectar este correo"
-        title="¿Desconectar el correo?"
-        description={`Se desconectarán todos los bancos de ${mailbox.emailAddress}, con sus cuentas y movimientos importados.`}
-        onConfirm={onDisconnectMailbox}
-      />
-    </div>
+      {mailbox.banks.map((bank) => (
+        <div key={bank.id} className="px-4 pt-2.5 pb-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="text-body">{bank.bankName}</span>
+            {/* La etiqueta distingue este origen cuando el mismo banco viene de dos correos. */}
+            {bank.label && (
+              <span className="rounded-lg bg-primary/10 px-2 py-0.5 text-footnote font-medium text-primary">
+                {bank.label}
+              </span>
+            )}
+          </div>
+          <p className="text-footnote text-muted-foreground">
+            Saldo estimado desde{" "}
+            {bank.lastBalanceReconciledAt
+              ? new Date(bank.lastBalanceReconciledAt).toLocaleString("es-CL")
+              : "sin fecha"}{" "}
+            · {bank.skippedCount} mensajes omitidos
+          </p>
+          <div className="-mx-3 flex flex-wrap">
+            <DisconnectBankButton
+              busy={busy}
+              bank={bank}
+              onConfirm={() => onDisconnectBank(bank)}
+            />
+          </div>
+        </div>
+      ))}
+    </ModalSection>
   )
 }
 
@@ -1026,11 +992,15 @@ function FirstBankPicker({
   banks,
   providers,
   busy,
+  actionsClass,
+  showComingSoon,
   onSubmit,
 }: {
   banks: { key: string; name: string }[]
   providers: { key: string; name: string }[] // solo los configurados en el servidor
   busy: boolean
+  actionsClass: string
+  showComingSoon: boolean
   onSubmit: (bankProvider: string, provider: string) => void
 }) {
   const [selected, setSelected] = useState(banks[0]?.key ?? "")
@@ -1038,37 +1008,46 @@ function FirstBankPicker({
   const providerLabel = providers.find((p) => p.key === provider)?.name ?? ""
 
   return (
-    <div className="space-y-3">
-      {banks.length > 1 && (
-        <OptionList
-          options={banks.map((b) => ({ value: b.key, label: b.name }))}
-          selected={selected}
-          onSelect={setSelected}
-        />
+    <>
+      {banks.length > 1 ? (
+        <ModalSection
+          title="Banco"
+          footer={showComingSoon ? COMING_SOON : undefined}
+        >
+          <OptionRows
+            options={banks.map((b) => ({ value: b.key, label: b.name }))}
+            selected={selected}
+            onSelect={setSelected}
+          />
+        </ModalSection>
+      ) : (
+        showComingSoon && (
+          <p className="px-4 text-footnote text-muted-foreground">
+            {COMING_SOON}
+          </p>
+        )
       )}
-      {/* Con un solo proveedor configurado el botón ya dice cuál es; preguntarlo sería una lista
+      {/* Con un solo proveedor configurado la acción ya dice cuál es; preguntarlo sería una lista
           de un elemento. */}
       {providers.length > 1 && (
-        <div className="space-y-2">
-          <p className="text-footnote text-muted-foreground">
-            ¿De qué proveedor es tu correo?
-          </p>
-          <OptionList
+        <ModalSection title="¿De qué proveedor es tu correo?">
+          <OptionRows
             options={providers.map((p) => ({ value: p.key, label: p.name }))}
             selected={provider}
             onSelect={setProvider}
           />
-        </div>
+        </ModalSection>
       )}
-      <Button
-        onClick={() => onSubmit(selected, provider)}
-        disabled={busy || !selected || !provider}
-        className="h-12 w-full"
-      >
-        {busy ? <Loader2 className="animate-spin" /> : <Mail />} Conectar{" "}
-        {providerLabel}
-      </Button>
-    </div>
+      <ModalActions
+        primary={{
+          label: busy ? "Conectando…" : `Conectar ${providerLabel}`,
+          mobileLabel: busy ? "Conectando…" : "Conectar",
+          onClick: () => onSubmit(selected, provider),
+          disabled: busy || !selected || !provider,
+        }}
+        className={actionsClass}
+      />
+    </>
   )
 }
 
@@ -1110,11 +1089,15 @@ function DisconnectBankButton({
     <AlertDialog onOpenChange={(open) => open && loadDependents()}>
       <AlertDialogTrigger asChild>
         <Button
+          type="button"
           variant="ghost"
           disabled={busy}
-          className="h-11 text-destructive hover:text-destructive"
+          className={cn(
+            TEXT_BUTTON,
+            "text-destructive hover:text-destructive"
+          )}
         >
-          <Unplug /> Desconectar
+          Desconectar
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
@@ -1139,29 +1122,28 @@ function DisconnectBankButton({
   )
 }
 
+// Fila roja al final del contenido que pide confirmación antes de desconectar.
 function DisconnectButton({
   busy,
   label,
   title,
   description,
   onConfirm,
+  className,
 }: {
   busy: boolean
   label: string
   title: string
   description: string
   onConfirm: () => void
+  className?: string
 }) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button
-          variant="ghost"
-          disabled={busy}
-          className="h-11 w-full text-destructive hover:text-destructive"
-        >
-          <Unplug /> {label}
-        </Button>
+        <ModalDangerRow disabled={busy} className={className}>
+          {label}
+        </ModalDangerRow>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -1188,7 +1170,7 @@ export function SnapshotForm({
   cards,
   setCards,
 }: {
-  bankName: string // el banco que se está configurando: da nombre y monograma a las tarjetas
+  bankName: string // el banco que se está configurando: da nombre a cada instrumento
   snapshotAt: string
   setSnapshotAt: (value: string) => void
   checking: CheckingForm | null
@@ -1196,18 +1178,26 @@ export function SnapshotForm({
   cards: CardForm[]
   setCards: (value: CardForm[]) => void
 }) {
+  const dateId = useId()
   const updateCard = (id: string, patch: Partial<CardForm>) =>
     setCards(
       cards.map((card) => (card.id === id ? { ...card, ...patch } : card))
     )
   return (
-    <div className="space-y-4">
-      <Field label="Fecha y hora del saldo">
+    <div className="flex flex-col gap-7">
+      <ModalSection
+        title="Fecha y hora del saldo"
+        footer="Los movimientos previos a este saldo se importan, pero no vuelven a descontarse. CLP y USD se mantienen separados."
+      >
         {/* snapshotAt = "YYYY-MM-DDTHH:mm": Calendar+Popover de shadcn para la fecha (regla del
             proyecto: nunca input date nativo) + input de hora al lado. */}
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 px-4 py-2">
+          <label htmlFor={dateId} className="sr-only">
+            Fecha del saldo
+          </label>
           <div className="min-w-0 flex-1">
             <DatePicker
+              id={dateId}
               value={snapshotAt.slice(0, 10)}
               onChange={(d) =>
                 setSnapshotAt(`${d}T${snapshotAt.slice(11, 16)}`)
@@ -1221,11 +1211,11 @@ export function SnapshotForm({
               setSnapshotAt(`${snapshotAt.slice(0, 10)}T${e.target.value}`)
             }
             aria-label="Hora del saldo"
-            className="h-11 w-auto shrink-0"
+            className="h-12 w-auto shrink-0"
           />
         </div>
-      </Field>
-      {checking ? (
+      </ModalSection>
+      {checking && (
         <CandidateCard
           bankName={bankName}
           variant="debito"
@@ -1237,10 +1227,7 @@ export function SnapshotForm({
           refPlaceholder="Cuenta"
           refLabel="Número de cuenta o últimos 4"
         >
-          <div>
-            <div className="text-footnote text-muted-foreground">
-              Saldo actual (CLP)
-            </div>
+          <MoneyRow label="Saldo actual (CLP)">
             <MoneyField
               currency="CLP"
               value={checking.cash}
@@ -1248,65 +1235,45 @@ export function SnapshotForm({
               ariaLabel="Saldo actual en pesos"
               kind="primary"
             />
-          </div>
-          <div className="space-y-2">
-            <CardToggle
-              pressed={checking.hasOverdraft}
-              onPressed={(hasOverdraft) =>
-                setChecking({ ...checking, hasOverdraft })
-              }
-            >
-              Línea de sobregiro
-            </CardToggle>
-            {checking.hasOverdraft && (
-              <>
-                <div className="grid grid-cols-2 gap-2">
-                  <CardField label="Cupo total">
-                    <MoneyField
-                      currency="CLP"
-                      value={checking.overdraftLimit}
-                      onValue={(overdraftLimit) =>
-                        setChecking({ ...checking, overdraftLimit })
-                      }
-                      ariaLabel="Cupo total del sobregiro"
-                    />
-                  </CardField>
-                  <CardField label="Disponible">
-                    <MoneyField
-                      currency="CLP"
-                      value={checking.overdraftAvailable}
-                      onValue={(overdraftAvailable) =>
-                        setChecking({ ...checking, overdraftAvailable })
-                      }
-                      ariaLabel="Sobregiro disponible"
-                    />
-                  </CardField>
-                </div>
-                <DerivedUsed
-                  limit={checking.overdraftLimit}
-                  available={checking.overdraftAvailable}
+          </MoneyRow>
+          <SwitchRow
+            checked={checking.hasOverdraft}
+            onChecked={(hasOverdraft) =>
+              setChecking({ ...checking, hasOverdraft })
+            }
+          >
+            Línea de sobregiro
+          </SwitchRow>
+          {checking.hasOverdraft && (
+            <>
+              <MoneyRow label="Cupo total">
+                <MoneyField
                   currency="CLP"
+                  value={checking.overdraftLimit}
+                  onValue={(overdraftLimit) =>
+                    setChecking({ ...checking, overdraftLimit })
+                  }
+                  ariaLabel="Cupo total del sobregiro"
                 />
-              </>
-            )}
-          </div>
+              </MoneyRow>
+              <MoneyRow label="Disponible">
+                <MoneyField
+                  currency="CLP"
+                  value={checking.overdraftAvailable}
+                  onValue={(overdraftAvailable) =>
+                    setChecking({ ...checking, overdraftAvailable })
+                  }
+                  ariaLabel="Sobregiro disponible"
+                />
+              </MoneyRow>
+              <DerivedUsed
+                limit={checking.overdraftLimit}
+                available={checking.overdraftAvailable}
+                currency="CLP"
+              />
+            </>
+          )}
         </CandidateCard>
-      ) : (
-        <Button
-          variant="outline"
-          onClick={() =>
-            setChecking({
-              ref: "",
-              cash: 0,
-              hasOverdraft: false,
-              overdraftLimit: 0,
-              overdraftAvailable: 0,
-            })
-          }
-          className="h-11 w-full border-dashed"
-        >
-          <Plus /> Agregar cuenta corriente
-        </Button>
       )}
       {cards.map((card) => (
         <CandidateCard
@@ -1333,7 +1300,6 @@ export function SnapshotForm({
             onAvailable={(nationalAvailable) =>
               updateCard(card.id, { nationalAvailable })
             }
-            primary
           />
           <BucketEditor
             label="Cupo internacional USD"
@@ -1353,38 +1319,55 @@ export function SnapshotForm({
           />
         </CandidateCard>
       ))}
-      <Button
-        variant="outline"
-        onClick={() =>
-          setCards([
-            ...cards,
-            {
-              id: crypto.randomUUID(),
-              last4: "",
-              national: true,
-              nationalLimit: 0,
-              nationalAvailable: 0,
-              international: false,
-              internationalLimit: 0,
-              internationalAvailable: 0,
-            },
-          ])
-        }
-        className="h-11 w-full border-dashed"
-      >
-        <Plus /> Agregar tarjeta
-      </Button>
-      <p className="text-footnote text-muted-foreground">
-        Los movimientos previos a este saldo se importan, pero no vuelven a
-        descontarse. CLP y USD se mantienen separados.
-      </p>
+      <ModalSection>
+        {!checking && (
+          <button
+            type="button"
+            onClick={() =>
+              setChecking({
+                ref: "",
+                cash: 0,
+                hasOverdraft: false,
+                overdraftLimit: 0,
+                overdraftAvailable: 0,
+              })
+            }
+            className={ACTION_ROW}
+          >
+            <Plus className="size-5 shrink-0" aria-hidden /> Agregar cuenta
+            corriente
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() =>
+            setCards([
+              ...cards,
+              {
+                id: crypto.randomUUID(),
+                last4: "",
+                national: true,
+                nationalLimit: 0,
+                nationalAvailable: 0,
+                international: false,
+                internationalLimit: 0,
+                internationalAvailable: 0,
+              },
+            ])
+          }
+          className={ACTION_ROW}
+        >
+          <Plus className="size-5 shrink-0" aria-hidden /> Agregar tarjeta
+        </button>
+      </ModalSection>
     </div>
   )
 }
 
-// Controles de saldo sobre una superficie neutra: misma máscara y monedas separadas.
-const boxedMoneyInput = "h-12 rounded-lg text-body"
-const primaryMoneyInput = "h-12 rounded-lg text-title-3 font-semibold md:text-title-3"
+// Controles de saldo dentro de una fila: misma máscara, monedas separadas y alineados a la derecha.
+const boxedMoneyInput = "h-11 rounded-lg text-right text-body"
+const primaryMoneyInput =
+  "h-11 rounded-lg text-right text-title-3 font-semibold md:text-title-3"
 
 // Input de monto que reutiliza el formateo vigente (CLP entero agrupado, USD con coma y 2
 // decimales). `value` solo inicializa; el estado vive en useMoneyInput y se reporta por onValue.
@@ -1394,14 +1377,12 @@ function MoneyField({
   onValue,
   ariaLabel,
   kind = "boxed",
-  className,
 }: {
   currency: CurrencyCode
   value: number
   onValue: (v: number) => void
   ariaLabel: string
   kind?: "boxed" | "primary"
-  className?: string
 }) {
   const money = useMoneyInput(currency, value)
   return (
@@ -1413,14 +1394,51 @@ function MoneyField({
       onChange={(e) => onValue(money.onChange(e.target.value))}
       className={cn(
         "tabular",
-        kind === "primary" ? primaryMoneyInput : boxedMoneyInput,
-        className
+        kind === "primary" ? primaryMoneyInput : boxedMoneyInput
       )}
     />
   )
 }
 
-// Cupo de tarjeta de crédito (nacional CLP / internacional USD): toggle del bucket y, si está
+// Fila de monto: la etiqueta a la izquierda y el campo a la derecha, con ancho fijo para que las
+// cifras de un mismo instrumento queden alineadas.
+function MoneyRow({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <label className="flex min-h-11 items-center justify-between gap-3 px-4 py-1.5">
+      <span className="min-w-0 text-body">{label}</span>
+      <span className="w-40 shrink-0">{children}</span>
+    </label>
+  )
+}
+
+// Interruptor de iOS en una fila: la etiqueta entera lo activa.
+function SwitchRow({
+  checked,
+  onChecked,
+  children,
+}: {
+  checked: boolean
+  onChecked: (v: boolean) => void
+  children: React.ReactNode
+}) {
+  const id = useId()
+  return (
+    <div className="flex min-h-11 items-center gap-3 px-4 py-1.5">
+      <label htmlFor={id} className="min-w-0 flex-1 py-1 text-body">
+        {children}
+      </label>
+      <Switch id={id} checked={checked} onCheckedChange={onChecked} />
+    </div>
+  )
+}
+
+// Cupo de tarjeta de crédito (nacional CLP / internacional USD): interruptor del bucket y, si está
 // activo, disponible como dato principal + cupo total; el usado se deriva y solo se muestra.
 function BucketEditor({
   label,
@@ -1431,7 +1449,6 @@ function BucketEditor({
   available,
   onLimit,
   onAvailable,
-  primary,
 }: {
   label: string
   currency: CurrencyCode
@@ -1441,36 +1458,31 @@ function BucketEditor({
   available: number
   onLimit: (v: number) => void
   onAvailable: (v: number) => void
-  primary?: boolean
 }) {
   return (
-    <div className="space-y-2">
-      <CardToggle pressed={enabled} onPressed={onEnabled}>
+    <>
+      <SwitchRow checked={enabled} onChecked={onEnabled}>
         {label}
-      </CardToggle>
+      </SwitchRow>
       {enabled && (
         <>
-          <div>
-            <div className="text-footnote text-muted-foreground">Disponible</div>
+          <MoneyRow label="Disponible">
             <MoneyField
               currency={currency}
               value={available}
               onValue={onAvailable}
               ariaLabel={`Disponible · ${label}`}
               kind="primary"
-              className={primary ? undefined : "text-title-3 md:text-title-3"}
             />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <CardField label="Cupo total">
-              <MoneyField
-                currency={currency}
-                value={limit}
-                onValue={onLimit}
-                ariaLabel={`Cupo total · ${label}`}
-              />
-            </CardField>
-          </div>
+          </MoneyRow>
+          <MoneyRow label="Cupo total">
+            <MoneyField
+              currency={currency}
+              value={limit}
+              onValue={onLimit}
+              ariaLabel={`Cupo total · ${label}`}
+            />
+          </MoneyRow>
           <DerivedUsed
             limit={limit}
             available={available}
@@ -1478,7 +1490,7 @@ function BucketEditor({
           />
         </>
       )}
-    </div>
+    </>
   )
 }
 
@@ -1494,63 +1506,21 @@ function DerivedUsed({
 }) {
   if (bucketInvalid(limit, available))
     return (
-      <p className="text-footnote font-medium text-destructive">
+      <p className="px-4 py-2.5 text-footnote font-medium text-destructive">
         El disponible debe estar entre cero y el cupo total
       </p>
     )
   const used = limit - available
   if (used <= 0) return null
   return (
-    <p className="tabular text-footnote text-destructive">
+    <p className="tabular px-4 py-2.5 text-footnote text-destructive">
       Usado −{formatMoney(used, currency)}
     </p>
   )
 }
 
-function CardToggle({
-  pressed,
-  onPressed,
-  children,
-}: {
-  pressed: boolean
-  onPressed: (v: boolean) => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={() => onPressed(!pressed)}
-      className={cn(
-        "flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-subheadline font-medium transition-colors",
-        pressed
-          ? "border-primary bg-primary/10 text-primary"
-          : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
-      )}
-    >
-      {pressed && <Check className="size-3" />}
-      {children}
-    </button>
-  )
-}
-
-function CardField({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <label className="block space-y-1">
-      <span className="block text-footnote text-muted-foreground">{label}</span>
-      {children}
-    </label>
-  )
-}
-
-// Instrumento propuesto: banco, saldos y referencia en una superficie neutra.
-// La persona revisa cada dato antes de confirmar la conexión.
+// Instrumento propuesto: un grupo por cuenta o tarjeta, con su referencia arriba y sus saldos como
+// filas. La persona revisa cada dato antes de confirmar la conexión.
 function CandidateCard({
   bankName,
   typeLabel,
@@ -1578,97 +1548,92 @@ function CandidateCard({
   // Un instrumento sin sus 4 dígitos no se puede crear, pero la cuenta se propone vacía a
   // propósito: marcarla en rojo de entrada culpa al usuario de algo que todavía no hizo. El campo
   // se marca recién cuando lo dejó incompleto, y el motivo viaja con él (aria-describedby) porque
-  // el botón deshabilitado no recibe foco y su explicación queda fuera del alcance del teclado.
+  // la acción deshabilitada no recibe foco y su explicación queda fuera del alcance del teclado.
   const [refTouched, setRefTouched] = useState(false)
   const refInvalid = refTouched && !refComplete(refValue)
   const refErrorId = useId()
   return (
-    <div className="flex w-full flex-col gap-6 rounded-xl border border-border bg-card p-5 text-foreground">
-      <div className="relative flex items-start justify-between gap-2">
-        <div className="text-body font-semibold">{bankName}</div>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="min-h-11 px-3 text-subheadline font-medium text-muted-foreground transition-colors hover:text-destructive"
-        >
-          Quitar
-        </button>
-      </div>
-      <div className="relative flex-1 space-y-5">{children}</div>
-      <div className="relative space-y-1.5">
-        <div className="flex flex-wrap items-center justify-between gap-3 text-subheadline text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <span className="tracking-widest">••••</span>
-            <Input
-              inputMode="numeric"
-              maxLength={refMaxLength}
-              value={refValue}
-              placeholder={refPlaceholder}
-              aria-label={refLabel}
-              aria-invalid={refInvalid || undefined}
-              aria-describedby={refInvalid ? refErrorId : undefined}
-              onChange={(e) => onRef(e.target.value)}
-              onBlur={() => setRefTouched(true)}
-              className="tabular h-12 w-24 rounded-lg px-3 text-body tracking-widest"
-            />
+    <ModalSection title={`${typeLabel} · ${bankName}`}>
+      <div>
+        <div className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 px-4 py-1.5">
+          <span
+            aria-hidden
+            className="text-body tracking-widest text-muted-foreground"
+          >
+            ••••
           </span>
-          <span className="shrink-0">
-            {typeLabel}
-            {movementCount ? ` · ${movementCount} movs` : ""}
-          </span>
+          <Input
+            inputMode="numeric"
+            maxLength={refMaxLength}
+            value={refValue}
+            placeholder={refPlaceholder}
+            aria-label={refLabel}
+            aria-invalid={refInvalid || undefined}
+            aria-describedby={refInvalid ? refErrorId : undefined}
+            onChange={(e) => onRef(e.target.value)}
+            onBlur={() => setRefTouched(true)}
+            className="tabular h-11 w-24 rounded-lg px-3 text-body tracking-widest md:text-body"
+          />
+          {movementCount ? (
+            <span className="text-subheadline text-muted-foreground">
+              {plural(movementCount, "movimiento", "movimientos")}
+            </span>
+          ) : null}
+          {/* Fuera del título: el encabezado se lee solo con el instrumento, y cada «Quitar» dice
+              cuál quita. */}
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={`Quitar ${typeLabel}${refValue ? ` ${refValue}` : ""}`}
+            className="press ml-auto min-h-11 shrink-0 text-body text-primary"
+          >
+            Quitar
+          </button>
         </div>
         {refInvalid && (
-          <p id={refErrorId} className="text-subheadline text-destructive">
+          <p
+            id={refErrorId}
+            className="px-4 pb-2.5 text-subheadline text-destructive"
+          >
             Faltan los últimos 4 dígitos.
           </p>
         )}
       </div>
-    </div>
-  )
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-footnote font-medium">{label}</span>
       {children}
-    </label>
+    </ModalSection>
   )
 }
 
+// Aviso como fila de una lista agrupada (va dentro de un ModalSection, nunca como tarjeta suelta).
 function Notice({
   icon: Icon,
   tone = "info",
+  role,
   children,
 }: {
   icon: typeof Mail
   // "warning" separa el aviso que pide una acción del texto informativo: mismo bloque, otro peso.
   tone?: "info" | "warning"
+  role?: "alert" | "status"
   children: React.ReactNode
 }) {
   const warn = tone === "warning"
   return (
     <div
+      role={role}
       className={cn(
-        "flex items-start gap-2 rounded-xl border p-3 text-subheadline",
-        warn
-          ? "border-warning/40 bg-warning/10 text-foreground"
-          : "bg-muted/30 text-muted-foreground"
+        "flex items-start gap-3 px-4 py-3 text-subheadline",
+        warn ? "text-foreground" : "text-muted-foreground"
       )}
     >
       <Icon
+        aria-hidden
         className={cn(
-          "mt-0.5 size-4 shrink-0",
+          "mt-0.5 size-5 shrink-0",
           warn ? "text-warning" : "text-primary"
         )}
       />
-      <span>{children}</span>
+      <span className="min-w-0 break-words">{children}</span>
     </div>
   )
 }
@@ -1696,23 +1661,18 @@ export function ScanSummary({
       ? `Sin correos de ${bankName}`
       : `${plural(scan.totalMessages, "correo revisado", "correos revisados")} de ${bankName}`
   return (
-    <div className="rounded-xl bg-muted/50 p-3 text-subheadline">
-      <p>
-        <span className="font-medium">
+    <ModalSection footer={`${leidos}${mes ? ` · ${mes}` : ""}`}>
+      <div className="flex min-h-11 flex-col justify-center px-4 py-2.5">
+        <p className="text-body font-medium">
           {plural(scan.expenseCount, "gasto detectado", "gastos detectados")}
-        </span>
-        <span className="text-muted-foreground">
-          {" · "}
+        </p>
+        <p className="text-subheadline text-muted-foreground">
           {plural(scan.internalCount, "ajuste interno", "ajustes internos")}
           {" · "}
           {plural(scan.skippedCount, "omitido", "omitidos")}
-        </span>
-      </p>
-      <p className="mt-1 text-footnote text-muted-foreground">
-        {leidos}
-        {mes ? ` · ${mes}` : ""}
-      </p>
-    </div>
+        </p>
+      </div>
+    </ModalSection>
   )
 }
 
@@ -1733,8 +1693,10 @@ export function ScanGuidance({
   const aviso = scanGuidance({ ...scan, bankName }, formOf(checking, cards))
   if (!aviso) return null
   return (
-    <Notice icon={CircleAlert} tone="warning">
-      {aviso}
-    </Notice>
+    <ModalSection>
+      <Notice icon={CircleAlert} tone="warning">
+        {aviso}
+      </Notice>
+    </ModalSection>
   )
 }

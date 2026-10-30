@@ -587,7 +587,6 @@ export function Dashboard({
                     conectado, baja a una fila de texto al pie de la sección. */}
                 {!hasConnected && (
                   <SyncBancoChileButton
-                    accounts={accounts}
                     outlookResult={onboarding ? null : outlookResult}
                     outlookReason={outlookReason}
                   />
@@ -596,7 +595,6 @@ export function Dashboard({
               {hasConnected && (
                 <SyncBancoChileButton
                   variant="row"
-                  accounts={accounts}
                   outlookResult={onboarding ? null : outlookResult}
                   outlookReason={outlookReason}
                 />

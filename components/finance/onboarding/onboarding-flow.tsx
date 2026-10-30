@@ -104,11 +104,9 @@ export function OnboardingFlow({
               </div>
               <OutlookBankConnection
                 status={status}
-                accounts={accounts.filter(
-                  (a) => a.connectionMethod === "email"
-                )}
                 onReload={afterImport}
                 onImportingChange={setLocked}
+                inline
               />
             </div>
           )}

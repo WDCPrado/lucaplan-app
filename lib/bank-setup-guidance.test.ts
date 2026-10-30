@@ -5,7 +5,6 @@ import {
   confirmBlocker,
   plural,
   proposedChecking,
-  reconcileBlocker,
   refComplete,
   scanGuidance,
   type ScanCandidate,
@@ -84,26 +83,6 @@ test("con todos los instrumentos completos no hay nada que bloquee", () => {
     confirmBlocker({ checkingRef: "1234567890", cards: [tarjeta()] }),
     null
   )
-})
-
-// Actualizar saldos resuelve la cuenta por su referencia. Con el campo vacío el use-case ya no
-// empareja nada (WDC-80) y responde con un error; el botón se apaga antes para decirlo acá.
-test("actualizar saldos se bloquea con la referencia vacía", () => {
-  assert.equal(
-    reconcileBlocker({ checkingRef: "", cards: [] }),
-    "Escribe los últimos 4 dígitos de cada cuenta y tarjeta."
-  )
-  assert.equal(reconcileBlocker({ checkingRef: "8900", cards: [] }), null)
-})
-
-test("actualizar saldos NO exige cupos: apagarlos es no tocar ese bucket", () => {
-  const sinCupos = tarjeta({ national: false, international: false })
-  assert.equal(
-    reconcileBlocker({ checkingRef: "8900", cards: [sinCupos] }),
-    null
-  )
-  // Y tampoco exige que haya algún instrumento: ahí no se crea nada.
-  assert.equal(reconcileBlocker(vacio), null)
 })
 
 // --- Qué cuenta se propone: la línea que decide si el formulario llega vacío ---

@@ -6,12 +6,18 @@ import { IMPORT_STEPS } from "@/lib/import-progress"
 
 // Timeline vertical de la importación inicial: cada paso pasa de pendiente (círculo tenue) →
 // actual (spinner) → hecho (check). Presentacional puro; el paso actual lo decide `importStep`.
-export function ImportProgressTimeline({ current }: { current: number }) {
+export function ImportProgressTimeline({
+  current,
+  bankName,
+}: {
+  current: number
+  bankName: string
+}) {
   return (
     <div className="flex flex-col gap-5 px-6 py-8">
       <div className="text-center">
         <h3 className="text-title-3 font-bold">
-          Conectando Banco de Chile
+          Conectando {bankName}
         </h3>
         <p className="mt-1 text-subheadline text-muted-foreground">
           No cierres esta ventana; toma unos segundos.

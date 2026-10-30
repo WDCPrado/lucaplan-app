@@ -42,8 +42,8 @@ export async function seed({ prisma, userId }: EscenaContext) {
 
   // El banco del usuario base nace manual (`provider: "manual"`, `connectionMethod: null`). Una
   // conexión real lo deja marcado como conectado por correo, y de ahí sale el `connectionMethod`
-  // de sus cuentas: sin esto el dashboard lo muestra manual, "Actualizar saldos" abre un
-  // formulario vacío y la demo miente sobre el estado que viene a demostrar.
+  // de sus cuentas: sin esto el dashboard lo muestra manual, la actualización de saldos por el
+  // plugin MCP no encuentra sus cuentas y la demo miente sobre el estado que viene a demostrar.
   await prisma.bank.update({
     where: { id: bank.id },
     data: {

@@ -1,10 +1,11 @@
-// WDC-80 — "Actualizar saldos" empareja la cuenta del formulario con la real comparando los
-// dígitos por sufijo. Una cuenta creada A MANO no tiene `externalId`, así que su referencia queda
+// WDC-80 — Actualizar los saldos de un banco por correo (hoy la tool MCP
+// `lucaplan_reconciliar_saldos_correo`; antes un botón de la app) empareja la cuenta indicada con
+// la real comparando los dígitos por sufijo. Una cuenta creada A MANO no tiene `externalId`, así que su referencia queda
 // vacía — y `"1100".endsWith("")` es true, o sea que calzaba con CUALQUIER número que se escribiera
 // y se llevaba el saldo de otra cuenta.
 //
-// Esa es la única de las tres puertas del bug que se alcanza desde la interfaz: el campo vacío lo
-// rechazan antes el botón (WDC-65) y el parseo del body. Por eso la escena siembra justo esto —
+// Esa es la única de las tres puertas del bug que se alcanza desde afuera: la referencia vacía la
+// rechaza antes el parseo de la entrada. Por eso la escena siembra justo esto —
 // dos cuentas corrientes en el mismo banco conectado por correo:
 //
 //   1. la IMPOSTORA, creada a mano y sin número (`externalId` null);
@@ -60,7 +61,7 @@ export async function seed({ prisma, userId, checkingId }: EscenaContext) {
   })
 
   // El banco nace manual; una conexión real lo deja marcado como conectado por correo. Sin esto,
-  // "Actualizar saldos" no aparece y no hay nada que probar.
+  // el banco no figura conectado por correo y no hay nada que probar.
   await prisma.bank.update({
     where: { id: bank.id },
     data: {
@@ -117,7 +118,7 @@ export async function seed({ prisma, userId, checkingId }: EscenaContext) {
     },
   })
 
-  // El bucket de caja es lo que "Actualizar saldos" reescribe; sin él solo cambiaría el balance.
+  // El bucket de caja es lo que `lucaplan_reconciliar_saldos_correo` reescribe; sin él solo cambiaría el balance.
   await prisma.balanceBucket.create({
     data: {
       userId,
@@ -166,6 +167,6 @@ export async function seed({ prisma, userId, checkingId }: EscenaContext) {
   console.log(
     `[seed:pr] WDC-80: "${bank.name}" conectado por correo con DOS cuentas corrientes — ` +
       `la antigua sin número en $${SALDO_IMPOSTORA} y la real (…${NUMERO_REAL.slice(-4)}) en ` +
-      `$${SALDO_REAL}. En "Actualizar saldos", el número 1100 debe escribirle a la REAL.`
+      `$${SALDO_REAL}. Con lucaplan_reconciliar_saldos_correo (plugin MCP), el número 1100 debe escribirle a la REAL.`
   )
 }

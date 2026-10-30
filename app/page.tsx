@@ -515,7 +515,7 @@ const faqs = [
   },
   {
     q: "¿Los saldos son exactos?",
-    a: "Son proyecciones desde el último saldo que registraste: cada aviso nuevo los actualiza al instante. Si algo no genera correo (un ajuste o reverso), lo corriges en un paso con “Actualizar saldos”.",
+    a: "Son proyecciones desde el último saldo que registraste: cada aviso nuevo los actualiza al instante. Si algo no genera correo (un ajuste o reverso), le pides a Luca que lo cuadre con el saldo de tu banco desde tu asistente.",
   },
   {
     q: "¿Qué bancos y correos funcionan?",

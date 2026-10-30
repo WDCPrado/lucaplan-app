@@ -122,8 +122,9 @@ montos. No hay que ordenar la captura ni recortarla: el navegador la reescala so
 
 - **Se adapta a lo que muestre la pantalla.** Casi ninguna app del banco muestra todas las
   variables: si trae el cupo y el disponible, el usado sale de la resta; si trae solo el disponible,
-  se completa con el cupo que ya tienes guardado; y si la cuenta corriente está en rojo, ese saldo
-  negativo *es* la deuda de la línea, así que el cupo total sale de sumarle la línea disponible.
+  se completa con el cupo que ya tienes guardado. El saldo de la cuenta corriente conserva su
+  signo y se guarda separado de la línea: puede ser negativo aunque la línea esté sin uso.
+  Un saldo negativo no permite deducir la deuda ni el cupo de la línea.
   Cuando no alcanza para calcular nada, ese saldo se deja intacto en vez de inventarlo.
 - **Tú confirmas antes de guardar.** La lectura puede equivocarse en un dígito y dar un monto
   perfectamente válido, que ninguna validación podría detectar: por eso los montos se muestran
@@ -562,4 +563,5 @@ Hecho en Chile 🇨🇱 por [Welliton da Costa Prado](https://www.linkedin.com/i
 Privacidad conforme a la Ley 19.628 y preparada para la Ley 21.719 (Chile).
 
 </div>
+
 

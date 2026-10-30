@@ -8,7 +8,7 @@ const CURRENCIES: CurrencyCode[] = ["CLP", "USD"]
 
 export type CurrencyPosition = {
   currency: CurrencyCode
-  cash: number // caja propia disponible (cuentas corrientes)
+  cash: number // saldo firmado de cuentas corrientes, separado de la línea
   overdraftUsed: number // deuda de sobregiro: NO es caja
   overdraftAvailable: number // línea disponible: capacidad de endeudarse, NO es caja
   cardDebt: number // deuda de tarjetas de crédito en esta moneda
@@ -18,7 +18,7 @@ export type CurrencyPosition = {
 
 /**
  * Posición por moneda. Cuentas conectadas: caja, sobregiro y cupos salen de sus buckets (el saldo
- * de la cuenta nunca se pone negativo para representar sobregiro). Cuentas manuales: el saldo
+ * de caja conserva su signo y no se convierte en deuda de línea). Cuentas manuales sin buckets: el saldo
  * negativo de una corriente es sobregiro usado, y el de una tarjeta, su deuda.
  */
 export function currencyPositions(
@@ -54,10 +54,7 @@ export function currencyPositions(
       const cash = own.find((b) => b.kind === "cash")
       const od = own.find((b) => b.kind === "overdraft")
       if (cash) {
-        // Sin bucket de sobregiro la caja puede quedar negativa: eso también es deuda, no caja.
-        if (cash.available.isNegative)
-          add(cash.currency, "overdraftUsed", cash.available.negate())
-        else add(cash.currency, "cash", cash.available)
+        add(cash.currency, "cash", cash.available)
         if (od) {
           add(od.currency, "overdraftUsed", od.used)
           add(od.currency, "overdraftAvailable", od.available)

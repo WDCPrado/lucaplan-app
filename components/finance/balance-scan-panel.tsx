@@ -416,7 +416,7 @@ export function BalanceScanPanel({
                 </button>
               </div>
               <p className="text-xs text-muted-foreground">
-                En negativo si estás usando la línea.
+                Conserva el signo que muestra el banco. La línea se informa aparte.
               </p>
             </div>
           )}
@@ -508,3 +508,4 @@ type ReadingDTO = {
   national: BucketDTO
   international: BucketDTO
 }
+

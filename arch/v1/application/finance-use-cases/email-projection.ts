@@ -17,6 +17,8 @@ function max(a: Money, b: Money): Money {
 
 // Débito CLP en la corriente (cargo/transferencia): consume primero la caja; el exceso aumenta el
 // sobregiro usado. Sin bucket de sobregiro, la caja queda negativa (visible, no se oculta).
+// Si el banco ya confirmó caja negativa, se conserva separada de la línea: el siguiente
+// cargo no debe trasladar ese saldo a una deuda de línea que el banco no informó.
 export function applyDebitToCash(
   cash: BucketAmounts,
   overdraft: BucketAmounts | null,
@@ -24,7 +26,7 @@ export function applyDebitToCash(
 ): { cash: BucketAmounts; overdraft: BucketAmounts | null } {
   const zero = Money.zero(amount.currency)
   const remaining = cash.available.subtract(amount)
-  if (!overdraft || remaining.compare(zero) >= 0) {
+  if (!overdraft || cash.available.isNegative || remaining.compare(zero) >= 0) {
     return { cash: { ...cash, available: remaining }, overdraft }
   }
   const excess = remaining.negate()
@@ -71,4 +73,5 @@ export function applyInternalPayment(
   const used = max(bucket.used.subtract(amount), Money.zero(amount.currency))
   return { ...bucket, used, available: bucket.limitAmount.subtract(used) }
 }
+
 

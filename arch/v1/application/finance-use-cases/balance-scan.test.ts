@@ -16,6 +16,7 @@ import {
   type BalanceScanReader,
 } from "../../domain/finance/balance-scan.domain.ts"
 import { applyAccountBalance, emptyReading } from "./balance-scan-use-cases.ts"
+import { currencyPositions } from "./financial-position.ts"
 
 const clp = (n: number) => Money.of(n, "CLP")
 
@@ -111,7 +112,7 @@ const reading = (over: Partial<BalanceReading>): BalanceReading => ({
   ...over,
 })
 
-test("corriente en sobregiro: caja en cero, deuda a la línea y saldo negativo en la cuenta", async () => {
+test("saldo negativo y línea utilizada se guardan como valores independientes", async () => {
   const d = deps(acc(), [
     bucket("cash", 0, 0),
     bucket("overdraft", 1_000_000, 0),
@@ -126,12 +127,50 @@ test("corriente en sobregiro: caja en cero, deuda a la línea y saldo negativo e
     })
   )
   assert.equal(res.updatedBuckets, 2)
-  assert.equal(d.accounts.balance?.toMajor(), 0)
-  assert.equal(d.balanceBuckets.written.get("bk-cash")?.available.toMajor(), 0)
+  assert.equal(d.accounts.balance?.toMajor(), -25_650)
+  assert.equal(d.balanceBuckets.written.get("bk-cash")?.available.toMajor(), -25_650)
   const od = d.balanceBuckets.written.get("bk-overdraft")
   // El cupo guardado no se toca: el usado es lo que le falta al disponible para llegar a él.
   assert.equal(od?.limitAmount.toMajor(), 1_000_000)
   assert.equal(od?.used.toMajor(), 44_585)
+})
+
+test("actualizar saldo conserva -110517 con línea de un millón sin uso", async () => {
+  const d = deps(acc({ provider: "bancochile" }), [
+    bucket("cash", 0, 0),
+    bucket("overdraft", 1_000_000, 302_931),
+  ])
+  const res = await applyAccountBalance(d, "u1", "a1", reading({
+    cash: -110_517,
+    overdraft: { limit: null, available: 1_000_000, used: 0 },
+  }))
+  assert.equal(res.updatedBuckets, 2)
+  assert.equal(d.accounts.balance?.toMajor(), -110_517)
+  const cash = d.balanceBuckets.written.get("bk-cash")
+  assert.equal(cash?.available.toMajor(), -110_517)
+  assert.equal(cash?.used.toMajor(), 0)
+  const od = d.balanceBuckets.written.get("bk-overdraft")
+  assert.equal(od?.used.toMajor(), 0)
+  assert.equal(od?.available.toMajor(), 1_000_000)
+  const stored = (await d.balanceBuckets.listByAccount()).map((b) => ({
+    ...b,
+    ...d.balanceBuckets.written.get(b.id),
+  }))
+  const [position] = currencyPositions([acc()], stored)
+  assert.equal(position.cash, -110_517)
+  assert.equal(position.overdraftUsed, 0)
+  assert.equal(position.overdraftAvailable, 1_000_000)
+})
+
+test("saldo negativo sin línea legible no sobrescribe la deuda guardada", async () => {
+  const d = deps(acc(), [
+    bucket("cash", 0, 0),
+    bucket("overdraft", 1_000_000, 40_000),
+  ])
+  const res = await applyAccountBalance(d, "u1", "a1", reading({ cash: -110_517 }))
+  assert.equal(res.updatedBuckets, 1)
+  assert.equal(d.accounts.balance?.toMajor(), -110_517)
+  assert.equal(d.balanceBuckets.written.has("bk-overdraft"), false)
 })
 
 test("tarjeta: cada cupo va a su bucket y el saldo de la cuenta es la deuda nacional", async () => {
@@ -212,3 +251,4 @@ test("un tipo de cuenta sin saldos en pantalla se rechaza", async () => {
     BalanceScanError
   )
 })
+

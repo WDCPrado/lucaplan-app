@@ -4,7 +4,7 @@ import { startTransition, useOptimistic, useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
-import { MonthPicker } from "./month-picker"
+import { MonthPicker, periodLabel } from "./month-picker"
 
 type Period = { year: number; month: number }
 
@@ -16,17 +16,22 @@ type Period = { year: number; month: number }
  * El cambio es optimista: la etiqueta se mueve al toque y entra deslizándose desde el lado de la
  * navegación; la página llega después. Fuera del mes en curso aparece «Hoy» en la misma fila y la
  * cápsula le hace sitio.
+ *
+ * `disabled`: la misma cápsula, del mismo ancho, con el período en curso atenuado y sin acción. La
+ * pone el marco en las vistas sin selector de mes, así la fila superior es igual en todas.
  */
 export function MonthNav({
   period,
   current,
   cycleRange,
   onNavigate,
+  disabled,
 }: {
   period: Period
   current: Period // mes en curso según el modo
   cycleRange?: { start: string; end: string } // rango del ciclo en modo tarjeta
   onNavigate: (year: number, month: number) => void // navega (router.push); va en una transición
+  disabled?: boolean
 }) {
   const [shown, setShown] = useOptimistic(period)
   // Dirección de la última navegación, derivada en render al cambiar el período mostrado.
@@ -47,21 +52,36 @@ export function MonthNav({
     go(d.getUTCFullYear(), d.getUTCMonth() + 1)
   }
 
-  const arrow =
-    "press grid size-11 shrink-0 place-items-center rounded-full hover:bg-foreground/5 md:size-10 md:rounded-(--radius-bar-inner)"
+  // Deshabilitado, flechas y etiqueta van a media tinta (`idle-ink`, globals.css): se leen pero no
+  // invitan a tocar.
+  const arrow = cn(
+    "grid size-11 shrink-0 place-items-center rounded-full md:size-10 md:rounded-(--radius-bar-inner)",
+    disabled ? "idle-ink" : "press hover:bg-foreground/5"
+  )
 
   return (
-    <div className="flex w-full min-w-0 items-center md:w-auto">
+    <div
+      role={disabled ? "group" : undefined}
+      aria-label={disabled ? "Período en curso" : undefined}
+      aria-disabled={disabled || undefined}
+      className="flex w-full min-w-0 items-center md:w-auto"
+    >
       <div className="flex min-h-11 min-w-0 flex-1 items-center rounded-full max-md:liquid-glass md:min-h-10 md:rounded-(--radius-bar-inner) md:bg-(--glass-control)">
         <button
           type="button"
           onClick={() => step(-1)}
+          disabled={disabled}
           className={arrow}
           aria-label="Mes anterior"
         >
           <ChevronLeft className="size-5 md:size-4" />
         </button>
         <div aria-live="polite" className="flex min-w-0 flex-1 justify-center overflow-hidden">
+          {disabled ? (
+            <span className="idle-ink flex min-h-11 max-w-full items-center truncate px-3 text-headline font-semibold md:min-h-8 md:text-subheadline">
+              {periodLabel(period, cycleRange)}
+            </span>
+          ) : (
           <span
             key={key}
             className={cn(
@@ -83,10 +103,12 @@ export function MonthNav({
               className="md:rounded-(--radius-bar-inner)"
             />
           </span>
+          )}
         </div>
         <button
           type="button"
           onClick={() => step(1)}
+          disabled={disabled}
           className={arrow}
           aria-label="Mes siguiente"
         >

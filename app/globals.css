@@ -139,9 +139,12 @@
     /* === Materiales (apple-hig/foundations/materials) ===
        Liquid Glass: solo la capa de controles y navegación que flota sobre el contenido (barras,
        sidebar, topbar, cápsulas y botones flotantes). Variante «regular»: desenfoque + luminosidad;
-       sin color propio. Lo grande (sidebar) un poco más opaco que lo chico (barra, botones). */
-    --glass-fill: oklch(1 0 0 / 0.6);
-    --glass-fill-large: oklch(0.985 0.002 286 / 0.72);
+       sin color propio. Lo grande (sidebar) un poco más opaco que lo chico (barra, botones).
+       `--glass-tint` (0–88 %) lo lleva hacia la celda sólida: lo elige la persona en Ajustes →
+       Apariencia (`data-glass` en <html>, lib/glass-level.ts). En 0 queda el vidrio de siempre. */
+    --glass-tint: 0%;
+    --glass-fill: color-mix(in oklch, oklch(1 0 0 / 0.6), var(--card) var(--glass-tint));
+    --glass-fill-large: color-mix(in oklch, oklch(0.985 0.002 286 / 0.72), var(--card) var(--glass-tint));
     --glass-blur: 16px;
     --glass-saturate: 180%;
     --glass-highlight: oklch(1 0 0 / 0.9);           /* brillo especular del canto superior */
@@ -151,7 +154,7 @@
     --glass-active: color-mix(in oklch, var(--primary) 16%, transparent);
     /* Material «regular» de iOS para lo que lleva texto encima del contenido (menús, popovers,
        select, tooltip, toasts, alertas): la misma familia, más opaco y con más desenfoque. */
-    --material: oklch(0.985 0.002 286 / 0.86);
+    --material: color-mix(in oklch, oklch(0.985 0.002 286 / 0.86), var(--card) var(--glass-tint));
     --material-blur: 28px;
     --scroll-edge-blur: 6px;
     --material-shadow: 0 0 0 0.5px var(--glass-edge), 0 12px 40px -8px oklch(0.2 0.01 286 / 0.2);
@@ -269,13 +272,13 @@ html:has(main[data-landing]) body {
     --sidebar-ring: oklch(0.624 0.206 255.5);
 
     /* Materiales */
-    --glass-fill: oklch(0.27 0.004 286 / 0.55);
-    --glass-fill-large: oklch(0.25 0.004 286 / 0.7);
+    --glass-fill: color-mix(in oklch, oklch(0.27 0.004 286 / 0.55), var(--card) var(--glass-tint));
+    --glass-fill-large: color-mix(in oklch, oklch(0.25 0.004 286 / 0.7), var(--card) var(--glass-tint));
     --glass-highlight: oklch(1 0 0 / 0.22);
     --glass-edge: oklch(1 0 0 / 0.08);
     --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 8px 24px -6px oklch(0 0 0 / 0.55);
     --glass-active: color-mix(in oklch, var(--primary) 26%, transparent);
-    --material: oklch(0.26 0.004 286 / 0.84);
+    --material: color-mix(in oklch, oklch(0.26 0.004 286 / 0.84), var(--card) var(--glass-tint));
     --material-shadow: 0 0 0 0.5px var(--glass-edge), 0 12px 40px -8px oklch(0 0 0 / 0.6);
     --scroll-edge: color-mix(in oklch, var(--background) 72%, transparent);
     --glass-control: oklch(0.569 0.015 285.9 / 0.24);
@@ -420,35 +423,34 @@ html:has(main[data-landing]) body {
   }
 }
 
-/* Fila superior móvil, persistente en el AppFrame. Con acciones (el MonthNav) el scroll edge aparece
-   apenas hay scroll; sin ellas, junto con la cápsula del título, cuando el título grande ya pasó
-   bajo la fila. La cápsula solo existe en las vistas sin acciones. */
-.top-bar:not([data-scrolled])::after,
-.top-bar:has([data-top-actions]:empty):not([data-title-gone])::after {
+/* Fila superior móvil, persistente en el AppFrame: el scroll edge aparece apenas hay scroll, en
+   todas las vistas. */
+.top-bar:not([data-scrolled])::after {
   opacity: 0;
 }
-.top-title {
-  opacity: 0;
-  scale: 0.94;
-  translate: 0 0.25rem;
-  transition:
-    opacity 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    scale 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    translate 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+/* MonthNav deshabilitado (vistas sin selector de mes): media tinta, legible sin invitar a tocar. */
+.idle-ink {
+  opacity: 0.55;
 }
-.top-bar[data-title-gone]:has([data-top-actions]:empty) .top-title {
-  opacity: 1;
-  scale: 1;
-  translate: 0 0;
+/* En la fila móvil comparte celda con el hueco de la vista. Al pasar a una vista sin selector, la
+   cápsula queda y solo su tinta baja (se lee como el mismo control deshabilitándose); al volver a
+   una con selector, este entra encima con `top-in` y el deshabilitado se va recién al terminar. */
+.top-idle .idle-ink {
+  transition: opacity 200ms ease-out;
 }
-.top-bar:not(:has([data-top-actions]:empty)) .top-title {
+.top-bar:not(:has([data-top-actions]:empty)) .top-idle {
   visibility: hidden;
+  transition: visibility 0s linear 220ms;
 }
-/* Al cambiar de vista la barra queda quieta: entra solo su contenido (el título nuevo, el MonthNav). */
+.top-bar:not(:has([data-top-actions]:empty)) .top-idle .idle-ink {
+  opacity: 1;
+  transition: none;
+}
+/* Al cambiar de vista la barra queda quieta: entra solo su contenido (el MonthNav), sin escala para
+   calzar sobre la cápsula que ya está. */
 @keyframes top-in {
-  from { opacity: 0; scale: 0.96; }
+  from { opacity: 0; }
 }
-.top-title-text,
 [data-top-actions] > * {
   animation: top-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -635,6 +637,13 @@ html:has(main[data-landing]) body {
     var(--glass-shadow);
 }
 
+/* Nivel del vidrio elegido en Ajustes (0 = transparente, el de siempre; 4 = teñido, casi sólido).
+   Más contraste y menos transparencia del sistema, abajo, siguen ganando. */
+:root[data-glass="1"] { --glass-tint: 25%; }
+:root[data-glass="2"] { --glass-tint: 50%; }
+:root[data-glass="3"] { --glass-tint: 70%; }
+:root[data-glass="4"] { --glass-tint: 88%; }
+
 /* Accesibilidad (apple-hig/foundations/materials): con MÁS CONTRASTE el vidrio gana relleno y
    contorno; con MENOS TRANSPARENCIA todo material cae a sólido, y va después para ganarle a
    contraste cuando están las dos. No se usa prefers-reduced-motion para esto: es para animaciones. */
@@ -676,15 +685,12 @@ html:has(main[data-landing]) body {
   .month-in-prev {
     animation: none;
   }
-  /* La cápsula del título y el contenido de la barra aparecen solo con opacidad, sin moverse. */
-  .top-title {
-    scale: 1;
-    translate: 0 0;
-    transition-duration: 120ms;
-  }
-  .top-title-text,
-  [data-top-actions] > * {
+  /* La fila superior cambia de estado sin fundidos. */
+  [data-top-actions] > *,
+  .top-idle,
+  .top-idle .idle-ink {
     animation: none;
+    transition: none !important;
   }
 }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
@@ -15,6 +15,8 @@ import { PushToggle } from "@/components/pwa/push-toggle"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
 import { AppShell } from "./app-shell"
 import { Button } from "@/components/ui/button"
+import { Slider } from "@/components/ui/slider"
+import { GLASS_MAX, getGlass, setGlass, subscribeGlass } from "@/lib/glass-level"
 import type { BudgetAlert } from "@/arch/v1/domain/notifications/budget-alert.domain"
 
 // Umbrales ofrecidos. Son los que la gente usa: elegir "aviso al 80%" es una decisión discreta,
@@ -98,6 +100,7 @@ export function SettingsView({
             {/* Solo aparece si hay vía de instalación y la app no corre ya instalada. */}
             <InstallAppItem rowClassName={ROW} />
           </section>
+          <AppearanceSection />
           {vapidPublicKey && (
             <SettingsSection title="Notificaciones" className="lg:col-span-2">
               <div className="glass rounded-xl p-4">
@@ -153,6 +156,47 @@ function SettingsSection({
       )}
       <div className="mt-3">{children}</div>
     </section>
+  )
+}
+
+// Cuánto vidrio llevan barras, sidebar y menús: de transparente (el de siempre) a teñido, casi
+// sólido. Cinco pasos; es de este dispositivo (lib/glass-level.ts) y se ve al arrastrar.
+function AppearanceSection() {
+  // En el servidor no hay <html> que leer: parte en 0 y al hidratar toma el del dispositivo.
+  const level = useSyncExternalStore(subscribeGlass, getGlass, () => 0)
+
+  return (
+    <SettingsSection
+      title="Apariencia"
+      description="Cuánto se ve el contenido a través de las barras y los menús."
+    >
+      <div className="glass rounded-xl p-4">
+        <Slider
+          value={[level]}
+          onValueChange={([v]) => {
+            if (v === level) return
+            haptic("light")
+            setGlass(v)
+          }}
+          min={0}
+          max={GLASS_MAX}
+          step={1}
+          aria-label="Efecto vidrio"
+          className="h-11"
+        />
+        <div
+          aria-hidden
+          className="flex justify-between text-footnote text-muted-foreground"
+        >
+          <span>Transparente</span>
+          <span>Teñido</span>
+        </div>
+        {/* Con «Reducir transparencia» del sistema todo material es sólido, sea cual sea el nivel. */}
+        <p className="mt-3 hidden text-footnote text-muted-foreground [@media(prefers-reduced-transparency:reduce)]:block">
+          Tu dispositivo tiene activado «Reducir transparencia»: el vidrio se ve sólido igual.
+        </p>
+      </div>
+    </SettingsSection>
   )
 }
 

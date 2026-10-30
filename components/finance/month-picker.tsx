@@ -11,6 +11,19 @@ import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { currentPeriod, monthName } from "@/lib/finance-format"
 
+// Etiqueta del período: el mes («Octubre») o, en modo tarjeta, el rango del ciclo
+// («Ciclo 23 sep – 22 oct»). La misma en el selector y en el MonthNav deshabilitado.
+const day = (key: string) =>
+  `${key.slice(8, 10)} ${monthName(Number(key.slice(5, 7))).slice(0, 3).toLowerCase()}`
+export function periodLabel(
+  period: { month: number },
+  cycleRange?: { start: string; end: string }
+) {
+  return cycleRange
+    ? `Ciclo ${day(cycleRange.start)} – ${day(cycleRange.end)}`
+    : monthName(period.month)
+}
+
 // Selector de mes con Popover de shadcn: el pill del mes abre un grid de 12 meses con
 // navegación de año. El mes seleccionado va en primary; el mes actual lleva un anillo.
 export function MonthPicker({
@@ -47,7 +60,7 @@ export function MonthPicker({
             className
           )}
         >
-          {cycleRange ? `Ciclo ${cycleRange.start.slice(8, 10)} ${monthName(Number(cycleRange.start.slice(5, 7))).slice(0, 3).toLowerCase()} – ${cycleRange.end.slice(8, 10)} ${monthName(Number(cycleRange.end.slice(5, 7))).slice(0, 3).toLowerCase()}` : monthName(period.month)}
+          {periodLabel(period, cycleRange)}
           {withYear && <span className="tabular-nums"> {period.year}</span>}
         </button>
       </PopoverTrigger>

@@ -39,6 +39,7 @@ import { authClient } from "@/lib/auth-client"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
 import { TransactionSearch } from "./transaction-search"
 import { TransactionModal } from "./transaction-modal"
+import { MonthNav } from "./month-nav"
 import type {
   AccountDTO,
   AmountBoundsDTO,
@@ -136,12 +137,19 @@ export function AppFrame({
   accounts,
   categories,
   amountBounds,
+  currentPeriod,
   children,
 }: {
   user: User
   accounts: AccountDTO[]
   categories: CategoryDTO[]
   amountBounds: AmountBoundsDTO
+  // Período en curso según el modo; con él el marco llena la fila de las vistas sin selector de mes.
+  currentPeriod: {
+    year: number
+    month: number
+    cycleRange?: { start: string; end: string }
+  }
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -187,6 +195,15 @@ export function AppFrame({
         onSearch={openSearch}
         desktopSlotRef={setDesktopSlot}
         mobileSlotRef={setMobileSlot}
+        idle={
+          <MonthNav
+            period={currentPeriod}
+            current={currentPeriod}
+            cycleRange={currentPeriod.cycleRange}
+            onNavigate={() => {}}
+            disabled
+          />
+        }
       >
         {children}
       </Chrome>
@@ -271,9 +288,11 @@ function Chrome({
   actions,
   desktopSlotRef,
   mobileSlotRef,
+  idle,
   children,
 }: Omit<AppShellProps, "actions"> & {
   actions?: React.ReactNode
+  idle?: React.ReactNode // el MonthNav deshabilitado: ocupa el hueco cuando la vista no trae acciones
   onSearch?: () => void
   desktopSlotRef?: (el: HTMLElement | null) => void
   mobileSlotRef?: (el: HTMLElement | null) => void
@@ -281,8 +300,7 @@ function Chrome({
   const pathname = usePathname()
   const title =
     titleProp ?? NAV.find((n) => n.key === navKeyOf(pathname))?.label
-  const { topRef, endRef, barRef, contentRef, scrolled, atEnd, titleGone } =
-    useScrollEdges(pathname)
+  const { topRef, endRef, scrolled, atEnd } = useScrollEdges()
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -325,14 +343,19 @@ function Chrome({
               {title && (
                 <h1 className="text-title-3 font-semibold">{title}</h1>
               )}
-              {/* Las acciones de la vista (el selector de mes) van junto al título; la búsqueda global,
-                  al final. */}
+              {/* Las acciones de la vista (el selector de mes) van junto al título; sin ellas, el mismo
+                  selector deshabilitado con el período en curso. La búsqueda global, al final. */}
               <div
                 ref={desktopSlotRef}
-                className="ml-2 flex items-center empty:hidden"
+                className="peer ml-2 flex items-center empty:hidden"
               >
                 {actions}
               </div>
+              {idle && (
+                <div className="ml-2 hidden items-center peer-empty:flex">
+                  {idle}
+                </div>
+              )}
               <div className="ml-auto flex items-center gap-2">
                 {/* Búsqueda global: abre el mismo modal que el círculo de la barra móvil. */}
                 {onSearch && (
@@ -355,18 +378,22 @@ function Chrome({
               </div>
             </header>
           </div>
-          {/* Móvil: controles flotantes en vidrio (iOS 26), sin barra a lo ancho. Con acciones (el
-              selector de mes), ocupan todo el ancho; sin ellas, en reposo no hay nada y, cuando el
-              título grande se va bajo la fila, aparece al centro una cápsula con el título. El scroll
-              edge effect solo aparece cuando hay contenido pasando por debajo de un control (reglas
-              en `.top-bar`, globals.css). Solo los controles reciben toques. */}
+          {/* Móvil: controles flotantes en vidrio (iOS 26), sin barra a lo ancho. Las acciones de la
+              vista (el selector de mes) ocupan todo el ancho; sin ellas, en la misma celda queda el
+              selector deshabilitado con el período en curso, así la fila es igual en todas las vistas
+              y no salta al navegar (el cruce entre los dos, en `.top-idle`, globals.css). El scroll
+              edge effect aparece apenas hay contenido pasando por debajo. Solo los controles reciben
+              toques. */}
           <div
-            ref={barRef}
             data-scrolled={scrolled || undefined}
-            data-title-gone={titleGone || undefined}
             className="top-bar pwa-safe-top pointer-events-none sticky top-0 z-20 scroll-edge-top px-4 pt-2 pb-3 md:hidden"
           >
             <div className="grid min-h-11 w-full items-center *:col-start-1 *:row-start-1">
+              {idle && (
+                <div className="top-idle pointer-events-auto flex w-full min-w-0">
+                  {idle}
+                </div>
+              )}
               <div
                 ref={mobileSlotRef}
                 data-top-actions
@@ -374,21 +401,11 @@ function Chrome({
               >
                 {actions}
               </div>
-              {title && (
-                <div aria-hidden className="top-title flex min-w-0 justify-center">
-                  <div className="liquid-glass flex min-h-11 min-w-0 items-center rounded-full px-4 text-headline font-semibold">
-                    <span key={title} className="top-title-text truncate">
-                      {title}
-                    </span>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
           {/* Aire inferior solo en móvil, por la navegación flotante (64px + margen + safe-area). En
               escritorio no flota nada. */}
           <div
-            ref={contentRef}
             className="min-w-0 flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0"
           >
             {children}
@@ -410,17 +427,12 @@ function Chrome({
 
 // Cuándo hay contenido bajo los controles flotantes, con IntersectionObserver (nada escucha el
 // scroll cuadro a cuadro): `scrolled` = la marca de arriba dejó de verse; `atEnd` = se ve la marca
-// del final; `titleGone` = el h1 de la vista (el título grande móvil) ya pasó bajo la fila superior.
-// El h1 cambia con la ruta, así que su observador se vuelve a enganchar en cada navegación; la barra
-// sigue montada.
-function useScrollEdges(pathname: string) {
+// del final.
+function useScrollEdges() {
   const topRef = React.useRef<HTMLDivElement>(null)
   const endRef = React.useRef<HTMLDivElement>(null)
-  const barRef = React.useRef<HTMLDivElement>(null)
-  const contentRef = React.useRef<HTMLDivElement>(null)
   const [scrolled, setScrolled] = React.useState(false)
   const [atEnd, setAtEnd] = React.useState(false)
-  const [titleGone, setTitleGone] = React.useState(false)
 
   React.useEffect(() => {
     const top = topRef.current
@@ -437,24 +449,7 @@ function useScrollEdges(pathname: string) {
     return () => io.disconnect()
   }, [])
 
-  React.useEffect(() => {
-    const h1 = contentRef.current?.querySelector("h1")
-    if (!h1) return
-    // El borde de la ventana se baja al pie de la fila superior: "se fue" = quedó bajo los controles.
-    const bar = barRef.current?.offsetHeight ?? 0
-    const io = new IntersectionObserver(
-      ([e]) =>
-        setTitleGone(
-          !e.isIntersecting &&
-            e.boundingClientRect.bottom <= (e.rootBounds?.top ?? 0)
-        ),
-      { rootMargin: `-${bar}px 0px 0px 0px` }
-    )
-    io.observe(h1)
-    return () => io.disconnect()
-  }, [pathname])
-
-  return { topRef, endRef, barRef, contentRef, scrolled, atEnd, titleGone }
+  return { topRef, endRef, scrolled, atEnd }
 }
 
 // Nav del sidebar: links a rutas reales. El item activo se deriva del pathname (el prop
@@ -506,7 +501,8 @@ function NavMenu({
 // destinos del sidebar y, suelta a la derecha, la búsqueda (`trailing`). La pastilla del activo
 // (concéntrica: rounded-full dentro de rounded-full) se desliza de una pestaña a otra: como la barra
 // vive en el layout y no se desmonta al navegar, basta una transición de transform. Las etiquetas
-// van en el color del texto; el activo se marca tiñendo el fondo de su pastilla.
+// van en el color y el peso del texto; el activo se marca solo tiñendo el fondo de su pastilla, así
+// ningún ancho cambia al cambiar de pestaña.
 function BottomNav({
   active,
   onNavigate,
@@ -594,10 +590,9 @@ function BottomNav({
                   })
                 }}
                 style={{ flexGrow: weight }}
-                className={cn(
-                  "press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-foreground",
-                  isActive && "font-semibold"
-                )}
+                // Sin negrita en la activa: la marcan la pastilla y aria-current; un peso distinto
+                // ensancharía su etiqueta y movería a las vecinas bajo la pastilla.
+                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-foreground"
               >
                 <Icon className="size-5 shrink-0" />
                 {short ? (

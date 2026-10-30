@@ -167,9 +167,16 @@ agrupaciones, la tipografía y los controles.
     margen (`--radius-bar-inner` en la topbar y el sidebar; `rounded-full` dentro de cápsulas).
   - Con `prefers-reduced-transparency` todo material cae a sólido; con `prefers-contrast: more`
     gana relleno y contorno.
+  - **Nivel del vidrio** (Ajustes → Apariencia): un slider de 5 pasos, de «Transparente» (el vidrio
+    de siempre) a «Teñido» (casi sólido), lleva `--glass-fill`, `--glass-fill-large` y `--material`
+    hacia `--card` con `--glass-tint` (`data-glass` en `<html>`). Es por dispositivo
+    (localStorage, `lib/glass-level.ts`) y lo aplica un script en `<head>` antes del primer pintado;
+    las dos preferencias del sistema de arriba siguen ganando.
 - **Navegación flotante, sin barras a lo ancho**: en móvil, arriba solo las acciones de la
-  vista a todo el ancho (el selector de mes `MonthNav`); sin acciones, nada flota en reposo y al
-  pasar el título grande aparece una cápsula con el título y el scroll edge effect. La cuenta (perfil,
+  vista a todo el ancho (el selector de mes `MonthNav`); en las vistas sin selector, el marco pone
+  el mismo `MonthNav` deshabilitado con el período en curso (también junto al título de la topbar
+  de escritorio), así la fila es igual en todas y no salta al navegar. El scroll edge effect aparece
+  apenas hay scroll. La pestaña activa no cambia de peso: la marca su pastilla. La cuenta (perfil,
   tema, cerrar sesión) vive en Ajustes. Las dos barras viven en el layout (`AppFrame`) y no se
   desmontan al navegar; la vista inyecta sus acciones por portal. Abajo, una cápsula con las pestañas (la activa con pastilla) y la búsqueda global en un círculo
   suelto a la derecha, en todas las vistas. En escritorio, sidebar y topbar flotantes de la misma

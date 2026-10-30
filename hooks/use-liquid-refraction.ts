@@ -29,12 +29,25 @@ export function useLiquidRefraction<T extends HTMLElement>(ref: React.RefObject<
     const el = ref.current
     if (!el || !canRefract()) return
     let detach: (() => void) | undefined
+    let started = false
     let cancelled = false
-    import("@/lib/liquid-refraction-dom").then(({ attachRefraction }) => {
-      if (!cancelled) detach = attachRefraction(el)
-    })
+    // Solo se descarga y se monta cuando el elemento es vidrio visible en este ancho: la barra
+    // inferior y la cápsula móvil del mes no cuentan en escritorio (ocultas, o sin vidrio). Si el
+    // ancho cruza el corte de md, se vuelve a mirar.
+    const wide = window.matchMedia("(min-width: 48rem)")
+    function start() {
+      if (started || !el!.offsetWidth || getComputedStyle(el!).backdropFilter === "none") return
+      started = true
+      wide.removeEventListener("change", start)
+      import("@/lib/liquid-refraction-dom").then(({ attachRefraction }) => {
+        if (!cancelled) detach = attachRefraction(el!)
+      })
+    }
+    start()
+    if (!started) wide.addEventListener("change", start)
     return () => {
       cancelled = true
+      wide.removeEventListener("change", start)
       detach?.()
     }
   }, [ref])

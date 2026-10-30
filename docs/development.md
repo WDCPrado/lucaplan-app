@@ -168,7 +168,7 @@ agrupaciones, la tipografía y los controles.
     salen de `lib/liquid-refraction.ts` (lógica pura, con test) y se regeneran solo al cambiar el
     tamaño, nunca en una animación: el press anima el `scale` del filtro.
   - **Movimiento del vidrio**: `liquid-squish` encoge la cápsula al 97 % al presionarla (ella o un
-    control suyo con `data-squish`) y vuelve con un spring (`--ease-spring`); la pastilla activa de
+    control suyo con `data-squish`) y vuelve con un spring (`linear()`, con `cubic-bezier` de respaldo); la pastilla activa de
     las pestañas se estira como gota al deslizarse (`.tab-pill`). Solo CSS, interrumpible, y nada
     con movimiento reducido.
   - **Material regular (`--material`)** para lo que lleva texto encima del contenido:

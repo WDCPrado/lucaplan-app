@@ -19,7 +19,8 @@ type Period = { year: number; month: number }
  * cápsula le hace sitio.
  *
  * Las flechas hacen squish sobre la cápsula (`liquid-squish`) y, en Chromium, la cápsula móvil
- * refracta lo que pasa por debajo (useLiquidRefraction; en escritorio no es vidrio y no se monta).
+ * refracta lo que pasa por debajo (useLiquidRefraction). En escritorio la cápsula no es vidrio: el
+ * hook no descarga el módulo ni observa nada hasta que el ancho baje de md.
  *
  * `disabled`: la misma cápsula, del mismo ancho, con el período en curso atenuado y sin acción. La
  * pone el marco en las vistas sin selector de mes, así la fila superior es igual en todas.

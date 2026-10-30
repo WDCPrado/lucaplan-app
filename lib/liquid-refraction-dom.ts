@@ -84,7 +84,7 @@ const idle = (fn: () => void): (() => void) => {
 /** Monta la refracción en `target` y devuelve cómo desmontarla. */
 export function attachRefraction(target: HTMLElement) {
   const id = `liquid-refraction-${++seq}`
-  const map = el("feImage", { result: "map", preserveAspectRatio: "none" })
+  const map = el("feImage", { result: "map", preserveAspectRatio: "none", x: "0", y: "0" })
   const shift = el("feDisplacementMap", {
     in: "SourceGraphic",
     in2: "map",
@@ -93,7 +93,7 @@ export function attachRefraction(target: HTMLElement) {
     scale: "0",
     result: "refracted",
   })
-  const shine = el("feImage", { result: "shine", preserveAspectRatio: "none" })
+  const shine = el("feImage", { result: "shine", preserveAspectRatio: "none", x: "0", y: "0" })
   const filter = el("filter", { id, "color-interpolation-filters": "sRGB" })
   filter.append(map, shift, shine, el("feBlend", { in: "shine", in2: "refracted", mode: "screen" }))
   svgHost().append(filter)
@@ -128,34 +128,52 @@ export function attachRefraction(target: HTMLElement) {
     frame = requestAnimationFrame(tick)
   }
 
-  function build() {
-    cancelBuild = null
-    if (!active()) return // apagada: no genera mapas; sync() los pide al volver
-    const w = target.offsetWidth // tamaño de layout: no cambia con el squish (transform)
+  // Tamaño de layout (no cambia con el squish, que es transform) redondeado a 4 px: la clave del mapa.
+  // null = oculto, o sin vidrio en este ancho (`max-md:liquid-glass` en escritorio).
+  function measure() {
+    const w = target.offsetWidth
     const h = target.offsetHeight
     const style = getComputedStyle(target)
-    // Oculto, o sin vidrio en este ancho (`max-md:liquid-glass` en escritorio): espera al próximo resize.
-    if (!w || !h || style.backdropFilter === "none") return
+    if (!w || !h || style.backdropFilter === "none") return null
     const rw = Math.max(STEP, Math.round(w / STEP) * STEP)
     const rh = Math.max(STEP, Math.round(h / STEP) * STEP)
     const radius = Math.min(parseFloat(style.borderTopLeftRadius) || 0, rw / 2, rh / 2)
-    const key = `${rw}x${rh}r${radius}`
-    if (key !== built) {
-      const urls = mapsFor(rw, rh, radius)
-      for (const img of [map, shine]) {
-        img.setAttribute("href", img === map ? urls.displacement : urls.specular)
-        img.setAttribute("x", "0")
-        img.setAttribute("y", "0")
-      }
-      peak = urls.maxDisplacement
-      built = key
-    }
-    // La imagen se estira al tamaño exacto: el redondeo a 4 px no se nota.
+    return { w, h, rw, rh, radius, key: `${rw}x${rh}r${radius}` }
+  }
+
+  // Estirar el mapa al tamaño exacto es barato y va al tiro: así no queda una franja sin mapa
+  // mientras el elemento cambia de ancho (MonthNav cuando entra «Hoy»).
+  function stretch(w: number, h: number) {
     for (const img of [map, shine]) {
       img.setAttribute("width", String(w))
       img.setAttribute("height", String(h))
     }
+  }
+
+  function build() {
+    cancelBuild = null
+    if (!active()) {
+      built = "" // apagada: no genera mapas; sync() los pide al volver
+      return
+    }
+    const size = measure()
+    if (!size) return
+    if (size.key !== built) {
+      const urls = mapsFor(size.rw, size.rh, size.radius)
+      map.setAttribute("href", urls.displacement)
+      shine.setAttribute("href", urls.specular)
+      peak = urls.maxDisplacement
+      built = size.key
+    }
+    stretch(size.w, size.h)
     sync()
+  }
+
+  function onResize() {
+    const size = measure()
+    if (!size) return
+    stretch(size.w, size.h)
+    if (size.key !== built) schedule() // regenerar solo si cambió el tamaño redondeado
   }
 
   function schedule() {
@@ -179,7 +197,7 @@ export function attachRefraction(target: HTMLElement) {
   }
 
   function press(e: PointerEvent) {
-    if (reduceMotion.matches || !(e.target as Element).closest("[data-squish]")) return
+    if (reduceMotion.matches || !(e.target as Element).closest("[data-squish]:not(:disabled):not([aria-disabled=true])")) return
     pressed = true
     tweenScale(restScale() * PRESS_BOOST, 120)
   }
@@ -189,7 +207,7 @@ export function attachRefraction(target: HTMLElement) {
     tweenScale(restScale(), 320)
   }
 
-  const ro = new ResizeObserver(schedule)
+  const ro = new ResizeObserver(onResize)
   ro.observe(target)
   const unsubscribe = subscribeGlass(sync)
   const queries = [reduceTransparency, moreContrast]

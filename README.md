@@ -444,7 +444,7 @@ node --test "arch/**/*.test.ts"
 
 ### Docker Compose
 
-Para operar la instancia personal con base aislada, cron y HTTPS privado por Tailscale, usa
+Para operar la instancia personal con base aislada, cron y HTTPS público por Cloudflare Tunnel, usa
 [`compose.production.yml`](compose.production.yml) y la [guía de instalación local](docs/self-hosting.md).
 El Compose descrito a continuación sigue siendo el entorno de desarrollo existente.
 

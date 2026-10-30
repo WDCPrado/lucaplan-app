@@ -105,7 +105,7 @@ export function AccountInfoModal({
             account={account}
             onDone={() => onOpenChange(false)}
           />
-          <Button variant="ghost" onClick={() => setMode("info")}>
+          <Button variant="ghost" className="h-11" onClick={() => setMode("info")}>
             Volver al detalle
           </Button>
         </div>

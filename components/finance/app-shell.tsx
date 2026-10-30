@@ -227,8 +227,10 @@ function SearchCircle({ onSearch }: { onSearch: () => void }) {
   )
 }
 
+// Dentro del AppFrame solo cuentan `actions` y `children`; lo demás es para los mocks de /design,
+// que dibujan el marco completo.
 type AppShellProps = {
-  user: User
+  user?: User
   active?: NavKey
   onNavigate?: (key: NavKey) => void
   onSignOut?: () => void
@@ -306,7 +308,7 @@ function Chrome({
           </SidebarContent>
 
           <SidebarFooter>
-            <UserMenu user={user} onSignOut={onSignOut} />
+            {user && <UserMenu user={user} onSignOut={onSignOut} />}
           </SidebarFooter>
         </Sidebar>
 

@@ -4,7 +4,6 @@ import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ChevronRight, Plus, TrendingUp } from "lucide-react"
-import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import {
   Collapsible,
@@ -73,7 +72,6 @@ type Props = {
   // Excedente del mes ANTERIOR: plata ya gastada que el plan descuenta del total a repartir.
   // Llega resuelta del servidor; el front no la recalcula. 0 = el mes pasado cerró en regla.
   previousMonthDebt: number
-  user: { name: string; initial: string; email: string }
   outlookResult: string | null
   outlookReason: string | null
   // `?tx=<id>` de la notificación de movimiento: abre ese modal al entrar.
@@ -93,7 +91,6 @@ export function Dashboard({
   incomes,
   previousCycleIncomes,
   previousMonthDebt,
-  user,
   outlookResult,
   outlookReason,
   openTxId,
@@ -183,8 +180,11 @@ export function Dashboard({
     // semana), que el backend deja estable; sin ritmo, lo que queda del mes. «X de Y» vive en el
     // detalle que abre la fila. Semáforo silencioso: gris, alerta, excedido.
     const paceLeft = c.pace && c.pace.budget > 0 ? c.pace.budget - c.pace.spent : null
-    const figure =
-      c.pace && paceLeft !== null ? (
+    // Con ritmo pero sin presupuesto del período, ya no queda nada que repartir.
+    const noMargin = !!c.pace && c.pace.budget <= 0
+    const figure = noMargin ? (
+      "Sin margen"
+    ) : c.pace && paceLeft !== null ? (
         paceLeft >= 0 ? (
           <>
             <span className="tabular">{formatCLP(paceLeft)}</span> libres{" "}
@@ -213,6 +213,7 @@ export function Dashboard({
         </>
       )
     const figureTone =
+      noMargin ||
       (paceLeft !== null && c.pace?.status === "excedido") ||
       (paceLeft === null && c.available < 0 && c.limit > 0)
         ? "text-destructive"
@@ -275,11 +276,6 @@ export function Dashboard({
 
   // El servidor resuelve ambos totales con el mismo alcance que el resumen y los excedentes.
   const { spent: totalUsed, committed: totalCommitted } = budget
-
-  async function signOut() {
-    await authClient.signOut()
-    router.push("/login")
-  }
 
   const transactionEditor = (
     <TransactionModal
@@ -371,9 +367,6 @@ export function Dashboard({
 
   return (
     <AppShell
-      user={user}
-      onSignOut={signOut}
-      title="Inicio"
       actions={
         <MonthNav
           period={period}
@@ -423,6 +416,7 @@ export function Dashboard({
             period={period}
             capsOverspend={budget.capsOverspend}
             monthOverspend={budget.monthOverspend}
+            globalLimit={budget.globalLimit}
             categories={budget.categories}
             onOpenCategory={openCategory}
           />
@@ -435,21 +429,10 @@ export function Dashboard({
               className="min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1"
             >
               <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
-                <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-                  <h2 className="text-title-3 font-bold">
-                    Ritmo por categoría
-                  </h2>
-                  {/* Los días que faltan valen para todas las categorías: se dicen una vez acá,
-                      no repetidos en cada fila. En angosto bajan a su propia línea: al lado del
-                      título partían el título en dos y se truncaban. */}
-                  {daysLeft > 0 && (
-                    <span className="basis-full text-subheadline text-muted-foreground sm:basis-auto">
-                      {daysLeft === 1
-                        ? "queda 1 día"
-                        : `quedan ${daysLeft} días`}
-                    </span>
-                  )}
-                </div>
+                {/* Los días que faltan ya los dice la tarjeta principal («N días para cerrar»). */}
+                <h2 className="min-w-0 text-title-3 font-bold">
+                  Ritmo por categoría
+                </h2>
                 {expenseCategories.length > 0 && (
                   <button
                     onClick={newExpenseCategory}

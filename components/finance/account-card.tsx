@@ -47,9 +47,11 @@ const TYPE_LABEL: Record<string, string> = {
 // (opcional) para abrir su detalle.
 export function AccountCard({
   account,
+  showConnected = false,
   onClick,
 }: {
   account: AccountDTO
+  showConnected?: boolean // distintivo «Conectado»: solo la landing (en la app lo dice la línea de sincronización)
   onClick?: () => void
 }) {
   const art = resolveCardArt(account.bankName, account.accountType)
@@ -101,13 +103,14 @@ export function AccountCard({
       style={
         art
           ? { background: CARD_VARIANT_BG[art.variant] }
-          : { background: account.color ?? "var(--primary)" }
+          : { background: account.color ?? CARD_VARIANT_BG.debito }
       }
     >
       {art && (
         // Monograma propio del banco, grande y tenue, a la derecha, como marca de agua (sin logo de terceros).
         <span
           aria-hidden
+          // Excepción a la escala tipográfica: es arte decorativo (aria-hidden), no texto que se lee.
           className="pointer-events-none absolute top-1/2 -right-3 -translate-y-1/2 text-8xl leading-none font-bold text-white/12 select-none"
         >
           {art.monogram}
@@ -118,13 +121,19 @@ export function AccountCard({
         <div className="text-headline font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
           {account.bankName || account.name}
         </div>
+        {showConnected && connected && (
+          <span className="flex shrink-0 items-center gap-1 rounded-lg bg-white/15 px-2 py-0.5 text-caption font-medium">
+            <span aria-hidden className="size-1.5 rounded-full bg-card-art-ok" />
+            Conectado
+          </span>
+        )}
       </div>
 
       {isCredit && primary ? (
         // Crédito: UN héroe (el cupo disponible principal) + el otro cupo como chip, y el uso como
         // barra + frase. Misma gramática que la rama corriente: etiqueta → número grande → contexto.
         <div className="relative">
-          <div className="text-caption text-white/75">Disponible</div>
+          <div className="text-caption text-white/85">Disponible</div>
           <div className="tabular text-title-1 font-bold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
             {formatMoney(primary.available, primary.currency as CurrencyCode)}
           </div>
@@ -138,7 +147,7 @@ export function AccountCard({
           {primary.limit > 0 && (
             <>
               <CapacityBar usedPct={usedPct} />
-              <div className="tabular mt-1 text-caption text-white/70">
+              <div className="tabular mt-1 text-caption text-white/85">
                 Usado{" "}
                 {formatMoney(
                       primary.used,
@@ -168,7 +177,7 @@ export function AccountCard({
           {overdraft && overdraft.limit > 0 && (
             <>
               <CapacityBar usedPct={(overdraft.used / overdraft.limit) * 100} />
-              <div className="tabular mt-1 text-caption text-white/70">
+              <div className="tabular mt-1 text-caption text-white/85">
                 {overdraft.used > 0 ? (
                   <>
                     Sobregiro usado{" "}
@@ -197,7 +206,7 @@ export function AccountCard({
           </span>
         </div>
         {estimatedSince ? (
-          <div className="text-caption text-white/65">
+          <div className="text-caption text-white/85">
             Saldo estimado desde{" "}
             {new Date(estimatedSince).toLocaleDateString("es-CL")}
           </div>

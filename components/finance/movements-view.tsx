@@ -5,7 +5,6 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { SlidersHorizontal } from "lucide-react"
 
-import { authClient } from "@/lib/auth-client"
 import { formatDateHeader, monthName } from "@/lib/finance-format"
 import { Button } from "@/components/ui/button"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
@@ -37,7 +36,6 @@ const SEARCH_INPUT_ID = "movements-q"
 // tras «Filtros (n)». Los filtros viven en la URL: el
 // servidor lee la página con ellos, y recargar o compartir el enlace muestra lo mismo.
 export function MovementsView({
-  user,
   period,
   current,
   result,
@@ -46,7 +44,6 @@ export function MovementsView({
   amountBounds,
   filters,
 }: {
-  user: { name: string; email: string; initial: string }
   period: { year: number; month: number }
   current: { year: number; month: number }
   result: TransactionPage
@@ -127,11 +124,6 @@ export function MovementsView({
     return `/movements?${params.toString()}`
   }
 
-  async function signOut() {
-    await authClient.signOut()
-    router.push("/login")
-  }
-
   const filterCount = activeFilterCount(values, amountBounds)
   const filterProps = {
     value: values,
@@ -157,9 +149,6 @@ export function MovementsView({
 
   return (
     <AppShell
-      user={{ name: user.name, initial: user.initial, email: user.email }}
-      onSignOut={signOut}
-      title="Movimientos"
       actions={
         <MonthNav period={period} current={current} onNavigate={goPeriod} />
       }

@@ -38,7 +38,7 @@ const EXPENSE_CATEGORIES: [string, string, string, number, string][] = [
   ["Entretención", "Popcorn", "#a855f7", 55000, "Cine, panoramas, salidas y hobbies."],
 ]
 
-// [día, descripción, monto, categoría (null = queda para el triage), dirección]
+// [día, descripción, monto, categoría (null = sin categoría), dirección]
 const MOVEMENTS: [number, string, number, string | null, "debit" | "credit"][] = [
   [2, "Pago:lider Vitacura", 48990, "Supermercado", "debit"],
   [3, "MERCPAGO*UBER TRIP", 6400, "Transporte", "debit"],

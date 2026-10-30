@@ -21,7 +21,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 
-export type ModalScopeInfo = {
+type ModalScopeInfo = {
   id: string
   parentId?: string
   depth: number
@@ -88,30 +88,6 @@ function useModalFocus(scope: ModalScopeInfo) {
       }
     },
   }
-}
-
-// Para la excepción de diálogo a pantalla completa: añade identidad y parentesco sin crear
-// otra superficie ni sustituir el Dialog nativo. El render prop permite marcar su Content.
-export function ModalScope({
-  children,
-  kind = "dialog",
-}: {
-  children:
-    | React.ReactNode
-    | ((
-        scope: ModalScopeInfo & ReturnType<typeof useModalFocus>
-      ) => React.ReactNode)
-  kind?: ModalScopeInfo["kind"]
-}) {
-  const scope = useNewModalScope(kind)
-  const focusHandlers = useModalFocus(scope)
-  return (
-    <ModalScopeContext.Provider value={scope}>
-      {typeof children === "function"
-        ? children({ ...scope, ...focusHandlers })
-        : children}
-    </ModalScopeContext.Provider>
-  )
 }
 
 function isolateModalEvent(event: React.SyntheticEvent) {

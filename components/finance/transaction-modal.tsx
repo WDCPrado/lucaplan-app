@@ -77,8 +77,7 @@ import type {
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 // Descripción de la cuenta de un movimiento: "Banco · •••• 1234" (o el nombre si no hay tarjeta).
-// Exportado: el triage de sin categoría reutiliza la misma línea de cuenta.
-export function accountLabel(account: AccountDTO | undefined): string | null {
+function accountLabel(account: AccountDTO | undefined): string | null {
   if (!account) return null
   const bank = account.bankName || account.name
   const card = account.cardLast4 ? `•••• ${account.cardLast4}` : account.name

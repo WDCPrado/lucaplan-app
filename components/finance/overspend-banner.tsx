@@ -12,6 +12,10 @@ import type { CategoryDTO } from "@/arch/v1/application/finance-use-cases/financ
  *   es la que se dice.
  * - **excedente de topes** (`capsOverspend`): lo que se pasó categoría por categoría.
  *
+ * Sin excedente del mes pero con presupuesto global, una línea secundaria aclara que el mes todavía
+ * alcanza (es un descuadre entre categorías). Sin presupuesto global no se afirma: no hay contra qué
+ * medir.
+ *
  * Tocarla abre la categoría más pasada (el mismo detalle que abre su fila). Con ambos excedentes en
  * $0 no se renderiza nada.
  */
@@ -19,12 +23,14 @@ export function OverspendBanner({
   period,
   capsOverspend,
   monthOverspend,
+  globalLimit,
   categories,
   onOpenCategory,
 }: {
   period: { year: number; month: number }
   capsOverspend: number
   monthOverspend: number
+  globalLimit: number | null // presupuesto del mes; null = todavía sin definir
   categories: CategoryDTO[]
   onOpenCategory: (id: string) => void
 }) {
@@ -40,7 +46,7 @@ export function OverspendBanner({
   const overMonth = monthOverspend > 0
 
   const worst = culprits[0]
-  const text = overMonth ? (
+  const headline = overMonth ? (
     <>
       Te pasaste{" "}
       <span className="tabular font-semibold">{formatCLP(monthOverspend)}</span>{" "}
@@ -51,6 +57,16 @@ export function OverspendBanner({
       Te pasaste{" "}
       <span className="tabular font-semibold">{formatCLP(capsOverspend)}</span>{" "}
       de topes · {cuantas}
+    </>
+  )
+  const text = (
+    <>
+      <span className="block">{headline}</span>
+      {!overMonth && globalLimit !== null && (
+        <span className="block text-footnote text-muted-foreground">
+          El presupuesto del mes todavía alcanza.
+        </span>
+      )}
     </>
   )
   const className = cn(

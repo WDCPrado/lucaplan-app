@@ -28,14 +28,8 @@ export default async function RecurringPage() {
     getBudgetView(financePageDeps, userId, now.year, now.month),
   ])
 
-  const label = session.user.name || session.user.email || "Usuario"
   return (
     <RecurringView
-      user={{
-        name: session.user.name ?? "",
-        email: session.user.email,
-        initial: label.charAt(0).toUpperCase(),
-      }}
       templates={templates}
       plans={plans}
       accounts={accounts}

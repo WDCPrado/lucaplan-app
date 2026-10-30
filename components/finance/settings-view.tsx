@@ -49,12 +49,7 @@ export function SettingsView({
   }
 
   return (
-    <AppShell
-      user={{ name: user.name || user.email, initial: user.initial, email: user.email }}
-      active="configuracion"
-      onSignOut={signOut}
-      title="Ajustes"
-    >
+    <AppShell>
       <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 md:pt-6 lg:px-8">
         {/* Móvil: título grande de iOS bajo la barra; en escritorio el título vive en el topbar. */}
         <h1 className="mb-3 text-large-title font-bold md:hidden">Ajustes</h1>

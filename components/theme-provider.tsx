@@ -20,10 +20,31 @@ function ThemeProvider({
       forcedTheme={forcedTheme}
       {...props}
     >
+      <ThemeColor />
       {!forcedTheme && <ThemeHotkey />}
       {children}
     </NextThemesProvider>
   )
+}
+
+// Barra de estado de la PWA en iOS (`theme-color`): sigue el tema de la APP, no solo el del sistema.
+// Un solo lugar para todos los que alternan el tema (Ajustes, menú del sidebar, login, la tecla D),
+// la landing forzada en claro y la carga inicial con un tema guardado distinto del sistema. Es un
+// efecto porque sincroniza el DOM fuera de React; los colores son el --background de cada tema.
+function ThemeColor() {
+  const { resolvedTheme, forcedTheme } = useTheme()
+  const theme = forcedTheme ?? resolvedTheme
+
+  React.useEffect(() => {
+    if (!theme) return
+    const color = theme === "dark" ? "#000000" : "#f2f2f7"
+    // Las dos metas de layout.tsx (una por prefers-color-scheme) pasan a decir el mismo color.
+    document
+      .querySelectorAll('meta[name="theme-color"]')
+      .forEach((meta) => meta.setAttribute("content", color))
+  }, [theme])
+
+  return null
 }
 
 function isTypingTarget(target: EventTarget | null) {

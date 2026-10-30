@@ -43,6 +43,7 @@ export function PlanSummary({
   // Ámbar no llega a 3:1 sobre claro en la cifra grande: al límite, el color queda en la etiqueta.
   const amountTone = health.planStatus === "al_limite" ? "text-foreground" : tone
   const liquidityTone = health.status === "en_deficit" ? "text-destructive" : health.status === "al_limite" ? "text-warning" : ""
+  const net = health.liquidity.netPosition
 
   return (
     <div className="flex min-w-0 flex-col gap-3" role="group" aria-label="Resumen del plan">
@@ -72,11 +73,21 @@ export function PlanSummary({
           <dd className="tabular truncate text-subheadline font-semibold">{formatCLP(committed)}</dd>
         </div>
       </dl>
-      {/* Liquidez registrada (últimos saldos, neta de la línea usada): una sola línea. */}
-      <p className={`flex flex-wrap items-baseline gap-x-2 border-t border-border pt-3 text-footnote ${liquidityTone}`}>
-        <span className={liquidityTone ? "font-semibold" : "text-muted-foreground"}>Disponible en cuentas</span>
-        <strong className="tabular font-semibold">{formatCLP(health.liquidity.netPosition)}</strong>
-      </p>
+      {/* Liquidez registrada (últimos saldos, neta de la línea usada). */}
+      <div className="border-t border-border pt-3 text-footnote">
+        <p className={`flex flex-wrap items-baseline gap-x-2 ${liquidityTone}`}>
+          <span className={liquidityTone ? "font-semibold" : "text-muted-foreground"}>
+            {net < 0 ? "Corriente en negativo" : "Disponible en cuentas"}
+          </span>
+          <strong className="tabular font-semibold">{formatCLP(net)}</strong>
+        </p>
+        {/* Con la línea en 0 la caja es lo disponible: repetirla no dice nada. */}
+        {overdraftDebt > 0 && (
+          <p className="tabular mt-0.5 text-muted-foreground">
+            Caja {formatCLP(cash)} − Línea usada {formatCLP(overdraftDebt)}
+          </p>
+        )}
+      </div>
     </div>
   )
 }

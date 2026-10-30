@@ -30,7 +30,7 @@ export function SyncStatusLine({ lastSyncedAt }: { lastSyncedAt: string }) {
   const last = new Date(lastSyncedAt).getTime()
 
   return (
-    <div className="flex items-center gap-1.5 text-caption text-white/70">
+    <div className="flex items-center gap-1.5 text-caption text-white/85">
       <RefreshCw className="size-3 shrink-0" />
       <span className="truncate">Actualizado {ago(now - last)}</span>
     </div>

@@ -121,8 +121,7 @@ un barrido aparte.
   Cerrar, Cancelar, Esc y el fondo cierran solo el hijo y devuelven el foco al padre. Los cierres
   después de una escritura exitosa tienen callbacks propios, separados de `onOpenChange`.
   Los formularios y sus botones de envío usan IDs por instancia; las demás acciones llevan
-  `type="button"`. Una superficie propia que no sea `ResponsiveModal` usa `ModalScope` para
-  entrar en la misma jerarquía.
+  `type="button"`. Toda superficie modal pasa por `ResponsiveModal`.
 - **Formularios.** Un `<form id>` por sección; error de cada campo debajo del campo con
   `aria-invalid` y `aria-describedby`; Guardar manda solo lo que cambió y queda deshabilitado
   sin cambios. Dinero con `useMoneyInput`/`formatCLP`, nunca `type="number"` ni formato a mano.
@@ -151,7 +150,7 @@ agrupaciones, la tipografía y los controles.
     en el contenido (tarjetas, listas, hojas), que va sólido en `card` sobre el fondo agrupado.
     Variante regular (desenfoque + luminosidad), sin «clear». Lo grande (sidebar) un poco más opaco
     que lo chico. Se hace con CSS, nunca con filtros SVG de desplazamiento, que Safari no dibuja.
-  - **Material regular (`material`, `--material`)** para lo que lleva texto encima del contenido:
+  - **Material regular (`--material`)** para lo que lleva texto encima del contenido:
     menús, select, popover, tooltip, toasts y alertas. Más opaco que el vidrio de las barras. Las
     hojas (drawer y diálogo) van sólidas (`--sheet`).
   - **Color con moderación**: el vidrio no tiene color propio; textos e íconos encima van en

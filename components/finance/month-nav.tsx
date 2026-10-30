@@ -61,7 +61,7 @@ export function MonthNav({
         >
           <ChevronLeft className="size-5 md:size-4" />
         </button>
-        <div className="flex min-w-0 flex-1 justify-center overflow-hidden">
+        <div aria-live="polite" className="flex min-w-0 flex-1 justify-center overflow-hidden">
           <span
             key={key}
             className={cn(

@@ -112,25 +112,25 @@ export function InstallAppItem({
           title="Instalar Luca Plan"
         >
           <div className="flex flex-col gap-4 px-4 pb-8">
-            <p className="text-sm leading-6 text-muted-foreground">
+            <p className="text-subheadline text-muted-foreground">
               En iPhone y iPad la instalación se hace desde Safari, en dos
               pasos:
             </p>
             <ol className="flex flex-col gap-3">
-              <li className="flex items-center gap-3 text-base">
+              <li className="flex items-center gap-3 text-body">
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary">
                   <Share className="size-4.5" aria-hidden="true" />
                 </span>
                 Toca el botón <strong>Compartir</strong> en la barra de Safari.
               </li>
-              <li className="flex items-center gap-3 text-base">
+              <li className="flex items-center gap-3 text-body">
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary">
                   <SquarePlus className="size-4.5" aria-hidden="true" />
                 </span>
                 Elige <strong>Agregar a pantalla de inicio</strong>.
               </li>
             </ol>
-            <p className="text-sm leading-6 text-muted-foreground">
+            <p className="text-subheadline text-muted-foreground">
               Luca Plan quedará como app en tu pantalla de inicio, con su propio
               icono y ventana.
             </p>

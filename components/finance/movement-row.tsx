@@ -27,11 +27,13 @@ export function MovementRow({
   tx,
   onOpen,
   onOpenCategory,
+  showRemaining = false,
   className,
 }: {
   tx: TransactionDTO
   onOpen?: (tx: TransactionDTO) => void
   onOpenCategory?: (categoryId: string) => void
+  showRemaining?: boolean // la landing muestra también el restante positivo (como antes del rediseño)
   className?: string // estilo de la fila según la lista que la contiene (el Inicio, agrupada)
 }) {
   const income = tx.direction === "credit"
@@ -154,10 +156,15 @@ export function MovementRow({
               </span>
             )}
           </div>
-          {/* Solo cuando la categoría quedó en negativo: es lo único que pide atención. El resto
-              lo dice el arco del icono. */}
-          {tx.remaining != null && tx.remaining < 0 && (
-            <div className="tabular text-footnote text-destructive">
+          {/* En la app, solo cuando la categoría quedó en negativo: es lo único que pide atención;
+              el resto lo dice el arco del icono. La landing lo muestra siempre (`showRemaining`). */}
+          {tx.remaining != null && (tx.remaining < 0 || showRemaining) && (
+            <div
+              className={cn(
+                "tabular text-footnote",
+                tx.remaining < 0 ? "text-destructive" : "text-muted-foreground"
+              )}
+            >
               Quedan {formatCLP(tx.remaining)}
             </div>
           )}

@@ -153,6 +153,7 @@
        select, tooltip, toasts, alertas): la misma familia, más opaco y con más desenfoque. */
     --material: oklch(0.985 0.002 286 / 0.86);
     --material-blur: 28px;
+    --scroll-edge-blur: 6px;
     --material-shadow: 0 0 0 0.5px var(--glass-edge), 0 12px 40px -8px oklch(0.2 0.01 286 / 0.2);
     /* Scroll edge effect: el contenido que pasa bajo los controles se funde con el fondo. */
     --scroll-edge: color-mix(in oklch, var(--background) 78%, transparent);
@@ -283,7 +284,7 @@ html:has(main[data-landing]) body {
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
   }
   body {
     @apply bg-background text-foreground;
@@ -377,13 +378,6 @@ html:has(main[data-landing]) body {
   background-color: var(--glass-active);
   box-shadow: inset 0 1px 0 0 var(--glass-highlight);
 }
-/* Material regular (menús, popovers, alertas): misma familia, más opaco. */
-@utility material {
-  background-color: var(--material);
-  backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
-  box-shadow: var(--material-shadow);
-}
 /* Scroll edge effect (apple-hig/components/scroll-views): desenfoque progresivo y fundido del
    contenido que pasa por debajo de los controles flotantes. Uno por vista: arriba detrás de la fila
    superior móvil o la topbar; abajo detrás de la barra de pestañas. No es decorativo: solo va donde
@@ -395,8 +389,8 @@ html:has(main[data-landing]) body {
     inset: 0 0 -1rem 0;
     z-index: -1;
     background: linear-gradient(to bottom, var(--scroll-edge) 40%, transparent);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(var(--scroll-edge-blur));
+    -webkit-backdrop-filter: blur(var(--scroll-edge-blur));
     -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
     mask-image: linear-gradient(to bottom, #000 55%, transparent);
     pointer-events: none;
@@ -410,8 +404,8 @@ html:has(main[data-landing]) body {
     inset: -1rem 0 0 0;
     z-index: -1;
     background: linear-gradient(to top, var(--scroll-edge) 40%, transparent);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(var(--scroll-edge-blur));
+    -webkit-backdrop-filter: blur(var(--scroll-edge-blur));
     -webkit-mask-image: linear-gradient(to top, #000 55%, transparent);
     mask-image: linear-gradient(to top, #000 55%, transparent);
     pointer-events: none;
@@ -612,6 +606,11 @@ html:has(main[data-landing]) body {
 :is([data-landing], .force-light) .account-card {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 8px 20px -10px rgb(0 0 0 / 0.25);
 }
+/* El modal legal de la landing conserva su título de antes: grande y a la izquierda. */
+.force-light :is([data-slot="drawer-title"], [data-slot="dialog-title"]) {
+  font-size: 1.25rem;
+  line-height: 1.375;
+}
 /* La landing conserva sus cifras mono. */
 :is([data-landing], .force-light) .tabular {
   font-family: var(--font-mono);
@@ -632,22 +631,9 @@ html:has(main[data-landing]) body {
     var(--glass-shadow);
 }
 
-/* Accesibilidad (apple-hig/foundations/materials): con MENOS TRANSPARENCIA todo material cae a
-   sólido; con MÁS CONTRASTE el vidrio gana relleno y contorno. No se usa prefers-reduced-motion
-   para esto: es para animaciones. */
-@media (prefers-reduced-transparency: reduce) {
-  :root, .dark {
-    --glass-fill: var(--card);
-    --glass-fill-large: var(--card);
-    --material: var(--card);
-    --scroll-edge: var(--background);
-    --glass-blur: 0px;
-    --material-blur: 0px;
-  }
-  .liquid-glass::before {
-    display: none;
-  }
-}
+/* Accesibilidad (apple-hig/foundations/materials): con MÁS CONTRASTE el vidrio gana relleno y
+   contorno; con MENOS TRANSPARENCIA todo material cae a sólido, y va después para ganarle a
+   contraste cuando están las dos. No se usa prefers-reduced-motion para esto: es para animaciones. */
 @media (prefers-contrast: more) {
   :root {
     --glass-fill: oklch(1 0 0 / 0.9);
@@ -662,6 +648,20 @@ html:has(main[data-landing]) body {
     --material: oklch(0.2 0.004 286 / 0.96);
     --glass-edge: oklch(1 0 0 / 0.4);
     --border: oklch(1 0 0 / 0.4);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root, .dark {
+    --glass-fill: var(--card);
+    --glass-fill-large: var(--card);
+    --material: var(--card);
+    --scroll-edge: var(--background);
+    --glass-blur: 0px;
+    --material-blur: 0px;
+    --scroll-edge-blur: 0px;
+  }
+  .liquid-glass::before {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -718,8 +718,9 @@ html:has(main[data-landing]) body {
   box-shadow: none;
   border-color: var(--border);
 }
-[data-product] button:focus-visible,
-[data-product] a:focus-visible {
+/* Foco de teclado en toda la app (también la landing y los modales): contorno opaco, que se ve
+   sobre el vidrio. Fuera de @layer para ganarle al `outline-none` de los primitivos. */
+:is(button, a, [role="button"], summary):focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }

@@ -23,7 +23,7 @@ export function Segmented<T extends string>({
 }) {
   return (
     <div
-      role="radiogroup"
+      role="group"
       aria-label={label}
       className={cn(
         "flex min-h-11 gap-0.5 rounded-lg bg-(--glass-control) p-0.5",
@@ -35,8 +35,7 @@ export function Segmented<T extends string>({
         return (
           <button
             type="button"
-            role="radio"
-            aria-checked={active}
+            aria-pressed={active}
             key={o.value}
             disabled={disabled}
             onClick={() => !active && onChange(o.value)}
@@ -44,7 +43,8 @@ export function Segmented<T extends string>({
               "flex-1 rounded-md px-3 text-subheadline whitespace-nowrap transition-colors disabled:opacity-50",
               active
                 ? "bg-(--glass-control-active) font-semibold text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                : // En oscuro, muted sobre la pista de una hoja queda en 4.49:1: no llega a AA.
+                  "text-muted-foreground hover:text-foreground dark:text-foreground/80"
             )}
           >
             {o.label}

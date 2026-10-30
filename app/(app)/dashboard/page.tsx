@@ -116,13 +116,6 @@ export default async function DashboardPage({
       : Promise.resolve([]),
   ])
 
-  const user = {
-    name: session.user.name || session.user.email || "Usuario",
-    initial: (session.user.name || session.user.email || "?")
-      .charAt(0)
-      .toUpperCase(),
-    email: session.user.email,
-  }
 
   return (
     <>
@@ -142,7 +135,6 @@ export default async function DashboardPage({
         incomes={incomes}
         previousCycleIncomes={previousCycleIncomes}
         previousMonthDebt={previousMonthDebt}
-        user={user}
         outlookResult={sp.outlook ?? null}
         outlookReason={sp.reason ?? null}
         openTxId={sp.tx ?? null}

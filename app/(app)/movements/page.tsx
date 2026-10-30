@@ -86,14 +86,8 @@ export default async function MovementsPage({
     getAmountBounds(financePageDeps, userId),
   ])
 
-  const label = session.user.name || session.user.email || "Usuario"
   return (
     <MovementsView
-      user={{
-        name: session.user.name || session.user.email,
-        email: session.user.email,
-        initial: label.charAt(0).toUpperCase(),
-      }}
       period={{ year, month }}
       current={current}
       result={result}

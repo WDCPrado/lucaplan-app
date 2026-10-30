@@ -474,6 +474,7 @@ export function BalanceScanPanel({
           </Button>
           <Button
             variant="ghost"
+            className="h-11"
             onClick={() => {
               setValues(null) // vuelve a la lista: ahí se agregan, se quitan y se relee
               setMismatches([])

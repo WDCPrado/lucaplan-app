@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import { Check } from "lucide-react"
 import { toast } from "sonner"
 
-import { authClient } from "@/lib/auth-client"
 import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 import { currentPeriod, formatCLP } from "@/lib/finance-format"
@@ -69,13 +68,11 @@ function isThisMonth(iso: string): boolean {
 // Cuotas van lado a lado desde xl (cada una en una columna con su resumen arriba) y apiladas por
 // debajo, con Cuotas al final.
 export function RecurringView({
-  user,
   templates,
   plans,
   accounts,
   categories,
 }: {
-  user: { name: string; email: string; initial: string }
   templates: RecurringDTO[]
   plans: InstallmentPlanDTO[]
   accounts: AccountDTO[]
@@ -93,11 +90,6 @@ export function RecurringView({
   const committed = active.reduce((sum, t) => sum + t.baseAmount, 0)
   const dueThisMonth = active.filter((t) => isThisMonth(t.nextExecution))
   const dueTotal = dueThisMonth.reduce((sum, t) => sum + t.baseAmount, 0)
-
-  async function signOut() {
-    await authClient.signOut()
-    router.push("/login")
-  }
 
   function edit(t: RecurringDTO) {
     setEditing(t)
@@ -123,16 +115,7 @@ export function RecurringView({
   }
 
   return (
-    <AppShell
-      user={{
-        name: user.name || user.email,
-        initial: user.initial,
-        email: user.email,
-      }}
-      active="recurrentes"
-      onSignOut={signOut}
-      title="Recurrentes"
-    >
+    <AppShell>
       {/* En móvil el contenido arranca pegado al header flotante; en escritorio la topbar pide su
           margen. xl: dos columnas de ~30rem, el mínimo en que una fila de recurrente cabe con su
           nombre y el "Ya lo pagué"; por debajo de eso, una columna. */}

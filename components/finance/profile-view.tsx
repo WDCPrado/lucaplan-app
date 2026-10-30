@@ -26,20 +26,8 @@ export function ProfileView({
 }: {
   user: { name: string; email: string; role: string; initial: string }
 }) {
-  const router = useRouter()
-
-  async function signOut() {
-    await authClient.signOut()
-    router.push("/login")
-  }
-
   return (
-    <AppShell
-      user={{ name: user.name || user.email, initial: user.initial, email: user.email }}
-      active="perfil"
-      onSignOut={signOut}
-      title="Perfil"
-    >
+    <AppShell>
       {/* En móvil el contenido arranca pegado al header flotante: el aire de arriba existía para
           el enlace "Volver", que ya no está (la navegación vive en el shell). */}
       <div className="mx-auto w-full max-w-4xl px-4 pt-1 pb-6 md:pt-6 lg:px-8">

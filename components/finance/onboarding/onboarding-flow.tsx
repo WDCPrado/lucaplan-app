@@ -184,8 +184,8 @@ function StepDots({ step }: { step: Step }) {
           aria-hidden
           className={
             i <= idx
-              ? "h-1.5 w-6 rounded-full bg-primary transition-all"
-              : "h-1.5 w-1.5 rounded-full bg-border transition-all"
+              ? "h-1.5 w-6 rounded-full bg-primary transition-all motion-reduce:transition-none"
+              : "h-1.5 w-1.5 rounded-full bg-border transition-all motion-reduce:transition-none"
           }
         />
       ))}

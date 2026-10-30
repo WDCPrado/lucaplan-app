@@ -65,7 +65,8 @@ export const metadata: Metadata = {
 }
 
 // viewport-fit=cover extiende el lienzo bajo notch/home indicator (las safe areas se compensan
-// solo en modo standalone; ver globals.css). theme-color sigue el tema del sistema.
+// solo en modo standalone; ver globals.css). theme-color parte del tema del sistema y, ya montada,
+// ThemeColor (theme-provider.tsx) lo alinea con el tema de la app.
 // El teclado se superpone: conserva el viewport y el tamaño de los modales donde el navegador
 // admite interactive-widget. ResponsiveModal también desactiva el reposicionamiento de Vaul.
 export const viewport: Viewport = {

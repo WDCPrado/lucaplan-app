@@ -1,4 +1,8 @@
-# Bloqueo pre-lanzamiento (registro cerrado)
+# Bloqueo pre-lanzamiento (referencia histórica)
+
+> Desde WDC-154 el acceso usa códigos y el registro público está siempre cerrado.
+> `NEXT_PUBLIC_LANDING_ONLY=false` no abre altas. La configuración vigente está en
+> [Acceso por correo](login-code.md); los pasos siguientes describen el login anterior.
 
 > **Revertido el 2026-07-11**: registro abierto, CTAs de la landing apuntan a
 > `/login`. Este doc queda como referencia de cómo volver a bloquear si hace falta.

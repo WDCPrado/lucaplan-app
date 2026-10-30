@@ -14,7 +14,8 @@ y el túnel se conecta a `http://app:3005` dentro de la red privada de este Comp
 2. Conserva de producción `BETTER_AUTH_SECRET`, **`BANCOCHILE_ENC_KEY`**,
    `OUTLOOK_RENEW_SECRET` y las claves VAPID, Outlook y OpenAI que utilices. Cambiar la llave
    de cifrado impide leer las conexiones importadas. No copies `RAILWAY_*`, `SEED_PR_*`
-   ni actives `DEV_ANY_PASSWORD`.
+   ni configuración de pruebas. Para entrar por código, configura también `RESEND_API_KEY`
+   y, opcionalmente, `RESEND_FROM` en ese archivo externo (ver [acceso por correo](login-code.md)).
 3. Conserva **`NEXT_PUBLIC_LANDING_ONLY=true`**, como en Railway: el registro sigue cerrado.
    Compose pasa el mismo valor al build del frontend y al backend en ejecución. Después de
    cambiarlo debes reconstruir la imagen; reiniciar solo el contenedor no actualiza el frontend.
@@ -48,8 +49,8 @@ docker compose --env-file $config -f compose.production.yml up -d postgres
 
 Restaura el dump de PostgreSQL 18 en la base `lucaplan`, usuario `lucaplan`, dentro del servicio
 `postgres`, sin owners/privilegios de Railway (`pg_restore --no-owner --no-acl`). Verifica tablas,
-conteos y datos antes de arrancar la app. El volumen es externo: Compose no lo elimina incluso
-con `down -v`. No reutiliza ni modifica los volúmenes anteriores de desarrollo.
+conteos y datos antes de arrancar la app. El volumen es externo y no comparte datos con desarrollo. No uses `down -v` ni comandos
+para eliminar volúmenes en esta instancia.
 
 ```powershell
 docker compose --env-file $config -f compose.production.yml up -d --build
@@ -87,3 +88,48 @@ Compose conserva el callback `https://lucaplan.cl/api/email-connection/callback`
 `https://lucaplan.cl/api/email-connection/webhook`. Las notificaciones push y las llamadas a
 Microsoft Graph salen hacia internet desde el host. Las suscripciones y los datos reales se
 verifican después del corte; los tests del repo no sustituyen esa prueba.
+
+## Después de mergear un PR: actualizar Docker local
+
+Un PR **mergeado** no termina la actualización de esta instalación: hay que reconstruir la
+imagen y recrear `app` y `cron` conservando sus datos. Un PR cerrado **sin merge** no se
+despliega. No se ejecuta este paso mientras el PR sigue en revisión.
+
+El runtime real usa `C:/Users/welli/selfhost/lucaplan/compose.json` y `production.env` del mismo
+directorio, proyecto `lucaplan-production`, imagen `lucaplan-local:wdc-151` y volumen externo
+`lucaplan-production-pgdata`. Ese JSON **no tiene build**: `up --build` sobre él no reconstruye
+el código. No basta con editar `compose.production.yml` del repo. Si el PR cambia Compose,
+sincroniza su definición con el JSON runtime preservando proyecto, servicios, puertos,
+volúmenes, mounts y referencias externas a secretos; no vuelques valores expandidos al repo.
+
+Antes de actualizar, comprueba el SHA mergeado, guarda un backup PostgreSQL verificable fuera
+del repo, registra el estado de los servicios y etiqueta la imagen actual para rollback. Si
+hay migraciones, revisa su compatibilidad con la imagen anterior. Para el cambio a OTP verifica
+la presencia de `RESEND_API_KEY` en el archivo runtime sin mostrarla; ver [acceso por correo](login-code.md).
+
+Desde un checkout limpio de `master` actualizado al commit aprobado:
+
+```powershell
+$runtimeManifest = 'C:/Users/welli/selfhost/lucaplan/compose.json'
+$runtimeEnv = 'C:/Users/welli/selfhost/lucaplan/production.env'
+$previousImage = 'lucaplan-local:before-' + (Get-Date -Format 'yyyyMMdd-HHmmss')
+docker image tag lucaplan-local:wdc-151 $previousImage
+if ($LASTEXITCODE -ne 0) { throw 'No se pudo conservar la imagen anterior.' }
+docker compose -p lucaplan-production --env-file $runtimeEnv -f $runtimeManifest config --quiet
+if ($LASTEXITCODE -ne 0) { throw 'Manifiesto runtime inválido.' }
+docker build --build-arg NEXT_PUBLIC_LANDING_ONLY=true -t lucaplan-local:wdc-151 .
+if ($LASTEXITCODE -ne 0) { throw 'Build falló; no recrear contenedores.' }
+docker compose -p lucaplan-production --env-file $runtimeEnv -f $runtimeManifest up -d --no-deps app cron
+if ($LASTEXITCODE -ne 0) { throw 'Recreación falló; revisar estado y rollback.' }
+docker compose -p lucaplan-production --env-file $runtimeEnv -f $runtimeManifest ps
+```
+
+Verifica la salud de app/cron, el login, la continuidad de la cuenta y sus datos, el túnel y
+los logs de arranque. Coteja los IDs de imagen de ambos contenedores con el build y registra
+SHA desplegado, backup y etiqueta anterior. No reinicies PostgreSQL ni el túnel sin necesidad.
+
+Si falla la nueva app y el esquema sigue compatible, vuelve a etiquetar `$previousImage`
+como `lucaplan-local:wdc-151` y repite `up -d --no-deps app cron`; verifica de nuevo. Un rollback
+de datos es otra operación: no restaures un dump encima de escrituras nuevas automáticamente.
+**Nunca uses `down -v`, `docker volume rm`, `prisma migrate reset`, `setup:db`, `clone:db` ni
+seeds sobre producción para actualizar una imagen.**

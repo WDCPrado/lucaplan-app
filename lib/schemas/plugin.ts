@@ -282,7 +282,9 @@ export const pluginTools = {
         .describe("Últimos 4 dígitos de la tarjeta, si aplica"),
       cash: amount
         .nullable()
-        .describe("Caja disponible en CLP; null si no se muestra"),
+        .describe(
+          "Saldo de la cuenta en CLP, con su signo; puede ser negativo aunque la línea esté sin uso. No se deduce deuda de línea de este saldo; null si no se muestra"
+        ),
       overdraft: bucket.describe("Sobregiro (CLP)"),
       national: bucket.describe("Cupo nacional de tarjeta (CLP)"),
       international: bucket.describe("Cupo internacional de tarjeta (USD)"),
@@ -972,4 +974,5 @@ export type PluginToolName = keyof typeof pluginTools
 export type PluginToolInput<N extends PluginToolName> = z.infer<
   (typeof pluginTools)[N]["inputSchema"]
 >
+
 

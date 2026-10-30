@@ -29,7 +29,7 @@ export const EMPTY_BUCKET: BucketReading = {
 // crédito, `national` (CLP) + `international` (USD).
 export type BalanceReading = {
   last4: string | null // últimos 4 del instrumento que muestra la captura
-  cash: number | null // saldo de la cuenta corriente; NEGATIVO = está girando contra la línea
+  cash: number | null // saldo firmado de la cuenta corriente, independiente de la línea
   overdraft: BucketReading
   national: BucketReading
   international: BucketReading
@@ -148,25 +148,20 @@ export function resolveBucket(
   return resolved
 }
 
-// Cuenta corriente: caja + línea de crédito. Un saldo negativo NO es caja negativa: significa que la
-// caja está en cero y esa plata se debe a la línea. Ese mismo saldo es entonces el `usado` de la
-// línea —lo que permite resolverla aunque la captura no muestre el disponible—, y si la cuenta
-// todavía no tiene cupo guardado, disponible + usado lo estrenan.
+// El saldo de la cuenta y la línea son mediciones independientes. Un saldo negativo puede
+// coexistir con la línea sin uso: se conserva su signo y nunca se deduce deuda de él.
+// Sin datos suficientes de la línea, resolveBucket devuelve null y se deja intacta.
 export function resolveChecking(
   reading: BalanceReading,
   currentOverdraftLimit: Money | null
 ): { cash: Money; overdraft: ResolvedBucket | null } | null {
   if (reading.cash === null) return null
-  const balance = amount(reading.cash, "CLP")
-  const cash = balance.isNegative ? Money.zero("CLP") : balance
+  const cash = amount(reading.cash, "CLP")
   const overdraft = resolveBucket(
-    {
-      ...reading.overdraft,
-      // El saldo negativo es deuda de la línea; solo se usa si la imagen no trae el usado explícito.
-      used: reading.overdraft.used ?? (balance.isNegative ? -reading.cash : null),
-    },
+    reading.overdraft,
     currentOverdraftLimit,
     "CLP"
   )
   return { cash, overdraft }
 }
+

@@ -240,19 +240,17 @@ test("la comparación en dólares es exacta hasta el centavo", () => {
 
 // --- resolveChecking: caja y línea desde el saldo ---
 
-test("saldo negativo ⇒ caja en cero y la deuda es de la línea", () => {
+test("saldo negativo sin datos de línea conserva el saldo y no infiere deuda", () => {
   const r = resolveChecking(
     reading({ cash: -25_650, overdraft: EMPTY_BUCKET }),
     Money.of(1_000_000, "CLP")
   )
-  assert.equal(r?.cash.toMajor(), 0)
-  assert.equal(r?.overdraft?.used.toMajor(), 25_650)
-  assert.equal(r?.overdraft?.available.toMajor(), 974_350)
-  assert.equal(r?.overdraft?.limitAmount.toMajor(), 1_000_000)
+  assert.equal(r?.cash.toMajor(), -25_650)
+  assert.equal(r?.overdraft, null)
 })
 
 // Captura real: "DISPONIBLE -$25.650" y "Línea disponible: $955.415". El disponible de la línea es
-// un dato del banco y manda sobre la deuda deducida del saldo.
+// un dato del banco independiente del saldo de la cuenta.
 test("con la línea a la vista manda su disponible y el cupo guardado no se mueve", () => {
   const r = resolveChecking(
     reading({
@@ -265,7 +263,7 @@ test("con la línea a la vista manda su disponible y el cupo guardado no se muev
   assert.equal(r?.overdraft?.used.toMajor(), 44_585)
 })
 
-test("sin cupo de línea guardado, saldo negativo + disponible lo estrenan", () => {
+test("sin cupo de línea guardado, el saldo negativo no inventa un cupo", () => {
   const r = resolveChecking(
     reading({
       cash: -25_650,
@@ -273,8 +271,8 @@ test("sin cupo de línea guardado, saldo negativo + disponible lo estrenan", () 
     }),
     null
   )
-  assert.equal(r?.overdraft?.limitAmount.toMajor(), 981_065)
-  assert.equal(r?.overdraft?.used.toMajor(), 25_650)
+  assert.equal(r?.cash.toMajor(), -25_650)
+  assert.equal(r?.overdraft, null)
 })
 
 test("saldo positivo ⇒ es caja, y la línea sale del cupo guardado", () => {
@@ -298,3 +296,4 @@ test("saldo sin línea a la vista ⇒ actualiza la caja y deja la línea intacta
 test("sin saldo en la imagen ⇒ null (no se toca la cuenta)", () => {
   assert.equal(resolveChecking(reading({ cash: null }), null), null)
 })
+

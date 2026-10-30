@@ -52,7 +52,7 @@ export const CARD_TYPES = ["debito", "credito"] as const
 export type CardType = (typeof CARD_TYPES)[number]
 
 // Tipo de saldo/cupo (bucket): una MEDICIÓN mutable de la cuenta/tarjeta, no el libro contable.
-//  - cash: dinero propio de la cuenta corriente (única caja activa).
+//  - cash: saldo firmado de la cuenta corriente (única caja activa); puede ser negativo.
 //  - overdraft: sobregiro/línea de crédito de la corriente; su `used` es DEUDA, no caja.
 //  - credit_national / credit_international: cupos de una tarjeta de crédito (CLP / USD).
 export const BUCKET_KINDS = [
@@ -127,7 +127,7 @@ export type Account = {
   name: string
   accountType: AccountType
   currency: CurrencyCode
-  balance: Money // puede ser negativo en checking (sobregiro usado = deuda)
+  balance: Money // saldo firmado; en checking es independiente de la línea utilizada
   overdraftLimit: Money
   color: string | null // presentación
   cardLast4: string | null // últimos 4 dígitos de la tarjeta; obligatorio en tipos con tarjeta (checking/credit_card)
@@ -506,3 +506,4 @@ export class WebhookSignatureError extends Error {
     this.name = "WebhookSignatureError"
   }
 }
+

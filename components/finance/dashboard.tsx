@@ -377,8 +377,6 @@ export function Dashboard({
       }
     >
       <div className="mx-auto w-full max-w-6xl px-4 pt-1 pb-6 md:pt-6 lg:px-8">
-        {/* Móvil: título grande de iOS bajo la barra; en escritorio el título vive en el topbar. */}
-        <h1 className="mb-3 text-large-title font-bold md:hidden">Inicio</h1>
         <div className="flex flex-col gap-5">
           {/* Estado del mes: la respuesta a "¿cuánto puedo gastar hoy?" antes que cualquier
               detalle. Desde acá se abre el plan (ingresos y presupuesto), que es lo que lo

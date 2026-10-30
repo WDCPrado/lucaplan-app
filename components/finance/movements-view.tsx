@@ -162,8 +162,6 @@ export function MovementsView({
       }
     >
       <div className="mx-auto w-full max-w-6xl px-4 pt-1 pb-6 md:pt-6 lg:px-8">
-        {/* Móvil: título grande de iOS, como el Inicio; en escritorio el título vive en el topbar. */}
-        <h1 className="mb-3 text-large-title font-bold md:hidden">Movimientos</h1>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-16">
           {/* Filtrar la lista (no es la búsqueda global). Móvil: el campo y «Filtros (n)», que abre
               el resto en una hoja; escritorio: todo abierto en el panel lateral. */}

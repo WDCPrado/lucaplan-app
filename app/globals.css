@@ -96,6 +96,11 @@
     --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", var(--font-geist), sans-serif;
     --font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", var(--font-geist), sans-serif;
     --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+    /* Margen de la barra de pestañas móvil al borde inferior: como en iOS 26 baja hasta acompañar
+       el borde del teléfono, con el home indicator debajo. 34 px de safe area − 12 = 22 px, lo que
+       la deja casi concéntrica con la esquina del iPhone (radio ≈ 55 px = 32 de la cápsula + 22);
+       sin safe area (navegador, Android), 8 px. */
+    --tab-bar-inset: max(calc(env(safe-area-inset-bottom) - 0.75rem), 0.5rem);
 
     --background: oklch(0.963 0.007 286.3);          /* #F2F2F7 systemGroupedBackground */
     --foreground: oklch(0.232 0.004 286.1);          /* #1D1D1F label */
@@ -145,7 +150,7 @@
        sólida (`--glass-tint`). Los menús (`--material`) no se aclaran: llevan texto. */
     --glass-tint: 0%;
     --glass-clear: 35%;
-    --scroll-edge-amount: 45%; /* velo del scroll edge: baja con el nivel de vidrio */
+    --scroll-edge-amount: 22%; /* velo del scroll edge, suave: baja con el nivel de vidrio */
     --glass-fill: color-mix(in oklch, color-mix(in oklch, oklch(1 0 0 / 0.6), transparent var(--glass-clear)), var(--card) var(--glass-tint));
     --glass-fill-large: color-mix(in oklch, color-mix(in oklch, oklch(0.985 0.002 286 / 0.72), transparent var(--glass-clear)), var(--card) var(--glass-tint));
     --glass-blur: 14px;
@@ -160,7 +165,7 @@
        select, tooltip, toasts, alertas): la misma familia, más opaco y con más desenfoque. */
     --material: color-mix(in oklch, oklch(0.985 0.002 286 / 0.86), var(--card) var(--glass-tint));
     --material-blur: 28px;
-    --scroll-edge-blur: 6px;
+    --scroll-edge-blur: 4px;
     --material-shadow: 0 0 0 0.5px var(--glass-edge), 0 12px 40px -8px oklch(0.2 0.01 286 / 0.2);
     /* Scroll edge effect: el contenido que pasa bajo los controles se funde con el fondo. */
     --scroll-edge: color-mix(in oklch, var(--background) var(--scroll-edge-amount), transparent);
@@ -411,21 +416,24 @@ html:has(main[data-landing]) body {
   background-color: var(--glass-active);
   box-shadow: inset 0 1px 0 0 var(--glass-highlight);
 }
-/* Scroll edge effect (apple-hig/components/scroll-views): desenfoque progresivo y fundido del
-   contenido que pasa por debajo de los controles flotantes. Uno por vista: arriba detrás de la fila
-   superior móvil o la topbar; abajo detrás de la barra de pestañas. No es decorativo: solo va donde
-   hay contenido que se desplaza bajo controles. El contenedor necesita `position` y `z-index`. */
+/* Scroll edge effect (apple-hig/components/scroll-views): desenfoque suave y fundido del contenido
+   que pasa por debajo de los controles flotantes. Uno arriba (detrás de la fila superior móvil o la
+   topbar) y otro abajo (detrás de la barra de pestañas), con el mismo tratamiento: misma
+   intensidad, mismo largo y la misma curva de fundido, solo en espejo. El velo es tenue y el fundido
+   largo (el pseudo se extiende 1.5rem más allá del contenedor y la máscara empieza a soltar a un
+   tercio), así no se lee como una franja. No es decorativo: solo va donde hay contenido que se
+   desplaza bajo controles. El contenedor necesita `position` y `z-index`. */
 @utility scroll-edge-top {
   &::after {
     content: "";
     position: absolute;
-    inset: 0 0 -1rem 0;
+    inset: 0 0 -1.5rem 0;
     z-index: -1;
-    background: linear-gradient(to bottom, var(--scroll-edge) 40%, transparent);
+    background: linear-gradient(to bottom, var(--scroll-edge) 30%, transparent);
     backdrop-filter: blur(var(--scroll-edge-blur));
     -webkit-backdrop-filter: blur(var(--scroll-edge-blur));
-    -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
-    mask-image: linear-gradient(to bottom, #000 55%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, #000 30%, transparent);
+    mask-image: linear-gradient(to bottom, #000 30%, transparent);
     pointer-events: none;
     transition: opacity 240ms ease-out;
   }
@@ -434,13 +442,13 @@ html:has(main[data-landing]) body {
   &::after {
     content: "";
     position: absolute;
-    inset: -1rem 0 0 0;
+    inset: -1.5rem 0 0 0;
     z-index: -1;
-    background: linear-gradient(to top, var(--scroll-edge) 40%, transparent);
+    background: linear-gradient(to top, var(--scroll-edge) 30%, transparent);
     backdrop-filter: blur(var(--scroll-edge-blur));
     -webkit-backdrop-filter: blur(var(--scroll-edge-blur));
-    -webkit-mask-image: linear-gradient(to top, #000 55%, transparent);
-    mask-image: linear-gradient(to top, #000 55%, transparent);
+    -webkit-mask-image: linear-gradient(to top, #000 30%, transparent);
+    mask-image: linear-gradient(to top, #000 30%, transparent);
     pointer-events: none;
     transition: opacity 240ms ease-out;
   }
@@ -457,6 +465,33 @@ html:has(main[data-landing]) body {
    todas las vistas. */
 .top-bar:not([data-scrolled])::after {
   opacity: 0;
+}
+/* Título de la fila móvil. Arriba del todo ocupa su ancho y el selector de mes el resto; con el
+   primer scroll (`data-scrolled`, del IntersectionObserver de AppFrame) se va con un fundido y un
+   leve desplazamiento a la izquierda, y su columna se cierra (1fr → 0fr, el mismo recurso que «Hoy»
+   en el MonthNav): el selector se corre a la izquierda y se ensancha en una sola transición de
+   grid-template-columns. CSS puro, así un cambio a mitad de camino retoma desde donde está. El
+   ensanche cambia el tamaño de la cápsula del selector: la refracción solo estira su mapa cuadro a
+   cuadro y lo regenera una vez, 150 ms después del último cambio (lib/liquid-refraction-dom.ts). */
+.top-title {
+  grid-template-columns: 1fr;
+  transition: grid-template-columns 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.top-title h1 {
+  animation: title-in 200ms ease-out; /* al navegar entra el título nuevo (key) */
+  transition:
+    opacity 200ms ease-out,
+    transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.top-bar[data-scrolled] .top-title {
+  grid-template-columns: 0fr;
+}
+.top-bar[data-scrolled] .top-title h1 {
+  opacity: 0;
+  transform: translateX(-0.75rem);
+}
+@keyframes title-in {
+  from { opacity: 0; }
 }
 /* MonthNav deshabilitado (vistas sin selector de mes): media tinta, legible sin invitar a tocar. */
 .idle-ink {
@@ -691,9 +726,9 @@ html:has(main[data-landing]) body {
 /* Nivel del vidrio elegido en Ajustes (0 = transparente, el de siempre; 4 = teñido, casi sólido).
    Más contraste y menos transparencia del sistema, abajo, siguen ganando. */
 :root[data-glass="0"] { --glass-clear: 85%; --glass-blur: 6px; --scroll-edge-amount: 0%; }
-:root[data-glass="1"] { --glass-clear: 65%; --glass-blur: 10px; --scroll-edge-amount: 20%; }
-:root[data-glass="3"] { --glass-clear: 0%; --glass-tint: 30%; --scroll-edge-amount: 70%; }
-:root[data-glass="4"] { --glass-clear: 0%; --glass-tint: 75%; --scroll-edge-amount: 85%; }
+:root[data-glass="1"] { --glass-clear: 65%; --glass-blur: 10px; --scroll-edge-amount: 10%; }
+:root[data-glass="3"] { --glass-clear: 0%; --glass-tint: 30%; --scroll-edge-amount: 34%; }
+:root[data-glass="4"] { --glass-clear: 0%; --glass-tint: 75%; --scroll-edge-amount: 42%; }
 
 /* Accesibilidad (apple-hig/foundations/materials): con MÁS CONTRASTE el vidrio gana relleno y
    contorno; con MENOS TRANSPARENCIA todo material cae a sólido, y va después para ganarle a
@@ -736,7 +771,9 @@ html:has(main[data-landing]) body {
   .month-in-prev {
     animation: none;
   }
-  /* La fila superior cambia de estado sin fundidos. */
+  /* La fila superior cambia de estado sin fundidos ni desplazamientos. */
+  .top-title,
+  .top-title h1,
   [data-top-actions] > *,
   .top-idle,
   .top-idle .idle-ink {

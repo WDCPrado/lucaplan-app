@@ -395,17 +395,32 @@ function Chrome({
               </div>
             </header>
           </div>
-          {/* Móvil: controles flotantes en vidrio (iOS 26), sin barra a lo ancho. Las acciones de la
-              vista (el selector de mes) ocupan todo el ancho; sin ellas, en la misma celda queda el
+          {/* Móvil: controles flotantes en vidrio (iOS 26), sin barra a lo ancho. A la izquierda el
+              título de la vista (el h1 de la página en móvil; el de la topbar está oculto) y el resto
+              para las acciones de la vista (el selector de mes); sin ellas, en la misma celda queda el
               selector deshabilitado con el período en curso, así la fila es igual en todas las vistas
-              y no salta al navegar (el cruce entre los dos, en `.top-idle`, globals.css). El scroll
-              edge effect aparece apenas hay contenido pasando por debajo. Solo los controles reciben
+              y no salta al navegar (el cruce entre los dos, en `.top-idle`, globals.css). Con el
+              primer scroll el título se va y el selector se ensancha hasta llenar la fila
+              (`.top-title`); a la vez aparece el scroll edge effect. Solo los controles reciben
               toques. */}
           <div
             data-scrolled={scrolled || undefined}
-            className="top-bar pwa-safe-top pointer-events-none sticky top-0 z-20 scroll-edge-top px-4 pt-2 pb-3 md:hidden"
+            className="top-bar pwa-safe-top pointer-events-none sticky top-0 z-20 flex items-center scroll-edge-top px-4 pt-2 pb-3 md:hidden"
           >
-            <div className="grid min-h-11 w-full items-center *:col-start-1 *:row-start-1">
+            {title && (
+              <div className="top-title grid">
+                <div className="min-w-0 overflow-hidden">
+                  {/* key: al navegar el título entra con un fundido; la fila no se desmonta. */}
+                  <h1
+                    key={title}
+                    className="pr-3 text-headline font-bold whitespace-nowrap"
+                  >
+                    {title}
+                  </h1>
+                </div>
+              </div>
+            )}
+            <div className="grid min-h-11 min-w-0 flex-1 items-center *:col-start-1 *:row-start-1">
               {idle && (
                 <div className="top-idle pointer-events-auto flex w-full min-w-0">
                   {idle}
@@ -420,11 +435,9 @@ function Chrome({
               </div>
             </div>
           </div>
-          {/* Aire inferior solo en móvil, por la navegación flotante (64px + margen + safe-area). En
-              escritorio no flota nada. */}
-          <div
-            className="min-w-0 flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0"
-          >
+          {/* Aire inferior solo en móvil, por la navegación flotante (64px + 1rem + su margen al
+              borde, --tab-bar-inset). En escritorio no flota nada. */}
+          <div className="min-w-0 flex-1 pb-[calc(5rem+var(--tab-bar-inset))] md:pb-0">
             {children}
           </div>
           {/* Marca del final: visible = ya no queda contenido pasando bajo la barra inferior. */}
@@ -561,7 +574,7 @@ function BottomNav({
   return (
     <div
       className={cn(
-        "pointer-events-none fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 scroll-edge-bottom px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] md:hidden",
+        "pointer-events-none fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 scroll-edge-bottom px-4 pt-3 pb-(--tab-bar-inset) md:hidden",
         !edge && "scroll-edge-off"
       )}
     >

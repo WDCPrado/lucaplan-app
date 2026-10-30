@@ -50,8 +50,9 @@ Tres superficies, todas desde tokens de `globals.css`:
 | Sólido | `card`, `--sheet`, `--sheet-cell` | contenido, listas, hojas y diálogos |
 
 `liquid-glass-active` (`--glass-active`) es la pastilla activa: el acento tiñe el fondo, no el texto.
-`scroll-edge-top` / `scroll-edge-bottom` (`--scroll-edge`) separan los controles del contenido que pasa
-por debajo. Los controles (`input`, segmentado) usan `--glass-control` / `--glass-control-active`.
+`scroll-edge-top` / `scroll-edge-bottom` (`--scroll-edge`, `--scroll-edge-amount`, `--scroll-edge-blur`)
+separan los controles del contenido que pasa por debajo, con un velo tenue y el mismo fundido largo
+arriba y abajo. Los controles (`input`, segmentado) usan `--glass-control` / `--glass-control-active`.
 `--radius-bar-inner` es el radio concéntrico de lo que va dentro de una barra `rounded-xl`.
 `--card-art-*` colorea el cupo sobre el arte de las tarjetas de cuenta. `--scrollbar` pinta el
 scrollbar fino de escritorio.

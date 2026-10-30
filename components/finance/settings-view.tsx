@@ -54,8 +54,6 @@ export function SettingsView({
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 md:pt-6 lg:px-8">
-        {/* Móvil: título grande de iOS bajo la barra; en escritorio el título vive en el topbar. */}
-        <h1 className="mb-3 text-large-title font-bold md:hidden">Ajustes</h1>
         <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
           {/* Móvil: la cuenta, como en Ajustes de iOS (en escritorio vive en el pie del sidebar). */}
           <section aria-label="Cuenta" className="glass inset-list overflow-hidden rounded-xl md:hidden">

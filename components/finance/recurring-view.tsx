@@ -120,8 +120,6 @@ export function RecurringView({
           margen. xl: dos columnas de ~30rem, el mínimo en que una fila de recurrente cabe con su
           nombre y el "Ya lo pagué"; por debajo de eso, una columna. */}
       <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 md:pt-6 lg:px-8 xl:max-w-7xl">
-        {/* Móvil: título grande de iOS bajo la barra; en escritorio el título vive en el topbar. */}
-        <h1 className="mb-3 text-large-title font-bold md:hidden">Recurrentes</h1>
         <div className="grid gap-10 xl:grid-cols-2 xl:items-start xl:gap-8">
           <section aria-labelledby="recurrentes-title" className="min-w-0">
             {/* Sin botón "Nuevo": una recurrente solo nace de un movimiento (el use case rechaza el

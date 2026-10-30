@@ -178,8 +178,11 @@ agrupaciones, la tipografía y los controles.
     `foreground`. El estado activo o la acción primaria tiñen el FONDO del control
     (`liquid-glass-active`, `bg-primary`), no el texto, y nunca varios controles a la vez.
   - **Scroll edge effect** (`scroll-edge-top` / `scroll-edge-bottom`) separa los controles del
-    contenido que pasa por debajo, no un fondo sólido: uno por vista, solo donde hay scroll bajo
-    controles flotantes.
+    contenido que pasa por debajo, no un fondo sólido: un velo tenue (`--scroll-edge-amount`, 22 %
+    por defecto y proporcional en cada nivel de vidrio) con un desenfoque leve
+    (`--scroll-edge-blur`, 4 px) y un fundido largo, para que no se lea como franja. Arriba y abajo
+    llevan el mismo tratamiento, en espejo: arriba aparece con el primer scroll, abajo mientras
+    queda contenido pasando bajo la barra de pestañas (IntersectionObserver, `useScrollEdges`).
   - **Concentricidad**: lo que va dentro de una barra o cápsula usa el radio externo menos el
     margen (`--radius-bar-inner` en la topbar y el sidebar; `rounded-full` dentro de cápsulas).
   - Con `prefers-reduced-transparency` todo material cae a sólido; con `prefers-contrast: more`
@@ -189,17 +192,26 @@ agrupaciones, la tipografía y los controles.
     hacia `--card` con `--glass-tint` (`data-glass` en `<html>`). Es por dispositivo
     (localStorage, `lib/glass-level.ts`) y lo aplica un script en `<head>` antes del primer pintado;
     las dos preferencias del sistema de arriba siguen ganando.
-- **Navegación flotante, sin barras a lo ancho**: en móvil, arriba solo las acciones de la
-  vista a todo el ancho (el selector de mes `MonthNav`); en las vistas sin selector, el marco pone
-  el mismo `MonthNav` deshabilitado con el período en curso (también junto al título de la topbar
-  de escritorio), así la fila es igual en todas y no salta al navegar. El scroll edge effect aparece
-  apenas hay scroll. La pestaña activa no cambia de peso: la marca su pastilla. La cuenta (perfil,
-  tema, cerrar sesión) vive en Ajustes. Las dos barras viven en el layout (`AppFrame`) y no se
-  desmontan al navegar; la vista inyecta sus acciones por portal. Abajo, una cápsula con las pestañas (la activa con pastilla) y la búsqueda global en un círculo
-  suelto a la derecha, en todas las vistas. En escritorio, sidebar y topbar flotantes de la misma
-  familia (mismo margen, radio y vidrio); la topbar lleva la búsqueda global en todas las vistas.
-  Crear un movimiento no está en la navegación: entran desde el correo del banco. Todo respeta `env(safe-area-inset-*)` y el
-  contenido deja aire para no quedar tapado.
+- **Navegación flotante, sin barras a lo ancho**: en móvil, arriba una sola fila: a la izquierda
+  el título de la vista (`text-headline` en negrita; sale del mapa de rutas `NAV` y es el `h1` de la
+  página en móvil, las vistas no traen el suyo) y el resto para las acciones de la vista (el
+  selector de mes `MonthNav`). En las vistas sin selector, el marco pone el mismo `MonthNav`
+  deshabilitado con el período en curso (también junto al título de la topbar de escritorio), así
+  la fila es igual en todas y no salta al navegar. Con el primer scroll el título se va (fundido y
+  leve desplazamiento a la izquierda) y el selector se corre y se ensancha hasta llenar la fila;
+  al volver arriba, al revés (`.top-title`, 280 ms, una transición de `grid-template-columns`
+  disparada por IntersectionObserver; sin movimiento con `prefers-reduced-motion`). Al navegar el
+  título cambia con un fundido corto. El scroll edge effect aparece apenas hay scroll. La pestaña
+  activa no cambia de peso: la marca su pastilla. La cuenta (perfil, tema, cerrar sesión) vive en
+  Ajustes. Las dos barras viven en el layout (`AppFrame`) y no se desmontan al navegar; la vista
+  inyecta sus acciones por portal. Abajo, una cápsula con las pestañas (la activa con pastilla) y
+  la búsqueda global en un círculo suelto a la derecha, en todas las vistas, pegadas al borde del
+  teléfono como la tab bar de iOS 26: `--tab-bar-inset` (safe area − 12 px, mínimo 8 px) la deja
+  casi concéntrica con la esquina y con el home indicator debajo. En escritorio, sidebar y topbar
+  flotantes de la misma familia (mismo margen, radio y vidrio); la topbar lleva el título y la
+  búsqueda global en todas las vistas. Crear un movimiento no está en la navegación: entran desde
+  el correo del banco. Todo respeta `env(safe-area-inset-*)` y el contenido deja aire para no
+  quedar tapado (`5rem + --tab-bar-inset` abajo).
 - **Listas agrupadas («inset grouped»)**: secciones en tarjetas con filas de ≥44 px, separadores
   finos con inset desde el texto (`.inset-list`), chevron cuando la fila abre algo y la acción de la
   sección en texto azul a la derecha del encabezado. Las superficies se separan por el fondo, no

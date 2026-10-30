@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ChevronRight, Plus, TrendingUp } from "lucide-react"
+import { ChevronRight, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   Collapsible,
@@ -498,29 +498,6 @@ export function Dashboard({
                     )}
                   </div>
                 )}
-                {/* Los ingresos se ven y editan en el plan del mes ("Ajustar plan"): acá solo la
-                    puerta, con el total activo, para no repetir las filas en dos superficies. */}
-                <div>
-                  <button
-                    onClick={() => setPlanOpen(true)}
-                    className="press flex min-h-11 w-full items-center gap-3 py-2.5 pr-3 pl-4 text-left text-body hover:bg-accent"
-                  >
-                    <span
-                      aria-hidden
-                      className="grid size-7 shrink-0 place-items-center rounded-md bg-success text-success-foreground"
-                    >
-                      <TrendingUp className="size-4" />
-                    </span>
-                    Ingresos
-                    <span className="tabular ml-auto text-subheadline text-muted-foreground">
-                      {formatCLP(activeIncomeTotal)}
-                    </span>
-                    <ChevronRight
-                      aria-hidden
-                      className="size-4 shrink-0 text-muted-foreground/60"
-                    />
-                  </button>
-                </div>
               </div>
             </section>
 

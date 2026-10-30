@@ -315,7 +315,7 @@ function Chrome({
   const pathname = usePathname()
   const title =
     titleProp ?? NAV.find((n) => n.key === navKeyOf(pathname))?.label
-  const { topRef, endRef, scrolled, atEnd } = useScrollEdges()
+  const { topRef, scrolled } = useScrolled()
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -401,11 +401,10 @@ function Chrome({
               selector deshabilitado con el período en curso, así la fila es igual en todas las vistas
               y no salta al navegar (el cruce entre los dos, en `.top-idle`, globals.css). Con el
               primer scroll el título se va y el selector se ensancha hasta llenar la fila
-              (`.top-title`); a la vez aparece el scroll edge effect. Solo los controles reciben
-              toques. */}
+              (`.top-title`). Solo las cápsulas desenfocan el fondo y reciben toques. */}
           <div
             data-scrolled={scrolled || undefined}
-            className="top-bar pwa-safe-top pointer-events-none sticky top-0 z-20 flex items-center scroll-edge-top px-4 pt-2 pb-3 md:hidden"
+            className="top-bar pwa-safe-top pointer-events-none sticky top-0 z-20 flex items-center px-4 pt-2 pb-3 md:hidden"
           >
             {title && (
               <div className="top-title grid">
@@ -440,14 +439,11 @@ function Chrome({
           <div className="min-w-0 flex-1 pb-[calc(5rem+var(--tab-bar-inset))] md:pb-0">
             {children}
           </div>
-          {/* Marca del final: visible = ya no queda contenido pasando bajo la barra inferior. */}
-          <div ref={endRef} aria-hidden className="-mt-px h-px" />
         </SidebarInset>
 
         <BottomNav
           active={active}
           onNavigate={onNavigate}
-          edge={!atEnd}
           trailing={onSearch && <SearchCircle onSearch={onSearch} />}
         />
       </SidebarProvider>
@@ -455,31 +451,24 @@ function Chrome({
   )
 }
 
-// Cuándo hay contenido bajo los controles flotantes, con IntersectionObserver (nada escucha el
-// scroll cuadro a cuadro): `scrolled` = la marca de arriba dejó de verse; `atEnd` = se ve la marca
-// del final.
-function useScrollEdges() {
+// El título móvil se recoge cuando la marca de arriba deja de verse, sin escuchar cada scroll.
+function useScrolled() {
   const topRef = React.useRef<HTMLDivElement>(null)
-  const endRef = React.useRef<HTMLDivElement>(null)
   const [scrolled, setScrolled] = React.useState(false)
-  const [atEnd, setAtEnd] = React.useState(false)
 
   React.useEffect(() => {
     const top = topRef.current
-    const end = endRef.current
-    if (!top || !end) return
+    if (!top) return
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) {
         if (e.target === top) setScrolled(!e.isIntersecting)
-        else setAtEnd(e.isIntersecting)
       }
     })
     io.observe(top)
-    io.observe(end)
     return () => io.disconnect()
   }, [])
 
-  return { topRef, endRef, scrolled, atEnd }
+  return { topRef, scrolled }
 }
 
 // Nav del sidebar: links a rutas reales. El item activo se deriva del pathname (el prop
@@ -499,7 +488,7 @@ function NavMenu({
     <SidebarMenu>
       {NAV.map(({ key, label, Icon, href }) => (
         <SidebarMenuItem key={key}>
-          {/* Activo: la misma selección neutra que la pestaña activa móvil. */}
+          {/* El sidebar conserva su selección neutra. */}
           <SidebarMenuButton
             asChild
             isActive={activeKey === key}
@@ -531,7 +520,7 @@ function NavMenu({
 // destinos del sidebar y, suelta a la derecha, la búsqueda (`trailing`). La pastilla del activo
 // (concéntrica: rounded-full dentro de rounded-full) se desliza de una pestaña a otra: como la barra
 // vive en el layout y no se desmonta al navegar, basta una transición de transform. Las etiquetas
-// van en el color y el peso del texto; el activo se marca con el fondo neutro de su pastilla, así
+// van en el color y el peso del texto; el activo se marca con el fondo azul de su pastilla, así
 // ningún ancho cambia al cambiar de pestaña.
 // Al deslizarse la pastilla se estira como una gota: el borde que va adelante llega antes que el de
 // atrás (`.tab-pill[data-dir]`, globals.css). La cápsula hace squish al tocar una pestaña y, en
@@ -541,12 +530,10 @@ function NavMenu({
 function BottomNav({
   active,
   onNavigate,
-  edge,
   trailing,
 }: {
   active?: NavKey
   onNavigate?: (key: NavKey) => void
-  edge: boolean // hay contenido pasando bajo la barra: se ve el scroll edge effect
   trailing?: React.ReactNode
 }) {
   const pathname = usePathname()
@@ -573,10 +560,7 @@ function BottomNav({
 
   return (
     <div
-      className={cn(
-        "pointer-events-none fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 scroll-edge-bottom px-4 pt-3 pb-(--tab-bar-inset) md:hidden",
-        !edge && "scroll-edge-off"
-      )}
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 px-4 pt-3 pb-(--tab-bar-inset) md:hidden"
     >
       <nav
         ref={navRef}

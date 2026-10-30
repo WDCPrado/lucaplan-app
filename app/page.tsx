@@ -1518,7 +1518,7 @@ export default function Home() {
           // force-light: el portal se monta fuera de [data-landing]; sin esto, con tema
           // dark el modal saldría oscuro sobre una landing siempre clara.
           className="force-light"
-          headerClassName="max-md:pt-5 max-md:pb-6 max-md:text-left"
+          headerClassName="max-md:pt-5 max-md:pb-6 max-md:text-left max-md:[&>div:empty]:hidden"
         >
           <ScrollArea className="max-h-[62dvh] px-6">
             <div className="pb-8">{LEGAL[legal].body}</div>

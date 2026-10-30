@@ -77,7 +77,7 @@ export function PlanSummary({
       <div className="border-t border-border pt-3 text-footnote">
         <p className={`flex flex-wrap items-baseline gap-x-2 ${liquidityTone}`}>
           <span className={liquidityTone ? "font-semibold" : "text-muted-foreground"}>
-            {net < 0 ? "Corriente en negativo" : "Disponible en cuentas"}
+            {net < 0 ? "Cuentas en negativo" : "Disponible en cuentas"}
           </span>
           <strong className="tabular font-semibold">{formatCLP(net)}</strong>
         </p>

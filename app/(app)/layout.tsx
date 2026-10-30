@@ -12,6 +12,10 @@ import {
   getAmountBounds,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { AppFrame } from "@/components/finance/app-shell"
+import { AppearanceProvider } from "@/components/appearance-provider"
+import { appearanceScript } from "@/lib/appearance"
+import { getUserSettingsState } from "@/arch/v1/application/user-use-cases/user-settings-use-cases"
+import { userSettingsDeps } from "@/arch/v1/infrastructure/database/prisma/user-settings.infrastructure"
 
 // Marco de las pantallas con sesión: sidebar, barras superior e inferior y la búsqueda se
 // montan una vez aquí y no se desmontan al cambiar de ruta (un layout no se vuelve a renderizar en
@@ -36,34 +40,45 @@ export default async function AppLayout({
   const { mode, overrides } = await getBudgetPeriod(financeDeps)
   const now = periodOfDay(todayKey(), mode, overrides)
   // Los topes del slider de monto de la búsqueda global, que vive en el marco.
-  const [accounts, budget, amountBounds] = await Promise.all([
-    listAccounts(financeDeps, userId),
-    getBudgetView(financeDeps, userId, now.year, now.month),
-    getAmountBounds(financeDeps, userId),
-  ])
+  const [accounts, budget, amountBounds, { settings, stored }] =
+    await Promise.all([
+      listAccounts(financeDeps, userId),
+      getBudgetView(financeDeps, userId, now.year, now.month),
+      getAmountBounds(financeDeps, userId),
+      getUserSettingsState(userSettingsDeps, userId),
+    ])
 
   // Los datos de la cuenta del marco: el menú del sidebar y la hoja del perfil, que edita el
   // nombre tal cual está guardado (vacío si no hay; el menú cae al correo).
   const label = session.user.name || session.user.email || "Usuario"
   return (
-    <AppFrame
-      user={{
-        name: session.user.name ?? "",
-        initial: label.charAt(0).toUpperCase(),
-        email: session.user.email,
-      }}
-      accounts={accounts}
-      categories={budget.categories}
-      amountBounds={amountBounds}
-      currentPeriod={{
-        ...now,
-        cycleRange:
-          mode === "card_cycle"
-            ? periodRange(now.year, now.month, mode, overrides)
-            : undefined,
-      }}
-    >
-      {children}
-    </AppFrame>
+    <AppearanceProvider initial={settings} stored={stored}>
+      {/* Tema y vidrio del usuario sobre <html> antes de pintar la app (ver lib/appearance.ts).
+          Corre en la carga del documento; en una navegación del cliente React no ejecuta scripts
+          (queda inerte, y en desarrollo React lo avisa en consola) y ahí los aplica
+          AppearanceProvider antes de pintar. */}
+      <script
+        dangerouslySetInnerHTML={{ __html: appearanceScript(settings, stored) }}
+      />
+      <AppFrame
+        user={{
+          name: session.user.name ?? "",
+          initial: label.charAt(0).toUpperCase(),
+          email: session.user.email,
+        }}
+        accounts={accounts}
+        categories={budget.categories}
+        amountBounds={amountBounds}
+        currentPeriod={{
+          ...now,
+          cycleRange:
+            mode === "card_cycle"
+              ? periodRange(now.year, now.month, mode, overrides)
+              : undefined,
+        }}
+      >
+        {children}
+      </AppFrame>
+    </AppearanceProvider>
   )
 }

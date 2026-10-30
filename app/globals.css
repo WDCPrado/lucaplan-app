@@ -145,7 +145,7 @@
        Liquid Glass: solo la capa de controles y navegación que flota sobre el contenido (barras,
        sidebar, topbar, cápsulas y botones flotantes). Variante «regular»: desenfoque + luminosidad;
        sin color propio. Lo grande (sidebar) un poco más opaco que lo chico (barra, botones).
-       Ajustes → Apariencia (`data-glass` en <html>, lib/glass-level.ts) lo mueve: 2 (sin atributo)
+       Ajustes → Apariencia (`data-glass` en <html>; por usuario, en la base: lib/appearance.ts) lo mueve: 2 (sin atributo)
        es el vidrio por defecto (ya aclarado un 35 %); 0–1 lo aclaran más (`--glass-clear`) y 3–4 lo tiñen hacia la celda
        sólida (`--glass-tint`). Los menús (`--material`) no se aclaran: llevan texto. */
     --glass-tint: 0%;

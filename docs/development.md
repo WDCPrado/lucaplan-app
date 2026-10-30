@@ -189,9 +189,13 @@ agrupaciones, la tipografía y los controles.
     gana relleno y contorno.
   - **Nivel del vidrio** (Ajustes → Apariencia): un slider de 5 pasos, de «Transparente» (el vidrio
     de siempre) a «Teñido» (casi sólido), lleva `--glass-fill`, `--glass-fill-large` y `--material`
-    hacia `--card` con `--glass-tint` (`data-glass` en `<html>`). Es por dispositivo
-    (localStorage, `lib/glass-level.ts`) y lo aplica un script en `<head>` antes del primer pintado;
-    las dos preferencias del sistema de arriba siguen ganando.
+    hacia `--card` con `--glass-tint` (`data-glass` en `<html>`). Es por usuario, en la base junto
+    con el tema (`user_setting`, `PATCH /api/user-settings`); el layout de `app/(app)` la lee en el
+    servidor y un script la aplica a `<html>` antes del primer pintado (`lib/appearance.ts`). Los
+    cambios se ven al instante y, si el guardado falla, vuelven al valor guardado. Los valores
+    viejos de localStorage (`glass-level`, `theme`) se suben una sola vez por dispositivo, solo si
+    el usuario aún está en los valores por defecto. Las rutas públicas no la usan. Las dos
+    preferencias del sistema de arriba siguen ganando.
 - **Navegación flotante, sin barras a lo ancho**: en móvil, arriba una sola fila: a la izquierda
   el título de la vista (`text-headline` en negrita; sale del mapa de rutas `NAV` y es el `h1` de la
   página en móvil, las vistas no traen el suyo) y el resto para las acciones de la vista (el

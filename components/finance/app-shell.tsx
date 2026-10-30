@@ -4,7 +4,7 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useTheme } from "next-themes"
+import { useAppearance } from "@/components/appearance-provider"
 import {
   Home,
   Sun,
@@ -665,7 +665,7 @@ function UserMenu({
   onSignOut?: () => void
   onProfile?: () => void
 }) {
-  const { resolvedTheme, setTheme } = useTheme()
+  const { toggleTheme } = useAppearance()
   // «Perfil» abre la hoja recién cuando el menú terminó de cerrarse y Radix devolvió el foco a su
   // botón: así la hoja lo guarda como opener y, al cerrarla, el foco vuelve ahí y no a <body>.
   const pendingProfile = React.useRef(false)
@@ -733,7 +733,7 @@ function UserMenu({
           onSelect={(e) => {
             e.preventDefault() // no cerrar el menú al alternar
             haptic("light")
-            setTheme(resolvedTheme === "dark" ? "light" : "dark")
+            toggleTheme()
           }}
         >
           {/* icono/texto por CSS anclado al <html> (next-themes): [html.dark_&] mira solo el tema

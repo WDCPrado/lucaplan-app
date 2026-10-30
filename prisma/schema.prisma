@@ -28,6 +28,7 @@ model User {
   oauthRefreshToken_userId OAuthRefreshToken[] @relation("oauthRefreshToken_userId")
   oauthAccessToken_userId  OAuthAccessToken[]  @relation("oauthAccessToken_userId")
   oauthConsent_userId      OAuthConsent[]      @relation("oauthConsent_userId")
+  settings                 UserSetting[]
 
   @@unique([email])
   @@map("user")
@@ -111,6 +112,19 @@ model AppSetting {
   updatedAt DateTime @updatedAt
 
   @@map("app_setting")
+}
+
+// Preferencias POR USUARIO (apariencia: nivel de vidrio, tema), clave → valor como AppSetting.
+// Qué claves existen y cómo se leen lo decide arch/v1/application/user-use-cases/user-settings-use-cases.
+model UserSetting {
+  userId    String
+  key       String
+  value     String
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, key])
+  @@map("user_setting")
 }
 
 // Suscripción Web Push de un dispositivo (endpoint del push service del navegador). Un usuario

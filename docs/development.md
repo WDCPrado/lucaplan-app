@@ -157,9 +157,10 @@ agrupaciones, la tipografía y los controles.
     barra de pestañas en móvil, sidebar y topbar en escritorio, cápsulas y botones flotantes. Nunca
     en el contenido (tarjetas, listas, hojas), que va sólido en `card` sobre el fondo agrupado.
     Variante regular (desenfoque + luminosidad), sin «clear». Lo grande (sidebar) un poco más opaco
-    que lo chico. La base es CSS y se ve igual en Safari, Firefox y Chrome: desenfoque, relleno,
-    brillo especular de canto con luz fija arriba-izquierda (`::before` cónico), rim interior
-    (`--glass-rim`), contorno y sombra.
+    que lo chico, pero reutiliza `liquid-glass` para el mismo acabado. La base es CSS compatible con
+    Safari, Firefox y Chrome: desenfoque de 16 px, saturación moderada (120 %), relleno neutro,
+    reflejo localizado arriba-izquierda y un eco menor abajo-derecha (`::before` cónico), rim
+    interior (`--glass-rim`), contorno de 0.5 px y sombra. No hay una línea brillante continua.
   - **Refracción real, solo Chromium y como extra** (técnica de kube.io/blog/liquid-glass-css-svg):
     un filtro SVG (`feDisplacementMap` con un mapa de canto «convex squircle» + brillo especular)
     entra al final del `backdrop-filter` de `liquid-glass` por `--glass-refraction`. Solo la llevan
@@ -176,11 +177,13 @@ agrupaciones, la tipografía y los controles.
     las pestañas se estira como gota al deslizarse (`.tab-pill`). Solo CSS, interrumpible, y nada
     con movimiento reducido.
   - **Material regular (`--material`)** para lo que lleva texto encima del contenido:
-    menús, select, popover, tooltip, toasts y alertas. Más opaco que el vidrio de las barras. Las
-    hojas (drawer y diálogo) van sólidas (`--sheet`).
+    menús, select, popover, tooltip, toasts, alertas y el aviso de refresco de la PWA. Más opaco que
+    el vidrio de las barras, con la misma saturación moderada; la utilidad `material` concentra la
+    receta. Los toasts de estado conservan su color semántico. Las hojas van sólidas (`--sheet`).
   - **Color con moderación**: el vidrio no tiene color propio; textos e íconos encima van en
-    `foreground`. El estado activo o la acción primaria tiñen el FONDO del control
-    (`liquid-glass-active`, `bg-primary`), no el texto, y nunca varios controles a la vez.
+    `foreground`. La selección en pestañas y sidebar es neutra (`--glass-active` y
+    `--glass-active-shadow`): clara en light y oscura en dark, sin vidrio adicional dentro del
+    vidrio. El color de énfasis queda para el fondo de la acción primaria (`bg-primary`).
   - **Scroll edge effect** (`scroll-edge-top` / `scroll-edge-bottom`) separa los controles del
     contenido que pasa por debajo, no un fondo sólido: un velo tenue (`--scroll-edge-amount`, 22 %
     por defecto y proporcional en cada nivel de vidrio) con un desenfoque leve
@@ -189,11 +192,16 @@ agrupaciones, la tipografía y los controles.
     queda contenido pasando bajo la barra de pestañas (IntersectionObserver, `useScrollEdges`).
   - **Concentricidad**: lo que va dentro de una barra o cápsula usa el radio externo menos el
     margen (`--radius-bar-inner` en la topbar y el sidebar; `rounded-full` dentro de cápsulas).
-  - Con `prefers-reduced-transparency` todo material cae a sólido; con `prefers-contrast: more`
-    gana relleno y contorno.
+  - Con `prefers-reduced-transparency` todo material cae a sólido, sin desenfoque ni reflejo;
+    con `prefers-contrast: more` gana relleno y contorno, también en la selección activa. Ambas
+    preferencias apagan el reflejo por token, incluso en variantes responsive y en el sidebar.
+    Sin soporte de `backdrop-filter`, el relleno cae a sólido.
   - **Nivel del vidrio** (Ajustes → Apariencia): un slider de 5 pasos, de «Transparente» (el vidrio
-    de siempre) a «Teñido» (casi sólido), lleva `--glass-fill`, `--glass-fill-large` y `--material`
-    hacia `--card` con `--glass-tint` (`data-glass` en `<html>`). Es por usuario, en la base junto
+    más translúcido) a «Teñido» (casi sólido), ajusta el relleno de `--glass-fill` y
+    `--glass-fill-large` con `--glass-clear` (65 %, 40 %, 20 %, 0 %, 0 %), y desde el nivel 3 los
+    lleva junto a `--material` hacia `--card` con `--glass-tint` (30 % y 75 %). El desenfoque se
+    mantiene en los cinco pasos para separar las letras del fondo de los controles; solo la
+    preferencia de reducir transparencia lo apaga. `data-glass` vive en `<html>`. Es por usuario, en la base junto
     con el tema (`user_setting`, `PATCH /api/user-settings`); el layout de `app/(app)` la lee en el
     servidor y un script la aplica a `<html>` antes del primer pintado (`lib/appearance.ts`). Los
     cambios se ven al instante y, si el guardado falla, vuelven al valor guardado. Los valores

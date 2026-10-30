@@ -4,12 +4,27 @@ import * as React from "react"
 import { usePathname } from "next/navigation"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
+// Quién atiende la tecla D: este provider (rutas públicas, solo local) o, dentro de la app,
+// AppearanceProvider, que monta su propia ThemeHotkey (la que guarda) y apaga esta.
+const HotkeyOwnerContext = React.createContext<(owned: boolean) => void>(
+  () => {}
+)
+
+function useOwnThemeHotkey() {
+  const setOwned = React.useContext(HotkeyOwnerContext)
+  React.useEffect(() => {
+    setOwned(true)
+    return () => setOwned(false)
+  }, [setOwned])
+}
+
 function ThemeProvider({
   children,
   ...props
 }: React.ComponentProps<typeof NextThemesProvider>) {
   // La landing es marketing: siempre light, sin importar la preferencia guardada.
   const forcedTheme = usePathname() === "/" ? "light" : undefined
+  const [hotkeyOwned, setHotkeyOwned] = React.useState(false)
 
   return (
     <NextThemesProvider
@@ -21,8 +36,10 @@ function ThemeProvider({
       {...props}
     >
       <ThemeColor />
-      {!forcedTheme && <ThemeHotkey />}
-      {children}
+      {!forcedTheme && !hotkeyOwned && <ThemeHotkey />}
+      <HotkeyOwnerContext.Provider value={setHotkeyOwned}>
+        {children}
+      </HotkeyOwnerContext.Provider>
     </NextThemesProvider>
   )
 }
@@ -47,6 +64,7 @@ function ThemeColor() {
   return null
 }
 
+// Campos de texto y menús/listas abiertos (su typeahead usa las letras): ahí la D no es atajo.
 function isTypingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) {
     return false
@@ -56,13 +74,14 @@ function isTypingTarget(target: EventTarget | null) {
     target.isContentEditable ||
     target.tagName === "INPUT" ||
     target.tagName === "TEXTAREA" ||
-    target.tagName === "SELECT"
+    target.tagName === "SELECT" ||
+    target.closest('[role="menu"], [role="listbox"], [role="combobox"]') !==
+      null
   )
 }
 
 // La tecla D alterna el tema. Sin `onToggle` (rutas públicas) solo cambia el tema local; dentro de
-// la app AppearanceProvider le pasa el suyo, que además lo guarda en la base. Ese escucha en captura
-// y marca el evento, así este (en burbuja) lo ignora y el tema no se alterna dos veces.
+// la app AppearanceProvider le pasa el suyo, que además lo guarda en la base.
 function ThemeHotkey({ onToggle }: { onToggle?: () => void }) {
   const { resolvedTheme, setTheme } = useTheme()
 
@@ -84,23 +103,18 @@ function ThemeHotkey({ onToggle }: { onToggle?: () => void }) {
         return
       }
 
-      if (onToggle) {
-        event.preventDefault()
-        onToggle()
-      } else {
-        setTheme(resolvedTheme === "dark" ? "light" : "dark")
-      }
+      if (onToggle) onToggle()
+      else setTheme(resolvedTheme === "dark" ? "light" : "dark")
     }
 
-    const capture = Boolean(onToggle)
-    window.addEventListener("keydown", onKeyDown, capture)
+    window.addEventListener("keydown", onKeyDown)
 
     return () => {
-      window.removeEventListener("keydown", onKeyDown, capture)
+      window.removeEventListener("keydown", onKeyDown)
     }
   }, [resolvedTheme, setTheme, onToggle])
 
   return null
 }
 
-export { ThemeProvider, ThemeHotkey }
+export { ThemeProvider, ThemeHotkey, useOwnThemeHotkey }

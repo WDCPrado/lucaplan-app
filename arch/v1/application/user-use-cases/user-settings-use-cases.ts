@@ -26,6 +26,15 @@ export async function getUserSettings(
   deps: UserSettingsDeps,
   userId: string
 ): Promise<UserSettings> {
+  return (await getUserSettingsState(deps, userId)).settings
+}
+
+// Lo mismo más `stored`: si el usuario guardó algo alguna vez (tiene filas). Con eso el front
+// distingue «nunca guardó» (puede migrar lo que el dispositivo tenía) de «guardó los defaults».
+export async function getUserSettingsState(
+  deps: UserSettingsDeps,
+  userId: string
+): Promise<{ settings: UserSettings; stored: boolean }> {
   const rows = await deps.userSettings.list(userId)
   const settings = { ...USER_SETTINGS_DEFAULTS }
   for (const field of Object.keys(KEYS) as (keyof UserSettings)[]) {
@@ -36,7 +45,7 @@ export async function getUserSettings(
     )
     if (parsed.success) Object.assign(settings, { [field]: parsed.data })
   }
-  return settings
+  return { settings, stored: Object.keys(rows).length > 0 }
 }
 
 // Valida el patch (un patch inválido lanza ZodError), guarda solo lo que vino y devuelve el

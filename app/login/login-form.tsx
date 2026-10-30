@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import {
   AlertCircle,
@@ -250,7 +249,6 @@ function AuthForm({
   // valor inicial — quien lo renderiza lo remonta con `key` al cambiar de cuenta).
   prefill?: { email: string; password: string } | null
 }) {
-  const router = useRouter()
   const [showPw, setShowPw] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -312,8 +310,10 @@ function AuthForm({
       )
       return
     }
-    router.push("/dashboard")
-    router.refresh()
+    // Carga de documento y no router.push: así el layout de la app pinta el tema y el vidrio del
+    // usuario con su script antes del primer pintado (ver lib/appearance.ts).
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a propósito, ver arriba
+    window.location.assign("/dashboard")
   }
 
   return (

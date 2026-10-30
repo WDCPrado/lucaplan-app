@@ -4,6 +4,7 @@ import assert from "node:assert/strict"
 import type { UserSettingRepository } from "../../domain/user/user-settings.domain.ts"
 import {
   getUserSettings,
+  getUserSettingsState,
   updateUserSettings,
 } from "./user-settings-use-cases.ts"
 
@@ -75,4 +76,17 @@ test("Un patch inválido o vacío no escribe nada.", async () => {
   await assert.rejects(() => updateUserSettings(deps, "u1", { glassLevel: 5 }))
   await assert.rejects(() => updateUserSettings(deps, "u1", {}))
   assert.equal(rows.has("u1"), false)
+})
+
+test("Guardar los valores por defecto cuenta como guardado; no tener filas, no.", async () => {
+  const { deps } = memoryRepo()
+  assert.deepEqual(await getUserSettingsState(deps, "u1"), {
+    settings: { glassLevel: 2, theme: "dark" },
+    stored: false,
+  })
+  await updateUserSettings(deps, "u1", { glassLevel: 2, theme: "dark" })
+  assert.deepEqual(await getUserSettingsState(deps, "u1"), {
+    settings: { glassLevel: 2, theme: "dark" },
+    stored: true,
+  })
 })

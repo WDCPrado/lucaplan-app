@@ -14,7 +14,7 @@ import {
 import { AppFrame } from "@/components/finance/app-shell"
 import { AppearanceProvider } from "@/components/appearance-provider"
 import { appearanceScript } from "@/lib/appearance"
-import { getUserSettings } from "@/arch/v1/application/user-use-cases/user-settings-use-cases"
+import { getUserSettingsState } from "@/arch/v1/application/user-use-cases/user-settings-use-cases"
 import { userSettingsDeps } from "@/arch/v1/infrastructure/database/prisma/user-settings.infrastructure"
 
 // Marco de las pantallas con sesión: sidebar, barras superior e inferior y la búsqueda se
@@ -26,8 +26,7 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode
 }) {
-  const requestHeaders = await headers()
-  const session = await auth.api.getSession({ headers: requestHeaders })
+  const session = await auth.api.getSession({ headers: await headers() })
   if (!session) redirect("/login")
 
   // Deps CRUDAS a propósito: el layout se renderiza en paralelo con la página, y el dashboard
@@ -41,26 +40,25 @@ export default async function AppLayout({
   const { mode, overrides } = await getBudgetPeriod(financeDeps)
   const now = periodOfDay(todayKey(), mode, overrides)
   // Los topes del slider de monto de la búsqueda global, que vive en el marco.
-  const [accounts, budget, amountBounds, settings] = await Promise.all([
-    listAccounts(financeDeps, userId),
-    getBudgetView(financeDeps, userId, now.year, now.month),
-    getAmountBounds(financeDeps, userId),
-    getUserSettings(userSettingsDeps, userId),
-  ])
+  const [accounts, budget, amountBounds, { settings, stored }] =
+    await Promise.all([
+      listAccounts(financeDeps, userId),
+      getBudgetView(financeDeps, userId, now.year, now.month),
+      getAmountBounds(financeDeps, userId),
+      getUserSettingsState(userSettingsDeps, userId),
+    ])
 
   // Los datos de la cuenta del marco: el menú del sidebar y la hoja del perfil, que edita el
   // nombre tal cual está guardado (vacío si no hay; el menú cae al correo).
   const label = session.user.name || session.user.email || "Usuario"
   return (
-    <AppearanceProvider initial={settings}>
+    <AppearanceProvider initial={settings} stored={stored}>
       {/* Tema y vidrio del usuario sobre <html> antes de pintar la app (ver lib/appearance.ts).
-          Solo en la carga del documento: en una navegación del cliente (petición RSC) React no
-          ejecuta scripts y avisaría; ahí los aplica AppearanceProvider al montar. */}
-      {!requestHeaders.has("rsc") && (
-        <script
-          dangerouslySetInnerHTML={{ __html: appearanceScript(settings) }}
-        />
-      )}
+          Corre en la carga del documento; en una navegación del cliente React no ejecuta scripts
+          (queda inerte) y ahí los aplica AppearanceProvider antes de pintar. */}
+      <script
+        dangerouslySetInnerHTML={{ __html: appearanceScript(settings, stored) }}
+      />
       <AppFrame
         user={{
           name: session.user.name ?? "",

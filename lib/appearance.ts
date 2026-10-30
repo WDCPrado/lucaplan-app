@@ -16,20 +16,15 @@ const THEME = "theme" // storageKey por defecto de next-themes
 // el usuario vuelve a los defaults en otro dispositivo.
 const MIGRATED = "appearance-migrated"
 
-export function isDefaultSettings(s: UserSettings) {
-  return (
-    s.glassLevel === USER_SETTINGS_DEFAULTS.glassLevel &&
-    s.theme === USER_SETTINGS_DEFAULTS.theme
-  )
-}
-
-// Migración única desde localStorage. Criterio: solo si este dispositivo no migró aún y la base
-// está en los defaults (= el usuario nunca guardó nada); sube lo local que difiera de la base.
-// Devuelve el patch a subir, o null si no hay nada.
-export function legacyPatch(server: UserSettings): UserSettingsPatch | null {
+// Migración única desde localStorage. Criterio: solo si el usuario nunca guardó nada en la base
+// (`stored`: no tiene filas; guardar los defaults sí cuenta como elección) y este dispositivo no
+// migró aún; sube lo local que difiera de la base. Devuelve el patch a subir, o null si no hay nada.
+export function legacyPatch(
+  server: UserSettings,
+  stored: boolean
+): UserSettingsPatch | null {
   try {
-    if (!isDefaultSettings(server) || localStorage.getItem(MIGRATED))
-      return null
+    if (stored || localStorage.getItem(MIGRATED)) return null
     const patch: UserSettingsPatch = {}
     const theme = localStorage.getItem(THEME)
     if (
@@ -59,7 +54,80 @@ export function markMigrated() {
 // Script en línea que corre al parsear el HTML, antes de pintar el contenido de la app. Aplica la
 // misma lógica que `legacyPatch` (en la carga que migra se ve el valor local, sin salto) y deja el
 // tema en localStorage para que next-themes hidrate con el valor de la base.
-export function appearanceScript(server: UserSettings) {
+export function appearanceScript(server: UserSettings, stored: boolean) {
+  // Va dentro de <script>: sin «<» (no puede cerrar la etiqueta) ni U+2028/2029.
   const s = JSON.stringify(server)
-  return `(function(s){var t=s.theme,g=s.glassLevel,r=document.documentElement;try{var l=localStorage;if(${isDefaultSettings(server)}&&!l.getItem("${MIGRATED}")){var lt=l.getItem("${THEME}"),lg=l.getItem("${LEGACY_GLASS}");if(lt==="light"||lt==="dark"||lt==="system")t=lt;if(/^[0-4]$/.test(lg))g=+lg}l.setItem("${THEME}",t)}catch(e){}var m=t==="system"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):t;r.classList.remove("light","dark");r.classList.add(m);r.style.colorScheme=m;if(g!==${USER_SETTINGS_DEFAULTS.glassLevel})r.dataset.glass=String(g);else delete r.dataset.glass})(${s})`
+    .replace(/</g, "\\u003c")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029")
+  return `(function(s){var t=s.theme,g=s.glassLevel,r=document.documentElement;try{var l=localStorage;if(${!stored}&&!l.getItem("${MIGRATED}")){var lt=l.getItem("${THEME}"),lg=l.getItem("${LEGACY_GLASS}");if(lt==="light"||lt==="dark"||lt==="system")t=lt;if(/^[0-4]$/.test(lg))g=+lg}l.setItem("${THEME}",t)}catch(e){}var m=t==="system"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):t;r.classList.remove("light","dark");r.classList.add(m);r.style.colorScheme=m;if(g!==${USER_SETTINGS_DEFAULTS.glassLevel})r.dataset.glass=String(g);else delete r.dataset.glass})(${s})`
+}
+
+// Guardado optimista: la pantalla cambia al instante y cada PATCH puede fallar o llegar en
+// desorden. Por campo se lleva lo último que la base confirmó (`saved`), lo último que se pidió
+// (`requested`, contra eso se compara para no mandar repetidos) y un contador: un PATCH que falla
+// solo revierte los campos de los que sigue siendo el último pedido.
+type Field = keyof UserSettings
+export type SaveTracker = {
+  saved: UserSettings
+  requested: UserSettings
+  seq: Record<Field, number>
+  confirmedSeq: Record<Field, number>
+}
+export type SaveTicket = Partial<Record<Field, number>>
+
+export function createSaveTracker(initial: UserSettings): SaveTracker {
+  return {
+    saved: { ...initial },
+    requested: { ...initial },
+    seq: { glassLevel: 0, theme: 0 },
+    confirmedSeq: { glassLevel: 0, theme: 0 },
+  }
+}
+
+const fieldsOf = (patch: UserSettingsPatch | SaveTicket) =>
+  (Object.keys(patch) as Field[]).filter((f) => patch[f] !== undefined)
+
+export function beginSave(
+  t: SaveTracker,
+  patch: UserSettingsPatch
+): { tracker: SaveTracker; ticket: SaveTicket } {
+  const tracker = {
+    ...t,
+    requested: { ...t.requested, ...patch },
+    seq: { ...t.seq },
+  }
+  const ticket: SaveTicket = {}
+  for (const f of fieldsOf(patch)) ticket[f] = ++tracker.seq[f]
+  return { tracker, ticket }
+}
+
+// `confirmed`: el estado completo que devolvió la base, o null si el PATCH falló. Devuelve el
+// tracker nuevo y lo que hay que volver a pintar (vacío si nada).
+export function endSave(
+  t: SaveTracker,
+  ticket: SaveTicket,
+  confirmed: UserSettings | null
+): { tracker: SaveTracker; revert: Partial<UserSettings> } {
+  const tracker = {
+    ...t,
+    saved: { ...t.saved },
+    requested: { ...t.requested },
+    confirmedSeq: { ...t.confirmedSeq },
+  }
+  const revert: Partial<UserSettings> = {}
+  for (const f of fieldsOf(ticket)) {
+    const n = ticket[f]!
+    if (confirmed) {
+      // Una respuesta vieja que llega después de una más nueva no pisa lo confirmado.
+      if (n > tracker.confirmedSeq[f]) {
+        Object.assign(tracker.saved, { [f]: confirmed[f] })
+        tracker.confirmedSeq[f] = n
+      }
+    } else if (n === tracker.seq[f]) {
+      Object.assign(revert, { [f]: tracker.saved[f] })
+      Object.assign(tracker.requested, { [f]: tracker.saved[f] })
+    }
+  }
+  return { tracker, revert }
 }

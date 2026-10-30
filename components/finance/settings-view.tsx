@@ -3,7 +3,6 @@
 import { useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useTheme } from "next-themes"
 import { ChevronRight, Minus, Plus } from "lucide-react"
 import { toast } from "sonner"
 import type { PaceFrequency } from "@/arch/v1/domain/finance/pace.domain"
@@ -11,6 +10,7 @@ import type { PaceFrequency } from "@/arch/v1/domain/finance/pace.domain"
 import { authClient } from "@/lib/auth-client"
 import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
+import { useAppearance } from "@/components/appearance-provider"
 import { PushToggle } from "@/components/pwa/push-toggle"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
 import { AppShell, useOpenProfile } from "./app-shell"
@@ -43,7 +43,7 @@ export function SettingsView({
   vapidPublicKey: string
 }) {
   const router = useRouter()
-  const { resolvedTheme, setTheme } = useTheme()
+  const { toggleTheme } = useAppearance()
   const openProfile = useOpenProfile()
 
   async function signOut() {
@@ -86,7 +86,7 @@ export function SettingsView({
               type="button"
               onClick={() => {
                 haptic("light")
-                setTheme(resolvedTheme === "dark" ? "light" : "dark")
+                toggleTheme()
               }}
               className={ROW}
             >
@@ -164,9 +164,11 @@ function SettingsSection({
 const GLASS_NAMES = ["Más transparente", "Transparente", "Normal", "Teñido", "Muy teñido"]
 
 // Cuánto vidrio llevan barras, sidebar y menús: de transparente (el de siempre) a teñido, casi
-// sólido. Cinco pasos; es de este dispositivo (lib/glass-level.ts) y se ve al arrastrar.
+// sólido. Cinco pasos; es del usuario (en la base): se ve al arrastrar y se guarda al soltar.
 function AppearanceSection() {
-  // En el servidor no hay <html> que leer: parte en el nivel por defecto y al hidratar toma el del dispositivo.
+  const { saveGlass } = useAppearance()
+  // En el servidor no hay <html> que leer: parte en el nivel por defecto y al hidratar toma el del
+  // <html>, que ya trae el del usuario (script del layout).
   const level = useSyncExternalStore(subscribeGlass, getGlass, () => GLASS_DEFAULT)
 
   return (
@@ -182,6 +184,7 @@ function AppearanceSection() {
             haptic("light")
             setGlass(v)
           }}
+          onValueCommit={([v]) => saveGlass(v)}
           min={0}
           max={GLASS_MAX}
           step={1}

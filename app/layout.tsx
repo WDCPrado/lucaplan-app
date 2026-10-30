@@ -7,7 +7,6 @@ import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-regis
 import { PwaRefresh } from "@/components/pwa/pwa-refresh"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
-import { GLASS_SCRIPT } from "@/lib/glass-level"
 
 // Tipografía: la app usa la fuente del sistema (SF en Apple) y cae a Geist en el resto; Space
 // Grotesk queda solo para los titulares de la landing y Geist Mono para código. Las pilas viven en
@@ -98,10 +97,6 @@ export default function RootLayout({
         fontMono.variable
       )}
     >
-      <head>
-        {/* Nivel del vidrio de este dispositivo (Ajustes → Apariencia), antes del primer pintado. */}
-        <script dangerouslySetInnerHTML={{ __html: GLASS_SCRIPT }} />
-      </head>
       <body>
         {/* Señal de que no estás en prod: pestañita verde flotando sobre el navbar.
             Server component: en producción ni se renderiza. */}

@@ -60,7 +60,10 @@ function isTypingTarget(target: EventTarget | null) {
   )
 }
 
-function ThemeHotkey() {
+// La tecla D alterna el tema. Sin `onToggle` (rutas públicas) solo cambia el tema local; dentro de
+// la app AppearanceProvider le pasa el suyo, que además lo guarda en la base. Ese escucha en captura
+// y marca el evento, así este (en burbuja) lo ignora y el tema no se alterna dos veces.
+function ThemeHotkey({ onToggle }: { onToggle?: () => void }) {
   const { resolvedTheme, setTheme } = useTheme()
 
   React.useEffect(() => {
@@ -81,17 +84,23 @@ function ThemeHotkey() {
         return
       }
 
-      setTheme(resolvedTheme === "dark" ? "light" : "dark")
+      if (onToggle) {
+        event.preventDefault()
+        onToggle()
+      } else {
+        setTheme(resolvedTheme === "dark" ? "light" : "dark")
+      }
     }
 
-    window.addEventListener("keydown", onKeyDown)
+    const capture = Boolean(onToggle)
+    window.addEventListener("keydown", onKeyDown, capture)
 
     return () => {
-      window.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("keydown", onKeyDown, capture)
     }
-  }, [resolvedTheme, setTheme])
+  }, [resolvedTheme, setTheme, onToggle])
 
   return null
 }
 
-export { ThemeProvider }
+export { ThemeProvider, ThemeHotkey }

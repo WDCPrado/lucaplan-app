@@ -4,8 +4,8 @@ Guía de trabajo dentro del repo, para personas y agentes. El contexto general (
 stack, puesta en marcha, scripts, deploy) vive en el [README](../README.md); este documento cubre
 solo **cómo se trabaja aquí**.
 
-Tras mergear un PR, la instalación Docker local debe actualizar imagen y contenedores sin
-borrar datos, siguiendo [el procedimiento post-merge](self-hosting.md#después-de-mergear-un-pr-actualizar-docker-local).
+Tras mergear un PR, GitHub Actions valida `master` y el runner local actualiza los servicios
+afectados por sus rutas, siguiendo [el despliegue automático](self-hosting.md#despliegue-automático-al-integrar-en-master).
 Cerrar un PR sin merge no despliega. La configuración runtime externa y sus volúmenes se conservan.
 
 ## Flujo de trabajo

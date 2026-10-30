@@ -89,47 +89,151 @@ Compose conserva el callback `https://lucaplan.cl/api/email-connection/callback`
 Microsoft Graph salen hacia internet desde el host. Las suscripciones y los datos reales se
 verifican después del corte; los tests del repo no sustituyen esa prueba.
 
-## Después de mergear un PR: actualizar Docker local
+## Despliegue automático al integrar en master
 
-Un PR **mergeado** no termina la actualización de esta instalación: hay que reconstruir la
-imagen y recrear `app` y `cron` conservando sus datos. Un PR cerrado **sin merge** no se
-despliega. No se ejecuta este paso mientras el PR sigue en revisión.
+El workflow `Validate PR` valida primero el código en GitHub. Su job `deploy` corre **solo**
+para un `push` a `master` de este repositorio y después de que `validate` termine bien. Un PR
+abierto o cerrado sin merge no ejecuta código en el equipo de producción. También despliega
+un push directo autorizado a `master`; usa la protección de rama para exigir PR si corresponde.
+El runner hace una conexión saliente a GitHub: Cloudflare Tunnel sigue sirviendo la app y no
+necesita un webhook público nuevo.
 
-El runtime real usa `C:/Users/welli/selfhost/lucaplan/compose.json` y `production.env` del mismo
-directorio, proyecto `lucaplan-production`, imagen `lucaplan-local:wdc-151` y volumen externo
-`lucaplan-production-pgdata`. Ese JSON **no tiene build**: `up --build` sobre él no reconstruye
-el código. No basta con editar `compose.production.yml` del repo. Si el PR cambia Compose,
-sincroniza su definición con el JSON runtime preservando proyecto, servicios, puertos,
-volúmenes, mounts y referencias externas a secretos; no vuelques valores expandidos al repo.
+### Instalar el runner una vez
 
-Antes de actualizar, comprueba el SHA mergeado, guarda un backup PostgreSQL verificable fuera
-del repo, registra el estado de los servicios y etiqueta la imagen actual para rollback. Si
-hay migraciones, revisa su compatibilidad con la imagen anterior. Para el cambio a OTP verifica
-la presencia de `RESEND_API_KEY` en el archivo runtime sin mostrarla; ver [acceso por correo](login-code.md).
+1. En GitHub, **Settings → Actions → Runners → New self-hosted runner**, elige Windows x64.
+   Instala siguiendo los comandos que muestra GitHub, fuera del repositorio y del directorio
+   checkout. Ya está instalado como `lucaplan-local-windows` en `C:/Users/welli/selfhost/lucaplan/actions-runner`: no crees otro. Usa la etiqueta
+   **`lucaplan-production`**. El repositorio debe seguir siendo privado; un runner con acceso
+   a Docker y secretos no debe aceptar código de contribuidores no confiables.
+2. Usa la cuenta Windows que ya accede a Docker Desktop. El proceso necesita Git, Node **24**
+   y Docker Compose v2 en PATH; el workflow usa Windows PowerShell, no requiere `pwsh`.
+   Configura `LUCA_RUNTIME_DIR=C:/Users/welli/selfhost/lucaplan` en el entorno del runner antes
+   de arrancarlo. Ese directorio conserva `compose.json`, `production.env` y los secretos.
+3. Mantén `last-deploy.json` con `commit` (SHA completo de la versión realmente desplegada)
+   e `image`. En el primer run el script comprueba que app y cron estén ejecutando el ID de
+   esa imagen. No inicialices ese registro con el SHA del nuevo PR: representa la versión
+   anterior. Después se usa `deploy-state.json`, con SHA e imagen por servicio.
+4. Arranca el runner con la sesión del usuario que ejecuta Docker Desktop. La instalación
+   actual usa la tarea de Windows **`LucaPlan-GitHub-Runner`**, al iniciar sesión, con la cuenta
+   `PCWILLY\welli`, sin elevar privilegios. No es un servicio. Su archivo `.env` define
+   `LUCA_RUNTIME_DIR`. Docker Desktop debe estar listo antes de un despliegue; runner y tarea
+   no encienden el daemon ni el PC. Si Docker todavía no responde, reintenta el job una vez listo.
 
-Desde un checkout limpio de `master` actualizado al commit aprobado:
+Una ejecución se puede reintentar desde **Actions → Validate PR → Re-run failed jobs**.
+El job serializa despliegues con `queue: max`, conservando los pendientes aunque CI termine fuera de orden; el script tiene además `deploy.lock`. No cancela el despliegue
+activo por un merge nuevo. Si el SHA ya no es el último `master`, se omite; el próximo run
+validado compara contra el último estado confirmado, incluyendo todos los cambios pendientes.
+Si el último CI falla, se conserva la versión desplegada hasta corregirlo o revertirlo.
+
+### Watch paths
+
+| Cambios | Servicios que se reconstruyen/recrean |
+| --- | --- |
+| `app/`, `components/`, `hooks/`, `public/`, configuración Next/PostCSS | `app` |
+| `scripts/local-cron.mjs`, `scripts/sync-email.ts`, `scripts/notify-due.ts` | `cron` |
+| `arch/`, `lib/`, Prisma, Dockerfile, dependencias y otras rutas de runtime | `app` y `cron` |
+| Documentación, OpenSpec, tests, workflow y script de despliegue | Ninguno |
+| `compose.production.yml` | Se detiene para sincronización manual del manifiesto externo |
+
+La imagen se construye una vez por SHA y solo se asigna a los servicios afectados. App y cron
+pueden conservar imágenes distintas si el cambio solo toca uno. Los cambios de archivos
+borrados o movidos también se consideran. Las rutas desconocidas actualizan ambos por seguridad.
+Modificar el script de despliegue o el workflow surte efecto en la siguiente ejecución sin
+necesitar reconstruir la app. Los tests siguen corriendo en CI aunque no provoquen despliegue.
+
+El build termina antes de tocar contenedores. Antes de recrear app, se guarda un dump PostgreSQL
+en `LUCA_RUNTIME_DIR/backups` y se comprueba su catálogo con `pg_restore --list` (esto no es una
+prueba de restauración). Si hay migraciones, se detiene cron hasta que app esté saludable.
+PostgreSQL y el túnel no se recrean. Los backups e imágenes anteriores se conservan: controla
+el espacio en disco y aplica tu política de retención fuera de este script.
+
+`deploy-images.json` es un override **solo de imágenes**, externo al repositorio. A partir del
+primer despliegue, inclúyelo al operar manualmente, para no volver a la imagen de `compose.json`:
 
 ```powershell
-$runtimeManifest = 'C:/Users/welli/selfhost/lucaplan/compose.json'
-$runtimeEnv = 'C:/Users/welli/selfhost/lucaplan/production.env'
-$previousImage = 'lucaplan-local:before-' + (Get-Date -Format 'yyyyMMdd-HHmmss')
-docker image tag lucaplan-local:wdc-151 $previousImage
-if ($LASTEXITCODE -ne 0) { throw 'No se pudo conservar la imagen anterior.' }
-docker compose -p lucaplan-production --env-file $runtimeEnv -f $runtimeManifest config --quiet
-if ($LASTEXITCODE -ne 0) { throw 'Manifiesto runtime inválido.' }
-docker build --build-arg NEXT_PUBLIC_LANDING_ONLY=true -t lucaplan-local:wdc-151 .
-if ($LASTEXITCODE -ne 0) { throw 'Build falló; no recrear contenedores.' }
-docker compose -p lucaplan-production --env-file $runtimeEnv -f $runtimeManifest up -d --no-deps app cron
-if ($LASTEXITCODE -ne 0) { throw 'Recreación falló; revisar estado y rollback.' }
-docker compose -p lucaplan-production --env-file $runtimeEnv -f $runtimeManifest ps
+$runtime = 'C:/Users/welli/selfhost/lucaplan'
+docker compose -p lucaplan-production --env-file "$runtime/production.env" -f "$runtime/compose.json" -f "$runtime/deploy-images.json" ps
 ```
 
-Verifica la salud de app/cron, el login, la continuidad de la cuenta y sus datos, el túnel y
-los logs de arranque. Coteja los IDs de imagen de ambos contenedores con el build y registra
-SHA desplegado, backup y etiqueta anterior. No reinicies PostgreSQL ni el túnel sin necesidad.
+App espera su healthcheck HTTP; cron comprueba que el proceso esté `running`, no que haya
+sincronizado correos. Revisa sus logs después del siguiente intervalo. El SHA por servicio
+queda en `deploy-state.json`, el último resultado en `last-auto-deploy.json` y la ejecución
+en Actions. No se imprimen variables de producción.
 
-Si falla la nueva app y el esquema sigue compatible, vuelve a etiquetar `$previousImage`
-como `lucaplan-local:wdc-151` y repite `up -d --no-deps app cron`; verifica de nuevo. Un rollback
-de datos es otra operación: no restaures un dump encima de escrituras nuevas automáticamente.
-**Nunca uses `down -v`, `docker volume rm`, `prisma migrate reset`, `setup:db`, `clone:db` ni
-seeds sobre producción para actualizar una imagen.**
+### Fallos y recuperación
+
+Un fallo de build o backup deja los contenedores intactos. Un fallo al recrear puede dejar app
+en error y cron detenido si había migraciones: **no se confirma el SHA** ni se restaura la base
+automáticamente. Antes de reintentar, revisa logs y compatibilidad del esquema. El script
+rechaza un runtime cuya imagen no coincida con el estado confirmado, para no ocultar un
+despliegue incompleto.
+
+`deploy-previous.json` conserva las imágenes anteriores y `deploy-previous-state.json` su estado.
+Si el esquema sigue compatible, recupera las imágenes anteriores:
+
+```powershell
+$runtime = 'C:/Users/welli/selfhost/lucaplan'
+docker compose -p lucaplan-production --env-file "$runtime/production.env" -f "$runtime/compose.json" -f "$runtime/deploy-previous.json" up -d --no-deps --wait app
+if ($LASTEXITCODE -ne 0) { throw 'No se recuperó app; no arrancar cron.' }
+docker compose -p lucaplan-production --env-file "$runtime/production.env" -f "$runtime/compose.json" -f "$runtime/deploy-previous.json" up -d --no-deps --wait cron
+if ($LASTEXITCODE -ne 0) { throw 'No se recuperó cron.' }
+Copy-Item -LiteralPath "$runtime/deploy-previous.json" -Destination "$runtime/deploy-images.json"
+Copy-Item -LiteralPath "$runtime/deploy-previous-state.json" -Destination "$runtime/deploy-state.json"
+```
+
+Revisa luego login y datos. Si Windows se apagó durante el deploy, verifica que no haya un
+proceso activo, recupera el runtime y elimina únicamente `deploy.lock` antes de reintentar.
+Nunca restaures un dump automáticamente sobre escrituras posteriores.
+
+Si cambió `compose.production.yml`, sincroniza el manifiesto externo conservando secretos,
+volúmenes, puertos y proyecto; realiza el despliegue manual completo del SHA validado y comprueba
+ambos servicios. Luego actualiza `deploy-state.json` con ese SHA e imagen para **ambos** servicios
+y `deploy-images.json` con esas imágenes. No avances el estado solo para saltarte el bloqueo.
+
+## Después de mergear un PR: actualizar Docker local
+
+Este procedimiento manual sirve para sincronizar un cambio de Compose o recuperar una instalación.
+Detén temporalmente el runner para no solapar la operación con Actions. No ejecutes este paso
+mientras el PR sigue en revisión: usa un checkout limpio del SHA mergeado y validado de `master`.
+
+El runtime usa `C:/Users/welli/selfhost/lucaplan/compose.json` y `production.env`, proyecto
+`lucaplan-production` y volumen externo `lucaplan-production-pgdata`. Ese JSON no tiene build.
+Si cambió Compose, sincronízalo conservando secretos, puertos, mounts, volúmenes y proyecto.
+Antes de actualizar guarda un backup PostgreSQL verificable fuera del repo y preserva las
+imágenes/estado actuales para rollback. Revisa compatibilidad de las migraciones con la versión
+anterior. El ejemplo usa `NEXT_PUBLIC_LANDING_ONLY=true`; conserva el valor real del runtime.
+
+```powershell
+$runtime = 'C:/Users/welli/selfhost/lucaplan'
+$sha = (git rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or $sha -notmatch '^[a-f0-9]{40}$') { throw 'SHA inválido.' }
+$image = "lucaplan-local:$sha"
+$compose = @('compose', '-p', 'lucaplan-production', '--env-file', "$runtime/production.env", '-f', "$runtime/compose.json")
+docker @compose config --quiet
+if ($LASTEXITCODE -ne 0) { throw 'Manifiesto runtime inválido.' }
+docker build --build-arg NEXT_PUBLIC_LANDING_ONLY=true --label "org.opencontainers.image.revision=$sha" -t $image .
+if ($LASTEXITCODE -ne 0) { throw 'Build falló; no recrear contenedores.' }
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+$images = @{ services = @{ app = @{ image = $image }; cron = @{ image = $image } } }
+[IO.File]::WriteAllText("$runtime/deploy-candidate.json", ($images | ConvertTo-Json -Depth 5), $utf8)
+docker @compose stop cron
+if ($LASTEXITCODE -ne 0) { throw 'No se detuvo cron.' }
+docker @compose -f "$runtime/deploy-candidate.json" up -d --no-deps --wait app
+if ($LASTEXITCODE -ne 0) { throw 'App no está saludable; revisar recuperación.' }
+docker @compose -f "$runtime/deploy-candidate.json" up -d --no-deps --wait cron
+if ($LASTEXITCODE -ne 0) { throw 'Cron no arrancó; revisar recuperación.' }
+```
+
+Verifica login, continuidad de los datos, túnel y logs de cron. Coteja los IDs de imagen de los
+dos contenedores con el build. Solo después confirma el override y el estado:
+
+```powershell
+Copy-Item -LiteralPath "$runtime/deploy-candidate.json" -Destination "$runtime/deploy-images.json"
+$state = @{ app = @{ sha = $sha; image = $image }; cron = @{ sha = $sha; image = $image } }
+[IO.File]::WriteAllText("$runtime/deploy-state.json", ($state | ConvertTo-Json -Depth 5), $utf8)
+```
+
+Reanuda el runner. Si falla, recupera las imágenes y el estado preservados según la sección
+anterior, comprobando compatibilidad del esquema. No restaures un dump encima de escrituras
+nuevas automáticamente. Nunca uses `down -v`, `docker volume rm`, `prisma migrate reset`,
+`setup:db`, `clone:db` ni seeds sobre producción para actualizar una imagen.

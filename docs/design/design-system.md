@@ -54,11 +54,13 @@ acabado de `liquid-glass` con más relleno. El borde combina un contorno tenue d
 reflejo localizado arriba-izquierda y un eco más débil abajo-derecha; no ilumina todo el perímetro.
 Los cinco niveles de Apariencia cambian la transparencia, conservando el desenfoque.
 
-`liquid-glass-active` (`--glass-active`, `--glass-active-shadow`) es la selección neutra de pestañas
-y sidebar: clara en light, oscura en dark. Textos e íconos conservan `foreground`.
-`scroll-edge-top` / `scroll-edge-bottom` (`--scroll-edge`, `--scroll-edge-amount`, `--scroll-edge-blur`)
-separan los controles del contenido que pasa por debajo, con un velo tenue y el mismo fundido largo
-arriba y abajo. Los controles (`input`, segmentado) usan `--glass-control` / `--glass-control-active`.
+`liquid-glass-active` usa `--glass-tab-active` para recuperar el acento azul de la pestaña móvil.
+El sidebar conserva `--glass-active`, neutro: claro en light, oscuro en dark. Ambos usan
+`--glass-active-shadow`; textos e íconos conservan `foreground`.
+`scroll-edge-top` (`--scroll-edge`, `--scroll-edge-amount`, `--scroll-edge-blur`) queda solo detrás
+de la topbar de escritorio. En móvil el desenfoque se limita a las cápsulas del selector de mes y
+la navegación, sin velos fuera de sus bordes. Los controles (`input`, segmentado) usan
+`--glass-control` / `--glass-control-active`.
 `--radius-bar-inner` es el radio concéntrico de lo que va dentro de una barra `rounded-xl`.
 `--card-art-*` colorea el cupo sobre el arte de las tarjetas de cuenta. `--scrollbar` pinta el
 scrollbar fino de escritorio.

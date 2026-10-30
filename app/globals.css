@@ -163,6 +163,7 @@
     --glass-shadow: 0 1px 2px oklch(0.2 0.01 286 / 0.06), 0 8px 24px -6px oklch(0.2 0.01 286 / 0.16);
     /* Selección neutra: clara en light, oscura en dark; no vuelve a colorear el vidrio. */
     --glass-active: oklch(1 0 0 / 0.72);
+    --glass-tab-active: color-mix(in oklch, var(--primary) 16%, transparent);
     --glass-active-shadow: inset 0 0 0 0.5px var(--glass-edge), 0 1px 3px oklch(0 0 0 / 0.12);
     /* Material «regular» de iOS para lo que lleva texto encima del contenido (menús, popovers,
        select, tooltip, toasts, alertas): la misma familia, más opaco y con más desenfoque. */
@@ -292,6 +293,7 @@ html:has(main[data-landing]) body {
     --glass-reflection-opacity: 0.8;
     --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 8px 24px -6px oklch(0 0 0 / 0.55);
     --glass-active: oklch(0.1 0 0 / 0.6);
+    --glass-tab-active: color-mix(in oklch, var(--primary) 26%, transparent);
     --glass-active-shadow: inset 0 0 0 0.5px var(--glass-edge), 0 1px 3px oklch(0 0 0 / 0.18);
     --material: color-mix(in oklch, oklch(0.26 0.004 286 / 0.84), var(--card) var(--glass-tint));
     --material-shadow: 0 0 0 0.5px var(--glass-edge), 0 12px 40px -8px oklch(0 0 0 / 0.6);
@@ -415,9 +417,9 @@ html:has(main[data-landing]) body {
     }
   }
 }
-/* Pastilla de selección neutra, sin otro desenfoque ni refracción dentro del vidrio. */
+/* Pestaña móvil activa: acento azul, sin otro desenfoque ni refracción dentro del vidrio. */
 @utility liquid-glass-active {
-  background-color: var(--glass-active);
+  background-color: var(--glass-tab-active);
   box-shadow: var(--glass-active-shadow);
 }
 /* Material de lectura para menús, avisos y alertas: misma saturación, más opacidad que las barras. */
@@ -427,13 +429,8 @@ html:has(main[data-landing]) body {
   backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
   box-shadow: var(--material-shadow);
 }
-/* Scroll edge effect (apple-hig/components/scroll-views): desenfoque suave y fundido del contenido
-   que pasa por debajo de los controles flotantes. Uno arriba (detrás de la fila superior móvil o la
-   topbar) y otro abajo (detrás de la barra de pestañas), con el mismo tratamiento: misma
-   intensidad, mismo largo y la misma curva de fundido, solo en espejo. El velo es tenue y el fundido
-   largo (el pseudo se extiende 1.5rem más allá del contenedor y la máscara empieza a soltar a un
-   tercio), así no se lee como una franja. No es decorativo: solo va donde hay contenido que se
-   desplaza bajo controles. El contenedor necesita `position` y `z-index`. */
+/* Velo detrás de la topbar de escritorio. En móvil el desenfoque queda dentro de las cápsulas,
+   sin overlays a ancho completo que formen franjas fuera del selector y la barra inferior. */
 @utility scroll-edge-top {
   &::after {
     content: "";
@@ -448,34 +445,6 @@ html:has(main[data-landing]) body {
     pointer-events: none;
     transition: opacity 240ms ease-out;
   }
-}
-@utility scroll-edge-bottom {
-  &::after {
-    content: "";
-    position: absolute;
-    inset: -1.5rem 0 0 0;
-    z-index: -1;
-    background: linear-gradient(to top, var(--scroll-edge) 30%, transparent);
-    backdrop-filter: blur(var(--scroll-edge-blur));
-    -webkit-backdrop-filter: blur(var(--scroll-edge-blur));
-    -webkit-mask-image: linear-gradient(to top, #000 30%, transparent);
-    mask-image: linear-gradient(to top, #000 30%, transparent);
-    pointer-events: none;
-    transition: opacity 240ms ease-out;
-  }
-}
-
-/* Solo se ve cuando hay contenido pasando bajo los controles: en reposo no hay fondo. */
-@utility scroll-edge-off {
-  &::after {
-    opacity: 0;
-  }
-}
-
-/* Fila superior móvil, persistente en el AppFrame: el scroll edge aparece apenas hay scroll, en
-   todas las vistas. */
-.top-bar:not([data-scrolled])::after {
-  opacity: 0;
 }
 /* Título de la fila móvil. Arriba del todo ocupa su ancho y el selector de mes el resto; con el
    primer scroll (`data-scrolled`, del IntersectionObserver de AppFrame) se va con un fundido y un

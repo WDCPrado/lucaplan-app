@@ -181,15 +181,13 @@ agrupaciones, la tipografía y los controles.
     el vidrio de las barras, con la misma saturación moderada; la utilidad `material` concentra la
     receta. Los toasts de estado conservan su color semántico. Las hojas van sólidas (`--sheet`).
   - **Color con moderación**: el vidrio no tiene color propio; textos e íconos encima van en
-    `foreground`. La selección en pestañas y sidebar es neutra (`--glass-active` y
-    `--glass-active-shadow`): clara en light y oscura en dark, sin vidrio adicional dentro del
-    vidrio. El color de énfasis queda para el fondo de la acción primaria (`bg-primary`).
-  - **Scroll edge effect** (`scroll-edge-top` / `scroll-edge-bottom`) separa los controles del
-    contenido que pasa por debajo, no un fondo sólido: un velo tenue (`--scroll-edge-amount`, 22 %
-    por defecto y proporcional en cada nivel de vidrio) con un desenfoque leve
-    (`--scroll-edge-blur`, 4 px) y un fundido largo, para que no se lea como franja. Arriba y abajo
-    llevan el mismo tratamiento, en espejo: arriba aparece con el primer scroll, abajo mientras
-    queda contenido pasando bajo la barra de pestañas (IntersectionObserver, `useScrollEdges`).
+    `foreground`. La pestaña móvil activa lleva fondo azul (`--glass-tab-active`); el sidebar
+    conserva la selección neutra (`--glass-active`), clara en light y oscura en dark. Ambas usan
+    `--glass-active-shadow`, sin vidrio adicional dentro del vidrio.
+  - **Scroll edge effect** (`scroll-edge-top`) queda solo detrás de la topbar de escritorio:
+    un velo tenue (`--scroll-edge-amount`, 22 % por defecto y proporcional al nivel de vidrio),
+    desenfoque leve (`--scroll-edge-blur`, 4 px) y fundido largo. En móvil el desenfoque queda
+    dentro de las cápsulas, sin franjas a ancho completo alrededor de los controles.
   - **Concentricidad**: lo que va dentro de una barra o cápsula usa el radio externo menos el
     margen (`--radius-bar-inner` en la topbar y el sidebar; `rounded-full` dentro de cápsulas).
   - Con `prefers-reduced-transparency` todo material cae a sólido, sin desenfoque ni reflejo;
@@ -217,7 +215,7 @@ agrupaciones, la tipografía y los controles.
   leve desplazamiento a la izquierda) y el selector se corre y se ensancha hasta llenar la fila;
   al volver arriba, al revés (`.top-title`, 280 ms, una transición de `grid-template-columns`
   disparada por IntersectionObserver; sin movimiento con `prefers-reduced-motion`). Al navegar el
-  título cambia con un fundido corto. El scroll edge effect aparece apenas hay scroll. La pestaña
+  título cambia con un fundido corto. El vidrio queda dentro de cada cápsula. La pestaña
   activa no cambia de peso: la marca su pastilla. La cuenta (perfil, tema, cerrar sesión) vive en
   Ajustes. Las dos barras viven en el layout (`AppFrame`) y no se desmontan al navegar; la vista
   inyecta sus acciones por portal. Abajo, una cápsula con las pestañas (la activa con pastilla) y

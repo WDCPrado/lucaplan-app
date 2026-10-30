@@ -86,23 +86,20 @@ export function newMovementsMessage(
       // Sin categoría la IA no lo pudo clasificar: no cuenta para el presupuesto hasta que se haga.
       m.category || m.direction === "credit"
         ? `${m.description}.`
-        : `${clip(m.description, 40)}. Sin categoría: tócalo para clasificarlo.`,
+        : m.id
+          ? `${clip(m.description, 40)}. Sin categoría: tócalo para clasificarlo.`
+          : `${clip(m.description, 40)}. Sin categoría: revísalo en tus movimientos.`,
       // Tocar el aviso abre el movimiento, no una lista donde haya que buscarlo.
       m.id ? `/dashboard?tx=${m.id}` : "/movements",
       "movements"
     )
   }
-  // Resumen por moneda (CLP y USD por separado, sin convertir): gastos y abonos.
+  // Resumen de gastos por moneda (CLP y USD por separado, sin convertir). Los abonos no se
+  // muestran con monto: el aviso se ve en la pantalla bloqueada (privacidad).
   const debits = movements.filter((m) => m.direction === "debit")
-  const credits = movements.filter((m) => m.direction === "credit")
-  const parts = [
-    debits.length > 0 ? `Gastos por ${totals(debits)}` : "",
-    credits.length > 0 ? `abonos por ${totals(credits)}` : "",
-  ].filter(Boolean)
-  const body = parts.join("; ")
   return message(
     `${movements.length} movimientos nuevos`,
-    `${body.charAt(0).toUpperCase()}${body.slice(1)}.`,
+    debits.length > 0 ? `Gastos por ${totals(debits)}.` : "Revisa tus movimientos.",
     "/movements",
     "movements"
   )
@@ -132,10 +129,12 @@ export function budgetAlertMessage(
     .find((p) => usedBefore < limit * (p / 100) && usedAfter >= limit * (p / 100))
   if (crossed === undefined) return null
   const real = Math.round((usedAfter / limit) * 100)
+  // Título y cuerpo deciden con los MISMOS montos; el % redondeado es solo el dato que se muestra
+  // (996 de 1.000 redondea a 100% pero no está completo).
   const suffix =
-    real > 100
+    usedAfter > limit
       ? `: te pasaste (${real}%)`
-      : real === 100
+      : usedAfter === limit
         ? ": presupuesto completo"
         : `: ${real}% del presupuesto`
   const spent = `Llevas ${money(usedAfter, currency)} de ${money(limit, currency)}`

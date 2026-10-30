@@ -51,7 +51,7 @@ configurar, se vuelve a ofrecer la próxima vez.
 
 | Evento                     | Cuándo                                                                       |
 | -------------------------- | ----------------------------------------------------------------------------- |
-| Movimientos nuevos         | Cuando el sync de correo importa cargos/abonos del banco. Uno se nombra con monto y categoría (título `Gasto de $12.990 en Comida`, cuerpo `Uber Eats.`; sin clasificar, el cuerpo pide clasificarlo); varios se resumen con gastos y abonos por moneda. Los movimientos **manuales no notifican**: el usuario acaba de crearlos. |
+| Movimientos nuevos         | Cuando el sync de correo importa cargos/abonos del banco. Uno se nombra con monto y categoría (título `Gasto de $12.990 en Comida`, cuerpo `Uber Eats.`; sin clasificar, el cuerpo pide clasificarlo); varios se resumen con el total de gastos por moneda, sin montos de abonos (el aviso se ve en la pantalla bloqueada; si solo hubo abonos, el cuerpo no lleva montos). Los movimientos **manuales no notifican**: el usuario acaba de crearlos. |
 | Alerta de presupuesto      | Cuando un gasto hace que **una categoría** cruce alguno de los porcentajes configurados de **su** límite del mes: al importarlo, o al **categorizarlo** (sin categoría no cuenta para el presupuesto, igual que en el resumen). Al ser un cruce (antes debajo, después encima) no se repite ni hace falta guardar "ya avisé". Si un gasto cruza varios umbrales de una vez, avisa **solo el más alto**. |
 | Pagos por vencer           | Recurrentes y cuotas que vencen dentro de la ventana configurada (**Configuración → Pagos por vencer**, 0–14 días). Lo dispara el cron `pnpm notify:due`. |
 
@@ -93,8 +93,8 @@ una categoría a otra sí evalúa la **nueva** (su gasto subió). Cada aviso usa
 dos categorías no se pisan. Propagar una categoría a todos los movimientos con el mismo texto **no**
 dispara alertas.
 
-Categorizar solo alerta si el movimiento es del **mes en curso**: el triage del onboarding clasifica
-tres meses de historial y avisar del presupuesto de un mes pasado sería ruido. El import inicial
+Categorizar solo alerta si el movimiento es del **mes en curso**: categorizar
+movimientos de meses anteriores y avisar del presupuesto de un mes pasado sería ruido. El import inicial
 (`confirmSetup`) tampoco notifica: solo el sync incremental llama al hook.
 
 ## Recordatorio de vencimientos (cron)

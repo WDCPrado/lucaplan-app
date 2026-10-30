@@ -63,7 +63,12 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = event.notification.data?.url || "/dashboard";
-  const target = new URL(url, self.location.origin).href;
+  // Solo destinos de la propia app: una url de otro origen en el payload cae al dashboard.
+  const resolved = new URL(url, self.location.origin);
+  const target =
+    resolved.origin === self.location.origin
+      ? resolved.href
+      : new URL("/dashboard", self.location.origin).href;
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })

@@ -45,7 +45,8 @@ test("un movimiento se nombra; varios se resumen; ninguno no notifica", () => {
   const one = newMovementsMessage([mov("Uber Eats", 12990)])
   // Sin categoría: el título no inventa una y el cuerpo dice qué hacer.
   assert.equal(one?.title, "Gasto de $12.990")
-  assert.equal(one?.body, "Uber Eats. Sin categoría: tócalo para clasificarlo.")
+  // Sin id el aviso lleva a la lista, no a un modal: no puede decir "tócalo para clasificarlo".
+  assert.equal(one?.body, "Uber Eats. Sin categoría: revísalo en tus movimientos.")
   // Con categoría asignada, el título la nombra junto al monto.
   const conCategoria = newMovementsMessage([
     { ...mov("Uber Eats", 12990), category: "Comida" },
@@ -53,10 +54,9 @@ test("un movimiento se nombra; varios se resumen; ninguno no notifica", () => {
   assert.equal(conCategoria.title, "Gasto de $12.990 en Comida")
   assert.equal(conCategoria.body, "Uber Eats.")
   // Con el id del movimiento, el aviso enlaza directo a su modal; sin él, a la lista.
-  assert.equal(
-    newMovementsMessage([{ ...mov("Uber Eats", 12990), id: "tx1" }])!.url,
-    "/dashboard?tx=tx1"
-  )
+  const conId = newMovementsMessage([{ ...mov("Uber Eats", 12990), id: "tx1" }])!
+  assert.equal(conId.url, "/dashboard?tx=tx1")
+  assert.equal(conId.body, "Uber Eats. Sin categoría: tócalo para clasificarlo.")
   assert.equal(one!.url, "/movements")
   const many = newMovementsMessage([
     mov("Uber Eats", 12990),
@@ -64,8 +64,14 @@ test("un movimiento se nombra; varios se resumen; ninguno no notifica", () => {
     mov("Sueldo", 900000, "credit"),
   ])
   assert.equal(many?.title, "3 movimientos nuevos")
-  // Gastos y abonos por separado: el abono no se resta ni se suma a los gastos.
-  assert.equal(many?.body, "Gastos por $32.990; abonos por $900.000.")
+  // Solo los gastos llevan monto: los abonos no se muestran en la pantalla bloqueada.
+  assert.equal(many?.body, "Gastos por $32.990.")
+  // Solo abonos: frase sin montos.
+  assert.equal(
+    newMovementsMessage([mov("Sueldo", 900000, "credit"), mov("Reembolso", 5000, "credit")])!
+      .body,
+    "Revisa tus movimientos."
+  )
   assert.equal(many?.url, "/movements")
   // CLP y USD nunca se suman: cada moneda con su total.
   assert.equal(
@@ -99,6 +105,14 @@ test("la alerta de presupuesto solo se dispara al CRUZAR el umbral de la categor
     budgetAlertMessage(COMIDA, 70_000, 100_000, 100_000, P)!.title,
     /presupuesto completo/
   )
+  // El título decide con los montos, no con el % redondeado: 996 de 1.000 redondea a 100% pero
+  // no está completo; 1.004 redondea a 100% pero sí se pasó.
+  const casi = budgetAlertMessage(COMIDA, 700, 996, 1_000, P)!
+  assert.equal(casi.title, "Comida: 100% del presupuesto")
+  assert.match(casi.body, /te quedan \$4 este mes/)
+  const apenas = budgetAlertMessage(COMIDA, 700, 1_004, 1_000, P)!
+  assert.equal(apenas.title, "Comida: te pasaste (100%)")
+  assert.match(apenas.body, /te pasaste por \$4\./)
   // Categoría sin límite: no hay porcentaje que cruzar.
   assert.equal(budgetAlertMessage(COMIDA, 0, 50_000, 0, P), null)
   // Sin umbrales configurados no se avisa nada.

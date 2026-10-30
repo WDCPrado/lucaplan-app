@@ -28,7 +28,6 @@ import {
 import { InvalidPaceFrequencyError } from "../domain/finance/pace.domain.ts"
 import { InvalidBudgetPeriodError } from "../domain/finance/budget-period.domain.ts"
 import { BalanceScanError } from "../domain/finance/balance-scan.domain.ts"
-import { MovementScanError } from "../domain/finance/movement-scan.domain.ts"
 import {
   InvalidRecurringTemplateError,
   RecurringCategoryRequiredError,
@@ -94,8 +93,7 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof InvalidManualAccountError ||
     e instanceof EmailReauthRequiredError ||
     e instanceof EmailSetupStateError ||
-    e instanceof BalanceScanError ||
-    e instanceof MovementScanError
+    e instanceof BalanceScanError
   )
     return 422
   if (

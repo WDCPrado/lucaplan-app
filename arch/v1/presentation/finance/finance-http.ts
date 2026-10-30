@@ -25,7 +25,6 @@ import { currentBudgetPeriod } from "../../application/finance-use-cases/budget-
 import { todayKey } from "../../../shared/today.ts"
 import { openaiCategorizationProvider } from "../../infrastructure/http/ai/openai-categorization.provider.ts"
 import { openaiBalanceScanReader } from "../../infrastructure/http/ai/openai-balance-scan.provider.ts"
-import { openaiMovementScanReader } from "../../infrastructure/http/ai/openai-movement-scan.provider.ts"
 import { exchangeRateProvider } from "../../infrastructure/http/exchange/usd-clp.ts"
 import { memoizeReads, type MemoStore } from "./request-memo.ts"
 
@@ -45,7 +44,6 @@ export const financeDeps = {
   budgetPeriod: budgetPeriodRepository,
   categorization: openaiCategorizationProvider,
   balanceScan: openaiBalanceScanReader,
-  movementScan: openaiMovementScanReader,
   corrections: correctionRepository,
   exchangeRates: exchangeRateProvider,
   bankReconciliation: bankReconciliationStore,

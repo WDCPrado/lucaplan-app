@@ -178,7 +178,7 @@ lectura de cartolas por foto, así nada se cuenta dos veces cuando el correo lle
 | Lenguaje      | TypeScript                                                               |
 | UI            | [Tailwind CSS v4](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com) + Base UI, `lucide-react`, `next-themes` |
 | Base de datos | PostgreSQL 17 + [Prisma 7](https://www.prisma.io)                        |
-| Auth          | [better-auth](https://better-auth.com) (email + contraseña, roles)       |
+| Auth          | [better-auth](https://better-auth.com) (código por correo, roles)       |
 | IA            | OpenAI Chat Completions (`gpt-4o-mini` por defecto)                      |
 | Correo        | Microsoft Graph (OAuth 2.0 + PKCE, `Mail.Read`)                          |
 | Tests         | `node --test` (sin framework)                                            |
@@ -239,8 +239,9 @@ cp .env.example .env
 | -------------------------- | :-------: | --------------------------------------------------------------------------- |
 | `DATABASE_URL`             | ✅        | Conexión PostgreSQL, ej. `postgresql://lucaplan:lucaplan@localhost:5432/lucaplan?schema=public` |
 | `BETTER_AUTH_SECRET`       | ✅        | Génerala con `npx @better-auth/cli secret`                                  |
+| `RESEND_API_KEY` | ✅ para login | Clave privada de envío; solo servidor. |
+| `RESEND_FROM` | opcional | Remitente verificado; default `Luca Plan <no-reply@lucaplan.cl>`. |
 | `BETTER_AUTH_URL`          | ✅        | URL base de la app: `http://localhost:3005` en desarrollo                   |
-| `DEV_ANY_PASSWORD`         | opcional  | **Solo desarrollo local.** Con `true`, el login acepta cualquier contraseña siempre que el correo exista — cómodo para saltar entre cuentas sembradas. Se ignora salvo `NODE_ENV=development`, así que producción, Docker y los entornos de PR nunca la aplican. |
 | `OPENAI_API_KEY`           | opcional  | Habilita la categorización con IA y la lectura de saldos por captura ([crear key](https://platform.openai.com/api-keys)). Sin ella, la app funciona igual: los movimientos quedan sin categorizar y los saldos se escriben a mano. |
 | `OPENAI_MODEL`             | opcional  | Modelo a usar (default `gpt-4o-mini`)                                        |
 | `OUTLOOK_CLIENT_ID`        | opcional  | Conexión por correo — ver [guía paso a paso](#-conectar-outlook-banco-de-chile-paso-a-paso) |
@@ -286,9 +287,9 @@ pnpm setup:prisma   # prisma generate + prisma migrate deploy (aditivo, no borra
 pnpm dev
 ```
 
-Abre **http://localhost:3005**, entra a `/login` y crea tu cuenta (email + contraseña).
-El registro está abierto por defecto; para cerrarlo en un deploy propio, mira
-[docs/pre-launch-lock.md](docs/pre-launch-lock.md).
+Abre **http://localhost:3005** y entra a `/login` con el código que llega al correo.
+El registro público está cerrado: crea la cuenta con `pnpm create:account --db-prod "postgresql://..." --email persona@example.com`.
+Configura `RESEND_API_KEY` en el servidor; [acceso por correo](docs/login-code.md) explica el remitente, la transición y las pruebas locales.
 
 ### 5. (Opcional) Siembra un set de categorías con contexto para la IA
 
@@ -468,14 +469,13 @@ sola y nombra así los entornos efímeros de pull request (`pr-2`, o `lucaplan-a
 proyecto tiene varios servicios). En `production` (y en local, y en Docker Compose) se salta sin
 tocar la base. No hay nada que configurar.
 
-Cada PR queda entonces navegable de inmediato con un usuario demo y un mes de datos ya armado. El
-formulario de login de esos entornos lista las cuentas sembradas, deja elegir una (los campos
-quedan escritos, entrar es un clic) y copiar la contraseña:
+Los seeds históricos siguen creando datos por escena, sin contraseña ni acceso automático.
+Para este entorno Docker se usa una preview local aislada con correo simulado, como describe
+[acceso por correo](docs/login-code.md). No se envía correo a cuentas ficticias reales.
 
 | Variable            | Default            | Para qué                                                       |
 | ------------------- | ------------------ | -------------------------------------------------------------- |
 | `SEED_PR_EMAIL`     | `demo@lucaplan.cl` | Correo del usuario base con el que entras al entorno del PR      |
-| `SEED_PR_PASSWORD`  | `lucaplan1234`     | La contraseña, común a todas las cuentas sembradas               |
 | `SEED_PR_FORCE`     | —                  | `1` borra los datos de los usuarios demo y los vuelve a sembrar en el próximo deploy |
 
 Es idempotente: si un usuario demo ya existe, los redeploys del PR no lo tocan (lo que probaste
@@ -503,8 +503,7 @@ el cliente normal, **sin límite por usuario**. El aislamiento es una **regla qu
 cumple** filtrando por el `userId` de su contexto, no algo que la estructura imponga; un `where`
 sin él alcanza a los demás usuarios demo.
 
-El login del entorno de PR lista todas las cuentas con su título; elegir una rellena el formulario
-y entrar es un clic. Todas comparten la misma contraseña: lo que cambia es el correo.
+Cada escena conserva su usuario y correo; el acceso requiere un código, igual que el login normal.
 
 Cada escena corre aislada: si una falla —típicamente una vieja contra un esquema que ya cambió— el
 seed lo registra y sigue con las demás, en vez de caerse el deploy. Cómo escribir una, en
@@ -522,7 +521,8 @@ seed lo registra y sigue con las demás, en vez de caerse el deploy. Cómo escri
 | Outlook / Microsoft Graph   | [docs/email-connection-outlook.md](docs/email-connection-outlook.md) — referencia de la conexión de correo con Banco de Chile. El paso a paso está [más arriba](#-conectar-outlook-banco-de-chile-paso-a-paso). |
 | Correos bancarios           | [docs/bank-email-contract.md](docs/bank-email-contract.md) — catálogo de correos soportados y qué debe aportar un banco nuevo. |
 | Plugin Luca Plan            | [docs/plugin-luca-plan.md](docs/plugin-luca-plan.md) — paquete MCP, autorización por usuario, catálogo de operaciones y conexión con ChatGPT o Codex. |
-| Operación y despliegue      | [Scripts](#scripts) y [Deploy](#deploy) en este README; cerrar/abrir el registro en [docs/pre-launch-lock.md](docs/pre-launch-lock.md). |
+| Acceso por correo          | [Código de acceso y Resend](docs/login-code.md). |
+| Operación y despliegue      | [Scripts](#scripts) y [Deploy](#deploy) en este README; [Docker local y actualización post-merge](docs/self-hosting.md). |
 | Specs y cambios             | [openspec/README.md](openspec/README.md) — capacidades canónicas, cambios en curso y archivo histórico. |
 
 ## Contribuir

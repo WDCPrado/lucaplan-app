@@ -26,9 +26,6 @@ if (!demo) {
   process.exit(0)
 }
 
-// El registro cerrado (landing) desactiva signUpEmail al CONSTRUIR Better Auth, así que la variable
-// se fuerza antes de importarlo; de ahí que este import sea dinámico y no estático.
-process.env.NEXT_PUBLIC_LANDING_ONLY = "false"
 const { sembrarUsuario } = await import("./seed-pr/sembrar-usuario.ts")
 
 const { env: envName, email: EMAIL, password: PASSWORD } = demo
@@ -64,7 +61,7 @@ const resumen = await correrEscenas({
 console.log(
   `[seed:pr] listo en "${envName}" — sembradas: ${resumen.sembradas + (base ? 1 : 0)} · ` +
     `ya estaban: ${resumen.omitidas + (base ? 0 : 1)} · fallidas: ${resumen.fallidas}. ` +
-    `Contraseña común: ${PASSWORD}.`
+    `Acceso por código al correo; no se crean contraseñas.`
 )
 
 process.exit(0)

@@ -14,16 +14,12 @@ import { prisma } from "../database/prisma/client.ts"
 import { categoryRepository } from "../database/prisma/finance.infrastructure.ts"
 import { seedDefaultCategories } from "../../application/finance-use-cases/seed-default-categories-use-case.ts"
 import { prDemoAccount } from "../../../../lib/pr-demo.ts"
-import { devAnyPasswordEnabled } from "./dev-any-password.ts"
-
-// Atajo de desarrollo: cualquier contraseña entra si el correo existe. Se avisa fuerte en consola
-// porque es un login abierto, aunque solo pueda existir en local (ver dev-any-password.ts).
-const anyPassword = devAnyPasswordEnabled()
-if (anyPassword) {
-  console.warn(
-    "[auth] DEV_ANY_PASSWORD activo: cualquier contraseña entra si el correo existe. Solo desarrollo local."
-  )
-}
+import {
+  assertLoginCodeRequest,
+  createLoginCodePlugin,
+  PASSWORD_DISABLED_PATHS,
+} from "./login-code.ts"
+import { createResendLoginCodeMailer } from "../email/resend/login-code.mailer.ts"
 
 // Build sin secretos: se comprueba otra vez en cada petición OAuth, nunca al importar.
 const canonical = (() => {
@@ -37,6 +33,7 @@ const canonical = (() => {
 export const auth = betterAuth({
   baseURL: canonical?.issuer,
   disabledPaths: [
+    ...PASSWORD_DISABLED_PATHS,
     "/token",
     "/oauth2/update-consent",
     "/oauth2/delete-consent",
@@ -44,6 +41,7 @@ export const auth = betterAuth({
   ],
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
+      assertLoginCodeRequest(ctx.path, ctx.body)
       if (!ctx.path.startsWith("/oauth2/")) return
       try {
         getPluginConfig()
@@ -114,19 +112,14 @@ export const auth = betterAuth({
         "https://*.up.railway.app",
       ]
     : [],
-  // Landing-only (vitrina open source): el registro se cierra también en el endpoint,
-  // no solo en la UI. Solo entran cuentas existentes.
-  emailAndPassword: {
-    enabled: true,
-    disableSignUp: process.env.NEXT_PUBLIC_LANDING_ONLY === "true",
-    // ponytail: reset por consola en local; cambiar por envío de correo cuando toque.
-    sendResetPassword: async ({ url }) => {
-      console.log("[reset-password]", url)
-    },
-    // El hash real se sigue guardando y usando; en local solo se salta la comparación.
-    ...(anyPassword ? { password: { verify: async () => true } } : {}),
-  },
+  emailAndPassword: { enabled: false },
   plugins: [
+    createLoginCodePlugin(
+      createResendLoginCodeMailer({
+        apiKey: process.env.RESEND_API_KEY,
+        from: process.env.RESEND_FROM,
+      })
+    ),
     admin({ defaultRole: "USER", adminRoles: ["ADMIN"] }),
     jwt({ jwt: { issuer: canonical?.issuer } }),
     oauthProvider({

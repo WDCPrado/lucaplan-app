@@ -6,7 +6,7 @@
 // No decide si corresponde sembrar ni en qué entorno: de eso se encarga scripts/seed-pr.ts.
 
 import { prisma } from "../../arch/v1/infrastructure/database/prisma/client.ts"
-import { auth } from "../../arch/v1/infrastructure/auth/auth.ts"
+import { randomUUID } from "node:crypto"
 
 // Lo que recibe una escena: el usuario ya sembrado y lo que casi siempre necesita como
 // dependencia, para que no tenga que volver a consultarlo.
@@ -69,11 +69,11 @@ const RECURRING: [string, string, number, number, string][] = [
   ["Internet hogar", "Pago:vtr internet", 29990, 19, "Cuentas"],
 ]
 
-async function resolveUser(email: string, password: string, nombre: string) {
+async function resolveUser(email: string, nombre: string) {
   const existing = await prisma.user.findUnique({ where: { email } })
   if (!existing) {
-    const { user } = await auth.api.signUpEmail({
-      body: { name: nombre, email, password },
+    const user = await prisma.user.create({
+      data: { id: randomUUID(), name: nombre, email, role: "USER" },
     })
     return { id: user.id, fresh: true }
   }
@@ -102,7 +102,6 @@ async function resolveUser(email: string, password: string, nombre: string) {
  */
 export async function sembrarUsuario({
   email,
-  password,
   nombre,
 }: {
   email: string
@@ -120,7 +119,7 @@ export async function sembrarUsuario({
   const prevYear = prev.getUTCFullYear()
   const prevMonth = prev.getUTCMonth() + 1
 
-  const { id: userId, fresh } = await resolveUser(email, password, nombre)
+  const { id: userId, fresh } = await resolveUser(email, nombre)
   if (!fresh) {
     console.log(
       `[seed:pr] ${email} ya tiene datos — no se toca (SEED_PR_FORCE=1 para rehacerlo).`
@@ -128,7 +127,7 @@ export async function sembrarUsuario({
     return null
   }
 
-  // El alta por Better Auth siembra las categorías por defecto (seed-default-categories-use-case) y
+  // El seed controla las categorías de esta cuenta ficticia y
   // este seed necesita SU set exacto: varios nombres coinciden y el unique (userId, name) reventaría.
   // Vale para los dos caminos: cuenta nueva (las por defecto) y re-siembra (las del seed anterior).
   await prisma.category.deleteMany({ where: { userId } })

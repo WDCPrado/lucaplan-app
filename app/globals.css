@@ -141,10 +141,10 @@
        sidebar, topbar, cápsulas y botones flotantes). Variante «regular»: desenfoque + luminosidad;
        sin color propio. Lo grande (sidebar) un poco más opaco que lo chico (barra, botones).
        Ajustes → Apariencia (`data-glass` en <html>, lib/glass-level.ts) lo mueve: 2 (sin atributo)
-       es el vidrio de siempre; 0–1 lo aclaran (`--glass-clear`) y 3–4 lo tiñen hacia la celda
+       es el vidrio por defecto (ya aclarado un 35 %); 0–1 lo aclaran más (`--glass-clear`) y 3–4 lo tiñen hacia la celda
        sólida (`--glass-tint`). Los menús (`--material`) no se aclaran: llevan texto. */
     --glass-tint: 0%;
-    --glass-clear: 0%;
+    --glass-clear: 35%;
     --glass-fill: color-mix(in oklch, color-mix(in oklch, oklch(1 0 0 / 0.6), transparent var(--glass-clear)), var(--card) var(--glass-tint));
     --glass-fill-large: color-mix(in oklch, color-mix(in oklch, oklch(0.985 0.002 286 / 0.72), transparent var(--glass-clear)), var(--card) var(--glass-tint));
     --glass-blur: 16px;
@@ -641,10 +641,10 @@ html:has(main[data-landing]) body {
 
 /* Nivel del vidrio elegido en Ajustes (0 = transparente, el de siempre; 4 = teñido, casi sólido).
    Más contraste y menos transparencia del sistema, abajo, siguen ganando. */
-:root[data-glass="0"] { --glass-clear: 45%; }
-:root[data-glass="1"] { --glass-clear: 25%; }
-:root[data-glass="3"] { --glass-tint: 45%; }
-:root[data-glass="4"] { --glass-tint: 80%; }
+:root[data-glass="0"] { --glass-clear: 80%; }
+:root[data-glass="1"] { --glass-clear: 60%; }
+:root[data-glass="3"] { --glass-clear: 0%; --glass-tint: 30%; }
+:root[data-glass="4"] { --glass-clear: 0%; --glass-tint: 75%; }
 
 /* Accesibilidad (apple-hig/foundations/materials): con MÁS CONTRASTE el vidrio gana relleno y
    contorno; con MENOS TRANSPARENCIA todo material cae a sólido, y va después para ganarle a

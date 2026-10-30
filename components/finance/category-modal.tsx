@@ -5,11 +5,13 @@ import { useId, useState } from "react"
 import { useForm, Controller, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
-import { Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { haptic } from "@/lib/haptics"
 import { categorySchema, categoryLimitSchema } from "@/lib/finance-form-schemas"
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
+import {
+  ModalDangerRow,
+  ResponsiveModal,
+} from "@/components/ui/responsive-modal"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -201,6 +203,21 @@ export function CategoryModal({
             ? "Nueva categoría de ingreso"
             : "Nueva categoría"
       }
+      cancel={{
+        label: "Cancelar",
+        disabled: busy,
+        onClick: () => {
+          form.reset()
+          setCreatedId(null)
+          onOpenChange(false)
+        },
+      }}
+      primary={{
+        label: isSubmitting ? "Guardando…" : "Guardar categoría",
+        mobileLabel: isSubmitting ? "Guardando…" : "Guardar",
+        form: formId,
+        disabled: busy || (!!category && !isDirty),
+      }}
     >
       <form
         id={formId}
@@ -395,41 +412,16 @@ export function CategoryModal({
           </FinanceField>
         </fieldset>
       </form>
-      <ModalFooter className="px-5">
-        <Button
-          type="button"
-          variant="outline"
-          className="h-12"
-          disabled={busy}
-          onClick={() => {
-            form.reset()
-            setCreatedId(null)
-            onOpenChange(false)
-          }}
-        >
-          Cancelar
-        </Button>
-        {category && (
-          <Button
-            type="button"
-            variant="outline"
-            className="size-12 text-destructive"
+      {category && (
+        <div className="mt-8 px-5">
+          <ModalDangerRow
             disabled={busy}
             onClick={() => setConfirmDelete(true)}
-            aria-label="Eliminar categoría"
           >
-            <Trash2 className="size-4" />
-          </Button>
-        )}
-        <Button
-          type="submit"
-          form={formId}
-          disabled={busy || (!!category && !isDirty)}
-          className="h-12 flex-1 text-body"
-        >
-          {isSubmitting ? "Guardando…" : "Guardar categoría"}
-        </Button>
-      </ModalFooter>
+            Eliminar categoría
+          </ModalDangerRow>
+        </div>
+      )}
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>

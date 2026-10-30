@@ -6,7 +6,6 @@ import { toast } from "sonner"
 
 import { Plus } from "lucide-react"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
-import { Button } from "@/components/ui/button"
 import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 import { formatCLP } from "@/lib/finance-format"
@@ -114,13 +113,13 @@ export function AssignToInstallmentModal({
             <p className="py-3 text-subheadline">
               ¿De qué deuda es este pago?
             </p>
-            <ul className="flex flex-col">
+            <ul className="sheet-group inset-list flex flex-col overflow-hidden [--inset:4.5rem]">
               {plans.map((p) => (
                 <li key={p.id}>
                   <button
                     type="button"
                     onClick={() => setPlanId(p.id)}
-                    className="flex w-full items-center gap-3 border-b border-border/40 py-3 text-left transition-colors hover:bg-secondary/40"
+                    className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
                   >
                     <span
                       className="grid size-11 shrink-0 place-items-center rounded-full bg-muted"
@@ -162,7 +161,7 @@ export function AssignToInstallmentModal({
                 </button>
               )}
             </div>
-            <ul className="flex flex-col">
+            <ul className="sheet-group inset-list flex flex-col overflow-hidden [--inset:3.25rem]">
               {plan.items
                 .filter(
                   (i) => i.status === "overdue" || i.status === "upcoming"
@@ -173,7 +172,7 @@ export function AssignToInstallmentModal({
                       type="button"
                       onClick={() => assign(item.id)}
                       disabled={busy}
-                      className="flex w-full items-center gap-3 border-b border-border/40 py-2.5 text-left transition-colors hover:bg-secondary/40 disabled:opacity-50"
+                      className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left disabled:opacity-50"
                     >
                       <span className="tabular w-6 shrink-0 text-footnote text-muted-foreground">
                         {item.index}
@@ -205,14 +204,16 @@ export function AssignToInstallmentModal({
         {/* La deuda puede no estar registrada todavía (el caso típico: la cuota llega por correo
             antes de que exista el plan). La salida de crear vive aquí, junto a la pregunta. */}
         {plans !== null && onCreateLoan && (
-          <Button
-            variant="outline"
-            onClick={onCreateLoan}
-            className="mt-4 h-11"
-          >
-            <Plus className="size-4" />
-            Registrar un crédito nuevo
-          </Button>
+          <div className="sheet-group mt-6 overflow-hidden">
+            <button
+              type="button"
+              onClick={onCreateLoan}
+              className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary"
+            >
+              <Plus className="size-5 shrink-0" />
+              Registrar un crédito nuevo
+            </button>
+          </div>
         )}
       </div>
     </ResponsiveModal>

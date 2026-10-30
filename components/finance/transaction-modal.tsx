@@ -18,16 +18,20 @@ import { useRouter } from "next/navigation"
 import { es } from "date-fns/locale"
 import {
   CalendarIcon,
+  ChevronRight,
   CircleDashed,
   CreditCard,
-  MoreHorizontal,
   PauseCircle,
   PlayCircle,
   Repeat,
-  Trash2,
 } from "lucide-react"
 import { toast } from "sonner"
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
+import {
+  ModalActions,
+  ModalDangerRow,
+  ModalSection,
+  ResponsiveModal,
+} from "@/components/ui/responsive-modal"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,13 +43,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Input } from "@/components/ui/input"
@@ -287,18 +284,19 @@ export function TransactionModal({
       title={activeTx?.editable ? "Editar movimiento" : "Movimiento del banco"}
     >
       {!!links.length && (
-        <section aria-label="Movimientos relacionados" className="sheet-group space-y-2 p-3">
-          <p className="text-footnote font-medium text-muted-foreground">Reembolso vinculado</p>
+        <div className="mb-6 px-5">
+        <ModalSection title="Reembolso vinculado">
           {links.map(link => (
             <button key={link.id} type="button" onClick={() => setRelatedTx(link.transaction)}
-              className="press flex min-h-11 w-full items-center justify-between gap-3 rounded-md bg-(--glass-control) px-3 py-2 text-left">
+              className="press flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2 text-left">
               <span className="min-w-0"><span className="block truncate text-subheadline font-medium">{link.transaction.description}</span>
                 <span className="block text-footnote text-muted-foreground">{link.transaction.date.slice(0, 10)} · {link.transaction.direction === "credit" ? "Ingreso recibido" : "Compra original"}</span>
               </span>
-              <span className="shrink-0 text-subheadline font-semibold tabular-nums">${link.amount.toLocaleString("es-CL")} CLP →</span>
+              <span className="flex shrink-0 items-center gap-1 text-subheadline font-semibold tabular-nums">${link.amount.toLocaleString("es-CL")} CLP<ChevronRight aria-hidden className="size-4 text-muted-foreground/60" /></span>
             </button>
           ))}
-        </section>
+        </ModalSection>
+        </div>
       )}
       {activeTx && (activeTx.editable ? (
         <EditForm key={activeTx.id} tx={activeTx} account={account} accounts={accounts} categories={categories} onClose={() => onOpenChange(false)} />
@@ -550,7 +548,7 @@ function EditForm({
           </p>
         ) : (
           <>
-            <div className="-mx-5 flex scrollbar-none gap-2 overflow-x-auto px-5 pb-1">
+            <div className="flex flex-wrap gap-2">
               {/* Sin categoría solo si NO es recurrente ni cuota: plantilla y plan exigen una,
                   y quitarla aquí los dejaría sin la suya. */}
               {!tx.recurringTemplateId && !isInstallment && (
@@ -602,79 +600,65 @@ function EditForm({
         )}
       </div>
 
-      <ModalFooter>
-        {showConversions && (
-          <div className="flex min-w-0 basis-full flex-col gap-2">
-            <div className="flex flex-wrap gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={conversionsDisabled}
-                aria-describedby={
-                  form.formState.isDirty
-                    ? `transaction-conversions-${tx.id}-${instanceId}`
-                    : undefined
-                }
-                onClick={() => {
-                  haptic("light")
-                  setMakeRecurring(true)
-                }}
-                className="h-auto min-h-11 min-w-0 px-2 text-subheadline whitespace-normal text-muted-foreground"
-              >
-                <Repeat className="size-4 shrink-0" />
-                Hacer recurrente
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={conversionsDisabled}
-                aria-describedby={
-                  form.formState.isDirty
-                    ? `transaction-conversions-${tx.id}-${instanceId}`
-                    : undefined
-                }
-                onClick={() => {
-                  haptic("light")
-                  if (isCreditCard) setMakeInstallments(true)
-                  else setAssignInstallment(true)
-                }}
-                className="h-auto min-h-11 min-w-0 px-2 text-subheadline whitespace-normal text-muted-foreground"
-              >
-                <CreditCard className="size-4 shrink-0" />
-                {isCreditCard ? "Pasar a cuotas" : "Es una cuota"}
-              </Button>
-            </div>
-            {form.formState.isDirty && (
-              <p
-                id={`transaction-conversions-${tx.id}-${instanceId}`}
-                className="text-subheadline text-muted-foreground"
-              >
+      {/* Convertir el movimiento: filas de una lista agrupada que abren su propio formulario. */}
+      {showConversions && (
+        <ModalSection
+          className="[--inset:3rem]"
+          footer={
+            form.formState.isDirty && (
+              <p id={`transaction-conversions-${tx.id}-${instanceId}`}>
                 Guarda los cambios antes de hacer recurrente o pasar a cuotas.
               </p>
-            )}
-          </div>
-        )}
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onClose}
-          disabled={busy !== null}
-          className="h-12"
+            )
+          }
         >
-          Cancelar
-        </Button>
+          <button
+            type="button"
+            disabled={conversionsDisabled}
+            aria-describedby={
+              form.formState.isDirty
+                ? `transaction-conversions-${tx.id}-${instanceId}`
+                : undefined
+            }
+            onClick={() => {
+              haptic("light")
+              setMakeRecurring(true)
+            }}
+            className={NAV_ROW}
+          >
+            <Repeat className="size-5 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1">Hacer recurrente</span>
+            <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+          </button>
+          <button
+            type="button"
+            disabled={conversionsDisabled}
+            aria-describedby={
+              form.formState.isDirty
+                ? `transaction-conversions-${tx.id}-${instanceId}`
+                : undefined
+            }
+            onClick={() => {
+              haptic("light")
+              if (isCreditCard) setMakeInstallments(true)
+              else setAssignInstallment(true)
+            }}
+            className={NAV_ROW}
+          >
+            <CreditCard className="size-5 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1">
+              {isCreditCard ? "Pasar a cuotas" : "Es una cuota"}
+            </span>
+            <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+          </button>
+        </ModalSection>
+      )}
+
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled={busy !== null}
-              className="size-12 shrink-0 text-destructive hover:text-destructive"
-              aria-label="Eliminar movimiento"
-            >
-              <Trash2 className="size-4" />
-            </Button>
+            <ModalDangerRow disabled={busy !== null}>
+              Eliminar movimiento
+            </ModalDangerRow>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -699,15 +683,19 @@ function EditForm({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        <Button
-          type="submit"
-          form={`edit-transaction-${tx.id}-${instanceId}`}
-          disabled={!canSave}
-          className="h-auto min-h-12 min-w-0 flex-1 py-3 text-body whitespace-normal"
-        >
-          {busy === "save" ? "Guardando…" : "Guardar"}
-        </Button>
-      </ModalFooter>
+
+      <ModalActions
+        cancel={{
+          label: "Cancelar",
+          onClick: onClose,
+          disabled: busy !== null,
+        }}
+        primary={{
+          label: busy === "save" ? "Guardando…" : "Guardar",
+          form: `edit-transaction-${tx.id}-${instanceId}`,
+          disabled: !canSave,
+        }}
+      />
     </form>
   )
 
@@ -1082,7 +1070,7 @@ function ConnectedDetail({
           </p>
         ) : (
           <>
-            <div className="-mx-5 flex scrollbar-none gap-2 overflow-x-auto px-5 pb-1">
+            <div className="flex flex-wrap gap-2">
               {/* Sin categoría solo si NO es recurrente ni de un plan de cuotas: plantilla y plan
                   exigen una, y quitarla aquí los dejaría sin la suya. */}
               {!tx.recurringTemplateId && !inInstallmentPlan && (
@@ -1134,134 +1122,101 @@ function ConnectedDetail({
         )}
       </div>
 
-      <ModalFooter>
-        {tx.recurringTemplateId ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                disabled={saving}
-                aria-label="Acciones de la recurrencia"
-                className="size-12 shrink-0"
-              >
-                <MoreHorizontal className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" side="top">
-              <DropdownMenuItem onSelect={toggleRecurring}>
-                {recurringActive ? (
-                  <>
-                    <PauseCircle className="size-4" /> Pausar recurrencia
-                  </>
-                ) : (
-                  <>
-                    <PlayCircle className="size-4" /> Reanudar recurrencia
-                  </>
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={() => setConfirmDelete(true)}
-              >
-                <Trash2 className="size-4" /> Eliminar recurrencia
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          // Descubrimiento: crear la recurrente se queda a la vista, no escondido en el menú.
-          // Una compra ya repartida en cuotas no admite recurrente ni volver a pasarse a cuotas.
-          // Las conversiones van en una fila discreta (ghost, gris); Cerrar y Guardar quedan debajo.
-          showConversions && (
-            <div className="flex w-full min-w-0 flex-wrap gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  haptic("light")
-                  setMakeRecurring(true)
-                }}
-                disabled={saving}
-                className="h-auto min-h-11 min-w-0 px-2 text-subheadline whitespace-normal text-muted-foreground"
-              >
-                <Repeat className="size-4" />
-                Hacer recurrente
-              </Button>
-              {/* En crédito, el movimiento es la COMPRA y se reparte en cuotas: el plan la
-                  reemplaza. En cualquier otra cuenta, el movimiento ES una cuota de una deuda que
-                  ya existe, y lo que corresponde es asignarlo — no crear nada. */}
-              {isCreditCard ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    haptic("light")
-                    setMakeInstallments(true)
-                  }}
-                  disabled={saving}
-                  className="h-auto min-h-11 min-w-0 px-2 text-subheadline whitespace-normal text-muted-foreground"
-                >
-                  <CreditCard className="size-4" />
-                  Pasar a cuotas
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    haptic("light")
-                    setAssignInstallment(true)
-                  }}
-                  disabled={saving}
-                  className="h-auto min-h-11 min-w-0 px-2 text-subheadline whitespace-normal text-muted-foreground"
-                >
-                  <CreditCard className="size-4" />
-                  Es una cuota
-                </Button>
-              )}
-            </div>
-          )
-        )}
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onClose}
+      {/* La recurrencia que generó el movimiento se gestiona aquí, en filas: pausar en azul y
+          eliminar aparte, en rojo y con confirmación. */}
+      {tx.recurringTemplateId && (
+        <ModalSection title="Recurrencia">
+          <button
+            type="button"
+            onClick={toggleRecurring}
+            disabled={saving}
+            className={NAV_ROW}
+          >
+            {recurringActive ? (
+              <PauseCircle className="size-5 shrink-0 text-primary" />
+            ) : (
+              <PlayCircle className="size-5 shrink-0 text-primary" />
+            )}
+            <span className="min-w-0 flex-1 text-primary">
+              {recurringActive ? "Pausar recurrencia" : "Reanudar recurrencia"}
+            </span>
+          </button>
+        </ModalSection>
+      )}
+      {/* Descubrimiento: crear la recurrente se queda a la vista, no escondido en un menú. Una
+          compra ya repartida en cuotas no admite recurrente ni volver a pasarse a cuotas. En
+          crédito, el movimiento es la COMPRA y se reparte en cuotas: el plan la reemplaza. En
+          cualquier otra cuenta, el movimiento ES una cuota de una deuda que ya existe, y lo que
+          corresponde es asignarlo — no crear nada. */}
+      {!tx.recurringTemplateId && showConversions && (
+        <ModalSection className="[--inset:3rem]">
+          <button
+            type="button"
+            onClick={() => {
+              haptic("light")
+              setMakeRecurring(true)
+            }}
+            disabled={saving}
+            className={NAV_ROW}
+          >
+            <Repeat className="size-5 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1">Hacer recurrente</span>
+            <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              haptic("light")
+              if (isCreditCard) setMakeInstallments(true)
+              else setAssignInstallment(true)
+            }}
+            disabled={saving}
+            className={NAV_ROW}
+          >
+            <CreditCard className="size-5 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1">
+              {isCreditCard ? "Pasar a cuotas" : "Es una cuota"}
+            </span>
+            <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+          </button>
+        </ModalSection>
+      )}
+      {tx.recurringTemplateId && (
+        <ModalDangerRow
+          onClick={() => setConfirmDelete(true)}
           disabled={saving}
-          className="h-12"
         >
-          Cerrar
-        </Button>
-        {/* Eliminar: los ingresos (los abona el usuario) y los gastos SIN categoría — ruido del
-            banco que nadie clasificó— y cobros sobrantes de cuotas verificados por el servidor.
-            Se mira la categoría GUARDADA, no la elegida en pantalla.
-            Nunca los generados por recurrencia o plan de cuotas: se gestionan en su origen. */}
-        {(income || !tx.categoryId || tx.duplicateInstallmentPayment) &&
-          !tx.recurringTemplateId &&
-          !inInstallmentPlan &&
-          !tx.installmentForecast && (
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={() => setConfirmDeleteTx(true)}
-              disabled={saving}
-              aria-label={income ? "Eliminar ingreso" : "Eliminar gasto"}
-              className="size-12 shrink-0 text-destructive hover:text-destructive"
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          )}
-        <Button
-          type="button"
-          onClick={saveCategory}
-          disabled={!changed || saving}
-          className="h-auto min-h-12 min-w-0 flex-1 py-3 text-body whitespace-normal"
-        >
-          {saving ? "Guardando…" : changed ? "Guardar categoría" : "Guardado"}
-        </Button>
-      </ModalFooter>
+          Eliminar recurrencia
+        </ModalDangerRow>
+      )}
+      {/* Eliminar: los ingresos (los abona el usuario) y los gastos SIN categoría — ruido del
+          banco que nadie clasificó— y cobros sobrantes de cuotas verificados por el servidor.
+          Se mira la categoría GUARDADA, no la elegida en pantalla.
+          Nunca los generados por recurrencia o plan de cuotas: se gestionan en su origen. */}
+      {(income || !tx.categoryId || tx.duplicateInstallmentPayment) &&
+        !tx.recurringTemplateId &&
+        !inInstallmentPlan &&
+        !tx.installmentForecast && (
+          <ModalDangerRow
+            onClick={() => setConfirmDeleteTx(true)}
+            disabled={saving}
+          >
+            {income ? "Eliminar ingreso" : "Eliminar gasto"}
+          </ModalDangerRow>
+        )}
+      <ModalActions
+        cancel={{ label: "Cerrar", onClick: onClose, disabled: saving }}
+        primary={{
+          label: saving
+            ? "Guardando…"
+            : changed
+              ? "Guardar categoría"
+              : "Guardado",
+          mobileLabel: saving ? "Guardando…" : "Guardar",
+          onClick: saveCategory,
+          disabled: !changed || saving,
+        }}
+      />
 
       <AlertDialog open={confirmDeleteTx} onOpenChange={setConfirmDeleteTx}>
         <AlertDialogContent>
@@ -1389,6 +1344,10 @@ function ConnectedDetail({
   )
 }
 
+// Fila de una lista agrupada que abre otra cosa: ícono, texto y chevron; 44 px de alto.
+const NAV_ROW =
+  "press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body disabled:opacity-50"
+
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-border/50 py-3 last:border-0">
@@ -1409,7 +1368,7 @@ export function DirectionToggle({
   disabled?: boolean
 }) {
   return (
-    <div className="flex w-full gap-0.5 rounded-lg bg-(--glass-control) p-0.5">
+    <div className="flex w-full gap-0.5 rounded-xl bg-(--glass-control) p-0.5">
       {(["debit", "credit"] as const).map((d) => (
         <button
           key={d}
@@ -1422,7 +1381,7 @@ export function DirectionToggle({
           aria-pressed={value === d}
           aria-label={d === "debit" ? "Gasto" : "Ingreso"}
           className={cn(
-            "flex h-11 flex-1 items-center justify-center gap-2 rounded-md px-4 text-subheadline font-medium transition-colors disabled:opacity-50",
+            "flex h-11 flex-1 items-center justify-center gap-2 rounded-[calc(var(--radius-xl)-0.125rem)] px-4 text-subheadline font-medium transition-colors disabled:opacity-50",
             value === d &&
               (d === "debit"
                 ? "bg-primary text-primary-foreground"
@@ -1458,7 +1417,7 @@ export function Chip({
       disabled={disabled}
       aria-pressed={active}
       className={cn(
-        "flex min-h-11 shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-subheadline whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
+        "flex min-h-11 max-w-full shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-left text-subheadline transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
         active
           ? "border-primary bg-primary/10 text-primary"
           : "border-transparent bg-(--glass-control) text-muted-foreground"

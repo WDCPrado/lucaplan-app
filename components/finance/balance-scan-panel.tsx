@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Camera, Loader2, Plus, TriangleAlert, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ModalActions } from "@/components/ui/responsive-modal"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { downscaleToDataUrl } from "@/lib/image-downscale"
@@ -468,21 +469,23 @@ export function BalanceScanPanel({
             )
           })}
 
-          <Button onClick={save} disabled={busy !== null} className="h-12">
-            {busy === "saving" && <Loader2 className="size-4 animate-spin" />}
-            {busy === "saving" ? "Guardando…" : "Guardar saldos"}
-          </Button>
-          <Button
-            variant="ghost"
-            className="h-11"
-            onClick={() => {
-              setValues(null) // vuelve a la lista: ahí se agregan, se quitan y se relee
-              setMismatches([])
+          <ModalActions
+            cancel={{
+              label: "Volver a las capturas",
+              mobileLabel: "Volver",
+              disabled: busy !== null,
+              onClick: () => {
+                setValues(null) // vuelve a la lista: ahí se agregan, se quitan y se relee
+                setMismatches([])
+              },
             }}
-            disabled={busy !== null}
-          >
-            Volver a las capturas
-          </Button>
+            primary={{
+              label: busy === "saving" ? "Guardando…" : "Guardar saldos",
+              mobileLabel: busy === "saving" ? "Guardando…" : "Guardar",
+              disabled: busy !== null,
+              onClick: save,
+            }}
+          />
         </>
       )}
 

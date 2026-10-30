@@ -564,12 +564,16 @@ html:has(main[data-landing]) body {
    y con la pista transparente. En iOS el scroll es overlay nativo y esto no lo cambia. Los navegadores
    con `scrollbar-color` (Chrome 121+, Firefox) usan las dos primeras; Safari, las ::-webkit-. En la capa base para que `scrollbar-none` (utilidad) les gane. */
 @layer base {
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--scrollbar) transparent;
-  }
-  *:hover {
-    scrollbar-color: var(--scrollbar-hover) transparent;
+  /* Solo Firefox: en Chromium, scrollbar-width/color ganan a ::-webkit-scrollbar y vuelven a
+     dibujar las flechas y el carril. */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--scrollbar) transparent;
+    }
+    *:hover {
+      scrollbar-color: var(--scrollbar-hover) transparent;
+    }
   }
   ::-webkit-scrollbar {
     width: 8px;

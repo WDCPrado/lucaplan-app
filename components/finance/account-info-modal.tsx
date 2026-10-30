@@ -3,8 +3,12 @@
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Camera, Unlink } from "lucide-react"
-import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { Camera } from "lucide-react"
+import {
+  ModalDangerRow,
+  ModalSection,
+  ResponsiveModal,
+} from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -105,7 +109,11 @@ export function AccountInfoModal({
             account={account}
             onDone={() => onOpenChange(false)}
           />
-          <Button variant="ghost" className="h-11" onClick={() => setMode("info")}>
+          <Button
+            variant="ghost"
+            className="press h-11 text-body text-primary hover:bg-transparent hover:text-primary"
+            onClick={() => setMode("info")}
+          >
             Volver al detalle
           </Button>
         </div>
@@ -180,28 +188,25 @@ export function AccountInfoModal({
           </dl>
 
           {scannable && (
-            <Button
-              variant="outline"
-              onClick={() => setMode("scan")}
-              className="h-12"
-            >
-              <Camera className="size-4" />
-              Actualizar saldo
-            </Button>
+            <ModalSection>
+              <button
+                type="button"
+                onClick={() => setMode("scan")}
+                className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary"
+              >
+                <Camera className="size-5 shrink-0" />
+                Actualizar saldo
+              </button>
+            </ModalSection>
           )}
 
           {connected && (
             <div className="flex flex-col gap-1.5">
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    disabled={disconnecting}
-                    className="h-12 text-destructive hover:text-destructive"
-                  >
-                    <Unlink className="size-4" />
+                  <ModalDangerRow disabled={disconnecting}>
                     {disconnecting ? "Desconectando…" : "Desconectar banco"}
-                  </Button>
+                  </ModalDangerRow>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>

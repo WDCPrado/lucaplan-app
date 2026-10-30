@@ -105,10 +105,14 @@ un barrido aparte.
 - **Modales, dos tipos y nada más.** `ResponsiveModal` para crear, editar o mostrar contenido
   (dialog en escritorio, drawer en móvil); `AlertDialog` para confirmar una acción al momento.
   En escritorio los modales de contenido tienen X arriba; en móvil **no llevan X**: el drawer
-  se cierra por arrastre, fondo o acción del pie, sin un «Cerrar» que repita eso. Las confirmaciones se resuelven con sus botones. El pie lleva las
-  acciones (`ModalFooter`); el botón que envía va con `form="<id>"` del `<form>` del modal.
-  Las acciones de convertir un movimiento en recurrente o cuota van en una fila discreta (`ghost`,
-  `text-muted-foreground`) que envuelve si no cabe. Las etiquetas pueden envolver y conservan ≥44px de alto.
+  se cierra por arrastre o tocando el fondo, sin un «Cerrar» ni «Listo» que repita eso. Las
+  confirmaciones se resuelven con sus botones. Las acciones se declaran con `ModalActions`
+  (`primary`, `cancel`): en móvil van en el encabezado de la hoja como en iOS («Cancelar» a la
+  izquierda, la primaria en azul a la derecha) y en escritorio en el pie; el botón que envía va
+  con `form="<id>"` del `<form>` del modal. `ModalFooter` solo existe en escritorio. Borrar va
+  en `ModalDangerRow`, una fila roja al final del contenido, nunca junto a la primaria. Las
+  secciones de un modal son grupos al estilo Ajustes (`ModalSection`). Convertir un movimiento
+  en recurrente o cuota son filas con chevron de una lista agrupada. Las etiquetas pueden envolver y conservan ≥44px de alto.
   **Ancho en escritorio, una escala y nada inventado por modal:** contenido (formulario,
   detalle, lista) hereda el default de `ResponsiveModal`, `sm:max-w-2xl`, sin pasar
   `className`; denso (varias columnas, como el de cuenta) sube a `sm:max-w-3xl`; un solo campo

@@ -3,8 +3,7 @@
 import type { ReactNode } from "react"
 
 import { Pencil } from "lucide-react"
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
-import { Button } from "@/components/ui/button"
+import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { MovementRow } from "./movement-row"
 import { CategoryIcon } from "./category-icons"
 import { formatCLP, statusVar } from "@/lib/finance-format"
@@ -36,6 +35,20 @@ export function CategoryDetailSheet({
       open={category !== null}
       onOpenChange={onOpenChange}
       title={category?.name ?? "Categoría"}
+      primary={
+        category
+          ? {
+              label: (
+                <>
+                  <Pencil className="size-4" />
+                  Editar categoría
+                </>
+              ),
+              mobileLabel: "Editar",
+              onClick: () => onEdit(category),
+            }
+          : undefined
+      }
     >
       {category && (
         <>
@@ -119,19 +132,6 @@ export function CategoryDetailSheet({
               )}
             </section>
           </div>
-          <ModalFooter className="px-5">
-            {/* Sin «Cerrar»: en móvil el drawer se cierra arrastrando o tocando el fondo; en
-                escritorio, con la X. */}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onEdit(category)}
-              className="h-12 flex-1 text-body"
-            >
-              <Pencil className="size-4" />
-              Editar categoría
-            </Button>
-          </ModalFooter>
         </>
       )}
       {children}

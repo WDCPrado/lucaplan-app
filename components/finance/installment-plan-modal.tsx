@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation"
 import { Check, MoreHorizontal } from "lucide-react"
 import { toast } from "sonner"
 
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
+import {
+  ModalDangerRow,
+  ModalFooter,
+  ResponsiveModal,
+} from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -280,8 +284,11 @@ export function InstallmentPlanModal({
               const notDueYet = item.dueDate.slice(0, 10) > todayKey()
               const status = STATUS_LABEL[item.status]
               return (
-                <li key={item.id} className="flex flex-col gap-2 px-4 py-3">
-                  <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+                // Fila limpia (n.º, fecha, monto) con el menú «…» a la derecha. «Generar cuota»
+                // aparece solo en la que ya se puede generar (vencida o del día): en las futuras
+                // sería un botón muerto.
+                <li key={item.id} className="flex flex-col py-1 pr-1 pl-4">
+                  <div className="grid min-h-11 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3">
                     <span
                       className={cn(
                         "tabular grid size-6 shrink-0 place-items-center rounded-full text-caption font-medium",
@@ -301,7 +308,7 @@ export function InstallmentPlanModal({
                         item.index
                       )}
                     </span>
-                    <span className="min-w-0 flex-1">
+                    <span className="min-w-0">
                       <span className="block text-body">
                         {shortDate(item.dueDate)}
                         {/* El estado pagada/pendiente lo dice el ícono; para el lector, en texto. */}
@@ -327,22 +334,7 @@ export function InstallmentPlanModal({
                     <span className="tabular shrink-0 text-body font-medium">
                       {formatCLP(item.paidAmount ?? item.amount)}
                     </span>
-                  </div>
-                  {(!settled || canEdit || canUnlink) && (
-                    <div className="flex items-center justify-end gap-1">
-                      {!settled && (
-                        <Button
-                          type="button"
-                          onClick={() => payManually(item)}
-                          disabled={busy || notDueYet}
-                          aria-describedby={
-                            notDueYet ? `installment-due-${item.id}` : undefined
-                          }
-                          className="h-11 text-body"
-                        >
-                          Generar cuota
-                        </Button>
-                      )}
+                    {!settled || canEdit || canUnlink ? (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
@@ -384,15 +376,20 @@ export function InstallmentPlanModal({
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    </div>
-                  )}
-                  {!settled && notDueYet && (
-                    <p
-                      id={`installment-due-${item.id}`}
-                      className="text-right text-footnote text-muted-foreground"
+                    ) : (
+                      <span className="size-11" aria-hidden />
+                    )}
+                  </div>
+                  {!settled && !notDueYet && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => payManually(item)}
+                      disabled={busy}
+                      className="press ml-6 h-11 self-start px-3 text-body font-semibold text-primary hover:bg-transparent hover:text-primary"
                     >
-                      Disponible desde el vencimiento
-                    </p>
+                      Generar cuota
+                    </Button>
                   )}
                 </li>
               )
@@ -438,38 +435,29 @@ export function InstallmentPlanModal({
 
         {/* Eliminar es destructivo y excepcional: fila de texto roja al final del cuerpo, lejos
             de «Listo». */}
-        <div className="sheet-group mb-2 overflow-hidden">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button
-                type="button"
-                disabled={busy}
-                className="press flex min-h-11 w-full items-center px-4 py-2.5 text-left text-body text-destructive disabled:opacity-50"
-              >
-                Eliminar plan
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>¿Eliminar este plan?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {plan.kind === "card" &&
-                  plan.sourceTransactionId &&
-                  !plan.items.some((i) => i.status === "paid")
-                    ? "La compra original vuelve a contar como gasto normal en su mes, como antes de pasarla a cuotas."
-                    : "Los movimientos de las cuotas ya registradas se conservan: son gastos que ocurrieron. Solo desaparece el plan que los agrupa."}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={remove} variant="destructive">
-                  Eliminar
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <ModalDangerRow disabled={busy}>Eliminar plan</ModalDangerRow>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar este plan?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {plan.kind === "card" &&
+                plan.sourceTransactionId &&
+                !plan.items.some((i) => i.status === "paid")
+                  ? "La compra original vuelve a contar como gasto normal en su mes, como antes de pasarla a cuotas."
+                  : "Los movimientos de las cuotas ya registradas se conservan: son gastos que ocurrieron. Solo desaparece el plan que los agrupa."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={remove} variant="destructive">
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         <ModalFooter>
           <Button
             type="button"

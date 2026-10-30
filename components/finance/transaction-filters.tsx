@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Segmented } from "./segmented"
 import { formatCompact } from "@/lib/finance-format"
 import type {
@@ -188,6 +189,8 @@ export function FilterControls({
   amountBounds,
 }: FilterProps) {
   const { q, direction, categoryId, bank, range, amount } = value
+  // Un mes en el teléfono (dos no caben a 360 px); dos en escritorio.
+  const isMobile = useIsMobile()
   const set = (patch: Partial<FilterValues>) => onChange({ ...value, ...patch })
 
   // Slider de monto: solo si hay rango real (>1 monto distinto). El paso reparte el rango en ~100.
@@ -291,7 +294,7 @@ export function FilterControls({
                 mode="range"
                 selected={range}
                 onSelect={(r) => set({ range: r })}
-                numberOfMonths={2}
+                numberOfMonths={isMobile ? 1 : 2}
                 autoFocus
               />
             </PopoverContent>

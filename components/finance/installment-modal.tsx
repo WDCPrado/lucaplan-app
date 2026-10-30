@@ -4,8 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
-import { Button } from "@/components/ui/button"
+import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
@@ -195,6 +194,25 @@ export function InstallmentModal({
       open={open}
       onOpenChange={onOpenChange}
       title={kind === "card" ? "Pasar a cuotas" : "Crédito en cuotas"}
+      cancel={
+        eligible.length === 0
+          ? undefined
+          : {
+              label: "Cancelar",
+              disabled: saving,
+              onClick: () => onOpenChange(false),
+            }
+      }
+      primary={
+        eligible.length === 0
+          ? undefined
+          : {
+              label: saving ? "Creando…" : "Crear plan",
+              mobileLabel: saving ? "Creando…" : "Crear",
+              onClick: save,
+              disabled: !canSave,
+            }
+      }
     >
       {eligible.length === 0 ? (
         <div className="px-4 py-10 text-center text-subheadline text-muted-foreground">
@@ -490,26 +508,6 @@ export function InstallmentModal({
               </p>
             )}
           </Section>
-
-          <ModalFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-              className="h-12 flex-1 text-body"
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              onClick={save}
-              disabled={!canSave}
-              className="h-12 flex-1 text-body"
-            >
-              {saving ? "Creando…" : "Crear plan"}
-            </Button>
-          </ModalFooter>
         </div>
       )}
     </ResponsiveModal>

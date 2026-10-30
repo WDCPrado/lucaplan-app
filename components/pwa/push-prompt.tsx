@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { BellRing, Loader2 } from "lucide-react"
+import { BellRing } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -12,8 +12,7 @@ import {
   permissionUndecided,
 } from "@/lib/push"
 import { haptic } from "@/lib/haptics"
-import { Button } from "@/components/ui/button"
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
+import { ModalActions, ResponsiveModal } from "@/components/ui/responsive-modal"
 
 /**
  * Ofrece activar las notificaciones al entrar a la app mientras el dispositivo no las tenga
@@ -60,9 +59,8 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
       onOpenChange={setOpen}
       title="Activa tus notificaciones"
     >
-      {/* Contenido y footer comparten el contenedor con `px-4`: ModalFooter se sangra con `-mx-4`
-          para llegar a los bordes, así que fuera de un padre con ese padding sus botones se salen
-          de la tarjeta (y el texto queda pegado al borde). Mismo patrón que el resto de modales. */}
+      {/* Contenido y pie de escritorio comparten el contenedor con `px-4`: el pie se sangra con
+          `-mx-4` para llegar a los bordes. En móvil las acciones van en el encabezado. */}
       <div className="flex flex-col gap-4 px-4 pt-2">
         <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
           <BellRing className="size-6 text-primary" />
@@ -86,20 +84,19 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
         <p className="text-xs text-muted-foreground">
           Puedes cambiarlo cuando quieras en Configuración.
         </p>
-        <ModalFooter>
-          <Button onClick={activate} disabled={pending} className="h-11 flex-1">
-            {pending && <Loader2 className="size-4 animate-spin" />}
-            Activar notificaciones
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => setOpen(false)}
-            disabled={pending}
-            className="h-11"
-          >
-            Ahora no
-          </Button>
-        </ModalFooter>
+        <ModalActions
+          cancel={{
+            label: "Ahora no",
+            onClick: () => setOpen(false),
+            disabled: pending,
+          }}
+          primary={{
+            label: pending ? "Activando…" : "Activar notificaciones",
+            mobileLabel: pending ? "Activando…" : "Activar",
+            onClick: activate,
+            disabled: pending,
+          }}
+        />
       </div>
     </ResponsiveModal>
   )

@@ -6,10 +6,14 @@ import { useId, useState } from "react"
 import { useForm, Controller, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
-import { CalendarIcon, Trash2 } from "lucide-react"
+import { CalendarIcon } from "lucide-react"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
+import {
+  ModalDangerRow,
+  ModalFooter,
+  ResponsiveModal,
+} from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Calendar } from "@/components/ui/calendar"
@@ -176,6 +180,39 @@ export function IncomeModal({
         onOpenChange(next)
       }}
       title={income ? "Editar ingreso" : "Nuevo ingreso"}
+      cancel={
+        destinations.length === 0
+          ? undefined
+          : {
+              label: "Cancelar",
+              disabled: busy,
+              onClick: () => {
+                form.reset(undefined, { keepDirtyValues: false })
+                onOpenChange(false)
+              },
+            }
+      }
+      primary={
+        destinations.length === 0
+          ? undefined
+          : {
+              label: isSubmitting
+                ? "Guardando…"
+                : income
+                  ? "Guardar ingreso"
+                  : "Agregar ingreso",
+              mobileLabel: isSubmitting
+                ? "Guardando…"
+                : income
+                  ? "Guardar"
+                  : "Agregar",
+              form: formId,
+              disabled:
+                busy ||
+                incomeCategories.length === 0 ||
+                (!!income && !hasDraftChanges),
+            }
+      }
     >
       {destinations.length === 0 ? (
         <>
@@ -377,31 +414,13 @@ export function IncomeModal({
               </FinanceField>
             </fieldset>
           </form>
-          <ModalFooter className="grid grid-cols-[minmax(0,1fr)_auto] px-5 sm:flex">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12"
-              disabled={busy}
-              onClick={() => {
-                form.reset(undefined, { keepDirtyValues: false })
-                onOpenChange(false)
-              }}
-            >
-              Cancelar
-            </Button>
-            {income && (
+          {income && (
+            <div className="mt-8 px-5">
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="size-12 text-destructive"
-                    disabled={busy}
-                    aria-label="Eliminar ingreso"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <ModalDangerRow disabled={busy}>
+                    Eliminar ingreso
+                  </ModalDangerRow>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
@@ -421,24 +440,8 @@ export function IncomeModal({
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            )}
-            <Button
-              type="submit"
-              form={formId}
-              disabled={
-                busy ||
-                incomeCategories.length === 0 ||
-                (!!income && !hasDraftChanges)
-              }
-              className="col-span-full h-auto min-h-12 min-w-0 py-3 text-body whitespace-normal sm:flex-1"
-            >
-              {isSubmitting
-                ? "Guardando…"
-                : income
-                  ? "Guardar ingreso"
-                  : "Agregar ingreso"}
-            </Button>
-          </ModalFooter>
+            </div>
+          )}
         </>
       )}
       {children}

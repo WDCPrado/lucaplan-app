@@ -4,10 +4,14 @@ import type { ReactNode } from "react"
 
 import { useId, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Pencil, Plus } from "lucide-react"
+import { Check, ChevronRight, Plus } from "lucide-react"
 import { toast } from "sonner"
 
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
+import {
+  ModalFooter,
+  ModalSection,
+  ResponsiveModal,
+} from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -173,13 +177,11 @@ export function PlanSheet({
           const planned = payDate.toISOString().slice(0, 10)
           return !inc.generated || planned > todayKey()
         }).length > 0 && (
-          <section className="rounded-xl bg-warning/10 p-4">
-            <h3 className="text-subheadline font-semibold text-warning">
-              Ingresos pendientes del ciclo anterior
-            </h3>
-            <p className="mt-1 text-footnote text-muted-foreground">
-              Son para cubrir la factura anterior. Un ingreso generado en la app no significa que el banco lo haya abonado.
-            </p>
+          <ModalSection
+            title="Ingresos pendientes del ciclo anterior"
+            className="px-4 [--inset:3.5rem]"
+            footer="Son para cubrir la factura anterior. Un ingreso generado en la app no significa que el banco lo haya abonado."
+          >
             {previousCycleIncomes.filter((inc) => {
               const payDate = new Date(Date.UTC(
                 period.month === 1 ? period.year - 1 : period.year,
@@ -188,8 +190,8 @@ export function PlanSheet({
               ))
               return !inc.generated || payDate.toISOString().slice(0, 10) > todayKey()
             }).map((inc) => (
-              <div key={inc.id} className="border-b border-warning/20 last:border-0">
-                <IncomeRow
+              <IncomeRow
+                  key={inc.id}
                   income={inc}
                   period={{
                     year: period.month === 1 ? period.year - 1 : period.year,
@@ -203,21 +205,49 @@ export function PlanSheet({
                   }}
                   priorCycle
                 />
-              </div>
             ))}
-          </section>
+          </ModalSection>
         )}
-        {/* Presupuesto del mes */}
-        <section>
-          <h3 className="mb-2 px-4 text-headline font-semibold">Presupuesto del mes</h3>
+        {/* Presupuesto del mes. De dónde sale el descuento va en el pie y FUERA de la
+            sugerencia a propósito: aplicarla apaga `suggest`, y si el porqué viviera ahí adentro
+            desaparecería justo cuando el presupuesto queda más chico —sin rastro de por qué—.
+            También es lo único que queda cuando la deuda se comió el ingreso. */}
+        <ModalSection
+          title="Presupuesto del mes"
+          footer={
+            previousMonthDebt > 0 && (
+              <p>
+                En {previousMonth} se gastó{" "}
+                <span className="tabular font-semibold text-foreground">
+                  {formatMoney(previousMonthDebt, "CLP")}
+                </span>{" "}
+                por sobre el presupuesto.{" "}
+                {toAllocate > 0 ? (
+                  <>
+                    Esa plata ya salió, así que quedan{" "}
+                    <span className="tabular font-semibold text-foreground">
+                      {formatMoney(toAllocate, "CLP")}
+                    </span>{" "}
+                    para repartir este mes.
+                  </>
+                ) : (
+                  <>
+                    Esa plata ya salió y se lleva todo el ingreso de este mes,
+                    así que no queda nada por repartir.
+                  </>
+                )}
+              </p>
+            )
+          }
+        >
           {globalLimit === null ? (
             <button
               type="button"
               onClick={onEditBudget}
-              className="sheet-group press flex min-h-11 w-full items-center justify-between gap-3 px-4 py-3 text-left text-muted-foreground"
+              className="press flex min-h-11 w-full items-center justify-between gap-3 px-4 py-3 text-left text-muted-foreground"
             >
               <span className="min-w-0">
-                <span className="block text-body font-medium text-primary">
+                <span className="block text-body text-primary">
                   Definir presupuesto del mes
                 </span>
                 <span className="block text-footnote">
@@ -231,52 +261,27 @@ export function PlanSheet({
               type="button"
               onClick={onEditBudget}
               aria-label="Editar presupuesto del mes"
-              className="sheet-group press group w-full px-4 py-3 text-left"
+              className="press flex min-h-11 w-full items-center gap-3 px-4 py-3 text-left"
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="tabular text-title-1 font-bold">
+              <span className="min-w-0 flex-1">
+                <span className="tabular block text-title-1 font-bold break-words">
                   {formatCLP(globalLimit)}
                 </span>
-                <Pencil className="size-4 shrink-0 text-muted-foreground opacity-60 transition-opacity group-hover:opacity-100" />
-              </div>
-              <div className="mt-1 text-footnote text-muted-foreground">
-                Asignado <span className="tabular">{formatCLP(allocated)}</span>{" "}
-                de <span className="tabular">{formatCLP(globalLimit)}</span>
-              </div>
+                <span className="mt-1 block text-footnote text-muted-foreground">
+                  Asignado{" "}
+                  <span className="tabular">{formatCLP(allocated)}</span> de{" "}
+                  <span className="tabular">{formatCLP(globalLimit)}</span>
+                </span>
+              </span>
+              <ChevronRight
+                aria-hidden
+                className="size-4 shrink-0 text-muted-foreground/60"
+              />
             </button>
           )}
-
-          {/* De dónde sale el descuento. Va FUERA de la sugerencia a propósito: aplicarla apaga
-              `suggest`, y si el porqué viviera ahí adentro desaparecería justo en el momento en
-              que el presupuesto queda más chico —sin ningún rastro de por qué—. También es lo
-              único que queda cuando la deuda se comió el ingreso y no hay botón que ofrecer. */}
-          {previousMonthDebt > 0 && (
-            <p className="mt-3 text-subheadline text-muted-foreground">
-              En {previousMonth} se gastó{" "}
-              <span className="tabular font-semibold text-foreground">
-                {formatMoney(previousMonthDebt, "CLP")}
-              </span>{" "}
-              por sobre el presupuesto.{" "}
-              {toAllocate > 0 ? (
-                <>
-                  Esa plata ya salió, así que quedan{" "}
-                  <span className="tabular font-semibold text-foreground">
-                    {formatMoney(toAllocate, "CLP")}
-                  </span>{" "}
-                  para repartir este mes.
-                </>
-              ) : (
-                <>
-                  Esa plata ya salió y se lleva todo el ingreso de este mes, así
-                  que no queda nada por repartir.
-                </>
-              )}
-            </p>
-          )}
-
           {suggest && (
-            <div className="sheet-group mt-3 flex flex-col gap-2 p-4">
-              <p className="text-subheadline">
+            <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 py-1 pr-1 pl-4">
+              <p className="min-w-0 flex-1 basis-40 py-1.5 text-subheadline">
                 Tus ingresos suman{" "}
                 <span className="tabular font-semibold">
                   {formatMoney(activeIncomeTotal, "CLP")}
@@ -285,9 +290,10 @@ export function PlanSheet({
               </p>
               <Button
                 type="button"
+                variant="ghost"
                 onClick={applySuggested}
                 disabled={applying}
-                className="h-11 self-start"
+                className="press h-11 shrink-0 px-3 text-body font-semibold text-primary hover:bg-transparent hover:text-primary"
               >
                 {applying
                   ? "Actualizando…"
@@ -297,12 +303,10 @@ export function PlanSheet({
               </Button>
             </div>
           )}
-        </section>
+        </ModalSection>
 
         {/* Ingresos: una fila por fuente, con su estado del mes */}
-        <section>
-          <h3 className="mb-2 px-4 text-headline font-semibold">Ingresos</h3>
-          <div className="sheet-group inset-list px-4 [--inset:3.5rem]">
+        <ModalSection title="Ingresos" className="px-4 [--inset:3.5rem]">
             {incomes.map((inc) => (
               <IncomeRow
                 key={inc.id}
@@ -324,11 +328,11 @@ export function PlanSheet({
               onClick={onAddIncome}
               className="press flex w-full items-center gap-3 py-2.5 text-left text-primary"
             >
-              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10">
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg">
                 <Plus className="size-5" aria-hidden="true" />
               </span>
               {incomes.length > 0 ? (
-                <span className="text-subheadline">Agregar ingreso</span>
+                <span className="text-body">Agregar ingreso</span>
               ) : (
                 <span className="min-w-0">
                   <span className="block text-subheadline font-medium">
@@ -340,57 +344,53 @@ export function PlanSheet({
                 </span>
               )}
             </button>
-          </div>
-        </section>
+        </ModalSection>
 
         {/* Categorías de ingreso: mismo patrón visual que las de gasto */}
         {incomeCategories.length > 0 && (
-          <section>
-            <h3 className="mb-2 px-4 text-headline font-semibold">
-              Categorías de ingreso
-            </h3>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {incomeCategories.map((c) => {
-                return (
-                  <button
-                    type="button"
-                    key={c.id}
-                    onClick={() => onOpenIncomeCategory(c)}
-                    className="sheet-group press flex min-h-16 min-w-0 items-center gap-3 p-3 text-left"
-                  >
-                    <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-muted">
-                      <CategoryIcon
-                        icon={c.icon}
-                        size={20}
-                        color={c.color ?? undefined}
-                      />
-                    </span>
-                    <span className="min-w-0 flex-1 text-left">
-                      <span className="block truncate text-subheadline font-medium">
-                        {c.name}
-                      </span>
-                      {/* Lo recibido en el mes: el "disponible" de una categoría de ingreso sin
-                          meta era $0 justo debajo de un sueldo ya recibido. */}
-                      <span className="tabular block text-footnote break-words text-muted-foreground">
-                        {formatCLP(c.used)}
-                      </span>
-                    </span>
-                  </button>
-                )
-              })}
+          <ModalSection
+            title="Categorías de ingreso"
+            className="[--inset:4.25rem]"
+          >
+            {incomeCategories.map((c) => (
               <button
                 type="button"
-                onClick={onNewIncomeCategory}
-                className="sheet-group press flex min-h-16 min-w-0 items-center gap-3 p-3 text-left text-primary"
-                aria-label="Nueva categoría de ingreso"
+                key={c.id}
+                onClick={() => onOpenIncomeCategory(c)}
+                className="press flex min-h-11 w-full min-w-0 items-center gap-3 py-2 pr-3 pl-4 text-left"
               >
-                <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10">
-                  <Plus className="size-5" aria-hidden="true" />
+                <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-muted">
+                  <CategoryIcon
+                    icon={c.icon}
+                    size={20}
+                    color={c.color ?? undefined}
+                  />
                 </span>
-                <span className="text-subheadline">Nueva</span>
+                <span className="min-w-0 flex-1 truncate text-body">
+                  {c.name}
+                </span>
+                {/* Lo recibido en el mes: el "disponible" de una categoría de ingreso sin meta
+                    era $0 justo debajo de un sueldo ya recibido. */}
+                <span className="tabular shrink-0 text-subheadline text-muted-foreground">
+                  {formatCLP(c.used)}
+                </span>
+                <ChevronRight
+                  aria-hidden
+                  className="size-4 shrink-0 text-muted-foreground/60"
+                />
               </button>
-            </div>
-          </section>
+            ))}
+            <button
+              type="button"
+              onClick={onNewIncomeCategory}
+              className="press flex min-h-11 w-full items-center gap-3 py-2 pr-3 pl-4 text-left text-primary"
+            >
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg">
+                <Plus className="size-5" aria-hidden="true" />
+              </span>
+              <span className="text-body">Nueva categoría de ingreso</span>
+            </button>
+          </ModalSection>
         )}
 
         {/* Topes por categoría: el aviso «Te falta repartir…» abre este plan, así que acá se
@@ -496,7 +496,7 @@ function LimitRow({
     <form
       id={formId}
       onSubmit={form.handleSubmit(save)}
-      className="space-y-3 py-4"
+      className="space-y-3 py-3"
     >
       <div className="flex items-center gap-3">
         <span
@@ -554,11 +554,11 @@ function LimitRow({
         </p>
       )}
       {isDirty && (
-        <div className="flex justify-end gap-2">
+        <div className="-my-2 flex justify-end gap-1">
           <Button
             type="button"
-            variant="outline"
-            className="h-11"
+            variant="ghost"
+            className="press h-11 px-3 text-body font-normal text-primary hover:bg-transparent hover:text-primary"
             disabled={isSubmitting}
             onClick={() => {
               form.reset()
@@ -570,7 +570,8 @@ function LimitRow({
           <Button
             type="submit"
             form={formId}
-            className="h-11"
+            variant="ghost"
+            className="press h-11 px-3 text-body font-semibold text-primary hover:bg-transparent hover:text-primary"
             disabled={isSubmitting}
           >
             {isSubmitting ? "Guardando…" : "Guardar tope"}
@@ -654,7 +655,7 @@ function IncomeRow({
   }
 
   return (
-    <div className="grid grid-cols-[2.75rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 py-4 sm:grid-cols-[2.75rem_minmax(0,1fr)_auto]">
+    <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-x-3 py-2">
       <button
         type="button"
         onClick={onOpenCategory}
@@ -672,19 +673,17 @@ function IncomeRow({
       <button
         type="button"
         onClick={onEdit}
-        className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left"
+        className="flex min-h-11 min-w-0 flex-col justify-center text-left"
       >
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-subheadline font-medium">
-            {income.name}
-          </span>
-          <span className="block truncate text-footnote text-muted-foreground">
-            {when}
-          </span>
+        <span className="block truncate text-body">{income.name}</span>
+        <span className="block truncate text-footnote text-muted-foreground">
+          {when}
         </span>
       </button>
-      <div className="col-start-2 flex min-w-0 flex-wrap items-center justify-between gap-2 sm:col-start-auto sm:flex-col sm:items-end">
-        <span className="tabular min-w-0 text-subheadline font-semibold break-words text-success">
+      {/* Monto arriba y el estado como acción de texto debajo: «Generar» en azul, «Recibido» en
+          verde (tocarlo lo deshace). Nada de pastillas rellenas dentro de la lista. */}
+      <div className="flex min-w-0 flex-col items-end">
+        <span className="tabular text-subheadline font-semibold text-success">
           +{formatMoney(income.amount, income.currency as CurrencyCode)}
         </span>
         <button
@@ -693,13 +692,11 @@ function IncomeRow({
           disabled={busy || (priorCycle && income.generated)}
           title={income.generated ? "Deshacer" : "Registrar el ingreso del mes"}
           className={cn(
-            "flex min-h-11 items-center gap-1 rounded-lg px-3 text-subheadline font-medium transition-colors disabled:opacity-50",
-            income.generated
-              ? "bg-success/10 text-success"
-              : "bg-primary text-primary-foreground"
+            "press -mr-2 -mb-2 flex min-h-11 items-center gap-1 px-2 text-subheadline font-semibold disabled:opacity-50",
+            income.generated ? "text-success" : "text-primary"
           )}
         >
-          {income.generated && <Check className="size-3" />}
+          {income.generated && <Check className="size-3.5" />}
           {income.generated ? (priorCycle ? "Verificar" : "Recibido") : "Generar"}
         </button>
       </div>

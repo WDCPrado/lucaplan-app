@@ -42,12 +42,13 @@ export default async function AppLayout({
     getAmountBounds(financeDeps, userId),
   ])
 
-  // Los datos de la cuenta del marco: el menú del sidebar en escritorio.
+  // Los datos de la cuenta del marco: el menú del sidebar y la hoja del perfil, que edita el
+  // nombre tal cual está guardado (vacío si no hay; el menú cae al correo).
   const label = session.user.name || session.user.email || "Usuario"
   return (
     <AppFrame
       user={{
-        name: label,
+        name: session.user.name ?? "",
         initial: label.charAt(0).toUpperCase(),
         email: session.user.email,
       }}

@@ -40,6 +40,7 @@ import { InstallAppItem } from "@/components/pwa/install-app-item"
 import { TransactionSearch } from "./transaction-search"
 import { TransactionModal } from "./transaction-modal"
 import { MonthNav } from "./month-nav"
+import { ProfileSheet } from "./profile-sheet"
 import type {
   AccountDTO,
   AmountBoundsDTO,
@@ -57,12 +58,7 @@ import {
 
 // Solo rutas que existen. Presupuestos vive como sección del dashboard y Cuotas como sección de
 // Recurrentes; cuando sean páginas propias, se agregan aquí.
-export type NavKey =
-  | "inicio"
-  | "recurrentes"
-  | "movimientos"
-  | "configuracion"
-  | "perfil"
+export type NavKey = "inicio" | "recurrentes" | "movimientos" | "configuracion"
 
 const NAV: {
   key: NavKey
@@ -85,10 +81,10 @@ const NAV: {
   },
   // Un solo nombre por sección: el mismo en la barra lateral, la inferior y el título.
   { key: "configuracion", label: "Ajustes", Icon: Settings, href: "/settings" },
-  { key: "perfil", label: "Perfil", Icon: UserRound, href: "/profile" },
 ]
 
-// La barra inferior no lleva Perfil: en móvil se entra desde Ajustes (su primera fila).
+// El perfil no es una ruta: es una hoja (ProfileSheet) que se abre desde la fila de la cuenta en
+// Ajustes (móvil) y desde el menú de la cuenta del sidebar (escritorio).
 // Ancho relativo de cada pestaña: las etiquetas largas («Recurrentes», «Movimientos») reciben más
 // que las cortas, así a 375 px entran completas a 12 px sin cortarse. Bajo 375 px «Movimientos» pasa
 // a «Movim.» (`short`), nunca a «…».
@@ -98,7 +94,7 @@ const TAB: Partial<Record<NavKey, { weight: number; short?: string }>> = {
   movimientos: { weight: 1.2, short: "Movim." },
   configuracion: { weight: 0.8 },
 }
-const BOTTOM_NAV = NAV.filter((n) => n.key !== "perfil").map((n) => ({
+const BOTTOM_NAV = NAV.map((n) => ({
   ...n,
   weight: TAB[n.key]?.weight ?? 1,
   short: TAB[n.key]?.short,
@@ -116,6 +112,10 @@ function navKeyOf(pathname: string): NavKey | undefined {
 // barra no se monta ni se desmonta al navegar.
 type Slots = { desktop: HTMLElement | null; mobile: HTMLElement | null }
 const SlotsContext = React.createContext<Slots | null>(null)
+
+// Abre la hoja del perfil, que vive una vez en el AppFrame. Fuera del marco (mocks) no hay hoja.
+const OpenProfileContext = React.createContext<(() => void) | null>(null)
+export const useOpenProfile = () => React.useContext(OpenProfileContext)
 
 // Escribiendo en un campo o con un diálogo abierto, las teclas son de ese campo o diálogo.
 function shortcutBlocked(e: KeyboardEvent) {
@@ -168,6 +168,11 @@ export function AppFrame({
     haptic("light")
     setSearchOpen(true)
   }, [])
+  const [profileOpen, setProfileOpen] = React.useState(false)
+  const openProfile = React.useCallback(() => {
+    haptic("light")
+    setProfileOpen(true)
+  }, [])
 
   async function signOut() {
     await authClient.signOut()
@@ -189,42 +194,50 @@ export function AppFrame({
 
   return (
     <SlotsContext.Provider value={slots}>
-      <Chrome
-        user={user}
-        onSignOut={signOut}
-        onSearch={openSearch}
-        desktopSlotRef={setDesktopSlot}
-        mobileSlotRef={setMobileSlot}
-        idle={
-          <MonthNav
-            period={currentPeriod}
-            current={currentPeriod}
-            cycleRange={currentPeriod.cycleRange}
-            onNavigate={() => {}}
-            disabled
-          />
-        }
-      >
-        {children}
-      </Chrome>
-      <TransactionSearch
-        open={searchOpen}
-        detailOpen={searchTx !== null}
-        onOpenChange={setSearchOpen}
-        categories={categories}
-        accounts={accounts}
-        amountBounds={amountBounds}
-        onOpenTransaction={setSearchTx}
-      >
-        {searchOpen && (
-          <TransactionModal
-            tx={searchTx}
-            categories={categories}
-            accounts={accounts}
-            onOpenChange={(o) => !o && setSearchTx(null)}
-          />
-        )}
-      </TransactionSearch>
+      <OpenProfileContext.Provider value={openProfile}>
+        <Chrome
+          user={user}
+          onSignOut={signOut}
+          onProfile={openProfile}
+          onSearch={openSearch}
+          desktopSlotRef={setDesktopSlot}
+          mobileSlotRef={setMobileSlot}
+          idle={
+            <MonthNav
+              period={currentPeriod}
+              current={currentPeriod}
+              cycleRange={currentPeriod.cycleRange}
+              onNavigate={() => {}}
+              disabled
+            />
+          }
+        >
+          {children}
+        </Chrome>
+        <TransactionSearch
+          open={searchOpen}
+          detailOpen={searchTx !== null}
+          onOpenChange={setSearchOpen}
+          categories={categories}
+          accounts={accounts}
+          amountBounds={amountBounds}
+          onOpenTransaction={setSearchTx}
+        >
+          {searchOpen && (
+            <TransactionModal
+              tx={searchTx}
+              categories={categories}
+              accounts={accounts}
+              onOpenChange={(o) => !o && setSearchTx(null)}
+            />
+          )}
+        </TransactionSearch>
+        <ProfileSheet
+          open={profileOpen}
+          onOpenChange={setProfileOpen}
+          user={user}
+        />
+      </OpenProfileContext.Provider>
     </SlotsContext.Provider>
   )
 }
@@ -283,6 +296,7 @@ function Chrome({
   active,
   onNavigate,
   onSignOut,
+  onProfile,
   onSearch,
   title: titleProp,
   actions,
@@ -294,6 +308,7 @@ function Chrome({
   actions?: React.ReactNode
   idle?: React.ReactNode // el MonthNav deshabilitado: ocupa el hueco cuando la vista no trae acciones
   onSearch?: () => void
+  onProfile?: () => void
   desktopSlotRef?: (el: HTMLElement | null) => void
   mobileSlotRef?: (el: HTMLElement | null) => void
 }) {
@@ -326,7 +341,9 @@ function Chrome({
           </SidebarContent>
 
           <SidebarFooter>
-            {user && <UserMenu user={user} onSignOut={onSignOut} />}
+            {user && (
+              <UserMenu user={user} onSignOut={onSignOut} onProfile={onProfile} />
+            )}
           </SidebarFooter>
         </Sidebar>
 
@@ -522,9 +539,7 @@ function BottomNav({
   const [optimisticKey, setOptimisticKey] = React.useOptimistic(
     navKeyOf(pathname)
   )
-  // Perfil cuelga de Ajustes en móvil: estando en él, Ajustes queda marcada.
-  const current = active ?? optimisticKey
-  const activeKey = current === "perfil" ? "configuracion" : current
+  const activeKey = active ?? optimisticKey
   const activeIndex = BOTTOM_NAV.findIndex((n) => n.key === activeKey)
   const pill = BOTTOM_NAV[Math.max(activeIndex, 0)]
   const pillLeft = BOTTOM_NAV.slice(0, Math.max(activeIndex, 0)).reduce(
@@ -617,9 +632,11 @@ function BottomNav({
 function UserMenu({
   user,
   onSignOut,
+  onProfile,
 }: {
   user: User
   onSignOut?: () => void
+  onProfile?: () => void
 }) {
   const { resolvedTheme, setTheme } = useTheme()
 
@@ -637,7 +654,9 @@ function UserMenu({
             </AvatarFallback>
           </Avatar>
           <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="truncate text-subheadline font-medium">{user.name}</span>
+            <span className="truncate text-subheadline font-medium">
+              {user.name || user.email}
+            </span>
             {user.email && (
               <span className="truncate text-footnote text-muted-foreground">
                 {user.email}
@@ -650,7 +669,9 @@ function UserMenu({
       <DropdownMenuContent side="top" align="start" className="w-56">
         <DropdownMenuLabel className="font-normal">
           <div className="grid leading-tight">
-            <span className="truncate text-subheadline font-medium">{user.name}</span>
+            <span className="truncate text-subheadline font-medium">
+              {user.name || user.email}
+            </span>
             {user.email && (
               <span className="truncate text-footnote text-muted-foreground">
                 {user.email}
@@ -659,6 +680,12 @@ function UserMenu({
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {onProfile && (
+          <DropdownMenuItem onSelect={onProfile}>
+            <UserRound className="size-4" />
+            Perfil
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onSelect={(e) => {
             e.preventDefault() // no cerrar el menú al alternar

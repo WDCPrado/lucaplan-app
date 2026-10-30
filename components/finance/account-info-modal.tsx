@@ -9,7 +9,6 @@ import {
   ModalSection,
   ResponsiveModal,
 } from "@/components/ui/responsive-modal"
-import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -104,18 +103,13 @@ export function AccountInfoModal({
       title={mode === "scan" ? "Actualizar saldo" : "Detalle de la cuenta"}
     >
       {account && mode === "scan" && (
-        <div className="flex flex-col gap-7 px-5 pb-6">
+        // Sin pb: el pie del panel (sticky) queda pegado al borde inferior del diálogo.
+        <div className="px-5">
           <BalanceScanPanel
             account={account}
             onDone={() => onOpenChange(false)}
+            onBack={() => setMode("info")}
           />
-          <Button
-            variant="ghost"
-            className="press h-11 text-body text-primary hover:bg-transparent hover:text-primary"
-            onClick={() => setMode("info")}
-          >
-            Volver al detalle
-          </Button>
         </div>
       )}
 

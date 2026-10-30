@@ -90,6 +90,7 @@ export default async function MovementsPage({
     <MovementsView
       period={{ year, month }}
       current={current}
+      cycleRange={mode === "card_cycle" ? range : undefined}
       result={result}
       accounts={accounts}
       categories={budget.categories}

@@ -38,6 +38,7 @@ const SEARCH_INPUT_ID = "movements-q"
 export function MovementsView({
   period,
   current,
+  cycleRange,
   result,
   accounts,
   categories,
@@ -46,6 +47,8 @@ export function MovementsView({
 }: {
   period: { year: number; month: number }
   current: { year: number; month: number }
+  // Rango del ciclo en modo tarjeta: la etiqueta del selector dice «Ciclo …» como en el Inicio.
+  cycleRange?: { start: string; end: string }
   result: TransactionPage
   accounts: AccountDTO[]
   categories: CategoryDTO[]
@@ -150,7 +153,12 @@ export function MovementsView({
   return (
     <AppShell
       actions={
-        <MonthNav period={period} current={current} onNavigate={goPeriod} />
+        <MonthNav
+          period={period}
+          current={current}
+          cycleRange={cycleRange}
+          onNavigate={goPeriod}
+        />
       }
     >
       <div className="mx-auto w-full max-w-6xl px-4 pt-1 pb-6 md:pt-6 lg:px-8">

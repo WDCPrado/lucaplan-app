@@ -86,9 +86,11 @@ const complement = (total: number, value: number, currency: CurrencyCode) =>
 export function BalanceScanPanel({
   account,
   onDone,
+  onBack,
 }: {
   account: AccountDTO
   onDone: () => void
+  onBack: () => void // vuelve al detalle de la cuenta
 }) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -468,24 +470,6 @@ export function BalanceScanPanel({
               </div>
             )
           })}
-
-          <ModalActions
-            cancel={{
-              label: "Volver a las capturas",
-              mobileLabel: "Volver",
-              disabled: busy !== null,
-              onClick: () => {
-                setValues(null) // vuelve a la lista: ahí se agregan, se quitan y se relee
-                setMismatches([])
-              },
-            }}
-            primary={{
-              label: busy === "saving" ? "Guardando…" : "Guardar saldos",
-              mobileLabel: busy === "saving" ? "Guardando…" : "Guardar",
-              disabled: busy !== null,
-              onClick: save,
-            }}
-          />
         </>
       )}
 
@@ -496,6 +480,36 @@ export function BalanceScanPanel({
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
           {error ?? warning}
         </p>
+      )}
+      {/* El pie va al final, después del aviso: así queda abajo y sin nada debajo. Sin valores
+          leídos, su «Cancelar» vuelve al detalle de la cuenta. */}
+      {values ? (
+        <ModalActions
+          cancel={{
+            label: "Volver a las capturas",
+            mobileLabel: "Volver",
+            disabled: busy !== null,
+            onClick: () => {
+              setValues(null) // vuelve a la lista: ahí se agregan, se quitan y se relee
+              setMismatches([])
+            },
+          }}
+          primary={{
+            label: busy === "saving" ? "Guardando…" : "Guardar saldos",
+            mobileLabel: busy === "saving" ? "Guardando…" : "Guardar",
+            disabled: busy !== null,
+            onClick: save,
+          }}
+        />
+      ) : (
+        <ModalActions
+          cancel={{
+            label: "Volver al detalle",
+            mobileLabel: "Volver",
+            disabled: busy !== null,
+            onClick: onBack,
+          }}
+        />
       )}
     </div>
   )

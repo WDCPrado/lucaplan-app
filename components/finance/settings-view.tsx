@@ -13,7 +13,7 @@ import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 import { PushToggle } from "@/components/pwa/push-toggle"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
-import { AppShell } from "./app-shell"
+import { AppShell, useOpenProfile } from "./app-shell"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { GLASS_DEFAULT, GLASS_MAX, getGlass, setGlass, subscribeGlass } from "@/lib/glass-level"
@@ -44,6 +44,7 @@ export function SettingsView({
 }) {
   const router = useRouter()
   const { resolvedTheme, setTheme } = useTheme()
+  const openProfile = useOpenProfile()
 
   async function signOut() {
     await authClient.signOut()
@@ -58,10 +59,12 @@ export function SettingsView({
         <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
           {/* Móvil: la cuenta, como en Ajustes de iOS (en escritorio vive en el pie del sidebar). */}
           <section aria-label="Cuenta" className="glass inset-list overflow-hidden rounded-xl md:hidden">
-            <Link
-              href="/profile"
-              onClick={() => haptic("light")}
-              className="press flex min-h-15 items-center gap-3 py-2 pr-3 pl-4 hover:bg-accent/60"
+            {/* Abre la hoja del perfil (vive en el AppFrame); no navega. */}
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              onClick={() => openProfile?.()}
+              className="press flex min-h-15 w-full items-center gap-3 py-2 pr-3 pl-4 text-left hover:bg-accent/60"
             >
               <span
                 aria-hidden
@@ -80,7 +83,7 @@ export function SettingsView({
                 )}
               </span>
               <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
-            </Link>
+            </button>
             <button
               type="button"
               onClick={() => {

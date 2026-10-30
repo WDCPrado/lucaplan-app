@@ -29,7 +29,7 @@ import { incomeDueDateInRange } from "@/lib/income-schedule"
 import { planTotal, previousMonthLabel, shouldSuggest } from "@/lib/plan-total"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type { PeriodMode } from "@/arch/shared/billing-cycle"
-import { PeriodModeControl } from "./month-status"
+import { ClosingPicker, PeriodModeControl } from "./month-status"
 import type {
   CategoryDTO,
   IncomeDTO,
@@ -48,6 +48,7 @@ export function PlanSheet({
   period,
   cycleRange,
   mode,
+  closing,
   isCurrentMonth,
   globalLimit,
   allocated,
@@ -69,6 +70,7 @@ export function PlanSheet({
   period: { year: number; month: number }
   cycleRange?: { start: string; end: string }
   mode: PeriodMode // modo guardado del período: mes calendario o ciclo de la tarjeta
+  closing?: { date: string; estimated: boolean } // cierre del mes en pantalla, solo en modo tarjeta
   isCurrentMonth: boolean
   globalLimit: number | null
   allocated: number
@@ -154,6 +156,11 @@ export function PlanSheet({
         <section>
           <h3 className="mb-2 px-4 text-headline font-semibold">Período</h3>
           <PeriodModeControl mode={mode} />
+          {mode === "card_cycle" && closing && (
+            <div className="mt-6">
+              <ClosingPicker period={period} closing={closing} />
+            </div>
+          )}
         </section>
         {/* Exclusivo de modo crédito: el padre pasa [] en modo calendario. No confundir
             "generated" con depósito bancario; las fechas futuras prevalecen. */}

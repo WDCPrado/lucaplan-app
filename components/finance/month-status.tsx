@@ -4,8 +4,7 @@ import { useOptimistic, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
-import { CalendarClock, ChevronRight, SlidersHorizontal } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -23,8 +22,8 @@ import type { CycleProps } from "./dashboard"
 
 /**
  * Estado del período en el Inicio. En el mes en curso, lo primero y más grande es cuánto queda del
- * plan; los días para cerrar van en la línea de abajo. Al pie, el rango del ciclo con su cierre (en
- * modo tarjeta) y «Ajustar plan», que abre donde se decide todo esto (también el modo del período).
+ * plan; los días para cerrar van en la línea de abajo. Al pie, «Ajustar plan», que abre donde se
+ * decide todo esto (también el modo del período y el cierre de la tarjeta).
  * Para períodos históricos se conserva el saldo final sin gastar.
  */
 export function MonthStatus({
@@ -52,31 +51,16 @@ export function MonthStatus({
 }) {
   const mes = monthName(period.month).toLowerCase()
 
-  // Pie: el rango del ciclo y su cierre (solo en modo tarjeta) y el acceso al plan.
+  // Última fila de la tarjeta: abre el plan, donde se decide todo (también el período y el cierre).
   const footer = (
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-      {cycle.mode === "card_cycle" ? (
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="min-w-0 truncate text-subheadline text-muted-foreground">
-            <span className="max-sm:sr-only">Ciclo </span>
-            <span className="font-medium text-foreground tabular-nums">
-              {shortDate(cycle.range.start)} – {shortDate(cycle.range.end)}
-            </span>
-          </p>
-          <ClosingPicker period={period} closing={cycle.closing} />
-        </div>
-      ) : (
-        <span />
-      )}
-      <Button
-        variant="secondary"
-        onClick={onOpenPlan}
-        className="h-11 text-subheadline"
-      >
-        <SlidersHorizontal className="size-4" />
-        Ajustar plan
-      </Button>
-    </div>
+    <button
+      type="button"
+      onClick={onOpenPlan}
+      className="press mt-4 flex min-h-11 w-full items-center justify-between gap-2 border-t border-border pt-1 text-left text-body text-primary"
+    >
+      Ajustar plan
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
+    </button>
   )
 
   if (globalLimit === null) {
@@ -99,7 +83,6 @@ export function MonthStatus({
           <PlanSummary {...plan} />
         </div>
         {children && <div className="mt-4">{children}</div>}
-        {cycle.mode === "card_cycle" && footer}
       </section>
     )
   }
@@ -111,7 +94,7 @@ export function MonthStatus({
       daysLeft === 1
         ? "Hoy termina el período"
         : `${remainingDays} ${remainingDays === 1 ? "día" : "días"} para cerrar${
-            // En crédito, la fecha ya la dice el cierre del pie.
+            // En ciclo, el rango ya lo dice el MonthNav de arriba.
             cycle.mode === "calendar" ? ` · ${shortDate(cycle.range.end)}` : ""
           }`
     return (
@@ -249,10 +232,11 @@ export function PeriodModeControl({ mode: savedMode }: { mode: PeriodMode }) {
 }
 
 /**
- * El cierre del mes en pantalla: se estima (7.º día hábil desde el fin de mes) y se corrige con un
- * calendario limitado a los días de ese mes. Con una corrección guardada, «Usar estimado» la borra.
+ * El cierre del mes en pantalla, como fila de Ajustes en «Ajustar plan» (solo en modo tarjeta). Se
+ * estima (7.º día hábil desde el fin de mes) y se corrige con un calendario limitado a los días de
+ * ese mes. Con una corrección guardada, «Usar estimado» la borra.
  */
-function ClosingPicker({
+export function ClosingPicker({
   period,
   closing,
 }: {
@@ -284,63 +268,64 @@ function ClosingPicker({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="secondary"
-          aria-label={`Cierre de ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}. Corregir`}
-          className="h-11 gap-2 px-3 text-subheadline font-normal"
-        >
-          <CalendarClock className="size-4 text-muted-foreground" />
-          <span>
-            <span className="max-sm:sr-only">Cierra el </span>
-            <span className="font-medium tabular-nums">
-              {shortDate(closing.date)}
-            </span>
-          </span>
-          {closing.estimated && (
-            <Badge
-              variant="outline"
-              className="font-normal text-muted-foreground"
+    <div className="flex flex-col gap-2">
+      <div className="sheet-group inset-list px-4">
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={`Cierre de la tarjeta en ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}. Cambiar`}
+              className="press flex min-h-11 w-full items-center gap-2 py-2.5 text-left"
             >
-              estimado
-            </Badge>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-auto gap-2 p-3">
-        <p className="px-1 text-footnote text-muted-foreground">Cierre de {mes}</p>
-        <Calendar
-          mode="single"
-          locale={es}
-          month={new Date(period.year, period.month - 1, 1)}
-          disableNavigation
-          showOutsideDays={false}
-          disabled={saving}
-          selected={new Date(y, m - 1, d)}
-          onSelect={(day) => {
-            if (!day) return
-            const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`
-            // El mismo día no es una corrección: cerrar sin guardar.
-            if (key !== closing.date) void save(key)
-            else setOpen(false)
-          }}
-          // El mes ya lo dice el título de arriba: su encabezado solo dejaba una fila vacía.
-          classNames={{ nav: "hidden", month_caption: "sr-only" }}
-          className="p-0"
-        />
+              <span className="min-w-0 flex-1 text-body">Cierre de la tarjeta</span>
+              <span className="text-body text-muted-foreground tabular-nums">
+                {shortDate(closing.date)}
+              </span>
+              {closing.estimated && (
+                <span className="text-footnote text-muted-foreground">
+                  Estimado
+                </span>
+              )}
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-auto gap-2 p-3">
+            <p className="px-1 text-footnote text-muted-foreground">Cierre de {mes}</p>
+            <Calendar
+              mode="single"
+              locale={es}
+              month={new Date(period.year, period.month - 1, 1)}
+              disableNavigation
+              showOutsideDays={false}
+              disabled={saving}
+              selected={new Date(y, m - 1, d)}
+              onSelect={(day) => {
+                if (!day) return
+                const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`
+                // El mismo día no es una corrección: cerrar sin guardar.
+                if (key !== closing.date) void save(key)
+                else setOpen(false)
+              }}
+              // El mes ya lo dice el título de arriba: su encabezado solo dejaba una fila vacía.
+              classNames={{ nav: "hidden", month_caption: "sr-only" }}
+              className="p-0"
+            />
+          </PopoverContent>
+        </Popover>
         {!closing.estimated && (
-          <Button
-            variant="ghost"
+          <button
+            type="button"
             disabled={saving}
             onClick={() => void save(null)}
-            className="h-11 w-full text-body sm:h-9 sm:text-subheadline"
+            className="press flex min-h-11 w-full items-center py-2.5 text-left text-body text-primary disabled:opacity-50"
           >
             Usar estimado ({shortDate(estimate)})
-          </Button>
+          </button>
         )}
-      </PopoverContent>
-    </Popover>
+      </div>
+      <p className="px-4 text-footnote text-muted-foreground">
+        El ciclo va del día después del cierre anterior hasta este día.
+      </p>
+    </div>
   )
 }
-

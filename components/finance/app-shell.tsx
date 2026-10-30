@@ -164,15 +164,10 @@ export function AppFrame({
     () => ({ desktop: desktopSlot, mobile: mobileSlot }),
     [desktopSlot, mobileSlot]
   )
-  const openSearch = React.useCallback(() => {
-    haptic("light")
-    setSearchOpen(true)
-  }, [])
+  // Sin haptic propio: ResponsiveModal ya vibra al abrir.
+  const openSearch = React.useCallback(() => setSearchOpen(true), [])
   const [profileOpen, setProfileOpen] = React.useState(false)
-  const openProfile = React.useCallback(() => {
-    haptic("light")
-    setProfileOpen(true)
-  }, [])
+  const openProfile = React.useCallback(() => setProfileOpen(true), [])
 
   async function signOut() {
     await authClient.signOut()
@@ -639,6 +634,9 @@ function UserMenu({
   onProfile?: () => void
 }) {
   const { resolvedTheme, setTheme } = useTheme()
+  // «Perfil» abre la hoja recién cuando el menú terminó de cerrarse y Radix devolvió el foco a su
+  // botón: así la hoja lo guarda como opener y, al cerrarla, el foco vuelve ahí y no a <body>.
+  const pendingProfile = React.useRef(false)
 
   return (
     <DropdownMenu>
@@ -666,7 +664,16 @@ function UserMenu({
           <ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
         </SidebarMenuButton>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" className="w-56">
+      <DropdownMenuContent
+        side="top"
+        align="start"
+        className="w-56"
+        onCloseAutoFocus={() => {
+          if (!pendingProfile.current) return
+          pendingProfile.current = false
+          onProfile?.()
+        }}
+      >
         <DropdownMenuLabel className="font-normal">
           <div className="grid leading-tight">
             <span className="truncate text-subheadline font-medium">
@@ -681,7 +688,11 @@ function UserMenu({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {onProfile && (
-          <DropdownMenuItem onSelect={onProfile}>
+          <DropdownMenuItem
+            onSelect={() => {
+              pendingProfile.current = true
+            }}
+          >
             <UserRound className="size-4" />
             Perfil
           </DropdownMenuItem>

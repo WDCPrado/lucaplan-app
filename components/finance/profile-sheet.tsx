@@ -22,8 +22,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { FinanceField } from "./finance-form-field"
 
-const NAME_FORM = "profile-name"
-const PASSWORD_FORM = "profile-password"
+const NAME_FORM = "profile-name-form"
+const PASSWORD_FORM = "profile-password-form"
 
 /**
  * Hoja de la cuenta, como la tarjeta de Apple ID: identidad arriba, el nombre en un grupo y
@@ -57,10 +57,7 @@ export function ProfileSheet({
           <button
             type="button"
             aria-haspopup="dialog"
-            onClick={() => {
-              haptic("light")
-              setPasswordOpen(true)
-            }}
+            onClick={() => setPasswordOpen(true)}
             className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body"
           >
             <span className="min-w-0 flex-1">Cambiar contraseña</span>
@@ -140,10 +137,10 @@ function NameForm({
         </p>
       )}
       <ModalSection
-        title={<label htmlFor="name">Nombre</label>}
+        title={<label htmlFor="profile-name">Nombre</label>}
         footer={
           errors.name && (
-            <p id="name-error" role="alert" className="text-destructive">
+            <p id="profile-name-error" role="alert" className="text-destructive">
               {errors.name.message}
             </p>
           )
@@ -152,13 +149,13 @@ function NameForm({
         {/* El campo es la celda: sin relleno propio ni contorno hasta enfocarlo. */}
         <Input
           {...form.register("name")}
-          id="name"
+          id="profile-name"
           autoComplete="name"
           inputMode="text"
           maxLength={PROFILE_NAME_MAX}
           placeholder="Tu nombre"
           aria-invalid={!!errors.name}
-          aria-describedby={errors.name ? "name-error" : undefined}
+          aria-describedby={errors.name ? "profile-name-error" : undefined}
           className="h-11 rounded-none border-0 bg-transparent px-4 text-body shadow-none focus-visible:ring-inset md:text-body"
         />
       </ModalSection>
@@ -215,7 +212,11 @@ function PasswordSheet({
   }
 
   const field = (name: "currentPassword" | "newPassword" | "confirmPassword") => {
-    const id = { currentPassword: "current", newPassword: "new", confirmPassword: "confirm" }[name]
+    const id = {
+      currentPassword: "password-current",
+      newPassword: "password-new",
+      confirmPassword: "password-confirm",
+    }[name]
     const error = errors[name]?.message
     return {
       id,

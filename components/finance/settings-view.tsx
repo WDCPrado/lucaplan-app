@@ -162,6 +162,9 @@ function SettingsSection({
   )
 }
 
+// Lo que lee el lector de pantalla en cada paso (0 a GLASS_MAX); el 2 es el por defecto.
+const GLASS_NAMES = ["Más transparente", "Transparente", "Normal", "Teñido", "Muy teñido"]
+
 // Cuánto vidrio llevan barras, sidebar y menús: de transparente (el de siempre) a teñido, casi
 // sólido. Cinco pasos; es de este dispositivo (lib/glass-level.ts) y se ve al arrastrar.
 function AppearanceSection() {
@@ -185,6 +188,7 @@ function AppearanceSection() {
           max={GLASS_MAX}
           step={1}
           aria-label="Efecto vidrio"
+          aria-valuetext={GLASS_NAMES[level]}
           className="h-11"
         />
         <div

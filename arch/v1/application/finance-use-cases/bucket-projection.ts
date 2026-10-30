@@ -2,7 +2,7 @@
 // derivado de la cuenta (balance = caja disponible). En una tarjeta de crédito —que no tiene caja—
 // el cargo consume cupo y el abono lo paga. Sin buckets —cuentas manuales— es no-op: ahí la
 // columna balance ya la ajustó el adapter. La usan el abono manual, el generar/deshacer del ingreso
-// mensual y el registro de movimientos por foto.
+// mensual y el cargo bancario del plugin.
 import type {
   AccountRepository,
   BalanceBucketRepository,

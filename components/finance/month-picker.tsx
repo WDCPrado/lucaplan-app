@@ -11,6 +11,19 @@ import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { currentPeriod, monthName } from "@/lib/finance-format"
 
+// Etiqueta del período: el mes («Octubre») o, en modo tarjeta, el rango del ciclo
+// («Ciclo 23 sep – 22 oct»). La misma en el selector y en el MonthNav deshabilitado.
+const day = (key: string) =>
+  `${key.slice(8, 10)} ${monthName(Number(key.slice(5, 7))).slice(0, 3).toLowerCase()}`
+export function periodLabel(
+  period: { month: number },
+  cycleRange?: { start: string; end: string }
+) {
+  return cycleRange
+    ? `Ciclo ${day(cycleRange.start)} – ${day(cycleRange.end)}`
+    : monthName(period.month)
+}
+
 // Selector de mes con Popover de shadcn: el pill del mes abre un grid de 12 meses con
 // navegación de año. El mes seleccionado va en primary; el mes actual lleva un anillo.
 export function MonthPicker({
@@ -43,11 +56,11 @@ export function MonthPicker({
       <PopoverTrigger asChild>
         <button
           className={cn(
-            "h-8 min-w-20 rounded-lg px-2 text-center text-sm font-semibold transition-colors hover:bg-background",
+            "press min-h-11 max-w-full truncate rounded-full px-3 text-center text-headline font-semibold md:min-h-8 md:text-subheadline",
             className
           )}
         >
-          {cycleRange ? `Ciclo ${cycleRange.start.slice(8, 10)} ${monthName(Number(cycleRange.start.slice(5, 7))).slice(0, 3).toLowerCase()} – ${cycleRange.end.slice(8, 10)} ${monthName(Number(cycleRange.end.slice(5, 7))).slice(0, 3).toLowerCase()}` : monthName(period.month)}
+          {periodLabel(period, cycleRange)}
           {withYear && <span className="tabular-nums"> {period.year}</span>}
         </button>
       </PopoverTrigger>
@@ -55,15 +68,15 @@ export function MonthPicker({
         <div className="mb-2 flex items-center justify-between">
           <button
             onClick={() => setYear((y) => y - 1)}
-            className="grid size-9 place-items-center rounded-lg transition-colors hover:bg-accent"
+            className="grid size-11 place-items-center rounded-lg transition-colors hover:bg-foreground/10 md:size-9"
             aria-label="Año anterior"
           >
             <ChevronLeft className="size-4" />
           </button>
-          <span className="text-sm font-semibold tabular-nums">{year}</span>
+          <span className="text-subheadline font-semibold tabular-nums">{year}</span>
           <button
             onClick={() => setYear((y) => y + 1)}
-            className="grid size-9 place-items-center rounded-lg transition-colors hover:bg-accent"
+            className="grid size-11 place-items-center rounded-lg transition-colors hover:bg-foreground/10 md:size-9"
             aria-label="Año siguiente"
           >
             <ChevronRight className="size-4" />
@@ -83,10 +96,10 @@ export function MonthPicker({
                   onSelect(year, m)
                 }}
                 className={cn(
-                  "h-11 rounded-lg text-sm transition-colors md:h-9",
+                  "h-11 rounded-lg text-subheadline transition-colors md:h-9",
                   selected
                     ? "bg-primary font-semibold text-primary-foreground"
-                    : "hover:bg-accent",
+                    : "hover:bg-foreground/10",
                   !selected && isNow && "ring-1 ring-primary/50"
                 )}
               >

@@ -3,9 +3,12 @@
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Camera, Unlink } from "lucide-react"
-import { ResponsiveModal } from "@/components/ui/responsive-modal"
-import { Button } from "@/components/ui/button"
+import { Camera } from "lucide-react"
+import {
+  ModalDangerRow,
+  ModalSection,
+  ResponsiveModal,
+} from "@/components/ui/responsive-modal"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -100,14 +103,13 @@ export function AccountInfoModal({
       title={mode === "scan" ? "Actualizar saldo" : "Detalle de la cuenta"}
     >
       {account && mode === "scan" && (
-        <div className="flex flex-col gap-7 px-5 pb-6">
+        // Sin pb: el pie del panel (sticky) queda pegado al borde inferior del diálogo.
+        <div className="px-5">
           <BalanceScanPanel
             account={account}
             onDone={() => onOpenChange(false)}
+            onBack={() => setMode("info")}
           />
-          <Button variant="ghost" onClick={() => setMode("info")}>
-            Volver al detalle
-          </Button>
         </div>
       )}
 
@@ -115,7 +117,7 @@ export function AccountInfoModal({
         <div className="flex flex-col gap-8 px-5 pb-6">
           <AccountCard account={account} />
 
-          <dl className="flex flex-col">
+          <dl className="sheet-group flex flex-col px-4">
             <Row label="Banco" value={account.bankName} />
             <Row label="Nombre" value={account.name} />
             <Row
@@ -180,28 +182,25 @@ export function AccountInfoModal({
           </dl>
 
           {scannable && (
-            <Button
-              variant="outline"
-              onClick={() => setMode("scan")}
-              className="h-12"
-            >
-              <Camera className="size-4" />
-              Actualizar saldo
-            </Button>
+            <ModalSection>
+              <button
+                type="button"
+                onClick={() => setMode("scan")}
+                className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary"
+              >
+                <Camera className="size-5 shrink-0" />
+                Actualizar saldo
+              </button>
+            </ModalSection>
           )}
 
           {connected && (
             <div className="flex flex-col gap-1.5">
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    disabled={disconnecting}
-                    className="h-12 text-destructive hover:text-destructive"
-                  >
-                    <Unlink className="size-4" />
+                  <ModalDangerRow disabled={disconnecting}>
                     {disconnecting ? "Desconectando…" : "Desconectar banco"}
-                  </Button>
+                  </ModalDangerRow>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
@@ -225,17 +224,12 @@ export function AccountInfoModal({
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-              {disconnectError ? (
+              {disconnectError && (
                 <p
                   role="alert"
-                  className="text-center text-sm text-destructive"
+                  className="text-center text-subheadline text-destructive"
                 >
                   {disconnectError}
-                </p>
-              ) : (
-                <p className="text-center text-sm text-muted-foreground">
-                  Elimina la conexión, sus credenciales y todos sus datos de
-                  Luca Plan.
                 </p>
               )}
             </div>
@@ -249,8 +243,8 @@ export function AccountInfoModal({
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-5 border-b border-border py-4 last:border-0">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-right text-base font-medium break-words">
+      <dt className="text-subheadline text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right text-body font-medium break-words">
         {value}
       </dd>
     </div>

@@ -3,18 +3,20 @@ import { redirect } from "next/navigation"
 
 import { auth } from "@/arch/v1/infrastructure/auth/auth"
 import { todayKey } from "@/lib/finance-format"
-import { currentBudgetPeriod } from "@/arch/v1/application/finance-use-cases/budget-period-use-cases"
+import { getBudgetPeriod } from "@/arch/v1/application/finance-use-cases/budget-period-use-cases"
+import { periodOfDay, periodRange } from "@/arch/shared/billing-cycle"
 import { financeDeps } from "@/arch/v1/presentation/finance/finance-http"
 import {
   listAccounts,
   getBudgetView,
+  getAmountBounds,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { AppFrame } from "@/components/finance/app-shell"
 
-// Marco de las pantallas con sesión: la barra inferior móvil y el "+" de nuevo movimiento se
+// Marco de las pantallas con sesión: sidebar, barras superior e inferior y la búsqueda se
 // montan una vez aquí y no se desmontan al cambiar de ruta (un layout no se vuelve a renderizar en
-// la navegación; sí con router.refresh(), que es lo que hacen el sheet y el modal de cuenta al
-// guardar, así las cuentas y categorías del "+" se ponen al día).
+// la navegación; sí con router.refresh(), que es lo que hacen los modales al guardar, así las
+// cuentas y categorías de la búsqueda se ponen al día).
 export default async function AppLayout({
   children,
 }: {
@@ -29,14 +31,38 @@ export default async function AppLayout({
   // ponytail: getBudgetView completo solo por sus categorías; en /dashboard cada router.refresh()
   // lo calcula dos veces (aquí y en la página). Una lectura liviana de categorías si pesa.
   const userId = session.user.id
-  const now = await currentBudgetPeriod(financeDeps, todayKey())
-  const [accounts, budget] = await Promise.all([
+  // El período en curso, como lo calcula el Inicio: el marco lo muestra en el MonthNav deshabilitado
+  // de las vistas sin selector de mes.
+  const { mode, overrides } = await getBudgetPeriod(financeDeps)
+  const now = periodOfDay(todayKey(), mode, overrides)
+  // Los topes del slider de monto de la búsqueda global, que vive en el marco.
+  const [accounts, budget, amountBounds] = await Promise.all([
     listAccounts(financeDeps, userId),
     getBudgetView(financeDeps, userId, now.year, now.month),
+    getAmountBounds(financeDeps, userId),
   ])
 
+  // Los datos de la cuenta del marco: el menú del sidebar y la hoja del perfil, que edita el
+  // nombre tal cual está guardado (vacío si no hay; el menú cae al correo).
+  const label = session.user.name || session.user.email || "Usuario"
   return (
-    <AppFrame quickAdd={{ accounts, categories: budget.categories }}>
+    <AppFrame
+      user={{
+        name: session.user.name ?? "",
+        initial: label.charAt(0).toUpperCase(),
+        email: session.user.email,
+      }}
+      accounts={accounts}
+      categories={budget.categories}
+      amountBounds={amountBounds}
+      currentPeriod={{
+        ...now,
+        cycleRange:
+          mode === "card_cycle"
+            ? periodRange(now.year, now.month, mode, overrides)
+            : undefined,
+      }}
+    >
       {children}
     </AppFrame>
   )

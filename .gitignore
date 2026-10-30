@@ -42,8 +42,9 @@ pnpm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# skills instaladas (reinstalables: npx skills add better-auth/skills)
+# skills instaladas (reinstalables: npx skills experimental_install, desde skills-lock.json)
 /.agents
+/.claude/skills/apple-*
 
 # prisma client generado
 /arch/v1/infrastructure/database/prisma/generated

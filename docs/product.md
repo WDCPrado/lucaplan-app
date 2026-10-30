@@ -40,8 +40,8 @@ Dos mecanismos que un producto vecino no podría copiar diciendo lo mismo:
 - Los datos entran solos desde las notificaciones de correo del banco (Banco de Chile, Banco
   BICE y MACHBANK —solo débito— vía Outlook / Microsoft Graph). Un mismo correo puede alimentar
   varios bancos.
-- Lo que el correo no avisa entra por captura de pantalla: de la app del banco (saldos y cupos)
-  o de la cartola (varios movimientos de una vez).
+- Lo que el correo no avisa entra por captura de pantalla de la app del banco (saldos y cupos);
+  los cargos que el banco no avisó, a mano o desde el plugin MCP.
 - El ciclo es mensual: límite global y por categoría, lo no asignado queda "por presupuestar",
   los límites se heredan mes a mes y un selector de mes navega el historial.
 - Dos monedas conviven en el mismo instrumento: cupo nacional en CLP y cupo internacional en

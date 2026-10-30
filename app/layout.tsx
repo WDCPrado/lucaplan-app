@@ -7,24 +7,26 @@ import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-regis
 import { PwaRefresh } from "@/components/pwa/pwa-refresh"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
+import { GLASS_SCRIPT } from "@/lib/glass-level"
 
-// Tipografía: Geist (UI, legible y moderna) + Space Grotesk (headings, identidad
-// fintech) + Geist Mono (cifras tabulares). Ver docs/design/design-system.md.
+// Tipografía: la app usa la fuente del sistema (SF en Apple) y cae a Geist en el resto; Space
+// Grotesk queda solo para los titulares de la landing y Geist Mono para código. Las pilas viven en
+// globals.css. Ver docs/design/design-system.md.
 const fontSans = Geist({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-geist",
 })
 
 const fontHeading = Space_Grotesk({
   subsets: ["latin"],
   weight: ["500", "600", "700"],
-  variable: "--font-heading",
+  variable: "--font-grotesk",
 })
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
   weight: ["400", "500"],
-  variable: "--font-mono",
+  variable: "--font-geist-mono",
 })
 
 export const metadata: Metadata = {
@@ -64,15 +66,16 @@ export const metadata: Metadata = {
 }
 
 // viewport-fit=cover extiende el lienzo bajo notch/home indicator (las safe areas se compensan
-// solo en modo standalone; ver globals.css). theme-color sigue el tema del sistema.
+// solo en modo standalone; ver globals.css). theme-color parte del tema del sistema y, ya montada,
+// ThemeColor (theme-provider.tsx) lo alinea con el tema de la app.
 // El teclado se superpone: conserva el viewport y el tamaño de los modales donde el navegador
 // admite interactive-widget. ResponsiveModal también desactiva el reposicionamiento de Vaul.
 export const viewport: Viewport = {
   viewportFit: "cover",
   interactiveWidget: "overlays-content",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f9fafc" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f141d" },
+    { media: "(prefers-color-scheme: light)", color: "#f2f2f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
   ],
 }
 
@@ -95,6 +98,10 @@ export default function RootLayout({
         fontMono.variable
       )}
     >
+      <head>
+        {/* Nivel del vidrio de este dispositivo (Ajustes → Apariencia), antes del primer pintado. */}
+        <script dangerouslySetInnerHTML={{ __html: GLASS_SCRIPT }} />
+      </head>
       <body>
         {/* Señal de que no estás en prod: pestañita verde flotando sobre el navbar.
             Server component: en producción ni se renderiza. */}

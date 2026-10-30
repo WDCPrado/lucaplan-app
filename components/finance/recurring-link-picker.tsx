@@ -95,7 +95,7 @@ export function RecurringLinkPicker({
       className="sm:max-w-md"
     >
       <div className="flex flex-col px-5 pb-4">
-        <p className="py-3 text-xs text-muted-foreground">
+        <p className="py-3 text-footnote text-muted-foreground">
           Cargos del banco en la categoría de esta recurrente. Elige el que
           corresponde a este período: no se crea nada nuevo, el movimiento pasa
           a ser el cobro.
@@ -109,7 +109,7 @@ export function RecurringLinkPicker({
             onChange={(e) => onFiltersChange({ ...filters, q: e.target.value })}
             placeholder="Buscar por descripción…"
             aria-label="Buscar movimiento"
-            className="h-11 pr-10 pl-10 text-base"
+            className="h-11 pr-10 pl-10 text-body md:text-body"
           />
           {filters.q && (
             <button
@@ -124,7 +124,7 @@ export function RecurringLinkPicker({
         </div>
 
         <div className="mt-4 space-y-2">
-          <span className="block text-xs font-medium text-muted-foreground">
+          <span className="block text-footnote font-medium text-muted-foreground">
             Días hacia atrás
           </span>
           <div className="flex flex-wrap gap-2">
@@ -164,14 +164,14 @@ export function RecurringLinkPicker({
                   aria-describedby={
                     customInvalid ? "recurring-link-days-error" : undefined
                   }
-                  className="tabular h-11 w-24 text-base"
+                  className="tabular h-11 w-24 text-body md:text-body"
                 />
-                <span className="text-sm text-muted-foreground">días</span>
+                <span className="text-subheadline text-muted-foreground">días</span>
               </div>
               {customInvalid && (
                 <p
                   id="recurring-link-days-error"
-                  className="text-xs text-destructive"
+                  className="text-footnote text-destructive"
                 >
                   Escribe entre 1 y {MAX_DAYS} días.
                 </p>
@@ -181,12 +181,12 @@ export function RecurringLinkPicker({
         </div>
 
         {items === null ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
+          <p className="py-8 text-center text-subheadline text-muted-foreground">
             Buscando movimientos…
           </p>
         ) : items === "error" ? (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-subheadline text-muted-foreground">
               No se pudieron cargar los movimientos.
             </p>
             <Button variant="outline" onClick={onRetry} className="h-11">
@@ -194,7 +194,7 @@ export function RecurringLinkPicker({
             </Button>
           </div>
         ) : items.length === 0 ? (
-          <p className="py-8 text-center text-sm text-balance text-muted-foreground">
+          <p className="py-8 text-center text-subheadline text-balance text-muted-foreground">
             No hay movimientos para elegir.
           </p>
         ) : (
@@ -208,15 +208,15 @@ export function RecurringLinkPicker({
                   className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors outline-none hover:bg-secondary/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
+                    <span className="block truncate text-subheadline font-medium">
                       {tx.description}
                     </span>
-                    <span className="block truncate text-xs text-muted-foreground">
+                    <span className="block truncate text-footnote text-muted-foreground">
                       {formatDateHeader(tx.date)}
                       {tx.categoryName ? ` · ${tx.categoryName}` : ""}
                     </span>
                   </span>
-                  <span className="tabular shrink-0 text-sm font-semibold">
+                  <span className="tabular shrink-0 text-subheadline font-semibold">
                     {signedAmount(tx)}
                   </span>
                 </button>
@@ -241,14 +241,14 @@ export function RecurringLinkPicker({
           {pending && (
             <div className="flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2.5">
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">
+                <span className="block truncate text-subheadline font-medium">
                   {pending.description}
                 </span>
-                <span className="block text-xs text-muted-foreground">
+                <span className="block text-footnote text-muted-foreground">
                   {formatDateHeader(pending.date)}
                 </span>
               </span>
-              <span className="tabular shrink-0 text-sm font-semibold">
+              <span className="tabular shrink-0 text-subheadline font-semibold">
                 {signedAmount(pending)}
               </span>
             </div>

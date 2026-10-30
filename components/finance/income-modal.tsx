@@ -6,10 +6,14 @@ import { useId, useState } from "react"
 import { useForm, Controller, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
-import { CalendarIcon, Trash2 } from "lucide-react"
+import { CalendarIcon } from "lucide-react"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
+import {
+  ModalDangerRow,
+  ModalFooter,
+  ResponsiveModal,
+} from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Calendar } from "@/components/ui/calendar"
@@ -176,10 +180,43 @@ export function IncomeModal({
         onOpenChange(next)
       }}
       title={income ? "Editar ingreso" : "Nuevo ingreso"}
+      cancel={
+        destinations.length === 0
+          ? undefined
+          : {
+              label: "Cancelar",
+              disabled: busy,
+              onClick: () => {
+                form.reset(undefined, { keepDirtyValues: false })
+                onOpenChange(false)
+              },
+            }
+      }
+      primary={
+        destinations.length === 0
+          ? undefined
+          : {
+              label: isSubmitting
+                ? "Guardando…"
+                : income
+                  ? "Guardar ingreso"
+                  : "Agregar ingreso",
+              mobileLabel: isSubmitting
+                ? "Guardando…"
+                : income
+                  ? "Guardar"
+                  : "Agregar",
+              form: formId,
+              disabled:
+                busy ||
+                incomeCategories.length === 0 ||
+                (!!income && !hasDraftChanges),
+            }
+      }
     >
       {destinations.length === 0 ? (
         <>
-          <p className="px-5 py-8 text-base leading-relaxed text-muted-foreground">
+          <p className="px-5 py-8 text-body leading-relaxed text-muted-foreground">
             Agrega una cuenta corriente, de ahorro o billetera para recibir
             ingresos. Las tarjetas de crédito registran pagos, no ingresos.
           </p>
@@ -187,7 +224,7 @@ export function IncomeModal({
             <Button
               type="button"
               variant="outline"
-              className="h-12 flex-1"
+              className="h-12 flex-1 text-body"
               onClick={() => onOpenChange(false)}
             >
               Cerrar
@@ -203,7 +240,7 @@ export function IncomeModal({
           >
             <fieldset disabled={busy} className="contents">
               {errors.root && (
-                <p role="alert" className="text-sm text-destructive">
+                <p role="alert" className="text-subheadline text-destructive">
                   {errors.root.message}
                 </p>
               )}
@@ -217,7 +254,7 @@ export function IncomeModal({
                   {...form.register("name")}
                   required
                   inputMode="text"
-                  className="h-12 text-base"
+                  className="h-12 text-body"
                   placeholder="Ej. Sueldo"
                   aria-invalid={!!errors.name}
                   aria-describedby={
@@ -241,7 +278,7 @@ export function IncomeModal({
                     >
                       <SelectTrigger
                         id={`${formId}-account`}
-                        className="h-12! w-full min-w-0 text-base"
+                        className="h-12! w-full min-w-0 text-body"
                         aria-invalid={!!errors.accountId}
                         aria-describedby={
                           errors.accountId
@@ -256,7 +293,7 @@ export function IncomeModal({
                       </SelectTrigger>
                       <SelectContent
                         position="popper"
-                        className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)] bg-popover"
+                        className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)]"
                       >
                         {destinations.map((account) => (
                           <SelectItem
@@ -316,7 +353,7 @@ export function IncomeModal({
                     >
                       <SelectTrigger
                         id={`${formId}-category`}
-                        className="h-12! w-full min-w-0 text-base"
+                        className="h-12! w-full min-w-0 text-body"
                         aria-invalid={!!errors.categoryId}
                         aria-describedby={
                           errors.categoryId
@@ -331,7 +368,7 @@ export function IncomeModal({
                       </SelectTrigger>
                       <SelectContent
                         position="popper"
-                        className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)] bg-popover"
+                        className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)]"
                       >
                         {incomeCategories.map((category) => (
                           <SelectItem
@@ -377,31 +414,13 @@ export function IncomeModal({
               </FinanceField>
             </fieldset>
           </form>
-          <ModalFooter className="grid grid-cols-[minmax(0,1fr)_auto] px-5 sm:flex">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12"
-              disabled={busy}
-              onClick={() => {
-                form.reset(undefined, { keepDirtyValues: false })
-                onOpenChange(false)
-              }}
-            >
-              Cancelar
-            </Button>
-            {income && (
+          {income && (
+            <div className="mt-8 px-5">
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="size-12 text-destructive"
-                    disabled={busy}
-                    aria-label="Eliminar ingreso"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <ModalDangerRow disabled={busy}>
+                    Eliminar ingreso
+                  </ModalDangerRow>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
@@ -421,24 +440,8 @@ export function IncomeModal({
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            )}
-            <Button
-              type="submit"
-              form={formId}
-              disabled={
-                busy ||
-                incomeCategories.length === 0 ||
-                (!!income && !hasDraftChanges)
-              }
-              className="col-span-full h-auto min-h-12 min-w-0 py-3 text-base whitespace-normal sm:flex-1"
-            >
-              {isSubmitting
-                ? "Guardando…"
-                : income
-                  ? "Guardar ingreso"
-                  : "Agregar ingreso"}
-            </Button>
-          </ModalFooter>
+            </div>
+          )}
         </>
       )}
       {children}
@@ -471,7 +474,7 @@ export function DayOfMonthPicker({
           {...props}
           type="button"
           variant="outline"
-          className="h-11 w-full justify-start rounded-lg text-base font-normal"
+          className="h-11 w-full justify-start rounded-lg text-body font-normal"
         >
           <CalendarIcon className="size-4 text-muted-foreground" />
           Día {value}

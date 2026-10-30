@@ -21,8 +21,8 @@ export type CreateTransactionInput = {
   description: string
   date: Date
   // Vía por la que entra el movimiento. "bank-scan" es la única que puede registrar un cargo en una
-  // cuenta conectada: son los movimientos que el banco no avisó, leídos de una foto de la cartola y
-  // ya contrastados contra lo registrado. Por defecto "manual".
+  // cuenta conectada: son los movimientos que el banco no avisó, registrados desde el plugin MCP
+  // (`lucaplan_registrar_cargo_bancario`) ya contrastados contra lo registrado. Por defecto "manual".
   source?: "manual" | "bank-scan"
 }
 
@@ -48,8 +48,8 @@ export async function createTransaction(
   if (account.userId !== userId) throw new NotOwnerError()
   const connected = account.provider !== "manual"
   // Conectadas: solo abonos manuales a la corriente por correo; todo lo demás llega por sync. La
-  // excepción es la foto de la cartola, que existe justo para lo que el banco NO avisó y ya pasó
-  // por la deduplicación contra lo registrado.
+  // excepción es el cargo bancario del plugin, que existe justo para lo que el banco NO avisó y ya
+  // pasó por la deduplicación contra lo registrado.
   if (
     connected &&
     input.source !== "bank-scan" &&

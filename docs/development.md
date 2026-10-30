@@ -93,29 +93,31 @@ un barrido aparte.
   `responsive-modal.tsx`, que es composición de Dialog y Drawer.
 - **Tokens, no valores.** Color, fuente, radio y espaciado salen de `app/globals.css`, en los
   dos temas. Un color nuevo es un token nuevo, no un hex en `className`.
-- **Radio sobrio, con jerarquía de tres niveles** (`--radius: 0.5rem`):
+- **Radio sobrio, con jerarquía de tres niveles** (`--radius: 0.625rem`):
   `rounded-lg` para controles (botones, inputs, selects, chips, filtros, botones de icono);
   `rounded-xl` para superficies (tarjetas, paneles `glass`, secciones, modales, drawers,
   popovers); `rounded-md` para ítems de lista y de menú. `rounded-full` solo en lo que es un
   círculo o una barra por significado: avatares, anillos de icono, puntos de estado, barras de
-  progreso, el marcador del día, badges de conteo y el "+" de la barra inferior. Nada de `rounded-2xl`/`3xl`/`4xl`
+  progreso, el marcador del día, badges de conteo y los controles flotantes de vidrio (cápsulas y círculos de la navegación y la toolbar). Nada de `rounded-2xl`/`3xl`/`4xl`
   en controles ni paneles.
 - **Las alturas no cambian con el radio**: targets táctiles ≥44 px (`h-11`) en móvil, como dice
   la sección de responsividad.
 - **Modales, dos tipos y nada más.** `ResponsiveModal` para crear, editar o mostrar contenido
   (dialog en escritorio, drawer en móvil); `AlertDialog` para confirmar una acción al momento.
   En escritorio los modales de contenido tienen X arriba; en móvil **no llevan X**: el drawer
-  se cierra por arrastre, fondo o acción del pie. El triage a pantalla completa ofrece «Cerrar»
-  en el pie móvil. Las confirmaciones se resuelven con sus botones. El pie lleva las
-  acciones (`ModalFooter`); el botón que envía va con `form="<id>"` del `<form>` del modal.
-  Las acciones de convertir un movimiento en recurrente o cuota van en una fila discreta (`ghost`,
-  `text-muted-foreground`) que envuelve si no cabe. Las etiquetas pueden envolver y conservan ≥44px de alto.
+  se cierra por arrastre o tocando el fondo, sin un «Cerrar» ni «Listo» que repita eso. Las
+  confirmaciones se resuelven con sus botones. Las acciones se declaran con `ModalActions`
+  (`primary`, `cancel`): en móvil van en el encabezado de la hoja como en iOS («Cancelar» a la
+  izquierda, la primaria en azul a la derecha) y en escritorio en el pie; el botón que envía va
+  con `form="<id>"` del `<form>` del modal. `ModalFooter` solo existe en escritorio. Borrar va
+  en `ModalDangerRow`, una fila roja al final del contenido, nunca junto a la primaria. Las
+  secciones de un modal son grupos al estilo Ajustes (`ModalSection`). Convertir un movimiento
+  en recurrente o cuota son filas con chevron de una lista agrupada. Las etiquetas pueden envolver y conservan ≥44px de alto.
   **Ancho en escritorio, una escala y nada inventado por modal:** contenido (formulario,
   detalle, lista) hereda el default de `ResponsiveModal`, `sm:max-w-2xl`, sin pasar
   `className`; denso (varias columnas, como el de cuenta) sube a `sm:max-w-3xl`; un solo campo
   o un aviso de dos líneas baja a `sm:max-w-md`, porque estirado se ve vacío; una confirmación
-  (`AlertDialog`) queda angosta con su default. El triage a pantalla completa es la única
-  excepción (`max-w-none`). Ojo en móvil: el `className` sí llega al drawer, pero el default de
+  (`AlertDialog`) queda angosta con su default. Ojo en móvil: el `className` sí llega al drawer, pero el default de
   ancho no, porque vive solo en el diálogo de escritorio; el drawer conserva su altura según el contenido, con tope de 96dvh.
 - **Modales anidados.** El padre permanece abierto y montado; el hijo se compone dentro de su
   árbol React, con su formulario fuera del formulario del padre. `ResponsiveModal` asigna una
@@ -123,14 +125,92 @@ un barrido aparte.
   Cerrar, Cancelar, Esc y el fondo cierran solo el hijo y devuelven el foco al padre. Los cierres
   después de una escritura exitosa tienen callbacks propios, separados de `onOpenChange`.
   Los formularios y sus botones de envío usan IDs por instancia; las demás acciones llevan
-  `type="button"`. El diálogo de triage a pantalla completa usa `ModalScope` para conservar
-  la misma jerarquía sin cambiar su superficie.
+  `type="button"`. Toda superficie modal pasa por `ResponsiveModal`.
 - **Formularios.** Un `<form id>` por sección; error de cada campo debajo del campo con
   `aria-invalid` y `aria-describedby`; Guardar manda solo lo que cambió y queda deshabilitado
   sin cambios. Dinero con `useMoneyInput`/`formatCLP`, nunca `type="number"` ni formato a mano.
   Fechas con Calendar + Popover; enums con `Select`.
 - **Un componente de campo no hace fetch ni muta**: recibe valores y callbacks. La mutación
   vive en quien abre el modal, y el modal se cierra en el éxito, nunca antes.
+
+### Lenguaje visual: iOS y Liquid Glass
+
+La app sigue el lenguaje de iOS 26 en móvil y de macOS 26 en escritorio (WDC-147). Es una
+dirección de diseño, no una conversión a SwiftUI: se toman de Apple la jerarquía, las
+agrupaciones, la tipografía y los controles.
+
+- **Skills de referencia, obligatorias al tocar UI de la app:** `apple-hig` (las Human Interface
+  Guidelines completas, por componente) y `apple-design` (revisión de diseño contra la HIG), las
+  dos declaradas en `skills-lock.json`; se restauran con `npx skills experimental_install`. Para
+  anti-slop y escaneabilidad manda `impeccable`. La landing no sigue estas reglas.
+- **Cada elemento tiene un propósito.** Todo botón, texto, ícono, color, borde, badge o sección
+  responde a qué decisión o acción de la persona sirve. Si no sirve ninguna o repite algo que ya
+  está, se quita o se funde; si sirve, su peso visual corresponde a su importancia. Quitar va antes
+  que agregar.
+- **Materiales (apple-hig `foundations/materials`, `color`, `components/scroll-views`).** Todo sale
+  de los tokens y utilidades de `app/globals.css`; ningún componente pone su propio blur o fondo.
+  - **Liquid Glass (`liquid-glass`) solo en la capa de controles y navegación**: fila superior y
+    barra de pestañas en móvil, sidebar y topbar en escritorio, cápsulas y botones flotantes. Nunca
+    en el contenido (tarjetas, listas, hojas), que va sólido en `card` sobre el fondo agrupado.
+    Variante regular (desenfoque + luminosidad), sin «clear». Lo grande (sidebar) un poco más opaco
+    que lo chico. La base es CSS y se ve igual en Safari, Firefox y Chrome: desenfoque, relleno,
+    brillo especular de canto con luz fija arriba-izquierda (`::before` cónico), rim interior
+    (`--glass-rim`), contorno y sombra.
+  - **Refracción real, solo Chromium y como extra** (técnica de kube.io/blog/liquid-glass-css-svg):
+    un filtro SVG (`feDisplacementMap` con un mapa de canto «convex squircle» + brillo especular)
+    entra al final del `backdrop-filter` de `liquid-glass` por `--glass-refraction`. Solo la llevan
+    la cápsula de pestañas, el círculo de búsqueda y la cápsula móvil del `MonthNav`
+    (`useLiquidRefraction`, `hooks/use-liquid-refraction.ts`); nunca contenido, menús ni nada con
+    texto que leer. Safari y Firefox no dibujan SVG en `backdrop-filter` y no descargan el módulo
+    (import dinámico). Se apaga sola fuera de Blink (`navigator.userAgentData`), con ahorro de
+    datos, en gama baja (≤ 4 núcleos o ≤ 4 GB), con la pestaña oculta, con menos transparencia o
+    más contraste y en los niveles de vidrio 3–4; el nivel 0–2 regula su intensidad. Los mapas
+    salen de `lib/liquid-refraction.ts` (lógica pura, con test) y se regeneran solo al cambiar el
+    tamaño, nunca en una animación: el press anima el `scale` del filtro.
+  - **Movimiento del vidrio**: `liquid-squish` encoge la cápsula al 97 % al presionarla (ella o un
+    control suyo con `data-squish`) y vuelve con un spring (`linear()`, con `cubic-bezier` de respaldo); la pastilla activa de
+    las pestañas se estira como gota al deslizarse (`.tab-pill`). Solo CSS, interrumpible, y nada
+    con movimiento reducido.
+  - **Material regular (`--material`)** para lo que lleva texto encima del contenido:
+    menús, select, popover, tooltip, toasts y alertas. Más opaco que el vidrio de las barras. Las
+    hojas (drawer y diálogo) van sólidas (`--sheet`).
+  - **Color con moderación**: el vidrio no tiene color propio; textos e íconos encima van en
+    `foreground`. El estado activo o la acción primaria tiñen el FONDO del control
+    (`liquid-glass-active`, `bg-primary`), no el texto, y nunca varios controles a la vez.
+  - **Scroll edge effect** (`scroll-edge-top` / `scroll-edge-bottom`) separa los controles del
+    contenido que pasa por debajo, no un fondo sólido: uno por vista, solo donde hay scroll bajo
+    controles flotantes.
+  - **Concentricidad**: lo que va dentro de una barra o cápsula usa el radio externo menos el
+    margen (`--radius-bar-inner` en la topbar y el sidebar; `rounded-full` dentro de cápsulas).
+  - Con `prefers-reduced-transparency` todo material cae a sólido; con `prefers-contrast: more`
+    gana relleno y contorno.
+  - **Nivel del vidrio** (Ajustes → Apariencia): un slider de 5 pasos, de «Transparente» (el vidrio
+    de siempre) a «Teñido» (casi sólido), lleva `--glass-fill`, `--glass-fill-large` y `--material`
+    hacia `--card` con `--glass-tint` (`data-glass` en `<html>`). Es por dispositivo
+    (localStorage, `lib/glass-level.ts`) y lo aplica un script en `<head>` antes del primer pintado;
+    las dos preferencias del sistema de arriba siguen ganando.
+- **Navegación flotante, sin barras a lo ancho**: en móvil, arriba solo las acciones de la
+  vista a todo el ancho (el selector de mes `MonthNav`); en las vistas sin selector, el marco pone
+  el mismo `MonthNav` deshabilitado con el período en curso (también junto al título de la topbar
+  de escritorio), así la fila es igual en todas y no salta al navegar. El scroll edge effect aparece
+  apenas hay scroll. La pestaña activa no cambia de peso: la marca su pastilla. La cuenta (perfil,
+  tema, cerrar sesión) vive en Ajustes. Las dos barras viven en el layout (`AppFrame`) y no se
+  desmontan al navegar; la vista inyecta sus acciones por portal. Abajo, una cápsula con las pestañas (la activa con pastilla) y la búsqueda global en un círculo
+  suelto a la derecha, en todas las vistas. En escritorio, sidebar y topbar flotantes de la misma
+  familia (mismo margen, radio y vidrio); la topbar lleva la búsqueda global en todas las vistas.
+  Crear un movimiento no está en la navegación: entran desde el correo del banco. Todo respeta `env(safe-area-inset-*)` y el
+  contenido deja aire para no quedar tapado.
+- **Listas agrupadas («inset grouped»)**: secciones en tarjetas con filas de ≥44 px, separadores
+  finos con inset desde el texto (`.inset-list`), chevron cuando la fila abre algo y la acción de la
+  sección en texto azul a la derecha del encabezado. Las superficies se separan por el fondo, no
+  por bordes ni sombras.
+- **Tipografía de la escala de iOS**, nunca tamaños sueltos: `text-large-title`, `text-hero` (la
+  cifra protagonista), `text-title-1`, `text-title-3`, `text-headline`, `text-body`,
+  `text-subheadline`, `text-footnote`, `text-caption`. Un tamaño nuevo se registra también en
+  `lib/utils.ts` o `cn()` lo confunde con un color. Los montos van con `.tabular`.
+- **Menús, popovers y selects siguen el tema** (claro en claro): nada de `dark` fijo en un
+  primitivo. El toque da respuesta con `.press`, y el movimiento respeta
+  `prefers-reduced-motion`.
 
 ## Flujo de creación de UI / mocks
 

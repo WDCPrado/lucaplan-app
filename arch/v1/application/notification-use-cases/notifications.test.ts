@@ -24,6 +24,7 @@ import {
   budgetAlertMessage,
   dueSoonMessage,
   newMovementsMessage,
+  welcomeMessage,
 } from "./notification-rules.ts"
 import {
   sendPushToDevice,
@@ -42,30 +43,44 @@ const mov = (
 test("un movimiento se nombra; varios se resumen; ninguno no notifica", () => {
   assert.equal(newMovementsMessage([]), null)
   const one = newMovementsMessage([mov("Uber Eats", 12990)])
-  assert.equal(one?.title, "Nuevo gasto")
-  assert.match(one!.body, /12\.990/)
-  assert.match(one!.body, /Uber Eats/)
-  // Sin categoría no queda separador huérfano al final.
-  assert.doesNotMatch(one!.body, /·\s*$/)
-  // Con categoría asignada, el aviso la nombra.
-  assert.match(
-    newMovementsMessage([{ ...mov("Uber Eats", 12990), category: "Comida" }])!
-      .body,
-    /Uber Eats · Comida/
-  )
-  // Con el id del movimiento, el aviso enlaza directo a su modal; sin él, al dashboard pelado.
-  assert.equal(
-    newMovementsMessage([{ ...mov("Uber Eats", 12990), id: "tx1" }])!.url,
-    "/dashboard?tx=tx1"
-  )
-  assert.equal(one!.url, "/dashboard")
+  // Sin categoría: el título no inventa una y el cuerpo dice qué hacer.
+  assert.equal(one?.title, "Gasto de $12.990")
+  // Sin id el aviso lleva a la lista, no a un modal: no puede decir "tócalo para clasificarlo".
+  assert.equal(one?.body, "Uber Eats. Sin categoría: revísalo en tus movimientos.")
+  // Con categoría asignada, el título la nombra junto al monto.
+  const conCategoria = newMovementsMessage([
+    { ...mov("Uber Eats", 12990), category: "Comida" },
+  ])!
+  assert.equal(conCategoria.title, "Gasto de $12.990 en Comida")
+  assert.equal(conCategoria.body, "Uber Eats.")
+  // Con el id del movimiento, el aviso enlaza directo a su modal; sin él, a la lista.
+  const conId = newMovementsMessage([{ ...mov("Uber Eats", 12990), id: "tx1" }])!
+  assert.equal(conId.url, "/dashboard?tx=tx1")
+  assert.equal(conId.body, "Uber Eats. Sin categoría: tócalo para clasificarlo.")
+  assert.equal(one!.url, "/movements")
   const many = newMovementsMessage([
     mov("Uber Eats", 12990),
     mov("Copec", 20000),
     mov("Sueldo", 900000, "credit"),
   ])
   assert.equal(many?.title, "3 movimientos nuevos")
-  assert.match(many!.body, /32\.990/) // solo gastos, el abono no suma
+  // Solo los gastos llevan monto: los abonos no se muestran en la pantalla bloqueada.
+  assert.equal(many?.body, "Gastos por $32.990.")
+  // Solo abonos: frase sin montos.
+  assert.equal(
+    newMovementsMessage([mov("Sueldo", 900000, "credit"), mov("Reembolso", 5000, "credit")])!
+      .body,
+    "Revisa tus movimientos."
+  )
+  assert.equal(many?.url, "/movements")
+  // CLP y USD nunca se suman: cada moneda con su total.
+  assert.equal(
+    newMovementsMessage([
+      { ...mov("Netflix", 19.1), currency: "USD" },
+      mov("Copec", 20000),
+    ])!.body,
+    "Gastos por US$19,10 y $20.000."
+  )
 })
 
 const COMIDA = { id: "cat1", name: "Comida" }
@@ -76,19 +91,28 @@ test("la alerta de presupuesto solo se dispara al CRUZAR el umbral de la categor
   // reporta el gasto REAL (85%), no el umbral que lo gatilló (80%).
   const aviso = budgetAlertMessage(COMIDA, 70_000, 85_000, 100_000, P)!
   assert.match(aviso.title, /Comida.*85%/)
+  assert.equal(aviso.body, "Llevas $85.000 de $100.000; te quedan $15.000 este mes.")
   assert.equal(aviso.tag, "budget:cat1") // una notificación viva por categoría
+  assert.equal(aviso.url, "/movements?categoryId=cat1") // los gastos de esa categoría
   // Ya estaba sobre el 80%: no se repite.
   assert.equal(budgetAlertMessage(COMIDA, 85_000, 90_000, 100_000, P), null)
   // Cruza el 100% (gana el umbral más alto aunque cruce ambos) y reporta el % real, no el umbral.
-  assert.match(
-    budgetAlertMessage(COMIDA, 70_000, 125_000, 100_000, P)!.title,
-    /te pasaste.*125%/
-  )
+  const pasada = budgetAlertMessage(COMIDA, 70_000, 125_000, 100_000, P)!
+  assert.match(pasada.title, /te pasaste.*125%/)
+  assert.match(pasada.body, /te pasaste por \$25\.000/)
   // Justo en el 100% no es sobrepaso: se completó.
   assert.match(
     budgetAlertMessage(COMIDA, 70_000, 100_000, 100_000, P)!.title,
     /presupuesto completo/
   )
+  // El título decide con los montos, no con el % redondeado: 996 de 1.000 redondea a 100% pero
+  // no está completo; 1.004 redondea a 100% pero sí se pasó.
+  const casi = budgetAlertMessage(COMIDA, 700, 996, 1_000, P)!
+  assert.equal(casi.title, "Comida: 100% del presupuesto")
+  assert.match(casi.body, /te quedan \$4 este mes/)
+  const apenas = budgetAlertMessage(COMIDA, 700, 1_004, 1_000, P)!
+  assert.equal(apenas.title, "Comida: te pasaste (100%)")
+  assert.match(apenas.body, /te pasaste por \$4\./)
   // Categoría sin límite: no hay porcentaje que cruzar.
   assert.equal(budgetAlertMessage(COMIDA, 0, 50_000, 0, P), null)
   // Sin umbrales configurados no se avisa nada.
@@ -228,8 +252,9 @@ test("vencimientos: solo dentro de la ventana, en UTC", () => {
     [item("Netflix", "2026-07-28"), item("Spotify", "2026-07-30", 5000)],
     now
   )
-  assert.equal(many?.title, "2 pagos por vencer")
-  assert.match(many!.body, /20\.000/)
+  assert.equal(many?.title, "2 pagos vencen en los próximos 2 días")
+  assert.equal(many?.body, "Suman $20.000. Toca para verlos.")
+  assert.equal(uno.body, "Pago de $15.000. Toca para ver tus recurrentes.")
 
   // Cuotas: el aviso lleva a su página. Mezcladas con una recurrente, gana /recurring.
   const cuota = item("TV (cuota 2/12)", "2026-07-29", 30000, "installment")
@@ -238,6 +263,48 @@ test("vencimientos: solo dentro de la ventana, en UTC", () => {
     dueSoonMessage([cuota, item("Netflix", "2026-07-29")], now)!.url,
     "/recurring"
   )
+})
+
+test("todos los avisos tienen la misma forma: corta, sin emojis, con tag y destino", () => {
+  const now = new Date("2026-07-28T12:00:00Z")
+  const largo = "Supermercado Líder Express Avenida Apoquindo 4500 Las Condes Santiago"
+  const avisos = [
+    welcomeMessage(),
+    newMovementsMessage([{ ...mov(largo, 1_234_567), category: largo }])!,
+    newMovementsMessage([mov(largo, 1_234_567)])!,
+    newMovementsMessage([mov(largo, 1_234_567, "credit")])!,
+    newMovementsMessage([
+      mov("a", 1_234_567),
+      { ...mov("b", 1234.56), currency: "USD" as const },
+      mov("c", 9_999_999, "credit"),
+      { ...mov("d", 9999.99, "credit"), currency: "USD" as const },
+    ])!,
+    budgetAlertMessage({ id: "c", name: largo }, 0, 85_000, 100_000, [80])!,
+    budgetAlertMessage({ id: "c", name: largo }, 0, 100_000, 100_000, [80])!,
+    budgetAlertMessage({ id: "c", name: largo }, 0, 13_900_000, 100_000, [80])!,
+    dueSoonMessage(
+      [{ description: `${largo} (cuota 2/12)`, amount: 1_234_567, currency: "CLP", dueDate: now, kind: "installment" }],
+      now
+    )!,
+    dueSoonMessage(
+      [
+        { description: "a", amount: 1_234_567, currency: "CLP", dueDate: now, kind: "recurring" },
+        { description: "b", amount: 19.1, currency: "USD", dueDate: now, kind: "recurring" },
+      ],
+      now,
+      14
+    )!,
+  ]
+  for (const a of avisos) {
+    assert.ok(a.title.length <= 40, `título largo: ${a.title}`)
+    assert.ok(a.body.length <= 90, `cuerpo largo: ${a.body}`)
+    assert.match(a.body, /[.…]$/, `el cuerpo es una oración: ${a.body}`)
+    assert.doesNotMatch(`${a.title}${a.body}`, /\p{Extended_Pictographic}/u)
+    assert.ok(a.tag, "sin tag los avisos se apilan")
+    assert.match(a.url ?? "", /^\//)
+  }
+  // El nombre largo de la categoría se recorta, el porcentaje no se pierde.
+  assert.match(avisos[5].title, /…: 85% del presupuesto$/)
 })
 
 test("solo se aceptan endpoints de push services conocidos (SSRF)", async () => {
@@ -437,5 +504,5 @@ test("modo tarjeta: el cargo del día del cierre que llega al día siguiente con
     new Date("2026-09-23T15:00:00Z") // ya es el ciclo de octubre
   )
   assert.equal(enviados[0].url, "/dashboard?tx=cierre")
-  assert.match(enviados[0].body, /Comida/)
+  assert.match(enviados[0].title, /en Comida$/)
 })

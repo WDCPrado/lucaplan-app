@@ -32,8 +32,6 @@
     --color-committed: var(--committed);
     --color-warning: var(--warning);
     --color-warning-foreground: var(--warning-foreground);
-    --color-glass: var(--glass-tint-1);
-    --color-glass-border: var(--glass-border);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -48,6 +46,12 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+    --color-card-art-ok: var(--card-art-ok);
+    --color-card-art-info: var(--card-art-info);
+    --color-card-art-warn: var(--card-art-warn);
+    --color-card-art-danger: var(--card-art-danger);
+    --color-sheet: var(--sheet);
+    --color-sheet-cell: var(--sheet-cell);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -56,57 +60,124 @@
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
 }
-/* === Light: financiero, ordenado. Neutros slate fríos + primario azul confianza.
-   Verde reservado para montos positivos (success), no para la marca. === */
-:root {
-    --background: oklch(0.985 0.003 250);
-    --foreground: oklch(0.21 0.03 260);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.21 0.03 260);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.21 0.03 260);
-    --primary: oklch(0.54 0.19 262);
-    --primary-foreground: oklch(0.99 0.005 258);
-    --secondary: oklch(0.965 0.006 255);
-    --secondary-foreground: oklch(0.28 0.03 260);
-    --muted: oklch(0.965 0.005 255);
-    --muted-foreground: oklch(0.52 0.025 258);
-    --accent: oklch(0.94 0.03 255);
-    --accent-foreground: oklch(0.34 0.09 258);
-    --destructive: oklch(0.58 0.22 25);
-    --destructive-foreground: oklch(0.99 0.01 25);
-    --success: oklch(0.55 0.14 152);
-    --success-foreground: oklch(0.99 0.01 152);
-    --committed: oklch(0.62 0.2 350); /* comprometido: fuera del semáforo de uso */
-    --warning: oklch(0.76 0.15 78);
-    --warning-foreground: oklch(0.27 0.05 78);
-    --border: oklch(0.905 0.008 255);
-    --input: oklch(0.905 0.008 255);
-    --ring: oklch(0.54 0.19 262);
-    --chart-1: oklch(0.54 0.19 262);
-    --chart-2: oklch(0.68 0.12 205);
-    --chart-3: oklch(0.66 0.15 150);
-    --chart-4: oklch(0.62 0.17 300);
-    --chart-5: oklch(0.70 0.15 55);
-    --radius: 0.5rem;
-    --sidebar: oklch(0.985 0.003 250);
-    --sidebar-foreground: oklch(0.21 0.03 260);
-    --sidebar-primary: oklch(0.54 0.19 262);
-    --sidebar-primary-foreground: oklch(0.99 0.005 258);
-    --sidebar-accent: oklch(0.94 0.03 255);
-    --sidebar-accent-foreground: oklch(0.34 0.09 258);
-    --sidebar-border: oklch(0.905 0.008 255);
-    --sidebar-ring: oklch(0.54 0.19 262);
+/* === Escala tipográfica de iOS (Dynamic Type, tamaño por defecto). `text-large-title` …
+   `text-caption` llevan su interlineado; el peso se pone aparte (`font-bold` en el large title,
+   `font-semibold` en headline). Los 17 px de body/headline son los de iOS, no los 14 de la web. === */
+@theme {
+    --text-large-title: 2.125rem;            /* 34 */
+    --text-large-title--line-height: 2.5625rem;
+    --text-large-title--letter-spacing: -0.01em;
+    --text-hero: 2.5rem;                     /* 40: la cifra protagonista del Inicio */
+    --text-hero--line-height: 1.1;
+    --text-hero--letter-spacing: -0.02em;
+    --text-title-1: 1.75rem;                 /* 28 */
+    --text-title-1--line-height: 2.125rem;
+    --text-title-3: 1.25rem;                 /* 20 */
+    --text-title-3--line-height: 1.5625rem;
+    --text-headline: 1.0625rem;              /* 17 */
+    --text-headline--line-height: 1.375rem;
+    --text-body: 1.0625rem;                  /* 17 */
+    --text-body--line-height: 1.375rem;
+    --text-subheadline: 0.9375rem;           /* 15 */
+    --text-subheadline--line-height: 1.25rem;
+    --text-footnote: 0.8125rem;              /* 13 */
+    --text-footnote--line-height: 1.125rem;
+    --text-caption: 0.75rem;                 /* 12 */
+    --text-caption--line-height: 1rem;
+}
 
-    /* Liquid glass: superficies casi sólidas, sombra corta y difusa (sin insets ni
-       bordes brillantes, que sobre fondo plano se ven como recortes) */
-    --glass-tint-1: oklch(1 0 0 / 0.85);
-    --glass-tint-2: oklch(0.99 0.003 255 / 0.7);
-    --glass-border: oklch(0.9 0.012 255 / 0.8);
-    --glass-shadow: 0 1px 2px oklch(0.3 0.03 260 / 0.05), 0 8px 24px -12px oklch(0.3 0.05 260 / 0.12);
-    --glass-blur: 24px;
-    --glass-control: oklch(1 0 0 / 0.45);
-    --glass-control-active: oklch(1 0 0 / 0.8);
+/* === Light: lenguaje iOS. Fondos «grouped» (systemGroupedBackground + celdas blancas), colores de
+   sistema y separadores translúcidos. Los colores que iOS usa como texto se oscurecen lo justo para
+   AA (4.5:1) sobre blanco y sobre el fondo grouped, como su modo de contraste aumentado. Verde
+   reservado para montos positivos (success), no para la marca. === */
+:root {
+    /* SF en Apple; Geist de next/font en el resto. Sin `system-ui`: en Android/Windows/Linux
+       resolvería a Roboto/Segoe antes de llegar a Geist. */
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", var(--font-geist), sans-serif;
+    --font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", var(--font-geist), sans-serif;
+    --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+    --background: oklch(0.963 0.007 286.3);          /* #F2F2F7 systemGroupedBackground */
+    --foreground: oklch(0.232 0.004 286.1);          /* #1D1D1F label */
+    --card: oklch(1 0 0);                            /* #FFFFFF secondarySystemGroupedBackground */
+    --card-foreground: oklch(0.232 0.004 286.1);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.232 0.004 286.1);
+    --primary: oklch(0.507 0.185 257.7);             /* systemBlue oscurecido: #005FCC, ≥4.9:1 sobre #E8E8ED, #F2F2F7 y blanco */
+    --primary-foreground: oklch(1 0 0);
+    --secondary: oklch(0.932 0.007 286.3);           /* #E8E8ED, entre systemGray5 y 6 */
+    --secondary-foreground: oklch(0.232 0.004 286.1);
+    --muted: oklch(0.932 0.007 286.3);
+    --muted-foreground: oklch(0.501 0.005 286.2);    /* #636366: AA también sobre secondary/accent #E8E8ED (4.9:1) */
+    --accent: oklch(0.932 0.007 286.3);              /* resaltado de fila al pasar/pulsar */
+    --accent-foreground: oklch(0.232 0.004 286.1);
+    --destructive: oklch(0.558 0.205 29.4);          /* systemRed oscurecido: #D1281C */
+    --destructive-foreground: oklch(1 0 0);
+    --success: oklch(0.525 0.139 147.5);             /* systemGreen oscurecido: #1F7F37 */
+    --success-foreground: oklch(1 0 0);
+    --committed: oklch(0.564 0.215 15.4);            /* systemPink oscurecido: #D6194A; fuera del semáforo de uso */
+    --warning: oklch(0.557 0.153 47.4);              /* systemOrange oscurecido: #B85000 */
+    --warning-foreground: oklch(1 0 0);
+    --border: oklch(0.359 0.012 285.8 / 0.22);       /* separator: rgba(60,60,67,.22) */
+    --input: oklch(0.359 0.012 285.8 / 0.3);
+    --ring: oklch(0.507 0.185 257.7);
+    --chart-1: oklch(0.603 0.218 257.4);             /* systemBlue */
+    --chart-2: oklch(0.789 0.122 230.8);             /* systemTeal/cyan */
+    --chart-3: oklch(0.730 0.194 147.4);             /* systemGreen */
+    --chart-4: oklch(0.615 0.213 312.4);             /* systemPurple */
+    --chart-5: oklch(0.765 0.175 62.6);              /* systemOrange */
+    --radius: 0.625rem;
+    --sidebar: oklch(0.963 0.007 286.3);
+    --sidebar-foreground: oklch(0.232 0.004 286.1);
+    --sidebar-primary: oklch(0.507 0.185 257.7);
+    --sidebar-primary-foreground: oklch(1 0 0);
+    --sidebar-accent: oklch(0.923 0.007 286.3);      /* #E5E5EA ítem activo */
+    --sidebar-accent-foreground: oklch(0.232 0.004 286.1);
+    --sidebar-border: oklch(0.359 0.012 285.8 / 0.22);
+    --sidebar-ring: oklch(0.507 0.185 257.7);
+
+    /* === Materiales (apple-hig/foundations/materials) ===
+       Liquid Glass: solo la capa de controles y navegación que flota sobre el contenido (barras,
+       sidebar, topbar, cápsulas y botones flotantes). Variante «regular»: desenfoque + luminosidad;
+       sin color propio. Lo grande (sidebar) un poco más opaco que lo chico (barra, botones).
+       Ajustes → Apariencia (`data-glass` en <html>, lib/glass-level.ts) lo mueve: 2 (sin atributo)
+       es el vidrio por defecto (ya aclarado un 35 %); 0–1 lo aclaran más (`--glass-clear`) y 3–4 lo tiñen hacia la celda
+       sólida (`--glass-tint`). Los menús (`--material`) no se aclaran: llevan texto. */
+    --glass-tint: 0%;
+    --glass-clear: 35%;
+    --scroll-edge-amount: 45%; /* velo del scroll edge: baja con el nivel de vidrio */
+    --glass-fill: color-mix(in oklch, color-mix(in oklch, oklch(1 0 0 / 0.6), transparent var(--glass-clear)), var(--card) var(--glass-tint));
+    --glass-fill-large: color-mix(in oklch, color-mix(in oklch, oklch(0.985 0.002 286 / 0.72), transparent var(--glass-clear)), var(--card) var(--glass-tint));
+    --glass-blur: 14px;
+    --glass-saturate: 180%;
+    --glass-highlight: oklch(1 0 0 / 0.9);           /* brillo especular del canto superior */
+    --glass-edge: oklch(0.359 0.012 285.8 / 0.12);   /* contorno fino */
+    --glass-rim: oklch(1 0 0 / 0.32);                /* luz que el canto devuelve hacia adentro */
+    --glass-shadow: 0 1px 2px oklch(0.2 0.01 286 / 0.06), 0 8px 24px -6px oklch(0.2 0.01 286 / 0.16);
+    /* Estado activo dentro del vidrio: se tiñe el FONDO del control con el acento, no el texto. */
+    --glass-active: color-mix(in oklch, var(--primary) 16%, transparent);
+    /* Material «regular» de iOS para lo que lleva texto encima del contenido (menús, popovers,
+       select, tooltip, toasts, alertas): la misma familia, más opaco y con más desenfoque. */
+    --material: color-mix(in oklch, oklch(0.985 0.002 286 / 0.86), var(--card) var(--glass-tint));
+    --material-blur: 28px;
+    --scroll-edge-blur: 6px;
+    --material-shadow: 0 0 0 0.5px var(--glass-edge), 0 12px 40px -8px oklch(0.2 0.01 286 / 0.2);
+    /* Scroll edge effect: el contenido que pasa bajo los controles se funde con el fondo. */
+    --scroll-edge: color-mix(in oklch, var(--background) var(--scroll-edge-amount), transparent);
+    /* Relleno de controles (systemFill): pista del segmentado, inputs y controles de la topbar. */
+    --glass-control: oklch(0.569 0.015 285.9 / 0.12);
+    --glass-control-active: oklch(1 0 0);
+    /* Scrollbar minimalista (escritorio): pulgar translúcido del color del texto, pista invisible. */
+    --scrollbar: color-mix(in oklch, var(--foreground) 20%, transparent);
+    --scrollbar-hover: color-mix(in oklch, var(--foreground) 35%, transparent);
+    /* Radio concéntrico de lo que va dentro de una barra rounded-xl con 0.5rem de margen. */
+    --radius-bar-inner: calc(var(--radius) * 1.4 - 0.5rem);
+    /* Estado del cupo sobre el arte de las tarjetas de cuenta (fondo de color del banco en los dos
+       temas): tonos claros que se leen sobre el gradiente, no los del sistema. */
+    --card-art-ok: oklch(0.845 0.143 164.98);
+    --card-art-info: oklch(0.828 0.111 230.32);
+    --card-art-warn: oklch(0.879 0.169 91.61);
+    --card-art-danger: oklch(0.808 0.114 19.57);
 }
 
 /* === Landing pública: SIEMPRE light, sin depender del tema del usuario.
@@ -116,6 +187,10 @@
 [data-landing],
 .force-light {
     color-scheme: light;
+    /* La landing conserva su tipografía: Geist en el cuerpo y Space Grotesk en titulares. */
+    --font-sans: var(--font-geist), sans-serif;
+    --font-heading: var(--font-grotesk), var(--font-geist), sans-serif;
+    font-family: var(--font-sans);
     --background: oklch(0.985 0.003 250);
     --foreground: oklch(0.21 0.03 260);
     --card: oklch(1 0 0);
@@ -157,77 +232,71 @@ html:has(main[data-landing]) body {
     background: oklch(0.985 0.003 250);
 }
 
-/* === Dark: slate profundo, tonos desaturados/luminosos (no invertidos) === */
+/* === Dark: negro puro de iOS (systemGroupedBackground) con celdas elevadas #1C1C1E/#2C2C2E y
+   colores de sistema en su variante oscura. === */
 .dark {
-    --background: oklch(0.19 0.02 260);
-    --foreground: oklch(0.97 0.005 250);
-    --card: oklch(0.23 0.02 260);
-    --card-foreground: oklch(0.97 0.005 250);
-    --popover: oklch(0.23 0.02 260);
-    --popover-foreground: oklch(0.97 0.005 250);
-    --primary: oklch(0.68 0.17 260);
-    --primary-foreground: oklch(0.17 0.03 258);
-    --secondary: oklch(0.27 0.015 260);
-    --secondary-foreground: oklch(0.97 0.005 250);
-    --muted: oklch(0.27 0.015 260);
-    --muted-foreground: oklch(0.72 0.02 258);
-    --accent: oklch(0.32 0.05 258);
-    --accent-foreground: oklch(0.92 0.03 255);
-    --destructive: oklch(0.70 0.19 22);
-    --destructive-foreground: oklch(0.99 0.01 22);
-    --success: oklch(0.72 0.14 152);
-    --success-foreground: oklch(0.18 0.04 152);
-    --committed: oklch(0.72 0.18 350); /* comprometido: fuera del semáforo de uso */
-    --warning: oklch(0.80 0.14 80);
-    --warning-foreground: oklch(0.20 0.04 80);
-    --border: oklch(1 0 0 / 0.1);
-    --input: oklch(1 0 0 / 0.14);
-    --ring: oklch(0.68 0.17 260);
-    --chart-1: oklch(0.68 0.17 260);
-    --chart-2: oklch(0.72 0.11 205);
-    --chart-3: oklch(0.72 0.14 150);
-    --chart-4: oklch(0.70 0.16 300);
-    --chart-5: oklch(0.76 0.14 60);
-    --sidebar: oklch(0.21 0.02 260);
-    --sidebar-foreground: oklch(0.97 0.005 250);
-    --sidebar-primary: oklch(0.68 0.17 260);
-    --sidebar-primary-foreground: oklch(0.17 0.03 258);
-    --sidebar-accent: oklch(0.32 0.05 258);
-    --sidebar-accent-foreground: oklch(0.92 0.03 255);
-    --sidebar-border: oklch(1 0 0 / 0.1);
-    --sidebar-ring: oklch(0.68 0.17 260);
+    --background: oklch(0 0 0);                      /* #000000 */
+    --foreground: oklch(0.971 0.003 286.4);          /* #F5F5F7 */
+    --card: oklch(0.227 0.004 286.1);                /* #1C1C1E */
+    --card-foreground: oklch(0.971 0.003 286.4);
+    --popover: oklch(0.227 0.004 286.1);
+    --popover-foreground: oklch(0.971 0.003 286.4);
+    --primary: oklch(0.624 0.206 255.5);             /* #0A84FF */
+    /* Texto oscuro sobre el azul y el rojo: el blanco da 3.65:1 y 3.41:1, y oscurecerlos haría
+       fallar el azul/rojo como texto sobre #1C1C1E. Así ambos usos pasan AA. */
+    --primary-foreground: oklch(0.18 0.004 286);
+    --secondary: oklch(0.294 0.004 286.2);           /* #2C2C2E */
+    --secondary-foreground: oklch(0.971 0.003 286.4);
+    --muted: oklch(0.294 0.004 286.2);
+    --muted-foreground: oklch(0.682 0.010 286.1);    /* #98989F */
+    --accent: oklch(0.294 0.004 286.2);
+    --accent-foreground: oklch(0.971 0.003 286.4);
+    --destructive: oklch(0.663 0.224 28.3);          /* #FF453A */
+    --destructive-foreground: oklch(0.18 0.004 286);
+    --success: oklch(0.756 0.208 147.0);             /* #30D158 */
+    --success-foreground: oklch(0.2 0.04 147);
+    --committed: oklch(0.658 0.232 16.0);            /* #FF375F; fuera del semáforo de uso */
+    --warning: oklch(0.782 0.171 67.2);              /* #FF9F0A */
+    --warning-foreground: oklch(0.2 0.04 67);
+    --border: oklch(0.447 0.006 286.1 / 0.6);        /* separator: rgba(84,84,88,.6) */
+    --input: oklch(0.447 0.006 286.1 / 0.75);
+    --ring: oklch(0.624 0.206 255.5);
+    --chart-1: oklch(0.624 0.206 255.5);
+    --chart-2: oklch(0.817 0.119 227.7);
+    --chart-3: oklch(0.756 0.208 147.0);
+    --chart-4: oklch(0.656 0.227 312.4);
+    --chart-5: oklch(0.782 0.171 67.2);
+    --sidebar: oklch(0.227 0.004 286.1);
+    --sidebar-foreground: oklch(0.971 0.003 286.4);
+    --sidebar-primary: oklch(0.624 0.206 255.5);
+    --sidebar-primary-foreground: oklch(0.18 0.004 286);
+    --sidebar-accent: oklch(0.294 0.004 286.2);
+    --sidebar-accent-foreground: oklch(0.971 0.003 286.4);
+    --sidebar-border: oklch(0.447 0.006 286.1 / 0.6);
+    --sidebar-ring: oklch(0.624 0.206 255.5);
 
-    /* Liquid glass */
-    --glass-tint-1: oklch(0.28 0.02 260 / 0.72);
-    --glass-tint-2: oklch(0.23 0.02 260 / 0.55);
-    --glass-border: oklch(1 0 0 / 0.12);
-    --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.25), 0 10px 30px -12px oklch(0 0 0 / 0.4);
-    --glass-blur: 26px;
-    --glass-control: oklch(1 0 0 / 0.07);
-    --glass-control-active: oklch(1 0 0 / 0.16);
+    /* Materiales */
+    --glass-fill: color-mix(in oklch, color-mix(in oklch, oklch(0.27 0.004 286 / 0.55), transparent var(--glass-clear)), var(--card) var(--glass-tint));
+    --glass-fill-large: color-mix(in oklch, color-mix(in oklch, oklch(0.25 0.004 286 / 0.7), transparent var(--glass-clear)), var(--card) var(--glass-tint));
+    --glass-highlight: oklch(1 0 0 / 0.22);
+    --glass-edge: oklch(1 0 0 / 0.08);
+    --glass-rim: oklch(1 0 0 / 0.07);
+    --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 8px 24px -6px oklch(0 0 0 / 0.55);
+    --glass-active: color-mix(in oklch, var(--primary) 26%, transparent);
+    --material: color-mix(in oklch, oklch(0.26 0.004 286 / 0.84), var(--card) var(--glass-tint));
+    --material-shadow: 0 0 0 0.5px var(--glass-edge), 0 12px 40px -8px oklch(0 0 0 / 0.6);
+    --scroll-edge: color-mix(in oklch, var(--background) var(--scroll-edge-amount), transparent);
+    --glass-control: oklch(0.569 0.015 285.9 / 0.24);
+    --glass-control-active: oklch(0.501 0.005 286.2); /* #636366 segmento activo */
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
   }
   body {
     @apply bg-background text-foreground;
     min-height: 100dvh;
-    /* Fondo ambiental sereno: blobs azul/teal sutiles que el glass refracta sin competir con los datos */
-    background-image:
-      radial-gradient(38rem 38rem at 12% 8%, oklch(0.72 0.13 260 / 0.18), transparent 60%),
-      radial-gradient(36rem 36rem at 88% 0%, oklch(0.75 0.11 205 / 0.14), transparent 58%),
-      radial-gradient(42rem 42rem at 75% 100%, oklch(0.74 0.10 280 / 0.10), transparent 60%),
-      radial-gradient(34rem 34rem at 18% 100%, oklch(0.78 0.10 230 / 0.12), transparent 58%);
-    background-attachment: fixed;
-  }
-  .dark body {
-    background-image:
-      radial-gradient(38rem 38rem at 12% 8%, oklch(0.50 0.14 260 / 0.25), transparent 60%),
-      radial-gradient(36rem 36rem at 88% 0%, oklch(0.48 0.12 205 / 0.20), transparent 58%),
-      radial-gradient(42rem 42rem at 75% 100%, oklch(0.48 0.12 280 / 0.15), transparent 60%),
-      radial-gradient(34rem 34rem at 18% 100%, oklch(0.50 0.11 230 / 0.17), transparent 58%);
   }
   button:not(:disabled), [role="button"]:not(:disabled) {
     cursor: pointer;
@@ -245,25 +314,186 @@ html:has(main[data-landing]) body {
 }
 
 @layer components {
-  /* Liquid glass: fill en gradiente (translucidez variable) + blur + highlight especular. */
-  .glass {
-    background-image: linear-gradient(135deg, var(--glass-tint-1), var(--glass-tint-2));
-    backdrop-filter: blur(var(--glass-blur)) saturate(180%);
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-shadow);
-  }
-  /* Variante más opaca para contenido denso (tablas, formularios largos). */
+  /* Superficies de contenido: sólidas, como las celdas inset grouped de iOS. Se separan del fondo
+     grouped por el color, sin sombra; el borde transparente conserva la caja de antes. */
+  .glass,
   .glass-strong {
-    background-image: linear-gradient(135deg,
-      color-mix(in oklch, var(--glass-tint-1), var(--card) 50%),
-      color-mix(in oklch, var(--glass-tint-2), var(--card) 50%));
-    backdrop-filter: blur(var(--glass-blur)) saturate(180%);
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-shadow);
+    background-color: var(--card);
+    border: 1px solid transparent;
+  }
+  /* Lista agrupada (inset grouped): separador fino entre filas, que arranca donde arranca el texto
+     (`--inset`, por defecto 1rem) y no a todo el ancho. */
+  .inset-list > * {
+    position: relative;
+  }
+  .inset-list > * + *::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: var(--inset, 1rem);
+    height: 1px;
+    background: var(--border);
+    pointer-events: none;
+  }
+  /* Feedback de pulsación de iOS: la fila o el botón se atenúa al tocar. */
+  .press {
+    transition: opacity 120ms ease-out, background-color 120ms ease-out;
+  }
+  .press:active {
+    opacity: 0.55;
   }
 }
+
+
+/* === Liquid Glass (iOS 26) ===
+   Una sola receta para toda la capa de controles, igual en Safari, Firefox y Chrome: desenfoque con
+   saturación, relleno translúcido, brillo especular arriba, rim interior (la luz que el canto
+   devuelve hacia adentro, solo en el borde: no toca el texto), contorno fino y sombra difusa. El
+   ::before dibuja el reflejo del canto en un anillo de 1px con una luz fija arriba-izquierda (cónico:
+   máximo en el canto de arriba-izquierda, un eco débil abajo-derecha).
+   En Chromium, hooks/use-liquid-refraction.ts suma la refracción real con `--glass-refraction` (un
+   filtro SVG al final del backdrop-filter, después del desenfoque); sin ella la lista queda igual.
+   Son utilidades (no componentes) para poder usarlas con variantes: `max-md:liquid-glass`.
+   No se combinan con fixed/sticky/absolute: fijan `position: relative` para el reflejo. */
+@utility liquid-glass {
+  position: relative;
+  background-color: var(--glass-fill);
+  /* El prefijo va antes: si un motor lo trata como alias, gana la línea con la refracción. */
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) var(--glass-refraction,);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-highlight),
+    inset 0 0 0 1px var(--glass-edge),
+    inset 0 0 6px 0 var(--glass-rim),
+    var(--glass-shadow);
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(
+      from 225deg,
+      transparent 0deg,
+      var(--glass-highlight) 90deg,
+      transparent 170deg,
+      color-mix(in oklch, var(--glass-highlight) 45%, transparent) 270deg,
+      transparent 350deg
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.85;
+    pointer-events: none;
+  }
+}
+/* Squish de iOS al presionar: la cápsula se encoge un 3 % y al soltar vuelve con un spring corto. La
+   dispara la propia cápsula o un control suyo marcado con `data-squish` (pestañas, flechas del mes).
+   Solo transform y transiciones de CSS: interrumpible y sin JS. Repite las transiciones de `.press`
+   porque esta propiedad las pisa. Sin :has (Firefox < 121) solo la cápsula que se toca a sí misma
+   hace squish. Con movimiento reducido, nada. */
+@utility liquid-squish {
+  transition: transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 120ms ease-out, background-color 120ms ease-out;
+  /* linear() en línea, no con var(): con var() la línea sería inválida recién al computarse y el
+     cubic-bezier de arriba no quedaría como respaldo en navegadores sin linear(). */
+  transition: transform 500ms linear(0, 0.058, 0.193, 0.358, 0.523, 0.67, 0.791, 0.884, 0.951, 0.995, 1.021, 1.034, 1.038, 1.037, 1.032, 1.025, 1.019, 1.013, 1.008, 1.005, 1), opacity 120ms ease-out, background-color 120ms ease-out;
+  @media (prefers-reduced-motion: no-preference) {
+    &:is([data-squish]:active, :has([data-squish]:active)) {
+      transform: scale(0.97);
+      transition-duration: 120ms;
+      transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+  }
+}
+/* Pastilla del estado activo dentro del vidrio (pestaña, segmento): el acento tiñe el fondo. */
+@utility liquid-glass-active {
+  background-color: var(--glass-active);
+  box-shadow: inset 0 1px 0 0 var(--glass-highlight);
+}
+/* Scroll edge effect (apple-hig/components/scroll-views): desenfoque progresivo y fundido del
+   contenido que pasa por debajo de los controles flotantes. Uno por vista: arriba detrás de la fila
+   superior móvil o la topbar; abajo detrás de la barra de pestañas. No es decorativo: solo va donde
+   hay contenido que se desplaza bajo controles. El contenedor necesita `position` y `z-index`. */
+@utility scroll-edge-top {
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0 0 -1rem 0;
+    z-index: -1;
+    background: linear-gradient(to bottom, var(--scroll-edge) 40%, transparent);
+    backdrop-filter: blur(var(--scroll-edge-blur));
+    -webkit-backdrop-filter: blur(var(--scroll-edge-blur));
+    -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+    mask-image: linear-gradient(to bottom, #000 55%, transparent);
+    pointer-events: none;
+    transition: opacity 240ms ease-out;
+  }
+}
+@utility scroll-edge-bottom {
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -1rem 0 0 0;
+    z-index: -1;
+    background: linear-gradient(to top, var(--scroll-edge) 40%, transparent);
+    backdrop-filter: blur(var(--scroll-edge-blur));
+    -webkit-backdrop-filter: blur(var(--scroll-edge-blur));
+    -webkit-mask-image: linear-gradient(to top, #000 55%, transparent);
+    mask-image: linear-gradient(to top, #000 55%, transparent);
+    pointer-events: none;
+    transition: opacity 240ms ease-out;
+  }
+}
+
+/* Solo se ve cuando hay contenido pasando bajo los controles: en reposo no hay fondo. */
+@utility scroll-edge-off {
+  &::after {
+    opacity: 0;
+  }
+}
+
+/* Fila superior móvil, persistente en el AppFrame: el scroll edge aparece apenas hay scroll, en
+   todas las vistas. */
+.top-bar:not([data-scrolled])::after {
+  opacity: 0;
+}
+/* MonthNav deshabilitado (vistas sin selector de mes): media tinta, legible sin invitar a tocar. */
+.idle-ink {
+  opacity: 0.55;
+}
+/* En la fila móvil comparte celda con el hueco de la vista. Al pasar a una vista sin selector, la
+   cápsula queda y solo su tinta baja (se lee como el mismo control deshabilitándose); al volver a
+   una con selector, este entra encima con `top-in` y el deshabilitado se va recién al terminar. */
+.top-idle .idle-ink {
+  transition: opacity 200ms ease-out;
+}
+.top-bar:not(:has([data-top-actions]:empty)) .top-idle {
+  visibility: hidden;
+  transition: visibility 0s linear 220ms;
+}
+.top-bar:not(:has([data-top-actions]:empty)) .top-idle .idle-ink {
+  opacity: 1;
+  transition: none;
+}
+/* Al cambiar de vista la barra queda quieta: entra solo su contenido (el MonthNav), sin escala para
+   calzar sobre la cápsula que ya está. */
+@keyframes top-in {
+  from { opacity: 0; }
+}
+[data-top-actions] > * {
+  animation: top-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Mes/ciclo que cambia con las flechas: la etiqueta entra desde el lado de la navegación. */
+@keyframes month-in-next {
+  from { transform: translateX(45%); opacity: 0; }
+}
+@keyframes month-in-prev {
+  from { transform: translateX(-45%); opacity: 0; }
+}
+.month-in-next { animation: month-in-next 260ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.month-in-prev { animation: month-in-prev 260ms cubic-bezier(0.2, 0.8, 0.2, 1); }
 
 /* === Landing: reveal on scroll (IntersectionObserver añade .is-visible) === */
 [data-reveal] {
@@ -347,41 +577,171 @@ html:has(main[data-landing]) body {
   }
 }
 
-/* Frost en controles shadcn. Fuera de @layer para ganar a las utilidades de Tailwind;
-   solo background + blur (no bordes) para no romper focus ring / aria-invalid. */
+/* Pastilla activa de las pestañas (BottomNav): se mueve con left/right y, según hacia dónde va
+   (`data-dir`), el borde de adelante llega antes que el de atrás, así se estira como una gota y se
+   recoge al llegar. Solo transiciones: un toque a mitad de camino la redirige desde donde está. */
+.tab-pill {
+  transition: left 260ms cubic-bezier(0.2, 0.8, 0.2, 1), right 260ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 240ms ease-out;
+}
+.tab-pill[data-dir="next"] {
+  transition-duration: 360ms, 220ms, 240ms;
+  transition-delay: 50ms, 0ms, 0ms;
+}
+.tab-pill[data-dir="prev"] {
+  transition-duration: 220ms, 360ms, 240ms;
+  transition-delay: 0ms, 50ms, 0ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-pill {
+    transition: none;
+  }
+}
+
+/* Relleno de controles shadcn (systemFill de iOS). Fuera de @layer para ganar a las utilidades de
+   Tailwind; solo background (no bordes) para no romper focus ring / aria-invalid. */
 [data-slot="input"],
 [data-slot="tabs-list"] {
   background-color: var(--glass-control);
-  backdrop-filter: blur(10px) saturate(160%);
-  -webkit-backdrop-filter: blur(10px) saturate(160%);
 }
 /* Los inputs grandes de los modales (descripción, monto) van desnudos a propósito: la regla de
    arriba les ganaba a `bg-transparent` y en oscuro aparecían con caja, en claro sin ella. */
 [data-slot="input"].bg-transparent {
   background-color: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 [data-slot="tabs-trigger"][data-state="active"] {
   background-color: var(--glass-control-active);
-  backdrop-filter: blur(10px) saturate(160%);
-  -webkit-backdrop-filter: blur(10px) saturate(160%);
 }
 
-/* Números: montos y columnas numéricas usan cifras tabulares mono. */
+/* Scrollbar minimalista para toda la app (página y contenedores), estilo macOS: fino, sin flechas
+   y con la pista transparente. En iOS el scroll es overlay nativo y esto no lo cambia. Los navegadores
+   con `scrollbar-color` (Chrome 121+, Firefox) usan las dos primeras; Safari, las ::-webkit-. En la capa base para que `scrollbar-none` (utilidad) les gane. */
+@layer base {
+  /* Solo Firefox: en Chromium, scrollbar-width/color ganan a ::-webkit-scrollbar y vuelven a
+     dibujar las flechas y el carril. */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--scrollbar) transparent;
+    }
+    *:hover {
+      scrollbar-color: var(--scrollbar-hover) transparent;
+    }
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    background-color: var(--scrollbar);
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-hover);
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
+}
+[data-slot="scroll-area-thumb"] {
+  background-color: var(--scrollbar);
+}
+
+/* Números: montos y columnas numéricas usan cifras tabulares de la fuente del sistema, como iOS. */
 .tabular {
+  font-variant-numeric: tabular-nums;
+}
+/* La landing conserva la sombra de las tarjetas de cuenta (en la app van planas sobre el fondo
+   grouped). */
+:is([data-landing], .force-light) .account-card {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 8px 20px -10px rgb(0 0 0 / 0.25);
+}
+/* El modal legal de la landing conserva su título de antes: grande y a la izquierda. */
+.force-light :is([data-slot="drawer-title"], [data-slot="dialog-title"]) {
+  font-size: 1.25rem;
+  line-height: 1.375;
+}
+/* La landing conserva sus cifras mono. */
+:is([data-landing], .force-light) .tabular {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums slashed-zero;
 }
 
-/* Accesibilidad: solo si el usuario pide MENOS TRANSPARENCIA cae a sólido legible. */
+/* Sidebar de escritorio flotante (macOS 26): el mismo Liquid Glass de los controles móviles, con
+   el radio de superficie. Fuera de @layer para ganarle a bg-sidebar/rounded-lg/ring/shadow que
+   shadcn le pone a su panel interno (components/ui no se edita). */
+[data-variant="floating"] > [data-slot="sidebar-container"] > [data-slot="sidebar-inner"] {
+  border-radius: var(--radius-xl);
+  background-color: var(--glass-fill-large);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-highlight),
+    inset 0 0 0 1px var(--glass-edge),
+    inset 0 0 6px 0 var(--glass-rim),
+    var(--glass-shadow);
+}
+
+/* Nivel del vidrio elegido en Ajustes (0 = transparente, el de siempre; 4 = teñido, casi sólido).
+   Más contraste y menos transparencia del sistema, abajo, siguen ganando. */
+:root[data-glass="0"] { --glass-clear: 85%; --glass-blur: 6px; --scroll-edge-amount: 0%; }
+:root[data-glass="1"] { --glass-clear: 65%; --glass-blur: 10px; --scroll-edge-amount: 20%; }
+:root[data-glass="3"] { --glass-clear: 0%; --glass-tint: 30%; --scroll-edge-amount: 70%; }
+:root[data-glass="4"] { --glass-clear: 0%; --glass-tint: 75%; --scroll-edge-amount: 85%; }
+
+/* Accesibilidad (apple-hig/foundations/materials): con MÁS CONTRASTE el vidrio gana relleno y
+   contorno; con MENOS TRANSPARENCIA todo material cae a sólido, y va después para ganarle a
+   contraste cuando están las dos. No se usa prefers-reduced-motion para esto: es para animaciones. */
+@media (prefers-contrast: more) {
+  :root {
+    --glass-fill: oklch(1 0 0 / 0.9);
+    --glass-fill-large: oklch(1 0 0 / 0.94);
+    --material: oklch(1 0 0 / 0.96);
+    --glass-edge: oklch(0.359 0.012 285.8 / 0.45);
+    --border: oklch(0.359 0.012 285.8 / 0.45);
+  }
+  .dark {
+    --glass-fill: oklch(0.22 0.004 286 / 0.92);
+    --glass-fill-large: oklch(0.2 0.004 286 / 0.95);
+    --material: oklch(0.2 0.004 286 / 0.96);
+    --glass-edge: oklch(1 0 0 / 0.4);
+    --border: oklch(1 0 0 / 0.4);
+  }
+}
 @media (prefers-reduced-transparency: reduce) {
-  .glass, .glass-strong,
-  [data-slot="input"], [data-slot="tabs-list"], [data-slot="tabs-trigger"][data-state="active"] {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    background-image: none;
-    background-color: var(--card);
+  :root, .dark {
+    --glass-fill: var(--card);
+    --glass-fill-large: var(--card);
+    --material: var(--card);
+    --scroll-edge: var(--background);
+    --glass-blur: 0px;
+    --material-blur: 0px;
+    --scroll-edge-blur: 0px;
+  }
+  .liquid-glass::before {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .press {
+    transition: none;
+  }
+  .month-in-next,
+  .month-in-prev {
+    animation: none;
+  }
+  /* La fila superior cambia de estado sin fundidos. */
+  [data-top-actions] > *,
+  .top-idle,
+  .top-idle .idle-ink {
+    animation: none;
+    transition: none !important;
   }
 }
 
@@ -399,10 +759,14 @@ html:has(main[data-landing]) body {
   /* El sidebar es `fixed`, así que el padding del body no lo alcanza: sin esto el logo queda bajo
      el notch/Dynamic Island y el menú de usuario bajo el home indicator (iOS instalado). Cubre el
      drawer móvil y el panel de escritorio; el fondo sigue llegando a los bordes (padding interno). */
-  [data-slot="sidebar"][data-mobile="true"],
-  [data-slot="sidebar-container"] {
+  [data-slot="sidebar"][data-mobile="true"] {
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* El de escritorio flota: conserva su margen (p-2 = 0.5rem) cuando no hay safe-area. */
+  [data-slot="sidebar-container"] {
+    padding-top: max(env(safe-area-inset-top), 0.5rem);
+    padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
   }
 }
 
@@ -415,8 +779,9 @@ html:has(main[data-landing]) body {
   box-shadow: none;
   border-color: var(--border);
 }
-[data-product] button:focus-visible,
-[data-product] a:focus-visible {
+/* Foco de teclado en toda la app (también la landing y los modales): contorno opaco, que se ve
+   sobre el vidrio. Fuera de @layer para ganarle al `outline-none` de los primitivos. */
+:is(button, a, [role="button"], summary):focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
@@ -436,6 +801,186 @@ html:has(main[data-landing]) body {
   background-color: transparent;
 }
 
-[data-product] .bg-glass {
-  background-color: var(--secondary);
+
+/* === Superficies modales iOS ===
+   Una sola familia para todo lo que se abre encima del contenido:
+   - Sheet (drawer móvil y su diálogo de escritorio): fondo «grouped» con celdas encima, como las
+     hojas de iOS. En claro, gris #F2F2F7 con celdas blancas; en oscuro, la hoja elevada #1C1C1E con
+     celdas #2C2C2E (el negro puro del fondo de la app no se usa en hojas).
+   - Menú (dropdown, select, popover): material translúcido que sigue el tema, sin sombra dura.
+   - Alerta (AlertDialog): bloque angosto centrado de material, texto centrado y dos botones.
+   Los estilos van aquí y no en components/ui, que solo se toca para los radios. */
+:root {
+    /* Esquinas de hoja/alerta de iOS 26: más grandes que las de una tarjeta (rounded-xl). Se usa
+       como `rounded-(--radius-sheet)` para que tailwind-merge la reconozca como radio. */
+    --radius-sheet: 1.625rem;
+    --sheet: var(--background);
+    --sheet-cell: var(--card);
+    --scrim: oklch(0 0 0 / 0.3);
+    --grabber: oklch(0.359 0.012 285.8 / 0.3);
+}
+.dark {
+    --sheet: var(--card);
+    --sheet-cell: var(--secondary);
+    --scrim: oklch(0 0 0 / 0.55);
+    --grabber: oklch(0.682 0.01 286 / 0.45);
+}
+/* La landing es siempre clara: sus hojas resuelven los tokens con su propia paleta, no con la del
+   tema del usuario (una variable con var() se resuelve donde se declara y se hereda ya resuelta). */
+[data-landing],
+.force-light {
+    --sheet: var(--background);
+    --sheet-cell: var(--card);
+    --material: oklch(0.985 0.002 286 / 0.86);
+    --scrim: oklch(0 0 0 / 0.3);
+    --grabber: oklch(0.359 0.012 285.8 / 0.3);
+}
+
+/* Fondo atenuado sin desenfoque: iOS oscurece lo de atrás, no lo difumina. */
+[data-slot="dialog-overlay"],
+[data-slot="drawer-overlay"],
+[data-slot="alert-dialog-overlay"] {
+  background-color: var(--scrim);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Grabber de la hoja: 36×5 px, discreto, pegado arriba. Es el primer hijo del DrawerContent. */
+[data-product][data-slot="drawer-content"] > :first-child {
+  width: 2.25rem;
+  height: 0.3125rem;
+  margin-top: 0.375rem;
+  background-color: var(--grabber);
+}
+
+/* Grupo inset de una hoja: la celda blanca (o #2C2C2E en oscuro) sobre el fondo de la hoja. Con
+   `.inset-list` lleva separadores entre filas. En capa de componentes para que las utilidades
+   (padding, radio) puedan ajustarlo. */
+@layer components {
+  .sheet-group {
+    background-color: var(--sheet-cell);
+    border-radius: calc(var(--radius) * 1.4) /* = rounded-xl */;
+  }
+}
+/* Un campo dentro de una celda no puede tener el mismo relleno que la celda: lleva systemFill. */
+[data-product] .sheet-group [data-slot="input"]:not(.bg-transparent) {
+  background-color: var(--glass-control);
+}
+
+/* Contenido dentro de la hoja: las tarjetas son celdas inset grouped, sin borde. */
+[data-product] .glass,
+[data-product] .glass-strong {
+  background: var(--sheet-cell);
+  border-color: transparent;
+}
+/* Campos rellenos como las celdas, sin contorno hasta enfocarlos o marcar error. */
+[data-product] [data-slot="input"],
+[data-product] [data-slot="textarea"],
+[data-product] [data-slot="select-trigger"],
+[data-product] [data-slot="input-group"] {
+  background-color: var(--sheet-cell);
+}
+[data-product] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]):not([aria-invalid="true"]):not(:focus-visible) {
+  border-color: transparent;
+}
+[data-product] [data-slot="input"].bg-transparent,
+[data-product] [data-slot="input-group"] [data-slot="input"] {
+  background-color: transparent;
+}
+/* Segmentado de iOS: pista systemFill y segmento elegido en relleno sólido. */
+[data-product] [data-slot="tabs-list"] {
+  background-color: var(--glass-control);
+}
+[data-product] [data-slot="tabs-trigger"][data-state="active"] {
+  background-color: var(--glass-control-active);
+}
+
+/* Material regular para todo lo que se abre con texto sobre el contenido: menús, select, popover,
+   tooltip y toasts. Sigue el tema. Fuera de @layer para ganarle a lo que traen los primitivos
+   (`bg-popover/70`, `shadow-2xl`, `ring-1`, el ::before con `backdrop-blur-2xl`, el tooltip
+   invertido `bg-foreground`): ningún componente pone su propio blur ni su fondo. */
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"],
+[data-slot="select-content"],
+[data-slot="popover-content"],
+[data-slot="tooltip-content"] {
+  background-color: var(--material);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--material-shadow);
+  color: var(--popover-foreground);
+}
+:is([data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="select-content"])::before {
+  display: none;
+}
+/* La flecha del tooltip era un cuadrado sólido: sobre material translúcido se ve doble. */
+[data-slot="tooltip-content"] svg.rotate-45 {
+  display: none;
+}
+[data-slot="tooltip-content"] {
+  font-size: var(--text-footnote);
+  line-height: var(--text-footnote--line-height);
+}
+/* Toasts neutros (los de estado conservan su color de sonner con richColors). */
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"]:is([data-type="default"], [data-type="loading"], :not([data-type])) {
+  background-color: var(--material);
+  border-color: transparent;
+  color: var(--popover-foreground);
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--material-shadow);
+}
+/* Táctil: filas de 44 px y texto body (17 px), como un menú de iOS. */
+@media (pointer: coarse) {
+  :is(
+      [data-slot="dropdown-menu-item"],
+      [data-slot="dropdown-menu-checkbox-item"],
+      [data-slot="dropdown-menu-radio-item"],
+      [data-slot="dropdown-menu-sub-trigger"],
+      [data-slot="select-item"]
+    ) {
+    min-height: 2.75rem;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+  }
+}
+
+/* Alerta de iOS: angosta, centrada, título headline, mensaje en subheadline y botones lado a lado. */
+[data-slot="alert-dialog-content"] {
+  max-width: min(20rem, calc(100% - 2.5rem));
+  gap: 1.25rem;
+  padding: 1.25rem;
+  border-radius: var(--radius-sheet);
+  background-color: var(--material);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--material-shadow);
+}
+[data-slot="alert-dialog-header"] {
+  place-items: center;
+  text-align: center;
+}
+[data-slot="alert-dialog-title"] {
+  font-size: var(--text-headline);
+  line-height: var(--text-headline--line-height);
+  font-weight: 600;
+}
+[data-slot="alert-dialog-description"] {
+  font-size: var(--text-subheadline);
+  line-height: var(--text-subheadline--line-height);
+}
+[data-slot="alert-dialog-footer"] {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+[data-slot="alert-dialog-footer"] > * {
+  min-height: 2.75rem;
+  font-size: var(--text-body);
+}
+[data-slot="alert-dialog-cancel"] {
+  background-color: var(--glass-control);
+  border-color: transparent;
 }

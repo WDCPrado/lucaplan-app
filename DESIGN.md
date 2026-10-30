@@ -11,7 +11,7 @@ conservan los botones superiores flotantes y la navegación inferior.
 Los modales mantienen las mejoras del PR #56: superficies sólidas, altura adaptada
 al contenido, formularios validados e identidad por instancia. Un modal hijo se
 cierra sin cerrar el padre; el foco vuelve al control que lo abrió. La creación de
-cuentas, el plan, ingresos, categorías, búsqueda y triage conservan esa composición.
+cuentas, el plan, ingresos, categorías y la búsqueda conservan esa composición.
 
 Se mantienen los tokens de tema claro/oscuro, las fuentes del sistema y la
 separación entre CLP y USD. La landing conserva su dirección independiente.

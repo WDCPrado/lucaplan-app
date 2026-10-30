@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
@@ -13,12 +14,10 @@ import {
   Repeat,
   Settings,
   ChevronsUpDown,
-  Plus,
   Search,
   ListFilter,
 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
 import {
   Sidebar,
   SidebarContent,
@@ -36,12 +35,18 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
+import { authClient } from "@/lib/auth-client"
+import { useLiquidRefraction } from "@/hooks/use-liquid-refraction"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
-import { AddTransactionSheet } from "./add-transaction-sheet"
-import { AccountModal } from "./account-modal"
+import { TransactionSearch } from "./transaction-search"
+import { TransactionModal } from "./transaction-modal"
+import { MonthNav } from "./month-nav"
+import { ProfileSheet } from "./profile-sheet"
 import type {
   AccountDTO,
+  AmountBoundsDTO,
   CategoryDTO,
+  TransactionDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import {
   DropdownMenu,
@@ -54,12 +59,7 @@ import {
 
 // Solo rutas que existen. Presupuestos vive como sección del dashboard y Cuotas como sección de
 // Recurrentes; cuando sean páginas propias, se agregan aquí.
-export type NavKey =
-  | "inicio"
-  | "recurrentes"
-  | "movimientos"
-  | "configuracion"
-  | "perfil"
+export type NavKey = "inicio" | "recurrentes" | "movimientos" | "configuracion"
 
 const NAV: {
   key: NavKey
@@ -82,11 +82,25 @@ const NAV: {
   },
   // Un solo nombre por sección: el mismo en la barra lateral, la inferior y el título.
   { key: "configuracion", label: "Ajustes", Icon: Settings, href: "/settings" },
-  { key: "perfil", label: "Perfil", Icon: UserRound, href: "/profile" },
 ]
 
-// La barra inferior no lleva Perfil: ya está en el avatar.
-const BOTTOM_NAV = NAV.filter((n) => n.key !== "perfil")
+// El perfil no es una ruta: es una hoja (ProfileSheet) que se abre desde la fila de la cuenta en
+// Ajustes (móvil) y desde el menú de la cuenta del sidebar (escritorio).
+// Ancho relativo de cada pestaña: las etiquetas largas («Recurrentes», «Movimientos») reciben más
+// que las cortas, así a 375 px entran completas a 12 px sin cortarse. Bajo 375 px «Movimientos» pasa
+// a «Movim.» (`short`), nunca a «…».
+const TAB: Partial<Record<NavKey, { weight: number; short?: string }>> = {
+  inicio: { weight: 0.8 },
+  recurrentes: { weight: 1.2 },
+  movimientos: { weight: 1.2, short: "Movim." },
+  configuracion: { weight: 0.8 },
+}
+const BOTTOM_NAV = NAV.map((n) => ({
+  ...n,
+  weight: TAB[n.key]?.weight ?? 1,
+  short: TAB[n.key]?.short,
+}))
+const TAB_TOTAL = BOTTOM_NAV.reduce((sum, n) => sum + n.weight, 0)
 
 function navKeyOf(pathname: string): NavKey | undefined {
   return NAV.find(
@@ -94,139 +108,227 @@ function navKeyOf(pathname: string): NavKey | undefined {
   )?.key
 }
 
-function subscribeToScroll(onChange: () => void) {
-  window.addEventListener("scroll", onChange, { passive: true })
-  return () => window.removeEventListener("scroll", onChange)
+// Huecos de la barra persistente donde cada vista deja sus acciones (el MonthNav): uno en la
+// topbar de escritorio y otro en la fila superior móvil. La vista los llena con un portal, así la
+// barra no se monta ni se desmonta al navegar.
+type Slots = { desktop: HTMLElement | null; mobile: HTMLElement | null }
+const SlotsContext = React.createContext<Slots | null>(null)
+
+// Abre la hoja del perfil, que vive una vez en el AppFrame. Fuera del marco (mocks) no hay hoja.
+const OpenProfileContext = React.createContext<(() => void) | null>(null)
+export const useOpenProfile = () => React.useContext(OpenProfileContext)
+
+// Escribiendo en un campo o con un diálogo abierto, las teclas son de ese campo o diálogo.
+function shortcutBlocked(e: KeyboardEvent) {
+  const target = e.target as HTMLElement | null
+  return (
+    !!target?.closest("input, textarea, select, [contenteditable=true]") ||
+    !!document.querySelector('[role="dialog"], [role="alertdialog"]')
+  )
 }
 
-type QuickAdd = { accounts: AccountDTO[]; categories: CategoryDTO[] }
+type User = { name: string; initial: string; email?: string }
 
-// "Abrir nuevo movimiento" del AppFrame. Con él, el AppShell no monta su propia barra inferior ni
-// su sheet: usa los del marco, que viven una sola vez para toda la app.
-const OpenAddContext = React.createContext<(() => void) | null>(null)
-
-// Marco de las pantallas con sesión (layout de app/(app)): la barra inferior móvil y el sheet del
-// "+" quedan montados entre rutas, sin recargarse en cada navegación. El "Movimiento" del topbar y
-// la tecla "n" del AppShell abren este mismo sheet.
+// Marco de las pantallas con sesión (layout de app/(app)): sidebar, topbar, fila superior móvil,
+// barra inferior y búsqueda viven aquí una sola vez y no se desmontan entre rutas, así sus
+// transiciones siguen de una vista a otra. La búsqueda es global: el círculo de la barra inferior,
+// la cápsula de la topbar y los atajos "/" y Ctrl/⌘+K la abren desde cualquier vista.
 export function AppFrame({
-  quickAdd,
-  children,
-}: {
-  quickAdd: QuickAdd
-  children: React.ReactNode
-}) {
-  const [addOpen, setAddOpen] = React.useState(false)
-  const openAdd = React.useCallback(() => setAddOpen(true), [])
-  return (
-    <OpenAddContext.Provider value={openAdd}>
-      {children}
-      <BottomNav onAdd={openAdd} />
-      <QuickAddSheet
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        quickAdd={quickAdd}
-      />
-    </OpenAddContext.Provider>
-  )
-}
-
-// Van todas las cuentas: el sheet decide cuáles aceptan alta a mano y cuáles se leen de una foto
-// de la cartola (las conectadas, tarjeta de crédito incluida).
-function QuickAddSheet({
-  open,
-  onOpenChange,
-  quickAdd,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  quickAdd: QuickAdd
-}) {
-  const [accountOpen, setAccountOpen] = React.useState(false)
-  return (
-    <AddTransactionSheet
-      open={open}
-      onOpenChange={onOpenChange}
-      accounts={quickAdd.accounts}
-      categories={quickAdd.categories}
-      onCreateAccount={() => setAccountOpen(true)}
-    >
-      <AccountModal open={accountOpen} onOpenChange={setAccountOpen} />
-    </AddTransactionSheet>
-  )
-}
-
-type AppShellProps = {
-  user: { name: string; initial: string; email?: string }
-  active?: NavKey
-  onNavigate?: (key: NavKey) => void
-  onSignOut?: () => void
-  // Datos del "+" (centro de la barra inferior en móvil, "Movimiento" en el topbar): el acceso
-  // rápido a registrar un movimiento a mano (gasto o ingreso, con el toggle ±), igual en toda la app.
-  // Crear recurrentes/cuotas NO va aquí: eso va en la cabecera de su sección. Dentro de un
-  // AppFrame sobra: el "+" es el del marco. Sin marco (los mocks de /design) lo monta el shell.
-  quickAdd?: QuickAdd
-  onSearch?: () => void // si se pasa, muestra la lupa "Buscar" abajo en el sidebar
-  title?: string
-  actions?: React.ReactNode // topbar derecha: selector de mes u otros
-  children: React.ReactNode
-}
-
-// Shell desktop-first de la app: sidebar shadcn colapsable (drawer en móvil), topbar con
-// acciones, y el contenido en SidebarInset. El toggle de tema vive en el menú de usuario.
-export function AppShell({
   user,
-  active,
-  onNavigate,
-  onSignOut,
-  quickAdd,
-  onSearch,
-  title,
-  actions,
+  accounts,
+  categories,
+  amountBounds,
+  currentPeriod,
   children,
-}: AppShellProps) {
-  const hasScrolled = React.useSyncExternalStore(
-    subscribeToScroll,
-    () => window.scrollY > 0,
-    () => false
+}: {
+  user: User
+  accounts: AccountDTO[]
+  categories: CategoryDTO[]
+  amountBounds: AmountBoundsDTO
+  // Período en curso según el modo; con él el marco llena la fila de las vistas sin selector de mes.
+  currentPeriod: {
+    year: number
+    month: number
+    cycleRange?: { start: string; end: string }
+  }
+  children: React.ReactNode
+}) {
+  const router = useRouter()
+  const [searchOpen, setSearchOpen] = React.useState(false)
+  // Movimiento elegido en la búsqueda: su editor se abre anidado dentro de ella.
+  const [searchTx, setSearchTx] = React.useState<TransactionDTO | null>(null)
+  // Los huecos se guardan desde su ref callback (no desde un efecto): al tenerlos, las vistas
+  // montan sus portales en el render siguiente.
+  const [desktopSlot, setDesktopSlot] = React.useState<HTMLElement | null>(null)
+  const [mobileSlot, setMobileSlot] = React.useState<HTMLElement | null>(null)
+  const slots = React.useMemo(
+    () => ({ desktop: desktopSlot, mobile: mobileSlot }),
+    [desktopSlot, mobileSlot]
   )
-  const frameOpenAdd = React.useContext(OpenAddContext)
-  const [addOpen, setAddOpen] = React.useState(false)
-  const localOpenAdd = React.useCallback(() => setAddOpen(true), [])
-  const openAdd = frameOpenAdd ?? (quickAdd ? localOpenAdd : undefined)
+  // Sin haptic propio: ResponsiveModal ya vibra al abrir.
+  const openSearch = React.useCallback(() => setSearchOpen(true), [])
+  const [profileOpen, setProfileOpen] = React.useState(false)
+  const openProfile = React.useCallback(() => setProfileOpen(true), [])
 
-  // Atajos de escritorio: "/" o Ctrl/⌘+K abre la búsqueda y "n" el nuevo movimiento. No actúan
-  // escribiendo en un campo ni con un diálogo abierto: ahí las teclas son del diálogo.
+  async function signOut() {
+    await authClient.signOut()
+    router.push("/login")
+  }
+
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const target = e.target as HTMLElement | null
-      if (target?.closest("input, textarea, select, [contenteditable=true]"))
-        return
-      if (document.querySelector('[role="dialog"], [role="alertdialog"]'))
-        return
+      if (shortcutBlocked(e)) return
       const key = e.key.toLowerCase()
-      const mod = e.ctrlKey || e.metaKey
-      if (onSearch && (key === "/" || (key === "k" && mod))) {
+      if (key === "/" || (key === "k" && (e.ctrlKey || e.metaKey))) {
         e.preventDefault()
-        onSearch()
-      } else if (openAdd && key === "n" && !mod && !e.altKey) {
-        e.preventDefault()
-        openAdd()
+        setSearchOpen(true)
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [onSearch, openAdd])
+  }, [])
+
+  return (
+    <SlotsContext.Provider value={slots}>
+      <OpenProfileContext.Provider value={openProfile}>
+        <Chrome
+          user={user}
+          onSignOut={signOut}
+          onProfile={openProfile}
+          onSearch={openSearch}
+          desktopSlotRef={setDesktopSlot}
+          mobileSlotRef={setMobileSlot}
+          idle={
+            <MonthNav
+              period={currentPeriod}
+              current={currentPeriod}
+              cycleRange={currentPeriod.cycleRange}
+              onNavigate={() => {}}
+              disabled
+            />
+          }
+        >
+          {children}
+        </Chrome>
+        <TransactionSearch
+          open={searchOpen}
+          detailOpen={searchTx !== null}
+          onOpenChange={setSearchOpen}
+          categories={categories}
+          accounts={accounts}
+          amountBounds={amountBounds}
+          onOpenTransaction={setSearchTx}
+        >
+          {searchOpen && (
+            <TransactionModal
+              tx={searchTx}
+              categories={categories}
+              accounts={accounts}
+              onOpenChange={(o) => !o && setSearchTx(null)}
+            />
+          )}
+        </TransactionSearch>
+        <ProfileSheet
+          open={profileOpen}
+          onOpenChange={setProfileOpen}
+          user={user}
+        />
+      </OpenProfileContext.Provider>
+    </SlotsContext.Provider>
+  )
+}
+
+// Móvil: la búsqueda va suelta a la derecha de la cápsula de pestañas (iOS 26, como Música o Fotos),
+// del alto de la cápsula. Está en todas las vistas, así la cápsula no cambia de ancho al navegar.
+function SearchCircle({ onSearch }: { onSearch: () => void }) {
+  const ref = React.useRef<HTMLButtonElement>(null)
+  useLiquidRefraction(ref)
+  return (
+    <button
+      ref={ref}
+      type="button"
+      onClick={onSearch}
+      aria-label="Buscar movimientos"
+      data-squish
+      className="press liquid-glass liquid-squish pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full"
+    >
+      <Search className="size-6" />
+    </button>
+  )
+}
+
+// Dentro del AppFrame solo cuentan `actions` y `children`; lo demás es para los mocks de /design,
+// que dibujan el marco completo.
+type AppShellProps = {
+  user?: User
+  active?: NavKey
+  onNavigate?: (key: NavKey) => void
+  onSignOut?: () => void
+  title?: string
+  actions?: React.ReactNode // barra superior: el selector de mes u otros
+  children: React.ReactNode
+}
+
+// Lo que cada vista declara de su marco. Dentro del AppFrame solo aporta sus acciones, por portal a
+// los huecos de la barra persistente; usuario, título y cierre de sesión los pone el marco (el
+// título sale de la ruta). Sin marco (mocks de /design) dibuja el marco completo.
+export function AppShell({ actions, children, ...props }: AppShellProps) {
+  const slots = React.useContext(SlotsContext)
+  if (!slots)
+    return (
+      <Chrome {...props} actions={actions}>
+        {children}
+      </Chrome>
+    )
+  return (
+    <>
+      {children}
+      {actions && slots.desktop && createPortal(actions, slots.desktop)}
+      {actions && slots.mobile && createPortal(actions, slots.mobile)}
+    </>
+  )
+}
+
+// El marco visible: sidebar shadcn flotante (drawer en móvil), topbar flotante en escritorio y
+// controles flotantes en móvil.
+function Chrome({
+  user,
+  active,
+  onNavigate,
+  onSignOut,
+  onProfile,
+  onSearch,
+  title: titleProp,
+  actions,
+  desktopSlotRef,
+  mobileSlotRef,
+  idle,
+  children,
+}: Omit<AppShellProps, "actions"> & {
+  actions?: React.ReactNode
+  idle?: React.ReactNode // el MonthNav deshabilitado: ocupa el hueco cuando la vista no trae acciones
+  onSearch?: () => void
+  onProfile?: () => void
+  desktopSlotRef?: (el: HTMLElement | null) => void
+  mobileSlotRef?: (el: HTMLElement | null) => void
+}) {
+  const pathname = usePathname()
+  const title =
+    titleProp ?? NAV.find((n) => n.key === navKeyOf(pathname))?.label
+  const { topRef, endRef, scrolled, atEnd } = useScrollEdges()
 
   return (
     <TooltipProvider delayDuration={0}>
       <SidebarProvider>
-        <Sidebar collapsible="icon">
+        {/* Escritorio: sidebar flotante en vidrio, separado del borde (macOS 26); el vidrio lo pone
+            globals.css sobre [data-variant=floating]. En móvil sigue siendo el drawer. */}
+        <Sidebar collapsible="icon" variant="floating">
           <SidebarHeader>
             <div className="flex items-center gap-2 px-1 py-1">
               <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary font-heading font-bold text-primary-foreground">
                 L
               </div>
-              <span className="font-heading text-lg font-bold tracking-tight group-data-[collapsible=icon]:hidden">
+              <span className="text-headline font-semibold group-data-[collapsible=icon]:hidden">
                 Luca Plan
               </span>
             </div>
@@ -239,116 +341,132 @@ export function AppShell({
           </SidebarContent>
 
           <SidebarFooter>
-            <UserMenu user={user} onSignOut={onSignOut} />
+            {user && (
+              <UserMenu user={user} onSignOut={onSignOut} onProfile={onProfile} />
+            )}
           </SidebarFooter>
         </Sidebar>
 
         <SidebarInset className="min-w-0">
-          {/* Topbar solo en escritorio; en móvil el selector de mes flota (sticky) centrado. */}
-          <header className="pwa-safe-top sticky top-0 z-10 hidden min-h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-4 backdrop-blur md:flex lg:px-6">
-            <SidebarTrigger className="size-9" />
-            {title && (
-              <h1 className="font-heading text-lg font-bold tracking-tight">
-                {title}
-              </h1>
-            )}
-            {/* Escritorio: crear, buscar y después el selector de mes, en ese orden. Buscar y crear
-                viven en el topbar, no flotando: tapaban la esquina de la columna derecha. */}
-            <div className="ml-auto flex items-center gap-2">
-              {openAdd && (
-                <Button
-                  onClick={openAdd}
-                  title="Nuevo movimiento (N)"
-                  className="h-9"
-                >
-                  <Plus className="size-4" />
-                  Movimiento
-                </Button>
+          {/* Marca de "arriba del todo": deja de verse con el primer píxel de scroll. */}
+          <div ref={topRef} aria-hidden className="-mb-px h-px" />
+          {/* Topbar solo en escritorio, de la familia del sidebar flotante: el mismo margen al borde
+              (0.5rem, el p-2 de su contenedor) y hacia el sidebar, mismo radio, mismo vidrio y alineada
+              con su borde superior. Detrás, el scroll edge effect funde lo que pasa por debajo. Lo que
+              va adentro tiene radio concéntrico (--radius-bar-inner). */}
+          <div className="sticky top-0 z-10 hidden scroll-edge-top pt-2 pr-2 md:block">
+            <header className="flex h-14 items-center gap-2 rounded-xl liquid-glass p-2 pl-3">
+              <SidebarTrigger className="size-10 rounded-(--radius-bar-inner)" />
+              {title && (
+                <h1 className="text-title-3 font-semibold">{title}</h1>
               )}
-              {onSearch && (
-                <Button
-                  onClick={onSearch}
-                  size="icon"
-                  variant="secondary"
-                  aria-label="Buscar movimientos"
-                  title="Buscar (/ o Ctrl K)"
-                  className="size-9"
-                >
-                  <Search className="size-4" />
-                </Button>
+              {/* Las acciones de la vista (el selector de mes) van junto al título; sin ellas, el mismo
+                  selector deshabilitado con el período en curso. La búsqueda global, al final. */}
+              <div
+                ref={desktopSlotRef}
+                className="peer ml-2 flex items-center empty:hidden"
+              >
+                {actions}
+              </div>
+              {idle && (
+                <div className="ml-2 hidden items-center peer-empty:flex">
+                  {idle}
+                </div>
               )}
-              {actions}
-            </div>
-          </header>
-          {/* Móvil: fondo oscuro al inicio; al bajar, los controles flotan sin fondo ni blur.
-              items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar.
-              Solo los hijos reciben toques; el espacio entre ellos deja pasar los del contenido. */}
-          <div
-            className={cn(
-              "pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center px-4 pt-3 pb-3 md:hidden",
-              !hasScrolled && "dark bg-background"
-            )}
-          >
-            <div className="flex w-full items-start justify-between gap-2 *:pointer-events-auto">
-              {/* Sin trigger del sidebar: en móvil el drawer solo repetía la barra inferior y el
-                  menú de usuario. El hueco lo ocupa la lupa; sin ella, un espaciador del mismo
-                  ancho que el avatar para que las acciones del centro no se descentren. */}
-              {onSearch ? (
-                <button
-                  onClick={() => {
-                    haptic("light")
-                    onSearch()
-                  }}
-                  aria-label="Buscar movimientos"
-                  className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary transition-colors hover:bg-accent"
-                >
-                  <Search className="size-4.5" />
-                </button>
-              ) : (
-                <div className="invisible size-10 shrink-0" aria-hidden />
-              )}
-              {actions}
-              <UserMenu
-                user={user}
-                onSignOut={onSignOut}
-                trigger={
+              <div className="ml-auto flex items-center gap-2">
+                {/* Búsqueda global: abre el mismo modal que el círculo de la barra móvil. */}
+                {onSearch && (
                   <button
-                    className="grid size-10 place-items-center rounded-full"
-                    aria-label="Perfil"
-                    onClick={() => haptic("light")}
+                    type="button"
+                    onClick={onSearch}
+                    aria-label="Buscar movimientos"
+                    title="Buscar (/ o Ctrl K)"
+                    className="press flex size-10 shrink-0 items-center justify-center gap-2 rounded-(--radius-bar-inner) bg-(--glass-control) text-subheadline text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:w-56 lg:justify-start lg:px-3"
                   >
-                    <Avatar className="size-10 rounded-full">
-                      <AvatarFallback className="rounded-full bg-secondary text-sm font-medium text-foreground">
-                        {user.initial}
-                      </AvatarFallback>
-                    </Avatar>
+                    <Search className="size-4 shrink-0" />
+                    <span className="hidden flex-1 text-left lg:inline">
+                      Buscar
+                    </span>
+                    <kbd className="hidden rounded-sm bg-card px-1.5 font-sans text-caption lg:inline">
+                      /
+                    </kbd>
                   </button>
-                }
-              />
+                )}
+              </div>
+            </header>
+          </div>
+          {/* Móvil: controles flotantes en vidrio (iOS 26), sin barra a lo ancho. Las acciones de la
+              vista (el selector de mes) ocupan todo el ancho; sin ellas, en la misma celda queda el
+              selector deshabilitado con el período en curso, así la fila es igual en todas las vistas
+              y no salta al navegar (el cruce entre los dos, en `.top-idle`, globals.css). El scroll
+              edge effect aparece apenas hay contenido pasando por debajo. Solo los controles reciben
+              toques. */}
+          <div
+            data-scrolled={scrolled || undefined}
+            className="top-bar pwa-safe-top pointer-events-none sticky top-0 z-20 scroll-edge-top px-4 pt-2 pb-3 md:hidden"
+          >
+            <div className="grid min-h-11 w-full items-center *:col-start-1 *:row-start-1">
+              {idle && (
+                <div className="top-idle pointer-events-auto flex w-full min-w-0">
+                  {idle}
+                </div>
+              )}
+              <div
+                ref={mobileSlotRef}
+                data-top-actions
+                className="flex w-full min-w-0 *:pointer-events-auto"
+              >
+                {actions}
+              </div>
             </div>
           </div>
-          {/* Aire inferior solo en móvil, por la barra de navegación fija. En escritorio no flota
-              nada. */}
-          <div className="min-w-0 flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
+          {/* Aire inferior solo en móvil, por la navegación flotante (64px + margen + safe-area). En
+              escritorio no flota nada. */}
+          <div
+            className="min-w-0 flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0"
+          >
             {children}
           </div>
+          {/* Marca del final: visible = ya no queda contenido pasando bajo la barra inferior. */}
+          <div ref={endRef} aria-hidden className="-mt-px h-px" />
         </SidebarInset>
 
-        {/* Móvil: barra inferior fija con los destinos a un toque y el "+" de registrar al centro.
-            Dentro de un AppFrame la pone el marco, una sola vez para toda la app. */}
-        {!frameOpenAdd && (
-          <BottomNav active={active} onNavigate={onNavigate} onAdd={openAdd} />
-        )}
-        {!frameOpenAdd && quickAdd && (
-          <QuickAddSheet
-            open={addOpen}
-            onOpenChange={setAddOpen}
-            quickAdd={quickAdd}
-          />
-        )}
+        <BottomNav
+          active={active}
+          onNavigate={onNavigate}
+          edge={!atEnd}
+          trailing={onSearch && <SearchCircle onSearch={onSearch} />}
+        />
       </SidebarProvider>
     </TooltipProvider>
   )
+}
+
+// Cuándo hay contenido bajo los controles flotantes, con IntersectionObserver (nada escucha el
+// scroll cuadro a cuadro): `scrolled` = la marca de arriba dejó de verse; `atEnd` = se ve la marca
+// del final.
+function useScrollEdges() {
+  const topRef = React.useRef<HTMLDivElement>(null)
+  const endRef = React.useRef<HTMLDivElement>(null)
+  const [scrolled, setScrolled] = React.useState(false)
+  const [atEnd, setAtEnd] = React.useState(false)
+
+  React.useEffect(() => {
+    const top = topRef.current
+    const end = endRef.current
+    if (!top || !end) return
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.target === top) setScrolled(!e.isIntersecting)
+        else setAtEnd(e.isIntersecting)
+      }
+    })
+    io.observe(top)
+    io.observe(end)
+    return () => io.disconnect()
+  }, [])
+
+  return { topRef, endRef, scrolled, atEnd }
 }
 
 // Nav del sidebar: links a rutas reales. El item activo se deriva del pathname (el prop
@@ -368,10 +486,12 @@ function NavMenu({
     <SidebarMenu>
       {NAV.map(({ key, label, Icon, href }) => (
         <SidebarMenuItem key={key}>
+          {/* Activo: la misma pastilla translúcida y el mismo azul que la pestaña activa móvil. */}
           <SidebarMenuButton
             asChild
             isActive={activeKey === key}
             tooltip={label}
+            className="h-9 rounded-(--radius-bar-inner) text-subheadline data-active:bg-(--glass-active) data-active:font-semibold"
           >
             <Link
               href={href}
@@ -394,19 +514,27 @@ function NavMenu({
   )
 }
 
-// Barra inferior de navegación (solo móvil): los mismos destinos del sidebar, al alcance del
-// pulgar y con el actual siempre visible. Con `onAdd`, el "+" de registrar va al centro, entre
-// las dos mitades; sin él, los destinos se reparten el ancho igual y nada queda descentrado.
-// La píldora de color del activo se desliza de una pestaña a otra: como la barra vive en el
-// layout y no se desmonta al navegar, basta una transición de transform.
+// Navegación inferior (solo móvil), flotante como en iOS 26: una cápsula de vidrio con los mismos
+// destinos del sidebar y, suelta a la derecha, la búsqueda (`trailing`). La pastilla del activo
+// (concéntrica: rounded-full dentro de rounded-full) se desliza de una pestaña a otra: como la barra
+// vive en el layout y no se desmonta al navegar, basta una transición de transform. Las etiquetas
+// van en el color y el peso del texto; el activo se marca solo tiñendo el fondo de su pastilla, así
+// ningún ancho cambia al cambiar de pestaña.
+// Al deslizarse la pastilla se estira como una gota: el borde que va adelante llega antes que el de
+// atrás (`.tab-pill[data-dir]`, globals.css). La cápsula hace squish al tocar una pestaña y, en
+// Chromium, refracta lo que pasa por debajo (useLiquidRefraction). La pastilla no refracta: vive
+// dentro del vidrio de la cápsula, que es su «backdrop root», así que debajo solo tiene el relleno
+// liso de la cápsula y no habría nada que desviar.
 function BottomNav({
   active,
   onNavigate,
-  onAdd,
+  edge,
+  trailing,
 }: {
   active?: NavKey
   onNavigate?: (key: NavKey) => void
-  onAdd?: () => void
+  edge: boolean // hay contenido pasando bajo la barra: se ve el scroll edge effect
+  trailing?: React.ReactNode
 }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -417,151 +545,177 @@ function BottomNav({
     navKeyOf(pathname)
   )
   const activeKey = active ?? optimisticKey
-
-  // Slots iguales (flex-1): con el "+" al centro, los destinos de la segunda mitad corren uno.
-  const mid = onAdd ? Math.floor(BOTTOM_NAV.length / 2) : BOTTOM_NAV.length
-  const slots = BOTTOM_NAV.length + (onAdd ? 1 : 0)
   const activeIndex = BOTTOM_NAV.findIndex((n) => n.key === activeKey)
-  const activeSlot = activeIndex + (activeIndex >= mid ? 1 : 0)
+  const pill = BOTTOM_NAV[Math.max(activeIndex, 0)]
+  const pillLeft = BOTTOM_NAV.slice(0, Math.max(activeIndex, 0)).reduce(
+    (sum, n) => sum + n.weight,
+    0
+  )
+  // Hacia dónde se movió la pastilla la última vez, derivado en render al cambiar la pestaña activa.
+  const [move, setMove] = React.useState({ index: activeIndex, dir: 0 })
+  if (move.index !== activeIndex)
+    setMove({ index: activeIndex, dir: activeIndex > move.index ? 1 : -1 })
+  const navRef = React.useRef<HTMLElement>(null)
+  useLiquidRefraction(navRef)
 
   return (
-    <nav
-      aria-label="Navegación principal"
-      className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border/60 bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+    <div
+      className={cn(
+        "pointer-events-none fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 scroll-edge-bottom px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] md:hidden",
+        !edge && "scroll-edge-off"
+      )}
     >
-      {/* translateX en % del propio ancho (un slot): n slots = n × 100%. */}
-      <span
-        aria-hidden
-        className={cn(
-          "pointer-events-none absolute top-1 left-0 flex justify-center transition-[transform,opacity] duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
-          activeIndex < 0 && "opacity-0"
-        )}
-        style={{
-          width: `${100 / slots}%`,
-          transform: `translateX(${Math.max(activeSlot, 0) * 100}%)`,
-        }}
+      <nav
+        ref={navRef}
+        aria-label="Navegación principal"
+        className="liquid-glass liquid-squish pointer-events-auto flex h-16 min-w-0 flex-1 rounded-full p-1"
       >
-        <span className="h-7 w-14 rounded-full bg-primary/12" />
-      </span>
-      {BOTTOM_NAV.map(({ key, label, Icon, href }, i) => {
-        const isActive = activeKey === key
-        const link = (
-          <Link
-            key={key}
-            href={href}
-            prefetch
-            aria-current={isActive ? "page" : undefined}
-            onClick={(e) => {
-              haptic("light")
-              onNavigate?.(key)
-              if (pathname === href) {
-                window.scrollTo({ top: 0, behavior: "smooth" })
-                return
-              }
-              // Ctrl/⌘/Shift/Alt-clic sigue siendo del navegador (pestaña nueva, descargar).
-              if (
-                e.button !== 0 ||
-                e.metaKey ||
-                e.ctrlKey ||
-                e.shiftKey ||
-                e.altKey
-              )
-                return
-              e.preventDefault()
-              React.startTransition(() => {
-                setOptimisticKey(key)
-                router.push(href)
-              })
-            }}
+        <div className="relative flex min-w-0 flex-1">
+          {/* Las pestañas no miden lo mismo: la pastilla se ubica con left/right en % de la fila
+              (es un elemento chico; animarlos no pesa). */}
+          <span
+            aria-hidden
+            data-dir={move.dir > 0 ? "next" : move.dir < 0 ? "prev" : undefined}
             className={cn(
-              "relative flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 transition-colors",
-              isActive ? "text-primary" : "text-muted-foreground"
+              "tab-pill pointer-events-none absolute inset-y-0 flex",
+              activeIndex < 0 && "opacity-0"
             )}
+            style={{
+              left: `${(pillLeft / TAB_TOTAL) * 100}%`,
+              right: `${((TAB_TOTAL - pillLeft - pill.weight) / TAB_TOTAL) * 100}%`,
+            }}
           >
-            <Icon className="size-5 shrink-0" />
-            <span className="max-w-full truncate text-[10px] leading-none">
-              {label}
-            </span>
-          </Link>
-        )
-        if (!onAdd || i !== mid) return link
-        return (
-          <React.Fragment key={key}>
-            <div className="relative flex flex-1 items-center justify-center">
-              <Button
-                onClick={() => {
-                  haptic("medium")
-                  onAdd()
+            <span className="liquid-glass-active w-full rounded-full" />
+          </span>
+          {BOTTOM_NAV.map(({ key, label, short, weight, Icon, href }) => {
+            const isActive = activeKey === key
+            return (
+              <Link
+                key={key}
+                href={href}
+                prefetch
+                aria-current={isActive ? "page" : undefined}
+                onClick={(e) => {
+                  haptic("light")
+                  onNavigate?.(key)
+                  if (pathname === href) {
+                    window.scrollTo({ top: 0, behavior: "smooth" })
+                    return
+                  }
+                  // Ctrl/⌘/Shift/Alt-clic sigue siendo del navegador (pestaña nueva, descargar).
+                  if (
+                    e.button !== 0 ||
+                    e.metaKey ||
+                    e.ctrlKey ||
+                    e.shiftKey ||
+                    e.altKey
+                  )
+                    return
+                  e.preventDefault()
+                  React.startTransition(() => {
+                    setOptimisticKey(key)
+                    router.push(href)
+                  })
                 }}
-                size="icon"
-                aria-label="Registrar un movimiento"
-                className="size-11 rounded-full shadow-md"
+                data-squish
+                style={{ flexGrow: weight }}
+                // Sin negrita en la activa: la marcan la pastilla y aria-current; un peso distinto
+                // ensancharía su etiqueta y movería a las vecinas bajo la pastilla.
+                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-foreground"
               >
-                <Plus className="size-6" />
-              </Button>
-            </div>
-            {link}
-          </React.Fragment>
-        )
-      })}
-    </nav>
+                <Icon className="size-5 shrink-0" />
+                {short ? (
+                  <span className="text-caption whitespace-nowrap">
+                    <span className="max-[375px]:sr-only">{label}</span>
+                    <span aria-hidden className="min-[375px]:hidden">{short}</span>
+                  </span>
+                ) : (
+                  <span className="text-caption whitespace-nowrap">{label}</span>
+                )}
+              </Link>
+            )
+          })}
+        </div>
+      </nav>
+      {trailing}
+    </div>
   )
 }
 
+// Menú de la cuenta, solo en el pie del sidebar de escritorio. En móvil lo mismo vive en Ajustes.
 function UserMenu({
   user,
   onSignOut,
-  trigger,
+  onProfile,
 }: {
-  user: AppShellProps["user"]
+  user: User
   onSignOut?: () => void
-  trigger?: React.ReactNode // trigger alternativo (avatar de la bottom bar); default: botón del sidebar
+  onProfile?: () => void
 }) {
   const { resolvedTheme, setTheme } = useTheme()
+  // «Perfil» abre la hoja recién cuando el menú terminó de cerrarse y Radix devolvió el foco a su
+  // botón: así la hoja lo guarda como opener y, al cerrarla, el foco vuelve ahí y no a <body>.
+  const pendingProfile = React.useRef(false)
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {trigger ?? (
-          <SidebarMenuButton
-            size="lg"
-            className="data-[state=open]:bg-sidebar-accent"
-          >
-            <Avatar className="size-8 rounded-lg bg-primary">
-              <AvatarFallback className="rounded-lg bg-primary text-primary-foreground">
-                {user.initial}
-              </AvatarFallback>
-            </Avatar>
-            <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-              <span className="truncate text-sm font-medium">{user.name}</span>
-              {user.email && (
-                <span className="truncate text-xs text-muted-foreground">
-                  {user.email}
-                </span>
-              )}
-            </div>
-            <ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
-          </SidebarMenuButton>
-        )}
+        <SidebarMenuButton
+          size="lg"
+          className="data-[state=open]:bg-sidebar-accent"
+        >
+          {/* Sin el aro del Avatar de shadcn (`after:border`): con el relleno ya se lee el círculo. */}
+          <Avatar className="size-8 rounded-full bg-primary after:hidden">
+            <AvatarFallback className="rounded-full bg-primary text-subheadline font-semibold text-primary-foreground">
+              {user.initial}
+            </AvatarFallback>
+          </Avatar>
+          <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
+            <span className="truncate text-subheadline font-medium">
+              {user.name || user.email}
+            </span>
+            {user.email && (
+              <span className="truncate text-footnote text-muted-foreground">
+                {user.email}
+              </span>
+            )}
+          </div>
+          <ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
+        </SidebarMenuButton>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" className="w-56">
+      <DropdownMenuContent
+        side="top"
+        align="start"
+        className="w-56"
+        onCloseAutoFocus={() => {
+          if (!pendingProfile.current) return
+          pendingProfile.current = false
+          onProfile?.()
+        }}
+      >
         <DropdownMenuLabel className="font-normal">
           <div className="grid leading-tight">
-            <span className="truncate text-sm font-medium">{user.name}</span>
+            <span className="truncate text-subheadline font-medium">
+              {user.name || user.email}
+            </span>
             {user.email && (
-              <span className="truncate text-xs text-muted-foreground">
+              <span className="truncate text-footnote text-muted-foreground">
                 {user.email}
               </span>
             )}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/profile">
+        {onProfile && (
+          <DropdownMenuItem
+            onSelect={() => {
+              pendingProfile.current = true
+            }}
+          >
             <UserRound className="size-4" />
-            Mi perfil
-          </Link>
-        </DropdownMenuItem>
+            Perfil
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onSelect={(e) => {
             e.preventDefault() // no cerrar el menú al alternar
@@ -569,9 +723,8 @@ function UserMenu({
             setTheme(resolvedTheme === "dark" ? "light" : "dark")
           }}
         >
-          {/* icono/texto por CSS anclado al <html> (next-themes): el DropdownMenuContent lleva
-              la clase `dark` fija (glass oscuro del design system), así que `dark:` mentiría aquí;
-              [html.dark_&] mira solo el tema real. Sin mismatch de hidratación ni useEffect. */}
+          {/* icono/texto por CSS anclado al <html> (next-themes): [html.dark_&] mira solo el tema
+              real. Sin mismatch de hidratación ni useEffect. */}
           <Sun className="hidden size-4 [html.dark_&]:block" />
           <Moon className="size-4 [html.dark_&]:hidden" />
           <span className="hidden [html.dark_&]:inline">Tema claro</span>

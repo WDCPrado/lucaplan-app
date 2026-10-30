@@ -558,7 +558,7 @@ export function OutlookBankConnection({
             </Button>
           </div>
           {reconcileHint && (
-            <p className="text-center text-sm">{reconcileHint}</p>
+            <p className="text-center text-subheadline">{reconcileHint}</p>
           )}
         </div>
       </div>
@@ -589,7 +589,7 @@ export function OutlookBankConnection({
             </>
           ) : (
             <div
-              className="flex items-center justify-center gap-2 rounded-xl border bg-muted/30 p-5 text-sm text-muted-foreground"
+              className="flex items-center justify-center gap-2 rounded-xl border bg-muted/30 p-5 text-subheadline text-muted-foreground"
               role="status"
             >
               <Loader2 className="size-4 animate-spin text-primary" />
@@ -636,7 +636,7 @@ export function OutlookBankConnection({
               El mismo motivo viaja además en el campo que lo causa (aria-describedby), que es donde
               se arregla y donde sí lo alcanza un lector de pantalla. */}
           {blockingHint && (
-            <p className="text-center text-sm">{blockingHint}</p>
+            <p className="text-center text-subheadline">{blockingHint}</p>
           )}
         </div>
         <DisconnectButton
@@ -783,7 +783,7 @@ function AddBankSection({
 
   return (
     <div className="space-y-4 rounded-xl border p-4">
-      <p className="text-sm font-medium">Agregar un banco</p>
+      <p className="text-subheadline font-medium">Agregar un banco</p>
 
       {availableBanks.length > 1 && (
         <OptionList
@@ -794,7 +794,7 @@ function AddBankSection({
       )}
 
       <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">
+        <p className="text-footnote text-muted-foreground">
           ¿A qué correo llegan sus avisos?
         </p>
         <OptionList
@@ -818,7 +818,7 @@ function AddBankSection({
       {/* De qué proveedor es el correo nuevo. Con uno solo configurado no hay nada que preguntar. */}
       {!targetMailbox && providers.length > 1 && (
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-footnote text-muted-foreground">
             ¿De qué proveedor es el correo nuevo?
           </p>
           <OptionList
@@ -838,7 +838,7 @@ function AddBankSection({
             maxLength={24}
             className="h-11"
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-footnote text-muted-foreground">
             Ya tienes {bankName} conectado desde otro correo: la etiqueta los
             distingue en toda la app.
           </p>
@@ -899,7 +899,7 @@ function OptionList({
         >
           <span className="min-w-0 truncate font-medium">{option.label}</span>
           {option.hint && (
-            <span className="shrink-0 text-xs text-muted-foreground">
+            <span className="shrink-0 text-footnote text-muted-foreground">
               {option.hint}
             </span>
           )}
@@ -941,15 +941,15 @@ function MailboxCard({
       ? "border-success/40 bg-success/5"
       : "border-destructive/40 bg-destructive/5"
   return (
-    <div className={cn("space-y-3 rounded-xl border p-4 text-sm", tone)}>
+    <div className={cn("space-y-3 rounded-xl border p-4 text-subheadline", tone)}>
       <div className="flex flex-wrap items-center gap-2 font-medium">
         <Mail className="size-4 text-primary" /> {mailbox.emailAddress}
         {/* De qué proveedor es este correo: con varios conectados es lo que los distingue. */}
-        <span className="rounded-lg bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+        <span className="rounded-lg bg-muted px-2 py-0.5 text-footnote font-medium text-muted-foreground">
           {providerName}
         </span>
       </div>
-      <div className="space-y-1 text-xs text-muted-foreground">
+      <div className="space-y-1 text-footnote text-muted-foreground">
         <p>Estado: {statusLabel}</p>
         <p>
           Última sincronización:{" "}
@@ -978,12 +978,12 @@ function MailboxCard({
               <span className="font-medium">{bank.bankName}</span>
               {/* La etiqueta distingue este origen cuando el mismo banco viene de dos correos. */}
               {bank.label && (
-                <span className="rounded-lg bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                <span className="rounded-lg bg-primary/10 px-2 py-0.5 text-footnote font-medium text-primary">
                   {bank.label}
                 </span>
               )}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-footnote text-muted-foreground">
               Saldo estimado desde{" "}
               {bank.lastBalanceReconciledAt
                 ? new Date(bank.lastBalanceReconciledAt).toLocaleString("es-CL")
@@ -1050,7 +1050,7 @@ function FirstBankPicker({
           de un elemento. */}
       {providers.length > 1 && (
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-footnote text-muted-foreground">
             ¿De qué proveedor es tu correo?
           </p>
           <OptionList
@@ -1158,7 +1158,7 @@ function DisconnectButton({
         <Button
           variant="ghost"
           disabled={busy}
-          className="h-10 w-full text-destructive hover:text-destructive"
+          className="h-11 w-full text-destructive hover:text-destructive"
         >
           <Unplug /> {label}
         </Button>
@@ -1238,7 +1238,7 @@ export function SnapshotForm({
           refLabel="Número de cuenta o últimos 4"
         >
           <div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-footnote text-muted-foreground">
               Saldo actual (CLP)
             </div>
             <MoneyField
@@ -1374,7 +1374,7 @@ export function SnapshotForm({
       >
         <Plus /> Agregar tarjeta
       </Button>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-footnote text-muted-foreground">
         Los movimientos previos a este saldo se importan, pero no vuelven a
         descontarse. CLP y USD se mantienen separados.
       </p>
@@ -1383,8 +1383,8 @@ export function SnapshotForm({
 }
 
 // Controles de saldo sobre una superficie neutra: misma máscara y monedas separadas.
-const boxedMoneyInput = "h-12 rounded-lg text-base"
-const primaryMoneyInput = "h-12 rounded-lg text-xl font-semibold md:text-xl"
+const boxedMoneyInput = "h-12 rounded-lg text-body"
+const primaryMoneyInput = "h-12 rounded-lg text-title-3 font-semibold md:text-title-3"
 
 // Input de monto que reutiliza el formateo vigente (CLP entero agrupado, USD con coma y 2
 // decimales). `value` solo inicializa; el estado vive en useMoneyInput y se reporta por onValue.
@@ -1451,14 +1451,14 @@ function BucketEditor({
       {enabled && (
         <>
           <div>
-            <div className="text-xs text-muted-foreground">Disponible</div>
+            <div className="text-footnote text-muted-foreground">Disponible</div>
             <MoneyField
               currency={currency}
               value={available}
               onValue={onAvailable}
               ariaLabel={`Disponible · ${label}`}
               kind="primary"
-              className={primary ? undefined : "text-xl md:text-xl"}
+              className={primary ? undefined : "text-title-3 md:text-title-3"}
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -1494,14 +1494,14 @@ function DerivedUsed({
 }) {
   if (bucketInvalid(limit, available))
     return (
-      <p className="text-xs font-medium text-destructive">
+      <p className="text-footnote font-medium text-destructive">
         El disponible debe estar entre cero y el cupo total
       </p>
     )
   const used = limit - available
   if (used <= 0) return null
   return (
-    <p className="tabular text-xs text-destructive">
+    <p className="tabular text-footnote text-destructive">
       Usado −{formatMoney(used, currency)}
     </p>
   )
@@ -1522,7 +1522,7 @@ function CardToggle({
       aria-pressed={pressed}
       onClick={() => onPressed(!pressed)}
       className={cn(
-        "flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+        "flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-subheadline font-medium transition-colors",
         pressed
           ? "border-primary bg-primary/10 text-primary"
           : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -1543,7 +1543,7 @@ function CardField({
 }) {
   return (
     <label className="block space-y-1">
-      <span className="block text-xs text-muted-foreground">{label}</span>
+      <span className="block text-footnote text-muted-foreground">{label}</span>
       {children}
     </label>
   )
@@ -1585,18 +1585,18 @@ function CandidateCard({
   return (
     <div className="flex w-full flex-col gap-6 rounded-xl border border-border bg-card p-5 text-foreground">
       <div className="relative flex items-start justify-between gap-2">
-        <div className="text-base font-semibold">{bankName}</div>
+        <div className="text-body font-semibold">{bankName}</div>
         <button
           type="button"
           onClick={onRemove}
-          className="min-h-11 px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-destructive"
+          className="min-h-11 px-3 text-subheadline font-medium text-muted-foreground transition-colors hover:text-destructive"
         >
           Quitar
         </button>
       </div>
       <div className="relative flex-1 space-y-5">{children}</div>
       <div className="relative space-y-1.5">
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-subheadline text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="tracking-widest">••••</span>
             <Input
@@ -1609,7 +1609,7 @@ function CandidateCard({
               aria-describedby={refInvalid ? refErrorId : undefined}
               onChange={(e) => onRef(e.target.value)}
               onBlur={() => setRefTouched(true)}
-              className="tabular h-12 w-24 rounded-lg px-3 text-base tracking-widest"
+              className="tabular h-12 w-24 rounded-lg px-3 text-body tracking-widest"
             />
           </span>
           <span className="shrink-0">
@@ -1618,7 +1618,7 @@ function CandidateCard({
           </span>
         </div>
         {refInvalid && (
-          <p id={refErrorId} className="text-sm text-destructive">
+          <p id={refErrorId} className="text-subheadline text-destructive">
             Faltan los últimos 4 dígitos.
           </p>
         )}
@@ -1636,7 +1636,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium">{label}</span>
+      <span className="mb-1 block text-footnote font-medium">{label}</span>
       {children}
     </label>
   )
@@ -1656,7 +1656,7 @@ function Notice({
   return (
     <div
       className={cn(
-        "flex items-start gap-2 rounded-xl border p-3 text-sm",
+        "flex items-start gap-2 rounded-xl border p-3 text-subheadline",
         warn
           ? "border-warning/40 bg-warning/10 text-foreground"
           : "bg-muted/30 text-muted-foreground"
@@ -1696,7 +1696,7 @@ export function ScanSummary({
       ? `Sin correos de ${bankName}`
       : `${plural(scan.totalMessages, "correo revisado", "correos revisados")} de ${bankName}`
   return (
-    <div className="rounded-xl bg-muted/50 p-3 text-sm">
+    <div className="rounded-xl bg-muted/50 p-3 text-subheadline">
       <p>
         <span className="font-medium">
           {plural(scan.expenseCount, "gasto detectado", "gastos detectados")}
@@ -1708,7 +1708,7 @@ export function ScanSummary({
           {plural(scan.skippedCount, "omitido", "omitidos")}
         </span>
       </p>
-      <p className="mt-1 text-xs text-muted-foreground">
+      <p className="mt-1 text-footnote text-muted-foreground">
         {leidos}
         {mes ? ` · ${mes}` : ""}
       </p>

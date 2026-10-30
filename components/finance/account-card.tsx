@@ -8,18 +8,18 @@ import { SyncStatusLine } from "./sync-status-line"
 // Barra de cupo DISPONIBLE (cupo de crédito o línea de sobregiro): llena = cupo intacto, se vacía a
 // medida que se usa, como una batería. Así "completo" se ve verde y lleno; agotado, corto y rojo.
 // Color por los mismos 4 cortes de cuartil que `quartileVar` (el lenguaje de los presupuestos), pero
-// con tonos claros de Tailwind: sobre el arte de la tarjeta, var(--primary) desaparecería contra el
-// gradiente azul del banco y var(--success) contra el verde. Recibe el % USADO.
+// con los tokens --card-art-*: tonos claros que se leen sobre el arte (var(--primary) desaparecería
+// contra el gradiente azul del banco y var(--success) contra el verde). Recibe el % USADO.
 function CapacityBar({ usedPct }: { usedPct: number }) {
   const pct = Math.min(100, Math.max(0, usedPct))
   const color =
     pct < 25
-      ? "bg-emerald-300"
+      ? "bg-card-art-ok"
       : pct < 50
-        ? "bg-sky-300"
+        ? "bg-card-art-info"
         : pct < 75
-          ? "bg-amber-300"
-          : "bg-red-300"
+          ? "bg-card-art-warn"
+          : "bg-card-art-danger"
   return (
     <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/25">
       <div
@@ -44,14 +44,14 @@ const TYPE_LABEL: Record<string, string> = {
 
 // Tarjeta de una cuenta: nuestro estilo (gradiente por variante) + el isotipo del banco como
 // marca de agua de fondo; encima, banco, saldo, los últimos 4 dígitos reales y el tipo. Clickable
-// (opcional) para abrir su detalle. Las conectadas muestran el distintivo "Conectado".
+// (opcional) para abrir su detalle.
 export function AccountCard({
   account,
-  hidden,
+  showConnected = false,
   onClick,
 }: {
   account: AccountDTO
-  hidden?: boolean
+  showConnected?: boolean // distintivo «Conectado»: solo la landing (en la app lo dice la línea de sincronización)
   onClick?: () => void
 }) {
   const art = resolveCardArt(account.bankName, account.accountType)
@@ -95,20 +95,22 @@ export function AccountCard({
           : undefined
       }
       className={cn(
-        // Sombra corta y contenida: una larga se recorta contra el borde del carrusel (overflow-x)
-        "relative flex min-h-40 w-full flex-col justify-between overflow-hidden rounded-xl p-5 text-white shadow-[0_1px_2px_rgb(0_0_0/0.08),0_8px_20px_-10px_rgb(0_0_0/0.25)]",
-        onClick && "cursor-pointer transition-transform hover:-translate-y-0.5"
+        // Sin sombra: la tarjeta se separa del fondo grouped por su propio color, como en Wallet.
+        "account-card relative flex min-h-40 w-full flex-col justify-between overflow-hidden rounded-xl p-5 text-white",
+        onClick &&
+          "cursor-pointer transition-transform duration-150 ease-out hover:-translate-y-0.5 active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100"
       )}
       style={
         art
           ? { background: CARD_VARIANT_BG[art.variant] }
-          : { background: account.color ?? "var(--primary)" }
+          : { background: account.color ?? CARD_VARIANT_BG.debito }
       }
     >
       {art && (
         // Monograma propio del banco, grande y tenue, a la derecha, como marca de agua (sin logo de terceros).
         <span
           aria-hidden
+          // Excepción a la escala tipográfica: es arte decorativo (aria-hidden), no texto que se lee.
           className="pointer-events-none absolute top-1/2 -right-3 -translate-y-1/2 text-8xl leading-none font-bold text-white/12 select-none"
         >
           {art.monogram}
@@ -116,12 +118,12 @@ export function AccountCard({
       )}
 
       <div className="relative flex items-start justify-between gap-2">
-        <div className="text-lg font-semibold tracking-tight [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
+        <div className="text-headline font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
           {account.bankName || account.name}
         </div>
-        {connected && (
-          <span className="flex shrink-0 items-center gap-1 rounded-lg bg-white/15 px-2 py-0.5 text-[10px] font-medium backdrop-blur">
-            <span className="size-1.5 rounded-full bg-emerald-400" />
+        {showConnected && connected && (
+          <span className="flex shrink-0 items-center gap-1 rounded-lg bg-white/15 px-2 py-0.5 text-caption font-medium">
+            <span aria-hidden className="size-1.5 rounded-full bg-card-art-ok" />
             Conectado
           </span>
         )}
@@ -131,36 +133,28 @@ export function AccountCard({
         // Crédito: UN héroe (el cupo disponible principal) + el otro cupo como chip, y el uso como
         // barra + frase. Misma gramática que la rama corriente: etiqueta → número grande → contexto.
         <div className="relative">
-          <div className="text-xs text-white/75">Disponible</div>
-          <div className="tabular text-3xl font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
-            {hidden
-              ? "••••••"
-              : formatMoney(primary.available, primary.currency as CurrencyCode)}
+          <div className="text-caption text-white/85">Disponible</div>
+          <div className="tabular text-title-1 font-bold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
+            {formatMoney(primary.available, primary.currency as CurrencyCode)}
           </div>
           {/* El cupo secundario va DEBAJO, no al lado: en la misma línea, dos montos largos
               (CLP de siete dígitos + USD) se salen del ancho de la tarjeta. */}
           {chip && (
-            <span className="tabular mt-1.5 inline-block rounded-lg bg-white/15 px-2 py-0.5 text-xs backdrop-blur">
-              {hidden
-                ? "••••"
-                : formatMoney(chip.available, chip.currency as CurrencyCode)}
+            <span className="tabular mt-1.5 inline-block rounded-lg bg-white/15 px-2 py-0.5 text-caption">
+              {formatMoney(chip.available, chip.currency as CurrencyCode)}
             </span>
           )}
           {primary.limit > 0 && (
             <>
               <CapacityBar usedPct={usedPct} />
-              <div className="tabular mt-1 text-xs text-white/70">
+              <div className="tabular mt-1 text-caption text-white/85">
                 Usado{" "}
-                {hidden
-                  ? "••••"
-                  : formatMoney(
+                {formatMoney(
                       primary.used,
                       primary.currency as CurrencyCode
                     )}{" "}
                 de{" "}
-                {hidden
-                  ? "••••"
-                  : formatMoney(
+                {formatMoney(
                       primary.limit,
                       primary.currency as CurrencyCode
                     )}
@@ -171,31 +165,28 @@ export function AccountCard({
       ) : (
         // Cuenta corriente (cash + sobregiro) o cuenta manual (saldo simple).
         <div className="relative">
-          <div className="text-xs text-white/75">Saldo {account.currency}</div>
           <div
             className={cn(
-              "tabular text-3xl font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]",
-              (cash ? cash.available : account.balance) < 0 && "text-red-300"
+              "tabular text-title-1 font-bold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]",
+              (cash ? cash.available : account.balance) < 0 && "text-card-art-danger"
             )}
           >
-            {hidden
-              ? "••••••"
-              : formatCLP(cash ? cash.available : account.balance)}
+            {formatCLP(cash ? cash.available : account.balance)}
           </div>
           {/* Solo si la cuenta TIENE línea de sobregiro (limit > 0): mismo lenguaje que el cupo. */}
           {overdraft && overdraft.limit > 0 && (
             <>
               <CapacityBar usedPct={(overdraft.used / overdraft.limit) * 100} />
-              <div className="tabular mt-1 text-xs text-white/70">
+              <div className="tabular mt-1 text-caption text-white/85">
                 {overdraft.used > 0 ? (
                   <>
                     Sobregiro usado{" "}
-                    {hidden ? "••••" : formatCLP(overdraft.used)} de{" "}
-                    {hidden ? "••••" : formatCLP(overdraft.limit)}
+                    {formatCLP(overdraft.used)} de{" "}
+                    {formatCLP(overdraft.limit)}
                   </>
                 ) : (
                   <>
-                    Sobregiro {hidden ? "••••" : formatCLP(overdraft.limit)}{" "}
+                    Sobregiro {formatCLP(overdraft.limit)}{" "}
                     disponible
                   </>
                 )}
@@ -206,7 +197,7 @@ export function AccountCard({
       )}
 
       <div className="relative space-y-1.5">
-        <div className="flex items-center justify-between gap-2 text-sm text-white/85">
+        <div className="flex items-center justify-between gap-2 text-footnote text-white/85">
           <span className="tabular truncate tracking-widest">
             {account.cardLast4 ? `•••• ${account.cardLast4}` : account.name}
           </span>
@@ -215,7 +206,7 @@ export function AccountCard({
           </span>
         </div>
         {estimatedSince ? (
-          <div className="text-[10px] text-white/65">
+          <div className="text-caption text-white/85">
             Saldo estimado desde{" "}
             {new Date(estimatedSince).toLocaleDateString("es-CL")}
           </div>

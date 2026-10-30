@@ -113,7 +113,7 @@ export function TransactionSearch({
               <Loader2 className="size-5 animate-spin" />
             </div>
           ) : results.length === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">
+            <p className="py-12 text-center text-subheadline text-muted-foreground">
               No encontramos movimientos con estos filtros. Prueba otra
               descripción o cambia los filtros.
             </p>
@@ -121,10 +121,10 @@ export function TransactionSearch({
             <div className="flex flex-col gap-4">
               {groups.map((g) => (
                 <div key={g.header}>
-                  <div className="mb-1 px-3 text-xs font-medium text-muted-foreground">
+                  <div className="mb-1.5 px-4 text-footnote font-medium text-muted-foreground">
                     {g.header}
                   </div>
-                  <div className="flex flex-col">
+                  <div className="sheet-group inset-list flex flex-col overflow-hidden [--inset:4.25rem]">
                     {g.txs.map((tx) => (
                       <MovementRow
                         key={tx.id}

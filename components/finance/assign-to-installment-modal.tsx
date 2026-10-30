@@ -6,7 +6,6 @@ import { toast } from "sonner"
 
 import { Plus } from "lucide-react"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
-import { Button } from "@/components/ui/button"
 import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 import { formatCLP } from "@/lib/finance-format"
@@ -100,27 +99,27 @@ export function AssignToInstallmentModal({
     >
       <div className="flex flex-col px-5 pb-4">
         {plans === null ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
+          <p className="py-8 text-center text-subheadline text-muted-foreground">
             Buscando planes…
           </p>
         ) : plans.length === 0 ? (
-          <p className="py-8 text-center text-sm text-balance text-muted-foreground">
+          <p className="py-8 text-center text-subheadline text-balance text-muted-foreground">
             {onCreateLoan
               ? "No tienes planes de cuotas con cuotas pendientes. Registra el crédito y este pago quedará enganchado como su cuota."
               : "No tienes planes de cuotas con cuotas pendientes. Crea uno desde Cuotas, o pasa una compra de tarjeta a cuotas."}
           </p>
         ) : !plan ? (
           <>
-            <p className="py-3 text-xs text-muted-foreground">
+            <p className="py-3 text-subheadline">
               ¿De qué deuda es este pago?
             </p>
-            <ul className="flex flex-col">
+            <ul className="sheet-group inset-list flex flex-col overflow-hidden [--inset:4.5rem]">
               {plans.map((p) => (
                 <li key={p.id}>
                   <button
                     type="button"
                     onClick={() => setPlanId(p.id)}
-                    className="flex w-full items-center gap-3 border-b border-border/40 py-3 text-left transition-colors hover:bg-secondary/40"
+                    className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
                   >
                     <span
                       className="grid size-11 shrink-0 place-items-center rounded-full bg-muted"
@@ -133,10 +132,10 @@ export function AssignToInstallmentModal({
                       />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">
+                      <span className="block truncate text-subheadline font-medium">
                         {p.description}
                       </span>
-                      <span className="block truncate text-xs text-muted-foreground">
+                      <span className="block truncate text-footnote text-muted-foreground">
                         cuota {p.settledCount} de {p.installmentsCount} ·{" "}
                         {formatCLP(p.outstanding)} por pagar
                       </span>
@@ -149,20 +148,20 @@ export function AssignToInstallmentModal({
         ) : (
           <>
             <div className="flex items-center justify-between gap-2 py-3">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-subheadline">
                 ¿Qué cuota de {plan.description} salda?
               </p>
               {(plans?.length ?? 0) > 1 && (
                 <button
                   type="button"
                   onClick={() => setPlanId(null)}
-                  className="shrink-0 text-xs text-muted-foreground underline"
+                  className="min-h-11 shrink-0 text-subheadline text-primary"
                 >
                   Cambiar
                 </button>
               )}
             </div>
-            <ul className="flex flex-col">
+            <ul className="sheet-group inset-list flex flex-col overflow-hidden [--inset:3.25rem]">
               {plan.items
                 .filter(
                   (i) => i.status === "overdue" || i.status === "upcoming"
@@ -173,18 +172,18 @@ export function AssignToInstallmentModal({
                       type="button"
                       onClick={() => assign(item.id)}
                       disabled={busy}
-                      className="flex w-full items-center gap-3 border-b border-border/40 py-2.5 text-left transition-colors hover:bg-secondary/40 disabled:opacity-50"
+                      className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left disabled:opacity-50"
                     >
-                      <span className="tabular w-6 shrink-0 text-xs text-muted-foreground">
+                      <span className="tabular w-6 shrink-0 text-footnote text-muted-foreground">
                         {item.index}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm">
+                        <span className="block text-subheadline">
                           {shortDate(item.dueDate)}
                         </span>
                         <span
                           className={cn(
-                            "block text-xs",
+                            "block text-footnote",
                             item.status === "overdue"
                               ? "text-destructive"
                               : "text-muted-foreground"
@@ -193,7 +192,7 @@ export function AssignToInstallmentModal({
                           {item.status === "overdue" ? "Vencida" : "Por venir"}
                         </span>
                       </span>
-                      <span className="tabular shrink-0 text-sm font-medium">
+                      <span className="tabular shrink-0 text-subheadline font-medium">
                         {formatCLP(item.amount)}
                       </span>
                     </button>
@@ -205,14 +204,16 @@ export function AssignToInstallmentModal({
         {/* La deuda puede no estar registrada todavía (el caso típico: la cuota llega por correo
             antes de que exista el plan). La salida de crear vive aquí, junto a la pregunta. */}
         {plans !== null && onCreateLoan && (
-          <Button
-            variant="outline"
-            onClick={onCreateLoan}
-            className="mt-4 h-11"
-          >
-            <Plus className="size-4" />
-            Registrar un crédito nuevo
-          </Button>
+          <div className="sheet-group mt-6 overflow-hidden">
+            <button
+              type="button"
+              onClick={onCreateLoan}
+              className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary"
+            >
+              <Plus className="size-5 shrink-0" />
+              Registrar un crédito nuevo
+            </button>
+          </div>
         )}
       </div>
     </ResponsiveModal>

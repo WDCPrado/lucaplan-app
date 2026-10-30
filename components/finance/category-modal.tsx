@@ -5,11 +5,13 @@ import { useId, useState } from "react"
 import { useForm, Controller, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
-import { Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { haptic } from "@/lib/haptics"
 import { categorySchema, categoryLimitSchema } from "@/lib/finance-form-schemas"
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
+import {
+  ModalDangerRow,
+  ResponsiveModal,
+} from "@/components/ui/responsive-modal"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -201,6 +203,21 @@ export function CategoryModal({
             ? "Nueva categoría de ingreso"
             : "Nueva categoría"
       }
+      cancel={{
+        label: "Cancelar",
+        disabled: busy,
+        onClick: () => {
+          form.reset()
+          setCreatedId(null)
+          onOpenChange(false)
+        },
+      }}
+      primary={{
+        label: isSubmitting ? "Guardando…" : "Guardar categoría",
+        mobileLabel: isSubmitting ? "Guardando…" : "Guardar",
+        form: formId,
+        disabled: busy || (!!category && !isDirty),
+      }}
     >
       <form
         id={formId}
@@ -209,7 +226,7 @@ export function CategoryModal({
       >
         <fieldset disabled={busy} className="contents">
           {errors.root && (
-            <p role="alert" className="text-sm text-destructive">
+            <p role="alert" className="text-subheadline text-destructive">
               {errors.root.message}
             </p>
           )}
@@ -224,7 +241,7 @@ export function CategoryModal({
               id={`${formId}-name`}
               required
               inputMode="text"
-              className="h-12 text-base"
+              className="h-12 text-body"
               placeholder="Ej. Supermercado"
               aria-invalid={!!errors.name}
               aria-describedby={
@@ -250,11 +267,11 @@ export function CategoryModal({
                   >
                     <SelectTrigger
                       id={`${formId}-type`}
-                      className="h-12! w-full text-base"
+                      className="h-12! w-full text-body"
                     >
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-popover backdrop-blur-none">
+                    <SelectContent>
                       <SelectItem value="expense">Gasto</SelectItem>
                       <SelectItem value="income">Ingreso</SelectItem>
                     </SelectContent>
@@ -317,7 +334,7 @@ export function CategoryModal({
             </section>
           )}
           <fieldset className="space-y-3">
-            <legend className="text-sm font-medium">Icono</legend>
+            <legend className="text-subheadline font-medium">Icono</legend>
             <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
               {CATEGORY_ICONS.map(({ name, Icon }) => (
                 <Button
@@ -340,7 +357,7 @@ export function CategoryModal({
             </div>
           </fieldset>
           <fieldset className="space-y-3">
-            <legend className="text-sm font-medium">Color</legend>
+            <legend className="text-subheadline font-medium">Color</legend>
             <div className="flex flex-wrap gap-2">
               {palette.map((value) => (
                 <button
@@ -385,7 +402,7 @@ export function CategoryModal({
                   }
                   onBlur={field.onBlur}
                   rows={2}
-                  className="text-base"
+                  className="text-body"
                   placeholder="Ej. Comida y mercadería para la casa"
                   aria-invalid={!!errors.description}
                   aria-describedby={`${formId}-description-${errors.description ? "error" : "hint"}`}
@@ -395,41 +412,16 @@ export function CategoryModal({
           </FinanceField>
         </fieldset>
       </form>
-      <ModalFooter className="px-5">
-        <Button
-          type="button"
-          variant="outline"
-          className="h-12"
-          disabled={busy}
-          onClick={() => {
-            form.reset()
-            setCreatedId(null)
-            onOpenChange(false)
-          }}
-        >
-          Cancelar
-        </Button>
-        {category && (
-          <Button
-            type="button"
-            variant="outline"
-            className="size-12 text-destructive"
+      {category && (
+        <div className="mt-8 px-5">
+          <ModalDangerRow
             disabled={busy}
             onClick={() => setConfirmDelete(true)}
-            aria-label="Eliminar categoría"
           >
-            <Trash2 className="size-4" />
-          </Button>
-        )}
-        <Button
-          type="submit"
-          form={formId}
-          disabled={busy || (!!category && !isDirty)}
-          className="h-12 flex-1 text-base"
-        >
-          {isSubmitting ? "Guardando…" : "Guardar categoría"}
-        </Button>
-      </ModalFooter>
+            Eliminar categoría
+          </ModalDangerRow>
+        </div>
+      )}
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>

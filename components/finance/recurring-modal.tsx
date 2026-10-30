@@ -1,11 +1,15 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useId, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, ListChecks, Pause, Play, Trash2, Undo2 } from "lucide-react"
+import { ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
+import {
+  ModalDangerRow,
+  ModalSection,
+  ResponsiveModal,
+} from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -19,7 +23,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
@@ -87,6 +90,9 @@ export function RecurringModal({
   preset?: RecurringPreset | null // precarga al crear desde un movimiento
 }) {
   const router = useRouter()
+  // Id por instancia: el botón del pie envía este formulario con `form=`, y un modal anidado
+  // puede montar otro igual.
+  const formId = `recurring-form-${useId()}`
   const [label, setLabel] = useState(template?.label ?? preset?.label ?? "")
   const [accountId, setAccountId] = useState(
     template?.accountId ?? preset?.accountId ?? accounts[0]?.id ?? ""
@@ -202,16 +208,9 @@ export function RecurringModal({
     router.refresh()
   }
 
-  // "Ya lo pagué": confirma el comprometido del período sin esperar el aviso del banco.
-  function togglePaid() {
-    if (!template) return
-    patch(
-      { periodPaid: !template.currentPeriodPaid },
-      template.currentPeriodPaid
-        ? "Marca deshecha"
-        : "Cobro marcado como pagado",
-      "No se pudo marcar el cobro"
-    )
+  // Deshace el "Ya lo pagué" de la fila. Solo lo marcado a mano: un cargo del banco es un hecho.
+  function undoPaid() {
+    patch({ periodPaid: false }, "Marca deshecha", "No se pudo deshacer la marca")
   }
 
   // El cargo llegó con otra fecha y no se enganchó solo: se elige a mano entre los gastos sueltos.
@@ -293,170 +292,189 @@ export function RecurringModal({
       open={open}
       onOpenChange={onOpenChange}
       title={template ? "Editar recurrente" : "Nueva recurrente"}
+      cancel={
+        accounts.length === 0
+          ? undefined
+          : {
+              label: "Cancelar",
+              disabled: saving,
+              onClick: () => onOpenChange(false),
+            }
+      }
+      primary={
+        accounts.length === 0
+          ? undefined
+          : {
+              label: saving
+                ? "Guardando…"
+                : template
+                  ? "Guardar"
+                  : "Crear recurrente",
+              mobileLabel: saving
+                ? "Guardando…"
+                : template
+                  ? "Guardar"
+                  : "Crear",
+              form: formId,
+              disabled: !canSave,
+            }
+      }
     >
       {accounts.length === 0 ? (
-        <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+        <div className="px-4 py-10 text-center text-subheadline text-muted-foreground">
           Necesitas una cuenta para crear un gasto recurrente.
         </div>
       ) : (
-        <div className="flex flex-col px-5">
-          {/* El banco avisa cuando quiere, y hasta entonces el gasto sigue como comprometido y el
-              presupuesto muestra plata que ya salió. Va arriba porque es el estado del período,
-              no un campo del formulario. Solo se deshace lo marcado a mano: un cargo del banco es
-              un hecho. */}
+        <div className="flex flex-col gap-7 px-5 pt-2">
+          {/* Estado del cobro del período: va arriba porque es el estado, no un campo. Elegir el
+              movimiento a mano cubre el cargo que llegó con otra fecha y no se enganchó solo. */}
           {template && template.isActive && !template.hasEnded && (
-            // En móvil el texto ocupa su línea y los botones bajan; en escritorio, todo en una.
-            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-secondary/50 px-3 py-2.5">
-              <span className="min-w-0 flex-1 basis-full text-sm sm:basis-0">
+            <ModalSection>
+              <p className="flex min-h-11 items-center px-4 py-2.5 text-subheadline">
                 {template.currentPeriodPaid
                   ? "El cobro de este período ya está registrado."
                   : "El cobro de este período todavía no llega."}
-              </span>
-              {/* Solo sin cobro: un período «pagado a mano» puede ser el movimiento de origen de una
-                  cuenta manual, y reemplazarlo lo borraría sin devolver su saldo. */}
-              {!template.currentPeriodPaid && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={togglePaid}
-                  disabled={saving}
-                  className="h-11 shrink-0 text-sm"
-                >
-                  {template.currentPeriodPaid ? (
-                    <>
-                      <Undo2 className="size-4" />
-                      Deshacer
-                    </>
-                  ) : (
-                    <>
-                      <Check className="size-4" />
-                      Ya lo pagué
-                    </>
-                  )}
-                </Button>
-              )}
+              </p>
               {(!template.currentPeriodPaid ||
                 template.currentPeriodPaidManually) && (
-                <Button
+                <button
                   type="button"
-                  variant="ghost"
                   onClick={openPicker}
                   disabled={saving}
-                  className="h-11 shrink-0 text-sm"
+                  className={ACTION_ROW}
                 >
-                  <ListChecks className="size-4" />
                   Elegir movimiento
-                </Button>
+                </button>
               )}
-            </div>
+            </ModalSection>
           )}
 
-          {/* 1 · Qué se cobra ------------------------------------------------ */}
-          <Section title="Qué se cobra">
-            <Input
-              placeholder="Ej. Arriendo depto"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              aria-label="Nombre"
-              className="h-11 rounded-lg text-base"
-            />
-            <span className="block text-xs text-muted-foreground">
-              Es solo el nombre para reconocerla aquí; cambiarlo no afecta la
-              detección del cargo en el correo.
-            </span>
+          <form
+            id={formId}
+            onSubmit={(e) => {
+              e.preventDefault()
+              save()
+            }}
+            className="flex flex-col gap-7"
+          >
+            {/* 1 · Qué se cobra ---------------------------------------------- */}
             {/* La categoría la manda el movimiento, no la plantilla: si se pudiera editar en los
                 dos lados habría dos verdades. Como una recurrente solo nace de un movimiento,
                 la categoría siempre es heredada; se cambia recategorizando el movimiento. */}
-            <div className="flex items-center gap-2 rounded-xl bg-secondary/50 px-3 py-2.5">
-              <CategoryIcon
-                icon={inheritedCategory?.icon ?? null}
-                size={18}
-                color={inheritedCategory?.color ?? undefined}
-              />
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                {inheritedCategory?.name ?? "Sin categoría"}
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                Del movimiento
-              </span>
-            </div>
-          </Section>
-
-          {/* 2 · Cuánto ------------------------------------------------------ */}
-          <Section title="Cuánto">
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-semibold text-muted-foreground">
-                $
-              </span>
+            <ModalSection
+              title="Qué se cobra"
+              className="[--inset:1rem]"
+              footer="El nombre es solo para reconocerla aquí; cambiarlo no afecta la detección del cargo en el correo."
+            >
               <Input
-                inputMode="numeric"
-                placeholder="0"
-                value={money.display}
-                onChange={(e) => money.onChange(e.target.value)}
-                aria-label="Monto base"
-                // md:text-3xl: el Input trae md:text-sm y en escritorio dejaba el monto en 14 px.
-                className="tabular h-12 border-0 bg-transparent px-0 text-3xl font-bold shadow-none focus-visible:ring-0 md:text-3xl"
+                placeholder="Ej. Arriendo depto"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                aria-label="Nombre"
+                className="h-11 rounded-none border-0 bg-transparent px-4 text-body shadow-none focus-visible:ring-0 md:text-body"
               />
-            </div>
+              <div className="flex min-h-11 items-center gap-3 px-4 py-2">
+                <CategoryIcon
+                  icon={inheritedCategory?.icon ?? null}
+                  size={18}
+                  color={inheritedCategory?.color ?? undefined}
+                />
+                <span className="min-w-0 flex-1 truncate text-body">
+                  {inheritedCategory?.name ?? "Sin categoría"}
+                </span>
+                <span className="shrink-0 text-subheadline text-muted-foreground">
+                  Del movimiento
+                </span>
+              </div>
+            </ModalSection>
 
+            {/* 2 · Cuánto ---------------------------------------------------- */}
             {/* El rango ES el concepto de la recurrente: el cargo real varía mes a mes y aun así
                 debe reconocerse. Por eso va en tamaño de dato, no en letra chica. */}
-            <div className="rounded-xl bg-secondary/50 p-3">
-              <div className="mb-2 flex items-baseline justify-between gap-2">
-                <span className="text-xs text-muted-foreground">
-                  Reconoce cargos entre
+            <ModalSection title="Cuánto">
+              <div className="flex items-baseline gap-2 px-4 py-2">
+                <span className="text-title-1 font-semibold text-muted-foreground">
+                  $
                 </span>
-                <span className="text-xs font-medium text-muted-foreground tabular-nums">
-                  ±{tolerancePct}%
-                </span>
+                <Input
+                  inputMode="numeric"
+                  placeholder="0"
+                  value={money.display}
+                  onChange={(e) => money.onChange(e.target.value)}
+                  aria-label="Monto base"
+                  // md:text-large-title: el Input trae su tamaño de escritorio y dejaba el monto chico.
+                  className="tabular h-12 min-w-0 border-0 bg-transparent px-0 text-large-title font-bold shadow-none focus-visible:ring-0 md:text-large-title"
+                />
               </div>
-              <div className="tabular flex items-baseline gap-2 text-lg font-semibold">
-                <span>{fmt(min)}</span>
-                <span className="text-muted-foreground">—</span>
-                <span>{fmt(max)}</span>
+              <div className="px-4 py-3">
+                <div className="mb-1 flex items-baseline justify-between gap-2">
+                  <span className="text-subheadline text-muted-foreground">
+                    Reconoce cargos entre
+                  </span>
+                  <span className="tabular text-subheadline text-muted-foreground">
+                    ±{tolerancePct}%
+                  </span>
+                </div>
+                <div className="tabular flex flex-wrap items-baseline gap-x-2 text-headline">
+                  <span>{fmt(min)}</span>
+                  <span className="text-muted-foreground">—</span>
+                  <span>{fmt(max)}</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={50}
+                  step={5}
+                  value={tolerancePct}
+                  onChange={(e) => setTolerancePct(Number(e.target.value))}
+                  className="mt-3 h-11 w-full accent-primary"
+                  aria-label="Tolerancia del monto"
+                />
               </div>
-              <input
-                type="range"
-                min={0}
-                max={50}
-                step={5}
-                value={tolerancePct}
-                onChange={(e) => setTolerancePct(Number(e.target.value))}
-                className="mt-3 w-full accent-primary"
-                aria-label="Tolerancia del monto"
-              />
-            </div>
-          </Section>
+            </ModalSection>
 
-          {/* 3 · Cuándo ------------------------------------------------------ */}
-          <Section title="Cuándo" last>
-            <ChipRow>
-              {PERIODICITIES.map((p) => (
-                <Chip
-                  key={p.value}
-                  active={p.value === periodicity}
-                  onClick={() => setPeriodicity(p.value)}
-                >
-                  {p.label}
-                </Chip>
-              ))}
-            </ChipRow>
-            {needsDay && (
-              <div className="space-y-1.5">
-                <DayOfMonthPicker value={day} onChange={setDay} />
-                <span className="block text-xs text-muted-foreground">
-                  Si el mes no tiene ese día (ej. 31 en febrero), se usa el
-                  último.
-                </span>
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <span className="block text-xs font-medium text-muted-foreground">
-                Hasta cuándo
-              </span>
+            {/* 3 · Cuándo ---------------------------------------------------- */}
+            <ModalSection
+              title="Cuándo"
+              footer={
+                <>
+                  {needsDay && (
+                    <p>
+                      Si el mes no tiene ese día (ej. 31 en febrero), se usa el
+                      último.
+                    </p>
+                  )}
+                  {/* La fecha en palabras: el input muestra 25/08/2027 y el año se lee de reojo.
+                      Escrito completo, un error de año salta a la vista antes de guardar. */}
+                  {endDate && (
+                    <p>
+                      {readableEnd(endDate)
+                        ? `Se cobra hasta el ${readableEnd(endDate)}; después queda finalizada.`
+                        : "El último cobro es el de esa fecha; después queda finalizada."}
+                    </p>
+                  )}
+                </>
+              }
+            >
+              <ChipRow>
+                {PERIODICITIES.map((p) => (
+                  <Chip
+                    key={p.value}
+                    active={p.value === periodicity}
+                    onClick={() => setPeriodicity(p.value)}
+                  >
+                    {p.label}
+                  </Chip>
+                ))}
+              </ChipRow>
+              {needsDay && (
+                <div className="px-4 py-2">
+                  <DayOfMonthPicker value={day} onChange={setDay} />
+                </div>
+              )}
               {withEnd ? (
-                <div className="flex items-center gap-2">
-                  <span className="flex-1">
+                <div className="flex items-center gap-1 py-2 pr-1 pl-4">
+                  <span className="min-w-0 flex-1">
                     <DatePicker
                       value={endDate}
                       onChange={setEndDate}
@@ -473,7 +491,7 @@ export function RecurringModal({
                       setWithEnd(false)
                       setEndDate("")
                     }}
-                    className="h-11 shrink-0 rounded-lg text-xs text-muted-foreground"
+                    className="press h-11 shrink-0 px-3 text-body text-primary hover:bg-transparent hover:text-primary"
                   >
                     Sin término
                   </Button>
@@ -484,26 +502,21 @@ export function RecurringModal({
                   // El campo se abre VACÍO a propósito: una fecha propuesta (p. ej. "+1 año") se
                   // acepta sin mirar el año y termina guardando una vigencia que nadie eligió.
                   onClick={() => setWithEnd(true)}
-                  className="text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+                  className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body"
                 >
-                  No termina · poner fecha de término
+                  <span className="min-w-0 flex-1">Hasta cuándo</span>
+                  <span className="shrink-0 text-muted-foreground">
+                    No termina
+                  </span>
+                  <ChevronRight
+                    aria-hidden
+                    className="size-4 shrink-0 text-muted-foreground/60"
+                  />
                 </button>
               )}
-              {/* La fecha en palabras: el input muestra 25/08/2027 y el año se lee de reojo.
-                  Escrito completo, un error de año salta a la vista antes de guardar. */}
-              {endDate && (
-                <span className="block text-xs text-muted-foreground">
-                  {readableEnd(endDate)
-                    ? `Se cobra hasta el ${readableEnd(endDate)}; después queda finalizada.`
-                    : "El último cobro es el de esa fecha; después queda finalizada."}
-                </span>
-              )}
-            </div>
+            </ModalSection>
 
-            <div className="space-y-1.5">
-              <span className="block text-xs font-medium text-muted-foreground">
-                Cuenta del cargo
-              </span>
+            <ModalSection title="Cuenta del cargo">
               <ChipRow>
                 {accounts.map((a) => (
                   <Chip
@@ -515,8 +528,69 @@ export function RecurringModal({
                   </Chip>
                 ))}
               </ChipRow>
-            </div>
-          </Section>
+            </ModalSection>
+          </form>
+
+          {/* Lo excepcional, como filas de texto bajo el formulario y lejos de Guardar: pausar y
+              deshacer la marca manual del período. Eliminar va solo, en rojo y con confirmación. */}
+          {template &&
+            (!template.hasEnded ||
+              (template.isActive && template.currentPeriodPaidManually)) && (
+              <ModalSection>
+                {!template.hasEnded && (
+                  <button
+                    type="button"
+                    onClick={toggleActive}
+                    disabled={saving}
+                    className={ACTION_ROW}
+                  >
+                    {template.isActive
+                      ? "Pausar recurrente"
+                      : "Reanudar recurrente"}
+                  </button>
+                )}
+                {template.isActive &&
+                  !template.hasEnded &&
+                  template.currentPeriodPaidManually && (
+                    <button
+                      type="button"
+                      onClick={undoPaid}
+                      disabled={saving}
+                      className={ACTION_ROW}
+                    >
+                      Deshacer «Ya lo pagué»
+                    </button>
+                  )}
+              </ModalSection>
+            )}
+          {template && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <ModalDangerRow disabled={saving}>
+                  Eliminar recurrente
+                </ModalDangerRow>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Eliminar la recurrencia?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Se borra la plantilla y deja de cobrarse. Los movimientos
+                    ya cobrados se conservan.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    type="button"
+                    onClick={remove}
+                    variant="destructive"
+                  >
+                    Eliminar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
 
           {template && (
             <RecurringLinkPicker
@@ -530,125 +604,20 @@ export function RecurringModal({
               onRetry={() => loadCandidates(filters)}
             />
           )}
-
-          <ModalFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-              className="h-12 flex-1"
-            >
-              Cancelar
-            </Button>
-            {template && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    disabled={saving}
-                    className="size-12 shrink-0 text-destructive hover:text-destructive"
-                    aria-label="Eliminar recurrente"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      ¿Eliminar la recurrencia?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Se borra la plantilla y deja de cobrarse. Los movimientos
-                      ya cobrados se conservan.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel type="button">
-                      Cancelar
-                    </AlertDialogCancel>
-                    <AlertDialogAction
-                      type="button"
-                      onClick={remove}
-                      variant="destructive"
-                    >
-                      Eliminar
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-            {template && !template.hasEnded && (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                disabled={saving}
-                onClick={toggleActive}
-                aria-label={
-                  template.isActive
-                    ? "Pausar recurrente"
-                    : "Reanudar recurrente"
-                }
-                title={template.isActive ? "Pausar" : "Reanudar"}
-                className="size-12 shrink-0"
-              >
-                {template.isActive ? (
-                  <Pause className="size-4" />
-                ) : (
-                  <Play className="size-4" />
-                )}
-              </Button>
-            )}
-            <Button
-              type="button"
-              onClick={save}
-              disabled={!canSave}
-              className="h-12 flex-1 text-base"
-            >
-              {saving
-                ? "Guardando…"
-                : template
-                  ? "Guardar"
-                  : "Crear recurrente"}
-            </Button>
-          </ModalFooter>
         </div>
       )}
     </ResponsiveModal>
   )
 }
 
-// Bloque temático del formulario. La separación por línea (no por tarjeta) evita el anidamiento
-// de superficies dentro de un modal que ya es una tarjeta.
-function Section({
-  title,
-  children,
-  last,
-}: {
-  title: string
-  children: React.ReactNode
-  last?: boolean
-}) {
-  return (
-    <section
-      className={cn(
-        "flex flex-col gap-4 py-7",
-        !last && "border-b border-border/60"
-      )}
-    >
-      <h3 className="text-sm font-semibold">{title}</h3>
-      {children}
-    </section>
-  )
-}
+// Fila de acción de una lista agrupada: texto azul, 44 px de alto.
+const ACTION_ROW =
+  "press flex min-h-11 w-full items-center px-4 py-2.5 text-left text-body text-primary disabled:opacity-50"
 
-// Fila de chips con scroll horizontal que sangra hasta los bordes del modal.
+// Fila de chips con scroll horizontal dentro de su celda.
 function ChipRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="-mx-5 flex scrollbar-none gap-2 overflow-x-auto px-5 pb-1">
+    <div className="flex scrollbar-none gap-2 overflow-x-auto px-4 py-2">
       {children}
     </div>
   )

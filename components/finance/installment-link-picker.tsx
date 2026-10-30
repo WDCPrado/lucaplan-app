@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Search } from "lucide-react"
 
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/finance-format"
@@ -104,19 +105,19 @@ export function InstallmentLinkPicker({
       title="Asignar un movimiento"
     >
       <div className="flex flex-col px-5 pb-4">
-        <p className="py-3 text-xs text-muted-foreground">
+        <p className="py-3 text-footnote text-muted-foreground">
           Elige el gasto que corresponde a esta cuota. No se crea nada nuevo: el
           movimiento pasa a ser la cuota.
         </p>
 
         <div className="relative mb-2">
-          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por descripción"
             aria-label="Buscar movimiento"
-            className="h-10 w-full rounded-lg border border-border bg-transparent pr-3 pl-9 text-base outline-none focus:border-primary md:text-sm"
+            className="h-11 pr-3 pl-10 text-body md:text-body"
           />
         </div>
 
@@ -134,7 +135,7 @@ export function InstallmentLinkPicker({
                 onClick={() => setOnlyCategory(!onlyCategory)}
                 aria-pressed={onlyCategory}
                 className={cn(
-                  "h-11 shrink-0 rounded-lg border px-3 text-xs whitespace-nowrap transition-colors",
+                  "h-11 shrink-0 rounded-lg border px-3 text-footnote whitespace-nowrap transition-colors",
                   onlyCategory
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border text-muted-foreground"
@@ -144,7 +145,7 @@ export function InstallmentLinkPicker({
               </button>
             )}
             {expectedAmount ? (
-              <label className="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted-foreground">
+              <label className="flex min-w-0 flex-1 items-center gap-2 text-footnote text-muted-foreground">
                 <span className="tabular shrink-0 whitespace-nowrap">
                   Monto ±{tolerance}%
                 </span>
@@ -163,11 +164,11 @@ export function InstallmentLinkPicker({
         )}
 
         {candidates === null ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
+          <p className="py-8 text-center text-subheadline text-muted-foreground">
             Buscando movimientos…
           </p>
         ) : filtered.length === 0 ? (
-          <p className="py-8 text-center text-sm text-balance text-muted-foreground">
+          <p className="py-8 text-center text-subheadline text-balance text-muted-foreground">
             {hasFilters
               ? "Nada calza con los filtros. Sube el umbral de monto, quita la categoría o busca por texto."
               : "No hay movimientos sin asignar cerca de esa fecha."}
@@ -179,17 +180,17 @@ export function InstallmentLinkPicker({
                 <button
                   type="button"
                   onClick={() => onPick(c.transactionId)}
-                  className="flex w-full items-center gap-3 border-b border-border/40 py-2.5 text-left transition-colors hover:bg-secondary/40"
+                  className="press flex min-h-11 w-full items-center gap-3 border-b border-border/40 py-2.5 text-left transition-colors hover:bg-secondary/40"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
+                    <span className="block truncate text-subheadline font-medium">
                       {c.description}
                     </span>
-                    <span className="block truncate text-xs text-muted-foreground">
+                    <span className="block truncate text-footnote text-muted-foreground">
                       {shortDate(c.date)} · {c.accountName}
                     </span>
                   </span>
-                  <span className="tabular shrink-0 text-sm font-medium">
+                  <span className="tabular shrink-0 text-subheadline font-medium">
                     {formatMoney(c.amount, c.currency as CurrencyCode)}
                   </span>
                 </button>
@@ -204,7 +205,7 @@ export function InstallmentLinkPicker({
           <button
             type="button"
             onClick={onCreate}
-            className="mt-4 w-full rounded-lg border border-dashed border-border py-2.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            className="mt-4 min-h-11 w-full rounded-lg py-2.5 text-subheadline text-primary"
           >
             El pago no está en mis movimientos · crear uno
           </button>

@@ -4,8 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
-import { Button } from "@/components/ui/button"
+import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
@@ -95,6 +94,9 @@ export function InstallmentModal({
   )
   const [total, setTotal] = useState(preset?.totalAmount ?? 0)
   const [count, setCount] = useState(kind === "loan" ? 48 : 12)
+  const countPresets = kind === "loan" ? [12, 24, 36, 48, 60] : [3, 6, 12, 18, 24, 36, 48]
+  // Un solo control de cantidad: las fichas comunes y «Otro…», que abre el campo numérico.
+  const [otherCount, setOtherCount] = useState(false)
   // Un crédito se registra casi siempre a mitad de camino: el banco dice "vas en la 5 de 49".
   const [startIndex, setStartIndex] = useState(preset?.startIndex ?? 1)
   const [day, setDay] = useState(preset?.dayOfMonth ?? today.getDate())
@@ -192,9 +194,28 @@ export function InstallmentModal({
       open={open}
       onOpenChange={onOpenChange}
       title={kind === "card" ? "Pasar a cuotas" : "Crédito en cuotas"}
+      cancel={
+        eligible.length === 0
+          ? undefined
+          : {
+              label: "Cancelar",
+              disabled: saving,
+              onClick: () => onOpenChange(false),
+            }
+      }
+      primary={
+        eligible.length === 0
+          ? undefined
+          : {
+              label: saving ? "Creando…" : "Crear plan",
+              mobileLabel: saving ? "Creando…" : "Crear",
+              onClick: save,
+              disabled: !canSave,
+            }
+      }
     >
       {eligible.length === 0 ? (
-        <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+        <div className="px-4 py-10 text-center text-subheadline text-muted-foreground">
           {kind === "card"
             ? "Las cuotas de tarjeta necesitan una cuenta de crédito."
             : "Necesitas una cuenta para registrar un crédito."}
@@ -210,7 +231,7 @@ export function InstallmentModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               aria-label="Descripción"
-              className="h-11 rounded-lg text-base"
+              className="h-11 rounded-lg text-body md:text-body"
             />
             {eligible.length > 1 && (
               <ChipRow>
@@ -227,17 +248,13 @@ export function InstallmentModal({
             )}
             {lockedCategory ? (
               <div>
-                <span className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-primary bg-primary/10 px-3 text-sm text-primary">
+                <span className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-primary bg-primary/10 px-3 text-subheadline text-primary">
                   <CategoryIcon
                     icon={lockedCategory.icon}
                     size={16}
                     color={lockedCategory.color ?? undefined}
                   />{" "}
                   {lockedCategory.name}
-                </span>
-                <span className="mt-1.5 block text-xs text-muted-foreground">
-                  La categoría del movimiento. Después se cambia desde el plan o
-                  cualquiera de sus cuotas.
                 </span>
               </div>
             ) : (
@@ -263,10 +280,10 @@ export function InstallmentModal({
           {/* 2 · Cuánto y en cuántas ----------------------------------------- */}
           <Section title="Cuánto y en cuántas">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-semibold text-muted-foreground">
+              <span className="text-title-1 font-semibold text-muted-foreground">
                 $
               </span>
-              <input
+              <Input
                 inputMode="numeric"
                 value={total ? total.toLocaleString("es-CL") : ""}
                 onChange={(e) => {
@@ -275,55 +292,63 @@ export function InstallmentModal({
                 }}
                 placeholder="0"
                 aria-label="Monto total"
-                className="tabular w-full bg-transparent text-3xl font-semibold outline-none"
+                className="tabular h-12 border-0 bg-transparent px-0 text-large-title font-bold shadow-none focus-visible:ring-0 md:text-large-title"
               />
             </div>
-            <span className="block text-xs text-muted-foreground">
+            <span className="block text-footnote text-muted-foreground">
               {kind === "card"
                 ? "El precio de la compra, sin los intereses del banco."
                 : "El saldo del crédito: lo que falta pagar, tal como lo muestra el banco. Ya incluye los intereses."}
             </span>
             <ChipRow>
-              {(kind === "loan"
-                ? [12, 24, 36, 48, 60]
-                : [3, 6, 12, 18, 24, 36, 48]
-              ).map((n) => (
+              {countPresets.map((n) => (
                 <Chip
                   key={n}
-                  active={n === count}
-                  onClick={() => setCountAndReset(n)}
+                  active={!otherCount && n === count}
+                  onClick={() => {
+                    setOtherCount(false)
+                    setCountAndReset(n)
+                  }}
                 >
                   {n} cuotas
                 </Chip>
               ))}
+              <Chip
+                active={otherCount || !countPresets.includes(count)}
+                onClick={() => setOtherCount(true)}
+              >
+                Otro…
+              </Chip>
             </ChipRow>
-            <label className="flex items-center justify-between gap-3 text-sm">
-              {/* "Total del crédito" junto a un "48" se leía como monto. */}
-              <span className="text-muted-foreground">Cuotas en total</span>
-              <input
-                inputMode="numeric"
-                value={count}
-                onChange={(e) => {
-                  const n = Number(e.target.value.replace(/\D/g, "")) || 1
-                  setCountAndReset(Math.min(n, 240))
-                }}
-                aria-label="Número total de cuotas"
-                className="tabular h-10 w-20 rounded-lg border border-border bg-transparent px-3 text-right text-base md:text-sm"
-              />
-            </label>
+            {(otherCount || !countPresets.includes(count)) && (
+              <label className="flex items-center justify-between gap-3 text-subheadline">
+                {/* "Total del crédito" junto a un "48" se leía como monto. */}
+                <span className="text-muted-foreground">Cuotas en total</span>
+                <Input
+                  inputMode="numeric"
+                  value={count}
+                  onChange={(e) => {
+                    const n = Number(e.target.value.replace(/\D/g, "")) || 1
+                    setCountAndReset(Math.min(n, 240))
+                  }}
+                  aria-label="Número total de cuotas"
+                  className="tabular h-11 w-20 text-right text-body md:text-body"
+                />
+              </label>
+            )}
             {/* Un crédito rara vez se registra desde la cuota 1: el banco dice "vas en la 5 de 49",
                 y respetar esa numeración es lo que hace que sus correos caigan en la cuota correcta.
                 Al venir desde el movimiento de una cuota, la pregunta es cuál cuota ES ese pago:
                 viene precargada con el N° que informó el correo, y hay que confirmarla. */}
             {kind === "loan" && (
-              <label className="flex items-center justify-between gap-3 text-sm">
+              <label className="flex items-center justify-between gap-3 text-subheadline">
                 <span className="text-muted-foreground">
                   {preset?.startMonth
                     ? "¿Qué cuota es este pago?"
                     : "Próxima cuota a pagar"}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <input
+                  <Input
                     inputMode="numeric"
                     value={startIndex}
                     onChange={(e) => {
@@ -332,7 +357,7 @@ export function InstallmentModal({
                       setAmounts(null)
                     }}
                     aria-label="Número de la próxima cuota"
-                    className="tabular h-10 w-16 rounded-lg border border-border bg-transparent px-3 text-right text-base md:text-sm"
+                    className="tabular h-11 w-16 text-right text-body md:text-body"
                   />
                   <span className="text-muted-foreground">de {count}</span>
                 </span>
@@ -343,7 +368,7 @@ export function InstallmentModal({
                 Verlas derivadas aquí caza el error antes de crear el plan, no meses después cuando
                 un correo no engancha. */}
             {total > 0 && (
-              <div className="rounded-xl bg-secondary/40 px-3 py-2.5 text-xs">
+              <div className="rounded-xl bg-(--glass-control) px-3 py-2.5 text-footnote">
                 <p className="text-muted-foreground">
                   Quedan{" "}
                   <strong className="tabular text-foreground">
@@ -375,7 +400,7 @@ export function InstallmentModal({
               </div>
             )}
             {startIndex > 1 && (
-              <span className="block text-xs text-muted-foreground">
+              <span className="block text-footnote text-muted-foreground">
                 Las cuotas 1 a {startIndex - 1} se dan por pagadas: cuentan para
                 el avance, pero no generan gasto en meses anteriores.
               </span>
@@ -384,7 +409,7 @@ export function InstallmentModal({
 
           {/* 3 · Cuándo ------------------------------------------------------- */}
           <Section title="Cuándo se paga">
-            <label className="flex items-center justify-between gap-3 text-sm">
+            <label className="flex items-center justify-between gap-3 text-subheadline">
               <span className="text-muted-foreground">
                 {kind === "loan"
                   ? `Mes de la cuota ${startIndex}`
@@ -401,11 +426,11 @@ export function InstallmentModal({
                   setStartMonth(`${y}-${String(m).padStart(2, "0")}`)
                 }
                 withYear
-                className="h-10 rounded-lg border border-border px-3 font-normal hover:bg-accent"
+                className="h-11 rounded-lg border border-border px-3 text-body font-normal hover:bg-accent"
               />
             </label>
             <DayOfMonthPicker value={day} onChange={setDay} />
-            <span className="block text-xs text-muted-foreground">
+            <span className="block text-footnote text-muted-foreground">
               {kind === "loan"
                 ? `La cuota ${startIndex} vence el ${shortDate(dates[startIndex - 1])} y la última el ${shortDate(dates[dates.length - 1])}.`
                 : `Termina el ${shortDate(dates[dates.length - 1])}.`}
@@ -415,7 +440,7 @@ export function InstallmentModal({
           {/* 4 · Cronograma --------------------------------------------------- */}
           <Section title="Cronograma" last>
             {overdue.length > 0 && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-footnote text-muted-foreground">
                 Las cuotas que ya vencieron vienen marcadas como pagadas.
                 Desmarca las que quedaste debiendo.
               </p>
@@ -432,13 +457,13 @@ export function InstallmentModal({
                     key={index}
                     className="flex items-center gap-3 rounded-lg px-1 py-1.5"
                   >
-                    <span className="tabular w-6 shrink-0 text-xs text-muted-foreground">
+                    <span className="tabular w-6 shrink-0 text-footnote text-muted-foreground">
                       {index}
                     </span>
-                    <span className="w-24 shrink-0 text-sm text-muted-foreground">
+                    <span className="w-24 shrink-0 text-subheadline text-muted-foreground">
                       {shortDate(date)}
                     </span>
-                    <input
+                    <Input
                       inputMode="numeric"
                       value={values[pos]?.toLocaleString("es-CL") ?? ""}
                       onChange={(e) =>
@@ -448,7 +473,7 @@ export function InstallmentModal({
                         )
                       }
                       aria-label={`Monto de la cuota ${index}`}
-                      className="tabular min-w-0 flex-1 rounded-lg bg-secondary/40 px-2 py-1.5 text-right text-base outline-none focus:bg-secondary md:text-sm"
+                      className="tabular h-11 min-w-0 flex-1 px-2 text-right text-body md:text-body"
                     />
                     {isOverdue ? (
                       <button
@@ -461,7 +486,7 @@ export function InstallmentModal({
                         }}
                         aria-pressed={paid}
                         className={cn(
-                          "shrink-0 rounded-lg border px-2.5 py-1 text-xs transition-colors",
+                          "h-11 w-22 shrink-0 rounded-lg border px-2 text-subheadline transition-colors",
                           paid
                             ? "border-primary bg-primary text-primary-foreground"
                             : "border-border text-muted-foreground"
@@ -470,39 +495,19 @@ export function InstallmentModal({
                         {paid ? "Pagada" : "Debiendo"}
                       </button>
                     ) : (
-                      <span className="w-17 shrink-0" aria-hidden />
+                      <span className="w-22 shrink-0" aria-hidden />
                     )}
                   </li>
                 )
               })}
             </ul>
             {mustMatchTotal && sum !== total && (
-              <p className="text-xs text-destructive">
+              <p className="text-footnote text-destructive">
                 Las cuotas suman {formatCLP(sum)} y el total es{" "}
                 {formatCLP(total)}. Ajusta {formatCLP(Math.abs(total - sum))}.
               </p>
             )}
           </Section>
-
-          <ModalFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-              className="h-12 flex-1"
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              onClick={save}
-              disabled={!canSave}
-              className="h-12 flex-1 text-base"
-            >
-              {saving ? "Creando…" : "Crear plan"}
-            </Button>
-          </ModalFooter>
         </div>
       )}
     </ResponsiveModal>
@@ -540,7 +545,7 @@ function Section({
         !last && "border-b border-border/60"
       )}
     >
-      <h3 className="text-sm font-semibold">{title}</h3>
+      <h3 className="text-headline font-semibold">{title}</h3>
       {children}
     </section>
   )

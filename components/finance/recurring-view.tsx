@@ -2,10 +2,9 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Repeat, Undo2 } from "lucide-react"
+import { Check } from "lucide-react"
 import { toast } from "sonner"
 
-import { authClient } from "@/lib/auth-client"
 import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 import { currentPeriod, formatCLP } from "@/lib/finance-format"
@@ -69,13 +68,11 @@ function isThisMonth(iso: string): boolean {
 // Cuotas van lado a lado desde xl (cada una en una columna con su resumen arriba) y apiladas por
 // debajo, con Cuotas al final.
 export function RecurringView({
-  user,
   templates,
   plans,
   accounts,
   categories,
 }: {
-  user: { name: string; email: string; initial: string }
   templates: RecurringDTO[]
   plans: InstallmentPlanDTO[]
   accounts: AccountDTO[]
@@ -93,14 +90,6 @@ export function RecurringView({
   const committed = active.reduce((sum, t) => sum + t.baseAmount, 0)
   const dueThisMonth = active.filter((t) => isThisMonth(t.nextExecution))
   const dueTotal = dueThisMonth.reduce((sum, t) => sum + t.baseAmount, 0)
-  const upcoming = [...active].sort((a, b) =>
-    a.nextExecution.localeCompare(b.nextExecution)
-  )
-
-  async function signOut() {
-    await authClient.signOut()
-    router.push("/login")
-  }
 
   function edit(t: RecurringDTO) {
     setEditing(t)
@@ -109,45 +98,38 @@ export function RecurringView({
 
   // "Ya lo pagué": confirma el comprometido del período sin esperar el aviso del banco. Cuando el
   // cargo real llegue por correo, reemplaza esta marca con su monto y su fecha.
-  async function togglePaid(t: RecurringDTO, periodPaid: boolean) {
+  // Deshacer vive en el modal: la fila solo ofrece la acción que avanza.
+  async function markPaid(t: RecurringDTO) {
     haptic("light")
     const res = await fetch(`/api/recurring/${t.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ periodPaid }),
+      body: JSON.stringify({ periodPaid: true }),
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       return toast.error(data.error ?? "No se pudo marcar el cobro")
     }
-    toast.success(periodPaid ? "Cobro marcado como pagado" : "Marca deshecha")
+    toast.success("Cobro marcado como pagado")
     router.refresh()
   }
 
   return (
-    <AppShell
-      user={{
-        name: user.name || user.email,
-        initial: user.initial,
-        email: user.email,
-      }}
-      active="recurrentes"
-      onSignOut={signOut}
-      title="Recurrentes"
-    >
+    <AppShell>
       {/* En móvil el contenido arranca pegado al header flotante; en escritorio la topbar pide su
           margen. xl: dos columnas de ~30rem, el mínimo en que una fila de recurrente cabe con su
           nombre y el "Ya lo pagué"; por debajo de eso, una columna. */}
-      <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 lg:px-8 lg:py-6 xl:max-w-7xl">
-        <h1 className="sr-only">Recurrentes y cuotas</h1>
+      <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 md:pt-6 lg:px-8 xl:max-w-7xl">
+        {/* Móvil: título grande de iOS bajo la barra; en escritorio el título vive en el topbar. */}
+        <h1 className="mb-3 text-large-title font-bold md:hidden">Recurrentes</h1>
         <div className="grid gap-10 xl:grid-cols-2 xl:items-start xl:gap-8">
           <section aria-labelledby="recurrentes-title" className="min-w-0">
             {/* Sin botón "Nuevo": una recurrente solo nace de un movimiento (el use case rechaza el
-                alta suelta), y el botón abría un formulario que nunca se podía guardar. El camino
-                es abrir el movimiento y elegir "Hacer recurrente". min-h-9: mide lo mismo que la
-                cabecera de Cuotas, que sí lleva botón, para que los títulos queden alineados. */}
-            <div className="mb-3 flex min-h-9 items-end">
-              <h2 id="recurrentes-title" className="font-heading text-lg font-bold">
+                alta suelta). min-h-11: mide lo mismo que la cabecera de Cuotas, que lleva su
+                acción, para que los títulos queden alineados lado a lado. En móvil el título
+                grande ya dice "Recurrentes": el h2 queda para el lector de pantalla. */}
+            <div className="mb-2 flex min-h-11 items-center max-md:sr-only">
+              <h2 id="recurrentes-title" className="text-title-3 font-bold">
                 Recurrentes
               </h2>
             </div>
@@ -156,107 +138,49 @@ export function RecurringView({
               <EmptyState />
             ) : (
               <div className="flex flex-col gap-6">
-                {/* El resumen del mes va primero: es el titular de la sección. */}
+                {/* El resumen del mes va primero: es el titular de la sección. Lo accionable es lo
+                    que falta cobrar dentro del mes (hay que reservarlo). */}
                 <div className="glass rounded-xl p-4">
-                  <p className="text-sm text-muted-foreground">Total recurrente</p>
-                  <p className="tabular text-2xl font-bold">{formatCLP(committed)}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {active.length} de {templates.length}{" "}
-                    {templates.length === 1 ? "activa" : "activas"}
-                  </p>
-
-                  {/* Lo que falta cobrar dentro del mes es lo accionable (hay que reservarlo). Si ya
-                      no queda nada, el panel muestra los que vienen en vez de una frase vacía. */}
-                  <div className="mt-4 border-t border-border/60 pt-3">
-                    <p className="text-sm font-medium">
-                      {dueThisMonth.length > 0 ? "Por cobrar este mes" : "Próximos cobros"}
+                  <p className="text-subheadline text-muted-foreground">Total recurrente</p>
+                  <p className="tabular text-hero font-bold">{formatCLP(committed)}</p>
+                  {dueTotal > 0 && (
+                    <p className="mt-2 text-subheadline">
+                      Reserva{" "}
+                      <strong className="tabular font-semibold">
+                        {formatCLP(dueTotal)}
+                      </strong>{" "}
+                      antes de fin de mes
                     </p>
-                    {upcoming.length === 0 ? (
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Sin cobros programados.
-                      </p>
-                    ) : (
-                      <>
-                        <ul className="mt-1.5 space-y-1.5">
-                          {(dueThisMonth.length > 0
-                            ? dueThisMonth
-                            : upcoming.slice(0, 3)
-                          ).map((t) => (
-                            <li key={t.id} className="flex justify-between gap-2 text-sm">
-                              <span className="min-w-0 truncate text-muted-foreground">
-                                {t.label}
-                                {dueThisMonth.length === 0 &&
-                                  ` · ${nextChargeLabel(t.nextExecution)
-                                    .replace("Cobra el ", "")
-                                    .replace("Cobra ", "")}`}
-                              </span>
-                              <span className="tabular shrink-0">
-                                {formatCLP(t.baseAmount)}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                        {dueThisMonth.length > 0 && (
-                          <p className="mt-2 text-sm">
-                            Reserva{" "}
-                            <strong className="tabular font-semibold">
-                              {formatCLP(dueTotal)}
-                            </strong>{" "}
-                            antes de fin de mes.
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
+                  )}
                 </div>
 
                 {active.length > 0 && (
-                  <ul className="glass divide-y divide-border/50 rounded-xl px-3">
+                  <ul className="glass inset-list overflow-hidden rounded-xl [--inset:4.25rem]">
                     {active.map((t) => (
                       <RecurringRow
                         key={t.id}
                         template={t}
                         onEdit={() => edit(t)}
-                        onTogglePaid={(paid) => togglePaid(t, paid)}
+                        onMarkPaid={() => markPaid(t)}
                       />
                     ))}
                   </ul>
                 )}
 
                 {paused.length > 0 && (
-                  <section>
-                    <h3 className="mb-2 text-xs font-medium text-muted-foreground">
-                      Pausadas
-                    </h3>
-                    <ul className="glass divide-y divide-border/50 rounded-xl px-3">
-                      {paused.map((t) => (
-                        <RecurringRow
-                          key={t.id}
-                          template={t}
-                          onEdit={() => edit(t)}
-                          onTogglePaid={(paid) => togglePaid(t, paid)}
-                        />
-                      ))}
-                    </ul>
-                  </section>
+                  <RecurringGroup title="Pausadas">
+                    {paused.map((t) => (
+                      <RecurringRow key={t.id} template={t} onEdit={() => edit(t)} />
+                    ))}
+                  </RecurringGroup>
                 )}
 
                 {ended.length > 0 && (
-                  <section>
-                    <h3 className="mb-2 text-xs font-medium text-muted-foreground">
-                      Finalizadas
-                    </h3>
-                    <ul className="glass divide-y divide-border/50 rounded-xl px-3">
-                      {ended.map((t) => (
-                        <RecurringRow
-                          key={t.id}
-                          template={t}
-                          onEdit={() => edit(t)}
-                          onTogglePaid={(paid) => togglePaid(t, paid)}
-                        />
-                      ))}
-                    </ul>
-                  </section>
+                  <RecurringGroup title="Finalizadas">
+                    {ended.map((t) => (
+                      <RecurringRow key={t.id} template={t} onEdit={() => edit(t)} />
+                    ))}
+                  </RecurringGroup>
                 )}
               </div>
             )}
@@ -282,33 +206,58 @@ export function RecurringView({
   )
 }
 
+// Subgrupo de la lista (Pausadas, Finalizadas): encabezado de lista agrupada de iOS, fuera de
+// la tarjeta y alineado con el texto de las filas.
+function RecurringGroup({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <section>
+      <h3 className="mb-1.5 px-4 text-footnote tracking-wide text-muted-foreground uppercase">
+        {title}
+      </h3>
+      <ul className="glass inset-list overflow-hidden rounded-xl [--inset:4.25rem]">
+        {children}
+      </ul>
+    </section>
+  )
+}
+
 function RecurringRow({
   template: t,
   onEdit,
-  onTogglePaid,
+  onMarkPaid,
 }: {
   template: RecurringDTO
   onEdit: () => void
-  onTogglePaid: (paid: boolean) => void
+  onMarkPaid?: () => void
 }) {
   const inactive = !t.isActive || t.hasEnded
-  // Marcar el cobro solo tiene sentido con un período abierto. Y solo se deshace lo que marcó el
-  // usuario: un cargo que confirmó el banco es un hecho, no una afirmación que se pueda retirar.
-  const canMarkPaid = t.isActive && !t.hasEnded && !t.currentPeriodPaid
-  const canUndoPaid = t.isActive && !t.hasEnded && t.currentPeriodPaidManually
-  const paidLabel = canMarkPaid
-    ? "Ya lo pagué"
-    : canUndoPaid
-      ? "Deshacer"
-      : t.currentPeriodPaid
-        ? "Lo cobró el banco"
-        : "Sin cobros"
+  // Marcar el cobro solo tiene sentido con un período abierto y todavía sin cobro.
+  const canMarkPaid = !!onMarkPaid && t.isActive && !t.hasEnded && !t.currentPeriodPaid
+  const periodicity =
+    t.periodicity === "monthly"
+      ? null
+      : (PERIODICITY_LABEL[t.periodicity] ?? t.periodicity)
+  // Cobrado del mes = el cargo real ya llegó; manda sobre el "Cobra el …". Pausada: nada.
+  const status = t.hasEnded
+    ? `Terminó el ${shortDate(t.endDate!)}`
+    : t.isActive && !t.currentPeriodPaid
+      ? nextChargeLabel(t.nextExecution)
+      : null
   return (
-    <li className={cn("flex items-center gap-3 py-2.5", inactive && "opacity-60")}>
+    <li className={cn("flex items-center", inactive && "opacity-60")}>
       <button
         type="button"
         onClick={onEdit}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        className={cn(
+          "press flex min-h-11 min-w-0 flex-1 items-center gap-3 py-2.5 pl-4 text-left hover:bg-accent/60",
+          canMarkPaid ? "pr-2" : "pr-4"
+        )}
       >
         <span
           className="grid size-10 shrink-0 place-items-center rounded-full"
@@ -324,82 +273,59 @@ function RecurringRow({
           />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{t.label}</span>
-          <span className="block truncate text-xs text-muted-foreground">
-            {t.categoryName} ·{" "}
-            {PERIODICITY_LABEL[t.periodicity] ?? t.periodicity}
+          <span className="block truncate text-body">{t.label}</span>
+          <span className="block truncate text-footnote text-muted-foreground">
+            {t.categoryName}
+            {periodicity && ` · ${periodicity}`}
             {/* La vigencia se ve sin abrir el modal: es lo que uno olvida haber fijado. */}
             {t.endDate && !t.hasEnded && ` · hasta ${shortDate(t.endDate)}`}
           </span>
         </span>
         <span className="shrink-0 text-right">
-          <span className="tabular block font-semibold">
+          <span className="tabular block text-body font-semibold">
             {formatCLP(t.baseAmount)}
           </span>
-          {/* Cobrado del mes = el cargo real ya llegó; manda sobre el "Cobra el …". */}
-          {t.currentPeriodPaid && !t.hasEnded ? (
-            <span className="flex items-center justify-end gap-1 text-xs whitespace-nowrap text-primary">
+          {t.currentPeriodPaid && !t.hasEnded && t.isActive ? (
+            <span className="flex items-center justify-end gap-1 text-footnote whitespace-nowrap text-primary">
               <Check className="size-3.5" />
               Cobrado
             </span>
           ) : (
-            <span className="block text-xs whitespace-nowrap text-muted-foreground">
-              {t.hasEnded
-                ? `Terminó el ${shortDate(t.endDate!)}`
-                : t.isActive
-                  ? nextChargeLabel(t.nextExecution)
-                  : "Sin cobros"}
-            </span>
+            status && (
+              <span className="block text-footnote whitespace-nowrap text-muted-foreground">
+                {status}
+              </span>
+            )
           )}
         </span>
       </button>
-      {/* El banco a veces avisa días después: hasta entonces el gasto sigue como comprometido y el
-          presupuesto muestra plata que ya salió. Esto lo cierra sin salir de la lista.
-          El control se queda inerte —no desaparece— cuando no hay nada que marcar: escondiéndolo,
-          la columna de acciones se desalinearía fila por fila dentro de la misma lista. */}
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={!canMarkPaid && !canUndoPaid}
-        onClick={() => onTogglePaid(canMarkPaid)}
-        aria-label={`${paidLabel}: ${t.label}`}
-        title={paidLabel}
-        // Escritorio: la acción con su nombre; en móvil solo el icono, que el ancho es del nombre.
-        className="h-11 shrink-0 text-muted-foreground max-md:size-11 max-md:p-0"
-      >
-        {canUndoPaid ? (
-          <Undo2 className="size-4" />
-        ) : (
+      {/* El banco a veces avisa días después: hasta entonces el gasto sigue como comprometido.
+          Esto lo cierra sin salir de la lista. Solo aparece cuando hay algo que marcar. */}
+      {canMarkPaid && (
+        <Button
+          variant="ghost"
+          onClick={onMarkPaid}
+          aria-label={`Ya lo pagué: ${t.label}`}
+          // Escritorio: la acción con su nombre; en móvil solo el icono, que el ancho es del nombre.
+          className="mr-1 h-11 shrink-0 text-subheadline text-primary max-md:size-11 max-md:p-0"
+        >
           <Check className="size-4" />
-        )}
-        <span className="max-md:sr-only">{paidLabel}</span>
-      </Button>
-      {/* Pausar/reanudar vive en el modal (se abre tocando la fila): es lo excepcional, y su
-          botón acá le comía el ancho al nombre en móvil ("Interne…"). */}
+          <span className="max-md:sr-only">Ya lo pagué</span>
+        </Button>
+      )}
     </li>
   )
 }
 
-// Empty state que enseña qué resuelve la función y cuál es el único camino para crearla: desde
-// un movimiento. No hay alta a mano: la clave con la que se reconoce el cargo sale del cargo real.
+// Sin alta a mano: la clave con la que se reconoce el cargo sale del cargo real, así que el único
+// camino es desde un movimiento.
 function EmptyState() {
   return (
     <div className="glass rounded-xl px-6 py-10 text-center">
-      <span
-        className="mx-auto mb-3 grid size-11 place-items-center rounded-full bg-primary/10"
-        aria-hidden
-      >
-        <Repeat className="size-5 text-primary" />
-      </span>
-      <h3 className="font-medium">Anticipa lo que ya sabes que vas a pagar</h3>
-      <p className="mx-auto mt-1 max-w-sm text-sm text-balance text-muted-foreground">
-        El arriendo, el gasto común o una suscripción quedan reservados en tu
-        presupuesto desde que empieza el mes, y se reconocen solos cuando el
-        banco los cobra, aunque el monto cambie un poco.
-      </p>
-      <p className="mx-auto mt-4 max-w-sm text-sm">
+      <h3 className="text-headline">Anticipa lo que ya sabes que vas a pagar</h3>
+      <p className="mx-auto mt-1 max-w-sm text-subheadline text-balance text-muted-foreground">
         Para crear una, abre el movimiento del cargo y elige{" "}
-        <span className="font-medium">Hacer recurrente</span>.
+        <span className="font-medium text-foreground">Hacer recurrente</span>.
       </p>
     </div>
   )

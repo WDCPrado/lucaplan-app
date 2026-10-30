@@ -84,8 +84,8 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
 - Categorías de ingreso con avance hacia tu meta mensual.
 - Modo débito usa mes calendario; modo crédito usa ciclo de tarjeta. Ambos incluyen
   movimientos de corriente y tarjeta: el modo solo cambia las fechas del plan.
-- El medidor separa el margen del plan de la liquidez registrada (caja menos línea usada).
-  Un plan cubierto no oculta corriente negativa. Los saldos son los últimos registrados,
+- El resumen del plan separa el margen del plan de la liquidez registrada (caja menos línea
+  usada, con el desglose cuando hay línea). Un plan cubierto no oculta corriente negativa. Los saldos son los últimos registrados,
   no una reconstrucción histórica del mes seleccionado.
 - Selector de mes para navegar tu historial; movimientos con búsqueda y filtros.
 
@@ -98,7 +98,7 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
   qué significa "Cuentas" en tu vida.
 - Aprende de tus recategorizaciones y ofrece aplicar el cambio a los movimientos
   similares en un clic.
-- Triage de movimientos sin categoría para clasificar en lote.
+- Un movimiento sin categoría se clasifica desde su detalle.
 - Funciona con OpenAI (`gpt-4o-mini` por defecto) y se degrada con gracia: sin API key
   la app funciona igual, solo que los movimientos quedan sin categorizar.
 
@@ -134,20 +134,10 @@ montos. No hay que ordenar la captura ni recortarla: el navegador la reescala so
   así que no hay reintentos por formato.
 - **La imagen no se guarda** en ninguna parte: se procesa y se descarta.
 
-### 🧾 Los movimientos que el banco no avisó
+### 🧾 Los movimientos vienen del banco
 
-A veces el aviso no llega y ese gasto queda fuera de la app. Escribirlo en el alta normal no se
-puede: en una cuenta conectada los cargos manuales se rechazan, porque se contarían dos veces cuando
-el correo aparezca. Para eso está la pestaña **Del banco** del nuevo movimiento.
-
-- **Una foto, varios movimientos.** Subes una captura de la cartola o del historial del banco y se
-  leen todos los movimientos que aparecen, no de a uno.
-- **Los que ya tienes llegan marcados.** Antes de mostrarte nada se comparan contra lo registrado
-  (mismo día, mismo monto, misma dirección) y los repetidos vienen destildados. Esa comparación es
-  lo que hace segura esta vía.
-- **Nada se guarda hasta que confirmas.** Fecha, descripción, monto y cargo/abono son editables, y
-  entras solo los que marques; lo que no se pudo leer se dice, no se inventa.
-- **También a mano.** Puedes agregar filas tú mismo, con o sin foto.
+Los movimientos entran solo desde los avisos del banco por correo: la app no tiene alta manual ni
+lectura de cartolas por foto, así nada se cuenta dos veces cuando el correo llega.
 
 ### 📬 Conexión por correo: tu banco ya te avisa, Luca Plan escucha
 

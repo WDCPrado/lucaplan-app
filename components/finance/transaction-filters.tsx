@@ -1,9 +1,8 @@
 "use client"
 
-import { Search, X, CalendarRange } from "lucide-react"
+import { Search, X, ChevronDown } from "lucide-react"
 import type { DateRange } from "react-day-picker"
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
@@ -19,6 +18,8 @@ import {
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { Segmented } from "./segmented"
 import { formatCompact } from "@/lib/finance-format"
 import type {
   AccountDTO,
@@ -44,9 +45,14 @@ export function fromYmd(s: string | undefined): Date | undefined {
   return new Date(y, m - 1, d)
 }
 
+// Fila de filtro estilo iOS: mismo alto y ancho que el buscador y el segmentado.
+const ROW =
+  "flex h-11 w-full min-w-0 items-center gap-2 rounded-lg border border-input bg-input/30 px-3 text-left text-body data-[size=default]:h-11"
+const ROW_VALUE = "ml-auto min-w-0 truncate text-right text-muted-foreground"
+
 export type Dir = "" | "debit" | "credit"
-const DIRS: { value: Dir; label: string }[] = [
-  { value: "", label: "Todos" },
+const DIRS: { value: "all" | "debit" | "credit"; label: string }[] = [
+  { value: "all", label: "Todos" },
   { value: "debit", label: "Gastos" },
   { value: "credit", label: "Ingresos" },
 ]
@@ -92,27 +98,99 @@ export function filtersToParams(
   return params
 }
 
-// Campo de búsqueda + filtros combinados (dirección, categoría, banco, fechas, monto). Controlado:
-// quien lo usa decide qué hacer con los valores (el modal busca contra la API; la página
-// /movements los escribe en la URL).
-export function TransactionFilters({
-  value,
-  onChange,
-  categories,
-  accounts,
-  amountBounds,
-  autoFocus,
-  inputId,
-}: {
+type FilterProps = {
   value: FilterValues
   onChange: (v: FilterValues) => void
   categories: CategoryDTO[]
   accounts: AccountDTO[]
   amountBounds: AmountBoundsDTO
+}
+
+// Cuántos filtros (fuera del texto) están puestos: el «Filtros (n)» de Movimientos en móvil.
+export function activeFilterCount(v: FilterValues, bounds: AmountBoundsDTO) {
+  const amountNarrowed =
+    bounds.max > bounds.min &&
+    (v.amount[0] > bounds.min || v.amount[1] < bounds.max)
+  return [
+    !!v.direction,
+    v.categoryId !== "all",
+    v.bank !== "all",
+    !!v.range?.from,
+    amountNarrowed,
+  ].filter(Boolean).length
+}
+
+// Campo de búsqueda + filtros combinados (dirección, categoría, banco, fechas, monto). Controlado:
+// quien lo usa decide qué hacer con los valores (el modal busca contra la API; la página
+// /movements los escribe en la URL). Movimientos en móvil los usa por separado.
+export function TransactionFilters({
+  autoFocus,
+  inputId,
+  ...props
+}: FilterProps & { autoFocus?: boolean; inputId?: string }) {
+  return (
+    <>
+      <SearchField
+        value={props.value}
+        onChange={props.onChange}
+        autoFocus={autoFocus}
+        inputId={inputId}
+      />
+      <FilterControls {...props} />
+    </>
+  )
+}
+
+export function SearchField({
+  value,
+  onChange,
+  autoFocus,
+  inputId,
+}: {
+  value: FilterValues
+  onChange: (v: FilterValues) => void
   autoFocus?: boolean
   inputId?: string
 }) {
+  const q = value.q
+  const set = (patch: Partial<FilterValues>) => onChange({ ...value, ...patch })
+  return (
+    <div className="relative">
+      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        id={inputId}
+        autoFocus={autoFocus}
+        value={q}
+        onChange={(e) => set({ q: e.target.value })}
+        aria-label="Buscar movimientos por descripción o categoría"
+        inputMode="search"
+        placeholder="Buscar por descripción o categoría…"
+        className="h-11 pr-10 pl-10 text-body"
+      />
+      {q && (
+        <button
+          type="button"
+          onClick={() => set({ q: "" })}
+          className="absolute top-1/2 right-0 grid size-11 -translate-y-1/2 place-items-center text-muted-foreground hover:text-foreground"
+          aria-label="Limpiar búsqueda"
+        >
+          <X className="size-4" />
+        </button>
+      )}
+    </div>
+  )
+}
+
+export function FilterControls({
+  value,
+  onChange,
+  categories,
+  accounts,
+  amountBounds,
+}: FilterProps) {
   const { q, direction, categoryId, bank, range, amount } = value
+  // Un mes en el teléfono (dos no caben a 360 px); dos en escritorio.
+  const isMobile = useIsMobile()
   const set = (patch: Partial<FilterValues>) => onChange({ ...value, ...patch })
 
   // Slider de monto: solo si hay rango real (>1 monto distinto). El paso reparte el rango en ~100.
@@ -137,155 +215,124 @@ export function TransactionFilters({
 
   return (
     <>
-      {/* Campo de búsqueda */}
-      <div className="relative">
-        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          id={inputId}
-          autoFocus={autoFocus}
-          value={q}
-          onChange={(e) => set({ q: e.target.value })}
-          aria-label="Buscar movimientos por descripción o categoría"
-          inputMode="search"
-          placeholder="Buscar por descripción o categoría…"
-          className="h-12 pr-10 pl-10 text-base"
-        />
-        {q && (
-          <button
-            type="button"
-            onClick={() => set({ q: "" })}
-            className="absolute top-1/2 right-0 grid size-11 -translate-y-1/2 place-items-center text-muted-foreground hover:text-foreground"
-            aria-label="Limpiar búsqueda"
-          >
-            <X className="size-4" />
-          </button>
-        )}
-      </div>
+      {/* Tipo: segmentado de iOS, un solo estilo activo para las tres opciones. */}
+      <Segmented
+        label="Tipo de movimiento"
+        value={direction === "" ? "all" : direction}
+        onChange={(v) => set({ direction: v === "all" ? "" : v })}
+        options={DIRS}
+      />
 
-      {/* Filtros combinados: envuelven en angosto. */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div
-          role="group"
-          aria-label="Tipo de movimiento"
-          className="flex shrink-0 overflow-hidden rounded-lg border text-sm"
-        >
-          {DIRS.map((d) => (
+      {/* Filtros como filas de iOS: el nombre a la izquierda, el valor elegido a la derecha y el
+          chevron. Una columna en angosto; con ancho (el modal en escritorio), categoría y banco en
+          dos columnas parejas y Fechas debajo a lo ancho. Por contenedor, no por pantalla: el panel
+          lateral de Movimientos es angosto aunque la pantalla sea ancha. */}
+      <div className="@container">
+        <div className="grid gap-3 @md:grid-cols-2">
+          <Select
+            value={categoryId}
+            onValueChange={(v) => set({ categoryId: v })}
+          >
+            <SelectTrigger aria-label="Categoría" className={ROW}>
+              <span className="shrink-0 text-foreground">Categoría</span>
+              <span className={ROW_VALUE}>
+                <SelectValue />
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              {categories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={bank} onValueChange={(v) => set({ bank: v })}>
+            <SelectTrigger aria-label="Banco" className={ROW}>
+              <span className="shrink-0 text-foreground">Banco</span>
+              <span className={ROW_VALUE}>
+                <SelectValue />
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {banks.map((b) => (
+                <SelectItem key={b} value={b}>
+                  {b}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Rango de fechas (shadcn Calendar en Popover). Dos meses siempre: lado a lado desde md,
+              apilados en el teléfono, con scroll dentro del popover si no caben. */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label={range?.from ? "Cambiar fechas" : "Filtrar por fechas"}
+                className={cn(ROW, "@md:col-span-2")}
+              >
+                <span className="shrink-0">Fechas</span>
+                <span className={ROW_VALUE}>
+                  {range?.from
+                    ? range.to
+                      ? `${RANGE_FMT.format(range.from)} – ${RANGE_FMT.format(range.to)}`
+                      : RANGE_FMT.format(range.from)
+                    : "Todas"}
+                </span>
+                <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="max-h-(--radix-popover-content-available-height) w-auto overflow-y-auto p-0"
+              align="start"
+            >
+              <Calendar
+                mode="range"
+                selected={range}
+                onSelect={(r) => set({ range: r })}
+                numberOfMonths={isMobile ? 1 : 2}
+                autoFocus
+              />
+            </PopoverContent>
+          </Popover>
+
+          {hasFilters && (
             <button
               type="button"
-              key={d.label}
-              aria-pressed={direction === d.value}
-              onClick={() => set({ direction: d.value })}
-              className={cn(
-                "h-11 px-3.5 transition-colors",
-                direction === d.value
-                  ? d.value === "credit"
-                    ? "bg-success text-success-foreground"
-                    : d.value === "debit"
-                      ? "bg-destructive text-destructive-foreground"
-                      : "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-secondary"
-              )}
+              onClick={() => onChange(emptyFilters(amountBounds))}
+              className="col-span-full h-11 justify-self-end text-subheadline text-primary"
             >
-              {d.label}
+              Limpiar
             </button>
-          ))}
+          )}
         </div>
-
-        <Select
-          value={categoryId}
-          onValueChange={(v) => set({ categoryId: v })}
-        >
-          <SelectTrigger
-            aria-label="Categoría"
-            className="h-11 w-auto min-w-32 shrink-0"
-          >
-            <SelectValue placeholder="Categoría" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas las categorías</SelectItem>
-            {categories.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={bank} onValueChange={(v) => set({ bank: v })}>
-          <SelectTrigger
-            aria-label="Banco"
-            className="h-11 w-auto min-w-28 shrink-0"
-          >
-            <SelectValue placeholder="Banco" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los bancos</SelectItem>
-            {banks.map((b) => (
-              <SelectItem key={b} value={b}>
-                {b}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Rango de fechas (shadcn Calendar en Popover) */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              aria-label={range?.from ? "Cambiar fechas" : "Filtrar por fechas"}
-              className={cn(
-                "h-11 shrink-0 justify-start gap-2 font-normal",
-                !range?.from && "text-muted-foreground"
-              )}
-            >
-              <CalendarRange className="size-4 shrink-0" />
-              {range?.from
-                ? range.to
-                  ? `${RANGE_FMT.format(range.from)} – ${RANGE_FMT.format(range.to)}`
-                  : RANGE_FMT.format(range.from)
-                : "Fechas"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="range"
-              selected={range}
-              onSelect={(r) => set({ range: r })}
-              numberOfMonths={1}
-              autoFocus
-            />
-          </PopoverContent>
-        </Popover>
-        {hasFilters && (
-          <button
-            type="button"
-            onClick={() => onChange(emptyFilters(amountBounds))}
-            className="ml-auto h-11 shrink-0 text-sm text-muted-foreground hover:text-foreground"
-          >
-            Limpiar
-          </button>
-        )}
       </div>
 
       {/* Rango de monto */}
       {showAmount && (
         <div className="flex flex-col gap-2 pt-1">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center justify-between px-2 text-footnote text-muted-foreground">
             <span>Monto</span>
             <span className="tabular-nums">
               {formatCompact(amount[0])} – {formatCompact(amount[1])}
             </span>
           </div>
-          <Slider
-            min={amountBounds.min}
-            max={amountBounds.max}
-            step={amountStep}
-            value={amount}
-            onValueChange={(v) => set({ amount: [v[0], v[1]] })}
-            aria-label="Rango de monto"
-          />
+          {/* Margen lateral del radio del thumb (size-4, más su anillo): sin él, los extremos tocan
+              el borde. La cabecera lleva el mismo margen para que el rango quede alineado. */}
+          <div className="px-2">
+            <Slider
+              min={amountBounds.min}
+              max={amountBounds.max}
+              step={amountStep}
+              value={amount}
+              onValueChange={(v) => set({ amount: [v[0], v[1]] })}
+              aria-label="Rango de monto"
+            />
+          </div>
         </div>
       )}
     </>

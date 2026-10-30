@@ -3,8 +3,7 @@
 import type { ReactNode } from "react"
 
 import { Pencil } from "lucide-react"
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
-import { Button } from "@/components/ui/button"
+import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { MovementRow } from "./movement-row"
 import { CategoryIcon } from "./category-icons"
 import { formatCLP, statusVar } from "@/lib/finance-format"
@@ -36,11 +35,25 @@ export function CategoryDetailSheet({
       open={category !== null}
       onOpenChange={onOpenChange}
       title={category?.name ?? "Categoría"}
+      primary={
+        category
+          ? {
+              label: (
+                <>
+                  <Pencil className="size-4" />
+                  Editar categoría
+                </>
+              ),
+              mobileLabel: "Editar",
+              onClick: () => onEdit(category),
+            }
+          : undefined
+      }
     >
       {category && (
         <>
           <div className="space-y-8 px-5">
-            <section>
+            <section className="sheet-group p-4">
               <div className="mb-4 flex items-center gap-3">
                 <span className="grid size-11 place-items-center rounded-lg bg-muted">
                   <CategoryIcon
@@ -49,14 +62,14 @@ export function CategoryDetailSheet({
                     color={category.color ?? undefined}
                   />
                 </span>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-subheadline text-muted-foreground">
                   {category.type === "income"
                     ? "Recibido en el período"
                     : "Disponible en el período"}
                 </span>
               </div>
               <p
-                className="tabular text-3xl font-semibold"
+                className="tabular text-title-1 font-semibold"
                 style={{
                   color:
                     category.type === "income"
@@ -71,47 +84,47 @@ export function CategoryDetailSheet({
                 )}
               </p>
               {category.type !== "income" && (
-                <dl className="mt-6 grid grid-cols-3 gap-3 border-t pt-4">
+                <dl className="mt-5 grid grid-cols-3 gap-3 border-t pt-4">
                   <div>
-                    <dt className="text-sm text-muted-foreground">
+                    <dt className="text-footnote text-muted-foreground">
                       Presupuesto
                     </dt>
-                    <dd className="tabular mt-1 text-base font-medium break-all">
+                    <dd className="tabular mt-1 text-body font-medium break-all">
                       {formatCLP(category.limit)}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-sm text-muted-foreground">
+                    <dt className="text-footnote text-muted-foreground">
                       Comprometido
                     </dt>
-                    <dd className="tabular mt-1 text-base font-medium break-all">
+                    <dd className="tabular mt-1 text-body font-medium break-all">
                       {formatCLP(category.committed)}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-sm text-muted-foreground">Gastado</dt>
-                    <dd className="tabular mt-1 text-base font-medium break-all">
+                    <dt className="text-footnote text-muted-foreground">Gastado</dt>
+                    <dd className="tabular mt-1 text-body font-medium break-all">
                       {formatCLP(category.used)}
                     </dd>
                   </div>
                 </dl>
               )}
               {category.committed > 0 && (
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-3 text-footnote text-muted-foreground">
                   El comprometido reserva recurrentes y cuotas por cobrar.
                 </p>
               )}
             </section>
             <section>
-              <h3 className="mb-3 text-base font-semibold">
+              <h3 className="mb-2 px-4 text-headline font-semibold">
                 Movimientos del período
               </h3>
               {txs.length === 0 ? (
-                <p className="py-4 text-base leading-relaxed text-muted-foreground">
+                <p className="px-4 py-4 text-body text-muted-foreground">
                   Todavía no hay movimientos en esta categoría.
                 </p>
               ) : (
-                <div className="divide-y">
+                <div className="sheet-group inset-list flex flex-col overflow-hidden [--inset:4.25rem]">
                   {txs.map((tx) => (
                     <MovementRow key={tx.id} tx={tx} onOpen={onOpenTx} />
                   ))}
@@ -119,25 +132,6 @@ export function CategoryDetailSheet({
               )}
             </section>
           </div>
-          <ModalFooter className="px-5">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12 text-base"
-              onClick={() => onOpenChange(false)}
-            >
-              Cerrar
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onEdit(category)}
-              className="h-12 flex-1 text-base"
-            >
-              <Pencil className="size-4" />
-              Editar categoría
-            </Button>
-          </ModalFooter>
         </>
       )}
       {children}

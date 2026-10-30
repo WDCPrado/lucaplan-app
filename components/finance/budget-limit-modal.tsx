@@ -7,8 +7,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { haptic } from "@/lib/haptics"
 import { monthlyBudgetSchema } from "@/lib/finance-form-schemas"
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
-import { Button } from "@/components/ui/button"
+import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { monthName } from "@/lib/finance-format"
 import {
@@ -80,6 +79,20 @@ export function BudgetLimitModal({
         onOpenChange(next)
       }}
       title={`Presupuesto de ${monthName(period.month)}`}
+      cancel={{
+        label: "Cancelar",
+        disabled: isSubmitting,
+        onClick: () => {
+          form.reset()
+          onOpenChange(false)
+        },
+      }}
+      primary={{
+        label: isSubmitting ? "Guardando…" : "Guardar presupuesto",
+        mobileLabel: isSubmitting ? "Guardando…" : "Guardar",
+        form: formId,
+        disabled: isSubmitting || (current !== null && !isDirty),
+      }}
     >
       <form
         id={formId}
@@ -88,7 +101,7 @@ export function BudgetLimitModal({
       >
         <fieldset disabled={isSubmitting} className="contents">
           {errors.root && (
-            <p role="alert" className="text-sm text-destructive">
+            <p role="alert" className="text-subheadline text-destructive">
               {errors.root.message}
             </p>
           )}
@@ -119,28 +132,6 @@ export function BudgetLimitModal({
           </FinanceField>
         </fieldset>
       </form>
-      <ModalFooter className="px-5">
-        <Button
-          type="button"
-          variant="outline"
-          className="h-12"
-          onClick={() => {
-            form.reset()
-            onOpenChange(false)
-          }}
-          disabled={isSubmitting}
-        >
-          Cancelar
-        </Button>
-        <Button
-          type="submit"
-          form={formId}
-          disabled={isSubmitting || (current !== null && !isDirty)}
-          className="h-12 flex-1 text-base"
-        >
-          {isSubmitting ? "Guardando…" : "Guardar presupuesto"}
-        </Button>
-      </ModalFooter>
     </ResponsiveModal>
   )
 }

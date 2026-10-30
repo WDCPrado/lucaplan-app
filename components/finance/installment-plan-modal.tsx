@@ -2,10 +2,14 @@
 
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Trash2 } from "lucide-react"
+import { Check, MoreHorizontal } from "lucide-react"
 import { toast } from "sonner"
 
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
+import {
+  ModalDangerRow,
+  ModalFooter,
+  ResponsiveModal,
+} from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -18,6 +22,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { formatCLP } from "@/lib/finance-format"
@@ -48,11 +58,11 @@ function ItemEditor({
   const over = max !== null && amount > max
   const changedAmount = amount !== item.amount
   return (
-    <li className="flex flex-col gap-2 border-b border-border/40 py-3 last:border-0">
+    <li className="flex flex-col gap-2 px-4 py-3">
       {/* Fecha y monto en filas propias: el texto de la fecha ("25 de diciembre de 2026") no cabe
           junto al monto en el ancho del drawer móvil. */}
       <div className="flex items-center gap-2">
-        <span className="tabular w-6 shrink-0 text-xs text-muted-foreground">
+        <span className="tabular w-6 shrink-0 text-footnote text-muted-foreground">
           {item.index}
         </span>
         <div className="min-w-0 flex-1">
@@ -70,30 +80,37 @@ function ItemEditor({
           aria-label={`Monto de la cuota ${item.index}`}
           aria-invalid={over}
           className={cn(
-            "tabular h-11 min-w-0 flex-1 rounded-lg bg-secondary/40 px-3 text-right text-base outline-none focus:bg-secondary",
+            "tabular h-11 min-w-0 flex-1 rounded-lg bg-(--glass-control) px-3 text-right text-body outline-none",
             over && "ring-1 ring-destructive"
           )}
         />
       </div>
       {over ? (
-        <p className="pl-8 text-xs text-destructive">
+        <p className="pl-8 text-footnote text-destructive">
           Máximo <span className="tabular">{formatCLP(max)}</span>: lo demás
           debe alcanzar para las cuotas pendientes.
         </p>
       ) : (
         max !== null &&
         changedAmount && (
-          <p className="pl-8 text-xs text-muted-foreground">
+          <p className="pl-8 text-footnote text-muted-foreground">
             Las cuotas pendientes se recalculan para mantener el total.
           </p>
         )
       )}
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onCancel}
+          disabled={busy}
+          className="h-11 text-body"
+        >
           Cancelar
         </Button>
         <Button
-          size="sm"
+          type="button"
+          className="h-11 text-body"
           onClick={() =>
             onSave(new Date(`${date}T12:00:00`).toISOString(), amount)
           }
@@ -106,11 +123,10 @@ function ItemEditor({
   )
 }
 
+// Solo los estados que no se leen del ícono: el check ya dice pagada y el número, pendiente.
 const STATUS_LABEL: Record<string, string> = {
-  paid: "Pagada",
-  outside_app: "Pagada antes",
+  outside_app: "Pagada fuera de la app",
   overdue: "Vencida",
-  upcoming: "Por venir",
 }
 
 function shortDate(iso: string): string {
@@ -175,7 +191,6 @@ export function InstallmentPlanModal({
   }
 
   const paidTotal = plan.totalAmount - plan.outstanding
-  const pct = Math.round((plan.settledCount / plan.installmentsCount) * 100)
 
   // El cronograma es suficiente para generar tanto cuotas de tarjeta como de consumo.
   // Usar su fecha conserva el mes/ciclo de la cuota al registrar pagos anteriores.
@@ -211,40 +226,25 @@ export function InstallmentPlanModal({
       title={plan.description}
     >
       <div className="flex flex-col px-5">
-        {/* Dato hero: lo que falta. El total pagado va debajo, como contexto. */}
-        <section className="border-b border-border/60 py-5">
-          <span className="tabular block text-3xl font-semibold">
+        {/* Dato hero: lo que falta. El avance va debajo, como contexto. */}
+        <section className="py-5">
+          <span className="tabular block text-hero font-bold">
             {formatCLP(plan.outstanding)}
           </span>
-          <span className="block text-sm text-muted-foreground">
+          <span className="block text-subheadline text-muted-foreground">
             por pagar de{" "}
             <span className="tabular">{formatCLP(plan.totalAmount)}</span>
           </span>
-          <span
-            className="mt-3 block h-1.5 w-full overflow-hidden rounded-full bg-muted"
-            aria-hidden
-          >
-            <span
-              className="block h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
-              style={{ width: `${pct}%` }}
-            />
-          </span>
-          <span className="mt-1.5 block text-xs text-muted-foreground">
+          <span className="mt-1.5 block text-footnote text-muted-foreground">
             {plan.settledCount} de {plan.installmentsCount} cuotas ·{" "}
             <span className="tabular">{formatCLP(paidTotal)}</span> pagados en{" "}
             {plan.accountName}
           </span>
         </section>
 
-        <p className="border-b border-border/60 py-4 text-xs text-muted-foreground">
-          Generar cuota crea su gasto y la marca pagada, sin esperar un correo del
-          banco. Usa el monto y la fecha del cronograma; puedes editarlos antes.
-          Si el movimiento ya existe, usa Asignar existente.
-        </p>
-
-        <section className="py-5">
-          <h3 className="mb-3 text-sm font-semibold">Cronograma</h3>
-          <ul className="flex flex-col">
+        <section className="pb-5">
+          <h3 className="mb-2 px-4 text-headline font-semibold">Cronograma</h3>
+          <ul className="sheet-group inset-list flex flex-col [--inset:3.25rem]">
             {plan.items.map((item) => {
               const settled =
                 item.status === "paid" || item.status === "outside_app"
@@ -275,102 +275,122 @@ export function InstallmentPlanModal({
                   />
                 )
               }
+              // En card una cuota ya registrada sigue siendo editable: su movimiento es un espejo
+              // del cronograma y la edición lo sincroniza. En loan el monto/fecha reales quedan
+              // registrados en el movimiento: pagada no se toca.
+              const canEdit = !settled || plan.kind === "card"
+              // Deshacer una asignación equivocada; si no, la única salida sería borrar el plan.
+              const canUnlink = item.status === "paid"
+              const notDueYet = item.dueDate.slice(0, 10) > todayKey()
+              const status = STATUS_LABEL[item.status]
               return (
-                <li
-                  key={item.id}
-                  className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border/40 py-3 last:border-0"
-                >
-                  <span
-                    className={cn(
-                      "grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-medium",
-                      item.status === "paid" && "bg-primary/15 text-primary",
-                      item.status === "outside_app" &&
-                        "bg-muted text-muted-foreground",
-                      item.status === "overdue" &&
-                        "bg-destructive/15 text-destructive",
-                      item.status === "upcoming" &&
-                        "bg-muted text-muted-foreground"
-                    )}
-                    aria-hidden
-                  >
-                    {item.status === "paid" ? (
-                      <Check className="size-3.5" />
-                    ) : (
-                      item.index
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm">
-                      {shortDate(item.dueDate)}
-                    </span>
+                // Fila limpia (n.º, fecha, monto) con el menú «…» a la derecha. «Generar cuota»
+                // aparece solo en la que ya se puede generar (vencida o del día): en las futuras
+                // sería un botón muerto.
+                <li key={item.id} className="flex flex-col py-1 pr-1 pl-4">
+                  <div className="grid min-h-11 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3">
                     <span
                       className={cn(
-                        "block text-xs",
-                        item.status === "overdue"
-                          ? "text-destructive"
-                          : "text-muted-foreground"
+                        "tabular grid size-6 shrink-0 place-items-center rounded-full text-caption font-medium",
+                        item.status === "paid" && "bg-primary/15 text-primary",
+                        item.status === "outside_app" &&
+                          "bg-muted text-muted-foreground",
+                        item.status === "overdue" &&
+                          "bg-destructive/15 text-destructive",
+                        item.status === "upcoming" &&
+                          "bg-muted text-muted-foreground"
                       )}
+                      aria-hidden
                     >
-                      {STATUS_LABEL[item.status]}
+                      {item.status === "paid" ? (
+                        <Check className="size-3.5" />
+                      ) : (
+                        item.index
+                      )}
                     </span>
-                  </span>
-                  <span className="tabular shrink-0 text-sm font-medium">
-                    {formatCLP(item.paidAmount ?? item.amount)}
-                  </span>
-                  <div className="col-span-3 flex flex-wrap justify-end gap-2 empty:hidden">
-                    {/* En card una cuota ya registrada sigue siendo editable: su movimiento es un
-                        espejo del cronograma y la edición lo sincroniza. En loan el monto/fecha
-                        reales quedan registrados en el movimiento: pagada no se toca. */}
-                    {(!settled || plan.kind === "card") && (
-                      <button
-                        type="button"
-                        onClick={() => setEditingId(item.id)}
-                        disabled={busy}
-                        className="min-h-11 shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-                      >
-                        Editar
-                      </button>
-                    )}
-                    {!settled && (
-                      <>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setLinking(item)}
-                          disabled={busy}
-                          className="min-h-11"
+                    <span className="min-w-0">
+                      <span className="block text-body">
+                        {shortDate(item.dueDate)}
+                        {/* El estado pagada/pendiente lo dice el ícono; para el lector, en texto. */}
+                        {!status && (
+                          <span className="sr-only">
+                            {settled ? ", pagada" : ", pendiente"}
+                          </span>
+                        )}
+                      </span>
+                      {status && (
+                        <span
+                          className={cn(
+                            "block text-footnote",
+                            item.status === "overdue"
+                              ? "text-destructive"
+                              : "text-muted-foreground"
+                          )}
                         >
-                          Asignar existente
-                        </Button>
-                        <Button
-                          type="button"
-                          onClick={() => payManually(item)}
-                          disabled={busy || item.dueDate.slice(0, 10) > todayKey()}
-                          title={item.dueDate.slice(0, 10) > todayKey() ? "Disponible desde el vencimiento" : undefined}
-                          className="min-h-11"
-                        >
-                          Generar cuota
-                        </Button>
-                      </>
-                    )}
-                    {/* Deshacer una asignación equivocada; si no, la única salida sería borrar el plan. */}
-                    {item.status === "paid" && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          patch(
-                            { itemId: item.id, unlink: true },
-                            "Movimiento soltado",
-                            "No se pudo soltar el movimiento"
-                          )
-                        }
-                        disabled={busy}
-                        className="min-h-11 shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-                      >
-                        Soltar
-                      </button>
+                          {status}
+                        </span>
+                      )}
+                    </span>
+                    <span className="tabular shrink-0 text-body font-medium">
+                      {formatCLP(item.paidAmount ?? item.amount)}
+                    </span>
+                    {!settled || canEdit || canUnlink ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={busy}
+                            aria-label={`Más acciones de la cuota ${item.index}`}
+                            className="size-11 shrink-0 text-muted-foreground"
+                          >
+                            <MoreHorizontal className="size-5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {canEdit && (
+                            <DropdownMenuItem
+                              onSelect={() => setEditingId(item.id)}
+                            >
+                              Editar
+                            </DropdownMenuItem>
+                          )}
+                          {!settled && (
+                            <DropdownMenuItem onSelect={() => setLinking(item)}>
+                              Asignar existente
+                            </DropdownMenuItem>
+                          )}
+                          {canUnlink && (
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                patch(
+                                  { itemId: item.id, unlink: true },
+                                  "Movimiento soltado",
+                                  "No se pudo soltar el movimiento"
+                                )
+                              }
+                            >
+                              Soltar
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <span className="size-11" aria-hidden />
                     )}
                   </div>
+                  {!settled && !notDueYet && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => payManually(item)}
+                      disabled={busy}
+                      className="press ml-6 h-11 self-start px-3 text-body font-semibold text-primary hover:bg-transparent hover:text-primary"
+                    >
+                      Generar cuota
+                    </Button>
+                  )}
                 </li>
               )
             })}
@@ -405,7 +425,7 @@ export function InstallmentPlanModal({
         {/* La compra que dio origen al plan quedó neutralizada: dejó de contar como gasto, pero se
             conserva para poder ver cuánto cobró el banco de una vez. */}
         {plan.sourceTransactionId && (
-          <p className="border-t border-border/60 py-4 text-xs text-muted-foreground">
+          <p className="px-4 pb-4 text-footnote text-muted-foreground">
             La compra original de{" "}
             <span className="tabular">{formatCLP(plan.totalAmount)}</span> se
             conserva en tus movimientos, pero ya no cuenta como gasto: ahora lo
@@ -413,40 +433,36 @@ export function InstallmentPlanModal({
           </p>
         )}
 
+        {/* Eliminar es destructivo y excepcional: fila de texto roja al final del cuerpo, lejos
+            de «Listo». */}
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <ModalDangerRow disabled={busy}>Eliminar plan</ModalDangerRow>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar este plan?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {plan.kind === "card" &&
+                plan.sourceTransactionId &&
+                !plan.items.some((i) => i.status === "paid")
+                  ? "La compra original vuelve a contar como gasto normal en su mes, como antes de pasarla a cuotas."
+                  : "Los movimientos de las cuotas ya registradas se conservan: son gastos que ocurrieron. Solo desaparece el plan que los agrupa."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={remove} variant="destructive">
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         <ModalFooter>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Eliminar plan"
-                className="size-12 shrink-0 text-destructive hover:text-destructive"
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>¿Eliminar este plan?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {plan.kind === "card" &&
-                  plan.sourceTransactionId &&
-                  !plan.items.some((i) => i.status === "paid")
-                    ? "La compra original vuelve a contar como gasto normal en su mes, como antes de pasarla a cuotas."
-                    : "Los movimientos de las cuotas ya registradas se conservan: son gastos que ocurrieron. Solo desaparece el plan que los agrupa."}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={remove} variant="destructive">
-                  Eliminar
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
           <Button
+            type="button"
             onClick={() => onOpenChange(false)}
-            className="h-12 flex-1 text-base"
+            className="h-12 flex-1 text-body"
           >
             Listo
           </Button>

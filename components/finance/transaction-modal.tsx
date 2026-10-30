@@ -18,16 +18,20 @@ import { useRouter } from "next/navigation"
 import { es } from "date-fns/locale"
 import {
   CalendarIcon,
+  ChevronRight,
   CircleDashed,
   CreditCard,
-  MoreHorizontal,
   PauseCircle,
   PlayCircle,
   Repeat,
-  Trash2,
 } from "lucide-react"
 import { toast } from "sonner"
-import { ModalFooter, ResponsiveModal } from "@/components/ui/responsive-modal"
+import {
+  ModalActions,
+  ModalDangerRow,
+  ModalSection,
+  ResponsiveModal,
+} from "@/components/ui/responsive-modal"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,13 +43,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Input } from "@/components/ui/input"
@@ -77,8 +74,7 @@ import type {
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 // Descripción de la cuenta de un movimiento: "Banco · •••• 1234" (o el nombre si no hay tarjeta).
-// Exportado: el triage de sin categoría reutiliza la misma línea de cuenta.
-export function accountLabel(account: AccountDTO | undefined): string | null {
+function accountLabel(account: AccountDTO | undefined): string | null {
   if (!account) return null
   const bank = account.bankName || account.name
   const card = account.cardLast4 ? `•••• ${account.cardLast4}` : account.name
@@ -137,7 +133,7 @@ function CategoryBudgetLine({
   if (!category || !line) return null
   return (
     <div className="w-full">
-      <div className="flex items-baseline justify-between gap-3 text-xs">
+      <div className="flex items-baseline justify-between gap-3 text-footnote">
         <span className="truncate text-muted-foreground">
           {category.name} este mes
         </span>
@@ -214,7 +210,7 @@ export function DatePicker({
           aria-invalid={invalid}
           aria-describedby={describedBy}
           variant="outline"
-          className="h-12 w-full justify-start rounded-lg text-base font-normal"
+          className="h-12 w-full justify-start rounded-lg text-body font-normal"
         >
           <CalendarIcon className="size-4 text-muted-foreground" />
           {selected ? (
@@ -288,18 +284,19 @@ export function TransactionModal({
       title={activeTx?.editable ? "Editar movimiento" : "Movimiento del banco"}
     >
       {!!links.length && (
-        <section aria-label="Movimientos relacionados" className="space-y-2 rounded-lg border border-border/70 p-3">
-          <p className="text-xs font-medium text-muted-foreground">Reembolso vinculado</p>
+        <div className="mb-6 px-5">
+        <ModalSection title="Reembolso vinculado">
           {links.map(link => (
             <button key={link.id} type="button" onClick={() => setRelatedTx(link.transaction)}
-              className="flex w-full items-center justify-between gap-3 rounded-md bg-secondary/50 px-3 py-2 text-left hover:bg-secondary">
-              <span className="min-w-0"><span className="block truncate text-sm font-medium">{link.transaction.description}</span>
-                <span className="block text-xs text-muted-foreground">{link.transaction.date.slice(0, 10)} · {link.transaction.direction === "credit" ? "Ingreso recibido" : "Compra original"}</span>
+              className="press flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2 text-left">
+              <span className="min-w-0"><span className="block truncate text-subheadline font-medium">{link.transaction.description}</span>
+                <span className="block text-footnote text-muted-foreground">{link.transaction.date.slice(0, 10)} · {link.transaction.direction === "credit" ? "Ingreso recibido" : "Compra original"}</span>
               </span>
-              <span className="shrink-0 text-sm font-semibold tabular-nums">${link.amount.toLocaleString("es-CL")} CLP →</span>
+              <span className="flex shrink-0 items-center gap-1 text-subheadline font-semibold tabular-nums">${link.amount.toLocaleString("es-CL")} CLP<ChevronRight aria-hidden className="size-4 text-muted-foreground/60" /></span>
             </button>
           ))}
-        </section>
+        </ModalSection>
+        </div>
       )}
       {activeTx && (activeTx.editable ? (
         <EditForm key={activeTx.id} tx={activeTx} account={account} accounts={accounts} categories={categories} onClose={() => onOpenChange(false)} />
@@ -452,7 +449,7 @@ function EditForm({
       {apiError && (
         <p
           role="alert"
-          className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
+          className="rounded-lg bg-destructive/10 p-3 text-subheadline text-destructive"
         >
           {apiError}
         </p>
@@ -466,11 +463,11 @@ function EditForm({
           id={`transaction-description-${tx.id}-${instanceId}`}
           {...form.register("description")}
           inputMode="text"
-          className="h-12 text-base"
+          className="h-12 text-body"
         />
       </FinanceField>
       <div className="flex flex-col gap-3">
-        <span className="text-sm font-medium">Tipo de movimiento</span>
+        <span className="text-subheadline font-medium">Tipo de movimiento</span>
         <DirectionToggle
           value={direction}
           onChange={changeDirection}
@@ -503,7 +500,7 @@ function EditForm({
         )}
       />
       {isInstallment && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-subheadline text-muted-foreground">
           El monto de una cuota se edita en su plan de cuotas.
         </p>
       )}
@@ -513,7 +510,7 @@ function EditForm({
       />
 
       {accountLabel(account) && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-subheadline text-muted-foreground">
           <CreditCard className="size-4 shrink-0" />
           <span className="truncate">{accountLabel(account)}</span>
         </div>
@@ -544,14 +541,14 @@ function EditForm({
       />
 
       <div>
-        <Label className="mb-1 block text-xs">Categoría</Label>
+        <Label className="mb-1 block text-footnote">Categoría</Label>
         {visibleCategories.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-subheadline text-muted-foreground">
             Sin categorías de {direction === "credit" ? "ingreso" : "gasto"}.
           </p>
         ) : (
           <>
-            <div className="-mx-5 flex scrollbar-none gap-2 overflow-x-auto px-5 pb-1">
+            <div className="flex flex-wrap gap-2">
               {/* Sin categoría solo si NO es recurrente ni cuota: plantilla y plan exigen una,
                   y quitarla aquí los dejaría sin la suya. */}
               {!tx.recurringTemplateId && !isInstallment && (
@@ -588,13 +585,13 @@ function EditForm({
               ))}
             </div>
             {tx.recurringTemplateId && (
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-2 text-footnote text-muted-foreground">
                 Cambiarla también recategoriza la recurrencia. Para dejarlo sin
                 categoría, elimina antes la recurrencia.
               </p>
             )}
             {isInstallment && (
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-2 text-footnote text-muted-foreground">
                 Cambiarla recategoriza el plan de cuotas completo: todas sus
                 cuotas y la compra original.
               </p>
@@ -603,79 +600,65 @@ function EditForm({
         )}
       </div>
 
-      <ModalFooter>
-        {showConversions && (
-          <div className="flex min-w-0 basis-full flex-col gap-2">
-            <div className="flex flex-wrap gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={conversionsDisabled}
-                aria-describedby={
-                  form.formState.isDirty
-                    ? `transaction-conversions-${tx.id}-${instanceId}`
-                    : undefined
-                }
-                onClick={() => {
-                  haptic("light")
-                  setMakeRecurring(true)
-                }}
-                className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
-              >
-                <Repeat className="size-4 shrink-0" />
-                Hacer recurrente
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={conversionsDisabled}
-                aria-describedby={
-                  form.formState.isDirty
-                    ? `transaction-conversions-${tx.id}-${instanceId}`
-                    : undefined
-                }
-                onClick={() => {
-                  haptic("light")
-                  if (isCreditCard) setMakeInstallments(true)
-                  else setAssignInstallment(true)
-                }}
-                className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
-              >
-                <CreditCard className="size-4 shrink-0" />
-                {isCreditCard ? "Pasar a cuotas" : "Es una cuota"}
-              </Button>
-            </div>
-            {form.formState.isDirty && (
-              <p
-                id={`transaction-conversions-${tx.id}-${instanceId}`}
-                className="text-sm text-muted-foreground"
-              >
+      {/* Convertir el movimiento: filas de una lista agrupada que abren su propio formulario. */}
+      {showConversions && (
+        <ModalSection
+          className="[--inset:3rem]"
+          footer={
+            form.formState.isDirty && (
+              <p id={`transaction-conversions-${tx.id}-${instanceId}`}>
                 Guarda los cambios antes de hacer recurrente o pasar a cuotas.
               </p>
-            )}
-          </div>
-        )}
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onClose}
-          disabled={busy !== null}
-          className="h-12"
+            )
+          }
         >
-          Cancelar
-        </Button>
+          <button
+            type="button"
+            disabled={conversionsDisabled}
+            aria-describedby={
+              form.formState.isDirty
+                ? `transaction-conversions-${tx.id}-${instanceId}`
+                : undefined
+            }
+            onClick={() => {
+              haptic("light")
+              setMakeRecurring(true)
+            }}
+            className={NAV_ROW}
+          >
+            <Repeat className="size-5 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1">Hacer recurrente</span>
+            <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+          </button>
+          <button
+            type="button"
+            disabled={conversionsDisabled}
+            aria-describedby={
+              form.formState.isDirty
+                ? `transaction-conversions-${tx.id}-${instanceId}`
+                : undefined
+            }
+            onClick={() => {
+              haptic("light")
+              if (isCreditCard) setMakeInstallments(true)
+              else setAssignInstallment(true)
+            }}
+            className={NAV_ROW}
+          >
+            <CreditCard className="size-5 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1">
+              {isCreditCard ? "Pasar a cuotas" : "Es una cuota"}
+            </span>
+            <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+          </button>
+        </ModalSection>
+      )}
+
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled={busy !== null}
-              className="size-12 shrink-0 text-destructive hover:text-destructive"
-              aria-label="Eliminar movimiento"
-            >
-              <Trash2 className="size-4" />
-            </Button>
+            <ModalDangerRow disabled={busy !== null}>
+              Eliminar movimiento
+            </ModalDangerRow>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -700,15 +683,19 @@ function EditForm({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        <Button
-          type="submit"
-          form={`edit-transaction-${tx.id}-${instanceId}`}
-          disabled={!canSave}
-          className="h-auto min-h-12 min-w-0 flex-1 py-3 text-base whitespace-normal"
-        >
-          {busy === "save" ? "Guardando…" : "Guardar"}
-        </Button>
-      </ModalFooter>
+
+      <ModalActions
+        cancel={{
+          label: "Cancelar",
+          onClick: onClose,
+          disabled: busy !== null,
+        }}
+        primary={{
+          label: busy === "save" ? "Guardando…" : "Guardar",
+          form: `edit-transaction-${tx.id}-${instanceId}`,
+          disabled: !canSave,
+        }}
+      />
     </form>
   )
 
@@ -965,7 +952,7 @@ function ConnectedDetail({
     <div className="flex flex-col gap-8 px-5">
       <div className="flex flex-col items-center gap-1 pt-2 text-center">
         <div
-          className={`tabular text-4xl font-bold ${income ? "text-success" : "text-foreground"}`}
+          className={`tabular text-large-title font-bold ${income ? "text-success" : "text-foreground"}`}
         >
           {income ? "+" : "−"}
           {tx.currency === "CLP"
@@ -973,11 +960,11 @@ function ConnectedDetail({
             : formatMoney(Math.abs(tx.amount), tx.currency as CurrencyCode)}
         </div>
         {tx.amountClp != null && (
-          <div className="tabular text-sm text-muted-foreground">
+          <div className="tabular text-subheadline text-muted-foreground">
             ≈ {formatCLP(Math.abs(tx.amountClp))} · dólar del día
           </div>
         )}
-        <div className="text-sm text-balance text-muted-foreground">
+        <div className="text-subheadline text-balance text-muted-foreground">
           {tx.description}
         </div>
       </div>
@@ -986,7 +973,7 @@ function ConnectedDetail({
         category={categories.find((c) => c.id === categoryId)}
       />
 
-      <dl className="flex flex-col">
+      <dl className="sheet-group flex flex-col px-4">
         {account && (
           <Row label="Banco" value={account.bankName || account.name} />
         )}
@@ -1075,15 +1062,15 @@ function ConnectedDetail({
       </dl>
 
       <div>
-        <Label className="mb-2 block text-xs">Categoría</Label>
+        <Label className="mb-2 block text-footnote">Categoría</Label>
         {visibleCategories.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-subheadline text-muted-foreground">
             Sin categorías de {income ? "ingreso" : "gasto"}. Crea una para
             clasificar este movimiento.
           </p>
         ) : (
           <>
-            <div className="-mx-5 flex scrollbar-none gap-2 overflow-x-auto px-5 pb-1">
+            <div className="flex flex-wrap gap-2">
               {/* Sin categoría solo si NO es recurrente ni de un plan de cuotas: plantilla y plan
                   exigen una, y quitarla aquí los dejaría sin la suya. */}
               {!tx.recurringTemplateId && !inInstallmentPlan && (
@@ -1120,13 +1107,13 @@ function ConnectedDetail({
               ))}
             </div>
             {tx.recurringTemplateId && (
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-2 text-footnote text-muted-foreground">
                 Cambiarla también recategoriza la recurrencia. Para dejarlo sin
                 categoría, elimina antes la recurrencia.
               </p>
             )}
             {inInstallmentPlan && (
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-2 text-footnote text-muted-foreground">
                 Cambiarla recategoriza el plan de cuotas completo: todas sus
                 cuotas y la compra original.
               </p>
@@ -1135,134 +1122,101 @@ function ConnectedDetail({
         )}
       </div>
 
-      <ModalFooter>
-        {tx.recurringTemplateId ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                disabled={saving}
-                aria-label="Acciones de la recurrencia"
-                className="size-12 shrink-0"
-              >
-                <MoreHorizontal className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" side="top">
-              <DropdownMenuItem onSelect={toggleRecurring}>
-                {recurringActive ? (
-                  <>
-                    <PauseCircle className="size-4" /> Pausar recurrencia
-                  </>
-                ) : (
-                  <>
-                    <PlayCircle className="size-4" /> Reanudar recurrencia
-                  </>
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={() => setConfirmDelete(true)}
-              >
-                <Trash2 className="size-4" /> Eliminar recurrencia
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          // Descubrimiento: crear la recurrente se queda a la vista, no escondido en el menú.
-          // Una compra ya repartida en cuotas no admite recurrente ni volver a pasarse a cuotas.
-          // Las conversiones van en una fila discreta (ghost, gris); Cerrar y Guardar quedan debajo.
-          showConversions && (
-            <div className="flex w-full min-w-0 flex-wrap gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  haptic("light")
-                  setMakeRecurring(true)
-                }}
-                disabled={saving}
-                className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
-              >
-                <Repeat className="size-4" />
-                Hacer recurrente
-              </Button>
-              {/* En crédito, el movimiento es la COMPRA y se reparte en cuotas: el plan la
-                  reemplaza. En cualquier otra cuenta, el movimiento ES una cuota de una deuda que
-                  ya existe, y lo que corresponde es asignarlo — no crear nada. */}
-              {isCreditCard ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    haptic("light")
-                    setMakeInstallments(true)
-                  }}
-                  disabled={saving}
-                  className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
-                >
-                  <CreditCard className="size-4" />
-                  Pasar a cuotas
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    haptic("light")
-                    setAssignInstallment(true)
-                  }}
-                  disabled={saving}
-                  className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
-                >
-                  <CreditCard className="size-4" />
-                  Es una cuota
-                </Button>
-              )}
-            </div>
-          )
-        )}
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onClose}
+      {/* La recurrencia que generó el movimiento se gestiona aquí, en filas: pausar en azul y
+          eliminar aparte, en rojo y con confirmación. */}
+      {tx.recurringTemplateId && (
+        <ModalSection title="Recurrencia">
+          <button
+            type="button"
+            onClick={toggleRecurring}
+            disabled={saving}
+            className={NAV_ROW}
+          >
+            {recurringActive ? (
+              <PauseCircle className="size-5 shrink-0 text-primary" />
+            ) : (
+              <PlayCircle className="size-5 shrink-0 text-primary" />
+            )}
+            <span className="min-w-0 flex-1 text-primary">
+              {recurringActive ? "Pausar recurrencia" : "Reanudar recurrencia"}
+            </span>
+          </button>
+        </ModalSection>
+      )}
+      {/* Descubrimiento: crear la recurrente se queda a la vista, no escondido en un menú. Una
+          compra ya repartida en cuotas no admite recurrente ni volver a pasarse a cuotas. En
+          crédito, el movimiento es la COMPRA y se reparte en cuotas: el plan la reemplaza. En
+          cualquier otra cuenta, el movimiento ES una cuota de una deuda que ya existe, y lo que
+          corresponde es asignarlo — no crear nada. */}
+      {!tx.recurringTemplateId && showConversions && (
+        <ModalSection className="[--inset:3rem]">
+          <button
+            type="button"
+            onClick={() => {
+              haptic("light")
+              setMakeRecurring(true)
+            }}
+            disabled={saving}
+            className={NAV_ROW}
+          >
+            <Repeat className="size-5 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1">Hacer recurrente</span>
+            <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              haptic("light")
+              if (isCreditCard) setMakeInstallments(true)
+              else setAssignInstallment(true)
+            }}
+            disabled={saving}
+            className={NAV_ROW}
+          >
+            <CreditCard className="size-5 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1">
+              {isCreditCard ? "Pasar a cuotas" : "Es una cuota"}
+            </span>
+            <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+          </button>
+        </ModalSection>
+      )}
+      {tx.recurringTemplateId && (
+        <ModalDangerRow
+          onClick={() => setConfirmDelete(true)}
           disabled={saving}
-          className="h-12"
         >
-          Cerrar
-        </Button>
-        {/* Eliminar: los ingresos (los abona el usuario) y los gastos SIN categoría — ruido del
-            banco que nadie clasificó— y cobros sobrantes de cuotas verificados por el servidor.
-            Se mira la categoría GUARDADA, no la elegida en pantalla.
-            Nunca los generados por recurrencia o plan de cuotas: se gestionan en su origen. */}
-        {(income || !tx.categoryId || tx.duplicateInstallmentPayment) &&
-          !tx.recurringTemplateId &&
-          !inInstallmentPlan &&
-          !tx.installmentForecast && (
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={() => setConfirmDeleteTx(true)}
-              disabled={saving}
-              aria-label={income ? "Eliminar ingreso" : "Eliminar gasto"}
-              className="size-12 shrink-0 text-destructive hover:text-destructive"
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          )}
-        <Button
-          type="button"
-          onClick={saveCategory}
-          disabled={!changed || saving}
-          className="h-auto min-h-12 min-w-0 flex-1 py-3 text-base whitespace-normal"
-        >
-          {saving ? "Guardando…" : changed ? "Guardar categoría" : "Guardado"}
-        </Button>
-      </ModalFooter>
+          Eliminar recurrencia
+        </ModalDangerRow>
+      )}
+      {/* Eliminar: los ingresos (los abona el usuario) y los gastos SIN categoría — ruido del
+          banco que nadie clasificó— y cobros sobrantes de cuotas verificados por el servidor.
+          Se mira la categoría GUARDADA, no la elegida en pantalla.
+          Nunca los generados por recurrencia o plan de cuotas: se gestionan en su origen. */}
+      {(income || !tx.categoryId || tx.duplicateInstallmentPayment) &&
+        !tx.recurringTemplateId &&
+        !inInstallmentPlan &&
+        !tx.installmentForecast && (
+          <ModalDangerRow
+            onClick={() => setConfirmDeleteTx(true)}
+            disabled={saving}
+          >
+            {income ? "Eliminar ingreso" : "Eliminar gasto"}
+          </ModalDangerRow>
+        )}
+      <ModalActions
+        cancel={{ label: "Cerrar", onClick: onClose, disabled: saving }}
+        primary={{
+          label: saving
+            ? "Guardando…"
+            : changed
+              ? "Guardar categoría"
+              : "Guardado",
+          mobileLabel: saving ? "Guardando…" : "Guardar",
+          onClick: saveCategory,
+          disabled: !changed || saving,
+        }}
+      />
 
       <AlertDialog open={confirmDeleteTx} onOpenChange={setConfirmDeleteTx}>
         <AlertDialogContent>
@@ -1390,11 +1344,15 @@ function ConnectedDetail({
   )
 }
 
+// Fila de una lista agrupada que abre otra cosa: ícono, texto y chevron; 44 px de alto.
+const NAV_ROW =
+  "press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body disabled:opacity-50"
+
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-border/50 py-3 last:border-0">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="text-right text-sm font-medium">{value}</dd>
+      <dt className="text-subheadline text-muted-foreground">{label}</dt>
+      <dd className="text-right text-subheadline font-medium">{value}</dd>
     </div>
   )
 }
@@ -1410,7 +1368,7 @@ export function DirectionToggle({
   disabled?: boolean
 }) {
   return (
-    <div className="flex w-full overflow-hidden rounded-lg border">
+    <div className="flex w-full gap-0.5 rounded-xl bg-(--glass-control) p-0.5">
       {(["debit", "credit"] as const).map((d) => (
         <button
           key={d}
@@ -1423,7 +1381,7 @@ export function DirectionToggle({
           aria-pressed={value === d}
           aria-label={d === "debit" ? "Gasto" : "Ingreso"}
           className={cn(
-            "flex h-12 flex-1 items-center justify-center gap-2 px-4 text-sm font-medium transition-colors disabled:opacity-50",
+            "flex h-11 flex-1 items-center justify-center gap-2 rounded-[calc(var(--radius-xl)-0.125rem)] px-4 text-subheadline font-medium transition-colors disabled:opacity-50",
             value === d &&
               (d === "debit"
                 ? "bg-primary text-primary-foreground"
@@ -1459,10 +1417,10 @@ export function Chip({
       disabled={disabled}
       aria-pressed={active}
       className={cn(
-        "flex min-h-11 shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
+        "flex min-h-11 max-w-full shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-left text-subheadline transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
         active
           ? "border-primary bg-primary/10 text-primary"
-          : "text-muted-foreground"
+          : "border-transparent bg-(--glass-control) text-muted-foreground"
       )}
     >
       {children}

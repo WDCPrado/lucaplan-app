@@ -824,7 +824,7 @@ export default function Home() {
               </div>
               <div className="flex flex-col gap-0.5 pb-2">
                 {demoMovements.map((tx) => (
-                  <MovementRow key={tx.id} tx={tx} />
+                  <MovementRow key={tx.id} tx={tx} showRemaining />
                 ))}
               </div>
             </div>
@@ -921,7 +921,7 @@ export default function Home() {
                 className="z-10 flex w-72 shrink-0 snap-center snap-always lg:absolute lg:top-82 lg:-left-14 lg:-rotate-3"
               >
                 <div className="flex w-full lg:landing-float-b lg:drop-shadow-2xl">
-                  <AccountCard account={demoChecking} />
+                  <AccountCard account={demoChecking} showConnected />
                 </div>
               </div>
               <div
@@ -929,7 +929,7 @@ export default function Home() {
                 className="z-10 flex w-72 shrink-0 snap-center snap-always lg:absolute lg:top-[23rem] lg:right-2 lg:rotate-2"
               >
                 <div className="flex w-full lg:landing-float-a lg:drop-shadow-2xl">
-                  <AccountCard account={demoCredit} />
+                  <AccountCard account={demoCredit} showConnected />
                 </div>
               </div>
             </div>
@@ -1126,7 +1126,7 @@ export default function Home() {
             </div>
             <div className="flex flex-col gap-0.5 pb-2">
               {demoCategorized.map((tx) => (
-                <MovementRow key={tx.id} tx={tx} />
+                <MovementRow key={tx.id} tx={tx} showRemaining />
               ))}
             </div>
           </div>
@@ -1518,6 +1518,7 @@ export default function Home() {
           // force-light: el portal se monta fuera de [data-landing]; sin esto, con tema
           // dark el modal saldría oscuro sobre una landing siempre clara.
           className="force-light"
+          headerClassName="max-md:pt-5 max-md:pb-6 max-md:text-left max-md:[&>div:empty]:hidden"
         >
           <ScrollArea className="max-h-[62dvh] px-6">
             <div className="pb-8">{LEGAL[legal].body}</div>

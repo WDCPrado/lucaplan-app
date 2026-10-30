@@ -209,7 +209,7 @@ export function CategoryModal({
       >
         <fieldset disabled={busy} className="contents">
           {errors.root && (
-            <p role="alert" className="text-sm text-destructive">
+            <p role="alert" className="text-subheadline text-destructive">
               {errors.root.message}
             </p>
           )}
@@ -224,7 +224,7 @@ export function CategoryModal({
               id={`${formId}-name`}
               required
               inputMode="text"
-              className="h-12 text-base"
+              className="h-12 text-body"
               placeholder="Ej. Supermercado"
               aria-invalid={!!errors.name}
               aria-describedby={
@@ -250,11 +250,11 @@ export function CategoryModal({
                   >
                     <SelectTrigger
                       id={`${formId}-type`}
-                      className="h-12! w-full text-base"
+                      className="h-12! w-full text-body"
                     >
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-popover backdrop-blur-none">
+                    <SelectContent>
                       <SelectItem value="expense">Gasto</SelectItem>
                       <SelectItem value="income">Ingreso</SelectItem>
                     </SelectContent>
@@ -317,7 +317,7 @@ export function CategoryModal({
             </section>
           )}
           <fieldset className="space-y-3">
-            <legend className="text-sm font-medium">Icono</legend>
+            <legend className="text-subheadline font-medium">Icono</legend>
             <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
               {CATEGORY_ICONS.map(({ name, Icon }) => (
                 <Button
@@ -340,7 +340,7 @@ export function CategoryModal({
             </div>
           </fieldset>
           <fieldset className="space-y-3">
-            <legend className="text-sm font-medium">Color</legend>
+            <legend className="text-subheadline font-medium">Color</legend>
             <div className="flex flex-wrap gap-2">
               {palette.map((value) => (
                 <button
@@ -385,7 +385,7 @@ export function CategoryModal({
                   }
                   onBlur={field.onBlur}
                   rows={2}
-                  className="text-base"
+                  className="text-body"
                   placeholder="Ej. Comida y mercadería para la casa"
                   aria-invalid={!!errors.description}
                   aria-describedby={`${formId}-description-${errors.description ? "error" : "hint"}`}
@@ -425,7 +425,7 @@ export function CategoryModal({
           type="submit"
           form={formId}
           disabled={busy || (!!category && !isDirty)}
-          className="h-12 flex-1 text-base"
+          className="h-12 flex-1 text-body"
         >
           {isSubmitting ? "Guardando…" : "Guardar categoría"}
         </Button>

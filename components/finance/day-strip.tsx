@@ -64,20 +64,20 @@ export function DayStrip({
             title={formatCLP(amount)}
             onClick={() => onSelect(day)}
             className={cn(
-              "flex h-24 w-9 shrink-0 flex-col items-center justify-end gap-1.5 rounded-lg px-0.5 pt-1.5 pb-1 transition-colors hover:bg-glass sm:w-auto sm:flex-1",
-              selected && "bg-accent ring-1 ring-primary/40"
+              "press flex h-24 w-11 shrink-0 flex-col items-center justify-end gap-1.5 rounded-lg px-0.5 pt-1.5 pb-1 hover:bg-accent/60 sm:w-auto sm:flex-1",
+              selected && "bg-primary/12 hover:bg-primary/12"
             )}
           >
             <span
               className={cn(
-                "w-full max-w-[18px] rounded-t-[4px] rounded-b-[2px] transition-[height] duration-300",
+                "w-full max-w-[18px] rounded-t-[4px] rounded-b-[2px] transition-[height] duration-300 motion-reduce:transition-none",
                 future ? "bg-muted-foreground/25" : "bg-primary"
               )}
               style={{ height }}
             />
             <span
               className={cn(
-                "text-[11px] text-muted-foreground tabular-nums",
+                "text-caption text-muted-foreground tabular-nums",
                 selected && !isToday && "font-semibold text-foreground",
                 isToday &&
                   "rounded-full bg-primary px-1.5 py-px font-semibold text-primary-foreground"

@@ -55,15 +55,15 @@ export function MonthPicker({
         <div className="mb-2 flex items-center justify-between">
           <button
             onClick={() => setYear((y) => y - 1)}
-            className="grid size-9 place-items-center rounded-lg transition-colors hover:bg-accent"
+            className="grid size-11 place-items-center rounded-lg transition-colors hover:bg-foreground/10 md:size-9"
             aria-label="Año anterior"
           >
             <ChevronLeft className="size-4" />
           </button>
-          <span className="text-sm font-semibold tabular-nums">{year}</span>
+          <span className="text-subheadline font-semibold tabular-nums">{year}</span>
           <button
             onClick={() => setYear((y) => y + 1)}
-            className="grid size-9 place-items-center rounded-lg transition-colors hover:bg-accent"
+            className="grid size-11 place-items-center rounded-lg transition-colors hover:bg-foreground/10 md:size-9"
             aria-label="Año siguiente"
           >
             <ChevronRight className="size-4" />
@@ -83,10 +83,10 @@ export function MonthPicker({
                   onSelect(year, m)
                 }}
                 className={cn(
-                  "h-11 rounded-lg text-sm transition-colors md:h-9",
+                  "h-11 rounded-lg text-subheadline transition-colors md:h-9",
                   selected
                     ? "bg-primary font-semibold text-primary-foreground"
-                    : "hover:bg-accent",
+                    : "hover:bg-foreground/10",
                   !selected && isNow && "ring-1 ring-primary/50"
                 )}
               >

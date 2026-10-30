@@ -95,9 +95,10 @@ export function AccountCard({
           : undefined
       }
       className={cn(
-        // Sombra corta y contenida: una larga se recorta contra el borde del carrusel (overflow-x)
-        "relative flex min-h-40 w-full flex-col justify-between overflow-hidden rounded-xl p-5 text-white shadow-[0_1px_2px_rgb(0_0_0/0.08),0_8px_20px_-10px_rgb(0_0_0/0.25)]",
-        onClick && "cursor-pointer transition-transform hover:-translate-y-0.5"
+        // Sin sombra: la tarjeta se separa del fondo grouped por su propio color, como en Wallet.
+        "account-card relative flex min-h-40 w-full flex-col justify-between overflow-hidden rounded-xl p-5 text-white",
+        onClick &&
+          "cursor-pointer transition-transform duration-150 ease-out hover:-translate-y-0.5 active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100"
       )}
       style={
         art
@@ -116,7 +117,7 @@ export function AccountCard({
       )}
 
       <div className="relative flex items-start justify-between gap-2">
-        <div className="text-lg font-semibold tracking-tight [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
+        <div className="text-headline font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
           {account.bankName || account.name}
         </div>
         {connected && (
@@ -131,8 +132,8 @@ export function AccountCard({
         // Crédito: UN héroe (el cupo disponible principal) + el otro cupo como chip, y el uso como
         // barra + frase. Misma gramática que la rama corriente: etiqueta → número grande → contexto.
         <div className="relative">
-          <div className="text-xs text-white/75">Disponible</div>
-          <div className="tabular text-3xl font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
+          <div className="text-caption text-white/75">Disponible</div>
+          <div className="tabular text-title-1 font-bold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
             {hidden
               ? "••••••"
               : formatMoney(primary.available, primary.currency as CurrencyCode)}
@@ -140,7 +141,7 @@ export function AccountCard({
           {/* El cupo secundario va DEBAJO, no al lado: en la misma línea, dos montos largos
               (CLP de siete dígitos + USD) se salen del ancho de la tarjeta. */}
           {chip && (
-            <span className="tabular mt-1.5 inline-block rounded-lg bg-white/15 px-2 py-0.5 text-xs backdrop-blur">
+            <span className="tabular mt-1.5 inline-block rounded-lg bg-white/15 px-2 py-0.5 text-caption backdrop-blur">
               {hidden
                 ? "••••"
                 : formatMoney(chip.available, chip.currency as CurrencyCode)}
@@ -149,7 +150,7 @@ export function AccountCard({
           {primary.limit > 0 && (
             <>
               <CapacityBar usedPct={usedPct} />
-              <div className="tabular mt-1 text-xs text-white/70">
+              <div className="tabular mt-1 text-caption text-white/70">
                 Usado{" "}
                 {hidden
                   ? "••••"
@@ -171,10 +172,10 @@ export function AccountCard({
       ) : (
         // Cuenta corriente (cash + sobregiro) o cuenta manual (saldo simple).
         <div className="relative">
-          <div className="text-xs text-white/75">Saldo {account.currency}</div>
+          <div className="text-caption text-white/75">Saldo {account.currency}</div>
           <div
             className={cn(
-              "tabular text-3xl font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]",
+              "tabular text-title-1 font-bold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]",
               (cash ? cash.available : account.balance) < 0 && "text-red-300"
             )}
           >
@@ -186,7 +187,7 @@ export function AccountCard({
           {overdraft && overdraft.limit > 0 && (
             <>
               <CapacityBar usedPct={(overdraft.used / overdraft.limit) * 100} />
-              <div className="tabular mt-1 text-xs text-white/70">
+              <div className="tabular mt-1 text-caption text-white/70">
                 {overdraft.used > 0 ? (
                   <>
                     Sobregiro usado{" "}
@@ -206,7 +207,7 @@ export function AccountCard({
       )}
 
       <div className="relative space-y-1.5">
-        <div className="flex items-center justify-between gap-2 text-sm text-white/85">
+        <div className="flex items-center justify-between gap-2 text-footnote text-white/85">
           <span className="tabular truncate tracking-widest">
             {account.cardLast4 ? `•••• ${account.cardLast4}` : account.name}
           </span>

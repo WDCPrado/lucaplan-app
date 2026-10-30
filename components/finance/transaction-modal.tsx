@@ -137,7 +137,7 @@ function CategoryBudgetLine({
   if (!category || !line) return null
   return (
     <div className="w-full">
-      <div className="flex items-baseline justify-between gap-3 text-xs">
+      <div className="flex items-baseline justify-between gap-3 text-footnote">
         <span className="truncate text-muted-foreground">
           {category.name} este mes
         </span>
@@ -214,7 +214,7 @@ export function DatePicker({
           aria-invalid={invalid}
           aria-describedby={describedBy}
           variant="outline"
-          className="h-12 w-full justify-start rounded-lg text-base font-normal"
+          className="h-12 w-full justify-start rounded-lg text-body font-normal"
         >
           <CalendarIcon className="size-4 text-muted-foreground" />
           {selected ? (
@@ -288,15 +288,15 @@ export function TransactionModal({
       title={activeTx?.editable ? "Editar movimiento" : "Movimiento del banco"}
     >
       {!!links.length && (
-        <section aria-label="Movimientos relacionados" className="space-y-2 rounded-lg border border-border/70 p-3">
-          <p className="text-xs font-medium text-muted-foreground">Reembolso vinculado</p>
+        <section aria-label="Movimientos relacionados" className="sheet-group space-y-2 p-3">
+          <p className="text-footnote font-medium text-muted-foreground">Reembolso vinculado</p>
           {links.map(link => (
             <button key={link.id} type="button" onClick={() => setRelatedTx(link.transaction)}
-              className="flex w-full items-center justify-between gap-3 rounded-md bg-secondary/50 px-3 py-2 text-left hover:bg-secondary">
-              <span className="min-w-0"><span className="block truncate text-sm font-medium">{link.transaction.description}</span>
-                <span className="block text-xs text-muted-foreground">{link.transaction.date.slice(0, 10)} · {link.transaction.direction === "credit" ? "Ingreso recibido" : "Compra original"}</span>
+              className="press flex min-h-11 w-full items-center justify-between gap-3 rounded-md bg-(--glass-control) px-3 py-2 text-left">
+              <span className="min-w-0"><span className="block truncate text-subheadline font-medium">{link.transaction.description}</span>
+                <span className="block text-footnote text-muted-foreground">{link.transaction.date.slice(0, 10)} · {link.transaction.direction === "credit" ? "Ingreso recibido" : "Compra original"}</span>
               </span>
-              <span className="shrink-0 text-sm font-semibold tabular-nums">${link.amount.toLocaleString("es-CL")} CLP →</span>
+              <span className="shrink-0 text-subheadline font-semibold tabular-nums">${link.amount.toLocaleString("es-CL")} CLP →</span>
             </button>
           ))}
         </section>
@@ -452,7 +452,7 @@ function EditForm({
       {apiError && (
         <p
           role="alert"
-          className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
+          className="rounded-lg bg-destructive/10 p-3 text-subheadline text-destructive"
         >
           {apiError}
         </p>
@@ -466,11 +466,11 @@ function EditForm({
           id={`transaction-description-${tx.id}-${instanceId}`}
           {...form.register("description")}
           inputMode="text"
-          className="h-12 text-base"
+          className="h-12 text-body"
         />
       </FinanceField>
       <div className="flex flex-col gap-3">
-        <span className="text-sm font-medium">Tipo de movimiento</span>
+        <span className="text-subheadline font-medium">Tipo de movimiento</span>
         <DirectionToggle
           value={direction}
           onChange={changeDirection}
@@ -503,7 +503,7 @@ function EditForm({
         )}
       />
       {isInstallment && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-subheadline text-muted-foreground">
           El monto de una cuota se edita en su plan de cuotas.
         </p>
       )}
@@ -513,7 +513,7 @@ function EditForm({
       />
 
       {accountLabel(account) && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-subheadline text-muted-foreground">
           <CreditCard className="size-4 shrink-0" />
           <span className="truncate">{accountLabel(account)}</span>
         </div>
@@ -544,9 +544,9 @@ function EditForm({
       />
 
       <div>
-        <Label className="mb-1 block text-xs">Categoría</Label>
+        <Label className="mb-1 block text-footnote">Categoría</Label>
         {visibleCategories.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-subheadline text-muted-foreground">
             Sin categorías de {direction === "credit" ? "ingreso" : "gasto"}.
           </p>
         ) : (
@@ -588,13 +588,13 @@ function EditForm({
               ))}
             </div>
             {tx.recurringTemplateId && (
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-2 text-footnote text-muted-foreground">
                 Cambiarla también recategoriza la recurrencia. Para dejarlo sin
                 categoría, elimina antes la recurrencia.
               </p>
             )}
             {isInstallment && (
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-2 text-footnote text-muted-foreground">
                 Cambiarla recategoriza el plan de cuotas completo: todas sus
                 cuotas y la compra original.
               </p>
@@ -620,7 +620,7 @@ function EditForm({
                   haptic("light")
                   setMakeRecurring(true)
                 }}
-                className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
+                className="h-auto min-h-11 min-w-0 px-2 text-subheadline whitespace-normal text-muted-foreground"
               >
                 <Repeat className="size-4 shrink-0" />
                 Hacer recurrente
@@ -639,7 +639,7 @@ function EditForm({
                   if (isCreditCard) setMakeInstallments(true)
                   else setAssignInstallment(true)
                 }}
-                className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
+                className="h-auto min-h-11 min-w-0 px-2 text-subheadline whitespace-normal text-muted-foreground"
               >
                 <CreditCard className="size-4 shrink-0" />
                 {isCreditCard ? "Pasar a cuotas" : "Es una cuota"}
@@ -648,7 +648,7 @@ function EditForm({
             {form.formState.isDirty && (
               <p
                 id={`transaction-conversions-${tx.id}-${instanceId}`}
-                className="text-sm text-muted-foreground"
+                className="text-subheadline text-muted-foreground"
               >
                 Guarda los cambios antes de hacer recurrente o pasar a cuotas.
               </p>
@@ -704,7 +704,7 @@ function EditForm({
           type="submit"
           form={`edit-transaction-${tx.id}-${instanceId}`}
           disabled={!canSave}
-          className="h-auto min-h-12 min-w-0 flex-1 py-3 text-base whitespace-normal"
+          className="h-auto min-h-12 min-w-0 flex-1 py-3 text-body whitespace-normal"
         >
           {busy === "save" ? "Guardando…" : "Guardar"}
         </Button>
@@ -965,7 +965,7 @@ function ConnectedDetail({
     <div className="flex flex-col gap-8 px-5">
       <div className="flex flex-col items-center gap-1 pt-2 text-center">
         <div
-          className={`tabular text-4xl font-bold ${income ? "text-success" : "text-foreground"}`}
+          className={`tabular text-large-title font-bold ${income ? "text-success" : "text-foreground"}`}
         >
           {income ? "+" : "−"}
           {tx.currency === "CLP"
@@ -973,11 +973,11 @@ function ConnectedDetail({
             : formatMoney(Math.abs(tx.amount), tx.currency as CurrencyCode)}
         </div>
         {tx.amountClp != null && (
-          <div className="tabular text-sm text-muted-foreground">
+          <div className="tabular text-subheadline text-muted-foreground">
             ≈ {formatCLP(Math.abs(tx.amountClp))} · dólar del día
           </div>
         )}
-        <div className="text-sm text-balance text-muted-foreground">
+        <div className="text-subheadline text-balance text-muted-foreground">
           {tx.description}
         </div>
       </div>
@@ -986,7 +986,7 @@ function ConnectedDetail({
         category={categories.find((c) => c.id === categoryId)}
       />
 
-      <dl className="flex flex-col">
+      <dl className="sheet-group flex flex-col px-4">
         {account && (
           <Row label="Banco" value={account.bankName || account.name} />
         )}
@@ -1075,9 +1075,9 @@ function ConnectedDetail({
       </dl>
 
       <div>
-        <Label className="mb-2 block text-xs">Categoría</Label>
+        <Label className="mb-2 block text-footnote">Categoría</Label>
         {visibleCategories.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-subheadline text-muted-foreground">
             Sin categorías de {income ? "ingreso" : "gasto"}. Crea una para
             clasificar este movimiento.
           </p>
@@ -1120,13 +1120,13 @@ function ConnectedDetail({
               ))}
             </div>
             {tx.recurringTemplateId && (
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-2 text-footnote text-muted-foreground">
                 Cambiarla también recategoriza la recurrencia. Para dejarlo sin
                 categoría, elimina antes la recurrencia.
               </p>
             )}
             {inInstallmentPlan && (
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-2 text-footnote text-muted-foreground">
                 Cambiarla recategoriza el plan de cuotas completo: todas sus
                 cuotas y la compra original.
               </p>
@@ -1185,7 +1185,7 @@ function ConnectedDetail({
                   setMakeRecurring(true)
                 }}
                 disabled={saving}
-                className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
+                className="h-auto min-h-11 min-w-0 px-2 text-subheadline whitespace-normal text-muted-foreground"
               >
                 <Repeat className="size-4" />
                 Hacer recurrente
@@ -1202,7 +1202,7 @@ function ConnectedDetail({
                     setMakeInstallments(true)
                   }}
                   disabled={saving}
-                  className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
+                  className="h-auto min-h-11 min-w-0 px-2 text-subheadline whitespace-normal text-muted-foreground"
                 >
                   <CreditCard className="size-4" />
                   Pasar a cuotas
@@ -1216,7 +1216,7 @@ function ConnectedDetail({
                     setAssignInstallment(true)
                   }}
                   disabled={saving}
-                  className="h-auto min-h-11 min-w-0 px-2 text-sm whitespace-normal text-muted-foreground"
+                  className="h-auto min-h-11 min-w-0 px-2 text-subheadline whitespace-normal text-muted-foreground"
                 >
                   <CreditCard className="size-4" />
                   Es una cuota
@@ -1258,7 +1258,7 @@ function ConnectedDetail({
           type="button"
           onClick={saveCategory}
           disabled={!changed || saving}
-          className="h-auto min-h-12 min-w-0 flex-1 py-3 text-base whitespace-normal"
+          className="h-auto min-h-12 min-w-0 flex-1 py-3 text-body whitespace-normal"
         >
           {saving ? "Guardando…" : changed ? "Guardar categoría" : "Guardado"}
         </Button>
@@ -1393,8 +1393,8 @@ function ConnectedDetail({
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-border/50 py-3 last:border-0">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="text-right text-sm font-medium">{value}</dd>
+      <dt className="text-subheadline text-muted-foreground">{label}</dt>
+      <dd className="text-right text-subheadline font-medium">{value}</dd>
     </div>
   )
 }
@@ -1410,7 +1410,7 @@ export function DirectionToggle({
   disabled?: boolean
 }) {
   return (
-    <div className="flex w-full overflow-hidden rounded-lg border">
+    <div className="flex w-full gap-0.5 rounded-lg bg-(--glass-control) p-0.5">
       {(["debit", "credit"] as const).map((d) => (
         <button
           key={d}
@@ -1423,7 +1423,7 @@ export function DirectionToggle({
           aria-pressed={value === d}
           aria-label={d === "debit" ? "Gasto" : "Ingreso"}
           className={cn(
-            "flex h-12 flex-1 items-center justify-center gap-2 px-4 text-sm font-medium transition-colors disabled:opacity-50",
+            "flex h-11 flex-1 items-center justify-center gap-2 rounded-md px-4 text-subheadline font-medium transition-colors disabled:opacity-50",
             value === d &&
               (d === "debit"
                 ? "bg-primary text-primary-foreground"
@@ -1459,10 +1459,10 @@ export function Chip({
       disabled={disabled}
       aria-pressed={active}
       className={cn(
-        "flex min-h-11 shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
+        "flex min-h-11 shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-subheadline whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
         active
           ? "border-primary bg-primary/10 text-primary"
-          : "text-muted-foreground"
+          : "border-transparent bg-(--glass-control) text-muted-foreground"
       )}
     >
       {children}

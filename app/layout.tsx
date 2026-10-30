@@ -8,23 +8,24 @@ import { PwaRefresh } from "@/components/pwa/pwa-refresh"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 
-// Tipografía: Geist (UI, legible y moderna) + Space Grotesk (headings, identidad
-// fintech) + Geist Mono (cifras tabulares). Ver docs/design/design-system.md.
+// Tipografía: la app usa la fuente del sistema (SF en Apple) y cae a Geist en el resto; Space
+// Grotesk queda solo para los titulares de la landing y Geist Mono para código. Las pilas viven en
+// globals.css. Ver docs/design/design-system.md.
 const fontSans = Geist({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-geist",
 })
 
 const fontHeading = Space_Grotesk({
   subsets: ["latin"],
   weight: ["500", "600", "700"],
-  variable: "--font-heading",
+  variable: "--font-grotesk",
 })
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
   weight: ["400", "500"],
-  variable: "--font-mono",
+  variable: "--font-geist-mono",
 })
 
 export const metadata: Metadata = {
@@ -71,8 +72,8 @@ export const viewport: Viewport = {
   viewportFit: "cover",
   interactiveWidget: "overlays-content",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f9fafc" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f141d" },
+    { media: "(prefers-color-scheme: light)", color: "#f2f2f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
   ],
 }
 

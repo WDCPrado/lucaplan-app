@@ -26,20 +26,20 @@ export function FinanceField({
 }) {
   return (
     <div className="min-w-0 space-y-2">
-      <Label htmlFor={id} className="text-sm font-medium">
+      <Label htmlFor={id} className="text-subheadline font-medium">
         {label}
         {required && <span aria-hidden="true"> *</span>}
       </Label>
       {children}
       {error && (
-        <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
+        <p id={`${id}-error`} role="alert" className="text-subheadline text-destructive">
           {error}
         </p>
       )}
       {hint && (
         <p
           id={`${id}-hint`}
-          className="text-sm leading-relaxed text-muted-foreground"
+          className="text-footnote text-muted-foreground"
         >
           {hint}
         </p>
@@ -82,7 +82,7 @@ export function MoneyFormInput({
             scale
         )
       }
-      className={`tabular h-12 text-base ${props.className ?? ""}`}
+      className={`tabular h-12 text-body ${props.className ?? ""}`}
     />
   )
 }

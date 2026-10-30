@@ -157,11 +157,11 @@ export function PlanSheet({
           const planned = payDate.toISOString().slice(0, 10)
           return !inc.generated || planned > todayKey()
         }).length > 0 && (
-          <section className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
-            <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+          <section className="rounded-xl bg-warning/10 p-4">
+            <h3 className="text-subheadline font-semibold text-warning">
               Ingresos pendientes del ciclo anterior
             </h3>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-footnote text-muted-foreground">
               Son para cubrir la factura anterior. Un ingreso generado en la app no significa que el banco lo haya abonado.
             </p>
             {previousCycleIncomes.filter((inc) => {
@@ -172,7 +172,7 @@ export function PlanSheet({
               ))
               return !inc.generated || payDate.toISOString().slice(0, 10) > todayKey()
             }).map((inc) => (
-              <div key={inc.id} className="border-b border-amber-500/20 last:border-0">
+              <div key={inc.id} className="border-b border-warning/20 last:border-0">
                 <IncomeRow
                   income={inc}
                   period={{
@@ -193,37 +193,37 @@ export function PlanSheet({
         )}
         {/* Presupuesto del mes */}
         <section>
-          <h3 className="mb-3 text-base font-semibold">Presupuesto del mes</h3>
+          <h3 className="mb-2 px-4 text-headline font-semibold">Presupuesto del mes</h3>
           {globalLimit === null ? (
             <button
               type="button"
               onClick={onEditBudget}
-              className="flex w-full items-center justify-between gap-3 rounded-lg border-2 border-dashed border-border px-4 py-3 text-left text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+              className="sheet-group press flex min-h-11 w-full items-center justify-between gap-3 px-4 py-3 text-left text-muted-foreground"
             >
               <span className="min-w-0">
-                <span className="block text-sm font-medium">
+                <span className="block text-body font-medium text-primary">
                   Definir presupuesto del mes
                 </span>
-                <span className="block text-xs">
+                <span className="block text-footnote">
                   Fija un límite global para repartir entre categorías
                 </span>
               </span>
-              <Plus className="size-5 shrink-0" />
+              <Plus className="size-5 shrink-0 text-primary" />
             </button>
           ) : (
             <button
               type="button"
               onClick={onEditBudget}
               aria-label="Editar presupuesto del mes"
-              className="group w-full rounded-lg bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-accent"
+              className="sheet-group press group w-full px-4 py-3 text-left"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="tabular text-2xl font-bold">
+                <span className="tabular text-title-1 font-bold">
                   {formatCLP(globalLimit)}
                 </span>
                 <Pencil className="size-4 shrink-0 text-muted-foreground opacity-60 transition-opacity group-hover:opacity-100" />
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">
+              <div className="mt-1 text-footnote text-muted-foreground">
                 Asignado <span className="tabular">{formatCLP(allocated)}</span>{" "}
                 de <span className="tabular">{formatCLP(globalLimit)}</span>
               </div>
@@ -235,7 +235,7 @@ export function PlanSheet({
               que el presupuesto queda más chico —sin ningún rastro de por qué—. También es lo
               único que queda cuando la deuda se comió el ingreso y no hay botón que ofrecer. */}
           {previousMonthDebt > 0 && (
-            <p className="mt-3 text-sm text-muted-foreground">
+            <p className="mt-3 text-subheadline text-muted-foreground">
               En {previousMonth} se gastó{" "}
               <span className="tabular font-semibold text-foreground">
                 {formatMoney(previousMonthDebt, "CLP")}
@@ -259,8 +259,8 @@ export function PlanSheet({
           )}
 
           {suggest && (
-            <div className="mt-3 flex flex-col gap-2 rounded-xl bg-muted/40 p-3">
-              <p className="text-sm">
+            <div className="sheet-group mt-3 flex flex-col gap-2 p-4">
+              <p className="text-subheadline">
                 Tus ingresos suman{" "}
                 <span className="tabular font-semibold">
                   {formatMoney(activeIncomeTotal, "CLP")}
@@ -285,8 +285,8 @@ export function PlanSheet({
 
         {/* Ingresos: una fila por fuente, con su estado del mes */}
         <section>
-          <h3 className="mb-3 text-base font-semibold">Ingresos</h3>
-          <div className="divide-y divide-border/40">
+          <h3 className="mb-2 px-4 text-headline font-semibold">Ingresos</h3>
+          <div className="sheet-group inset-list px-4 [--inset:3.5rem]">
             {incomes.map((inc) => (
               <IncomeRow
                 key={inc.id}
@@ -306,19 +306,19 @@ export function PlanSheet({
             <button
               type="button"
               onClick={onAddIncome}
-              className="flex w-full items-center gap-3 py-2.5 text-left text-muted-foreground transition-colors hover:text-foreground"
+              className="press flex w-full items-center gap-3 py-2.5 text-left text-primary"
             >
-              <span className="grid size-11 shrink-0 place-items-center rounded-lg border-2 border-dashed border-border text-lg">
-                +
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10">
+                <Plus className="size-5" aria-hidden="true" />
               </span>
               {incomes.length > 0 ? (
-                <span className="text-sm">Agregar ingreso</span>
+                <span className="text-subheadline">Agregar ingreso</span>
               ) : (
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium">
+                  <span className="block text-subheadline font-medium">
                     Registra tus ingresos
                   </span>
-                  <span className="block text-xs">
+                  <span className="block text-footnote text-muted-foreground">
                     Sueldo, arriendo u otros · planifica cuánto entra
                   </span>
                 </span>
@@ -330,7 +330,7 @@ export function PlanSheet({
         {/* Categorías de ingreso: mismo patrón visual que las de gasto */}
         {incomeCategories.length > 0 && (
           <section>
-            <h3 className="mb-3 text-base font-semibold">
+            <h3 className="mb-2 px-4 text-headline font-semibold">
               Categorías de ingreso
             </h3>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -340,7 +340,7 @@ export function PlanSheet({
                     type="button"
                     key={c.id}
                     onClick={() => onOpenIncomeCategory(c)}
-                    className="flex min-h-16 min-w-0 items-center gap-3 rounded-lg border p-3 text-left"
+                    className="sheet-group press flex min-h-16 min-w-0 items-center gap-3 p-3 text-left"
                   >
                     <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-muted">
                       <CategoryIcon
@@ -350,12 +350,12 @@ export function PlanSheet({
                       />
                     </span>
                     <span className="min-w-0 flex-1 text-left">
-                      <span className="block truncate text-sm font-medium">
+                      <span className="block truncate text-subheadline font-medium">
                         {c.name}
                       </span>
                       {/* Lo recibido en el mes: el "disponible" de una categoría de ingreso sin
                           meta era $0 justo debajo de un sueldo ya recibido. */}
-                      <span className="tabular block text-xs break-words text-muted-foreground">
+                      <span className="tabular block text-footnote break-words text-muted-foreground">
                         {formatCLP(c.used)}
                       </span>
                     </span>
@@ -365,13 +365,13 @@ export function PlanSheet({
               <button
                 type="button"
                 onClick={onNewIncomeCategory}
-                className="flex min-h-16 min-w-0 items-center gap-3 rounded-lg border p-3 text-left"
+                className="sheet-group press flex min-h-16 min-w-0 items-center gap-3 p-3 text-left text-primary"
                 aria-label="Nueva categoría de ingreso"
               >
-                <span className="grid size-11 shrink-0 place-items-center rounded-lg border border-border text-2xl text-muted-foreground">
-                  +
+                <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10">
+                  <Plus className="size-5" aria-hidden="true" />
                 </span>
-                <span className="text-xs text-muted-foreground">Nueva</span>
+                <span className="text-subheadline">Nueva</span>
               </button>
             </div>
           </section>
@@ -381,12 +381,12 @@ export function PlanSheet({
             reparte. El saldo se recalcula al escribir; cada tope tiene un guardado explícito. */}
         {expenseCategories.length > 0 && (
           <section className="pb-2">
-            <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
-              <h3 className="text-base font-semibold">Topes por categoría</h3>
+            <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3 px-4">
+              <h3 className="text-headline font-semibold">Topes por categoría</h3>
               {left !== null && (
                 <span
                   className={cn(
-                    "tabular text-sm",
+                    "tabular text-subheadline",
                     left < 0 ? "text-destructive" : "text-muted-foreground"
                   )}
                 >
@@ -398,11 +398,11 @@ export function PlanSheet({
                 </span>
               )}
             </div>
-            <p className="mb-3 text-sm leading-relaxed text-muted-foreground">
+            <p className="mb-3 px-4 text-footnote text-muted-foreground">
               Puedes dejar dinero por repartir. Si superas el presupuesto, te
               avisamos sin bloquear.
             </p>
-            <div className="divide-y divide-border/40">
+            <div className="sheet-group inset-list px-4 [--inset:3.5rem]">
               {expenseCategories.map((c) => (
                 <LimitRow
                   // El tope guardado cambia con el refresh: la fila se rehace con el valor nuevo.
@@ -420,7 +420,7 @@ export function PlanSheet({
         <Button
           type="button"
           variant="outline"
-          className="h-12 flex-1 text-base"
+          className="h-12 flex-1 text-body"
           onClick={() => {
             setDrafts({})
             onOpenChange(false)
@@ -499,7 +499,7 @@ function LimitRow({
         </span>
         <label
           htmlFor={fieldId}
-          className="min-w-0 flex-1 text-base font-medium"
+          className="min-w-0 flex-1 text-body font-medium"
         >
           {category.name}
         </label>
@@ -531,13 +531,13 @@ function LimitRow({
         <p
           id={`${fieldId}-error`}
           role="alert"
-          className="text-sm text-destructive"
+          className="text-subheadline text-destructive"
         >
           {errors.limit.message}
         </p>
       )}
       {errors.root && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-subheadline text-destructive">
           {errors.root.message}
         </p>
       )}
@@ -663,16 +663,16 @@ function IncomeRow({
         className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left"
       >
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium">
+          <span className="block truncate text-subheadline font-medium">
             {income.name}
           </span>
-          <span className="block truncate text-xs text-muted-foreground">
+          <span className="block truncate text-footnote text-muted-foreground">
             {when}
           </span>
         </span>
       </button>
       <div className="col-start-2 flex min-w-0 flex-wrap items-center justify-between gap-2 sm:col-start-auto sm:flex-col sm:items-end">
-        <span className="tabular min-w-0 text-sm font-semibold break-words text-success">
+        <span className="tabular min-w-0 text-subheadline font-semibold break-words text-success">
           +{formatMoney(income.amount, income.currency as CurrencyCode)}
         </span>
         <button
@@ -681,7 +681,7 @@ function IncomeRow({
           disabled={busy || (priorCycle && income.generated)}
           title={income.generated ? "Deshacer" : "Registrar el ingreso del mes"}
           className={cn(
-            "flex min-h-11 items-center gap-1 rounded-lg px-3 text-sm font-medium transition-colors disabled:opacity-50",
+            "flex min-h-11 items-center gap-1 rounded-lg px-3 text-subheadline font-medium transition-colors disabled:opacity-50",
             income.generated
               ? "bg-success/10 text-success"
               : "bg-primary text-primary-foreground"

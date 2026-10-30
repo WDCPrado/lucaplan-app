@@ -220,24 +220,37 @@ export function Dashboard({
     const commPct =
       c.limit > 0 ? Math.min(100 - pct, (c.committed / c.limit) * 100) : 0
     return (
+      // Fila de lista agrupada estilo Ajustes: icono en cuadrado de color, nombre, «X de Y» y el
+      // chevron de que abre el detalle; debajo, barra fina y ritmo alineados con el nombre.
       <button
         key={c.id}
         onClick={() => setDetail(c)}
-        className="flex flex-col gap-1.5 rounded-lg px-1.5 py-2 text-left transition-colors hover:bg-accent/50"
+        className="press flex min-h-11 w-full items-start gap-3 py-3 pr-3 pl-4 text-left hover:bg-accent/60"
       >
-        <div className="flex items-center gap-2">
-          <CategoryIcon icon={c.icon} size={16} color={c.color ?? undefined} />
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+        <span
+          aria-hidden
+          className="grid size-7 shrink-0 place-items-center rounded-md text-white"
+          style={{ background: c.color ?? "var(--muted-foreground)" }}
+        >
+          <CategoryIcon icon={c.icon} size={16} />
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex min-h-7 items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-body">
             {c.name}
           </span>
-          <span className="tabular shrink-0 text-xs text-muted-foreground">
+          <span className="tabular shrink-0 text-subheadline text-muted-foreground">
             {c.limit > 0
               ? `${formatCLP(c.used)} de ${formatCLP(c.limit)}`
               : `sin tope · ${formatCLP(c.used)}`}
           </span>
+          <ChevronRight
+            aria-hidden
+            className="size-4 shrink-0 text-muted-foreground/60"
+          />
         </div>
         {/* Mismo semáforo que el arco (statusVar): gastado sólido + comprometido tenue detrás. */}
-        <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+        <div className="mr-6 flex h-1.5 overflow-hidden rounded-full bg-muted">
           <div
             className="h-full transition-[width] duration-500 ease-out"
             style={{ width: `${pct}%`, background: statusVar(c.status) }}
@@ -256,12 +269,12 @@ export function Dashboard({
             gastado, no mueve la meta, y la semana vale lo mismo el lunes que el jueves.
             Semáforo silencioso: gris bajo 80%, alerta 80–100%, excedido >100%. `pace` solo viene
             en el mes en curso y con tope; sin margen de período se mantiene el aviso de siempre. */}
-        <div className="flex items-baseline justify-between gap-2">
+        <div className="mr-6 flex items-baseline justify-between gap-2">
           {c.pace ? (
             c.pace.budget > 0 ? (
               <p
                 className={cn(
-                  "text-xs",
+                  "text-footnote",
                   c.pace.status === "excedido"
                     ? "text-destructive"
                     : c.pace.status === "alerta"
@@ -291,7 +304,7 @@ export function Dashboard({
                 )}
               </p>
             ) : (
-              <p className="text-xs text-destructive">
+              <p className="text-footnote text-destructive">
                 Sin margen
                 {c.available < 0 && (
                   <>
@@ -311,7 +324,7 @@ export function Dashboard({
           {c.limit > 0 && (
             <p
               className={cn(
-                "shrink-0 text-xs",
+                "shrink-0 text-footnote",
                 c.available < 0 ? "text-destructive" : "text-muted-foreground"
               )}
             >
@@ -328,6 +341,7 @@ export function Dashboard({
               )}
             </p>
           )}
+        </div>
         </div>
       </button>
     )
@@ -459,7 +473,8 @@ export function Dashboard({
       onSearch={() => setSearchOpen(true)}
       title="Inicio"
       actions={
-        // Móvil: columna invertida → selector arriba y "Hoy" colgando debajo; escritorio: fila.
+        // Móvil: columna invertida → selector arriba y "Hoy" colgando debajo, cada uno en su cápsula
+        // de vidrio flotante; escritorio: fila de chips dentro del topbar.
         <div className="pointer-events-none flex flex-col-reverse items-center gap-2 *:pointer-events-auto md:flex-row">
           {!isCurrentMonth && (
             <button
@@ -467,15 +482,15 @@ export function Dashboard({
                 haptic("light")
                 router.push("/dashboard")
               }}
-              className="rounded-lg bg-secondary px-3.5 py-1.5 text-sm font-semibold transition-colors hover:bg-accent"
+              className="press liquid-glass min-h-11 rounded-full px-4 text-subheadline font-semibold text-primary md:min-h-0 md:rounded-lg md:bg-secondary md:py-1.5 md:text-foreground md:shadow-none md:backdrop-blur-none md:before:hidden md:hover:bg-accent"
             >
               Hoy
             </button>
           )}
-          <div className="flex items-center gap-1 rounded-lg bg-secondary px-1.5 py-1">
+          <div className="liquid-glass min-h-11 rounded-full px-1 flex items-center gap-1 md:min-h-0 md:rounded-lg md:bg-secondary md:py-1 md:shadow-none md:backdrop-blur-none md:before:hidden">
             <button
               onClick={() => goMonth(-1)}
-              className="grid size-8 place-items-center rounded-md hover:bg-background"
+              className="relative grid size-8 place-items-center rounded-md after:absolute after:-inset-1.5 hover:bg-background"
               aria-label="Mes anterior"
             >
               <ChevronLeft className="size-4" />
@@ -490,7 +505,7 @@ export function Dashboard({
             />
             <button
               onClick={() => goMonth(1)}
-              className="grid size-8 place-items-center rounded-md hover:bg-background"
+              className="relative grid size-8 place-items-center rounded-md after:absolute after:-inset-1.5 hover:bg-background"
               aria-label="Mes siguiente"
             >
               <ChevronRight className="size-4" />
@@ -499,7 +514,9 @@ export function Dashboard({
         </div>
       }
     >
-      <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
+      <div className="mx-auto w-full max-w-6xl px-4 pt-1 pb-6 md:pt-6 lg:px-8">
+        {/* Móvil: título grande de iOS bajo la barra; en escritorio el título vive en el topbar. */}
+        <h1 className="mb-3 text-large-title font-bold md:hidden">Inicio</h1>
         <div className="flex flex-col gap-5">
           {/* Estado del mes: la respuesta a "¿cuánto puedo gastar hoy?" antes que cualquier
               detalle. Desde acá se abre el plan (ingresos y presupuesto), que es lo que lo
@@ -554,16 +571,16 @@ export function Dashboard({
               id="presupuestos"
               className="min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1"
             >
-              <div className="mb-3 flex items-start justify-between gap-2">
+              <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-                  <h2 className="font-heading text-lg font-bold">
+                  <h2 className="text-title-3 font-bold">
                     Ritmo por categoría
                   </h2>
                   {/* Los días que faltan valen para todas las categorías: se dicen una vez acá,
                       no repetidos en cada fila. En angosto bajan a su propia línea: al lado del
                       título partían el título en dos y se truncaban. */}
                   {daysLeft > 0 && (
-                    <span className="basis-full text-sm text-muted-foreground sm:basis-auto">
+                    <span className="basis-full text-subheadline text-muted-foreground sm:basis-auto">
                       {daysLeft === 1
                         ? "queda 1 día"
                         : `quedan ${daysLeft} días`}
@@ -576,43 +593,46 @@ export function Dashboard({
                     setEditCat(null)
                   }}
                   aria-label="Nueva categoría de gasto"
-                  className="flex shrink-0 items-center gap-1.5 text-sm text-primary"
+                  className="press flex min-h-11 shrink-0 items-center gap-1 text-body text-primary"
                 >
                   <Plus className="size-4" /> Categoría
                 </button>
               </div>
-              <div className="glass rounded-xl p-4">
+              {/* Lista agrupada: las filas se separan con líneas finas que arrancan en el texto
+                  (--inset = margen + icono + espacio), no con bordes de tarjeta. */}
+              <div className="glass inset-list overflow-hidden rounded-xl [--inset:3.5rem]">
                 {expenseCategories.length === 0 ? (
                   <button
                     onClick={() => {
                       setNewCatType("expense")
                       setEditCat(null)
                     }}
-                    className="flex w-full flex-col items-center gap-2 py-6 text-muted-foreground"
+                    className="press flex w-full flex-col items-center gap-2 py-8 text-muted-foreground"
                   >
                     <span className="grid size-18 place-items-center rounded-xl border-2 border-dashed border-border text-2xl">
                       +
                     </span>
-                    <span className="text-sm">Crear categoría</span>
+                    <span className="text-subheadline">Crear categoría</span>
                   </button>
                 ) : (
                   // Lista vertical de barras: gastado + comprometido sobre el tope, con el ritmo
                   // del período y lo que queda del mes debajo. El arco sigue viviendo en el detalle.
-                  <div className="flex flex-col">
+                  <div className="inset-list flex flex-col [--inset:3.5rem]">
                     {cappedCategories.map(renderExpenseCat)}
                     {/* Fuera del plan: consultables, cerradas al entrar o cambiar de período. */}
                     {uncappedCategories.length > 0 && (
                       <Collapsible
                         key={periodKey}
                         defaultOpen={false}
-                        className="mt-3"
                       >
                         <CollapsibleTrigger asChild>
                           <button
                             type="button"
-                            className="group flex min-h-11 w-full items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground hover:bg-accent/50 focus-visible:outline-2 focus-visible:outline-ring"
+                            className="press group flex min-h-11 w-full items-center gap-3 py-2.5 pr-3 pl-4 text-left text-subheadline text-muted-foreground hover:bg-accent/60 focus-visible:outline-2 focus-visible:outline-ring"
                           >
-                            <ChevronRight className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+                            <span className="grid size-7 shrink-0 place-items-center">
+                              <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90 motion-reduce:transition-none" />
+                            </span>
                             <span className="flex-1">
                               Sin tope · fuera del presupuesto
                             </span>
@@ -622,10 +642,10 @@ export function Dashboard({
                           </button>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
-                          <p className="px-1.5 pb-2 text-xs text-muted-foreground">
+                          <p className="pr-3 pb-2 pl-14 text-footnote text-muted-foreground">
                             No afectan lo gastado ni lo disponible del plan.
                           </p>
-                          <div className="flex flex-col">
+                          <div className="inset-list flex flex-col [--inset:3.5rem]">
                             {uncappedCategories.map(renderExpenseCat)}
                           </div>
                         </CollapsibleContent>
@@ -636,27 +656,37 @@ export function Dashboard({
                         setNewCatType("expense")
                         setEditCat(null)
                       }}
-                      className="flex min-h-11 w-full items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                      className="press flex min-h-11 w-full items-center gap-3 py-2.5 pr-3 pl-4 text-left text-body text-primary hover:bg-accent/60"
                       aria-label="Nueva categoría de gasto"
                     >
-                      <CirclePlus className="size-4 shrink-0" />
+                      <span className="grid size-7 shrink-0 place-items-center">
+                        <CirclePlus className="size-5" />
+                      </span>
                       Nueva categoría
                     </button>
                   </div>
                 )}
                 {/* Los ingresos se ven y editan en el plan del mes ("Ajustar plan"): acá solo la
                     puerta, con el total activo, para no repetir las filas en dos superficies. */}
-                <div className="mt-2 border-t border-border/40 pt-2">
+                <div>
                   <button
                     onClick={() => setPlanOpen(true)}
-                    className="flex min-h-11 w-full items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                    className="press flex min-h-11 w-full items-center gap-3 py-2.5 pr-3 pl-4 text-left text-body hover:bg-accent/60"
                   >
-                    <TrendingUp className="size-4 shrink-0" />
+                    <span
+                      aria-hidden
+                      className="grid size-7 shrink-0 place-items-center rounded-md bg-success text-success-foreground"
+                    >
+                      <TrendingUp className="size-4" />
+                    </span>
                     Ingresos
-                    <span className="tabular ml-auto text-foreground">
+                    <span className="tabular ml-auto text-subheadline text-muted-foreground">
                       {formatCLP(activeIncomeTotal)}
                     </span>
-                    <ChevronRight className="size-4 shrink-0" />
+                    <ChevronRight
+                      aria-hidden
+                      className="size-4 shrink-0 text-muted-foreground/60"
+                    />
                   </button>
                 </div>
               </div>
@@ -668,25 +698,25 @@ export function Dashboard({
               id="movimientos"
               className="min-w-0 max-lg:pb-6 lg:col-start-2 lg:row-start-1"
             >
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="truncate font-heading text-lg font-bold">
+              <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
+                <h2 className="truncate text-title-3 font-bold">
                   {formatDateHeader(dayIso)}
                 </h2>
                 {dayTransactions.length > 0 && (
-                  <span className="tabular shrink-0 text-right text-sm text-muted-foreground">
-                    <span className="block text-xs">Gastado del plan</span>
+                  <span className="tabular shrink-0 text-right text-subheadline text-muted-foreground">
+                    <span className="block text-caption">Gastado del plan</span>
                     {formatCLP(daySpent)}
                   </span>
                 )}
               </div>
               {dayTransactions.length === 0 ? (
-                <p className="glass-strong rounded-xl py-10 text-center text-sm text-muted-foreground">
+                <p className="glass-strong rounded-xl py-10 text-center text-subheadline text-muted-foreground">
                   {selectedDay === today
                     ? "Sin movimientos hoy"
                     : "Sin movimientos ese día"}
                 </p>
               ) : (
-                <div className="glass flex flex-col gap-0.5 rounded-xl p-2">
+                <div className="glass inset-list flex flex-col overflow-hidden rounded-xl [--inset:4.5rem]">
                   {dayTransactions.map((t) => (
                     <MovementRow
                       key={t.id}
@@ -694,12 +724,17 @@ export function Dashboard({
                       onOpen={setDetailTx}
                       // Tocar el arco del movimiento abre el detalle de SU categoría (no el movimiento).
                       onOpenCategory={openCategory}
+                      className="press min-h-11 rounded-none px-4 hover:bg-accent/60"
                     />
                   ))}
                 </div>
               )}
               {/* El resto del período (y la búsqueda) vive en Movimientos. */}
-              <Button asChild variant="outline" className="mt-3 h-11 w-full">
+              <Button
+                asChild
+                variant="ghost"
+                className="press mt-3 h-11 w-full rounded-xl bg-card text-body font-normal text-primary hover:bg-accent hover:text-primary"
+              >
                 <Link href="/movements">Ver todos los movimientos</Link>
               </Button>
             </section>
@@ -707,11 +742,11 @@ export function Dashboard({
             {/* Cuentas: consulta, no decisión diaria. Escritorio: bajo las dos columnas, a lo
                 ancho, como grilla de tarjetas. Móvil: al final, como carrusel. */}
             <section className="min-w-0 lg:col-span-2 lg:row-start-3">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="font-heading text-lg font-bold">Cuentas</h2>
+              <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
+                <h2 className="text-title-3 font-bold">Cuentas</h2>
                 <button
                   onClick={() => setShowBalance((v) => !v)}
-                  className="flex items-center gap-1.5 text-sm text-muted-foreground"
+                  className="press flex min-h-11 items-center gap-1.5 text-body text-primary"
                 >
                   {showBalance ? (
                     <Eye className="size-4" />
@@ -736,13 +771,13 @@ export function Dashboard({
                     data-card
                     className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-xl p-5 lg:w-auto lg:snap-start"
                   >
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-subheadline text-muted-foreground">
                       Total en cuentas
                     </div>
-                    <div className="tabular my-3 text-3xl font-bold">
+                    <div className="tabular my-3 text-title-1 font-bold">
                       {showBalance ? formatCLP(summary.activeCash) : "••••••"}
                     </div>
-                    <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-center">
+                    <div className="grid grid-cols-3 gap-2 border-t border-border pt-3 text-center">
                       <Stat
                         label="Ingresos"
                         value={formatCompact(summary.income, true)}
@@ -883,8 +918,8 @@ function Stat({
 }) {
   return (
     <div>
-      <div className="text-xs text-muted-foreground uppercase">{label}</div>
-      <div className={cn("tabular text-sm font-semibold", className)}>
+      <div className="text-caption text-muted-foreground">{label}</div>
+      <div className={cn("tabular text-subheadline font-semibold", className)}>
         {value}
       </div>
     </div>

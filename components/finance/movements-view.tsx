@@ -150,13 +150,14 @@ export function MovementsView({
     <AppShell
       user={{ name: user.name, initial: user.initial, email: user.email }}
       onSignOut={signOut}
+      showAdd
       onSearch={() => document.getElementById(SEARCH_INPUT_ID)?.focus()}
       title="Movimientos"
       actions={
-        <div className="flex items-center gap-1 rounded-lg bg-secondary px-1.5 py-1">
+        <div className="liquid-glass min-h-11 rounded-full px-1 flex items-center gap-1 md:min-h-0 md:rounded-lg md:bg-secondary md:py-1 md:shadow-none md:backdrop-blur-none md:before:hidden">
           <button
             onClick={() => goMonth(-1)}
-            className="grid size-8 place-items-center rounded-md hover:bg-background"
+            className="relative grid size-8 place-items-center rounded-md after:absolute after:-inset-1.5 hover:bg-background"
             aria-label="Mes anterior"
           >
             <ChevronLeft className="size-4" />
@@ -168,7 +169,7 @@ export function MovementsView({
           />
           <button
             onClick={() => goMonth(1)}
-            className="grid size-8 place-items-center rounded-md hover:bg-background"
+            className="relative grid size-8 place-items-center rounded-md after:absolute after:-inset-1.5 hover:bg-background"
             aria-label="Mes siguiente"
           >
             <ChevronRight className="size-4" />

@@ -115,7 +115,7 @@ export function AccountInfoModal({
         <div className="flex flex-col gap-8 px-5 pb-6">
           <AccountCard account={account} />
 
-          <dl className="flex flex-col">
+          <dl className="sheet-group flex flex-col px-4">
             <Row label="Banco" value={account.bankName} />
             <Row label="Nombre" value={account.name} />
             <Row
@@ -228,12 +228,12 @@ export function AccountInfoModal({
               {disconnectError ? (
                 <p
                   role="alert"
-                  className="text-center text-sm text-destructive"
+                  className="text-center text-subheadline text-destructive"
                 >
                   {disconnectError}
                 </p>
               ) : (
-                <p className="text-center text-sm text-muted-foreground">
+                <p className="text-center text-subheadline text-muted-foreground">
                   Elimina la conexión, sus credenciales y todos sus datos de
                   Luca Plan.
                 </p>
@@ -249,8 +249,8 @@ export function AccountInfoModal({
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-5 border-b border-border py-4 last:border-0">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-right text-base font-medium break-words">
+      <dt className="text-subheadline text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right text-body font-medium break-words">
         {value}
       </dd>
     </div>

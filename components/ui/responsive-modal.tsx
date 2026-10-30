@@ -139,9 +139,9 @@ export function ModalFooter({
       data-slot="modal-footer"
       data-modal-owner={scope?.id}
       className={cn(
-        // bg-popover, no bg-background: es la superficie del Dialog y de la tarjeta del Drawer.
-        // Con background (más oscuro en dark) el footer se ve como una banda de otro color.
-        "sticky bottom-0 z-10 -mx-4 mt-6 flex flex-wrap items-center gap-3 border-t border-border bg-popover px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] [&_button]:min-h-11",
+        // bg-sheet: la misma superficie de la hoja (y del diálogo), para que no se vea como una
+        // banda de otro color.
+        "sticky bottom-0 z-10 -mx-4 mt-6 flex flex-wrap items-center gap-3 border-t border-border bg-sheet px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] [&_button]:min-h-11",
         className
       )}
     >
@@ -220,17 +220,17 @@ export function ResponsiveModal({
             className={cn(
               // Los paneles cortos usan su contenido; los largos desplazan el cuerpo sin alcanzar
               // el notch. El teclado se superpone sin redimensionar ni elevar el panel.
-              "h-auto rounded-t-xl bg-popover p-0 text-base before:hidden data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))]",
+              "h-auto rounded-t-(--radius-sheet) bg-sheet p-0 text-body before:hidden data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))]",
               className
             )}
           >
             <DrawerHeader
               className={cn(
-                "relative shrink-0 px-5 pt-5 pb-6 text-left",
+                "relative shrink-0 px-5 pt-3 pb-5 text-center",
                 headerClassName
               )}
             >
-              <DrawerTitle className="text-xl leading-snug font-semibold break-words">
+              <DrawerTitle className="text-headline font-semibold break-words">
                 {title}
               </DrawerTitle>
             </DrawerHeader>
@@ -262,12 +262,12 @@ export function ResponsiveModal({
             dismissible ? undefined : (e) => e.preventDefault()
           }
           className={cn(
-            "max-h-[90dvh] [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto p-0 text-base sm:max-w-2xl [&>*]:min-w-0 [&>[data-slot=dialog-close]]:size-11 [&>[data-slot=modal-footer]]:mx-0",
+            "max-h-[90dvh] rounded-(--radius-sheet) bg-sheet [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto p-0 text-body sm:max-w-2xl [&>*]:min-w-0 [&>[data-slot=dialog-close]]:size-11 [&>[data-slot=modal-footer]]:mx-0",
             className
           )}
         >
           <DialogHeader className={cn("p-6", headerClassName)}>
-            <DialogTitle className="pr-10 text-xl leading-snug font-semibold">
+            <DialogTitle className="pr-10 text-title-3 font-semibold">
               {title}
             </DialogTitle>
             {dismissible && (

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
@@ -101,13 +102,15 @@ function subscribeToScroll(onChange: () => void) {
 
 type QuickAdd = { accounts: AccountDTO[]; categories: CategoryDTO[] }
 
-// "Abrir nuevo movimiento" del AppFrame. Con él, el AppShell no monta su propia barra inferior ni
-// su sheet: usa los del marco, que viven una sola vez para toda la app.
-const OpenAddContext = React.createContext<(() => void) | null>(null)
+// Lo que el AppFrame le presta al AppShell: "abrir nuevo movimiento" y el hueco de la barra inferior
+// donde la vista pone su búsqueda. Con él, el AppShell no monta su propia barra inferior ni su
+// sheet: usa los del marco, que viven una sola vez para toda la app.
+type Frame = { openAdd: () => void; searchSlot: HTMLElement | null }
+const FrameContext = React.createContext<Frame | null>(null)
 
-// Marco de las pantallas con sesión (layout de app/(app)): la barra inferior móvil y el sheet del
-// "+" quedan montados entre rutas, sin recargarse en cada navegación. El "Movimiento" del topbar y
-// la tecla "n" del AppShell abren este mismo sheet.
+// Marco de las pantallas con sesión (layout de app/(app)): la barra inferior móvil y el sheet de
+// nuevo movimiento quedan montados entre rutas, sin recargarse en cada navegación. El "+" de
+// Movimientos, el "Movimiento" del topbar y la tecla "n" del AppShell abren este mismo sheet.
 export function AppFrame({
   quickAdd,
   children,
@@ -117,16 +120,24 @@ export function AppFrame({
 }) {
   const [addOpen, setAddOpen] = React.useState(false)
   const openAdd = React.useCallback(() => setAddOpen(true), [])
+  // La búsqueda es de cada vista (su handler vive en ella): la vista la monta en este hueco con un
+  // portal, junto a la cápsula de pestañas. Sin búsqueda, el hueco queda vacío y la cápsula ocupa
+  // el ancho.
+  const [searchSlot, setSearchSlot] = React.useState<HTMLElement | null>(null)
+  const frame = React.useMemo(
+    () => ({ openAdd, searchSlot }),
+    [openAdd, searchSlot]
+  )
   return (
-    <OpenAddContext.Provider value={openAdd}>
+    <FrameContext.Provider value={frame}>
       {children}
-      <BottomNav onAdd={openAdd} />
+      <BottomNav slotRef={setSearchSlot} />
       <QuickAddSheet
         open={addOpen}
         onOpenChange={setAddOpen}
         quickAdd={quickAdd}
       />
-    </OpenAddContext.Provider>
+    </FrameContext.Provider>
   )
 }
 
@@ -160,12 +171,14 @@ type AppShellProps = {
   active?: NavKey
   onNavigate?: (key: NavKey) => void
   onSignOut?: () => void
-  // Datos del "+" (centro de la barra inferior en móvil, "Movimiento" en el topbar): el acceso
-  // rápido a registrar un movimiento a mano (gasto o ingreso, con el toggle ±), igual en toda la app.
-  // Crear recurrentes/cuotas NO va aquí: eso va en la cabecera de su sección. Dentro de un
-  // AppFrame sobra: el "+" es el del marco. Sin marco (los mocks de /design) lo monta el shell.
+  // Datos de "nuevo movimiento" (el "+" de Movimientos en móvil, "Movimiento" en el topbar): el
+  // acceso rápido a registrar un movimiento a mano (gasto o ingreso, con el toggle ±). Crear
+  // recurrentes/cuotas NO va aquí: eso va en la cabecera de su sección. Dentro de un AppFrame
+  // sobra: el sheet es el del marco. Sin marco (los mocks de /design) lo monta el shell.
   quickAdd?: QuickAdd
-  onSearch?: () => void // si se pasa, muestra la lupa "Buscar" abajo en el sidebar
+  // Móvil: muestra el "+" de nuevo movimiento arriba a la derecha. Solo la vista Movimientos.
+  showAdd?: boolean
+  onSearch?: () => void // si se pasa, muestra la búsqueda (barra inferior en móvil, topbar en escritorio)
   title?: string
   actions?: React.ReactNode // topbar derecha: selector de mes u otros
   children: React.ReactNode
@@ -179,6 +192,7 @@ export function AppShell({
   onNavigate,
   onSignOut,
   quickAdd,
+  showAdd,
   onSearch,
   title,
   actions,
@@ -189,10 +203,26 @@ export function AppShell({
     () => window.scrollY > 0,
     () => false
   )
-  const frameOpenAdd = React.useContext(OpenAddContext)
+  const frame = React.useContext(FrameContext)
   const [addOpen, setAddOpen] = React.useState(false)
   const localOpenAdd = React.useCallback(() => setAddOpen(true), [])
-  const openAdd = frameOpenAdd ?? (quickAdd ? localOpenAdd : undefined)
+  const openAdd = frame?.openAdd ?? (quickAdd ? localOpenAdd : undefined)
+
+  // Móvil: la búsqueda va suelta a la derecha de la cápsula de pestañas (iOS 26, como Música o
+  // Fotos), del alto de la cápsula. Abre lo mismo que la búsqueda del topbar de escritorio.
+  const searchButton = onSearch && (
+    <button
+      type="button"
+      onClick={() => {
+        haptic("light")
+        onSearch()
+      }}
+      aria-label="Buscar movimientos"
+      className="press liquid-glass pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full"
+    >
+      <Search className="size-6" />
+    </button>
+  )
 
   // Atajos de escritorio: "/" o Ctrl/⌘+K abre la búsqueda y "n" el nuevo movimiento. No actúan
   // escribiendo en un campo ni con un diálogo abierto: ahí las teclas son del diálogo.
@@ -220,13 +250,15 @@ export function AppShell({
   return (
     <TooltipProvider delayDuration={0}>
       <SidebarProvider>
-        <Sidebar collapsible="icon">
+        {/* Escritorio: sidebar flotante en vidrio, separado del borde (macOS 26); el vidrio lo pone
+            globals.css sobre [data-variant=floating]. En móvil sigue siendo el drawer. */}
+        <Sidebar collapsible="icon" variant="floating">
           <SidebarHeader>
             <div className="flex items-center gap-2 px-1 py-1">
               <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary font-heading font-bold text-primary-foreground">
                 L
               </div>
-              <span className="font-heading text-lg font-bold tracking-tight group-data-[collapsible=icon]:hidden">
+              <span className="text-headline font-semibold group-data-[collapsible=icon]:hidden">
                 Luca Plan
               </span>
             </div>
@@ -244,102 +276,130 @@ export function AppShell({
         </Sidebar>
 
         <SidebarInset className="min-w-0">
-          {/* Topbar solo en escritorio; en móvil el selector de mes flota (sticky) centrado. */}
-          <header className="pwa-safe-top sticky top-0 z-10 hidden min-h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-4 backdrop-blur md:flex lg:px-6">
-            <SidebarTrigger className="size-9" />
+          {/* Topbar solo en escritorio, en vidrio sutil: el contenido pasa por debajo al bajar. */}
+          <header className="pwa-safe-top liquid-glass sticky top-0 z-10 hidden min-h-16 shrink-0 items-center gap-2 border-b border-border px-4 shadow-none md:flex lg:px-6">
+            <SidebarTrigger className="size-9 rounded-full" />
             {title && (
-              <h1 className="font-heading text-lg font-bold tracking-tight">
+              <h1 className="text-title-3 font-semibold">
                 {title}
               </h1>
             )}
             {/* Escritorio: crear, buscar y después el selector de mes, en ese orden. Buscar y crear
-                viven en el topbar, no flotando: tapaban la esquina de la columna derecha. */}
+                viven en el topbar, no flotando: tapaban la esquina de la columna derecha. "Movimiento"
+                sigue en todas las vistas: es el único botón para registrar desde Inicio, Recurrentes
+                o Ajustes en escritorio (en móvil vive en Movimientos). */}
             <div className="ml-auto flex items-center gap-2">
               {openAdd && (
                 <Button
                   onClick={openAdd}
                   title="Nuevo movimiento (N)"
-                  className="h-9"
+                  className="h-9 rounded-full px-4"
                 >
                   <Plus className="size-4" />
                   Movimiento
                 </Button>
               )}
+              {/* Campo de búsqueda de la toolbar: en ancho, cápsula con su atajo; en angosto, solo
+                  la lupa. Abre la búsqueda de la vista, no escribe aquí. */}
               {onSearch && (
-                <Button
+                <button
+                  type="button"
                   onClick={onSearch}
-                  size="icon"
-                  variant="secondary"
                   aria-label="Buscar movimientos"
                   title="Buscar (/ o Ctrl K)"
-                  className="size-9"
+                  className="press flex size-9 shrink-0 items-center justify-center gap-2 rounded-full bg-(--glass-control) text-subheadline text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:w-56 lg:justify-start lg:px-3"
                 >
-                  <Search className="size-4" />
-                </Button>
+                  <Search className="size-4 shrink-0" />
+                  <span className="hidden flex-1 text-left lg:inline">
+                    Buscar
+                  </span>
+                  <kbd className="hidden rounded-md bg-card px-1.5 font-sans text-caption lg:inline">
+                    /
+                  </kbd>
+                </button>
               )}
               {actions}
             </div>
           </header>
-          {/* Móvil: fondo oscuro al inicio; al bajar, los controles flotan sin fondo ni blur.
-              items-start: el "Hoy" cuelga debajo del selector sin descentrar lupa/avatar.
-              Solo los hijos reciben toques; el espacio entre ellos deja pasar los del contenido. */}
-          <div
-            className={cn(
-              "pwa-safe-top pointer-events-none sticky top-0 z-20 flex justify-center px-4 pt-3 pb-3 md:hidden",
-              !hasScrolled && "dark bg-background"
-            )}
-          >
+          {/* Móvil: controles flotantes en vidrio (iOS 26), sin barra a lo ancho. Izquierda, el menú
+              de la cuenta (avatar); centro, una cápsula con las acciones de la vista (el selector de
+              mes, que trae su cápsula) o, sin ellas, el título cuando el título grande ya se fue con el scroll; derecha,
+              la acción de la vista (el "+" de Movimientos). La búsqueda vive abajo, junto a las
+              pestañas. Detrás, un fundido del fondo para que lo que pasa por debajo no choque
+              con la franja de estado. Solo los controles reciben toques. */}
+          <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 bg-linear-to-b from-background from-55% to-transparent px-4 pt-2 pb-5 md:hidden">
             <div className="flex w-full items-start justify-between gap-2 *:pointer-events-auto">
-              {/* Sin trigger del sidebar: en móvil el drawer solo repetía la barra inferior y el
-                  menú de usuario. El hueco lo ocupa la lupa; sin ella, un espaciador del mismo
-                  ancho que el avatar para que las acciones del centro no se descentren. */}
-              {onSearch ? (
-                <button
-                  onClick={() => {
-                    haptic("light")
-                    onSearch()
-                  }}
-                  aria-label="Buscar movimientos"
-                  className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary transition-colors hover:bg-accent"
-                >
-                  <Search className="size-4.5" />
-                </button>
-              ) : (
-                <div className="invisible size-10 shrink-0" aria-hidden />
-              )}
-              {actions}
               <UserMenu
                 user={user}
                 onSignOut={onSignOut}
                 trigger={
                   <button
-                    className="grid size-10 place-items-center rounded-full"
+                    className="press liquid-glass grid size-11 shrink-0 place-items-center rounded-full"
                     aria-label="Perfil"
                     onClick={() => haptic("light")}
                   >
-                    <Avatar className="size-10 rounded-full">
-                      <AvatarFallback className="rounded-full bg-secondary text-sm font-medium text-foreground">
+                    <Avatar className="size-8 rounded-full after:hidden">
+                      <AvatarFallback className="rounded-full bg-transparent text-subheadline font-semibold text-foreground">
                         {user.initial}
                       </AvatarFallback>
                     </Avatar>
                   </button>
                 }
               />
+              {/* Las acciones traen su propia cápsula de vidrio (ver el selector de mes del Inicio). */}
+              {actions ? (
+                <div className="flex min-w-0 justify-center">{actions}</div>
+              ) : title ? (
+                <div
+                  aria-hidden={!hasScrolled}
+                  className={cn(
+                    "liquid-glass flex min-h-11 min-w-0 items-center rounded-full px-4 text-headline font-semibold transition-opacity duration-200 motion-reduce:transition-none",
+                    !hasScrolled && "pointer-events-none! opacity-0"
+                  )}
+                >
+                  <span className="truncate">{title}</span>
+                </div>
+              ) : null}
+              {/* Sin acción, un espaciador del ancho del avatar mantiene centrada la cápsula. */}
+              {showAdd && openAdd ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptic("medium")
+                    openAdd()
+                  }}
+                  aria-label="Nuevo movimiento"
+                  className="press liquid-glass grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"
+                >
+                  <Plus className="size-6" strokeWidth={2.25} />
+                </button>
+              ) : (
+                <div className="invisible size-11 shrink-0" aria-hidden />
+              )}
             </div>
           </div>
-          {/* Aire inferior solo en móvil, por la barra de navegación fija. En escritorio no flota
-              nada. */}
-          <div className="min-w-0 flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
+          {/* Aire inferior solo en móvil, por la navegación flotante (64px + margen + safe-area). En
+              escritorio no flota nada. */}
+          <div className="min-w-0 flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0">
             {children}
           </div>
         </SidebarInset>
 
-        {/* Móvil: barra inferior fija con los destinos a un toque y el "+" de registrar al centro.
-            Dentro de un AppFrame la pone el marco, una sola vez para toda la app. */}
-        {!frameOpenAdd && (
-          <BottomNav active={active} onNavigate={onNavigate} onAdd={openAdd} />
+        {/* Móvil: navegación flotante con los destinos a un toque y la búsqueda aparte. Dentro de
+            un AppFrame la pone el marco, una sola vez para toda la app, y la búsqueda entra en su
+            hueco por un portal. */}
+        {frame
+          ? frame.searchSlot &&
+            searchButton &&
+            createPortal(searchButton, frame.searchSlot)
+          : (
+          <BottomNav
+            active={active}
+            onNavigate={onNavigate}
+            trailing={searchButton}
+          />
         )}
-        {!frameOpenAdd && quickAdd && (
+        {!frame && quickAdd && (
           <QuickAddSheet
             open={addOpen}
             onOpenChange={setAddOpen}
@@ -368,10 +428,12 @@ function NavMenu({
     <SidebarMenu>
       {NAV.map(({ key, label, Icon, href }) => (
         <SidebarMenuItem key={key}>
+          {/* Activo: la misma pastilla translúcida y el mismo azul que la pestaña activa móvil. */}
           <SidebarMenuButton
             asChild
             isActive={activeKey === key}
             tooltip={label}
+            className="h-9 text-subheadline data-active:bg-(--glass-active) data-active:font-semibold data-active:text-primary"
           >
             <Link
               href={href}
@@ -394,19 +456,21 @@ function NavMenu({
   )
 }
 
-// Barra inferior de navegación (solo móvil): los mismos destinos del sidebar, al alcance del
-// pulgar y con el actual siempre visible. Con `onAdd`, el "+" de registrar va al centro, entre
-// las dos mitades; sin él, los destinos se reparten el ancho igual y nada queda descentrado.
-// La píldora de color del activo se desliza de una pestaña a otra: como la barra vive en el
-// layout y no se desmonta al navegar, basta una transición de transform.
+// Navegación inferior (solo móvil), flotante como en iOS 26: una cápsula de vidrio con los mismos
+// destinos del sidebar y, suelta a la derecha, la búsqueda de la vista (`trailing`, o el hueco
+// `slotRef` donde el AppShell la monta por portal cuando la barra es del AppFrame). La pastilla
+// del activo se desliza de una pestaña a otra: como la barra vive en el layout y no se desmonta al
+// navegar, basta una transición de transform.
 function BottomNav({
   active,
   onNavigate,
-  onAdd,
+  trailing,
+  slotRef,
 }: {
   active?: NavKey
   onNavigate?: (key: NavKey) => void
-  onAdd?: () => void
+  trailing?: React.ReactNode
+  slotRef?: React.Ref<HTMLDivElement>
 }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -417,35 +481,32 @@ function BottomNav({
     navKeyOf(pathname)
   )
   const activeKey = active ?? optimisticKey
-
-  // Slots iguales (flex-1): con el "+" al centro, los destinos de la segunda mitad corren uno.
-  const mid = onAdd ? Math.floor(BOTTOM_NAV.length / 2) : BOTTOM_NAV.length
-  const slots = BOTTOM_NAV.length + (onAdd ? 1 : 0)
   const activeIndex = BOTTOM_NAV.findIndex((n) => n.key === activeKey)
-  const activeSlot = activeIndex + (activeIndex >= mid ? 1 : 0)
 
   return (
-    <nav
-      aria-label="Navegación principal"
-      className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border/60 bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
-    >
-      {/* translateX en % del propio ancho (un slot): n slots = n × 100%. */}
-      <span
-        aria-hidden
-        className={cn(
-          "pointer-events-none absolute top-1 left-0 flex justify-center transition-[transform,opacity] duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
-          activeIndex < 0 && "opacity-0"
-        )}
-        style={{
-          width: `${100 / slots}%`,
-          transform: `translateX(${Math.max(activeSlot, 0) * 100}%)`,
-        }}
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] md:hidden">
+      <nav
+        aria-label="Navegación principal"
+        className="liquid-glass pointer-events-auto flex h-16 min-w-0 flex-1 rounded-full p-1"
       >
-        <span className="h-7 w-14 rounded-full bg-primary/12" />
-      </span>
-      {BOTTOM_NAV.map(({ key, label, Icon, href }, i) => {
-        const isActive = activeKey === key
-        const link = (
+        <div className="relative flex min-w-0 flex-1">
+          {/* translateX en % del propio ancho (una pestaña): n pestañas = n × 100%. */}
+          <span
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute inset-y-0 left-0 flex transition-[transform,opacity] duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+              activeIndex < 0 && "opacity-0"
+            )}
+            style={{
+              width: `${100 / BOTTOM_NAV.length}%`,
+              transform: `translateX(${Math.max(activeIndex, 0) * 100}%)`,
+            }}
+          >
+            <span className="liquid-glass-active w-full rounded-full" />
+          </span>
+          {BOTTOM_NAV.map(({ key, label, Icon, href }) => {
+            const isActive = activeKey === key
+            return (
           <Link
             key={key}
             href={href}
@@ -474,37 +535,22 @@ function BottomNav({
               })
             }}
             className={cn(
-              "relative flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 transition-colors",
-              isActive ? "text-primary" : "text-muted-foreground"
+              "press relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-full",
+              isActive ? "text-primary" : "text-foreground"
             )}
           >
             <Icon className="size-5 shrink-0" />
-            <span className="max-w-full truncate text-[10px] leading-none">
+            <span className="max-w-full truncate px-1 text-[10px] leading-none font-medium">
               {label}
             </span>
           </Link>
-        )
-        if (!onAdd || i !== mid) return link
-        return (
-          <React.Fragment key={key}>
-            <div className="relative flex flex-1 items-center justify-center">
-              <Button
-                onClick={() => {
-                  haptic("medium")
-                  onAdd()
-                }}
-                size="icon"
-                aria-label="Registrar un movimiento"
-                className="size-11 rounded-full shadow-md"
-              >
-                <Plus className="size-6" />
-              </Button>
-            </div>
-            {link}
-          </React.Fragment>
-        )
-      })}
-    </nav>
+            )
+          })}
+        </div>
+      </nav>
+      {trailing}
+      {slotRef && <div ref={slotRef} className="contents" />}
+    </div>
   )
 }
 
@@ -527,15 +573,16 @@ function UserMenu({
             size="lg"
             className="data-[state=open]:bg-sidebar-accent"
           >
-            <Avatar className="size-8 rounded-lg bg-primary">
-              <AvatarFallback className="rounded-lg bg-primary text-primary-foreground">
+            {/* Sin el aro del Avatar de shadcn (`after:border`): con el relleno ya se lee el círculo. */}
+            <Avatar className="size-8 rounded-full bg-primary after:hidden">
+              <AvatarFallback className="rounded-full bg-primary text-subheadline font-semibold text-primary-foreground">
                 {user.initial}
               </AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-              <span className="truncate text-sm font-medium">{user.name}</span>
+              <span className="truncate text-subheadline font-medium">{user.name}</span>
               {user.email && (
-                <span className="truncate text-xs text-muted-foreground">
+                <span className="truncate text-footnote text-muted-foreground">
                   {user.email}
                 </span>
               )}
@@ -569,9 +616,8 @@ function UserMenu({
             setTheme(resolvedTheme === "dark" ? "light" : "dark")
           }}
         >
-          {/* icono/texto por CSS anclado al <html> (next-themes): el DropdownMenuContent lleva
-              la clase `dark` fija (glass oscuro del design system), así que `dark:` mentiría aquí;
-              [html.dark_&] mira solo el tema real. Sin mismatch de hidratación ni useEffect. */}
+          {/* icono/texto por CSS anclado al <html> (next-themes): [html.dark_&] mira solo el tema
+              real. Sin mismatch de hidratación ni useEffect. */}
           <Sun className="hidden size-4 [html.dark_&]:block" />
           <Moon className="size-4 [html.dark_&]:hidden" />
           <span className="hidden [html.dark_&]:inline">Tema claro</span>

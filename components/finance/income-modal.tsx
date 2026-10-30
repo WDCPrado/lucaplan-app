@@ -179,7 +179,7 @@ export function IncomeModal({
     >
       {destinations.length === 0 ? (
         <>
-          <p className="px-5 py-8 text-base leading-relaxed text-muted-foreground">
+          <p className="px-5 py-8 text-body leading-relaxed text-muted-foreground">
             Agrega una cuenta corriente, de ahorro o billetera para recibir
             ingresos. Las tarjetas de crédito registran pagos, no ingresos.
           </p>
@@ -187,7 +187,7 @@ export function IncomeModal({
             <Button
               type="button"
               variant="outline"
-              className="h-12 flex-1"
+              className="h-12 flex-1 text-body"
               onClick={() => onOpenChange(false)}
             >
               Cerrar
@@ -203,7 +203,7 @@ export function IncomeModal({
           >
             <fieldset disabled={busy} className="contents">
               {errors.root && (
-                <p role="alert" className="text-sm text-destructive">
+                <p role="alert" className="text-subheadline text-destructive">
                   {errors.root.message}
                 </p>
               )}
@@ -217,7 +217,7 @@ export function IncomeModal({
                   {...form.register("name")}
                   required
                   inputMode="text"
-                  className="h-12 text-base"
+                  className="h-12 text-body"
                   placeholder="Ej. Sueldo"
                   aria-invalid={!!errors.name}
                   aria-describedby={
@@ -241,7 +241,7 @@ export function IncomeModal({
                     >
                       <SelectTrigger
                         id={`${formId}-account`}
-                        className="h-12! w-full min-w-0 text-base"
+                        className="h-12! w-full min-w-0 text-body"
                         aria-invalid={!!errors.accountId}
                         aria-describedby={
                           errors.accountId
@@ -256,7 +256,7 @@ export function IncomeModal({
                       </SelectTrigger>
                       <SelectContent
                         position="popper"
-                        className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)] bg-popover"
+                        className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)]"
                       >
                         {destinations.map((account) => (
                           <SelectItem
@@ -316,7 +316,7 @@ export function IncomeModal({
                     >
                       <SelectTrigger
                         id={`${formId}-category`}
-                        className="h-12! w-full min-w-0 text-base"
+                        className="h-12! w-full min-w-0 text-body"
                         aria-invalid={!!errors.categoryId}
                         aria-describedby={
                           errors.categoryId
@@ -331,7 +331,7 @@ export function IncomeModal({
                       </SelectTrigger>
                       <SelectContent
                         position="popper"
-                        className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)] bg-popover"
+                        className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)]"
                       >
                         {incomeCategories.map((category) => (
                           <SelectItem
@@ -430,7 +430,7 @@ export function IncomeModal({
                 incomeCategories.length === 0 ||
                 (!!income && !hasDraftChanges)
               }
-              className="col-span-full h-auto min-h-12 min-w-0 py-3 text-base whitespace-normal sm:flex-1"
+              className="col-span-full h-auto min-h-12 min-w-0 py-3 text-body whitespace-normal sm:flex-1"
             >
               {isSubmitting
                 ? "Guardando…"
@@ -471,7 +471,7 @@ export function DayOfMonthPicker({
           {...props}
           type="button"
           variant="outline"
-          className="h-11 w-full justify-start rounded-lg text-base font-normal"
+          className="h-11 w-full justify-start rounded-lg text-body font-normal"
         >
           <CalendarIcon className="size-4 text-muted-foreground" />
           Día {value}

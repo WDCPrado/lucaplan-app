@@ -88,7 +88,7 @@ export function BudgetLimitModal({
       >
         <fieldset disabled={isSubmitting} className="contents">
           {errors.root && (
-            <p role="alert" className="text-sm text-destructive">
+            <p role="alert" className="text-subheadline text-destructive">
               {errors.root.message}
             </p>
           )}
@@ -136,7 +136,7 @@ export function BudgetLimitModal({
           type="submit"
           form={formId}
           disabled={isSubmitting || (current !== null && !isDirty)}
-          className="h-12 flex-1 text-base"
+          className="h-12 flex-1 text-body"
         >
           {isSubmitting ? "Guardando…" : "Guardar presupuesto"}
         </Button>

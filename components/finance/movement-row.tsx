@@ -2,6 +2,7 @@ import { CreditCard, Repeat, Link2 } from "lucide-react"
 import type { TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
+import { cn } from "@/lib/utils"
 import { CategoryIcon } from "./category-icons"
 import { ProgressRing } from "./progress-ring"
 
@@ -26,10 +27,12 @@ export function MovementRow({
   tx,
   onOpen,
   onOpenCategory,
+  className,
 }: {
   tx: TransactionDTO
   onOpen?: (tx: TransactionDTO) => void
   onOpenCategory?: (categoryId: string) => void
+  className?: string // estilo de la fila según la lista que la contiene (el Inicio, agrupada)
 }) {
   const income = tx.direction === "credit"
   const color = tx.categoryColor ?? "var(--muted-foreground)"
@@ -108,7 +111,12 @@ export function MovementRow({
   )
 
   return (
-    <div className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-secondary/60">
+    <div
+      className={cn(
+        "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-secondary/60",
+        className
+      )}
+    >
       {onOpenCategory && tx.categoryId ? (
         <button
           type="button"

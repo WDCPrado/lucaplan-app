@@ -62,10 +62,10 @@ export function MonthStatus({
       <section className="glass rounded-xl p-5 lg:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="min-w-0">
-            <h2 className="font-heading text-lg font-bold">
+            <h2 className="text-title-3 font-bold">
               Define tu presupuesto de {mes}
             </h2>
-            <p className="mt-1 text-sm text-pretty text-muted-foreground">
+            <p className="mt-1 text-subheadline text-pretty text-muted-foreground">
               Configura el plan de este período para organizar tus ingresos y gastos.
             </p>
           </div>
@@ -94,7 +94,7 @@ export function MonthStatus({
         onClick={onOpenPlan}
         aria-label="Ajustar el plan del mes"
         // Con nombre también en móvil: el icono de sliders solo no decía qué abría.
-        className="absolute top-5 right-5 z-10 max-sm:h-9 max-sm:px-3 max-sm:text-xs sm:h-10 lg:top-6 lg:right-6"
+        className="absolute top-5 right-5 z-10 max-sm:h-9 max-sm:px-3 max-sm:text-footnote sm:h-10 lg:top-6 lg:right-6"
       >
         <SlidersHorizontal className="size-4" />
         Ajustar plan
@@ -104,14 +104,14 @@ export function MonthStatus({
         {isCurrentMonth ? (
           <>
             {/* Solo la fecha esquiva el botón; el titular usa el ancho entero. */}
-            <p className="text-sm text-muted-foreground max-sm:pr-32">
+            <p className="text-subheadline text-muted-foreground max-sm:pr-32">
               Hoy, {formatLongDate(todayIso)}
             </p>
             <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
-              <span className="tabular text-4xl font-bold tracking-tight">
+              <span className="tabular text-title-1 font-bold">
                 {daysLeft === 1 ? "Hoy" : remainingDays}
               </span>
-              <span className="font-heading text-lg font-semibold sm:text-xl">
+              <span className="text-headline font-semibold">
                 {daysLeft === 1
                   ? "termina el período"
                   : remainingDays === 1
@@ -126,18 +126,18 @@ export function MonthStatus({
           </>
         ) : (
           <>
-            <p className="text-sm text-muted-foreground max-sm:pr-32">
+            <p className="text-subheadline text-muted-foreground max-sm:pr-32">
               {monthName(period.month)} {period.year} cerró con
             </p>
             <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
-              <span className="tabular text-4xl font-bold tracking-tight">
+              <span className="tabular text-hero font-bold">
                 {formatCLP(Math.max(0, free))}
               </span>
-              <span className="font-heading text-lg font-semibold sm:text-xl">
+              <span className="text-headline font-semibold">
                 sin gastar
               </span>
             </p>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 text-subheadline text-muted-foreground">
               Gastaste <span className="tabular">{formatCLP(spent)}</span> de{" "}
               <span className="tabular">{formatCLP(globalLimit)}</span>
               {usedPct !== null && (
@@ -173,10 +173,10 @@ export function AllocationNudge({
     <button
       onClick={onOpenPlan}
       className={cn(
-        "flex w-full items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-left text-sm transition-colors",
+        "press flex min-h-11 w-full items-center justify-between gap-2 rounded-xl px-4 py-3 text-left text-subheadline",
         remainingToAllocate < 0
           ? "bg-destructive/10 text-destructive hover:bg-destructive/15"
-          : "bg-secondary/50 hover:bg-accent"
+          : "bg-card hover:bg-accent"
       )}
     >
       <span className="min-w-0">
@@ -184,7 +184,7 @@ export function AllocationNudge({
           ? `Sobre-asignado ${formatCLP(Math.abs(remainingToAllocate))} en categorías`
           : `Te falta repartir ${formatCLP(remainingToAllocate)} en categorías`}
       </span>
-      <ChevronRight className="size-4 shrink-0 opacity-60" />
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
     </button>
   )
 }
@@ -250,7 +250,7 @@ function CycleBar({
         // «Ciclo» y «Cierra el», que el aria-label del botón conserva, cabe en 390 px. El botón va
         // pegado a la derecha, como el switch de abajo.
         <div className="flex w-full min-w-0 items-center justify-between gap-x-3 gap-y-1 sm:w-auto sm:flex-wrap sm:justify-start">
-          <p className="min-w-0 truncate text-sm text-muted-foreground">
+          <p className="min-w-0 truncate text-subheadline text-muted-foreground">
             <span className="max-sm:sr-only">Ciclo </span>
             <span className="font-medium text-foreground tabular-nums">
               {shortDate(cycle.range.start)} – {shortDate(cycle.range.end)}
@@ -264,7 +264,7 @@ function CycleBar({
       <div className="flex min-h-11 w-full items-center justify-between gap-3 sm:ml-auto sm:w-auto sm:justify-start">
         <Label
           htmlFor={switchId}
-          className="cursor-pointer text-base font-medium sm:text-sm"
+          className="cursor-pointer text-body font-normal sm:text-subheadline"
         >
           {card ? "Modo crédito · ciclo" : "Modo débito · mes"}
         </Label>
@@ -322,7 +322,7 @@ function ClosingPicker({
         <Button
           variant="secondary"
           aria-label={`Cierre de ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}. Corregir`}
-          className="h-11 gap-2 px-3 text-sm font-normal sm:h-9"
+          className="h-11 gap-2 px-3 text-subheadline font-normal sm:h-9"
         >
           <CalendarClock className="size-4 text-muted-foreground" />
           <span>
@@ -342,7 +342,7 @@ function ClosingPicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-auto gap-2 p-3">
-        <p className="px-1 text-sm text-muted-foreground">Cierre de {mes}</p>
+        <p className="px-1 text-footnote text-muted-foreground">Cierre de {mes}</p>
         <Calendar
           mode="single"
           locale={es}
@@ -367,7 +367,7 @@ function ClosingPicker({
             variant="ghost"
             disabled={saving}
             onClick={() => void save(null)}
-            className="h-11 w-full text-base sm:h-9 sm:text-sm"
+            className="h-11 w-full text-body sm:h-9 sm:text-subheadline"
           >
             Usar estimado ({shortDate(estimate)})
           </Button>

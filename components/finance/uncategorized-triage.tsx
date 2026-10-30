@@ -296,11 +296,11 @@ export function UncategorizedTriage({
             onSubmit={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
             showCloseButton={false}
-            className="top-0 left-0 flex h-dvh w-dvw max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none bg-background p-0 text-base text-foreground ring-0 sm:max-w-none motion-reduce:data-open:zoom-in-100 motion-reduce:data-closed:zoom-out-100"
+            className="top-0 left-0 flex h-dvh w-dvw max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none bg-background p-0 text-body text-foreground ring-0 sm:max-w-none motion-reduce:data-open:zoom-in-100 motion-reduce:data-closed:zoom-out-100"
           >
             <header className="mx-auto flex w-full max-w-md items-start justify-between gap-3 px-5 pt-[max(env(safe-area-inset-top),1.25rem)]">
               <div className="min-w-0">
-                <DialogTitle className="font-heading text-lg font-bold">
+                <DialogTitle className="font-heading text-title-3 font-bold">
                   Movimientos por categorizar
                 </DialogTitle>
                 <DialogDescription className="mt-1">
@@ -356,9 +356,9 @@ export function UncategorizedTriage({
                       {done.length >= 2 && (
                         <div className="absolute inset-x-1 top-1 h-6 rounded-md border border-border/80 bg-card/80" />
                       )}
-                      <div className="absolute inset-x-0 top-2 h-6 rounded-md border border-border bg-card shadow-sm" />
+                      <div className="absolute inset-x-0 top-2 h-6 rounded-md border border-border bg-card" />
                     </div>
-                    <span className="truncate text-sm text-muted-foreground">
+                    <span className="truncate text-subheadline text-muted-foreground">
                       {done.length} categorizado{done.length === 1 ? "" : "s"}
                     </span>
                   </div>
@@ -380,16 +380,16 @@ export function UncategorizedTriage({
               <div className="w-full max-w-md">
                 {pending.length === 0 ? (
                   // Estado final: resumen + cierre (el refresh va en handleClose).
-                  <div className="flex animate-in flex-col items-center gap-4 rounded-xl border border-border bg-card p-8 text-center duration-300 fade-in-0">
+                  <div className="flex animate-in flex-col items-center gap-4 rounded-xl bg-card p-8 text-center duration-300 fade-in-0">
                     <span className="grid size-14 place-items-center rounded-full bg-success/15 text-success">
                       <Check className="size-7" />
                     </span>
                     <div>
-                      <p className="font-heading text-xl font-bold">
+                      <p className="font-heading text-title-3 font-bold">
                         {done.length} categorizado{done.length === 1 ? "" : "s"}
                       </p>
                       {hasMore && (
-                        <p className="mt-1 text-sm text-muted-foreground">
+                        <p className="mt-1 text-subheadline text-muted-foreground">
                           Quedan más pendientes: reaparecerán en la próxima
                           carga.
                         </p>
@@ -397,7 +397,7 @@ export function UncategorizedTriage({
                     </div>
                     <Button
                       type="button"
-                      className="h-11 w-full text-base"
+                      className="h-11 w-full text-body"
                       onClick={handleClose}
                     >
                       Listo
@@ -412,7 +412,7 @@ export function UncategorizedTriage({
                         key={t.id}
                         aria-hidden={i > 0 || undefined}
                         className={cn(
-                          "rounded-xl border border-border bg-card transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-opacity motion-reduce:duration-150",
+                          "rounded-xl bg-card transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-opacity motion-reduce:duration-150",
                           i === 0 && "relative z-3",
                           i === 0 &&
                             returningId === t.id &&
@@ -421,9 +421,9 @@ export function UncategorizedTriage({
                             exiting &&
                             "-translate-y-[120%] rotate-3 opacity-0 motion-reduce:translate-y-0 motion-reduce:rotate-0",
                           i === 1 &&
-                            "pointer-events-none absolute inset-0 z-2 -translate-y-3 scale-95",
+                            "pointer-events-none absolute inset-0 z-2 -translate-y-3 scale-95 opacity-80",
                           i === 2 &&
-                            "pointer-events-none absolute inset-0 z-1 -translate-y-6 scale-90"
+                            "pointer-events-none absolute inset-0 z-1 -translate-y-6 scale-90 opacity-55"
                         )}
                       >
                         {i === 0 &&
@@ -466,7 +466,7 @@ export function UncategorizedTriage({
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-12 w-full text-base"
+                    className="h-12 w-full text-body"
                     disabled={busy || exiting || aiBusy}
                   >
                     Cerrar
@@ -513,19 +513,19 @@ function TriageCard({
       <div className="flex flex-col items-center gap-1 pt-1 text-center">
         <div
           className={cn(
-            "tabular text-3xl font-bold",
+            "tabular text-title-1 font-bold",
             income ? "text-success" : "text-foreground"
           )}
         >
           {income ? "+" : "−"}
           {formatCLP(Math.abs(tx.amount))}
         </div>
-        <div className="line-clamp-2 text-sm text-balance text-muted-foreground">
+        <div className="line-clamp-2 text-subheadline text-balance text-muted-foreground">
           {tx.description}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-footnote text-muted-foreground">
         {label && (
           <span className="flex items-center gap-1.5">
             <CreditCard className="size-3.5 shrink-0" />
@@ -536,7 +536,7 @@ function TriageCard({
       </div>
 
       {visible.length === 0 && (
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="text-center text-subheadline text-muted-foreground">
           Sin categorías de {income ? "ingreso" : "gasto"}. Crea una o deja el
           movimiento sin categoría.
         </p>

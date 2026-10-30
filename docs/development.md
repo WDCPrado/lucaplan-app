@@ -93,12 +93,12 @@ un barrido aparte.
   `responsive-modal.tsx`, que es composición de Dialog y Drawer.
 - **Tokens, no valores.** Color, fuente, radio y espaciado salen de `app/globals.css`, en los
   dos temas. Un color nuevo es un token nuevo, no un hex en `className`.
-- **Radio sobrio, con jerarquía de tres niveles** (`--radius: 0.5rem`):
+- **Radio sobrio, con jerarquía de tres niveles** (`--radius: 0.625rem`):
   `rounded-lg` para controles (botones, inputs, selects, chips, filtros, botones de icono);
   `rounded-xl` para superficies (tarjetas, paneles `glass`, secciones, modales, drawers,
   popovers); `rounded-md` para ítems de lista y de menú. `rounded-full` solo en lo que es un
   círculo o una barra por significado: avatares, anillos de icono, puntos de estado, barras de
-  progreso, el marcador del día, badges de conteo y el "+" de la barra inferior. Nada de `rounded-2xl`/`3xl`/`4xl`
+  progreso, el marcador del día, badges de conteo y los controles flotantes de vidrio (cápsulas y círculos de la navegación y la toolbar). Nada de `rounded-2xl`/`3xl`/`4xl`
   en controles ni paneles.
 - **Las alturas no cambian con el radio**: targets táctiles ≥44 px (`h-11`) en móvil, como dice
   la sección de responsividad.
@@ -131,6 +131,43 @@ un barrido aparte.
   Fechas con Calendar + Popover; enums con `Select`.
 - **Un componente de campo no hace fetch ni muta**: recibe valores y callbacks. La mutación
   vive en quien abre el modal, y el modal se cierra en el éxito, nunca antes.
+
+### Lenguaje visual: iOS y Liquid Glass
+
+La app sigue el lenguaje de iOS 26 en móvil y de macOS 26 en escritorio (WDC-147). Es una
+dirección de diseño, no una conversión a SwiftUI: se toman de Apple la jerarquía, las
+agrupaciones, la tipografía y los controles.
+
+- **Skills de referencia, obligatorias al tocar UI de la app:** `apple-hig` (las Human Interface
+  Guidelines completas, por componente) y `apple-design` (revisión de diseño contra la HIG), las
+  dos declaradas en `skills-lock.json`; se restauran con `npx skills experimental_install`. Para
+  anti-slop y escaneabilidad manda `impeccable`. La landing no sigue estas reglas.
+- **Cada elemento tiene un propósito.** Todo botón, texto, ícono, color, borde, badge o sección
+  responde a qué decisión o acción de la persona sirve. Si no sirve ninguna o repite algo que ya
+  está, se quita o se funde; si sirve, su peso visual corresponde a su importancia. Quitar va antes
+  que agregar.
+- **El vidrio (`.liquid-glass`) es solo para lo que flota sobre el contenido**: la fila de
+  controles superior y la barra de pestañas en móvil, el sidebar y la toolbar en escritorio. El
+  contenido (tarjetas, listas, modales) va en superficies sólidas de `card` sobre el fondo
+  agrupado. El vidrio se hace con CSS (blur, saturación, brillo en el canto y sombra suave), nunca
+  con filtros SVG de desplazamiento, que Safari no dibuja; con `prefers-reduced-transparency` cae a
+  sólido.
+- **Navegación móvil flotante, sin barras a lo ancho**: arriba, un círculo de vidrio a la izquierda
+  (cuenta) y las acciones de la vista en cápsulas; abajo, una cápsula con las pestañas (la activa
+  con pastilla) y la búsqueda en un círculo suelto a la derecha. Crear un movimiento vive en la
+  vista Movimientos, no en la barra. Todo respeta `env(safe-area-inset-*)` y el contenido deja
+  aire para no quedar tapado.
+- **Listas agrupadas («inset grouped»)**: secciones en tarjetas con filas de ≥44 px, separadores
+  finos con inset desde el texto (`.inset-list`), chevron cuando la fila abre algo y la acción de la
+  sección en texto azul a la derecha del encabezado. Las superficies se separan por el fondo, no
+  por bordes ni sombras.
+- **Tipografía de la escala de iOS**, nunca tamaños sueltos: `text-large-title`, `text-hero` (la
+  cifra protagonista), `text-title-1`, `text-title-3`, `text-headline`, `text-body`,
+  `text-subheadline`, `text-footnote`, `text-caption`. Un tamaño nuevo se registra también en
+  `lib/utils.ts` o `cn()` lo confunde con un color. Los montos van con `.tabular`.
+- **Menús, popovers y selects siguen el tema** (claro en claro): nada de `dark` fijo en un
+  primitivo. El toque da respuesta con `.press`, y el movimiento respeta
+  `prefers-reduced-motion`.
 
 ## Flujo de creación de UI / mocks
 

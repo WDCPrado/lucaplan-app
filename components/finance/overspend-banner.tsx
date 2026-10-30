@@ -53,13 +53,11 @@ export function OverspendBanner({
     <section
       aria-label="Cuánto te pasaste este mes"
       className={cn(
-        "mt-4 flex items-start gap-3 rounded-xl border p-4 lg:p-5",
-        overMonth
-          ? "border-destructive/30 bg-destructive/10"
-          : "border-warning/40 bg-warning/10"
+        "flex items-start gap-3 rounded-xl p-5 lg:p-6",
+        overMonth ? "bg-destructive/10" : "bg-warning/10"
       )}
     >
-      {/* El color del estado vive en el ícono y el borde. En la cifra no: ámbar sobre su propio
+      {/* El color del estado vive en el ícono y el tinte del fondo. En la cifra no: ámbar sobre su propio
           tinte da 1.95:1 en tema claro, y es el contenido principal de la banda. Decorativo
           (aria-hidden) porque el texto ya dice todo lo que el color insinúa. */}
       <TriangleAlert
@@ -70,15 +68,15 @@ export function OverspendBanner({
         )}
       />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">
+        <p className="text-subheadline font-semibold">
           {overMonth
             ? `Te pasaste del presupuesto de ${mes}`
             : `Te pasaste de los topes de ${cuantas}`}
         </p>
-        <p className="tabular mt-0.5 text-2xl font-bold sm:text-3xl">
+        <p className="tabular mt-0.5 text-title-1 font-bold">
           {formatCLP(overMonth ? monthOverspend : capsOverspend)}
         </p>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-subheadline text-muted-foreground">
           {overMonth
             ? // Con el mes excedido, el descuadre entre categorías pasa a ser el detalle.
               capsOverspend > 0
@@ -97,7 +95,7 @@ export function OverspendBanner({
             {culprits.map((c) => (
               <li
                 key={c.id}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-background/60 px-2.5 py-1 text-xs"
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-card px-2.5 py-1 text-footnote"
               >
                 <CategoryIcon
                   icon={c.icon}

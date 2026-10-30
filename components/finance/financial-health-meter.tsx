@@ -40,32 +40,32 @@ export function PlanSummary({ income, spent, committed, reimbursementAdjustment 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-3" role="group" aria-label="Resumen del plan">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground" title="Ingresos menos gastos y comprometido; no es el saldo bancario.">
+        <span className="text-footnote text-muted-foreground" title="Ingresos menos gastos y comprometido; no es el saldo bancario.">
           Margen del plan<span className="sr-only">; no es el saldo bancario</span>
         </span>
-        <strong className={`text-sm ${tone}`}>{PLAN_LABEL[health.planStatus]}</strong>
+        <strong className={`text-footnote font-semibold ${tone}`}>{PLAN_LABEL[health.planStatus]}</strong>
       </div>
       <p className="flex flex-wrap items-baseline gap-x-2">
-        <span className="text-sm font-medium text-muted-foreground">{health.balance < 0 ? "Faltan" : "Quedan"}</span>
-        <span className={`tabular text-3xl font-bold tracking-tight ${amountTone}`}>{formatCLP(Math.abs(health.balance))}</span>
+        <span className="text-headline font-semibold text-muted-foreground">{health.balance < 0 ? "Faltan" : "Quedan"}</span>
+        <span className={`tabular text-hero font-bold ${amountTone}`}>{formatCLP(Math.abs(health.balance))}</span>
       </p>
-      <dl className="grid grid-cols-3 gap-x-3 gap-y-2 border-t border-border/50 pt-2 text-xs">
+      <dl className="grid grid-cols-3 gap-x-3 gap-y-0.5 border-t border-border pt-3 text-footnote">
         <div className="min-w-0">
           <dt className="text-muted-foreground">Ingresos</dt>
-          <dd className="tabular truncate font-semibold">{formatCLP(income)}</dd>
+          <dd className="tabular truncate text-subheadline font-semibold">{formatCLP(income)}</dd>
         </div>
         <div className="min-w-0" title={reimbursementAdjustment > 0 ? "Los reembolsos incluidos en ingresos se compensan una sola vez." : undefined}>
           <dt className="text-muted-foreground">Gastos</dt>
-          <dd className="tabular truncate font-semibold">{formatCLP(spent + reimbursementAdjustment)}</dd>
+          <dd className="tabular truncate text-subheadline font-semibold">{formatCLP(spent + reimbursementAdjustment)}</dd>
           {reimbursementAdjustment > 0 && <span className="sr-only">Los reembolsos incluidos en ingresos se compensan una sola vez.</span>}
         </div>
         <div className="min-w-0">
           <dt className="text-muted-foreground">Comprometido</dt>
-          <dd className="tabular truncate font-semibold">{formatCLP(committed)}</dd>
+          <dd className="tabular truncate text-subheadline font-semibold">{formatCLP(committed)}</dd>
         </div>
       </dl>
       <div
-        className="flex flex-col gap-1 border-t border-border/50 pt-2 text-xs"
+        className="flex flex-col gap-1 border-t border-border pt-3 text-footnote"
         role="group"
         aria-label="Liquidez registrada"
         title="Últimos saldos registrados; no son el saldo histórico ni proyectado del período."
@@ -105,7 +105,7 @@ export function FinancialHealthMeter(props: PlanInput) {
         >
           <title>{thresholds}</title>
           <path d="M 47 146 A 113 113 0 0 1 273 146" fill="none" stroke="currentColor" opacity=".1" strokeWidth="23" />
-          <path d="M 47 146 A 113 113 0 0 1 239.9 66.1" fill="none" stroke="currentColor" className="text-emerald-500" strokeWidth="20" />
+          <path d="M 47 146 A 113 113 0 0 1 239.9 66.1" fill="none" stroke="currentColor" className="text-chart-3" strokeWidth="20" />
           <path d="M 239.9 66.1 A 113 113 0 0 1 257.9 89.5" fill="none" stroke="currentColor" className="text-warning" strokeWidth="20" />
           <path d="M 257.9 89.5 A 113 113 0 0 1 273 146" fill="none" stroke="currentColor" className="text-destructive" strokeWidth="20" />
           <g transform={`rotate(${angle} 160 146)`}>

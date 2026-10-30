@@ -290,7 +290,7 @@ export function AppShell({
               selector de mes) o, sin ellas, el título cuando el título grande ya se fue con el scroll;
               sin nada a la derecha. Detrás, el scroll edge effect separa los controles del
               contenido que pasa por debajo. Solo los controles reciben toques. */}
-          <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 scroll-edge-top px-4 pt-2 pb-3 md:hidden">
+          <div className="pwa-safe-top pointer-events-none sticky top-0 z-20 px-4 pt-2 pb-3 md:hidden">
             <div className="flex w-full items-center gap-2 *:pointer-events-auto">
               <UserMenu
                 user={user}

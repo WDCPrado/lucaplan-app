@@ -73,6 +73,7 @@ export type SaveTracker = {
   requested: UserSettings
   seq: Record<Field, number>
   confirmedSeq: Record<Field, number>
+  failedSeq: Record<Field, number>
 }
 export type SaveTicket = Partial<Record<Field, number>>
 
@@ -82,6 +83,7 @@ export function createSaveTracker(initial: UserSettings): SaveTracker {
     requested: { ...initial },
     seq: { glassLevel: 0, theme: 0 },
     confirmedSeq: { glassLevel: 0, theme: 0 },
+    failedSeq: { glassLevel: 0, theme: 0 },
   }
 }
 
@@ -114,6 +116,7 @@ export function endSave(
     saved: { ...t.saved },
     requested: { ...t.requested },
     confirmedSeq: { ...t.confirmedSeq },
+    failedSeq: { ...t.failedSeq },
   }
   const revert: Partial<UserSettings> = {}
   for (const f of fieldsOf(ticket)) {
@@ -123,8 +126,15 @@ export function endSave(
       if (n > tracker.confirmedSeq[f]) {
         Object.assign(tracker.saved, { [f]: confirmed[f] })
         tracker.confirmedSeq[f] = n
+        // El último pedido ya falló y se revirtió a un `saved` viejo: lo que quedó en la base es
+        // esto, así que la pantalla y `requested` lo siguen.
+        if (tracker.failedSeq[f] === tracker.seq[f]) {
+          Object.assign(revert, { [f]: confirmed[f] })
+          Object.assign(tracker.requested, { [f]: confirmed[f] })
+        }
       }
     } else if (n === tracker.seq[f]) {
+      tracker.failedSeq[f] = n
       Object.assign(revert, { [f]: tracker.saved[f] })
       Object.assign(tracker.requested, { [f]: tracker.saved[f] })
     }

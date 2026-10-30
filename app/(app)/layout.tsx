@@ -55,7 +55,8 @@ export default async function AppLayout({
     <AppearanceProvider initial={settings} stored={stored}>
       {/* Tema y vidrio del usuario sobre <html> antes de pintar la app (ver lib/appearance.ts).
           Corre en la carga del documento; en una navegación del cliente React no ejecuta scripts
-          (queda inerte) y ahí los aplica AppearanceProvider antes de pintar. */}
+          (queda inerte, y en desarrollo React lo avisa en consola) y ahí los aplica
+          AppearanceProvider antes de pintar. */}
       <script
         dangerouslySetInnerHTML={{ __html: appearanceScript(settings, stored) }}
       />

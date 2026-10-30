@@ -159,3 +159,26 @@ test("2→4→2 rápido: lo último pedido es 2 aunque la base aún tenga 2 conf
   assert.equal(t.requested.glassLevel, 4)
   assert.equal(t.saved.glassLevel, 2)
 })
+
+test("El script escapado sigue entregando el valor original.", () => {
+  store.clear()
+  const theme = "</script><b>  " as "dark"
+  assert.equal(runScript({ glassLevel: 2, theme }, true).stored, theme)
+})
+
+test("Si el pedido nuevo falla antes que el viejo, la pantalla sigue a lo que quedó en la base.", () => {
+  let t = createSaveTracker(base)
+  const a = beginSave(t, { glassLevel: 3 })
+  t = a.tracker
+  const b = beginSave(t, { glassLevel: 4 })
+  t = b.tracker
+  // B falla primero: revierte a lo confirmado (2).
+  let r = endSave(t, b.ticket, null)
+  assert.deepEqual(r.revert, { glassLevel: 2 })
+  t = r.tracker
+  // A confirma 3: eso es lo que quedó en la base, así que se repinta y requested lo sigue.
+  r = endSave(t, a.ticket, { glassLevel: 3, theme: "dark" })
+  assert.deepEqual(r.revert, { glassLevel: 3 })
+  assert.equal(r.tracker.saved.glassLevel, 3)
+  assert.equal(r.tracker.requested.glassLevel, 3)
+})

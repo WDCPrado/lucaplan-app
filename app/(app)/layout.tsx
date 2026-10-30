@@ -12,7 +12,7 @@ import {
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { AppFrame } from "@/components/finance/app-shell"
 
-// Marco de las pantallas con sesión: la barra inferior móvil y la búsqueda se
+// Marco de las pantallas con sesión: sidebar, barras superior e inferior y la búsqueda se
 // montan una vez aquí y no se desmontan al cambiar de ruta (un layout no se vuelve a renderizar en
 // la navegación; sí con router.refresh(), que es lo que hacen los modales al guardar, así las
 // cuentas y categorías de la búsqueda se ponen al día).
@@ -38,8 +38,15 @@ export default async function AppLayout({
     getAmountBounds(financeDeps, userId),
   ])
 
+  // Los datos de la cuenta del marco: el menú del sidebar en escritorio.
+  const label = session.user.name || session.user.email || "Usuario"
   return (
     <AppFrame
+      user={{
+        name: label,
+        initial: label.charAt(0).toUpperCase(),
+        email: session.user.email,
+      }}
       accounts={accounts}
       categories={budget.categories}
       amountBounds={amountBounds}

@@ -164,9 +164,11 @@ agrupaciones, la tipografía y los controles.
     margen (`--radius-bar-inner` en la topbar y el sidebar; `rounded-full` dentro de cápsulas).
   - Con `prefers-reduced-transparency` todo material cae a sólido; con `prefers-contrast: more`
     gana relleno y contorno.
-- **Navegación flotante, sin barras a lo ancho**: en móvil, arriba un círculo de vidrio a la
-  izquierda (cuenta) y las acciones de la vista a todo el ancho (el selector de mes `MonthNav`);
-  abajo, una cápsula con las pestañas (la activa con pastilla) y la búsqueda global en un círculo
+- **Navegación flotante, sin barras a lo ancho**: en móvil, arriba solo las acciones de la
+  vista a todo el ancho (el selector de mes `MonthNav`); sin acciones, nada flota en reposo y al
+  pasar el título grande aparece una cápsula con el título y el scroll edge effect. La cuenta (perfil,
+  tema, cerrar sesión) vive en Ajustes. Las dos barras viven en el layout (`AppFrame`) y no se
+  desmontan al navegar; la vista inyecta sus acciones por portal. Abajo, una cápsula con las pestañas (la activa con pastilla) y la búsqueda global en un círculo
   suelto a la derecha, en todas las vistas. En escritorio, sidebar y topbar flotantes de la misma
   familia (mismo margen, radio y vidrio); la topbar lleva la búsqueda global en todas las vistas.
   Crear un movimiento no está en la navegación: entran desde el correo del banco. Todo respeta `env(safe-area-inset-*)` y el

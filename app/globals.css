@@ -400,6 +400,7 @@ html:has(main[data-landing]) body {
     -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
     mask-image: linear-gradient(to bottom, #000 55%, transparent);
     pointer-events: none;
+    transition: opacity 240ms ease-out;
   }
 }
 @utility scroll-edge-bottom {
@@ -414,7 +415,48 @@ html:has(main[data-landing]) body {
     -webkit-mask-image: linear-gradient(to top, #000 55%, transparent);
     mask-image: linear-gradient(to top, #000 55%, transparent);
     pointer-events: none;
+    transition: opacity 240ms ease-out;
   }
+}
+
+/* Solo se ve cuando hay contenido pasando bajo los controles: en reposo no hay fondo. */
+@utility scroll-edge-off {
+  &::after {
+    opacity: 0;
+  }
+}
+
+/* Fila superior móvil, persistente en el AppFrame. Con acciones (el MonthNav) el scroll edge aparece
+   apenas hay scroll; sin ellas, junto con la cápsula del título, cuando el título grande ya pasó
+   bajo la fila. La cápsula solo existe en las vistas sin acciones. */
+.top-bar:not([data-scrolled])::after,
+.top-bar:has([data-top-actions]:empty):not([data-title-gone])::after {
+  opacity: 0;
+}
+.top-title {
+  opacity: 0;
+  scale: 0.94;
+  translate: 0 0.25rem;
+  transition:
+    opacity 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    scale 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    translate 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.top-bar[data-title-gone]:has([data-top-actions]:empty) .top-title {
+  opacity: 1;
+  scale: 1;
+  translate: 0 0;
+}
+.top-bar:not(:has([data-top-actions]:empty)) .top-title {
+  visibility: hidden;
+}
+/* Al cambiar de vista la barra queda quieta: entra solo su contenido (el título nuevo, el MonthNav). */
+@keyframes top-in {
+  from { opacity: 0; scale: 0.96; }
+}
+.top-title-text,
+[data-top-actions] > * {
+  animation: top-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 /* Mes/ciclo que cambia con las flechas: la etiqueta entra desde el lado de la navegación. */
@@ -628,6 +670,16 @@ html:has(main[data-landing]) body {
   }
   .month-in-next,
   .month-in-prev {
+    animation: none;
+  }
+  /* La cápsula del título y el contenido de la barra aparecen solo con opacidad, sin moverse. */
+  .top-title {
+    scale: 1;
+    translate: 0 0;
+    transition-duration: 120ms;
+  }
+  .top-title-text,
+  [data-top-actions] > * {
     animation: none;
   }
 }

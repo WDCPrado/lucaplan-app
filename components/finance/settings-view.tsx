@@ -3,6 +3,7 @@
 import { useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useTheme } from "next-themes"
 import { ChevronRight, Minus, Plus } from "lucide-react"
 import { toast } from "sonner"
 import type { PaceFrequency } from "@/arch/v1/domain/finance/pace.domain"
@@ -11,6 +12,7 @@ import { authClient } from "@/lib/auth-client"
 import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 import { PushToggle } from "@/components/pwa/push-toggle"
+import { InstallAppItem } from "@/components/pwa/install-app-item"
 import { AppShell } from "./app-shell"
 import { Button } from "@/components/ui/button"
 import type { BudgetAlert } from "@/arch/v1/domain/notifications/budget-alert.domain"
@@ -19,6 +21,10 @@ import type { BudgetAlert } from "@/arch/v1/domain/notifications/budget-alert.do
 // no un continuo, y un slider de 700px para eso se lee como barra de progreso, no como control.
 // Un umbral guardado fuera de esta lista igual aparece como chip (se puede quitar).
 const PRESETS = [25, 50, 75, 80, 90, 100]
+
+// Fila de 44 px de una lista agrupada que hace algo al tocarla (sin navegar).
+const ROW =
+  "press flex min-h-11 w-full items-center gap-3 py-3 pr-4 pl-4 text-left text-body hover:bg-accent/60"
 
 export function SettingsView({
   user,
@@ -35,6 +41,7 @@ export function SettingsView({
   vapidPublicKey: string
 }) {
   const router = useRouter()
+  const { resolvedTheme, setTheme } = useTheme()
 
   async function signOut() {
     await authClient.signOut()
@@ -52,6 +59,50 @@ export function SettingsView({
         {/* Móvil: título grande de iOS bajo la barra; en escritorio el título vive en el topbar. */}
         <h1 className="mb-3 text-large-title font-bold md:hidden">Ajustes</h1>
         <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
+          {/* Móvil: la cuenta, como en Ajustes de iOS (en escritorio vive en el pie del sidebar). */}
+          <section aria-label="Cuenta" className="glass inset-list overflow-hidden rounded-xl md:hidden">
+            <Link
+              href="/profile"
+              onClick={() => haptic("light")}
+              className="press flex min-h-15 items-center gap-3 py-2 pr-3 pl-4 hover:bg-accent/60"
+            >
+              <span
+                aria-hidden
+                className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-headline font-semibold text-primary-foreground"
+              >
+                {user.initial}
+              </span>
+              <span className="grid min-w-0 flex-1 leading-tight">
+                <span className="truncate text-headline font-semibold">
+                  {user.name || user.email}
+                </span>
+                {user.name && (
+                  <span className="truncate text-footnote text-muted-foreground">
+                    {user.email}
+                  </span>
+                )}
+              </span>
+              <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                haptic("light")
+                setTheme(resolvedTheme === "dark" ? "light" : "dark")
+              }}
+              className={ROW}
+            >
+              Tema
+              {/* El valor por CSS anclado al <html> (next-themes), como en el menú: sin mismatch de
+                  hidratación ni useEffect. */}
+              <span className="ml-auto text-muted-foreground">
+                <span className="hidden [html.dark_&]:inline">Oscuro</span>
+                <span className="[html.dark_&]:hidden">Claro</span>
+              </span>
+            </button>
+            {/* Solo aparece si hay vía de instalación y la app no corre ya instalada. */}
+            <InstallAppItem rowClassName={ROW} />
+          </section>
           {vapidPublicKey && (
             <SettingsSection title="Notificaciones" className="lg:col-span-2">
               <div className="glass rounded-xl p-4">
@@ -71,6 +122,15 @@ export function SettingsView({
               Conexiones del plugin
               <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
             </Link>
+          </div>
+          <div className="glass overflow-hidden rounded-xl md:hidden">
+            <button
+              type="button"
+              onClick={signOut}
+              className="press flex min-h-11 w-full items-center justify-center px-4 py-3 text-body text-destructive hover:bg-accent/60"
+            >
+              Cerrar sesión
+            </button>
           </div>
         </div>
       </div>

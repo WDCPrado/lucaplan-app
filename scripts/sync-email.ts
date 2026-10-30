@@ -11,9 +11,9 @@ import { prisma } from "../arch/v1/infrastructure/database/prisma/client.ts"
 
 async function resolveUserId(): Promise<string> {
   if (process.env.OUTLOOK_USER_ID) return process.env.OUTLOOK_USER_ID
-  // Sin env: el usuario dueño del buzón Outlook activo (el que conectó en la app).
+  // Un fallo transitorio marca "error": debe poder reintentarse sin intervención manual.
   const mailbox = await prisma.emailMailbox.findFirst({
-    where: { status: "active" },
+    where: { status: { in: ["active", "error"] } },
   })
   if (mailbox) return mailbox.userId
   throw new Error(

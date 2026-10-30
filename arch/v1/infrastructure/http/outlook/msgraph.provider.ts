@@ -5,6 +5,7 @@
 import { prisma } from "../../database/prisma/client.ts"
 import {
   EmailConnectionNotFoundError,
+  EmailDeltaExpiredError,
   type BankEmailMessage,
   type BankMailProvider,
 } from "../../../domain/finance/email-connection.domain.ts"
@@ -203,6 +204,7 @@ export const msgraphMailProvider: BankMailProvider = {
       messages.push(...data.value.map(toBankEmailMessage))
       url = data["@odata.nextLink"]
     }
+    if (url) throw new Error("La lectura de correo excedió el límite de páginas; no se avanzó el cursor.")
     return messages
   },
 
@@ -242,7 +244,10 @@ export const msgraphMailProvider: BankMailProvider = {
     let url: string | undefined = deltaLink
     let nextDelta = deltaLink
     for (let page = 0; url && page < MAX_PAGES; page++) {
-      const data: GraphPage = await graphJson<GraphPage>(mailboxId, url)
+      const response = await graphFetch(mailboxId, url)
+      if (response.status === 410) throw new EmailDeltaExpiredError()
+      if (!response.ok) throw new Error(`Microsoft Graph respondió ${response.status}`)
+      const data = (await response.json()) as GraphPage
       for (const item of data.value)
         if (!item["@removed"] && item.id) ids.push(item.id)
       if (data["@odata.deltaLink"]) {

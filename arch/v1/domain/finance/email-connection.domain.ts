@@ -104,7 +104,7 @@ export interface BankMailProvider {
   ): Promise<Date | null>
   // Inicializa el estado delta del Inbox desde `since`; devuelve el deltaLink para la próxima sync.
   startDelta(mailboxId: string, since: Date): Promise<string>
-  // Ejecuta el delta guardado; devuelve mensajes nuevos y el siguiente deltaLink.
+  // Ejecuta el delta guardado; EmailDeltaExpiredError exige una relectura antes de avanzar.
   runDelta(
     mailboxId: string,
     deltaLink: string
@@ -205,6 +205,13 @@ export interface ConnectionMethodRepository {
 }
 
 // --- Errores de negocio ---
+
+export class EmailDeltaExpiredError extends Error {
+  constructor() {
+    super("El estado incremental del correo expiró; hay que reconstruirlo.")
+    this.name = "EmailDeltaExpiredError"
+  }
+}
 
 // Ya existe otro método de conexión activo para ese banco desde ese buzón (→ 409).
 export class ConnectionMethodConflictError extends Error {

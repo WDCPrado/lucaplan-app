@@ -7,7 +7,10 @@ import type {
   EmailBankLinkWithMailbox,
   EmailMailbox,
 } from "../../domain/finance/email-connection.domain.ts"
-import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
+import {
+  EmailDeltaExpiredError,
+  EmailSetupStateError,
+} from "../../domain/finance/email-connection.domain.ts"
 import { parseBancoChileEmail } from "./bancochile-email-map.ts"
 import { parseMachbankEmail } from "./machbank-email-map.ts"
 import { detectCandidates } from "./bancochile-email-candidates.ts"
@@ -25,6 +28,7 @@ import {
   resolveEventTarget,
   scanEmailCandidates,
   syncMailbox,
+  syncUserMailboxes,
   type EmailConfirmPersistInput,
   type EmailConnectionDeps,
   type EmailStoredAccount,
@@ -880,7 +884,7 @@ test("confirmación vincula al bucket y no redescuenta movimientos anteriores al
   assert.equal(categorized, 1)
 })
 
-test("sync repetido es idempotente: crea y proyecta una sola vez", async () => {
+async function assertSyncIdempotent(expiredDelta: boolean) {
   const activeLink = link({
     id: "link-sync",
     bankId: "bank-1",
@@ -888,6 +892,7 @@ test("sync repetido es idempotente: crea y proyecta una sola vez", async () => {
     lastBalanceReconciledAt: new Date("2026-07-14T10:00:00Z"),
     mailbox: mailbox({
       deltaLink: "delta-1",
+      status: expiredDelta ? "error" : "active",
       lastSyncedAt: new Date("2026-07-14T10:00:00Z"),
     }),
   })
@@ -902,6 +907,8 @@ test("sync repetido es idempotente: crea y proyecta una sola vez", async () => {
   }
   const seen = new Set<string>()
   let categorized = 0
+  let restarted = false
+  let savedStatus = ""
   const incoming = message({
     id: "sync-message",
     internetMessageId: "<sync-message@example.test>",
@@ -910,14 +917,23 @@ test("sync repetido es idempotente: crea y proyecta una sola vez", async () => {
     htmlBody:
       "Cargo por $ 1.000 asociado a COMPRA PRUEBA. Cuenta terminada en 2345.",
   })
-  const deps = {
+  const deps: EmailConnectionDeps = {
     ...repos([activeLink]),
     methods: methodsFake,
     mail: {
-      listMessagesSince: async () => [],
+      listMessagesSince: async (_id, since, _until, senders) => {
+        assert.equal(expiredDelta, true)
+        assert.equal(restarted, true)
+        assert.equal(since.toISOString(), activeLink.mailbox.createdAt.toISOString())
+        assert.deepEqual(senders, BANCOCHILE.senders)
+        return [incoming]
+      },
       lastMessageDate: async () => null,
-      startDelta: async () => "delta-2",
-      runDelta: async () => ({ messages: [incoming], deltaLink: "delta-2" }),
+      startDelta: async () => { restarted = true; return "delta-2" },
+      runDelta: async () => {
+        if (expiredDelta) throw new EmailDeltaExpiredError()
+        return { messages: [incoming], deltaLink: "delta-2" }
+      },
       fetchMessage: async () => null,
       ensureSubscription: async () => null,
       deleteSubscription: async () => {},
@@ -965,6 +981,10 @@ test("sync repetido es idempotente: crea y proyecta una sola vez", async () => {
     categorize: async () => ++categorized,
   } satisfies EmailConnectionDeps
 
+  deps.mailboxes.update = async (_id: string, patch: Partial<EmailMailbox>) => {
+    savedStatus = patch.status ?? savedStatus
+    return activeLink.mailbox
+  }
   await syncMailbox(deps, "mbx-1", {
     now: new Date("2026-07-14T12:00:00Z"),
   })
@@ -974,7 +994,11 @@ test("sync repetido es idempotente: crea y proyecta una sola vez", async () => {
   assert.equal(bucket.available.toMajor(), 9000)
   assert.equal(seen.size, 1)
   assert.equal(categorized, 1)
-})
+  assert.equal(savedStatus, "active")
+}
+
+test("sync repetido es idempotente: crea y proyecta una sola vez", () => assertSyncIdempotent(false))
+test("recuperar delta expirado es idempotente y captura cursor antes de releer", () => assertSyncIdempotent(true))
 
 test("reproceso: relee desde la fecha, acota por remitente y no mueve el cursor delta", async () => {
   const base = repos([
@@ -1174,6 +1198,63 @@ const syncDepsForCardPayment = (
       captured.notified?.push(...movements.map((m) => m.description))
     },
   }) satisfies EmailConnectionDeps
+
+test("recuperación delta no guarda un cursor si falla la relectura o la importación", async () => {
+  for (const stage of ["cursor", "listing", "import"] as const) {
+    const deps: EmailConnectionDeps = syncDepsForCardPayment(
+      { accounts: [], buckets: [] },
+      { seen: new Set(), upserted: [], byId: new Map() },
+      []
+    )
+    const patches: Record<string, unknown>[] = []
+    deps.mailboxes.update = async (_id, patch) => {
+      patches.push(patch)
+      return mailbox()
+    }
+    deps.mail.runDelta = async () => { throw new EmailDeltaExpiredError() }
+    deps.mail.startDelta = async () => {
+      if (stage === "cursor") throw new Error("cursor failed")
+      return "fresh-delta"
+    }
+    deps.mail.listMessagesSince = async () => {
+      if (stage === "listing") throw new Error("listing failed")
+      return [message()]
+    }
+    deps.store.listInstruments = async () => { throw new Error("import failed") }
+    await assert.rejects(syncMailbox(deps, "mbx-1"), new RegExp(`${stage} failed`))
+    assert.ok(patches.every((patch) => !("deltaLink" in patch)))
+  }
+})
+
+test("sync de usuario omite reauth_required y recupera el siguiente buzón en error", async () => {
+  const deps: EmailConnectionDeps = syncDepsForCardPayment(
+    { accounts: [], buckets: [] },
+    { seen: new Set(), upserted: [], byId: new Map() },
+    []
+  )
+  const recoverable = mailbox({ status: "error", deltaLink: "expired" })
+  deps.mailboxes.listByUser = async () => [
+    mailbox({ id: "reauth-first", status: "reauth_required" }),
+    recoverable,
+  ]
+  deps.mailboxes.findById = async (id) => {
+    assert.equal(id, recoverable.id)
+    return recoverable
+  }
+  const consulted: string[] = []
+  deps.mail.runDelta = async (id) => {
+    consulted.push(id)
+    throw new EmailDeltaExpiredError()
+  }
+  deps.mailboxes.update = async (_id, patch) => {
+    Object.assign(recoverable, patch)
+    return recoverable
+  }
+  await syncUserMailboxes(deps, "user-1")
+  assert.deepEqual(consulted, ["mbx-1"])
+  assert.equal(recoverable.status, "active")
+  assert.equal(recoverable.deltaLink, "delta-2")
+})
 
 test("pago de tarjeta: sync expande dos patas (caja + deuda) y es idempotente", async () => {
   const buckets: EmailStoredBucket[] = [

@@ -22,6 +22,7 @@ import {
   BankAlreadyLinkedError,
   BankLabelRequiredError,
   EmailConnectionNotFoundError,
+  EmailDeltaExpiredError,
   EmailSetupStateError,
   type BankEmailMessage,
   type BankMailProvider,
@@ -1004,9 +1005,22 @@ export async function syncMailbox(
           )
         : []
     } else if (mailbox.deltaLink) {
-      const res = await deps.mail.runDelta(mailbox.id, mailbox.deltaLink)
-      messages = res.messages
-      deltaLink = res.deltaLink
+      try {
+        const res = await deps.mail.runDelta(mailbox.id, mailbox.deltaLink)
+        messages = res.messages
+        deltaLink = res.deltaLink
+      } catch (error) {
+        if (!(error instanceof EmailDeltaExpiredError)) throw error
+        // Capturar primero evita perder correos entre la relectura y el nuevo cursor.
+        deltaLink = await deps.mail.startDelta(mailbox.id, now)
+        const senders = links.flatMap(
+          (l) => bankByKey(l.bankProvider, registryOf(deps)).senders
+        )
+        // lastSyncedAt también avanza con webhooks; no garantiza que el delta esté al día.
+        messages = senders.length
+          ? await deps.mail.listMessagesSince(mailbox.id, mailbox.createdAt, undefined, senders)
+          : []
+      }
     } else {
       // Sin estado delta (caso borde): releer desde la última sync o el inicio del mes.
       const since = mailbox.lastSyncedAt ?? firstDayOfMonth(now)
@@ -1116,6 +1130,8 @@ export async function syncUserMailboxes(
     discarded: 0,
   }
   for (const mailbox of mailboxes) {
+    // Un correo que exige reconectar no debe bloquear los otros buzones del usuario.
+    if (mailbox.status === "reauth_required") continue
     const res = await syncMailbox(deps, mailbox.id, opts)
     total.imported += res.imported
     total.created += res.created

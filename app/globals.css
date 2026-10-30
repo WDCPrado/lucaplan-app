@@ -145,9 +145,10 @@
        sólida (`--glass-tint`). Los menús (`--material`) no se aclaran: llevan texto. */
     --glass-tint: 0%;
     --glass-clear: 35%;
+    --scroll-edge-amount: 45%; /* velo del scroll edge: baja con el nivel de vidrio */
     --glass-fill: color-mix(in oklch, color-mix(in oklch, oklch(1 0 0 / 0.6), transparent var(--glass-clear)), var(--card) var(--glass-tint));
     --glass-fill-large: color-mix(in oklch, color-mix(in oklch, oklch(0.985 0.002 286 / 0.72), transparent var(--glass-clear)), var(--card) var(--glass-tint));
-    --glass-blur: 16px;
+    --glass-blur: 14px;
     --glass-saturate: 180%;
     --glass-highlight: oklch(1 0 0 / 0.9);           /* brillo especular del canto superior */
     --glass-edge: oklch(0.359 0.012 285.8 / 0.12);   /* contorno fino */
@@ -161,7 +162,7 @@
     --scroll-edge-blur: 6px;
     --material-shadow: 0 0 0 0.5px var(--glass-edge), 0 12px 40px -8px oklch(0.2 0.01 286 / 0.2);
     /* Scroll edge effect: el contenido que pasa bajo los controles se funde con el fondo. */
-    --scroll-edge: color-mix(in oklch, var(--background) 78%, transparent);
+    --scroll-edge: color-mix(in oklch, var(--background) var(--scroll-edge-amount), transparent);
     /* Relleno de controles (systemFill): pista del segmentado, inputs y controles de la topbar. */
     --glass-control: oklch(0.569 0.015 285.9 / 0.12);
     --glass-control-active: oklch(1 0 0);
@@ -282,7 +283,7 @@ html:has(main[data-landing]) body {
     --glass-active: color-mix(in oklch, var(--primary) 26%, transparent);
     --material: color-mix(in oklch, oklch(0.26 0.004 286 / 0.84), var(--card) var(--glass-tint));
     --material-shadow: 0 0 0 0.5px var(--glass-edge), 0 12px 40px -8px oklch(0 0 0 / 0.6);
-    --scroll-edge: color-mix(in oklch, var(--background) 72%, transparent);
+    --scroll-edge: color-mix(in oklch, var(--background) var(--scroll-edge-amount), transparent);
     --glass-control: oklch(0.569 0.015 285.9 / 0.24);
     --glass-control-active: oklch(0.501 0.005 286.2); /* #636366 segmento activo */
 }
@@ -641,10 +642,10 @@ html:has(main[data-landing]) body {
 
 /* Nivel del vidrio elegido en Ajustes (0 = transparente, el de siempre; 4 = teñido, casi sólido).
    Más contraste y menos transparencia del sistema, abajo, siguen ganando. */
-:root[data-glass="0"] { --glass-clear: 80%; }
-:root[data-glass="1"] { --glass-clear: 60%; }
-:root[data-glass="3"] { --glass-clear: 0%; --glass-tint: 30%; }
-:root[data-glass="4"] { --glass-clear: 0%; --glass-tint: 75%; }
+:root[data-glass="0"] { --glass-clear: 85%; --glass-blur: 6px; --scroll-edge-amount: 0%; }
+:root[data-glass="1"] { --glass-clear: 65%; --glass-blur: 10px; --scroll-edge-amount: 20%; }
+:root[data-glass="3"] { --glass-clear: 0%; --glass-tint: 30%; --scroll-edge-amount: 70%; }
+:root[data-glass="4"] { --glass-clear: 0%; --glass-tint: 75%; --scroll-edge-amount: 85%; }
 
 /* Accesibilidad (apple-hig/foundations/materials): con MÁS CONTRASTE el vidrio gana relleno y
    contorno; con MENOS TRANSPARENCIA todo material cae a sólido, y va después para ganarle a

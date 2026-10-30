@@ -16,7 +16,7 @@ import { InstallAppItem } from "@/components/pwa/install-app-item"
 import { AppShell } from "./app-shell"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
-import { GLASS_MAX, getGlass, setGlass, subscribeGlass } from "@/lib/glass-level"
+import { GLASS_DEFAULT, GLASS_MAX, getGlass, setGlass, subscribeGlass } from "@/lib/glass-level"
 import type { BudgetAlert } from "@/arch/v1/domain/notifications/budget-alert.domain"
 
 // Umbrales ofrecidos. Son los que la gente usa: elegir "aviso al 80%" es una decisión discreta,
@@ -162,8 +162,8 @@ function SettingsSection({
 // Cuánto vidrio llevan barras, sidebar y menús: de transparente (el de siempre) a teñido, casi
 // sólido. Cinco pasos; es de este dispositivo (lib/glass-level.ts) y se ve al arrastrar.
 function AppearanceSection() {
-  // En el servidor no hay <html> que leer: parte en 0 y al hidratar toma el del dispositivo.
-  const level = useSyncExternalStore(subscribeGlass, getGlass, () => 0)
+  // En el servidor no hay <html> que leer: parte en el nivel por defecto y al hidratar toma el del dispositivo.
+  const level = useSyncExternalStore(subscribeGlass, getGlass, () => GLASS_DEFAULT)
 
   return (
     <SettingsSection

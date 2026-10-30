@@ -444,6 +444,10 @@ node --test "arch/**/*.test.ts"
 
 ### Docker Compose
 
+Para operar la instancia personal con base aislada, cron y HTTPS privado por Tailscale, usa
+[`compose.production.yml`](compose.production.yml) y la [guía de instalación local](docs/self-hosting.md).
+El Compose descrito a continuación sigue siendo el entorno de desarrollo existente.
+
 El repo incluye `Dockerfile` y `docker-compose.yml` (app + PostgreSQL 17). El volumen
 de datos está declarado como externo para que ningún `docker compose down -v` pueda
 borrarlo; créalo una vez antes del primer arranque:

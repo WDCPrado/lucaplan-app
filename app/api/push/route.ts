@@ -7,6 +7,7 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from "@/arch/v1/application/notification-use-cases/push-use-cases"
+import { welcomeMessage } from "@/arch/v1/application/notification-use-cases/notification-rules"
 import { isAllowedPushEndpoint } from "@/arch/v1/domain/notifications/push.domain"
 import { pushDeps } from "@/arch/v1/infrastructure/database/prisma/push-deps"
 
@@ -44,12 +45,7 @@ export async function POST(req: Request) {
       })
       // La bienvenida va SOLO a este dispositivo: los demás ya sabían que están activados y no
       // tienen por qué sonar. `sent` = si llegó (false ⇒ VAPID mal configurado o push service caído).
-      const sent = await sendPushToDevice(pushDeps, device, {
-        title: "Notificaciones activadas",
-        body: "Te avisaremos de tus movimientos y tu presupuesto.",
-        url: "/dashboard",
-        tag: "welcome",
-      })
+      const sent = await sendPushToDevice(pushDeps, device, welcomeMessage())
       return { ok: true, sent }
     },
     201

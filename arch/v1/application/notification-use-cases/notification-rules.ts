@@ -1,22 +1,54 @@
 // Reglas PURAS de qué se notifica y con qué texto. Sin IO: reciben datos ya cargados y devuelven
 // el PushMessage o `null` (= no molestar). Todo lo decidible sin base de datos vive aquí, para que
 // se pueda testear con `node --test`.
-import {
-  CURRENCY_DECIMALS,
-  type CurrencyCode,
-} from "../../domain/finance/money.ts"
+//
+// UNA forma para todos los avisos (cada uno pasa por `message`):
+// - título: qué pasó, con el dato clave (monto, categoría) adelante, en ≤40 caracteres;
+// - cuerpo: la consecuencia o la acción, en ≤90, como oración con punto final;
+// - sin emojis; montos con `formatMoney` (CLP y USD nunca se suman entre sí);
+// - `tag` por tipo (+ entidad cuando hay una) y `url` a la pantalla que resuelve el aviso.
+// Los largos son lo que cabe en ~2 líneas del banner de iOS sin cortarse a media palabra.
+import type { CurrencyCode } from "../../domain/finance/money.ts"
 import type { PushMessage } from "../../domain/notifications/push.domain.ts"
+import { formatMoney } from "../../../../lib/finance-format.ts"
 
-// ponytail: formato propio de 3 líneas en vez de importar lib/finance-format (es UI, alias @/, y
-// los use-cases deben correr en node --test sin resolver alias).
-const SYMBOL: Record<CurrencyCode, string> = { CLP: "$", USD: "US$" }
+export const TITLE_MAX = 40
+export const BODY_MAX = 90
+
+/** Recorta con "…" si no cabe (nombres del banco o del usuario pueden ser de cualquier largo). */
+function clip(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`
+}
+
+function message(
+  title: string,
+  body: string,
+  url: string,
+  tag: string
+): PushMessage {
+  return { title: clip(title, TITLE_MAX), body: clip(body, BODY_MAX), url, tag }
+}
 
 function money(value: number, currency: CurrencyCode): string {
-  const digits = CURRENCY_DECIMALS[currency]
-  return `${SYMBOL[currency]}${new Intl.NumberFormat("es-CL", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  }).format(Math.abs(value))}`
+  return formatMoney(Math.abs(value), currency)
+}
+
+/** Total por moneda, nunca convertido: "$32.990" o "$32.990 y US$19,10". */
+function totals(items: { amount: number; currency: CurrencyCode }[]): string {
+  const byCurrency = new Map<CurrencyCode, number>()
+  for (const i of items)
+    byCurrency.set(i.currency, (byCurrency.get(i.currency) ?? 0) + Math.abs(i.amount))
+  return [...byCurrency].map(([c, v]) => formatMoney(v, c)).join(" y ")
+}
+
+/** Bienvenida al activar las notificaciones en un dispositivo. */
+export function welcomeMessage(): PushMessage {
+  return message(
+    "Notificaciones activadas",
+    "Te avisaremos de movimientos nuevos, tu presupuesto y pagos por vencer.",
+    "/dashboard",
+    "welcome"
+  )
 }
 
 export type NotifiableMovement = {
@@ -48,31 +80,32 @@ export function newMovementsMessage(
   if (movements.length === 0) return null
   if (movements.length === 1) {
     const m = movements[0]
-    const charge = m.direction === "debit"
-    return {
-      title: charge ? "Nuevo gasto" : "Nuevo abono",
-      // La categoría cierra la pregunta obvia ("¿dónde quedó clasificado?"); sin ella, el aviso
-      // queda igual que antes en vez de mostrar un separador huérfano.
-      body: `${money(m.amount, m.currency)} · ${m.description}${m.category ? ` · ${m.category}` : ""}`,
+    const kind = m.direction === "debit" ? "Gasto" : "Abono"
+    return message(
+      `${kind} de ${money(m.amount, m.currency)}${m.category ? ` en ${m.category}` : ""}`,
+      // Sin categoría la IA no lo pudo clasificar: no cuenta para el presupuesto hasta que se haga.
+      m.category || m.direction === "credit"
+        ? `${m.description}.`
+        : `${clip(m.description, 40)}. Sin categoría: tócalo para clasificarlo.`,
       // Tocar el aviso abre el movimiento, no una lista donde haya que buscarlo.
-      url: m.id ? `/dashboard?tx=${m.id}` : "/dashboard",
-      tag: "movements",
-    }
+      m.id ? `/dashboard?tx=${m.id}` : "/movements",
+      "movements"
+    )
   }
-  // Resumen: se suma solo la moneda del primero para no inventar conversiones (USD≠CLP).
-  const currency = movements[0].currency
-  const total = movements
-    .filter((m) => m.currency === currency && m.direction === "debit")
-    .reduce((sum, m) => sum + m.amount, 0)
-  return {
-    title: `${movements.length} movimientos nuevos`,
-    body:
-      total > 0
-        ? `${money(total, currency)} en gastos`
-        : "Revisa tus movimientos del mes.",
-    url: "/dashboard",
-    tag: "movements",
-  }
+  // Resumen por moneda (CLP y USD por separado, sin convertir): gastos y abonos.
+  const debits = movements.filter((m) => m.direction === "debit")
+  const credits = movements.filter((m) => m.direction === "credit")
+  const parts = [
+    debits.length > 0 ? `Gastos por ${totals(debits)}` : "",
+    credits.length > 0 ? `abonos por ${totals(credits)}` : "",
+  ].filter(Boolean)
+  const body = parts.join("; ")
+  return message(
+    `${movements.length} movimientos nuevos`,
+    `${body.charAt(0).toUpperCase()}${body.slice(1)}.`,
+    "/movements",
+    "movements"
+  )
 }
 
 /**
@@ -99,18 +132,27 @@ export function budgetAlertMessage(
     .find((p) => usedBefore < limit * (p / 100) && usedAfter >= limit * (p / 100))
   if (crossed === undefined) return null
   const real = Math.round((usedAfter / limit) * 100)
-  return {
-    title:
-      real > 100
-        ? `${category.name}: te pasaste, vas en el ${real}%`
-        : real === 100
-          ? `${category.name}: presupuesto completo`
-          : `${category.name}: vas en el ${real}% del presupuesto`,
-    body: `Llevas ${money(usedAfter, currency)} de ${money(limit, currency)} este mes.`,
-    url: "/dashboard",
+  const suffix =
+    real > 100
+      ? `: te pasaste (${real}%)`
+      : real === 100
+        ? ": presupuesto completo"
+        : `: ${real}% del presupuesto`
+  const spent = `Llevas ${money(usedAfter, currency)} de ${money(limit, currency)}`
+  return message(
+    // El nombre se recorta para que el % no se pierda al final del título.
+    `${clip(category.name, TITLE_MAX - suffix.length)}${suffix}`,
+    // El cuerpo mira los montos, no el % redondeado: con 99,6% no se dice "sin margen".
+    usedAfter > limit
+      ? `${spent}; te pasaste por ${money(usedAfter - limit, currency)}.`
+      : usedAfter === limit
+        ? `${spent}; no te queda margen este mes.`
+        : `${spent}; te quedan ${money(limit - usedAfter, currency)} este mes.`,
+    // Los gastos de esa categoría en el período en curso: ahí se ve en qué se fue.
+    `/movements?categoryId=${encodeURIComponent(category.id)}`,
     // Una notificación viva por categoría: dos categorías distintas no se pisan entre sí.
-    tag: `budget:${category.id}`,
-  }
+    `budget:${category.id}`
+  )
 }
 
 export type DueItem = {
@@ -155,24 +197,25 @@ export function dueSoonMessage(
     const i = due[0]
     const d = daysUntil(i.dueDate, now)
     const when = d === 0 ? "hoy" : d === 1 ? "mañana" : `en ${d} días`
-    return {
-      title: `Vence ${when}: ${i.description}`,
-      body: money(i.amount, i.currency),
-      url: dueUrl(due),
-      tag: "due",
-    }
+    return message(
+      `Vence ${when}: ${i.description}`,
+      i.kind === "installment"
+        ? `Cuota de ${money(i.amount, i.currency)}. Toca para ver tus cuotas.`
+        : `Pago de ${money(i.amount, i.currency)}. Toca para ver tus recurrentes.`,
+      dueUrl(due),
+      "due"
+    )
   }
-  const currency = due[0].currency
-  const total = due
-    .filter((i) => i.currency === currency)
-    .reduce((sum, i) => sum + i.amount, 0)
-  return {
-    title: `${due.length} pagos por vencer`,
-    body:
-      windowDays === 0
-        ? `${money(total, currency)} vencen hoy.`
-        : `${money(total, currency)} en los próximos ${windowDays} día${windowDays === 1 ? "" : "s"}.`,
-    url: dueUrl(due),
-    tag: "due",
-  }
+  const span =
+    windowDays === 0
+      ? "hoy"
+      : windowDays === 1
+        ? "hoy o mañana"
+        : `en los próximos ${windowDays} días`
+  return message(
+    `${due.length} pagos vencen ${span}`,
+    `Suman ${totals(due)}. Toca para verlos.`,
+    dueUrl(due),
+    "due"
+  )
 }

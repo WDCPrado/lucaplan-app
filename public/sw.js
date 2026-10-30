@@ -35,12 +35,18 @@ self.addEventListener("push", (event) => {
   } catch {
     // payload no-JSON: se ignora y cae al texto por defecto
   }
+  // Sin payload legible no hay qué decir: se nombra la app y se invita a abrirla, sin inventar.
   const title = data.title || "Luca Plan";
   event.waitUntil(
     self.registration.showNotification(title, {
-      body: data.body || "",
+      body: data.body || "Tienes un aviso nuevo. Ábrelo para ver el detalle.",
+      lang: "es-CL",
+      // Ícono a color: el que se ve junto al texto (Android, Windows). iOS usa el de la app.
       icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
+      // Badge de la barra de estado de Android: el sistema usa SOLO su canal alfa y lo pinta de
+      // blanco. Con el ícono a color (opaco entero) se veía un cuadrado blanco; este es la "L"
+      // sola sobre transparente.
+      badge: "/icons/badge-96.png",
       // tag colapsa avisos del mismo tipo (no se apilan 8 "nuevo gasto" en la pantalla).
       tag: data.tag || "lucaplan",
       // ...pero reemplazar en silencio parece "no me avisó": renotify vuelve a sonar/vibrar.

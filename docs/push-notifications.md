@@ -51,7 +51,7 @@ configurar, se vuelve a ofrecer la próxima vez.
 
 | Evento                     | Cuándo                                                                       |
 | -------------------------- | ----------------------------------------------------------------------------- |
-| Movimientos nuevos         | Cuando el sync de correo importa cargos/abonos del banco. Uno se nombra con su categoría (`$12.990 · Uber Eats · Comida`; sin clasificar, se omite); varios se resumen. Los movimientos **manuales no notifican**: el usuario acaba de crearlos. |
+| Movimientos nuevos         | Cuando el sync de correo importa cargos/abonos del banco. Uno se nombra con monto y categoría (título `Gasto de $12.990 en Comida`, cuerpo `Uber Eats.`; sin clasificar, el cuerpo pide clasificarlo); varios se resumen con gastos y abonos por moneda. Los movimientos **manuales no notifican**: el usuario acaba de crearlos. |
 | Alerta de presupuesto      | Cuando un gasto hace que **una categoría** cruce alguno de los porcentajes configurados de **su** límite del mes: al importarlo, o al **categorizarlo** (sin categoría no cuenta para el presupuesto, igual que en el resumen). Al ser un cruce (antes debajo, después encima) no se repite ni hace falta guardar "ya avisé". Si un gasto cruza varios umbrales de una vez, avisa **solo el más alto**. |
 | Pagos por vencer           | Recurrentes y cuotas que vencen dentro de la ventana configurada (**Configuración → Pagos por vencer**, 0–14 días). Lo dispara el cron `pnpm notify:due`. |
 
@@ -63,12 +63,12 @@ La migración siembra 80% y 100%, que eran los valores fijos anteriores.
 
 Los umbrales son **globales en el sentido de que valen para todas las categorías**, pero cada una los
 mide contra **su propio límite** del mes (`category_limit`, con carry-forward). Gastar el 80% de
-Comida avisa "Comida: vas en el 80% del presupuesto", aunque el total del mes vaya en el 30%. Una
+Comida avisa "Comida: 80% del presupuesto", aunque el total del mes vaya en el 30%. Una
 categoría sin límite (o en 0) nunca alerta: no hay porcentaje que cruzar. Las categorías de ingreso
 tampoco.
 
 El umbral es el **gatillo**; lo que el aviso dice es el gasto **real**: saltar de 40% a 139% con un
-umbral en 80 titula "Comida: te pasaste, vas en el 139%", no "vas en el 80%". Justo en el 100% es
+umbral en 80 titula "Comida: te pasaste (139%)", no "80%". Justo en el 100% es
 "Comida: presupuesto completo". Por eso el techo del slider es 100: sobre eso el número ya lo pone
 el gasto, no la configuración.
 
@@ -182,13 +182,27 @@ cambiarla no exige tocar el cron; el argumento posicional sigue mandando para pr
 | Alta/baja HTTP                 | [app/api/push/route.ts](../app/api/push/route.ts); umbrales en [app/api/budget-alerts/route.ts](../app/api/budget-alerts/route.ts) |
 | `push` y `notificationclick`   | [public/sw.js](../public/sw.js)                                       |
 
+## Forma de los avisos
+
+Todos salen de una función por tipo en
+[notification-rules.ts](../arch/v1/application/notification-use-cases/notification-rules.ts)
+(también la bienvenida), con la misma forma: **título** = qué pasó con el dato clave adelante, en
+≤40 caracteres; **cuerpo** = la consecuencia o la acción, en ≤90, como oración; sin emojis; montos
+con `formatMoney` y CLP y USD nunca sumados entre sí. Lo que no cabe se recorta con "…" (en la
+alerta de presupuesto se recorta el nombre, no el porcentaje). Un test fija esa forma.
+
+El service worker muestra `icon` a color (`icon-192.png`) y `badge-96.png` para la barra de estado
+de Android: Android usa solo el canal alfa del badge, así que es la "L" blanca sobre transparente
+(con el ícono opaco se veía un cuadrado blanco). iOS ignora ambos y usa el ícono de la app.
+
 ## A dónde lleva cada aviso
 
 | Aviso                      | Destino                                                                 |
 | -------------------------- | ----------------------------------------------------------------------- |
 | Movimiento nuevo (uno)     | `/dashboard?tx=<id>` — abre el modal de ESE movimiento                   |
-| Movimientos nuevos (varios)| `/dashboard`                                                             |
-| Alerta de presupuesto      | `/dashboard`                                                             |
+| Movimiento nuevo (sin id)  | `/movements`                                                             |
+| Movimientos nuevos (varios)| `/movements`                                                             |
+| Alerta de presupuesto      | `/movements?categoryId=<id>` — los gastos de esa categoría en el período |
 | Pagos por vencer           | `/recurring#cuotas` si todo son cuotas; si no, `/recurring` |
 
 El `notificationclick` del service worker **navega** la ventana existente a esa URL en vez de solo

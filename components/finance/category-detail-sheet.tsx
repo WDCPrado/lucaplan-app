@@ -94,7 +94,7 @@ export function CategoryDetailSheet({
                   <div
                     role="img"
                     aria-label={`Uso del presupuesto: ${formatCLP(category.used)} gastados y ${formatCLP(category.committed)} comprometidos de ${formatCLP(category.limit)}.`}
-                    className="mt-4 flex h-1.5 overflow-hidden rounded-full bg-muted"
+                    className="mt-4 flex h-1.5 w-full overflow-hidden rounded-full bg-border"
                   >
                     <div
                       className="h-full"
@@ -120,8 +120,7 @@ export function CategoryDetailSheet({
                     </dd>
                   </div>
                   <div>
-                    <dt className="flex items-center gap-1.5 text-footnote text-muted-foreground">
-                      <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: statusVar(category.status), opacity: 0.35 }} />
+                    <dt className="text-footnote text-muted-foreground">
                       Comprometido
                     </dt>
                     <dd className="tabular mt-1 text-body font-medium break-all">
@@ -129,8 +128,7 @@ export function CategoryDetailSheet({
                     </dd>
                   </div>
                   <div>
-                    <dt className="flex items-center gap-1.5 text-footnote text-muted-foreground">
-                      <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: statusVar(category.status) }} />
+                    <dt className="text-footnote text-muted-foreground">
                       Gastado
                     </dt>
                     <dd className="tabular mt-1 text-body font-medium break-all">

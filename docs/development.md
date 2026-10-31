@@ -4,10 +4,11 @@ Guía de trabajo dentro del repo, para personas y agentes. El contexto general (
 stack, puesta en marcha, scripts, deploy) vive en el [README](../README.md); este documento cubre
 solo **cómo se trabaja aquí**.
 
-Tras mergear un PR, GitHub Actions valida `master` y solicita a Coolify el despliegue del SHA
-validado, siguiendo [el despliegue automático](coolify.md#github-validar-antes-de-desplegar).
+Los checks del PR deben pasar antes del merge. Al integrar en `master`, el webhook firmado de
+GitHub dispara el auto-deploy nativo de Coolify. Sigue la [guía de Coolify](coolify.md).
 Cerrar un PR sin merge no despliega. La app Dockerfile y PostgreSQL son recursos nativos separados;
-se conservan los secretos y datos de Coolify. El backup previo debe terminar antes de solicitar deploy.
+se conservan los secretos y datos de Coolify. Usa backups nativos programados y un respaldo manual
+verificado antes de migraciones destructivas.
 
 ## Flujo de trabajo
 

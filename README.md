@@ -447,8 +447,8 @@ node --test "arch/**/*.test.ts"
 
 Coolify administra la app desde el repositorio privado y su `Dockerfile`, PostgreSQL 18 como
 recurso nativo y los trabajos periódicos como Scheduled Tasks. El túnel Cloudflare es un recurso
-separado. GitHub valida `master`, verifica un backup de la base y solicita el SHA exacto, sin
-runner local. Preparación, secretos, corte desde Docker Desktop y recuperación están en la
+separado. GitHub valida el código; al mergear en `master`, su webhook firmado dispara el
+auto-deploy nativo de Coolify. Backups programados, corte desde Docker Desktop y recuperación están en la
 [guía de Coolify](docs/coolify.md).
 
 ### Docker Compose

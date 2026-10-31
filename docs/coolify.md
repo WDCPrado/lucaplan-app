@@ -19,8 +19,8 @@ El origen de Desktop queda detenido después del corte, conservando sus datos.
 3. Crea la Application del repositorio privado `WDCPrado/lucaplan-app`, rama `master`,
    build pack **Dockerfile**, Base Directory `/`, Dockerfile `/Dockerfile`, puerto
    expuesto `3005` y Domains `https://lucaplan.cl:3005` (el puerto indica el destino
-   interno del proxy, no un puerto público). Usa GitHub App o deploy key de solo lectura. Desactiva Auto Deploy
-   y previews desde el principio. No configures Compose ni comandos Compose custom.
+   interno del proxy, no un puerto público). Usa la deploy key de solo lectura existente.
+   Mantén previews desactivadas y Auto Deploy apagado durante el ensayo.
 4. Desactiva el healthcheck HTTP generado de Coolify (`health_check_enabled=false`):
    el Dockerfile ya define un HEALTHCHECK Node contra `/login` en `3005`, sin curl/wget.
    Coolify 4.5.3 detecta ese check y espera la salud del contenedor. Mantén desactivado
@@ -31,9 +31,8 @@ El origen de Desktop queda detenido después del corte, conservando sus datos.
    Outlook y VAPID. Conserva `BETTER_AUTH_URL=https://lucaplan.cl`, callback y webhook
    públicos actuales. `NEXT_PUBLIC_LANDING_ONLY=true` va a build y runtime; los demás
    secretos solo a runtime. No imprimas URLs de base ni respuestas API completas.
-6. Coolify usa el commit fijado para construir y etiquetar la imagen nativa. Registra
-   el SHA efectivo de cada despliegue y conserva imágenes anteriores. No sustituyas
-   el pin por `HEAD` ni habilites despliegues independientes desde GitHub App.
+6. Configura `git_commit_sha=HEAD` para seguir los pushes de `master`. Coolify construye
+   y etiqueta la imagen nativa; registra el SHA efectivo y conserva imágenes anteriores.
 
 La base es independiente: desplegar la aplicación no la recrea. Un despliegue nativo
 puede mantener la versión anterior mientras arranca la nueva; las migraciones deben
@@ -68,56 +67,45 @@ para este origen HTTP y evita bucles. Comprueba acceso desde la red del túnel a
 del corte. No uses IPs efímeras ni actives este conector mientras el original sirva
 la otra base. Los dominios los gestiona la Application, no un alias de contenedor.
 
-## Backups nativos y gate de despliegue
+## Auto-deploy nativo al mergear
 
-En PostgreSQL configura un backup periódico con retención y copia fuera del host,
-y **otro schedule dedicado a CI**: `enabled=false`, solo base `lucaplan`, sin
-`dump_all`. No ejecutes este último manualmente mientras CI lo esté usando.
-Prueba restauración; un estado exitoso no demuestra por sí solo que la copia se
-pueda recuperar. Supervisa espacio y alertas; PostgreSQL no debe depender del disco
-local como única copia. El estado `success` confirma backup local; si configuraste
-S3, verifica también su réplica y alertas de subida.
+La app usa el repositorio privado con deploy key de solo lectura y un **Manual Git
+Webhook** nativo de Coolify. No necesita GitHub App ni token API en Actions.
 
-Variables y secreto del repositorio GitHub:
+1. Selecciona `master`, `git_commit_sha=HEAD` y Auto deploy: **Deploy on push (webhooks)**.
+   Mantén Preview Deployments desactivado.
+2. En Webhooks → Manual Git Webhooks → GitHub genera y guarda un secreto largo
+   aleatorio. El endpoint público es
+   `https://coolify-api.lucaplan.cl/webhooks/source/github/events/manual`.
+   Cloudflare publica solo esa ruta; panel y API administrativa permanecen privados
+   por Tailscale en 8443. No expongas Docker ni guardes el secreto en Git.
+3. En GitHub Settings → Webhooks agrega esa URL, `application/json`, el mismo
+   secreto, SSL verification habilitada y **Just the push event**. Coolify verifica
+   la firma de GitHub. No selecciones eventos de PR ni habilites previews.
+4. Exige el check `validate` en la protección de `master` antes del merge. Actions
+   valida PRs y pushes, pero no despliega. El webhook despliega el push integrado:
+   no espera al check posterior al merge. Un push directo también despliega;
+   restringe bypasses si todos los cambios deben pasar por PR.
+5. Tras mergear comprueba Recent Deliveries, Deployment Logs, SHA, salud y dominio.
+   No basta `finished`: verifica `running:healthy` y `/login`. Cerrar un PR sin
+   merge no genera push a master. `/login` no comprueba todas las integraciones.
 
-| Nombre | Tipo | Contenido |
-| --- | --- | --- |
-| `COOLIFY_URL` | Variable | Origen HTTPS de la API, sin `/api/v1` |
-| `COOLIFY_APP_UUID` | Variable | UUID de la Application Dockerfile |
-| `COOLIFY_DATABASE_UUID` | Variable | UUID de PostgreSQL nativo conectado a la app |
-| `COOLIFY_BACKUP_UUID` | Variable | UUID del schedule manual exclusivo de CI |
-| `COOLIFY_TOKEN` | Secret | Permisos de leer, actualizar, respaldar y desplegar esos recursos |
+Durante el ensayo deja Auto Deploy o el webhook inactivo. Si falla una entrega,
+revisa firma, endpoint, evento y rama antes de reenviarla. Si ya hay un deploy activo,
+consulta su estado antes de iniciar otro. Actions no necesita variables ni secretos
+`COOLIFY_*` para este flujo.
 
-El panel permanece privado por Tailscale en 8443. La API tiene un origen HTTPS
-dedicado por Cloudflare limitado a las rutas `/api/v1` requeridas y autenticado con
-Bearer; no publica el panel. Una página Cloudflare Access no sirve como respuesta.
-No expongas el daemon Docker ni guardes tokens en URLs. Mantén consistente
-la pareja `DATABASE_URL`/`COOLIFY_DATABASE_UUID`: CI no lee secretos de app para
-inferir qué base estás usando.
+## Backups nativos
 
-PRs validan sin desplegar. Solo después de validar un **push a master** se ejecuta
-el deploy; cerrar sin merge no despliega. Un push directo autorizado también dispara
-el flujo: protege master si exiges PR. Las solicitudes se serializan y se omiten
-commits que ya no sean la punta. El script:
+Configura backups periódicos de PostgreSQL en Coolify, con retención, alertas y
+copia fuera del host. Prueba restauración y supervisa espacio. `success` confirma
+la copia local; con S3 verifica también su réplica y alertas de subida.
 
-1. Fija `git_commit_sha` por API, apaga auto-deploy/previews y verifica SHA, rama y
-   build pack `dockerfile`.
-2. Lee los UUID de ejecuciones previas del backup y aborta si alguna sigue activa.
-   Solicita `PATCH /databases/{db}/backups/{schedule}` con `backup_now=true`.
-3. Espera una ejecución nueva `success`, con archivo y tamaño positivo. Fallo,
-   ausencia, timeout o varias ejecuciones nuevas bloquean el despliegue.
-4. Solicita deploy del SHA fijado y espera `finished`, comprobando el commit. Después
-   exige que la API de Application confirme `running:healthy` en hasta tres minutos;
-   un deploy terminado con contenedor unhealthy falla CI. Verifica también dominio y
-   funciones: `/login` no prueba todas las dependencias externas.
-
-Coolify 4.5.3 no devuelve UUID de ejecución al disparar el backup: la correlación
-usa la diferencia de UUID del schedule dedicado. Una ejecución manual concurrente
-puede ser indistinguible antes de aparecer la de CI; restringe ese acceso. La copia
-es consistente al momento del dump, pero no incluye escrituras posteriores durante
-el build. No es un mecanismo de rollback automático. Tras timeout o desconexión
-puede seguir trabajando Coolify; consulta el panel antes de reintentar. Deploys
-manuales evaden el gate y requieren backup y SHA validado comprobados por el operador.
+No hay backup obligatorio antes de cada deploy. Antes del corte o de migraciones
+destructivas, desactiva temporalmente Auto Deploy, congela escritores, ejecuta y
+verifica un backup manual y acuerda recuperación. Solo entonces actualiza. El dump
+no incluye escrituras posteriores ni vuelve reversible una migración. Reactiva
+el webhook/Auto Deploy cuando el resultado esté verificado.
 
 ## Ensayo, corte y recuperación
 
@@ -133,10 +121,11 @@ manuales evaden el gate y requieren backup y SHA validado comprobados por el ope
    Comprueba conteos y secretos. Conserva PostgreSQL origen detenido tras restaurar.
 4. Despliega el SHA de master validado, comprueba salud y activa el único túnel y
    Scheduled Tasks destino. Verifica login, cuentas, movimientos, callback/webhook
-   Outlook, MCP y ejecución de cada tarea. Habilita las variables GitHub para merges
-   siguientes; comprueba SHA, backup nuevo y resultado del primer flujo completo.
+   Outlook, MCP y ejecución de cada tarea. Habilita Auto Deploy y el webhook para
+   merges siguientes; comprueba entrega firmada, SHA y salud del primer deploy nativo.
 
-Si falla el backup, CI no solicita deploy y la app existente sigue atendiendo.
+Si falla un backup previo al corte o a una migración destructiva, no continúes y
+mantén Auto Deploy desactivado hasta resolverlo.
 Si falla build, arranque o migración, inspecciona salud y logs antes de reintentar.
 Volver al SHA anterior solo es válido con esquema compatible; no revierte datos.
 Para volver al host origen, detén primero tareas, app y túnel destino. Si hubo
@@ -150,6 +139,5 @@ completo, salud, tareas y dominio. El host apagado o sin red deja el sitio inacc
 
 Referencias oficiales: [Dockerfile](https://coolify.io/docs/applications/build-packs/dockerfile),
 [Scheduled Tasks](https://coolify.io/docs/applications/operations/scheduled-tasks),
-[backup API](https://coolify.io/docs/api/endpoints/databases/update-database-backup),
-[ejecuciones](https://coolify.io/docs/api/endpoints/databases/list-backup-executions),
-[cola 4.5.3](https://github.com/coollabsio/coolify/blob/v4.5.3/bootstrap/helpers/applications.php).
+[webhooks Git manuales](https://coolify.io/docs/applications/deployments/manual-webhooks) y
+[backups nativos](https://coolify.io/docs/databases/backups).

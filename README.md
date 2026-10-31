@@ -443,6 +443,14 @@ node --test "arch/**/*.test.ts"
 
 ## Deploy
 
+### Coolify en Ubuntu WSL2
+
+Coolify administra la app desde el repositorio privado y su `Dockerfile`, PostgreSQL 18 como
+recurso nativo y los trabajos periódicos como Scheduled Tasks. El túnel Cloudflare es un recurso
+separado. GitHub valida el código; al mergear en `master`, su webhook firmado dispara el
+auto-deploy nativo de Coolify. Backups programados, corte desde Docker Desktop y recuperación están en la
+[guía de Coolify](docs/coolify.md).
+
 ### Docker Compose
 
 Para operar la instancia personal con base aislada, cron y HTTPS público por Cloudflare Tunnel, usa
@@ -522,7 +530,7 @@ seed lo registra y sigue con las demás, en vez de caerse el deploy. Cómo escri
 | Correos bancarios           | [docs/bank-email-contract.md](docs/bank-email-contract.md) — catálogo de correos soportados y qué debe aportar un banco nuevo. |
 | Plugin Luca Plan            | [docs/plugin-luca-plan.md](docs/plugin-luca-plan.md) — paquete MCP, autorización por usuario, catálogo de operaciones y conexión con ChatGPT o Codex. |
 | Acceso por correo          | [Código de acceso y Resend](docs/login-code.md). |
-| Operación y despliegue      | [Scripts](#scripts) y [Deploy](#deploy) en este README; [Docker local y actualización post-merge](docs/self-hosting.md). |
+| Operación y despliegue      | [Scripts](#scripts) y [Deploy](#deploy) en este README; [Coolify y migración](docs/coolify.md); [Docker local y recuperación del origen](docs/self-hosting.md). |
 | Specs y cambios             | [openspec/README.md](openspec/README.md) — capacidades canónicas, cambios en curso y archivo histórico. |
 
 ## Contribuir

@@ -17,13 +17,14 @@ export function dueJobs(now, previous) {
 
 export async function renewOutlook(
   secret = process.env.OUTLOOK_RENEW_SECRET,
-  request = fetch
+  request = fetch,
+  origin = "http://app:3005"
 ) {
   if (!secret)
     throw new Error("Falta OUTLOOK_RENEW_SECRET para renovar Outlook.")
   let response
   try {
-    response = await request("http://app:3005/api/email-connection/renew", {
+    response = await request(`${origin}/api/email-connection/renew`, {
       method: "POST",
       headers: { authorization: `Bearer ${secret}` },
       signal: AbortSignal.timeout(240_000),
@@ -61,7 +62,14 @@ function run(script) {
   })
 }
 
-if (import.meta.main) {
+if (import.meta.main && process.argv[2] === "--renew-once") {
+  try {
+    await renewOutlook(undefined, undefined, "http://127.0.0.1:3005")
+  } catch (error) {
+    console.error("[cron]", error.message)
+    process.exitCode = 1
+  }
+} else if (import.meta.main) {
   console.log(
     "[cron] Correo cada 5 minutos; recordatorios 00:00 UTC; renovar Outlook 00:00 y 12:00 UTC."
   )

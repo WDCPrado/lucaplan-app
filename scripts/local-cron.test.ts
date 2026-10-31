@@ -1,6 +1,19 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { spawnSync } from "node:child_process"
 import { dueJobs, renewOutlook } from "./local-cron.mjs"
+
+test("renovación one-shot usa localhost y termina con error cuando falta secreto", async () => {
+  await renewOutlook("secret", async (url) => {
+    assert.equal(url, "http://127.0.0.1:3005/api/email-connection/renew")
+    return Response.json({ failed: 0 })
+  }, "http://127.0.0.1:3005")
+  const result = spawnSync(process.execPath, ["scripts/local-cron.mjs", "--renew-once"], {
+    env: { ...process.env, OUTLOOK_RENEW_SECRET: "" }, encoding: "utf8", timeout: 5_000,
+  })
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /Falta OUTLOOK_RENEW_SECRET/)
+})
 
 test("sincroniza cada cinco minutos sin repetir y recupera un tick atrasado", () => {
   assert.deepEqual(dueJobs(299_999, 240_000), [])

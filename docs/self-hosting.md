@@ -1,6 +1,6 @@
 # Luca Plan en Docker con Cloudflare Tunnel
 
-La producción migrada a Coolify usa la [guía de Coolify](coolify.md) y `compose.coolify.yml`.
+La producción migrada usa recursos nativos separados y la [guía de Coolify](coolify.md).
 Este documento conserva la instalación de Docker Desktop y su recuperación. El workflow actual
 ya no llama a `deploy-local.mjs`: no reactives su runner durante la operación de Coolify.
 

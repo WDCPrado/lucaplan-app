@@ -6,7 +6,8 @@ solo **cómo se trabaja aquí**.
 
 Tras mergear un PR, GitHub Actions valida `master` y solicita a Coolify el despliegue del SHA
 validado, siguiendo [el despliegue automático](coolify.md#github-validar-antes-de-desplegar).
-Cerrar un PR sin merge no despliega. Los secretos de Coolify y el volumen externo se conservan.
+Cerrar un PR sin merge no despliega. La app Dockerfile y PostgreSQL son recursos nativos separados;
+se conservan los secretos y datos de Coolify. El backup previo debe terminar antes de solicitar deploy.
 
 ## Flujo de trabajo
 

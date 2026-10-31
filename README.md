@@ -445,10 +445,11 @@ node --test "arch/**/*.test.ts"
 
 ### Coolify en Ubuntu WSL2
 
-La configuración de producción para Coolify está en [`compose.coolify.yml`](compose.coolify.yml):
-app, PostgreSQL 18, cron y el túnel Cloudflare existente. GitHub valida `master` y solicita a Coolify
-el despliegue del SHA validado, sin runner local. Preparación, secretos, backup previo, corte desde
-Docker Desktop y recuperación están en la [guía de Coolify](docs/coolify.md).
+Coolify administra la app desde el repositorio privado y su `Dockerfile`, PostgreSQL 18 como
+recurso nativo y los trabajos periódicos como Scheduled Tasks. El túnel Cloudflare es un recurso
+separado. GitHub valida `master`, verifica un backup de la base y solicita el SHA exacto, sin
+runner local. Preparación, secretos, corte desde Docker Desktop y recuperación están en la
+[guía de Coolify](docs/coolify.md).
 
 ### Docker Compose
 

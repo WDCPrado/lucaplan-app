@@ -27,7 +27,7 @@ jobs:
     needs: validate
     if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository == 'WDCPrado/lucaplan-app'
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     permissions:
       contents: read
     concurrency:
@@ -43,6 +43,8 @@ jobs:
         env:
           COOLIFY_URL: ${{ vars.COOLIFY_URL }}
           COOLIFY_APP_UUID: ${{ vars.COOLIFY_APP_UUID }}
+          COOLIFY_DATABASE_UUID: ${{ vars.COOLIFY_DATABASE_UUID }}
+          COOLIFY_BACKUP_UUID: ${{ vars.COOLIFY_BACKUP_UUID }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
           if [ "$(git ls-remote origin refs/heads/master | cut -f1)" != "$GITHUB_SHA" ]; then

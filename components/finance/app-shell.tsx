@@ -404,7 +404,7 @@ function Chrome({
               (`.top-title`). Solo las cápsulas desenfocan el fondo y reciben toques. */}
           <div
             data-scrolled={scrolled || undefined}
-            className="top-bar pwa-safe-top pointer-events-none sticky top-0 z-20 flex items-center px-4 pt-2 pb-3 md:hidden"
+            className="top-bar pwa-safe-top pointer-events-none sticky top-0 z-20 flex items-center px-2 py-2 md:hidden"
           >
             {title && (
               <div className="top-title grid">
@@ -560,7 +560,7 @@ function BottomNav({
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 px-4 pt-3 pb-(--tab-bar-inset) md:hidden"
+      className="pointer-events-none fixed right-[env(safe-area-inset-right)] bottom-0 left-[env(safe-area-inset-left)] z-30 flex items-center gap-3 px-2 pt-3 pb-(--tab-bar-inset) md:hidden"
     >
       <nav
         ref={navRef}

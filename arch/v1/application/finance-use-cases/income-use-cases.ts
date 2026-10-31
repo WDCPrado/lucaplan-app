@@ -14,6 +14,7 @@ import {
 import {
   type Income,
   type IncomeAmount,
+  type IncomeSource,
   type IncomeRepository,
   InvalidIncomeError,
   IncomeNotFoundError,
@@ -24,18 +25,19 @@ import {
 import { Money } from "../../domain/finance/money.ts"
 import { effectiveGlobalLimit, latestUpTo } from "./budget-formulas.ts"
 import { projectCashEvent } from "./bucket-projection.ts"
-import { rangeOf } from "./budget-period-use-cases.ts"
+import { rangeOf, getBudgetPeriod, scopeBudgetPeriod, type BudgetPeriodDeps } from "./budget-period-use-cases.ts"
 import type { BudgetPeriodRepository } from "../../domain/finance/budget-period.domain.ts"
 
 const CLP = "CLP" as const
 
-type IncomeDeps = {
+type IncomeDeps = BudgetPeriodDeps & {
   incomes: IncomeRepository
   accounts: AccountRepository
   categories: CategoryRepository
 }
 
 type IncomeInput = {
+  sourceId?: string
   accountId: string
   categoryId: string
   name: string
@@ -105,10 +107,17 @@ async function validateInput(
 }
 
 export async function listIncomes(
-  deps: { incomes: IncomeRepository },
+  deps: { incomes: IncomeRepository } & BudgetPeriodDeps,
   userId: string
 ): Promise<Income[]> {
-  return deps.incomes.listByUser(userId)
+  return deps.incomes.listByUser(userId, (await getBudgetPeriod(deps)).mode)
+}
+
+export async function listAvailableIncomeSources(
+  deps: { incomes: IncomeRepository } & BudgetPeriodDeps,
+  userId: string
+): Promise<IncomeSource[]> {
+  return deps.incomes.listAvailableSources(userId, (await getBudgetPeriod(deps)).mode)
 }
 
 // Lista las fuentes con la marca de si su ingreso de (year, month) ya fue generado (para el dashboard).
@@ -118,8 +127,9 @@ export async function listIncomesForMonth(
   year: number,
   month: number
 ): Promise<Array<Income & { generated: boolean }>> {
+  deps = await scopeBudgetPeriod(deps)
   validatePeriod(year, month)
-  const incomes = await deps.incomes.listByUser(userId)
+  const incomes = await deps.incomes.listByUser(userId, (await getBudgetPeriod(deps)).mode)
   const range = await rangeOf(deps, year, month)
   // ponytail: hasGeneratedFor por fuente; son pocas por usuario. Batch si algún usuario tiene muchas.
   return Promise.all(
@@ -135,9 +145,18 @@ export async function createIncome(
   userId: string,
   input: IncomeInput
 ): Promise<Income> {
+  deps = await scopeBudgetPeriod(deps)
+  if (input.sourceId) {
+    const source = (await listAvailableIncomeSources(deps, userId)).find(source => source.id === input.sourceId)
+    if (!source) throw new InvalidIncomeError("La fuente no está disponible para agregarla a este modo")
+    // Incorporar solo agrega el monto del plan; no modifica la identidad compartida.
+    input = { ...input, accountId: source.accountId, categoryId: source.categoryId, name: source.name, dayOfMonth: source.dayOfMonth }
+  }
   const { money } = await validateInput(deps, userId, input)
   validatePeriod(input.year, input.month)
   return deps.incomes.create({
+    mode: (await getBudgetPeriod(deps)).mode,
+    sourceId: input.sourceId,
     userId,
     accountId: input.accountId,
     categoryId: input.categoryId,
@@ -154,12 +173,14 @@ export async function updateIncome(
   userId: string,
   input: IncomeInput & { id: string; isActive: boolean }
 ): Promise<Income> {
+  deps = await scopeBudgetPeriod(deps)
   validatePeriod(input.year, input.month)
-  const existing = await deps.incomes.findById(input.id)
+  const existing = await deps.incomes.findById(input.id, (await getBudgetPeriod(deps)).mode)
   if (!existing) throw new IncomeNotFoundError(input.id)
   if (existing.userId !== userId) throw new NotOwnerError()
   const { money } = await validateInput(deps, userId, input)
   return deps.incomes.update({
+    mode: (await getBudgetPeriod(deps)).mode,
     id: input.id,
     accountId: input.accountId,
     categoryId: input.categoryId,
@@ -174,32 +195,22 @@ export async function updateIncome(
 
 /**
  * Eliminar una fuente desde el mes (year, month): deja de existir de ahí en adelante y los meses
- * anteriores conservan su monto y sus movimientos — el mismo criterio que editar, que solo escribe
- * en el mes en curso. Solo se borra de verdad cuando no hay historia previa que conservar (se creó
- * y se elimina dentro del mismo mes).
+ * anteriores conservan su monto y sus movimientos. La identidad compartida se conserva incluso
+ * al eliminar desde el primer mes: el otro modo o un cobro real pueden seguir usándola.
  */
 export async function deleteIncome(
-  deps: { incomes: IncomeRepository },
+  deps: { incomes: IncomeRepository } & BudgetPeriodDeps,
   userId: string,
   id: string,
   period: { year: number; month: number }
 ): Promise<{ ok: true; ended: boolean }> {
+  deps = await scopeBudgetPeriod(deps)
   validatePeriod(period.year, period.month)
-  const existing = await deps.incomes.findById(id)
+  const existing = await deps.incomes.findById(id, (await getBudgetPeriod(deps)).mode)
   if (!existing) throw new IncomeNotFoundError(id)
   if (existing.userId !== userId) throw new NotOwnerError()
 
-  const amounts = await deps.incomes.listAmountsByUser(userId)
-  const hasHistory = amounts.some(
-    (a) =>
-      a.incomeId === id &&
-      a.year * 12 + a.month < period.year * 12 + period.month
-  )
-  if (!hasHistory) {
-    await deps.incomes.delete(id)
-    return { ok: true, ended: false }
-  }
-  await deps.incomes.endFrom(id, period.year, period.month)
+  await deps.incomes.endFrom(id, period.year, period.month, (await getBudgetPeriod(deps)).mode)
   return { ok: true, ended: true }
 }
 
@@ -217,12 +228,15 @@ export async function generateMonthlyIncome(
   userId: string,
   input: { incomeId: string; year: number; month: number }
 ): Promise<{ transactionId: string; created: boolean }> {
+  deps = await scopeBudgetPeriod(deps)
   validatePeriod(input.year, input.month)
-  const income = await deps.incomes.findById(input.incomeId)
+  const income = await deps.incomes.findById(input.incomeId, (await getBudgetPeriod(deps)).mode)
   if (!income) throw new IncomeNotFoundError(input.incomeId)
   if (income.userId !== userId) throw new NotOwnerError()
+  if (!income.isActive || isIncomeEndedAt(income, input.year, input.month))
+    throw new InvalidIncomeError("El ingreso no está vigente en este plan y período")
   const range = await rangeOf(deps, input.year, input.month)
-  const res = await deps.incomes.generateMonthly(income, input.year, input.month, range)
+  const res = await deps.incomes.generateMonthly(income, (await getBudgetPeriod(deps)).mode, input.year, input.month, range)
   // Solo si escribió: regenerar un mes ya generado no debe abonar dos veces.
   // ponytail: create + proyección no son atómicos; si esto falla, "Actualizar saldos" reconcilia.
   if (res.created && deps.accounts && deps.balanceBuckets)
@@ -247,8 +261,9 @@ export async function ungenerateMonthlyIncome(
   userId: string,
   input: { incomeId: string; year: number; month: number }
 ): Promise<{ deleted: boolean }> {
+  deps = await scopeBudgetPeriod(deps)
   validatePeriod(input.year, input.month)
-  const income = await deps.incomes.findById(input.incomeId)
+  const income = await deps.incomes.findById(input.incomeId, (await getBudgetPeriod(deps)).mode)
   if (!income) throw new IncomeNotFoundError(input.incomeId)
   if (income.userId !== userId) throw new NotOwnerError()
   const res = await deps.incomes.ungenerateMonthly(
@@ -271,14 +286,15 @@ export async function ungenerateMonthlyIncome(
 // Suma (CLP) de las fuentes de ingreso activas del usuario. El límite global es CLP; solo los ingresos
 // CLP lo alimentan (la conversión multi-moneda se resolverá cuando exista).
 export async function sumActiveIncomesCLP(
-  deps: { incomes: IncomeRepository },
+  deps: { incomes: IncomeRepository } & BudgetPeriodDeps,
   userId: string,
   year: number,
   month: number
 ): Promise<Money> {
+  deps = await scopeBudgetPeriod(deps)
   const [incomes, amounts] = await Promise.all([
-    deps.incomes.listByUser(userId),
-    deps.incomes.listAmountsByUser(userId),
+    deps.incomes.listByUser(userId, (await getBudgetPeriod(deps)).mode),
+    deps.incomes.listAmountsByUser(userId, (await getBudgetPeriod(deps)).mode),
   ])
   return incomes
     .filter(
@@ -294,13 +310,14 @@ export async function sumActiveIncomesCLP(
 // propio ni heredado por carry). Si ya existe, no lo pisa; devuelve el total sugerido para que la UI
 // ofrezca actualizarlo con acción explícita.
 export async function seedGlobalLimitFromIncomes(
-  deps: { incomes: IncomeRepository; monthlyBudgets: MonthlyBudgetRepository },
+  deps: { incomes: IncomeRepository; monthlyBudgets: MonthlyBudgetRepository } & BudgetPeriodDeps,
   userId: string,
   input: { year: number; month: number }
 ): Promise<{ seeded: boolean; total: number; alreadyDefined: boolean }> {
+  deps = await scopeBudgetPeriod(deps)
   validatePeriod(input.year, input.month)
   const total = await sumActiveIncomesCLP(deps, userId, input.year, input.month)
-  const budgets = await deps.monthlyBudgets.listByUser(userId)
+  const budgets = await deps.monthlyBudgets.listByUser(userId, (await getBudgetPeriod(deps)).mode)
   const defined =
     effectiveGlobalLimit(budgets, input.year, input.month) !== null
   if (defined || total.isZero)
@@ -310,6 +327,7 @@ export async function seedGlobalLimitFromIncomes(
       alreadyDefined: defined,
     }
   await deps.monthlyBudgets.set({
+    mode: (await getBudgetPeriod(deps)).mode,
     userId,
     year: input.year,
     month: input.month,

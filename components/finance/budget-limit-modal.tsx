@@ -24,7 +24,7 @@ export function BudgetLimitModal({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  period: { year: number; month: number }
+  period: { year: number; month: number; mode: "calendar" | "card_cycle" }
   current: number | null
 }) {
   const router = useRouter()
@@ -44,7 +44,7 @@ export function BudgetLimitModal({
   }) {
     form.clearErrors("root")
     try {
-      const res = await fetch("/api/budgets", {
+      const res = await fetch(`/api/budgets?mode=${period.mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),

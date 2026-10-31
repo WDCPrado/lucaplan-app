@@ -75,15 +75,18 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
   presupuestar", y si te sobre-asignas la app lo avisa sin bloquearte.
 - Anillos de progreso por categoría con estado visual (bien / moderado / alto) y el
   disponible restante en CLP.
-- Los límites por categoría se **heredan de mes a mes** (carry-forward): configura una
-  vez, ajusta cuando cambie tu vida.
+- El presupuesto global, los topes por categoría y los ingresos planificados son independientes
+  en débito y crédito. Los montos se **heredan entre períodos del mismo modo** (carry-forward).
 - En débito y crédito, el gastado y el comprometido del plan solo incluyen categorías
   de gasto con tope efectivo mayor que cero, dentro del período. Sin categoría o sin
   tope quedan fuera; los excesos sobre un tope cuentan completos. Las categorías sin
   tope se pueden consultar en un grupo cerrado por defecto.
 - Categorías de ingreso con avance hacia tu meta mensual.
 - Modo débito usa mes calendario; modo crédito usa ciclo de tarjeta. Ambos incluyen
-  movimientos de corriente y tarjeta: el modo solo cambia las fechas del plan.
+  movimientos de corriente y tarjeta; cambiar de modo recupera su plan y sus fechas.
+- Las fuentes de ingreso conservan su identidad, cuenta, categoría y día esperado comunes.
+  Su monto, activación y fin de vigencia pertenecen a cada modo; un cobro real sigue siendo uno.
+  Al agregar un ingreso puedes incorporar una fuente del otro modo y definir su monto aquí.
 - Los ingresos del plan suman las fuentes activas vigentes y los abonos confirmados que no
   están cubiertos por esas fuentes, sin duplicar abonos vinculados a ingresos planificados.
 - «Ajustar plan» sugiere esos ingresos menos el déficit entre gastos realizados e ingresos

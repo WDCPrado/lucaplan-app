@@ -58,7 +58,7 @@ export function CategoryModal({
   open: boolean
   onOpenChange: (open: boolean) => void
   onDeleted?: (id: string) => void
-  period: { year: number; month: number }
+  period: { year: number; month: number; mode: "calendar" | "card_cycle" }
   category?: CategoryDTO | null
   lockedType?: "income" | "expense" | null
   remainingToAllocate?: number | null
@@ -126,7 +126,7 @@ export function CategoryModal({
         values.type === "expense" &&
         (!category || form.formState.dirtyFields.limit)
       ) {
-        const res = await fetch("/api/category-limits", {
+        const res = await fetch(`/api/category-limits?mode=${period.mode}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ categoryId, ...period, limit: nextLimit }),

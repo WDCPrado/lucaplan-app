@@ -4,7 +4,7 @@
 
 import type { AccountType } from "./finance.domain.ts"
 import type { CurrencyCode, Money } from "./money.ts"
-import type { PeriodRange } from "../../../shared/billing-cycle.ts"
+import type { PeriodMode, PeriodRange } from "../../../shared/billing-cycle.ts"
 
 // --- Entidad ---
 
@@ -31,9 +31,13 @@ export type IncomeAmount = {
   amount: Money
 }
 
+export type IncomeSource = Omit<Income, "isActive" | "endedYear" | "endedMonth">
+
 // --- Inputs de escritura ---
 
 export type NewIncome = {
+  mode: PeriodMode
+  sourceId?: string
   userId: string
   accountId: string
   categoryId: string
@@ -46,6 +50,7 @@ export type NewIncome = {
 }
 
 export type UpdateIncome = {
+  mode: PeriodMode
   id: string
   accountId: string
   categoryId: string
@@ -88,16 +93,16 @@ export function isValidDayOfMonth(day: number): boolean {
 // --- Port (lo implementa la infraestructura) ---
 
 export interface IncomeRepository {
-  listByUser(userId: string): Promise<Income[]>
+  /** Identidades compartidas que aún no tienen plan en este modo. */
+  listAvailableSources(userId: string, mode: PeriodMode): Promise<IncomeSource[]>
+  listByUser(userId: string, mode: PeriodMode): Promise<Income[]>
   /** Montos mensuales de todas las fuentes del usuario (para resolver el efectivo por mes). */
-  listAmountsByUser(userId: string): Promise<IncomeAmount[]>
-  findById(id: string): Promise<Income | null>
+  listAmountsByUser(userId: string, mode: PeriodMode): Promise<IncomeAmount[]>
+  findById(id: string, mode: PeriodMode): Promise<Income | null>
   create(input: NewIncome): Promise<Income>
   update(input: UpdateIncome): Promise<Income>
-  /** Borra la fuente por completo. Solo cuando no tiene historia que conservar. */
-  delete(id: string): Promise<void>
   /** Marca el fin de vigencia: deja de existir desde (year, month), sin tocar los meses previos. */
-  endFrom(id: string, year: number, month: number): Promise<void>
+  endFrom(id: string, year: number, month: number, mode: PeriodMode): Promise<void>
   // ¿Existe ya un movimiento generado desde esta fuente en (year, month)? (para la UI "no generadas").
   hasGeneratedFor(
     incomeId: string,
@@ -112,6 +117,7 @@ export interface IncomeRepository {
   // para proyectar el abono sobre los buckets de una cuenta conectada.
   generateMonthly(
     income: Income,
+    mode: PeriodMode,
     year: number,
     month: number,
     range?: PeriodRange

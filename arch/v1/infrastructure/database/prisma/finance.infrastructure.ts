@@ -262,22 +262,24 @@ export const categoryRepository: CategoryRepository = {
   async delete(categoryId) {
     await prisma.category.delete({ where: { id: categoryId } })
   },
-  async listLimitsByUser(userId) {
+  async listLimitsByUser(userId, mode) {
     return (
-      await prisma.categoryLimit.findMany({ where: { category: { userId } } })
+      await prisma.categoryLimit.findMany({ where: { category: { userId }, mode } })
     ).map(toLimit)
   },
   async setLimit(input) {
     const row = await prisma.categoryLimit.upsert({
       where: {
-        categoryId_year_month: {
+        categoryId_mode_year_month: {
           categoryId: input.categoryId,
+          mode: input.mode,
           year: input.year,
           month: input.month,
         },
       },
       create: {
         categoryId: input.categoryId,
+        mode: input.mode,
         year: input.year,
         month: input.month,
         limitAmount: input.limit.toDecimalString(),
@@ -300,22 +302,24 @@ function toMonthlyBudget(row: any): MonthlyBudget {
 }
 
 export const monthlyBudgetRepository: MonthlyBudgetRepository = {
-  async listByUser(userId) {
-    return (await prisma.monthlyBudget.findMany({ where: { userId } })).map(
+  async listByUser(userId, mode) {
+    return (await prisma.monthlyBudget.findMany({ where: { userId, mode } })).map(
       toMonthlyBudget
     )
   },
   async set(input) {
     const row = await prisma.monthlyBudget.upsert({
       where: {
-        userId_year_month: {
+        userId_mode_year_month: {
           userId: input.userId,
+          mode: input.mode,
           year: input.year,
           month: input.month,
         },
       },
       create: {
         userId: input.userId,
+        mode: input.mode,
         year: input.year,
         month: input.month,
         globalLimit: input.globalLimit.toDecimalString(),

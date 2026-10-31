@@ -2,10 +2,11 @@
 // "generar" crea una Transaction credit vinculada a la fuente (incomeId), idempotente por (income, mes)
 // vía check-then-insert dentro de una $transaction, ajustando el saldo de la cuenta destino.
 import { prisma } from "./client.ts"
-import type { PeriodRange } from "../../../../shared/billing-cycle.ts"
+import type { PeriodMode, PeriodRange } from "../../../../shared/billing-cycle.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import {
   IncomeNotFoundError,
+  InvalidIncomeError,
   type Income,
   type IncomeRepository,
 } from "../../../domain/finance/income.domain.ts"
@@ -21,9 +22,9 @@ function toIncome(row: any): Income {
     name: row.name,
     currency,
     dayOfMonth: row.dayOfMonth,
-    isActive: row.isActive,
-    endedYear: row.endedYear ?? null,
-    endedMonth: row.endedMonth ?? null,
+    isActive: row.plans[0].isActive,
+    endedYear: row.plans[0].endedYear ?? null,
+    endedMonth: row.plans[0].endedMonth ?? null,
   }
 }
 
@@ -59,14 +60,16 @@ async function upsertAmount(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any,
   incomeId: string,
+  mode: PeriodMode,
   year: number,
   month: number,
   amount: Money
 ) {
   await db.incomeAmount.upsert({
-    where: { incomeId_year_month: { incomeId, year, month } },
+    where: { incomeId_mode_year_month: { incomeId, mode, year, month } },
     create: {
       incomeId,
+      mode,
       year,
       month,
       amount: amount.toDecimalString(),
@@ -76,9 +79,16 @@ async function upsertAmount(
 }
 
 export const incomeRepository: IncomeRepository = {
-  async listAmountsByUser(userId) {
+  async listAvailableSources(userId, mode) {
+    return prisma.income.findMany({
+      where: { userId, plans: { none: { mode } } },
+      select: { id: true, userId: true, accountId: true, categoryId: true, name: true, currency: true, dayOfMonth: true },
+      orderBy: { createdAt: "asc" },
+    }).then(rows => rows.map(row => ({ ...row, currency: row.currency as CurrencyCode })))
+  },
+  async listAmountsByUser(userId, mode) {
     const rows = await prisma.incomeAmount.findMany({
-      where: { income: { userId } },
+      where: { income: { userId }, mode },
       include: { income: { select: { currency: true } } },
     })
     return rows.map((r) => ({
@@ -91,21 +101,31 @@ export const incomeRepository: IncomeRepository = {
       ),
     }))
   },
-  async listByUser(userId) {
+  async listByUser(userId, mode) {
     return (
       await prisma.income.findMany({
-        where: { userId },
+        where: { userId, plans: { some: { mode } } },
+        include: { plans: { where: { mode } } },
         orderBy: { createdAt: "asc" },
       })
     ).map(toIncome)
   },
-  async findById(id) {
-    const row = await prisma.income.findUnique({ where: { id } })
+  async findById(id, mode) {
+    const row = await prisma.income.findFirst({ where: { id, plans: { some: { mode } } }, include: { plans: { where: { mode } } } })
     return row ? toIncome(row) : null
   },
   async create(input) {
     return prisma.$transaction(async (db) => {
-      const row = await db.income.create({
+      if (input.sourceId) {
+        await db.$queryRaw`SELECT id FROM income WHERE id = ${input.sourceId} FOR UPDATE`
+        const source = await db.income.findFirst({ where: { id: input.sourceId, userId: input.userId, plans: { none: { mode: input.mode } } } })
+        if (!source) throw new InvalidIncomeError("La fuente ya tiene un plan en este modo o no está disponible")
+      }
+      const row = input.sourceId ? await db.income.update({
+        where: { id: input.sourceId },
+        data: { plans: { create: { mode: input.mode } } },
+        include: { plans: { where: { mode: input.mode } } },
+      }) : await db.income.create({
         data: {
           userId: input.userId,
           accountId: input.accountId,
@@ -113,10 +133,12 @@ export const incomeRepository: IncomeRepository = {
           name: input.name,
           currency: input.amount.currency,
           dayOfMonth: input.dayOfMonth,
+          plans: { create: { mode: input.mode } },
         },
+        include: { plans: { where: { mode: input.mode } } },
       })
       // El monto rige desde el mes en que se creó: hacia atrás la fuente no existía.
-      await upsertAmount(db, row.id, input.year, input.month, input.amount)
+      await upsertAmount(db, row.id, input.mode, input.year, input.month, input.amount)
       return toIncome(row)
     })
   },
@@ -130,20 +152,18 @@ export const incomeRepository: IncomeRepository = {
           name: input.name,
           currency: input.amount.currency,
           dayOfMonth: input.dayOfMonth,
-          isActive: input.isActive,
+          plans: { update: { where: { incomeId_mode: { incomeId: input.id, mode: input.mode } }, data: { isActive: input.isActive } } },
         },
+        include: { plans: { where: { mode: input.mode } } },
       })
       // Solo el mes que se está editando; los anteriores conservan su monto.
-      await upsertAmount(db, row.id, input.year, input.month, input.amount)
+      await upsertAmount(db, row.id, input.mode, input.year, input.month, input.amount)
       return toIncome(row)
     })
   },
-  async delete(id) {
-    await prisma.income.delete({ where: { id } })
-  },
-  async endFrom(id, year, month) {
-    await prisma.income.update({
-      where: { id },
+  async endFrom(id, year, month, mode) {
+    await prisma.incomePlan.update({
+      where: { incomeId_mode: { incomeId: id, mode } },
       data: { endedYear: year, endedMonth: month },
     })
   },
@@ -153,8 +173,10 @@ export const incomeRepository: IncomeRepository = {
     })
     return count > 0
   },
-  async generateMonthly(income, year, month, range) {
+  async generateMonthly(income, mode, year, month, range) {
     return prisma.$transaction(async (db) => {
+      // Serializa ambos modos por fuente; un cobro real nunca depende del modo del plan.
+      await db.$queryRaw`SELECT id FROM income WHERE id = ${income.id} FOR UPDATE`
       const existing = await db.transaction.findFirst({
         where: { incomeId: income.id, ...periodWhere(year, month, range) },
       })
@@ -172,6 +194,7 @@ export const incomeRepository: IncomeRepository = {
       const amountRow = await db.incomeAmount.findFirst({
         where: {
           incomeId: income.id,
+          mode,
           OR: [{ year: { lt: year } }, { year, month: { lte: month } }],
         },
         orderBy: [{ year: "desc" }, { month: "desc" }],

@@ -1,5 +1,7 @@
 "use client"
 
+import type { IncomeSource } from "@/arch/v1/domain/finance/income.domain"
+
 import type { ReactNode } from "react"
 
 import { useId, useState } from "react"
@@ -63,6 +65,7 @@ export function IncomeModal({
   accounts,
   categories,
   income,
+  availableSources,
   period,
   onCreateCategory,
 }: {
@@ -72,7 +75,8 @@ export function IncomeModal({
   accounts: AccountDTO[]
   categories: CategoryDTO[]
   income?: IncomeDTO | null
-  period: { year: number; month: number }
+  availableSources: IncomeSource[]
+  period: { year: number; month: number; mode: "calendar" | "card_cycle" }
   onCreateCategory: () => void
 }) {
   const router = useRouter()
@@ -87,6 +91,7 @@ export function IncomeModal({
     // Refresh after creating a category fills the untouched selector without erasing the draft.
     resetOptions: { keepDirtyValues: true },
     values: {
+      sourceId: "",
       name: income?.name ?? "",
       accountId: income?.accountId ?? destinations[0]?.id ?? "",
       categoryId: income?.categoryId ?? incomeCategories[0]?.id ?? "",
@@ -94,6 +99,8 @@ export function IncomeModal({
       dayOfMonth: income?.dayOfMonth ?? 1,
     },
   })
+  const sourceId = useWatch({ control: form.control, name: "sourceId" })
+  const selectedSource = availableSources.find(source => source.id === sourceId)
   const accountId = useWatch({ control: form.control, name: "accountId" })
   const currency = (destinations.find((account) => account.id === accountId)
     ?.currency ?? "CLP") as CurrencyCode
@@ -105,8 +112,8 @@ export function IncomeModal({
     form.clearErrors("root")
     try {
       const url = income
-        ? `/api/incomes/${income.id}?year=${period.year}&month=${period.month}`
-        : `/api/incomes?year=${period.year}&month=${period.month}`
+        ? `/api/incomes/${income.id}?year=${period.year}&month=${period.month}&mode=${period.mode}`
+        : `/api/incomes?year=${period.year}&month=${period.month}&mode=${period.mode}`
       const res = await fetch(url, {
         method: income ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -150,7 +157,7 @@ export function IncomeModal({
     setDeleting(true)
     try {
       const res = await fetch(
-        `/api/incomes/${income.id}?year=${period.year}&month=${period.month}`,
+        `/api/incomes/${income.id}?year=${period.year}&month=${period.month}&mode=${period.mode}`,
         { method: "DELETE" }
       )
       if (!res.ok)
@@ -244,6 +251,27 @@ export function IncomeModal({
                   {errors.root.message}
                 </p>
               )}
+              {!income && availableSources.length > 0 && (
+                <FinanceField id={`${formId}-source`} label="Fuente de ingreso"
+                  hint="Puedes usar una fuente del otro modo conservando sus cobros. Define aquí el monto de este plan.">
+                  <Select value={sourceId || "new"} onValueChange={(value) => {
+                    const source = availableSources.find(item => item.id === value)
+                    form.reset({
+                      sourceId: source?.id ?? "", name: source?.name ?? "", amount: 0,
+                      accountId: source?.accountId ?? destinations[0]?.id ?? "",
+                      categoryId: source?.categoryId ?? incomeCategories[0]?.id ?? "",
+                      dayOfMonth: source?.dayOfMonth ?? 1,
+                    })
+                  }}>
+                    <SelectTrigger id={`${formId}-source`} className="h-12! w-full text-body"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new">Crear nueva fuente</SelectItem>
+                      {availableSources.map(source => <SelectItem key={source.id} value={source.id}>{source.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </FinanceField>
+              )}
+              <fieldset disabled={!!selectedSource} className="contents">
               <FinanceField
                 id={`${formId}-name`}
                 label="Nombre del ingreso"
@@ -311,9 +339,10 @@ export function IncomeModal({
                   )}
                 />
               </FinanceField>
+              </fieldset>
               <FinanceField
                 id={`${formId}-amount`}
-                label={`Monto (${currency})`}
+                label={`${selectedSource ? "Monto en este modo" : "Monto"} (${currency})`}
                 error={errors.amount?.message}
               >
                 <Controller
@@ -337,6 +366,7 @@ export function IncomeModal({
                   )}
                 />
               </FinanceField>
+              <fieldset disabled={!!selectedSource} className="contents">
               <FinanceField
                 id={`${formId}-category`}
                 label="Categoría de ingreso"
@@ -412,6 +442,7 @@ export function IncomeModal({
                   )}
                 />
               </FinanceField>
+              </fieldset>
             </fieldset>
           </form>
           {income && (

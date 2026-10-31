@@ -79,7 +79,7 @@ async function main() {
       data: { userId: user.id, name, icon, color },
     })
     await prisma.categoryLimit.create({
-      data: { categoryId: cat.id, year, month, limitAmount },
+      data: { categoryId: cat.id, mode: "calendar", year, month, limitAmount },
     })
     byName.set(name, cat.id)
   }

@@ -222,6 +222,13 @@ caja, ni resta toda la deuda de tarjeta a un plan que ya cuenta sus compras/cuot
 
 Modo débito (`calendar`) organiza por mes; modo crédito (`card_cycle`) por ciclo.
 Ambos incluyen corriente y tarjeta. Cambiar de modo nunca filtra cuentas ni altera saldos.
+El presupuesto global, los topes y los montos/vigencia de ingresos se guardan por modo;
+su herencia solo usa registros del mismo modo. Cada operación captura el modo activo.
+Las fuentes y sus cobros son compartidos: registrar desde otro modo no duplica un abono
+que ya pertenece a su rango de fechas.
+Para incorporar una fuente al otro modo, `lucaplan_listar_ingresos` con `available=true`
+devuelve las identidades sin plan allí. `lucaplan_crear_ingreso` acepta su `sourceId` y el
+monto para ese plan; conserva la identidad existente. No reactiva planes finalizados.
 Los saldos desactualizados requieren conciliación: el medidor no verifica el banco.
 
 ### Conciliación que aplica cambios

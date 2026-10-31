@@ -1,5 +1,7 @@
 "use client"
 
+import type { IncomeSource } from "@/arch/v1/domain/finance/income.domain"
+
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -59,7 +61,7 @@ export type CycleProps = {
 }
 
 type Props = {
-  period: { year: number; month: number }
+  period: { year: number; month: number; mode: "calendar" | "card_cycle" }
   // Modo del período y rango del mes en pantalla: calendario (1 → fin de mes) o ciclo de la tarjeta.
   cycle: CycleProps
   summary: MonthlySummaryDTO
@@ -67,6 +69,7 @@ type Props = {
   budget: BudgetViewDTO
   transactions: TransactionDTO[]
   incomes: IncomeDTO[]
+  availableIncomeSources: IncomeSource[]
   previousCycleIncomes: IncomeDTO[]
   // Déficit de gastos frente a ingresos del período ANTERIOR, descontado del total a repartir.
   // Llega resuelta del servidor; el front no la recalcula. 0 = el mes pasado cerró en regla.
@@ -88,6 +91,7 @@ export function Dashboard({
   budget,
   transactions,
   incomes,
+  availableIncomeSources,
   previousCycleIncomes,
   previousMonthDebt,
   outlookResult,
@@ -304,6 +308,7 @@ export function Dashboard({
   )
   const incomeEditor = (
     <IncomeModal
+      availableSources={availableIncomeSources}
       key={editIncome?.id ?? "new-income"}
       open={editIncome !== undefined}
       onOpenChange={(o) => !o && setEditIncome(undefined)}
@@ -657,6 +662,7 @@ export function Dashboard({
           accounts={accounts}
           categories={budget.categories}
           incomes={incomes}
+          availableIncomeSources={availableIncomeSources}
           period={period}
           globalLimit={budget.globalLimit}
           totalSpent={totalUsed}

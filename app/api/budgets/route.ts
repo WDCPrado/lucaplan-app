@@ -1,7 +1,7 @@
 import { monthlyBudgetSchema } from "@/lib/finance-form-schemas"
 import {
   withUser,
-  financeDeps,
+  financeForRequest,
   periodOf,
 } from "@/arch/v1/presentation/finance/finance-http"
 import { getBudgetView } from "@/arch/v1/application/finance-use-cases/finance-read"
@@ -11,8 +11,9 @@ import { setMonthlyBudget } from "@/arch/v1/application/finance-use-cases/set-mo
 // límite global del presupuesto (carry), lo asignado y el restante por presupuestar.
 export async function GET(req: Request) {
   return withUser(req, async (userId) => {
-    const { year, month } = await periodOf(req)
-    return getBudgetView(financeDeps, userId, year, month)
+      const scopedDeps = await financeForRequest(req)
+    const { year, month } = await periodOf(req, scopedDeps)
+    return getBudgetView(scopedDeps, userId, year, month)
   })
 }
 
@@ -21,11 +22,12 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const body = await req.json()
   return withUser(req, async (userId) => {
+      const scopedDeps = await financeForRequest(req)
     const parsed = monthlyBudgetSchema.parse({
       year: Number(body.year),
       month: Number(body.month),
       globalLimit: Number(body.globalLimit),
     })
-    return setMonthlyBudget(financeDeps, userId, parsed)
+    return setMonthlyBudget(scopedDeps, userId, parsed)
   })
 }

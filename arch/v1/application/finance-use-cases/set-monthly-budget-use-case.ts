@@ -1,3 +1,4 @@
+import { getBudgetPeriod, type BudgetPeriodDeps } from "./budget-period-use-cases.ts"
 import {
   InvalidMonthlyBudgetError,
   type MonthlyBudget,
@@ -10,7 +11,7 @@ const CLP = "CLP" as const
 // Define el límite global del presupuesto de un mes (upsert por usuario+año+mes). La validación va
 // ANTES de construir Money: Money.of redondea, y un decimal debe rechazarse, no redondearse.
 export async function setMonthlyBudget(
-  deps: { monthlyBudgets: MonthlyBudgetRepository },
+  deps: { monthlyBudgets: MonthlyBudgetRepository } & BudgetPeriodDeps,
   userId: string,
   input: { year: number; month: number; globalLimit: number }
 ): Promise<MonthlyBudget> {
@@ -24,6 +25,7 @@ export async function setMonthlyBudget(
   if (!Number.isInteger(year) || year < 2000 || year > 2100)
     throw new InvalidMonthlyBudgetError("Año inválido")
   return deps.monthlyBudgets.set({
+    mode: (await getBudgetPeriod(deps)).mode,
     userId,
     year,
     month,

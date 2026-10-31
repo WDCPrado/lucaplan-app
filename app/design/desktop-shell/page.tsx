@@ -426,7 +426,7 @@ export default function DesktopShellMock() {
       <CategoryModal
         open={editCat !== undefined}
         onOpenChange={(o) => !o && setEditCat(undefined)}
-        period={{ year: 2026, month }}
+        period={{ year: 2026, month, mode: "calendar" }}
         category={editCat}
       />
     </AppShell>

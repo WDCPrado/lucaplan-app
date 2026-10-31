@@ -291,6 +291,11 @@ base aislada y el mismo seed demo que el PR; aplica sus migraciones y siembra su
 preparar el worktree. Railway construye su propia imagen y base al publicar el PR.
 
 CI también ejecuta el build con Node 24, igual que Docker; el placeholder no conecta a Postgres.
+La regresión de planes por modo se ejecuta con `node scripts/verify-plan-modes.ts`.
+Crea y elimina su propio contenedor PostgreSQL 17 de Docker, aplica todo el historial de
+migraciones con datos anteriores al cambio y verifica backfill, rollback transaccional,
+independencia de planes y generación concurrente de un solo cobro. Ignora `DATABASE_URL`
+externa y no usa datos reales.
 Las fuentes viven en `app/fonts/` con sus licencias y se cargan con `next/font/local`, sin
 descargas de Google Fonts durante la compilación.
 

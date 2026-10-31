@@ -346,15 +346,11 @@ model Income {
   name         String
   currency     String // ISO 4217: coincide con la moneda de la cuenta destino
   dayOfMonth   Int // día de ingreso esperado (1–31)
-  isActive     Boolean          @default(true)
-  // Fin de vigencia: la fuente deja de existir DESDE este mes (inclusive). Eliminarla desde un mes
-  // no borra su historia: los meses anteriores conservan sus montos y movimientos.
-  endedYear    Int?
-  endedMonth   Int?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   transactions Transaction[]
   amounts      IncomeAmount[]
+  plans        IncomePlan[]
 
   @@index([userId])
   @@index([accountId])
@@ -362,22 +358,33 @@ model Income {
   @@map("income")
 }
 
-// Monto de una fuente de ingreso para un mes concreto. Mismo patrón (y mismas reglas) que
-// CategoryLimit: el mes sin registro hereda el último previo (carry-forward), y un mes anterior al
-// primer registro significa que la fuente aún no existía. Así editar el sueldo de agosto no
-// reescribe julio.
+// Activación y fin de vigencia independientes; la identidad y los cobros siguen compartidos.
+model IncomePlan {
+  incomeId   String
+  income     Income @relation(fields: [incomeId], references: [id], onDelete: Cascade)
+  mode       String
+  isActive   Boolean @default(true)
+  endedYear  Int?
+  endedMonth Int?
+
+  @@id([incomeId, mode])
+  @@map("income_plan")
+}
+
+// Monto por modo y período. Hereda el último previo del mismo modo; antes del primero no existe.
 model IncomeAmount {
   id        String   @id @default(uuid())
   incomeId  String
   income    Income   @relation(fields: [incomeId], references: [id], onDelete: Cascade)
+  mode      String
   year      Int
   month     Int
   amount    Decimal  @db.Decimal(18, 2)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([incomeId, year, month])
-  @@index([incomeId, year, month])
+  @@unique([incomeId, mode, year, month])
+  @@index([incomeId, mode, year, month])
   @@map("income_amount")
 }
 
@@ -406,14 +413,15 @@ model CategoryLimit {
   id          String   @id @default(uuid())
   categoryId  String
   category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  mode      String
   year        Int
   month       Int
   limitAmount Decimal  @default(0) @db.Decimal(18, 2)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([categoryId, year, month])
-  @@index([categoryId, year, month])
+  @@unique([categoryId, mode, year, month])
+  @@index([categoryId, mode, year, month])
   @@map("category_limit")
 }
 
@@ -424,13 +432,14 @@ model CategoryLimit {
 model MonthlyBudget {
   id          String   @id @default(uuid())
   userId      String
+  mode      String
   year        Int
   month       Int
   globalLimit Decimal  @db.Decimal(18, 2)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([userId, year, month])
+  @@unique([userId, mode, year, month])
   @@map("monthly_budget")
 }
 

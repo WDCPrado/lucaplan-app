@@ -203,10 +203,8 @@ async function contextualViews(
   duplicateInstallment = false
 ) {
   if (!rows.length) return []
-  const [settings, limits] = await Promise.all([
-    getBudgetPeriod({ budgetPeriod: budgetPeriodRepository }),
-    categoryRepository.listLimitsByUser(userId),
-  ])
+  const settings = await getBudgetPeriod({ budgetPeriod: budgetPeriodRepository })
+  const limits = await categoryRepository.listLimitsByUser(userId, settings.mode)
   const dates = [
     ...new Set(
       rows

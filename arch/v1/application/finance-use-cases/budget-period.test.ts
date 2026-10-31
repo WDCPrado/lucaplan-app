@@ -10,10 +10,32 @@ import type { PeriodMode } from "../../../shared/billing-cycle.ts"
 import {
   currentBudgetPeriod,
   getBudgetPeriod,
+  scopeBudgetPeriod,
   rangeOf,
   setBudgetPeriodMode,
   setCardClosing,
 } from "./budget-period-use-cases.ts"
+import { setMonthlyBudget } from "./set-monthly-budget-use-case.ts"
+import type { MonthlyBudgetRepository } from "../../domain/finance/finance.domain.ts"
+
+test("el modo de la vista y su rango permanecen juntos aunque otra pestaña cambie el modo", async () => {
+  const deps = memoryRepo()
+  let savedMode: PeriodMode | undefined
+  const monthlyBudgets = {
+    set: async (input) => { savedMode = input.mode; return { id: "budget", ...input } },
+    listByUser: async () => [],
+  } satisfies MonthlyBudgetRepository
+  await deps.budgetPeriod.setMode("card_cycle")
+  const calendarView = await scopeBudgetPeriod({ ...deps, monthlyBudgets }, "calendar")
+  assert.deepEqual(await rangeOf(calendarView, 2026, 10), { start: "2026-10-01", end: "2026-10-31" })
+  await setMonthlyBudget(calendarView, "user", { year: 2026, month: 10, globalLimit: 1000 })
+  assert.equal(savedMode, "calendar")
+  const active = await scopeBudgetPeriod(deps)
+  await deps.budgetPeriod.setMode("calendar")
+  assert.equal((await getBudgetPeriod(active)).mode, "card_cycle")
+  assert.deepEqual(await rangeOf(active, 2026, 10), { start: "2026-09-23", end: "2026-10-22" })
+  await assert.rejects(scopeBudgetPeriod(deps, "other"), InvalidBudgetPeriodError)
+})
 
 // Repo en memoria con la misma forma que las filas de `app_setting`.
 function memoryRepo() {

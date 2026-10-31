@@ -1,3 +1,4 @@
+import { listAvailableIncomeSources } from "@/arch/v1/application/finance-use-cases/income-use-cases"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
@@ -82,6 +83,7 @@ export default async function DashboardPage({
     budget,
     transactions,
     incomes,
+    availableIncomeSources,
     previousMonthDebt,
     previousCycleIncomes,
   ] = await Promise.all([
@@ -93,6 +95,7 @@ export default async function DashboardPage({
     }),
     listTransactions(financePageDeps, userId, year, month),
     listIncomesView(financePageDeps, userId, year, month),
+    listAvailableIncomeSources(financePageDeps, userId),
     // Déficit de gastos frente a ingresos del período anterior: el plan lo descuenta del
     // total que ofrece repartir. Va acá y no en `getBudgetView` porque el único que la necesita es
     // el plan; meterla al DTO se la cobraría a todos los consumidores de la vista.
@@ -126,13 +129,14 @@ export default async function DashboardPage({
         <PushPrompt vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? ""} />
       )}
       <Dashboard
-        period={{ year, month }}
+        period={{ year, month, mode }}
         cycle={cycle}
         summary={summary}
         accounts={accounts}
         budget={budget}
         transactions={transactions}
         incomes={incomes}
+        availableIncomeSources={availableIncomeSources}
         previousCycleIncomes={previousCycleIncomes}
         previousMonthDebt={previousMonthDebt}
         outlookResult={sp.outlook ?? null}

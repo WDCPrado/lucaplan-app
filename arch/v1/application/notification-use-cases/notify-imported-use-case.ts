@@ -13,6 +13,8 @@ import {
 import { sendPushToUser, type PushDeps } from "./push-use-cases.ts"
 import {
   currentBudgetPeriod,
+  getBudgetPeriod,
+  scopeBudgetPeriod,
   type BudgetPeriodDeps,
 } from "../finance-use-cases/budget-period-use-cases.ts"
 import {
@@ -57,6 +59,7 @@ export async function notifyBudgetCrossing(
   period: { year: number; month: number; range: PeriodRange },
   justEntered: (t: Transaction) => boolean
 ): Promise<void> {
+  deps = await scopeBudgetPeriod(deps)
   const { year, month, range } = period
   // Umbrales configurables (Configuración → Alertas de presupuesto). Sin ninguno, no se alerta.
   const percents = (await deps.budgetAlerts.list()).map((a) => a.percent)
@@ -72,7 +75,7 @@ export async function notifyBudgetCrossing(
 
   const [categories, limits] = await Promise.all([
     deps.categories.listByUser(userId),
-    deps.categories.listLimitsByUser(userId),
+    deps.categories.listLimitsByUser(userId, (await getBudgetPeriod(deps)).mode),
   ])
   const sum = (list: Transaction[]) =>
     list.reduce((total, t) => total + t.amount.toMajor(), 0)
@@ -139,6 +142,7 @@ export async function notifyImportedMovements(
   movements: NotifiableMovement[],
   now = new Date()
 ): Promise<void> {
+  deps = await scopeBudgetPeriod(deps)
   // Mes del presupuesto en curso según el modo (en modo tarjeta, el ciclo que contiene a hoy), con
   // el "hoy" del calendario del usuario, no el de UTC.
   const today = todayKey(now)

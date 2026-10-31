@@ -1,3 +1,4 @@
+import type { PeriodMode } from "../../../shared/billing-cycle.ts"
 // Dominio financiero. Puro: sin Prisma, sin DB, sin Next. Entidades + enums + ports.
 // Los montos usan el value object Money (ver money.ts): enteros por moneda, sin float,
 // y prohíbe mezclar CLP/USD. La caja activa, el uso por categoría y el estado se derivan
@@ -275,6 +276,7 @@ export type CategoryInput = {
 }
 
 export type LimitInput = {
+  mode: PeriodMode
   categoryId: string
   year: number
   month: number
@@ -282,6 +284,7 @@ export type LimitInput = {
 }
 
 export type MonthlyBudgetInput = {
+  mode: PeriodMode
   userId: string
   year: number
   month: number
@@ -361,13 +364,13 @@ export interface CategoryRepository {
    *  asignados se eliminan en cascada. */
   delete(categoryId: string): Promise<void>
   // Todos los límites de las categorías del usuario (para calcular el efectivo con carry).
-  listLimitsByUser(userId: string): Promise<CategoryLimit[]>
+  listLimitsByUser(userId: string, mode: PeriodMode): Promise<CategoryLimit[]>
   setLimit(input: LimitInput): Promise<CategoryLimit>
 }
 
 export interface MonthlyBudgetRepository {
   // Todos los presupuestos del usuario (para resolver el límite global efectivo con carry).
-  listByUser(userId: string): Promise<MonthlyBudget[]>
+  listByUser(userId: string, mode: PeriodMode): Promise<MonthlyBudget[]>
   // Upsert por (userId, year, month).
   set(input: MonthlyBudgetInput): Promise<MonthlyBudget>
 }

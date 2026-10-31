@@ -47,6 +47,7 @@ import {
 import { setMonthlyBudget } from "../../application/finance-use-cases/set-monthly-budget-use-case.ts"
 import {
   createIncome,
+  listAvailableIncomeSources,
   updateIncome,
   deleteIncome,
   generateMonthlyIncome,
@@ -98,7 +99,7 @@ import {
 import { annotateCorrection } from "../../application/finance-use-cases/annotate-correction-use-case.ts"
 import { isDuplicateInstallmentPayment } from "../../application/finance-use-cases/duplicate-installment-payment.ts"
 import { getPeriodPlan } from "../../application/finance-use-cases/plan-period-use-case.ts"
-import { getBudgetPeriod } from "../../application/finance-use-cases/budget-period-use-cases.ts"
+import { getBudgetPeriod, scopeBudgetPeriod } from "../../application/finance-use-cases/budget-period-use-cases.ts"
 import { getPaceFrequency } from "../../application/finance-use-cases/pace-use-cases.ts"
 import { listBudgetAlerts } from "../../application/notification-use-cases/budget-alert-use-cases.ts"
 import { getDueDays } from "../../application/notification-use-cases/due-reminder-use-cases.ts"
@@ -183,7 +184,7 @@ async function ownedReferences(userId: string, input: Record<string, unknown>) {
   // Algunas altas históricas no validaban categoría: el boundary del plugin sí lo exige.
   await owned("categoryId", (id) => deps.categories.findById(id))
   await owned("transactionId", (id) => deps.transactions.findById(id))
-  await owned("incomeId", (id) => deps.incomes.findById(id))
+  await owned("incomeId", (id) => prisma.income.findUnique({ where: { id } }))
   await owned("planId", (id) => deps.installments.findById(id))
   await owned("toPlanId", (id) => deps.installments.findById(id))
   await owned("sourceTransactionId", async (id) => {
@@ -562,12 +563,13 @@ const handlers: Handlers = {
   lucaplan_eliminar_cuenta: (userId, input) =>
     deleteManualAccount(deletionDeps, userId, input),
   lucaplan_planificar_periodo: async (userId, input) => {
-    const plan = await getPeriodPlan(deps, userId, input.year, input.month)
-    const periodConfig = await getBudgetPeriod(deps)
+    const scopedDeps = await scopeBudgetPeriod(deps)
+    const plan = await getPeriodPlan(scopedDeps, userId, input.year, input.month)
+    const periodConfig = await getBudgetPeriod(scopedDeps)
     if (periodConfig.mode !== "card_cycle") return plan
     const previousYear = input.month === 1 ? input.year - 1 : input.year
     const previousMonth = input.month === 1 ? 12 : input.month - 1
-    const previous = await listIncomesView(deps, userId, previousYear, previousMonth)
+    const previous = await listIncomesView(scopedDeps, userId, previousYear, previousMonth)
     return {
       ...plan,
       creditCycleCoverage: {
@@ -605,16 +607,17 @@ const handlers: Handlers = {
     return { ok: true }
   },
   lucaplan_medidor_financiero: async (userId, input) => {
+    const scopedDeps = await scopeBudgetPeriod(deps)
     const [budget, range, summary] = await Promise.all([
-      getBudgetView(deps, userId, input.year, input.month),
-      rangeOf(deps, input.year, input.month),
-      getMonthlySummary(deps, userId, input.year, input.month),
+      getBudgetView(scopedDeps, userId, input.year, input.month),
+      rangeOf(scopedDeps, input.year, input.month),
+      getMonthlySummary(scopedDeps, userId, input.year, input.month),
     ])
     return {
       period: { year: input.year, month: input.month, range },
       currency: "CLP",
       ...calculateFinancialOverview({ cash: summary.activeCash, overdraftDebt: summary.overdraftDebt, income: budget.income, spent: budget.spent, committed: budget.committed, reimbursementAdjustment: budget.reimbursementAdjustment }),
-      notice: "Los ingresos incluyen fuentes activas vigentes y abonos adicionales confirmados sin duplicar los vinculados a esas fuentes; solo cuentan gastos de categorías presupuestadas. La compensación de reembolsos incluidos en ingresos se cuenta una sola vez. balance es margen del plan, no caja. planStatus describe el presupuesto; status combina plan y liquidez. liquidity usa los últimos saldos registrados, no un saldo histórico ni proyectado del período. Ambos modos incluyen corriente y tarjeta; solo cambia el rango temporal.",
+      notice: "Los ingresos incluyen fuentes activas vigentes y abonos adicionales confirmados sin duplicar los vinculados a esas fuentes; solo cuentan gastos de categorías presupuestadas. La compensación de reembolsos incluidos en ingresos se cuenta una sola vez. balance es margen del plan, no caja. planStatus describe el presupuesto; status combina plan y liquidez. liquidity usa los últimos saldos registrados, no un saldo histórico ni proyectado del período. Ambos modos comparten movimientos de corriente y tarjeta; cada uno conserva su plan y su rango temporal.",
     }
   },
   lucaplan_ver_presupuesto: async (userId, input) => ({
@@ -628,7 +631,7 @@ const handlers: Handlers = {
   lucaplan_fijar_presupuesto_categoria: (userId, input) =>
     setCategoryLimit(deps, userId, input),
   lucaplan_listar_ingresos: (userId, input) =>
-    listIncomesView(deps, userId, input.year, input.month),
+    input.available ? listAvailableIncomeSources(deps, userId) : listIncomesView(deps, userId, input.year, input.month),
   lucaplan_crear_ingreso: (userId, input) => createIncome(deps, userId, input),
   lucaplan_editar_ingreso: (userId, input) => updateIncome(deps, userId, input),
   lucaplan_eliminar_ingreso: (userId, input) =>

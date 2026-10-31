@@ -35,14 +35,14 @@ export async function seed({
   // Heredado desde el mes anterior: funciona aunque hoy pertenezca al ciclo del mes siguiente.
   await prisma.category.update({
     where: { id: conTope, userId },
-    data: { limits: { create: { year, month, limitAmount: 100000 } } },
+    data: { limits: { create: ["calendar", "card_cycle"].map(mode => ({ mode, year, month, limitAmount: 100000 })) } },
   })
   await prisma.category.update({
     where: { id: sinTope, userId },
-    data: { limits: { create: { year, month, limitAmount: 0 } } },
+    data: { limits: { create: ["calendar", "card_cycle"].map(mode => ({ mode, year, month, limitAmount: 0 })) } },
   })
-  await prisma.monthlyBudget.create({
-    data: { userId, year, month, globalLimit: 100000 },
+  await prisma.monthlyBudget.createMany({
+    data: ["calendar", "card_cycle"].map(mode => ({ userId, mode, year, month, globalLimit: 100000 })),
   })
 
   await prisma.transaction.createMany({

@@ -1,3 +1,4 @@
+import { getBudgetPeriod, scopeBudgetPeriod, type BudgetPeriodDeps } from "./budget-period-use-cases.ts"
 import {
   type CategoryRepository,
   type Category,
@@ -74,14 +75,16 @@ export async function deleteCategory(
 
 // Fija el límite de una categoría para un mes concreto (upsert por categoría+año+mes). Ownership.
 export async function setCategoryLimit(
-  deps: { categories: CategoryRepository },
+  deps: { categories: CategoryRepository } & BudgetPeriodDeps,
   userId: string,
   input: { categoryId: string; year: number; month: number; limit: number }
 ): Promise<CategoryLimit> {
+  deps = await scopeBudgetPeriod(deps)
   const category = await deps.categories.findById(input.categoryId)
   if (!category) throw new CategoryNotFoundError(input.categoryId)
   if (category.userId !== userId) throw new NotOwnerError()
   return deps.categories.setLimit({
+    mode: (await getBudgetPeriod(deps)).mode,
     categoryId: input.categoryId,
     year: input.year,
     month: input.month,

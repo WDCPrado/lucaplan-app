@@ -1,6 +1,6 @@
 import {
   withUser,
-  financeDeps,
+  financeForRequest,
   periodOf,
 } from "@/arch/v1/presentation/finance/finance-http"
 import {
@@ -16,8 +16,9 @@ export async function POST(
 ) {
   const { id } = await ctx.params
   return withUser(req, async (userId) => {
-    const { year, month } = await periodOf(req)
-    return generateMonthlyIncome(financeDeps, userId, { incomeId: id, year, month })
+      const scopedDeps = await financeForRequest(req)
+    const { year, month } = await periodOf(req, scopedDeps)
+    return generateMonthlyIncome(scopedDeps, userId, { incomeId: id, year, month })
   })
 }
 
@@ -28,7 +29,8 @@ export async function DELETE(
 ) {
   const { id } = await ctx.params
   return withUser(req, async (userId) => {
-    const { year, month } = await periodOf(req)
-    return ungenerateMonthlyIncome(financeDeps, userId, { incomeId: id, year, month })
+      const scopedDeps = await financeForRequest(req)
+    const { year, month } = await periodOf(req, scopedDeps)
+    return ungenerateMonthlyIncome(scopedDeps, userId, { incomeId: id, year, month })
   })
 }

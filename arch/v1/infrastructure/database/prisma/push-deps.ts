@@ -11,7 +11,7 @@ import { pushSubscriptionRepository } from "./push.infrastructure.ts"
 import { webpushSender } from "../../http/webpush/webpush.provider.ts"
 import { prisma } from "./client.ts"
 import { budgetPeriodRepository } from "./budget-period.infrastructure.ts"
-import { currentBudgetPeriod } from "../../../application/finance-use-cases/budget-period-use-cases.ts"
+import { currentBudgetPeriod, scopeBudgetPeriod } from "../../../application/finance-use-cases/budget-period-use-cases.ts"
 import { inRange } from "../../../application/finance-use-cases/budget-formulas.ts"
 import { todayKey } from "../../../../shared/today.ts"
 import {
@@ -90,7 +90,8 @@ export async function notifyBudgetForCategorized(
   userId: string,
   tx: Transaction
 ): Promise<void> {
-  const current = await currentBudgetPeriod(notifyDeps, todayKey())
+  const scopedDeps = await scopeBudgetPeriod(notifyDeps)
+  const current = await currentBudgetPeriod(scopedDeps, todayKey())
   if (!inRange(tx.date, current.range)) return
-  return notifyBudgetCrossing(notifyDeps, userId, current, (t) => t.id === tx.id)
+  return notifyBudgetCrossing(scopedDeps, userId, current, (t) => t.id === tx.id)
 }

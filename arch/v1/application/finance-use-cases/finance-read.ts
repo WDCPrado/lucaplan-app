@@ -61,7 +61,7 @@ import {
 import type { PaceFrequency } from "../../domain/finance/pace.domain.ts"
 import type { BudgetPeriodRepository } from "../../domain/finance/budget-period.domain.ts"
 import type { PeriodRange } from "../../../shared/billing-cycle.ts"
-import { rangeOf } from "./budget-period-use-cases.ts"
+import { rangeOf, getBudgetPeriod, scopeBudgetPeriod, type BudgetPeriodDeps } from "./budget-period-use-cases.ts"
 import { todayKey } from "../../../shared/today.ts"
 import { isAdditionalIncome } from "../../../../lib/additional-income.ts"
 
@@ -291,14 +291,14 @@ function historicalRemaining(
 
 // Categorías del usuario con su límite EFECTIVO para (year, month) — carry-forward incluido.
 async function categoriesWithLimit(
-  deps: { categories: CategoryRepository },
+  deps: { categories: CategoryRepository } & BudgetPeriodDeps,
   userId: string,
   year: number,
   month: number
 ): Promise<{ category: Category; limit: Money }[]> {
   const [cats, limits] = await Promise.all([
     deps.categories.listByUser(userId),
-    deps.categories.listLimitsByUser(userId),
+    deps.categories.listLimitsByUser(userId, (await getBudgetPeriod(deps)).mode),
   ])
   return cats.map((category) => ({
     category,
@@ -312,6 +312,7 @@ export async function getMonthlySummary(
   year: number,
   month: number
 ): Promise<MonthlySummaryDTO> {
+  deps = await scopeBudgetPeriod(deps)
   const accounts = await deps.accounts.listByUser(userId)
   const range = await rangeOf(deps, year, month)
   const txs = await deps.transactions.listByUserPeriod(userId, range)
@@ -431,6 +432,7 @@ export async function listTransactions(
   year: number,
   month: number
 ): Promise<TransactionDTO[]> {
+  deps = await scopeBudgetPeriod(deps)
   const range = await rangeOf(deps, year, month)
   const txs = await deps.transactions.listByUserPeriod(userId, range)
   const withLimit = await categoriesWithLimit(deps, userId, year, month)
@@ -723,16 +725,17 @@ export async function getBudgetView(
   // del usuario. Sin esto (u otras vistas/meses pasados) las categorías no llevan `pace`.
   pace?: { frequency: PaceFrequency; today: string }
 ): Promise<BudgetViewDTO> {
+  deps = await scopeBudgetPeriod(deps)
   const range = await rangeOf(deps, year, month)
-  const cycleAligned = (await deps.budgetPeriod?.get())?.mode === "card_cycle"
+  const cycleAligned = (await getBudgetPeriod(deps)).mode === "card_cycle"
   const [withLimit, txs, budgets, plans, incomesList, incomeAmounts] =
     await Promise.all([
       categoriesWithLimit(deps, userId, year, month),
       deps.transactions.listByUserPeriod(userId, range),
-      deps.monthlyBudgets.listByUser(userId),
+      deps.monthlyBudgets.listByUser(userId, (await getBudgetPeriod(deps)).mode),
       deps.installments?.listByUser(userId) ?? Promise.resolve([]),
-      deps.incomes?.listByUser(userId) ?? Promise.resolve([]),
-      deps.incomes?.listAmountsByUser(userId) ?? Promise.resolve([]),
+      deps.incomes?.listByUser(userId, (await getBudgetPeriod(deps)).mode) ?? Promise.resolve([]),
+      deps.incomes?.listAmountsByUser(userId, (await getBudgetPeriod(deps)).mode) ?? Promise.resolve([]),
     ])
   // USD → CLP por fecha para que el uso por categoría cuente esos movimientos.
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
@@ -957,6 +960,7 @@ export async function getPreviousMonthDebt(
   year: number,
   month: number
 ): Promise<number> {
+  deps = await scopeBudgetPeriod(deps)
   const prevYear = month === 1 ? year - 1 : year
   const prevMonth = month === 1 ? 12 : month - 1
   const previous = await getBudgetView(deps, userId, prevYear, prevMonth)
@@ -992,9 +996,10 @@ export async function listIncomesView(
   year: number,
   month: number
 ): Promise<IncomeDTO[]> {
+  deps = await scopeBudgetPeriod(deps)
   const [incomes, amounts, accounts, categories] = await Promise.all([
-    deps.incomes.listByUser(userId),
-    deps.incomes.listAmountsByUser(userId),
+    deps.incomes.listByUser(userId, (await getBudgetPeriod(deps)).mode),
+    deps.incomes.listAmountsByUser(userId, (await getBudgetPeriod(deps)).mode),
     deps.accounts.listByUser(userId),
     deps.categories.listByUser(userId),
   ])
@@ -1170,11 +1175,12 @@ export async function getCategoryDetail(
   year: number,
   month: number
 ): Promise<CategoryDTO & { transactions: TransactionDTO[] }> {
+  deps = await scopeBudgetPeriod(deps)
   const category = await deps.categories.findById(categoryId)
   if (!category) throw new CategoryNotFoundError(categoryId)
   if (category.userId !== userId) throw new NotOwnerError()
 
-  const limits = await deps.categories.listLimitsByUser(userId)
+  const limits = await deps.categories.listLimitsByUser(userId, (await getBudgetPeriod(deps)).mode)
   const limit = effectiveLimit(limits, categoryId, year, month)
   const range = await rangeOf(deps, year, month)
   const txs = await deps.transactions.listByCategoryPeriod(categoryId, range)

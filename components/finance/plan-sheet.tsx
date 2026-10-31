@@ -71,7 +71,7 @@ export function PlanSheet({
   children?: ReactNode
   open: boolean
   onOpenChange: (o: boolean) => void
-  period: { year: number; month: number }
+  period: { year: number; month: number; mode: PeriodMode }
   cycleRange?: { start: string; end: string }
   mode: PeriodMode // modo guardado del período: mes calendario o ciclo de la tarjeta
   closing?: { date: string; estimated: boolean } // cierre del mes en pantalla, solo en modo tarjeta
@@ -120,7 +120,7 @@ export function PlanSheet({
     if (applying) return
     setApplying(true)
     try {
-      const res = await fetch("/api/budgets", {
+      const res = await fetch(`/api/budgets?mode=${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...period, globalLimit: toAllocate }),
@@ -195,7 +195,7 @@ export function PlanSheet({
                   key={inc.id}
                   income={inc}
                   period={{
-                    year: period.month === 1 ? period.year - 1 : period.year,
+                    mode,                    year: period.month === 1 ? period.year - 1 : period.year,
                     month: period.month === 1 ? 12 : period.month - 1,
                   }}
                   isCurrentMonth={false}
@@ -453,7 +453,7 @@ function LimitRow({
   onDraft,
 }: {
   category: CategoryDTO
-  period: { year: number; month: number }
+  period: { year: number; month: number; mode: PeriodMode }
   onDraft: (value: number) => void
 }) {
   const router = useRouter()
@@ -467,7 +467,7 @@ function LimitRow({
   async function save(values: CategoryLimitFormValues) {
     form.clearErrors("root")
     try {
-      const response = await fetch("/api/category-limits", {
+      const response = await fetch(`/api/category-limits?mode=${period.mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
@@ -596,7 +596,7 @@ function IncomeRow({
   priorCycle = false,
 }: {
   income: IncomeDTO
-  period: { year: number; month: number }
+  period: { year: number; month: number; mode: PeriodMode }
   cycleRange?: { start: string; end: string }
   isCurrentMonth: boolean
   onEdit: () => void
@@ -611,7 +611,7 @@ function IncomeRow({
     setBusy(true)
     try {
       const res = await fetch(
-        `/api/incomes/${income.id}/generate?year=${period.year}&month=${period.month}`,
+        `/api/incomes/${income.id}/generate?year=${period.year}&month=${period.month}&mode=${period.mode}`,
         { method: income.generated ? "DELETE" : "POST" }
       )
       if (!res.ok)

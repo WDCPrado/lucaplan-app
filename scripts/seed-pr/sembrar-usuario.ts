@@ -196,8 +196,8 @@ export async function sembrarUsuario({
     })
     categoryId.set(name, cat.id)
     // Solo el mes actual: los meses anteriores heredan por carry-forward.
-    await prisma.categoryLimit.create({
-      data: { categoryId: cat.id, year, month, limitAmount },
+    await prisma.categoryLimit.createMany({
+      data: ["calendar", "card_cycle"].map(mode => ({ categoryId: cat.id, mode, year, month, limitAmount })),
     })
   }
 
@@ -213,10 +213,10 @@ export async function sembrarUsuario({
   })
 
   await prisma.monthlyBudget.createMany({
-    data: [
-      { userId, year, month, globalLimit: 1000000 },
-      { userId, year: prevYear, month: prevMonth, globalLimit: 950000 },
-    ],
+    data: ["calendar", "card_cycle"].flatMap(mode => [
+      { userId, mode, year, month, globalLimit: 1000000 },
+      { userId, mode, year: prevYear, month: prevMonth, globalLimit: 950000 },
+    ]),
   })
 
   const income = await prisma.income.create({
@@ -227,11 +227,12 @@ export async function sembrarUsuario({
       name: "Sueldo",
       currency: "CLP",
       dayOfMonth: 5,
+      plans: { create: [{ mode: "calendar" }, { mode: "card_cycle" }] },
       amounts: {
-        create: [
-          { year, month, amount: 1400000 },
-          { year: prevYear, month: prevMonth, amount: 1350000 },
-        ],
+        create: ["calendar", "card_cycle"].flatMap(mode => [
+          { mode, year, month, amount: 1400000 },
+          { mode, year: prevYear, month: prevMonth, amount: 1350000 },
+        ]),
       },
     },
   })

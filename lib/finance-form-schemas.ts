@@ -85,6 +85,7 @@ export const accountSchema = z
   })
 
 export const incomeSchema = z.object({
+  sourceId: text.optional(),
   accountId: text,
   categoryId: text,
   name: text.refine(

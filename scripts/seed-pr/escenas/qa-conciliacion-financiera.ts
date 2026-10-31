@@ -63,7 +63,8 @@ export async function seed({
         name,
         currency: "CLP",
         dayOfMonth: 10,
-        amounts: { create: { year, month, amount } },
+        plans: { create: [{ mode: "calendar" }, { mode: "card_cycle" }] },
+        amounts: { create: ["calendar", "card_cycle"].map(mode => ({ mode, year, month, amount })) },
       },
     })
     const credit = await prisma.transaction.create({

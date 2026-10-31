@@ -1,3 +1,4 @@
+import { scopeBudgetPeriod } from "../../application/finance-use-cases/budget-period-use-cases.ts"
 // Helpers HTTP para los Route Handlers financieros: resuelve el actor desde la sesión, inyecta los
 // adapters, y mapea errores de dominio a status (401 sin sesión, 404 ownership/no-encontrado, 422
 // regla de negocio; la lista vive en application/domain-error-status). Sin lógica de negocio.
@@ -109,12 +110,18 @@ export async function withUser(
 // (calendario o ciclo de la tarjeta), con el "hoy" del calendario del usuario. Puede leer la base:
 // llámalo DENTRO del callback de `withUser`, así va después de la sesión y sus errores se mapean.
 export async function periodOf(
-  req: Request
+  req: Request,
+  deps = financeDeps
 ): Promise<{ year: number; month: number }> {
   const sp = new URL(req.url).searchParams
   const year = Number(sp.get("year"))
   const month = Number(sp.get("month"))
   if (year && month) return { year, month }
-  const now = await currentBudgetPeriod(financeDeps, todayKey())
+  const now = await currentBudgetPeriod(deps, todayKey())
   return { year: year || now.year, month: month || now.month }
+}
+
+/** El modo enviado es el de la vista que abrió el formulario, aunque otra pestaña lo cambie. */
+export function financeForRequest(req: Request) {
+  return scopeBudgetPeriod(financeDeps, new URL(req.url).searchParams.get("mode") ?? undefined)
 }

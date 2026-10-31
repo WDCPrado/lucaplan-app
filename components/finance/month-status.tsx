@@ -225,7 +225,7 @@ export function PeriodModeControl({ mode: savedMode }: { mode: PeriodMode }) {
         ]}
       />
       <p className="px-4 text-footnote text-muted-foreground">
-        Ambos incluyen cuenta corriente y tarjeta. Solo cambia el período del plan.
+        Cada modo conserva su presupuesto, topes e ingresos planificados. Ambos incluyen cuenta corriente y tarjeta.
       </p>
     </div>
   )

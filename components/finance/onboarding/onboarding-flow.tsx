@@ -1,5 +1,7 @@
 "use client"
 
+import type { IncomeSource } from "@/arch/v1/domain/finance/income.domain"
+
 import { useCallback, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowRight, Check, Plus, Wallet } from "lucide-react"
@@ -28,6 +30,7 @@ export function OnboardingFlow({
   accounts,
   categories,
   incomes,
+  availableIncomeSources,
   period,
   globalLimit,
   totalSpent,
@@ -37,7 +40,8 @@ export function OnboardingFlow({
   accounts: AccountDTO[]
   categories: CategoryDTO[]
   incomes: IncomeDTO[]
-  period: { year: number; month: number }
+  availableIncomeSources: IncomeSource[]
+  period: { year: number; month: number; mode: "calendar" | "card_cycle" }
   globalLimit: number | null
   totalSpent: number
   remainingToAllocate: number | null
@@ -139,6 +143,7 @@ export function OnboardingFlow({
       </div>
 
       <IncomeModal
+        availableSources={availableIncomeSources}
         open={incomeOpen}
         onOpenChange={setIncomeOpen}
         accounts={accounts}

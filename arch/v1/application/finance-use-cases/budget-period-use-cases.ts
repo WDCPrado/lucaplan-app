@@ -17,7 +17,10 @@ import {
 
 // Opcional a propósito: sin el repo el período es el mes calendario, que es lo que siguen usando
 // los caminos que no son el presupuesto (recordatorios de vencimiento, dedupe de fotos).
-export type BudgetPeriodDeps = { budgetPeriod?: BudgetPeriodRepository }
+export type BudgetPeriodDeps = {
+  budgetPeriod?: BudgetPeriodRepository
+  periodSettings?: BudgetPeriodSettings
+}
 
 export type BudgetPeriodSettings = {
   mode: PeriodMode
@@ -28,9 +31,21 @@ export type BudgetPeriodSettings = {
 export async function getBudgetPeriod(
   deps: BudgetPeriodDeps
 ): Promise<BudgetPeriodSettings> {
+  if (deps.periodSettings) return deps.periodSettings
   if (!deps.budgetPeriod) return { mode: "calendar", overrides: {} }
   const { mode, overrides } = await deps.budgetPeriod.get()
   return { mode: mode ?? "calendar", overrides }
+}
+
+/** Captura modo y cierres una vez; las lecturas y escrituras anidadas usan el mismo plan. */
+export async function scopeBudgetPeriod<T extends BudgetPeriodDeps>(
+  deps: T,
+  mode?: string
+): Promise<T & { periodSettings: BudgetPeriodSettings }> {
+  if (mode !== undefined && !(PERIOD_MODES as readonly string[]).includes(mode))
+    throw new InvalidBudgetPeriodError("Modo de presupuesto inválido")
+  const settings = await getBudgetPeriod(deps)
+  return { ...deps, periodSettings: { ...settings, mode: mode as PeriodMode | undefined ?? settings.mode } }
 }
 
 /** Rango de fechas del mes (year, month) del presupuesto según el modo guardado. */

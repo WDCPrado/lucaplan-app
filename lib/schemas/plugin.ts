@@ -671,12 +671,12 @@ export const pluginTools = {
   // --- Ingresos ---
   lucaplan_listar_ingresos: read(
     "Listar fuentes de ingreso",
-    "Úsala para ver las fuentes de ingreso vigentes en un mes, su monto de ese mes y si ya se registró el movimiento (generated). Una fuente creada para un mes futuro aparece desde ese mes.",
-    z.strictObject(period)
+    "Lista las fuentes vigentes, su monto y generated. Con available=true lista identidades del usuario sin plan en el modo activo, para incorporarlas mediante sourceId sin duplicar la fuente.",
+    z.strictObject({ ...period, available: z.boolean().optional() })
   ),
   lucaplan_crear_ingreso: write(
     { title: "Crear fuente de ingreso" },
-    "Úsala para planificar un ingreso que se repite cada mes (sueldo, arriendo cobrado) desde el mes indicado, actual o futuro. No crea movimientos ni cambia la caja: el cobro se registra con lucaplan_registrar_ingreso_mes.",
+    "Planifica un ingreso desde el mes indicado en el modo activo. sourceId opcional incorpora una fuente devuelta por listar_ingresos available=true: usa su identidad, cuenta, categoría y día existentes, y solo fija el monto del nuevo plan. No crea movimientos ni cambia caja.",
     incomeSchema.extend({ ...incomeFields, ...period, ...operation }).strict()
   ),
   lucaplan_editar_ingreso: write(
@@ -694,7 +694,7 @@ export const pluginTools = {
   ),
   lucaplan_eliminar_ingreso: write(
     { title: "Finalizar fuente de ingreso", destructive: true },
-    "Finaliza la fuente desde el mes indicado (deja de existir de ahí en adelante, los meses anteriores se conservan). Si no tiene historia previa se borra por completo.",
+    "Finaliza el plan de la fuente en el modo activo desde el mes indicado. Conserva la identidad, el otro modo, los meses anteriores y los cobros reales.",
     z.strictObject({ id: ref("Fuente de ingreso"), ...period, ...operation })
   ),
   lucaplan_registrar_ingreso_mes: write(

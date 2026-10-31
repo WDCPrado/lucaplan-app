@@ -22,6 +22,7 @@ import {
   searchTransactionsPage,
 } from "./finance-read.ts"
 import { inRange } from "./budget-formulas.ts"
+import { scopeBudgetPeriod } from "./budget-period-use-cases.ts"
 import { planTotal, shouldSuggest } from "../../../../lib/plan-total.ts"
 import type { PeriodMode, PeriodRange } from "../../../shared/billing-cycle.ts"
 
@@ -659,6 +660,24 @@ for (const mode of ["calendar", "card_cycle"] as const) {
 
 // El ritmo reparte el tope del mes entre los días o las semanas que quedan. Hay categorías donde
 // ese reparto no describe nada —una suscripción se cobra un día y listo—, y ahí se apaga.
+test("el ritmo semanal usa el modo capturado aunque cambie la configuración", async () => {
+  let mode: PeriodMode = "card_cycle"
+  let reads = 0
+  const deps = {
+    ...budgetDeps(globalBudget(300000)),
+    budgetPeriod: {
+      get: async () => { reads++; return { mode, overrides: {} } },
+      setMode: async () => {}, setClosing: async () => {},
+    },
+  }
+  const scoped = await scopeBudgetPeriod(deps)
+  const pace = { frequency: "weekly" as const, today: "2026-08-15" }
+  const expected = await getBudgetView(scoped, "u1", 2026, 8, pace)
+  mode = "calendar"
+  assert.deepEqual(await getBudgetView(scoped, "u1", 2026, 8, pace), expected)
+  assert.equal(reads, 1)
+})
+
 test("getBudgetView: el ritmo se omite en la categoría que lo tiene apagado", async () => {
   const cats: Category[] = [
     { ...cat("c-super", "expense", "Supermercado"), paceEnabled: true },

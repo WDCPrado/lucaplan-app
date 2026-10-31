@@ -1,7 +1,7 @@
 import { incomeUpdateSchema } from "@/lib/finance-form-schemas"
 import {
   withUser,
-  financeDeps,
+  financeForRequest,
   periodOf,
 } from "@/arch/v1/presentation/finance/finance-http"
 import {
@@ -19,6 +19,7 @@ export async function PATCH(
   const body = await req.json()
 
   return withUser(req, async (userId) => {
+      const scopedDeps = await financeForRequest(req)
     const parsed = incomeUpdateSchema.parse({
       accountId: String(body.accountId),
       categoryId: String(body.categoryId),
@@ -27,14 +28,14 @@ export async function PATCH(
       dayOfMonth: Number(body.dayOfMonth),
       isActive: body.isActive ?? true,
     })
-    const { year, month } = await periodOf(req)
-    const income = await updateIncome(financeDeps, userId, {
+    const { year, month } = await periodOf(req, scopedDeps)
+    const income = await updateIncome(scopedDeps, userId, {
       id,
       ...parsed,
       year,
       month,
     })
-    const seed = await seedGlobalLimitFromIncomes(financeDeps, userId, {
+    const seed = await seedGlobalLimitFromIncomes(scopedDeps, userId, {
       year,
       month,
     })
@@ -48,7 +49,8 @@ export async function DELETE(
 ) {
   const { id } = await ctx.params
   return withUser(req, async (userId) => {
-    const { year, month } = await periodOf(req)
-    return deleteIncome(financeDeps, userId, id, { year, month })
+      const scopedDeps = await financeForRequest(req)
+    const { year, month } = await periodOf(req, scopedDeps)
+    return deleteIncome(scopedDeps, userId, id, { year, month })
   })
 }

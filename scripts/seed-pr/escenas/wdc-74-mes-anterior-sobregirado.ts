@@ -48,10 +48,10 @@ export async function seed({
     },
   })
 
-  await prisma.monthlyBudget.upsert({
-    where: { userId_year_month: { userId, year, month } },
+  for (const mode of ["calendar", "card_cycle"]) await prisma.monthlyBudget.upsert({
+    where: { userId_mode_year_month: { userId, mode, year, month } },
     update: { globalLimit: LIMITE },
-    create: { userId, year, month, globalLimit: LIMITE },
+    create: { userId, mode, year, month, globalLimit: LIMITE },
   })
 
   await prisma.transaction.create({

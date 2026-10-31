@@ -89,6 +89,7 @@ function incomesRepo(
     else amounts[i] = a
   }
   return {
+    listAvailableSources: async () => [],
     listAmountsByUser: async () => amounts,
     listByUser: async (userId) =>
       [...store.values()].filter((i) => i.userId === userId),
@@ -135,15 +136,12 @@ function incomesRepo(
       })
       return next
     },
-    delete: async (id) => {
-      store.delete(id)
-    },
     endFrom: async (id, year, month) => {
       const prev = store.get(id)!
       store.set(id, { ...prev, endedYear: year, endedMonth: month })
     },
     hasGeneratedFor: async (id, y, m) => generated.has(key(id, y, m)),
-    generateMonthly: async (income, y, m) => {
+    generateMonthly: async (income, _mode, y, m) => {
       const k = key(income.id, y, m)
       const existing = generated.get(k)
       if (existing)
@@ -446,7 +444,7 @@ test("seed siembra el límite global cuando no está definido", async () => {
   )
   assert.equal(res.seeded, true)
   assert.equal(res.total, 1200000)
-  const stored = await budgets.listByUser("u1")
+  const stored = await budgets.listByUser("u1", "calendar")
   assert.equal(stored[0].globalLimit.toMajor(), 1200000)
 })
 
@@ -470,7 +468,7 @@ test("seed NO pisa un límite global ya definido", async () => {
   assert.equal(res.seeded, false)
   assert.equal(res.alreadyDefined, true)
   assert.equal(res.total, 900000) // total sugerido para la UI
-  const stored = await budgets.listByUser("u1")
+  const stored = await budgets.listByUser("u1", "calendar")
   assert.equal(stored[0].globalLimit.toMajor(), 700000) // intacto
 })
 
@@ -491,7 +489,7 @@ test("editar el ingreso de un mes no cambia los meses anteriores", async () => {
     month: 8,
   })
 
-  const amounts = await deps.incomes.listAmountsByUser("u1")
+  const amounts = await deps.incomes.listAmountsByUser("u1", "calendar")
   assert.equal(
     effectiveIncomeAmount(amounts, income.id, 2026, 7)?.toMajor(),
     900_000
@@ -505,7 +503,7 @@ test("editar el ingreso de un mes no cambia los meses anteriores", async () => {
 test("un mes sin registro hereda el último previo (carry-forward)", async () => {
   const deps = baseDeps()
   const income = await createIncome(deps, "u1", { ...validInput, year: 2026, month: 7 })
-  const amounts = await deps.incomes.listAmountsByUser("u1")
+  const amounts = await deps.incomes.listAmountsByUser("u1", "calendar")
   assert.equal(
     effectiveIncomeAmount(amounts, income.id, 2026, 11)?.toMajor(),
     900_000
@@ -515,7 +513,7 @@ test("un mes sin registro hereda el último previo (carry-forward)", async () =>
 test("antes del primer registro la fuente no existía", async () => {
   const deps = baseDeps()
   const income = await createIncome(deps, "u1", { ...validInput, year: 2026, month: 7 })
-  const amounts = await deps.incomes.listAmountsByUser("u1")
+  const amounts = await deps.incomes.listAmountsByUser("u1", "calendar")
   assert.equal(effectiveIncomeAmount(amounts, income.id, 2026, 6), null)
 })
 
@@ -545,12 +543,12 @@ test("eliminar desde un mes posterior conserva los meses anteriores", async () =
   const out = await deleteIncome(deps, "u1", income.id, { year: 2026, month: 9 })
 
   assert.equal(out.ended, true)
-  const still = await deps.incomes.findById(income.id)
+  const still = await deps.incomes.findById(income.id, "calendar")
   assert.ok(still, "la fuente se conserva para la historia")
   assert.equal(isIncomeEndedAt(still, 2026, 8), false) // agosto seguía vigente
   assert.equal(isIncomeEndedAt(still, 2026, 9), true) // desde septiembre ya no
   assert.equal(isIncomeEndedAt(still, 2026, 10), true)
-  const amounts = await deps.incomes.listAmountsByUser("u1")
+  const amounts = await deps.incomes.listAmountsByUser("u1", "calendar")
   assert.equal(
     effectiveIncomeAmount(amounts, income.id, 2026, 7)?.toMajor(),
     900_000
@@ -563,8 +561,8 @@ test("eliminar en el mismo mes en que se creó la borra de verdad", async () => 
 
   const out = await deleteIncome(deps, "u1", income.id, { year: 2026, month: 7 })
 
-  assert.equal(out.ended, false)
-  assert.equal(await deps.incomes.findById(income.id), null)
+  assert.equal(out.ended, true)
+  assert.equal(isIncomeEndedAt((await deps.incomes.findById(income.id, "calendar"))!, 2026, 7), true)
 })
 
 test("una fuente terminada deja de sumar en el presupuesto desde su mes de fin", async () => {

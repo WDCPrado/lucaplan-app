@@ -33,7 +33,7 @@ import type { BudgetPeriodRepository } from "../../domain/finance/budget-period.
 import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
 import { daysOf } from "../../../shared/billing-cycle.ts"
 import { todayKey } from "../../../shared/today.ts"
-import { rangeOf } from "./budget-period-use-cases.ts"
+import { rangeOf, getBudgetPeriod, scopeBudgetPeriod } from "./budget-period-use-cases.ts"
 import { inRange } from "./budget-formulas.ts"
 import { effectiveIncomeAmount } from "./income-use-cases.ts"
 import { isAdditionalIncome } from "../../../../lib/additional-income.ts"
@@ -85,6 +85,8 @@ export async function getPeriodPlan(
   month: number,
   today = todayKey()
 ) {
+  deps = await scopeBudgetPeriod(deps)
+  const { mode } = await getBudgetPeriod(deps)
   const range = await rangeOf(deps, year, month)
   const [
     accounts,
@@ -98,8 +100,8 @@ export async function getPeriodPlan(
   ] = await Promise.all([
     deps.accounts.listByUser(userId),
     deps.balanceBuckets.listByUser(userId),
-    deps.incomes.listByUser(userId),
-    deps.incomes.listAmountsByUser(userId),
+    deps.incomes.listByUser(userId, mode),
+    deps.incomes.listAmountsByUser(userId, mode),
     deps.recurring.listActiveByUser(userId),
     deps.installments.listByUser(userId),
     deps.transactions.listByUserPeriod(userId, range),

@@ -107,6 +107,16 @@ verifica un backup manual y acuerda recuperación. Solo entonces actualiza. El d
 no incluye escrituras posteriores ni vuelve reversible una migración. Reactiva
 el webhook/Auto Deploy cuando el resultado esté verificado.
 
+La migración `20261031090000_plan_per_mode` requiere ese corte: duplica el historial de
+presupuestos y montos para débito/crédito y mueve la vigencia a `income_plan`. No ejecutar
+con la versión anterior atendiendo tráfico o tareas, porque sus consultas no filtran modo.
+El backfill es transaccional y no modifica movimientos ni saldos. Antes del corte comprobar
+que `income.endedYear`/`endedMonth` sean ambos nulos o completos con mes entre 1 y 12;
+un registro inválido aborta la migración. Después comprobar ambos planes y un cobro vinculado.
+Tras aplicarla, volver solo a la imagen anterior no sirve: requiere recuperar el esquema y
+los datos del backup verificado con escritores detenidos. Si ya hubo escrituras nuevas,
+conservarlas y preparar su recuperación antes de restaurar; no ejecutar un rollback automático.
+
 ## Ensayo, corte y recuperación
 
 1. Conserva runtime, imágenes, secretos y volúmenes Desktop en

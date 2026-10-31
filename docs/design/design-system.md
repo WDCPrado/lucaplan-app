@@ -84,6 +84,10 @@ Conmuta con la clase `.dark` (vía `next-themes`). Todos los tokens —incluido 
 ambiental y el glass— tienen su variante. Diseña y prueba ambos modos juntos, no infieras
 uno del otro.
 
+El fondo oscuro es carbón suave `#121214`; las tarjetas conservan `#1C1C1E` y las superficies
+secundarias `#2C2C2E`. El `theme-color` inicial y dinámico y el manifest usan ese mismo fondo
+para acompañar la app instalada. El tema claro y la landing conservan sus colores.
+
 ## Cómo extender
 
 1. ¿Color/valor nuevo? Agrégalo como variable en `:root` **y** `.dark` de `globals.css`.

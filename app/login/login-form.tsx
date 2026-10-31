@@ -103,7 +103,7 @@ function OpenSourceNotice() {
 export function LoginForm() {
   const [legal, setLegal] = useState<LegalKey | null>(null)
   return (
-    <main className="relative grid min-h-dvh lg:grid-cols-2">
+    <main className="relative grid min-h-dvh grid-cols-1 lg:grid-cols-2">
       <ThemeToggle />
 
       {/* Panel de marca (solo escritorio): gradiente azul profundo FIJO (el mismo de las

@@ -4,7 +4,7 @@ import { LOGIN_CODE_MINUTES } from "../../../domain/login-code.ts"
 /** HTML local: no requiere crear una plantilla en la cuenta de Resend. */
 export function createResendLoginCodeMailer({
   apiKey,
-  from = "Luca Plan <no-reply@lucaplan.cl>",
+  from,
   transport = fetch,
 }: {
   apiKey?: string
@@ -24,7 +24,7 @@ export function createResendLoginCodeMailer({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            from,
+            from: from?.trim() || "Luca Plan <no-reply@lucaplan.cl>",
             to: email,
             subject: "Tu código de acceso a Luca Plan",
             text: `Tu código de acceso a Luca Plan es ${code}. Vale ${LOGIN_CODE_MINUTES} minutos y sirve una sola vez. Si no lo solicitaste, ignora este correo.`,

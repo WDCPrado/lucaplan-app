@@ -29,6 +29,28 @@ test("envía HTML y texto locales Luca por Resend, sin plantilla externa", async
   assert.equal(called, true)
 })
 
+test("normaliza el remitente opcional sin perder un remitente personalizado", async () => {
+  for (const [from, expected] of [
+    [undefined, "Luca Plan <no-reply@lucaplan.cl>"],
+    ["", "Luca Plan <no-reply@lucaplan.cl>"],
+    [" \t ", "Luca Plan <no-reply@lucaplan.cl>"],
+    ["Mi Plan <acceso@example.com>", "Mi Plan <acceso@example.com>"],
+    ["  Mi Plan <acceso@example.com>  ", "Mi Plan <acceso@example.com>"],
+  ]) {
+    let sentFrom: string | undefined
+    const mailer = createResendLoginCodeMailer({
+      apiKey: "dummy-key",
+      from,
+      transport: async (_url, init) => {
+        sentFrom = JSON.parse(String(init?.body)).from
+        return new Response("{}", { status: 200 })
+      },
+    })
+    await mailer.send("test@example.com", "123456")
+    assert.equal(sentFrom, expected)
+  }
+})
+
 test("no propaga secretos, correo ni bodies de error del proveedor", async () => {
   for (const transport of [
     async () =>

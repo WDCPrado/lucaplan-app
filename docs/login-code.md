@@ -16,6 +16,7 @@ recuperación y cambio de contraseña están deshabilitados; `/reset-password` l
 Configura **`RESEND_API_KEY` solo en el servidor**. El adapter HTTP envía HTML y texto locales;
 no hace falta publicar una plantilla en Resend ni instalar su SDK. El remitente por defecto
 es `Luca Plan <no-reply@lucaplan.cl>`, con `RESEND_FROM` opcional para otras instalaciones.
+Si la variable está vacía o solo contiene espacios, también se usa ese remitente predeterminado.
 El dominio elegido debe estar verificado en la misma cuenta de Resend.
 
 El envío corre fuera de la respuesta HTTP para no distinguir cuentas por latencia. Una

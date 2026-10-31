@@ -4,9 +4,9 @@ Guía de trabajo dentro del repo, para personas y agentes. El contexto general (
 stack, puesta en marcha, scripts, deploy) vive en el [README](../README.md); este documento cubre
 solo **cómo se trabaja aquí**.
 
-Tras mergear un PR, GitHub Actions valida `master` y el runner local actualiza los servicios
-afectados por sus rutas, siguiendo [el despliegue automático](self-hosting.md#despliegue-automático-al-integrar-en-master).
-Cerrar un PR sin merge no despliega. La configuración runtime externa y sus volúmenes se conservan.
+Tras mergear un PR, GitHub Actions valida `master` y solicita a Coolify el despliegue del SHA
+validado, siguiendo [el despliegue automático](coolify.md#github-validar-antes-de-desplegar).
+Cerrar un PR sin merge no despliega. Los secretos de Coolify y el volumen externo se conservan.
 
 ## Flujo de trabajo
 

@@ -26,7 +26,7 @@ jobs:
   deploy:
     needs: validate
     if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository == 'WDCPrado/lucaplan-app'
-    runs-on: [self-hosted, Windows, X64, lucaplan-production]
+    runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
       contents: read
@@ -34,14 +34,19 @@ jobs:
       group: lucaplan-production
       cancel-in-progress: false
       queue: max
-    defaults:
-      run:
-        shell: powershell
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          fetch-depth: 0
-      - name: Actualizar servicios afectados
+          node-version: 24
+      - name: Desplegar el commit validado en Coolify
         env:
-          DEPLOY_SHA: ${{ github.sha }}
-        run: node scripts/deploy-local.mjs $env:DEPLOY_SHA
+          COOLIFY_URL: ${{ vars.COOLIFY_URL }}
+          COOLIFY_APP_UUID: ${{ vars.COOLIFY_APP_UUID }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          if [ "$(git ls-remote origin refs/heads/master | cut -f1)" != "$GITHUB_SHA" ]; then
+            echo "Se omite un commit anterior a master; el más reciente debe pasar su propia validación."
+            exit 0
+          fi
+          node scripts/deploy-coolify.mjs

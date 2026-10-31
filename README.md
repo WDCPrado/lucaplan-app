@@ -443,6 +443,13 @@ node --test "arch/**/*.test.ts"
 
 ## Deploy
 
+### Coolify en Ubuntu WSL2
+
+La configuración de producción para Coolify está en [`compose.coolify.yml`](compose.coolify.yml):
+app, PostgreSQL 18, cron y el túnel Cloudflare existente. GitHub valida `master` y solicita a Coolify
+el despliegue del SHA validado, sin runner local. Preparación, secretos, backup previo, corte desde
+Docker Desktop y recuperación están en la [guía de Coolify](docs/coolify.md).
+
 ### Docker Compose
 
 Para operar la instancia personal con base aislada, cron y HTTPS público por Cloudflare Tunnel, usa
@@ -522,7 +529,7 @@ seed lo registra y sigue con las demás, en vez de caerse el deploy. Cómo escri
 | Correos bancarios           | [docs/bank-email-contract.md](docs/bank-email-contract.md) — catálogo de correos soportados y qué debe aportar un banco nuevo. |
 | Plugin Luca Plan            | [docs/plugin-luca-plan.md](docs/plugin-luca-plan.md) — paquete MCP, autorización por usuario, catálogo de operaciones y conexión con ChatGPT o Codex. |
 | Acceso por correo          | [Código de acceso y Resend](docs/login-code.md). |
-| Operación y despliegue      | [Scripts](#scripts) y [Deploy](#deploy) en este README; [Docker local y actualización post-merge](docs/self-hosting.md). |
+| Operación y despliegue      | [Scripts](#scripts) y [Deploy](#deploy) en este README; [Coolify y migración](docs/coolify.md); [Docker local y recuperación del origen](docs/self-hosting.md). |
 | Specs y cambios             | [openspec/README.md](openspec/README.md) — capacidades canónicas, cambios en curso y archivo histórico. |
 
 ## Contribuir

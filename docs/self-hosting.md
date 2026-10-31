@@ -1,5 +1,9 @@
 # Luca Plan en Docker con Cloudflare Tunnel
 
+La producción migrada a Coolify usa la [guía de Coolify](coolify.md) y `compose.coolify.yml`.
+Este documento conserva la instalación de Docker Desktop y su recuperación. El workflow actual
+ya no llama a `deploy-local.mjs`: no reactives su runner durante la operación de Coolify.
+
 `compose.production.yml` ejecuta una instancia separada del Compose de desarrollo:
 PostgreSQL 18, app en modo producción, cron y un túnel propio de Cloudflare. Cada servicio
 reinicia con Docker (`unless-stopped`). PostgreSQL no publica puertos; la app publica solo
@@ -89,9 +93,9 @@ Compose conserva el callback `https://lucaplan.cl/api/email-connection/callback`
 Microsoft Graph salen hacia internet desde el host. Las suscripciones y los datos reales se
 verifican después del corte; los tests del repo no sustituyen esa prueba.
 
-## Despliegue automático al integrar en master
+## Despliegue local anterior al migrar a Coolify
 
-El workflow `Validate PR` valida primero el código en GitHub. Su job `deploy` corre **solo**
+Antes de la migración, el workflow `Validate PR` validaba primero el código en GitHub. Su job `deploy` corría **solo**
 para un `push` a `master` de este repositorio y después de que `validate` termine bien. Un PR
 abierto o cerrado sin merge no ejecuta código en el equipo de producción. También despliega
 un push directo autorizado a `master`; usa la protección de rama para exigir PR si corresponde.

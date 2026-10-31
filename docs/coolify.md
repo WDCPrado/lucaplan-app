@@ -21,8 +21,11 @@ El origen de Desktop queda detenido después del corte, conservando sus datos.
    expuesto `3005` y Domains `https://lucaplan.cl:3005` (el puerto indica el destino
    interno del proxy, no un puerto público). Usa GitHub App o deploy key de solo lectura. Desactiva Auto Deploy
    y previews desde el principio. No configures Compose ni comandos Compose custom.
-4. Configura healthcheck HTTP `/login`, puerto `3005`, con tiempo de inicio suficiente
-   para las migraciones. Conserva el CMD del Dockerfile: aplica migraciones pendientes
+4. Desactiva el healthcheck HTTP generado de Coolify (`health_check_enabled=false`):
+   el Dockerfile ya define un HEALTHCHECK Node contra `/login` en `3005`, sin curl/wget.
+   Coolify 4.5.3 detecta ese check y espera la salud del contenedor. Mantén desactivado
+   **Consistent Container Name** para conservar el reemplazo y su espera de salud.
+   Conserva el CMD del Dockerfile: aplica migraciones pendientes
    y arranca Next. No añadas variables `RAILWAY_*`, `SEED_PR_*` ni datos demo.
 5. Copia los secretos actuales: `BETTER_AUTH_SECRET`, `BANCOCHILE_ENC_KEY`, Resend,
    Outlook y VAPID. Conserva `BETTER_AUTH_URL=https://lucaplan.cl`, callback y webhook
@@ -103,7 +106,10 @@ commits que ya no sean la punta. El script:
    Solicita `PATCH /databases/{db}/backups/{schedule}` con `backup_now=true`.
 3. Espera una ejecución nueva `success`, con archivo y tamaño positivo. Fallo,
    ausencia, timeout o varias ejecuciones nuevas bloquean el despliegue.
-4. Solicita deploy del SHA fijado y espera `finished`, comprobando el commit.
+4. Solicita deploy del SHA fijado y espera `finished`, comprobando el commit. Después
+   exige que la API de Application confirme `running:healthy` en hasta tres minutos;
+   un deploy terminado con contenedor unhealthy falla CI. Verifica también dominio y
+   funciones: `/login` no prueba todas las dependencias externas.
 
 Coolify 4.5.3 no devuelve UUID de ejecución al disparar el backup: la correlación
 usa la diferencia de UUID del schedule dedicado. Una ejecución manual concurrente

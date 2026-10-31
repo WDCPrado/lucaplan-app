@@ -3,7 +3,7 @@ import { setTimeout } from "node:timers/promises"
 // Coolify fija git_commit_sha en la entrada de la cola: no despliega el HEAD que cambie después.
 export async function deployCoolify({
   url, token, uuid, sha, databaseUuid, backupUuid,
-  request = fetch, wait = (ms) => setTimeout(ms), attempts = 210, backupAttempts = 60,
+  request = fetch, wait = (ms) => setTimeout(ms), attempts = 210, backupAttempts = 60, healthAttempts = 18,
 }) {
   if (!/^[a-f0-9]{40}$/.test(sha ?? "")) throw new Error("Falta el SHA completo validado.")
   if (!token || !/^[a-zA-Z0-9-]+$/.test(uuid ?? "")) throw new Error("Configura COOLIFY_TOKEN y COOLIFY_APP_UUID.")
@@ -34,6 +34,7 @@ export async function deployCoolify({
     git_commit_sha: sha,
     is_auto_deploy_enabled: false,
     is_preview_deployments_enabled: false,
+    health_check_enabled: false, // Conserva el HEALTHCHECK Node del Dockerfile, sin curl/wget.
   })
   const app = await api(`/applications/${uuid}`)
   if (app.git_commit_sha !== sha || app.git_branch !== "master" || app.build_pack !== "dockerfile") {
@@ -77,8 +78,16 @@ export async function deployCoolify({
     const state = await api(`/deployments/${deployment}`)
     if (state.commit !== sha) throw new Error("El despliegue no corresponde al SHA validado; revisa Coolify inmediatamente.")
     if (state.status === "finished") {
-      console.log(`Coolify terminó el despliegue ${deployment} de ${sha}.`)
-      return { deployment, sha }
+      for (let check = 0; check < healthAttempts; check++) {
+        const current = await api(`/applications/${uuid}`)
+        if (current.git_commit_sha !== sha) throw new Error("Cambió el SHA configurado durante el despliegue; revisa Coolify.")
+        if (current.status === "running:healthy") {
+          console.log(`Coolify terminó el despliegue ${deployment} de ${sha}; aplicación saludable.`)
+          return { deployment, sha }
+        }
+        await wait(10_000)
+      }
+      throw new Error("Coolify terminó el deploy pero la aplicación no está running:healthy; revisa salud y logs.")
     }
     if (!["queued", "in_progress"].includes(state.status)) throw new Error("El despliegue no terminó correctamente; revisa Coolify y la guía de recuperación.")
     await wait(10_000)

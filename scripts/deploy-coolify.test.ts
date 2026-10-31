@@ -6,6 +6,7 @@ const sha = "a".repeat(40)
 const options = { url: "https://coolify.example.com", token: "secret-token", uuid: "app-123", sha,
   databaseUuid: "db-123", backupUuid: "backup-123" }
 const app = { git_commit_sha: sha, git_branch: "master", build_pack: "dockerfile" }
+const healthy = { ...app, status: "running:healthy" }
 const backup = { uuid: "execution-1", filename: "backup.dump", size: 123, status: "success" }
 const backedUp = () => [{ executions: [] }, {}, { executions: [backup] }]
 
@@ -25,12 +26,12 @@ function responses(values: unknown[]) {
 
 test("fija el SHA y desactiva despliegues independientes antes de encolar; espera finalización", async () => {
   const mock = responses([{}, app, ...backedUp(), { deployments: [{ deployment_uuid: "deploy-1" }] },
-    { commit: sha, status: "queued" }, { commit: sha, status: "in_progress" }, { commit: sha, status: "finished" }])
+    { commit: sha, status: "queued" }, { commit: sha, status: "in_progress" }, { commit: sha, status: "finished" }, healthy])
   let waits = 0
   const result = await deployCoolify({ ...options, request: mock.request, wait: async () => { waits++ } })
   assert.deepEqual(result, { deployment: "deploy-1", sha })
   assert.deepEqual(JSON.parse(mock.calls[0].body!), {
-    git_commit_sha: sha, is_auto_deploy_enabled: false, is_preview_deployments_enabled: false,
+    git_commit_sha: sha, is_auto_deploy_enabled: false, is_preview_deployments_enabled: false, health_check_enabled: false,
   })
   assert.equal(mock.calls[0].method, "PATCH")
   assert.equal(mock.calls[0].url.pathname, "/api/v1/applications/app-123")
@@ -94,7 +95,7 @@ test("espera un backup nuevo y no confunde el éxito anterior con el solicitado"
   const old = { ...backup, uuid: "old" }
   const mock = responses([{}, app, { executions: [old] }, {}, { executions: [old] },
     { executions: [old, { ...backup, status: "running" }] }, { executions: [old, backup] },
-    { deployments: [{ deployment_uuid: "deploy-1" }] }, { commit: sha, status: "finished" }])
+    { deployments: [{ deployment_uuid: "deploy-1" }] }, { commit: sha, status: "finished" }, healthy])
   let waits = 0
   await deployCoolify({ ...options, request: mock.request, wait: async () => { waits++ } })
   assert.equal(waits, 2)
@@ -105,5 +106,18 @@ test("backup activo o historial inválido aborta antes de disparar otro", async 
     const mock = responses([{}, app, history])
     await assert.rejects(deployCoolify({ ...options, request: mock.request }))
     assert.equal(mock.calls.length, 3)
+  }
+})
+
+test("finished no basta: espera salud real y falla si vence o cambia el SHA", async () => {
+  const prefix = () => [{}, app, ...backedUp(), { deployments: [{ deployment_uuid: "deploy-1" }] }, { commit: sha, status: "finished" }]
+  const mock = responses([...prefix(), { ...app, status: "running:starting" }, healthy])
+  let waits = 0
+  await deployCoolify({ ...options, request: mock.request, wait: async () => { waits++ } })
+  assert.equal(waits, 1)
+  for (const state of [{ ...app, status: "running:unhealthy" }, { ...app, status: "exited" },
+    { ...healthy, git_commit_sha: "b".repeat(40) }]) {
+    const failed = responses([...prefix(), state])
+    await assert.rejects(deployCoolify({ ...options, request: failed.request, healthAttempts: 1, wait: async () => {} }))
   }
 })

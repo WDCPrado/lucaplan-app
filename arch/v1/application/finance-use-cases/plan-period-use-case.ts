@@ -36,7 +36,7 @@ import { todayKey } from "../../../shared/today.ts"
 import { rangeOf } from "./budget-period-use-cases.ts"
 import { inRange } from "./budget-formulas.ts"
 import { effectiveIncomeAmount } from "./income-use-cases.ts"
-import { isUnlinkedIncome } from "../../../../lib/unlinked-income-total.ts"
+import { isAdditionalIncome } from "../../../../lib/additional-income.ts"
 import { getBudgetView } from "./finance-read.ts"
 
 const CURRENCIES: CurrencyCode[] = ["CLP", "USD"]
@@ -124,10 +124,12 @@ export async function getPeriodPlan(
 
   // Ingresos esperados del mes vs registrados (el movimiento generado desde la fuente).
   const incomeRows = []
+  const plannedIncomeIds = new Set<string>()
   for (const income of incomes) {
     if (!income.isActive || isIncomeEndedAt(income, year, month)) continue
     const amount = effectiveIncomeAmount(incomeAmounts, income.id, year, month)
     if (!amount) continue
+    plannedIncomeIds.add(income.id)
     const received = await deps.incomes.hasGeneratedFor(income.id, year, month, range)
     const t = totals(amount.currency).income
     t.expected = t.expected.add(amount)
@@ -145,9 +147,9 @@ export async function getPeriodPlan(
   }
 
   // Abonos reales independientes: incrementan la capacidad del ciclo una sola vez.
-  // Los vinculados a Income ya fueron incluidos arriba como fuente planificada.
+  // Un vínculo solo excluye el abono si su fuente fue incluida arriba.
   for (const t of txs) {
-    if (!isUnlinkedIncome(t)) continue
+    if (!inRange(t.date, range) || !isAdditionalIncome(t, plannedIncomeIds)) continue
     const c = totals(t.amount.currency).income
     c.expected = c.expected.add(t.amount)
     c.done = c.done.add(t.amount)
@@ -227,7 +229,7 @@ export async function getPeriodPlan(
   // arriba): los confirmados con fecha futura y los que el banco aún no confirma.
   for (const t of txs) {
     // Ya agregado a income.done/expected arriba: no repetir como crédito futuro.
-    if (isUnlinkedIncome(t)) continue
+    if (isAdditionalIncome(t, plannedIncomeIds)) continue
     if (
       t.isInternal ||
       t.recurringTemplateId ||
@@ -281,6 +283,7 @@ export async function getPeriodPlan(
       notice:
         "Tope en CLP; los gastos en USD entran convertidos de forma referencial con el dólar de su fecha",
       globalLimit: budget.globalLimit,
+      income: budget.income,
       allocated: budget.allocated,
       remainingToAllocate: budget.remainingToAllocate,
       spent: budget.spent,

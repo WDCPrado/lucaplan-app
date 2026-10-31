@@ -67,6 +67,11 @@ test("Dado un mes futuro, cuando planifico, entonces no escribe nada y separa CL
       monthlyBudgets: readOnly({ listByUser: async () => [] }),
       transactions: readOnly({
         listByUserPeriod: async () => [
+          ...["sueldo", "fuente-ausente"].map(incomeId => ({
+            id: incomeId, userId: "u1", accountId: "a1", categoryId: "c", date: day,
+            description: "abono", amount: clp(50000), direction: "credit", status: "confirmed",
+            isInternal: false, externalId: null, incomeId,
+          })),
           // Paga la cuota: no debe volver a sumarse como movimiento futuro.
           {
             id: "t-cuota",
@@ -180,7 +185,8 @@ test("Dado un mes futuro, cuando planifico, entonces no escribe nada y separa CL
     "2026-10-16"
   )
   const [CLP, USD] = plan.byCurrency
-  assert.deepEqual(CLP.income, { expected: 1000000, done: 0, pending: 1000000 })
+  assert.deepEqual(CLP.income, { expected: 1050000, done: 50000, pending: 1000000 })
+  assert.equal(plan.budgetCLP.income, CLP.income.expected)
   assert.deepEqual(CLP.installments, {
     expected: 100000,
     done: 50000,

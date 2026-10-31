@@ -63,6 +63,7 @@ import type { BudgetPeriodRepository } from "../../domain/finance/budget-period.
 import type { PeriodRange } from "../../../shared/billing-cycle.ts"
 import { rangeOf } from "./budget-period-use-cases.ts"
 import { todayKey } from "../../../shared/today.ts"
+import { isAdditionalIncome } from "../../../../lib/additional-income.ts"
 
 import { currencyPositions } from "./financial-position.ts"
 
@@ -188,6 +189,7 @@ export type PaceDTO = {
 
 export type BudgetViewDTO = {
   categories: CategoryDTO[]
+  income: number // fuentes activas efectivas + abonos CLP no cubiertos por esas fuentes
   spent: number // confirmado de categorías de gasto con tope efectivo > 0
   reimbursementAdjustment?: number // compensación ya incluida en los ingresos del medidor
   committed: number // pendiente y cuotas por cobrar de esas mismas categorías
@@ -760,12 +762,22 @@ export async function getBudgetView(
   // persistida: agregar/editar/eliminar un ingreso la actualiza sola.
   // ponytail: suma solo CLP; una fuente en otra moneda no entra a la meta.
   const incomeGoal = new Map<string, Money>()
+  const plannedIncomeIds = new Set<string>()
+  const incomeRemaining = new Map<string, number>()
+  let income = Money.zero(CLP)
   for (const inc of incomesList) {
     if (!inc.isActive || isIncomeEndedAt(inc, year, month)) continue
     const amount = effectiveIncomeAmount(incomeAmounts, inc.id, year, month)
     if (!amount || amount.currency !== CLP) continue
+    plannedIncomeIds.add(inc.id)
+    incomeRemaining.set(inc.id, amount.toMajor())
+    income = income.add(amount)
     const prev = incomeGoal.get(inc.categoryId)
     incomeGoal.set(inc.categoryId, prev ? prev.add(amount) : amount)
+  }
+  for (const tx of txs) {
+    if (tx.amount.currency === CLP && inRange(tx.date, range) && isAdditionalIncome(tx, plannedIncomeIds))
+      income = income.add(tx.amount)
   }
   // Cifras por categoría en Money, ANTES de bajarlas al DTO: los excedentes del mes se suman
   // desde acá en vez de recalcular el uso o reconstruir montos desde los números del DTO.
@@ -887,15 +899,8 @@ export async function getBudgetView(
     Money.zero(CLP)
   )
   // Las categorías siguen mostrando gasto personal neto. El medidor conserva TODOS los
-  // ingresos planificados: neutraliza únicamente la compensación que ya financia una fuente
-  // activa de este mismo período. Sin fuente, sin tope o en otro ciclo no hay doble beneficio.
+  // ingresos del período: neutraliza reembolsos incluidos como fuente activa o abono adicional.
   const budgetedIds = new Set(budgeted.map(({ category }) => category.id))
-  const incomeRemaining = new Map<string, number>()
-  for (const inc of incomesList) {
-    if (!inc.isActive || isIncomeEndedAt(inc, year, month)) continue
-    const amount = effectiveIncomeAmount(incomeAmounts, inc.id, year, month)
-    if (amount?.currency === CLP) incomeRemaining.set(inc.id, amount.toMajor())
-  }
   const byId = new Map(txs.map(t => [t.id, t]))
   const expenseRemaining = new Map<string, number>()
   const creditRemaining = new Map<string, number>()
@@ -905,21 +910,25 @@ export async function getBudgetView(
     const credit = byId.get(row.creditId)
     if (!expense || !credit || expense.direction !== "debit" || credit.direction !== "credit" ||
         expense.status !== "confirmed" || credit.status !== "confirmed" ||
-        expense.isInternal || credit.isInternal || !credit.incomeId ||
+        expense.isInternal || credit.isInternal ||
         !expense.categoryId || !budgetedIds.has(expense.categoryId) ||
         expense.amount.currency !== CLP || credit.amount.currency !== CLP ||
         !inRange(expense.date, range) || !inRange(credit.date, range)) continue
     const expenseLeft = expenseRemaining.get(expense.id) ?? expense.amount.toMajor()
     const creditLeft = creditRemaining.get(credit.id) ?? credit.amount.toMajor()
-    const incomeLeft = incomeRemaining.get(credit.incomeId) ?? 0
+    const plannedId = credit.incomeId && plannedIncomeIds.has(credit.incomeId) ? credit.incomeId : null
+    const incomeLeft = plannedId
+      ? incomeRemaining.get(plannedId) ?? 0
+      : isAdditionalIncome(credit, plannedIncomeIds) ? credit.amount.toMajor() : 0
     const adjustment = Math.max(0, Math.min(Number(row.amount), expenseLeft, creditLeft, incomeLeft))
     reimbursementAdjustment += adjustment
     expenseRemaining.set(expense.id, expenseLeft - adjustment)
     creditRemaining.set(credit.id, creditLeft - adjustment)
-    incomeRemaining.set(credit.incomeId, incomeLeft - adjustment)
+    if (plannedId) incomeRemaining.set(plannedId, incomeLeft - adjustment)
   }
   return {
     categories,
+    income: income.toMajor(),
     reimbursementAdjustment,
     spent: spent.toMajor(),
     committed: committed.toMajor(),
@@ -939,10 +948,8 @@ export async function getBudgetView(
 }
 
 /**
- * Exceso del período anterior que reserva el plan: gastos netos + compromisos pendientes contra
- * su presupuesto global. `getBudgetView` resuelve el mes calendario o el ciclo de tarjeta y evita
- * duplicar lo ya pagado. Sin límite definido no hay descuento. Los avisos de `monthOverspend`
- * conservan su significado de gasto confirmado; aquí también se reserva lo que falta pagar.
+ * Déficit del período anterior: gastos realizados contra sus ingresos, sin topes ni pendientes.
+ * `getBudgetView` resuelve el mes o ciclo y la compensación de reembolsos para no contarlos dos veces.
  */
 export async function getPreviousMonthDebt(
   deps: ReadDeps,
@@ -953,10 +960,7 @@ export async function getPreviousMonthDebt(
   const prevYear = month === 1 ? year - 1 : year
   const prevMonth = month === 1 ? 12 : month - 1
   const previous = await getBudgetView(deps, userId, prevYear, prevMonth)
-  return computeMonthOverspend(
-    Money.of(previous.spent + previous.committed, CLP),
-    previous.globalLimit === null ? null : Money.of(previous.globalLimit, CLP)
-  ).toMajor()
+  return Math.max(0, previous.spent + (previous.reimbursementAdjustment ?? 0) - previous.income)
 }
 
 export type IncomeDTO = {

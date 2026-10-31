@@ -226,7 +226,7 @@ for (const mode of ["calendar", "card_cycle"] as const) {
     assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 10000)
     plans[0].items[0].transactionId = "cuota-pagada"
     f.txs.push({ ...f.txs[0], id: "cuota-pagada", installmentItemId: "plan", amount: Money.of(6000, "CLP"), date: new Date("2026-10-15") })
-    assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 10000)
+    assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 16000)
   })
 
   test(`${mode}: poner tope cero retira gastos y comprometidos; devolverlo los incluye`, async () => {
@@ -260,7 +260,7 @@ for (const mode of ["calendar", "card_cycle"] as const) {
     assert.equal(dailyTotal, 120000)
     assert.equal(view.capsOverspend, 20000)
     assert.equal(view.monthOverspend, 20000)
-    assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 24000)
+    assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 30000)
   })
 
   test(`${mode}: barras y resumen respetan el mismo rango y conversión USD`, async () => {

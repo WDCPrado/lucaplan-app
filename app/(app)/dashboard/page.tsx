@@ -93,7 +93,7 @@ export default async function DashboardPage({
     }),
     listTransactions(financePageDeps, userId, year, month),
     listIncomesView(financePageDeps, userId, year, month),
-    // Exceso de gastos y compromisos del período anterior: el plan lo descuenta del
+    // Déficit de gastos frente a ingresos del período anterior: el plan lo descuenta del
     // total que ofrece repartir. Va acá y no en `getBudgetView` porque el único que la necesita es
     // el plan; meterla al DTO se la cobraría a todos los consumidores de la vista.
     // El `.catch` no es decorativo: esto es una pista dentro de un modal, y sin él un fallo

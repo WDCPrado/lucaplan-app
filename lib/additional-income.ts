@@ -1,10 +1,10 @@
 /**
  * A planned income source contributes its amount to the period even before collection.
- * A confirmed credit without an Income relationship is additional available income.
- * Internal transfers, linked credits, recurring credits (accounted for separately in
+ * A confirmed credit is additional unless its source already contributes to this period.
+ * Internal transfers, recurring credits (accounted for separately in
  * planning), pending/reversed credits and forecast rows never contribute again.
  */
-export function isUnlinkedIncome(t: {
+export function isAdditionalIncome(t: {
   direction: string
   status: string
   isInternal?: boolean
@@ -12,21 +12,12 @@ export function isUnlinkedIncome(t: {
   recurringTemplateId?: string | null
   installmentItemId?: string | null
   installmentForecast?: boolean
-}): boolean {
+}, plannedIncomeIds: ReadonlySet<string>): boolean {
   return t.direction === "credit" &&
     t.status === "confirmed" &&
     !t.isInternal &&
-    !t.incomeId &&
+    (!t.incomeId || !plannedIncomeIds.has(t.incomeId)) &&
     !t.recurringTemplateId &&
     !t.installmentItemId &&
     !t.installmentForecast
-}
-
-export function unlinkedIncomeTotal<T extends Parameters<typeof isUnlinkedIncome>[0] & {
-  currency: string
-  amount: number
-}>(transactions: T[]): number {
-  return transactions
-    .filter((t) => t.currency === "CLP" && isUnlinkedIncome(t))
-    .reduce((sum, t) => sum + t.amount, 0)
 }

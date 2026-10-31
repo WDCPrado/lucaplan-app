@@ -83,7 +83,7 @@ export function PlanSheet({
   incomeCategories: CategoryDTO[]
   expenseCategories: CategoryDTO[]
   activeIncomeTotal: number
-  // Exceso de gastos y compromisos del período anterior. Ya resuelto en el servidor.
+  // Gastos realizados que superaron los ingresos del período anterior, resueltos en el servidor.
   previousMonthDebt: number
   onEditBudget: () => void
   onAddIncome: () => void
@@ -218,13 +218,13 @@ export function PlanSheet({
           footer={
             previousMonthDebt > 0 && (
               <p>
-                En {previousPeriod}, los gastos y compromisos superaron el presupuesto en{" "}
+                En {previousPeriod}, los gastos superaron los ingresos en{" "}
                 <span className="tabular font-semibold text-foreground">
                   {formatMoney(previousMonthDebt, "CLP")}
                 </span>.{" "}
                 {toAllocate > 0 ? (
                   <>
-                    Al reservar ese exceso, quedan{" "}
+                    Al cubrir esa diferencia, quedan{" "}
                     <span className="tabular font-semibold text-foreground">
                       {formatMoney(toAllocate, "CLP")}
                     </span>{" "}
@@ -232,7 +232,7 @@ export function PlanSheet({
                   </>
                 ) : (
                   <>
-                    Ese exceso ocupa todo el ingreso de este {periodNoun},
+                    Esa diferencia ocupa todo el ingreso de este {periodNoun},
                     así que no queda nada por repartir.
                   </>
                 )}

@@ -12,8 +12,8 @@
 import { monthName } from "./finance-format.ts"
 
 /**
- * Lo que queda para repartir: ingresos activos menos el exceso de gastos y compromisos del
- * período anterior. Ese exceso ya tiene destino y no se ofrece otra vez para repartir.
+ * Lo que queda para repartir: ingresos planificados y adicionales menos el déficit de gastos
+ * frente a ingresos del período anterior. Esa diferencia ya tiene destino y no se reparte otra vez.
  *
  * Piso en 0: un presupuesto negativo no existe, y el endpoint exige un entero ≥ 0.
  */

@@ -22,7 +22,6 @@ import { AccountCard } from "./account-card"
 import { MovementRow } from "./movement-row"
 import { DayStrip } from "./day-strip"
 import { CategoryIcon } from "./category-icons"
-import { unlinkedIncomeTotal } from "@/lib/unlinked-income-total"
 import { CategoryModal } from "./category-modal"
 import { BudgetLimitModal } from "./budget-limit-modal"
 import { CategoryDetailSheet } from "./category-detail-sheet"
@@ -69,7 +68,7 @@ type Props = {
   transactions: TransactionDTO[]
   incomes: IncomeDTO[]
   previousCycleIncomes: IncomeDTO[]
-  // Exceso de gastos y compromisos del período ANTERIOR que se descuenta del total a repartir.
+  // Déficit de gastos frente a ingresos del período ANTERIOR, descontado del total a repartir.
   // Llega resuelta del servidor; el front no la recalcula. 0 = el mes pasado cerró en regla.
   previousMonthDebt: number
   outlookResult: string | null
@@ -270,9 +269,7 @@ export function Dashboard({
   const incomeCategories = budget.categories.filter((c) => c.type === "income")
   // Al crear/editar/eliminar un ingreso la suma puede dejar de calzar con el presupuesto global:
   // se ofrece actualizarlo (acción explícita, nunca automática — mismo criterio que antes).
-  const activeIncomeTotal = incomes
-    .filter((i) => i.isActive && i.currency === "CLP")
-    .reduce((s, i) => s + i.amount, 0) + unlinkedIncomeTotal(transactions)
+  const activeIncomeTotal = budget.income
 
   // El servidor resuelve ambos totales con el mismo alcance que el resumen y los excedentes.
   const { spent: totalUsed, committed: totalCommitted } = budget

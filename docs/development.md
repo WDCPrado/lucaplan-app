@@ -279,6 +279,7 @@ Entrega su URL desde que esté disponible, sin esperar un pedido adicional.
 
 ```bash
 pnpm lint && pnpm typecheck && pnpm test
+DATABASE_URL='postgresql://build:build@127.0.0.1:5432/build?schema=public' NEXT_PUBLIC_LANDING_ONLY=true pnpm build
 ```
 
 `pnpm test` corre `node --test` sobre los tres directorios que tienen tests (`arch/`, `lib/` y
@@ -288,6 +289,10 @@ los corría nadie.
 Las tres son estáticas: **ninguna necesita Postgres**. El entorno local de revisión sí usa una
 base aislada y el mismo seed demo que el PR; aplica sus migraciones y siembra sus datos al
 preparar el worktree. Railway construye su propia imagen y base al publicar el PR.
+
+CI también ejecuta el build con Node 24, igual que Docker; el placeholder no conecta a Postgres.
+Las fuentes viven en `app/fonts/` con sus licencias y se cargan con `next/font/local`, sin
+descargas de Google Fonts durante la compilación.
 
 El pedido de implementar autoriza preparar dependencias y configuración demo del worktree.
 Publica según las reglas globales de Git; pedir el enlace de revisión cuenta como OK para abrir

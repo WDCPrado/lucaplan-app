@@ -1,4 +1,4 @@
-import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google"
+import localFont from "next/font/local"
 import type { Metadata, Viewport } from "next"
 
 import "./globals.css"
@@ -11,20 +11,21 @@ import { cn } from "@/lib/utils"
 // Tipografía: la app usa la fuente del sistema (SF en Apple) y cae a Geist en el resto; Space
 // Grotesk queda solo para los titulares de la landing y Geist Mono para código. Las pilas viven en
 // globals.css. Ver docs/design/design-system.md.
-const fontSans = Geist({
-  subsets: ["latin"],
+const fontSans = localFont({
+  src: "./fonts/Geist.woff2",
+  weight: "100 900",
   variable: "--font-geist",
 })
 
-const fontHeading = Space_Grotesk({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+const fontHeading = localFont({
+  src: "./fonts/SpaceGrotesk.woff2",
+  weight: "500 700",
   variable: "--font-grotesk",
 })
 
-const fontMono = Geist_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+const fontMono = localFont({
+  src: "./fonts/GeistMono.woff2",
+  weight: "400 500",
   variable: "--font-geist-mono",
 })
 

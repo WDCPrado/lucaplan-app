@@ -660,6 +660,28 @@ for (const mode of ["calendar", "card_cycle"] as const) {
 
 // El ritmo reparte el tope del mes entre los días o las semanas que quedan. Hay categorías donde
 // ese reparto no describe nada —una suscripción se cobra un día y listo—, y ahí se apaga.
+for (const scenario of [
+  { mode: "card_cycle", month: 11, today: "2026-10-29", frequency: "weekly", nextResetDate: "2026-10-30" },
+  { mode: "card_cycle", month: 11, today: "2026-11-20", frequency: "weekly", nextResetDate: "2026-11-21" },
+  { mode: "calendar", month: 10, today: "2026-10-29", frequency: "weekly", nextResetDate: "2026-11-01" },
+  { mode: "calendar", month: 10, today: "2026-10-22", frequency: "weekly", nextResetDate: "2026-10-26" },
+  { mode: "calendar", month: 12, today: "2026-12-31", frequency: "daily", nextResetDate: "2027-01-01" },
+] as const) {
+  test(`getBudgetView: reinicio ${scenario.mode} ${scenario.frequency} desde ${scenario.today}`, async () => {
+    const deps = {
+      ...budgetDeps(globalBudget(300000)),
+      budgetPeriod: {
+        get: async () => ({ mode: scenario.mode, overrides: {} }),
+        setMode: async () => {}, setClosing: async () => {},
+      },
+    }
+    const view = await getBudgetView(deps, "u1", 2026, scenario.month, {
+      frequency: scenario.frequency, today: scenario.today,
+    })
+    assert.equal(view.categories.find((c) => c.id === "c-super")!.pace?.nextResetDate, scenario.nextResetDate)
+  })
+}
+
 test("el ritmo semanal usa el modo capturado aunque cambie la configuración", async () => {
   let mode: PeriodMode = "card_cycle"
   let reads = 0

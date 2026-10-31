@@ -56,6 +56,7 @@ import {
   effectiveLimit,
   effectiveGlobalLimit,
   paceStatus,
+  pacePeriod,
   remainingToAllocate,
 } from "./budget-formulas.ts"
 import type { PaceFrequency } from "../../domain/finance/pace.domain.ts"
@@ -182,6 +183,7 @@ export type CategoryDTO = {
 
 export type PaceDTO = {
   frequency: PaceFrequency
+  nextResetDate: string // día civil siguiente al cierre del ritmo, incluidos períodos recortados
   spent: number // gastado en el período (hoy o desde el lunes)
   budget: number // presupuesto del período; estable durante el período
   status: "ok" | "alerta" | "excedido" // silencio <80%, alerta 80–100%, excedido >100%
@@ -831,8 +833,12 @@ export async function getBudgetView(
               range,
               cycleAligned
             )
+            const period = pacePeriod(pace.today, pace.frequency, range, cycleAligned)
+            const nextReset = new Date(`${period.end}T00:00:00Z`)
+            nextReset.setUTCDate(nextReset.getUTCDate() + 1)
             return {
               frequency: pace.frequency,
+              nextResetDate: nextReset.toISOString().slice(0, 10),
               spent: p.spent.toMajor(),
               budget: p.budget.toMajor(),
               status: paceStatus(p.spent, p.budget),

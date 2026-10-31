@@ -30,6 +30,12 @@ export function CategoryDetailSheet({
   const txs = category
     ? transactions.filter((tx) => tx.categoryId === category.id)
     : []
+  const spentPct = category && category.limit > 0
+    ? Math.max(0, Math.min(100, (category.used / category.limit) * 100))
+    : 0
+  const committedPct = category && category.limit > 0
+    ? Math.max(0, Math.min(100 - spentPct, (category.committed / category.limit) * 100))
+    : 0
   return (
     <ResponsiveModal
       open={category !== null}
@@ -84,6 +90,26 @@ export function CategoryDetailSheet({
                 )}
               </p>
               {category.type !== "income" && (
+                category.limit > 0 ? (
+                  <div
+                    role="img"
+                    aria-label={`Uso del presupuesto: ${formatCLP(category.used)} gastados y ${formatCLP(category.committed)} comprometidos de ${formatCLP(category.limit)}.`}
+                    className="mt-4 flex h-1.5 overflow-hidden rounded-full bg-muted"
+                  >
+                    <div
+                      className="h-full"
+                      style={{ width: `${spentPct}%`, background: statusVar(category.status) }}
+                    />
+                    <div
+                      className="h-full"
+                      style={{ width: `${committedPct}%`, background: statusVar(category.status), opacity: 0.35 }}
+                    />
+                  </div>
+                ) : (
+                  <p className="mt-4 text-footnote text-muted-foreground">Sin tope definido</p>
+                )
+              )}
+              {category.type !== "income" && (
                 <dl className="mt-5 grid grid-cols-3 gap-3 border-t pt-4">
                   <div>
                     <dt className="text-footnote text-muted-foreground">
@@ -94,7 +120,8 @@ export function CategoryDetailSheet({
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-footnote text-muted-foreground">
+                    <dt className="flex items-center gap-1.5 text-footnote text-muted-foreground">
+                      <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: statusVar(category.status), opacity: 0.35 }} />
                       Comprometido
                     </dt>
                     <dd className="tabular mt-1 text-body font-medium break-all">
@@ -102,7 +129,10 @@ export function CategoryDetailSheet({
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-footnote text-muted-foreground">Gastado</dt>
+                    <dt className="flex items-center gap-1.5 text-footnote text-muted-foreground">
+                      <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: statusVar(category.status) }} />
+                      Gastado
+                    </dt>
                     <dd className="tabular mt-1 text-body font-medium break-all">
                       {formatCLP(category.used)}
                     </dd>

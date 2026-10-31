@@ -53,6 +53,11 @@ import type {
   TransactionDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
+const resetDayFormat = new Intl.DateTimeFormat("es-CL", {
+  weekday: "long",
+  timeZone: "UTC",
+})
+
 export type CycleProps = {
   mode: PeriodMode
   range: PeriodRange // del mes en pantalla
@@ -265,6 +270,11 @@ export function Dashboard({
                 }}
               />
             </div>
+          )}
+          {c.pace?.frequency === "weekly" && (
+            <span className="text-footnote text-muted-foreground">
+              Se reinicia el {resetDayFormat.format(new Date(`${c.pace.nextResetDate}T00:00:00Z`))}
+            </span>
           )}
         </div>
       </button>

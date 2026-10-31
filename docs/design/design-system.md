@@ -59,7 +59,9 @@ El sidebar conserva `--glass-active`, neutro: claro en light, oscuro en dark. Am
 `--glass-active-shadow`; textos e íconos conservan `foreground`.
 `scroll-edge-top` (`--scroll-edge`, `--scroll-edge-amount`, `--scroll-edge-blur`) queda solo detrás
 de la topbar de escritorio. En móvil el desenfoque se limita a las cápsulas del selector de mes y
-la navegación, sin velos fuera de sus bordes. Los controles (`input`, segmentado) usan
+la navegación, sin velos fuera de sus bordes. La fila superior móvil anula la sombra exterior
+de sus cápsulas, conservando blur, contorno y rim internos; escritorio y barra inferior mantienen
+su sombra. Los controles (`input`, segmentado) usan
 `--glass-control` / `--glass-control-active`.
 `--radius-bar-inner` es el radio concéntrico de lo que va dentro de una barra `rounded-xl`.
 `--card-art-*` colorea el cupo sobre el arte de las tarjetas de cuenta. `--scrollbar` pinta el

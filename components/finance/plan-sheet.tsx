@@ -83,7 +83,7 @@ export function PlanSheet({
   incomeCategories: CategoryDTO[]
   expenseCategories: CategoryDTO[]
   activeIncomeTotal: number
-  // Lo que el mes anterior gastó por sobre su presupuesto global. Ya resuelto en el servidor.
+  // Exceso de gastos y compromisos del período anterior. Ya resuelto en el servidor.
   previousMonthDebt: number
   onEditBudget: () => void
   onAddIncome: () => void
@@ -113,7 +113,8 @@ export function PlanSheet({
   // Los ingresos cambiaron y ya no calzan con el presupuesto: se ofrece igualarlos, nunca se
   // hace solo (el presupuesto es una decisión, no un cálculo).
   const suggest = shouldSuggest(toAllocate, globalLimit)
-  const previousMonth = previousMonthLabel(period.year, period.month)
+  const previousPeriod = mode === "card_cycle" ? "el ciclo anterior" : previousMonthLabel(period.year, period.month)
+  const periodNoun = mode === "card_cycle" ? "ciclo" : "mes"
 
   async function applySuggested() {
     if (applying) return
@@ -213,26 +214,25 @@ export function PlanSheet({
             desaparecería justo cuando el presupuesto queda más chico —sin rastro de por qué—.
             También es lo único que queda cuando la deuda se comió el ingreso. */}
         <ModalSection
-          title="Presupuesto del mes"
+          title={`Presupuesto del ${periodNoun}`}
           footer={
             previousMonthDebt > 0 && (
               <p>
-                En {previousMonth} se gastó{" "}
+                En {previousPeriod}, los gastos y compromisos superaron el presupuesto en{" "}
                 <span className="tabular font-semibold text-foreground">
                   {formatMoney(previousMonthDebt, "CLP")}
-                </span>{" "}
-                por sobre el presupuesto.{" "}
+                </span>.{" "}
                 {toAllocate > 0 ? (
                   <>
-                    Esa plata ya salió, así que quedan{" "}
+                    Al reservar ese exceso, quedan{" "}
                     <span className="tabular font-semibold text-foreground">
                       {formatMoney(toAllocate, "CLP")}
                     </span>{" "}
-                    para repartir este mes.
+                    para repartir este {periodNoun}.
                   </>
                 ) : (
                   <>
-                    Esa plata ya salió y se lleva todo el ingreso de este mes,
+                    Ese exceso ocupa todo el ingreso de este {periodNoun},
                     así que no queda nada por repartir.
                   </>
                 )}
@@ -248,7 +248,7 @@ export function PlanSheet({
             >
               <span className="min-w-0">
                 <span className="block text-body text-primary">
-                  Definir presupuesto del mes
+                  Definir presupuesto del {periodNoun}
                 </span>
                 <span className="block text-footnote">
                   Fija un límite global para repartir entre categorías
@@ -260,7 +260,7 @@ export function PlanSheet({
             <button
               type="button"
               onClick={onEditBudget}
-              aria-label="Editar presupuesto del mes"
+              aria-label={`Editar presupuesto del ${periodNoun}`}
               className="press flex min-h-11 w-full items-center gap-3 px-4 py-3 text-left"
             >
               <span className="min-w-0 flex-1">

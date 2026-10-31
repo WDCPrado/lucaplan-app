@@ -621,6 +621,28 @@ test("getPreviousMonthDebt: en enero el mes anterior es diciembre del año pasad
   assert.equal(debt, 200000) // 800.000 − 600.000 de diciembre 2025
 })
 
+for (const mode of ["calendar", "card_cycle"] as const) {
+  test(`getPreviousMonthDebt ${mode}: incluye pendientes sin duplicarlos al pagarse`, async () => {
+    const rows = [
+      budgetTx({ id: "gastado", categoryId: "c-super", date: new Date("2026-10-10"), amount: Money.of(90000, "CLP") }),
+      budgetTx({ id: "pendiente", categoryId: "c-super", date: new Date("2026-10-15"), amount: Money.of(30000, "CLP"), status: "pending" }),
+    ]
+    const deps = debtDeps([monthBudget(2026, 10, 100000)], rows, mode)
+    assert.equal((await getBudgetView(deps, "u1", 2026, 10)).monthOverspend, 0)
+    assert.equal(await getPreviousMonthDebt(deps, "u1", 2026, 11), 20000)
+    rows[1].status = "confirmed"
+    assert.equal((await getBudgetView(deps, "u1", 2026, 10)).committed, 0)
+    assert.equal(await getPreviousMonthDebt(deps, "u1", 2026, 11), 20000)
+  })
+
+  test(`getPreviousMonthDebt ${mode}: pendiente dentro del límite o sin presupuesto no genera descuento`, async () => {
+    const rows = [budgetTx({ id: "pendiente", categoryId: "c-super", date: new Date("2026-10-15"), amount: Money.of(30000, "CLP"), status: "pending" })]
+    for (const budgets of [[], [monthBudget(2026, 10, 30000)], [monthBudget(2026, 10, 100000)]]) {
+      assert.equal(await getPreviousMonthDebt(debtDeps(budgets, rows, mode), "u1", 2026, 11), 0)
+    }
+  })
+}
+
 // El ritmo reparte el tope del mes entre los días o las semanas que quedan. Hay categorías donde
 // ese reparto no describe nada —una suscripción se cobra un día y listo—, y ahí se apaga.
 test("getBudgetView: el ritmo se omite en la categoría que lo tiene apagado", async () => {
@@ -774,6 +796,24 @@ test("modo tarjeta: la deuda del mes anterior mide el ciclo anterior (22/08 → 
   )
 })
 
+test("la deuda del ciclo 23 sep–22 oct no crece con gastos ni pendientes posteriores al cierre", async () => {
+  const rows = [
+    budgetTx({ id: "inicio", categoryId: "c-super", date: day("2026-09-23"), amount: Money.of(60000, "CLP") }),
+    budgetTx({ id: "cierre", categoryId: "c-super", date: day("2026-10-22"), amount: Money.of(60000, "CLP"), status: "pending" }),
+  ]
+  const budgets = [monthBudget(2026, 10, 100000)]
+  const cycle = debtDeps(budgets, rows, "card_cycle")
+  const calendar = debtDeps(budgets, rows, "calendar")
+  assert.equal(await getPreviousMonthDebt(cycle, "u1", 2026, 11), 20000)
+  assert.equal(await getPreviousMonthDebt(calendar, "u1", 2026, 11), 0)
+  rows.push(
+    budgetTx({ id: "nuevo-gasto", categoryId: "c-super", date: day("2026-10-23"), amount: Money.of(40000, "CLP") }),
+    budgetTx({ id: "nuevo-pendiente", categoryId: "c-super", date: day("2026-10-31"), amount: Money.of(50000, "CLP"), status: "pending" }),
+  )
+  assert.equal(await getPreviousMonthDebt(cycle, "u1", 2026, 11), 20000)
+  assert.equal(await getPreviousMonthDebt(calendar, "u1", 2026, 11), 50000)
+})
+
 test("modo tarjeta: el triage acota al rango del ciclo", async () => {
   const { deps, filters } = makeDeps([mov("t1")], [account("a1", "bancochile")])
   await listUncategorized(
@@ -818,6 +858,9 @@ for (const scenario of [
     const result = await getBudgetView(deps, "u1", 2026, 8)
     assert.equal(result.spent, scenario.category === "c-super" ? 20000 : 0)
     assert.equal(result.reimbursementAdjustment, scenario.expected)
+    deps.monthlyBudgets.listByUser = async () => [monthBudget(2026, 8, 10000)]
+    assert.equal(await getPreviousMonthDebt(deps, "u1", 2026, 9), scenario.category === "c-super" ? 10000 : 0,
+      "el descuento usa gasto neto contra presupuesto, sin sumar compensación de ingresos")
     assert.equal(rows[0].amount.toMajor(), 60000, "no altera el movimiento bancario")
     rows[1].date = new Date("2026-09-01")
     assert.equal((await getBudgetView(deps, "u1", 2026, 8)).reimbursementAdjustment, 0, "otro ciclo no cuenta dos veces")

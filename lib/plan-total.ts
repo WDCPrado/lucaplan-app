@@ -12,9 +12,8 @@
 import { monthName } from "./finance-format.ts"
 
 /**
- * Lo que queda para repartir en el mes: los ingresos activos menos lo que el mes anterior gastó
- * por sobre su presupuesto. Esa plata ya salió del colchón o de la tarjeta, así que ofrecerla de
- * nuevo sería repartir algo que no está.
+ * Lo que queda para repartir: ingresos activos menos el exceso de gastos y compromisos del
+ * período anterior. Ese exceso ya tiene destino y no se ofrece otra vez para repartir.
  *
  * Piso en 0: un presupuesto negativo no existe, y el endpoint exige un entero ≥ 0.
  */

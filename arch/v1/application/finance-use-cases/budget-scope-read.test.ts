@@ -209,9 +209,10 @@ for (const mode of ["calendar", "card_cycle"] as const) {
         },
       ],
     })
+    const plans = [plan("plan", 6000), plan("sin-tope", 8000)]
     f.deps.installments = {
       async listByUser() {
-        return [plan("plan", 6000), plan("sin-tope", 8000)]
+        return plans
       },
     } as unknown as InstallmentPlanRepository
     const { view } = await f.read()
@@ -221,6 +222,11 @@ for (const mode of ["calendar", "card_cycle"] as const) {
       view.categories.find((c) => c.id === "sin-tope")!.committed,
       58000
     )
+    f.txs[0].amount = Money.of(100000, "CLP")
+    assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 10000)
+    plans[0].items[0].transactionId = "cuota-pagada"
+    f.txs.push({ ...f.txs[0], id: "cuota-pagada", installmentItemId: "plan", amount: Money.of(6000, "CLP"), date: new Date("2026-10-15") })
+    assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 10000)
   })
 
   test(`${mode}: poner tope cero retira gastos y comprometidos; devolverlo los incluye`, async () => {
@@ -254,7 +260,7 @@ for (const mode of ["calendar", "card_cycle"] as const) {
     assert.equal(dailyTotal, 120000)
     assert.equal(view.capsOverspend, 20000)
     assert.equal(view.monthOverspend, 20000)
-    assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 20000)
+    assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 24000)
   })
 
   test(`${mode}: barras y resumen respetan el mismo rango y conversión USD`, async () => {

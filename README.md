@@ -84,6 +84,9 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
 - Categorías de ingreso con avance hacia tu meta mensual.
 - Modo débito usa mes calendario; modo crédito usa ciclo de tarjeta. Ambos incluyen
   movimientos de corriente y tarjeta: el modo solo cambia las fechas del plan.
+- «Ajustar plan» sugiere los ingresos disponibles menos el exceso de gastos y compromisos
+  pendientes del período anterior sobre su presupuesto global: mes en débito, ciclo en crédito.
+  Al pagar un compromiso, pasa a gasto sin descontarse dos veces; aplicar la sugerencia es manual.
 - El resumen del plan separa el margen del plan de la liquidez registrada (caja menos línea
   usada, con el desglose cuando hay línea). Un plan cubierto no oculta corriente negativa. Los saldos son los últimos registrados,
   no una reconstrucción histórica del mes seleccionado.

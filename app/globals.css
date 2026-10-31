@@ -453,6 +453,10 @@ html:has(main[data-landing]) body {
    grid-template-columns. CSS puro, así un cambio a mitad de camino retoma desde donde está. El
    ensanche cambia el tamaño de la cápsula del selector: la refracción solo estira su mapa cuadro a
    cuadro y lo regenera una vez, 150 ms después del último cambio (lib/liquid-refraction-dom.ts). */
+.top-bar {
+  /* El vidrio conserva su blur y rim internos, sin halo de sombra fuera de las cápsulas móviles. */
+  --glass-shadow: 0 0 transparent;
+}
 .top-title {
   grid-template-columns: 1fr;
   transition: grid-template-columns 280ms cubic-bezier(0.2, 0.8, 0.2, 1);

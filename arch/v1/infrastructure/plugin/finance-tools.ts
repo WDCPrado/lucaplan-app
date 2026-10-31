@@ -617,7 +617,7 @@ const handlers: Handlers = {
       period: { year: input.year, month: input.month, range },
       currency: "CLP",
       ...calculateFinancialOverview({ cash: summary.activeCash, overdraftDebt: summary.overdraftDebt, income: budget.income, spent: budget.spent, committed: budget.committed, reimbursementAdjustment: budget.reimbursementAdjustment }),
-      notice: "Los ingresos incluyen fuentes activas vigentes y abonos adicionales confirmados sin duplicar los vinculados a esas fuentes; solo cuentan gastos de categorías presupuestadas. La compensación de reembolsos incluidos en ingresos se cuenta una sola vez. balance es margen del plan, no caja. planStatus describe el presupuesto; status combina plan y liquidez. liquidity usa los últimos saldos registrados, no un saldo histórico ni proyectado del período. Ambos modos comparten movimientos de corriente y tarjeta; cada uno conserva su plan y su rango temporal.",
+      notice: "Los ingresos incluyen fuentes activas vigentes y abonos adicionales confirmados sin duplicar los vinculados a esas fuentes; solo cuentan gastos de categorías presupuestadas. La compensación de reembolsos incluidos en ingresos se cuenta una sola vez. remainingBeforeCommitments es ingresos menos gasto realizado, antes de reservas. balance es margen del plan después de compromisos, no caja. planStatus describe el presupuesto; status combina plan y liquidez. liquidity usa los últimos saldos registrados, no un saldo histórico ni proyectado del período. Ambos modos comparten movimientos de corriente y tarjeta; cada uno conserva su plan y su rango temporal.",
     }
   },
   lucaplan_ver_presupuesto: async (userId, input) => ({

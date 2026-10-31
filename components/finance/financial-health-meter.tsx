@@ -24,8 +24,8 @@ const PLAN_TONE = {
 } as const
 
 /**
- * Resumen del plan del Inicio. Primero y más grande, cuánto queda del plan (ingresos − gastos −
- * comprometido; no es el saldo bancario); debajo, la línea secundaria que manda quien lo muestra
+ * Resumen del plan del Inicio. Primero y más grande, ingresos planificados menos gasto realizado
+ * (antes de compromisos; no es el saldo bancario); debajo, la línea secundaria que manda quien lo muestra
  * (los días para cerrar) con el estado del plan; después sus tres componentes y lo disponible en
  * cuentas.
  */
@@ -40,8 +40,10 @@ export function PlanSummary({
 }: PlanInput & { subtitle?: ReactNode }) {
   const health = calculateFinancialOverview({ income, spent, committed, reimbursementAdjustment, cash, overdraftDebt })
   const tone = PLAN_TONE[health.planStatus]
-  // Ámbar no llega a 3:1 sobre claro en la cifra grande: al límite, el color queda en la etiqueta.
-  const amountTone = health.planStatus === "al_limite" ? "text-foreground" : tone
+  const remaining = health.remainingBeforeCommitments
+  // Las reservas pueden poner el plan en déficit aunque aún queden ingresos por gastar.
+  const amountTone = remaining < 0 ? "text-destructive"
+    : remaining > 0 && health.planStatus === "sano" ? "text-success" : "text-foreground"
   const liquidityTone = health.status === "en_deficit" ? "text-destructive" : health.status === "al_limite" ? "text-warning" : ""
   const net = health.liquidity.netPosition
 
@@ -49,9 +51,9 @@ export function PlanSummary({
     <div className="flex min-w-0 flex-col gap-3" role="group" aria-label="Resumen del plan">
       <div>
         <p className="flex flex-wrap items-baseline gap-x-2">
-          <span className="text-title-3 font-semibold">{health.balance < 0 ? "Faltan" : "Quedan"}</span>
-          <span className={`tabular text-hero font-bold ${amountTone}`}>{formatCLP(Math.abs(health.balance))}</span>
-          <span className="sr-only">del plan; no es el saldo bancario</span>
+          <span className="text-title-3 font-semibold">{remaining < 0 ? "Faltan" : "Quedan"}</span>
+          <span className={`tabular text-hero font-bold ${amountTone}`}>{formatCLP(Math.abs(remaining))}</span>
+          <span className="sr-only">de ingresos planificados menos gasto realizado, antes de compromisos; no es el saldo bancario</span>
         </p>
         <p className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3 text-subheadline">
           {subtitle && <span className="text-muted-foreground">{subtitle}</span>}

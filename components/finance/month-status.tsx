@@ -45,7 +45,7 @@ export function MonthStatus({
   globalLimit: number | null
   spent: number
   committed: number
-  plan: PlanInput // resumen del plan (ingresos − gastos − comprometido) y liquidez
+  plan: PlanInput // restante antes de compromisos, cobertura del plan y liquidez
   onOpenPlan: () => void
   children?: React.ReactNode // la tira de días
 }) {

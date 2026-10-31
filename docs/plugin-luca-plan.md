@@ -210,6 +210,10 @@ Las capacidades distinguen edición ordinaria y conciliación. `canReconcile` id
 
 ### Plan y liquidez en el medidor
 
+`remainingBeforeCommitments` es lo que muestra **Quedan** en Inicio: ingresos planificados
+(también los aún no recibidos) más abonos adicionales, menos gasto realizado y
+`reimbursementAdjustment`. No descuenta compromisos ni representa el saldo bancario.
+
 `lucaplan_medidor_financiero` distingue `planStatus` (ingresos, gastos y compromisos del
 período) de `status` (plan más liquidez). `balance`, `projectedBalance` y porcentajes
 siguen siendo métricas del plan: no se les vuelve a descontar la deuda de la línea.

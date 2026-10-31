@@ -11,6 +11,7 @@ export function calculateFinancialHealth(input: {
   const spent = Math.max(0, input.spent)
   const committed = Math.max(0, input.committed ?? 0)
   const reimbursementAdjustment = Math.max(0, input.reimbursementAdjustment ?? 0)
+  const remainingBeforeCommitments = income - spent - reimbursementAdjustment
   const projectedSpent = spent + committed + reimbursementAdjustment
   const balance = income - projectedSpent
   const projectedBalance = income - projectedSpent
@@ -30,6 +31,7 @@ export function calculateFinancialHealth(input: {
     reimbursementAdjustment,
     spent,
     committed,
+    remainingBeforeCommitments,
     projectedSpent,
     balance,
     projectedBalance,

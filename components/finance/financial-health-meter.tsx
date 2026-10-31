@@ -83,12 +83,6 @@ export function PlanSummary({
           </span>
           <strong className="tabular font-semibold">{formatCLP(net)}</strong>
         </p>
-        {/* Con la línea en 0 la caja es lo disponible: repetirla no dice nada. */}
-        {overdraftDebt > 0 && (
-          <p className="tabular mt-0.5 text-muted-foreground">
-            Caja {formatCLP(cash)} − Línea usada {formatCLP(overdraftDebt)}
-          </p>
-        )}
       </div>
     </div>
   )

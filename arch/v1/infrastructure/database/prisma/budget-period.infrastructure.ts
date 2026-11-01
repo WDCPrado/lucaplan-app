@@ -10,11 +10,27 @@ import type {
   PeriodMode,
 } from "../../../../shared/billing-cycle.ts"
 import { prisma } from "./client.ts"
+import type { Prisma } from "./generated/client.ts"
 
 const MODE_KEY = "budget_period_mode"
 const CLOSING_PREFIX = "card_closing:"
 const closingKey = (year: number, month: number) =>
   `${CLOSING_PREFIX}${year}-${String(month).padStart(2, "0")}`
+
+/** También se usa dentro de la transacción serializable del reembolso. */
+export async function budgetPeriodSettings(db: Pick<Prisma.TransactionClient, "appSetting"> = prisma) {
+  const rows = await db.appSetting.findMany({ where: {
+    OR: [{ key: MODE_KEY }, { key: { startsWith: CLOSING_PREFIX } }],
+  } })
+  let mode: PeriodMode = "calendar"
+  const overrides: ClosingOverrides = {}
+  for (const row of rows) {
+    if (row.key === MODE_KEY) {
+      if ((PERIOD_MODES as readonly string[]).includes(row.value)) mode = row.value as PeriodMode
+    } else overrides[row.key.slice(CLOSING_PREFIX.length)] = row.value
+  }
+  return { mode, overrides }
+}
 
 export const budgetPeriodRepository: BudgetPeriodRepository = {
   async get() {

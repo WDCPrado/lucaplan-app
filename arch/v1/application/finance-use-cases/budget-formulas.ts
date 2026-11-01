@@ -259,13 +259,16 @@ export function effectiveLimit(
   year: number,
   month: number
 ): Money {
-  return (
+  const base = (
     latestUpTo(
-      limits.filter((l) => l.categoryId === categoryId),
+      limits.filter((l) => l.categoryId === categoryId && !l.periodOnly),
       year,
       month
     )?.limit ?? Money.zero("CLP")
   )
+  return limits
+    .filter(l => l.categoryId === categoryId && l.periodOnly && l.year === year && l.month === month)
+    .reduce((total, l) => total.add(l.limit), base)
 }
 
 /**

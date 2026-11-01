@@ -210,9 +210,20 @@ Las capacidades distinguen edición ordinaria y conciliación. `canReconcile` id
 
 ### Plan y liquidez en el medidor
 
+`lucaplan_vincular_reembolso` agrega automáticamente un suplemento al tope de la categoría
+de **gasto**, para el período de la compra en el modo activo. Conserva el gasto bruto, el
+abono y su categoría de ingreso. El asistente **no debe aumentar el tope por separado** ni
+crear otro ingreso. La respuesta incluye `budgetAdjustment` con categoría, período y estado;
+un par gasto/abono ya vinculado no produce otro aumento, incluso con otro `operationId`.
+Los vínculos históricos no se incrementan automáticamente. Su normalización es explícita,
+por usuario, vínculos y modo: [contrato y procedimiento](reimbursement-budgets.md).
+
 `remainingBeforeCommitments` es lo que muestra **Quedan** en Inicio: ingresos planificados
 (también los aún no recibidos) más abonos adicionales, menos gasto realizado y
 `reimbursementAdjustment`. No descuenta compromisos ni representa el saldo bancario.
+La compensación solo corresponde a vínculos históricos que todavía netean gasto en ese modo.
+Los suplementos automáticos y los ajustes manuales normalizados mantienen gasto bruto y
+no agregan esa compensación al medidor.
 
 `lucaplan_medidor_financiero` distingue `planStatus` (ingresos, gastos y compromisos del
 período) de `status` (plan más liquidez). `balance`, `projectedBalance` y porcentajes

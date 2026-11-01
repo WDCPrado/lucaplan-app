@@ -32,7 +32,8 @@ import type {
   TransactionSearchFilters,
   UpdateTransaction,
 } from "../../../domain/finance/finance.domain.ts"
-import { cashDelta } from "../../../domain/finance/finance.domain.ts"
+import { cashDelta, InvalidMonthlyBudgetError } from "../../../domain/finance/finance.domain.ts"
+import { reimbursementTransaction } from "./reimbursement.infrastructure.ts"
 
 const BUDGET_CURRENCY: CurrencyCode = "CLP"
 
@@ -260,33 +261,53 @@ export const categoryRepository: CategoryRepository = {
   // FK: Transaction.categoryId SetNull (movimientos quedan sin categoría); Income, CategoryLimit
   // y correcciones de IA se van en cascada.
   async delete(categoryId) {
+    if (await prisma.reimbursementBudgetEffect.count({ where: { categoryId } }))
+      throw new InvalidMonthlyBudgetError("La categoría tiene reembolsos presupuestados; revisa esos vínculos antes de eliminarla")
     await prisma.category.delete({ where: { id: categoryId } })
   },
   async listLimitsByUser(userId, mode) {
-    return (
-      await prisma.categoryLimit.findMany({ where: { category: { userId }, mode } })
-    ).map(toLimit)
+    const [limits, effects] = await Promise.all([
+      prisma.categoryLimit.findMany({ where: { category: { userId }, mode } }),
+      prisma.reimbursementBudgetEffect.findMany({
+        where: { mode, treatment: "automatic", reimbursement: { userId } },
+        include: { reimbursement: { select: { amount: true } } },
+      }),
+    ])
+    return [...limits.map(toLimit), ...effects.map(e => ({
+      id: `reimbursement:${e.reimbursementId}:${mode}`, categoryId: e.categoryId,
+      year: e.year, month: e.month, limit: Money.of(e.reimbursement.amount.toString(), "CLP"), periodOnly: true,
+    }))]
   },
   async setLimit(input) {
-    const row = await prisma.categoryLimit.upsert({
-      where: {
-        categoryId_mode_year_month: {
+    return reimbursementTransaction(async db => {
+      const effects = await db.reimbursementBudgetEffect.findMany({
+        where: { categoryId: input.categoryId, mode: input.mode, year: input.year, month: input.month, treatment: "automatic" },
+        include: { reimbursement: { select: { amount: true } } },
+      })
+      const extra = effects.reduce((sum, e) => sum.add(Money.of(e.reimbursement.amount.toString(), "CLP")), Money.zero("CLP"))
+      const base = input.limit.subtract(extra)
+      if (base.isNegative)
+        throw new InvalidMonthlyBudgetError(`El tope incluye ${extra.toMajor()} CLP de reembolsos; no puede ser menor que ese suplemento`)
+      const row = await db.categoryLimit.upsert({
+        where: {
+          categoryId_mode_year_month: {
+            categoryId: input.categoryId,
+            mode: input.mode,
+            year: input.year,
+            month: input.month,
+          },
+        },
+        create: {
           categoryId: input.categoryId,
           mode: input.mode,
           year: input.year,
           month: input.month,
+          limitAmount: base.toDecimalString(),
         },
-      },
-      create: {
-        categoryId: input.categoryId,
-        mode: input.mode,
-        year: input.year,
-        month: input.month,
-        limitAmount: input.limit.toDecimalString(),
-      },
-      update: { limitAmount: input.limit.toDecimalString() },
+        update: { limitAmount: base.toDecimalString() },
+      })
+      return { ...toLimit(row), limit: input.limit }
     })
-    return toLimit(row)
   },
 }
 

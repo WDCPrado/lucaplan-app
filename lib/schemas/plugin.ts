@@ -379,7 +379,7 @@ export const pluginTools = {
   ),
   lucaplan_vincular_reembolso: write(
     { title: "Vincular reembolso a gasto" },
-    "Vincula una transferencia bancaria recibida a una compra compartida, conservando ambos movimientos originales. Compensa solo el gasto del presupuesto, nunca el saldo bancario. El importe acumulado no puede exceder ni el gasto ni el abono. No uses ingresos ficticios.",
+    "Vincula un abono real a una compra y aumenta automáticamente el tope de la categoría de GASTO por el importe vinculado, solo en el período de la compra y modo activo. Mantiene gasto bruto, categoría de ingreso del abono y saldos intactos: el beneficio cuenta una vez. NO aumentes la categoría por separado ni crees ingresos ficticios. Requiere categoría de gasto activa; acumulados no exceden compra ni abono. Reintentar el mismo par no repite el aumento; los vínculos antiguos no se recalculan automáticamente. La respuesta informa período, categoría y si se aplicó el aumento.",
     z.strictObject({
       expenseId: ref("ID del gasto bancario confirmado"),
       creditId: ref("ID del ingreso bancario confirmado"),

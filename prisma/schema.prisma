@@ -325,6 +325,7 @@ model Category {
   incomes      Income[]
   recurring    RecurringTemplate[]
   installments InstallmentPlan[]
+  reimbursementEffects ReimbursementBudgetEffect[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -729,11 +730,30 @@ model ExpenseReimbursement {
   credit       Transaction @relation("ReimbursementCredit", fields: [creditId], references: [id], onDelete: Cascade)
   amount       Decimal     @db.Decimal(18, 2)
   createdAt    DateTime    @default(now())
+  budgetEffects ReimbursementBudgetEffect[]
 
   @@unique([expenseId, creditId])
   @@index([userId, expenseId])
   @@index([creditId])
   @@map("expense_reimbursement")
+}
+
+// El suplemento pertenece al vínculo y al modo. Cascade revierte al borrar el vínculo.
+// manual: el usuario ya aumentó el límite; solo cambia el gasto a bruto, sin otro aumento.
+model ReimbursementBudgetEffect {
+  reimbursementId String
+  reimbursement ExpenseReimbursement @relation(fields: [reimbursementId], references: [id], onDelete: Cascade)
+  mode String
+  year Int
+  month Int
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  treatment String
+  createdAt DateTime @default(now())
+
+  @@id([reimbursementId, mode])
+  @@index([categoryId, mode, year, month])
+  @@map("reimbursement_budget_effect")
 }
 
 

@@ -82,6 +82,10 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
   tope quedan fuera; los excesos sobre un tope cuentan completos. Las categorías sin
   tope se pueden consultar en un grupo cerrado por defecto.
 - Categorías de ingreso con avance hacia tu meta mensual.
+- Vincular un reembolso aumenta el tope de la categoría de gasto solo en el período de la
+  compra y modo activo. El gasto permanece bruto y el abono conserva su categoría de ingreso;
+  no hay un segundo descuento ni un aumento heredado a meses futuros. Los vínculos históricos
+  conservan su tratamiento hasta una normalización explícita ([detalle](docs/reimbursement-budgets.md)).
 - Modo débito usa mes calendario; modo crédito usa ciclo de tarjeta. Ambos incluyen
   movimientos de corriente y tarjeta; cambiar de modo recupera su plan y sus fechas.
 - Las fuentes de ingreso conservan su identidad, cuenta, categoría y día esperado comunes.

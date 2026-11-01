@@ -192,6 +192,8 @@ export type CategoryLimit = {
   year: number
   month: number
   limit: Money
+  // Suplemento de un reembolso: solo se suma en su período, nunca se hereda.
+  periodOnly?: boolean
 }
 
 // Presupuesto del mes: límite global (cuánto puede presupuestarse en total entre las categorías de

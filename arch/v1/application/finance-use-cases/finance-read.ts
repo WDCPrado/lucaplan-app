@@ -70,7 +70,7 @@ import { currencyPositions } from "./financial-position.ts"
 
 const CLP = "CLP" as const
 
-type ReimbursementRead = { expenseId: string; creditId: string; amount: number }
+import { usesGrossExpense, type ReimbursementRead } from "../../domain/finance/reimbursement.domain.ts"
 
 type ReadDeps = {
   balanceBuckets?: BalanceBucketRepository
@@ -745,7 +745,9 @@ export async function getBudgetView(
     userId, txs.filter(t => t.direction === "debit").map(t => t.id)
   ) ?? []
   const reimbursed = new Map<string, number>()
-  for (const row of reimbursementRows)
+  const { mode } = await getBudgetPeriod(deps)
+  const legacyRows = reimbursementRows.filter(row => !usesGrossExpense(row, mode))
+  for (const row of legacyRows)
     reimbursed.set(row.expenseId, (reimbursed.get(row.expenseId) ?? 0) + Number(row.amount))
   const netBudgetTxs = clpTxs.map(t => {
     const deducted = reimbursed.get(t.id) ?? 0
@@ -907,14 +909,14 @@ export async function getBudgetView(
     (s, { committed }) => s.add(committed),
     Money.zero(CLP)
   )
-  // Las categorías siguen mostrando gasto personal neto. El medidor conserva TODOS los
-  // ingresos del período: neutraliza reembolsos incluidos como fuente activa o abono adicional.
+  // Solo el legado netea gasto y necesita compensar el ingreso. Los reembolsos con
+  // suplemento (o ya ajustados manualmente) mantienen gasto bruto e ingreso una vez.
   const budgetedIds = new Set(budgeted.map(({ category }) => category.id))
   const byId = new Map(txs.map(t => [t.id, t]))
   const expenseRemaining = new Map<string, number>()
   const creditRemaining = new Map<string, number>()
   let reimbursementAdjustment = 0
-  for (const row of reimbursementRows) {
+  for (const row of legacyRows) {
     const expense = byId.get(row.expenseId)
     const credit = byId.get(row.creditId)
     if (!expense || !credit || expense.direction !== "debit" || credit.direction !== "credit" ||

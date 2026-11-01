@@ -134,6 +134,17 @@ const category = (operationId: string) => ({
   color: null,
   description: "Veterinario y alimento",
 })
+
+test("reembolso: repetir operationId devuelve el recibo sin volver a ejecutar el aumento", async () => {
+  const result = { reimbursementId: "refund", created: true, budgetAdjustment: { applied: true, amount: 20000 } }
+  const { deps, calls } = setup(result)
+  const input = { expenseId: "expense", creditId: "credit", amount: 20000, operationId: "refund-operation" }
+  assert.deepEqual(await run(deps, actor, "lucaplan_vincular_reembolso", input), result)
+  assert.deepEqual(await run(deps, actor, "lucaplan_vincular_reembolso", input), result)
+  assert.equal(calls.length, 1)
+  await assert.rejects(run(deps, actor, "lucaplan_vincular_reembolso", { ...input, amount: 10000 }))
+  assert.equal(calls.length, 1)
+})
 const snapshot = (operationId: string) => ({
   operationId,
   linkId: "banco-conectado",

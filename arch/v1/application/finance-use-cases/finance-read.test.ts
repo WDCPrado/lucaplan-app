@@ -928,6 +928,55 @@ for (const scenario of [
   })
 }
 
+for (const treatment of ["automatic", "manual"] as const) {
+  for (const planned of [false, true]) {
+    test(`reembolso ${treatment}, fuente ${planned}: gasto bruto, aumento único y sin compensación extra`, async () => {
+      const deps = budgetDeps(globalBudget(100000))
+      deps.categories.listLimitsByUser = async () => [
+        { id: "base", categoryId: "c-super", year: 2026, month: 7, limit: Money.of(treatment === "manual" ? 120000 : 100000, "CLP") },
+        ...(treatment === "automatic" ? [{ id: "refund", categoryId: "c-super", year: 2026, month: 8, limit: Money.of(20000, "CLP"), periodOnly: true }] : []),
+      ]
+      const rows = [
+        budgetTx({ id: "expense", categoryId: "c-super", amount: Money.of(60000, "CLP") }),
+        budgetTx({ id: "credit", direction: "credit", categoryId: "c-sueldo", incomeId: planned ? "source" : null, amount: Money.of(20000, "CLP") }),
+      ]
+      deps.transactions.listByUserPeriod = async () => rows
+      if (planned) deps.incomes = {
+        listByUser: async () => [{ id: "source", userId: "u1", categoryId: "c-sueldo", isActive: true, endedYear: null, endedMonth: null }],
+        listAmountsByUser: async () => [{ incomeId: "source", year: 2026, month: 8, amount: Money.of(20000, "CLP") }],
+      } as unknown as NonNullable<typeof deps.incomes>
+      deps.reimbursements = { listForTransactions: async () => [{ expenseId: "expense", creditId: "credit", amount: 20000,
+        effects: [{ mode: "calendar", year: 2026, month: 8, categoryId: "c-super", treatment }] }] }
+      const view = await getBudgetView(deps, "u1", 2026, 8)
+      assert.equal(view.allocated, 120000)
+      assert.equal(view.spent, 60000)
+      assert.equal(view.categories.find(c => c.id === "c-super")?.available, 60000)
+      assert.equal(view.income, 20000)
+      assert.equal(view.reimbursementAdjustment, 0)
+      assert.equal(view.remainingToAllocate, -20000)
+      assert.equal(await getPreviousMonthDebt(deps, "u1", 2026, 9), 40000)
+      assert.equal(rows[0].amount.toMajor(), 60000)
+      if (treatment === "automatic") assert.equal((await getBudgetView(deps, "u1", 2026, 9)).allocated, 100000)
+    })
+  }
+}
+
+test("mezcla legado y suplemento: netea únicamente el vínculo sin tratamiento del modo", async () => {
+  const deps = budgetDeps(globalBudget(100000))
+  deps.transactions.listByUserPeriod = async () => [
+    budgetTx({ id: "expense", categoryId: "c-super", amount: Money.of(60000, "CLP") }),
+    budgetTx({ id: "credit", direction: "credit", categoryId: "c-sueldo", amount: Money.of(30000, "CLP") }),
+  ]
+  deps.reimbursements = { listForTransactions: async () => [
+    { expenseId: "expense", creditId: "credit", amount: 20000, effects: [{ mode: "calendar", year: 2026, month: 8, categoryId: "c-super", treatment: "automatic" }] },
+    { expenseId: "expense", creditId: "credit", amount: 10000 },
+  ] }
+  const view = await getBudgetView(deps, "u1", 2026, 8)
+  assert.equal(view.spent, 50000)
+  assert.equal(view.reimbursementAdjustment, 10000)
+  assert.equal(view.income, 30000)
+})
+
 test("resumen y plan usan los mismos buckets aunque el saldo legado esté desactualizado", async () => {
   const { getMonthlySummary } = await import("./finance-read.ts")
   const deps = budgetDeps([])

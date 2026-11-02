@@ -585,8 +585,8 @@ export function Dashboard({
                       <button
                         type="button"
                         onClick={() => selectDay(today)}
-                        // Mismo botón que el «Hoy» del MonthNav (pedido de Willy): vidrio en móvil.
-                        className="press mx-1 min-h-11 rounded-full px-4 text-subheadline font-semibold whitespace-nowrap max-md:liquid-glass md:min-h-10 md:rounded-(--radius-bar-inner) md:bg-(--glass-control) md:hover:bg-accent"
+                        // Mismo material y clases que «Hoy» de MonthNav: hereda los cinco niveles de Apariencia; no crear efectos locales.
+                        className="press ml-2 min-h-11 rounded-full px-4 text-subheadline font-semibold whitespace-nowrap max-md:liquid-glass md:min-h-10 md:rounded-(--radius-bar-inner) md:bg-(--glass-control) md:hover:bg-accent"
                       >
                         Hoy
                       </button>

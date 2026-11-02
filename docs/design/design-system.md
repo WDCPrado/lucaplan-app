@@ -8,6 +8,15 @@ Fuente de verdad: [app/globals.css](../../app/globals.css). No hardcodees valore
 componentes — siempre tira de estos tokens (variables CSS / utilidades Tailwind v4). Las reglas de
 uso están en [Lenguaje visual](../development.md#lenguaje-visual-ios-y-liquid-glass).
 
+## Contrato de estabilidad de Liquid Glass
+
+**Los efectos son parte del diseño, no un detalle del layout.** Una tarea de reordenar secciones, cambiar tamaños, añadir gráficos o modificar navegación **no autoriza** modificar el material de vidrio. Preservar en móvil y escritorio: `liquid-glass`, los cinco niveles de `data-glass` en Apariencia, `--glass-fill`, `--glass-clear`, `--glass-tint`, `--glass-blur`, `--glass-saturate`, `--glass-shadow`, `--glass-rim`, `--glass-reflection-opacity`, `--glass-refraction`, el reflejo `::before` y el comportamiento de refracción compatible por navegador.
+
+- Para cambios de UI, modificar únicamente distribución, jerarquía y espaciado; no anular tokens de vidrio en contenedores como `.top-bar` para solucionar problemas de layout.
+- «Hoy» del selector de ciclo y «Hoy» del selector de movimientos deben heredar el mismo `liquid-glass` en móvil y el mismo material de control en escritorio, respetando Apariencia y accesibilidad. Si cambia el material compartido, revisar ambos controles.
+- Si un pedido requiere alterar transparencia, sombra, blur, brillo o refracción, tratarlo como cambio explícito de material, acotado y con revisión visual en iOS Safari/PWA y escritorio, ambos temas y niveles de Apariencia. Nunca mezclarlo silenciosamente con un PR de layout.
+- Antes del merge, inspeccionar `git diff` de `app/globals.css` y de clases `liquid-glass` de los controles; verificar que el efecto no haya variado accidentalmente. Las preferencias del usuario siguen siendo la única fuente de nivel de vidrio.
+
 ## Principios
 
 - **Orden y confianza sobre decoración.** Primario **azul** (banca/fintech serio), neutros

@@ -427,13 +427,7 @@ export function Dashboard({
               determina. Adentro, la curva del gasto contra el ritmo ideal: cómo vas en el mes.
               Móvil: con presupuesto, este bloque (tarjeta + avisos) llena la primera pantalla
               menos un asomo de los movimientos (--home-peek); el gráfico es lo que estira. */}
-          <div
-            className={cn(
-              "flex flex-col gap-5",
-              budget.globalLimit !== null &&
-                "max-md:min-h-[calc(100dvh_-_var(--top-bar-h)_-_0.25rem_-_var(--tab-bar-h)_-_var(--home-peek))]"
-            )}
-          >
+          <div className="flex flex-col gap-4">
             <MonthStatus
               period={period}
               cycle={cycle}

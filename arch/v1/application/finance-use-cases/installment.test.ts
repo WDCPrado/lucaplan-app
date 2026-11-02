@@ -1510,3 +1510,30 @@ test("Dado un crédito con solo la cuota 5 pendiente y el pago en la 6, cuando m
   assert.equal(viaje.completedAt, null, "le queda la 6 pendiente: no se cierra")
   assert.equal(registered.length, 0)
 })
+
+test("Dado la cuota 2 del Notebook ($100.000) vencida, cuando al conciliar la factura la salda con lucaplan_pagar_cuota con la fecha y el monto de la factura ($99.990 el 25-09), entonces el movimiento queda con esos datos y la misma cuota no se puede saldar dos veces", async () => {
+  const { repo, registered } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts(), categories }
+  const plan = await createInstallmentPlan(deps, "u1", baseInput)
+  const cuota2 = plan.items[1]
+  await payInstallmentManually({ installments: repo }, "u1", {
+    planId: plan.id,
+    itemId: cuota2.id,
+    date: day(2026, 9, 25),
+    amount: 99_990,
+  })
+  assert.equal(registered.length, 1)
+  assert.equal(registered[0].itemId, cuota2.id)
+  assert.equal(registered[0].amount.toMajor(), 99_990, "manda el monto de la factura, no el del plan")
+  assert.equal(+registered[0].date, +day(2026, 9, 25))
+  await assert.rejects(
+    payInstallmentManually({ installments: repo }, "u1", {
+      planId: plan.id,
+      itemId: cuota2.id,
+      date: day(2026, 9, 26),
+      amount: 99_990,
+    }),
+    InstallmentItemAlreadySettledError
+  )
+  assert.equal(registered.length, 1)
+})

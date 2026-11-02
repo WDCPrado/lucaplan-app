@@ -246,6 +246,14 @@ devuelve las identidades sin plan allí. `lucaplan_crear_ingreso` acepta su `sou
 monto para ese plan; conserva la identidad existente. No reactiva planes finalizados.
 Los saldos desactualizados requieren conciliación: el medidor no verifica el banco.
 
+### Movimientos importados como registro del correo
+
+Para conciliar, **los movimientos `source=bank_email` guardados en Luca Plan son el registro persistido de los avisos bancarios que recibió la integración**. Consultar esos registros equivale a consultar qué avisos procesó la app: no hace falta volver a buscar los correos en Outlook para reconstruirlos. Esto no convierte el aviso en prueba de liquidación bancaria definitiva: **la cartola o los no facturados mandan** sobre moneda, importe y fecha de contabilización.
+
+Antes de importar un movimiento que parece faltar, buscar en la misma cuenta y considerar también los movimientos excluidos por filtros normales (`settledOnly=false`, `status` para anulados/`reversed` y duplicados/`duplicated`). Un registro conservado mediante eliminación lógica sigue siendo evidencia de un correo procesado y debe revisarse para evitar reimportaciones, aunque no deba computarse como gasto vigente. No asumir que borrar lógicamente borra el correo de origen ni que toda ausencia en la lista predeterminada implica ausencia en el histórico.
+
+Conciliar por cuenta y moneda, importe y ventana razonable de fechas; usar la descripción del comercio para desempatar, sin exigir coincidencia literal. Para avisos provisionales en CLP que se liquidan en USD, corregir el movimiento por ID con el valor de la cartola, conservando identidad y vínculos. Si hay varios candidatos, no asignarlos arbitrariamente: revisar uno a uno. **Este cambio documenta el contrato de uso; no altera el motor de conciliación ni el comportamiento de eliminación lógica.**
+
 ### Conciliación que aplica cambios
 
 `lucaplan_previsualizar_conciliacion` valida una cuenta completa y devuelve un

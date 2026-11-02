@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { ChevronRight } from "lucide-react"
 import { formatCLP } from "@/lib/finance-format"
 import { calculateFinancialOverview } from "@/lib/financial-health"
 
@@ -10,18 +11,6 @@ export type PlanInput = {
   spent: number
   committed: number
 }
-
-const PLAN_LABEL = {
-  sano: "Plan cubierto",
-  al_limite: "Plan al límite",
-  en_deficit: "Plan en déficit",
-} as const
-
-const PLAN_TONE = {
-  sano: "text-success",
-  al_limite: "text-warning",
-  en_deficit: "text-destructive",
-} as const
 
 /**
  * Resumen del plan del Inicio. Primero y más grande, ingresos planificados menos gasto realizado
@@ -37,53 +26,30 @@ export function PlanSummary({
   cash,
   overdraftDebt,
   subtitle,
-}: PlanInput & { subtitle?: ReactNode }) {
+  onOpenLiquidity,
+}: PlanInput & { subtitle?: ReactNode; onOpenLiquidity?: () => void }) {
   const health = calculateFinancialOverview({ income, spent, committed, reimbursementAdjustment, cash, overdraftDebt })
-  const tone = PLAN_TONE[health.planStatus]
   const remaining = health.remainingBeforeCommitments
-  // Las reservas pueden poner el plan en déficit aunque aún queden ingresos por gastar.
-  const amountTone = remaining < 0 ? "text-destructive"
-    : remaining > 0 && health.planStatus === "sano" ? "text-success" : "text-foreground"
-  const liquidityTone = health.status === "en_deficit" ? "text-destructive" : health.status === "al_limite" ? "text-warning" : ""
   const net = health.liquidity.netPosition
-
   return (
-    <div className="flex min-w-0 flex-col gap-3" role="group" aria-label="Resumen del plan">
-      <div>
-        <p className="flex flex-wrap items-baseline gap-x-2">
-          <span className="text-title-3 font-semibold">{remaining < 0 ? "Faltan" : "Quedan"}</span>
-          <span className={`tabular text-hero font-bold ${amountTone}`}>{formatCLP(Math.abs(remaining))}</span>
-          <span className="sr-only">de ingresos planificados menos gasto realizado, antes de compromisos; no es el saldo bancario</span>
-        </p>
-        <p className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3 text-subheadline">
-          {subtitle && <span className="text-muted-foreground">{subtitle}</span>}
-          <strong className={`font-semibold ${tone}`}>{PLAN_LABEL[health.planStatus]}</strong>
-        </p>
+    <div className="flex min-w-0 flex-col gap-4" role="group" aria-label="Resumen del plan">
+      <div className="space-y-1">
+        <p className="text-subheadline text-muted-foreground">{remaining < 0 ? "Faltan para cubrir el plan" : "Disponible para planificar"}</p>
+        <p className={`tabular text-hero font-bold tracking-tight ${remaining < 0 ? "text-destructive" : "text-foreground"}`}>{formatCLP(Math.abs(remaining))}</p>
+        {subtitle && <p className="text-subheadline text-muted-foreground">{subtitle}</p>}
+        <span className="sr-only">Ingresos planificados menos gasto realizado antes de compromisos; no es el saldo bancario.</span>
       </div>
-      <dl className="grid grid-cols-3 gap-x-3 gap-y-0.5 border-t border-border pt-3 text-footnote">
-        <div className="min-w-0">
-          <dt className="text-muted-foreground">Ingresos</dt>
-          <dd className="tabular truncate text-subheadline font-semibold">{formatCLP(income)}</dd>
-        </div>
-        <div className="min-w-0">
-          <dt className="text-muted-foreground">Gastos</dt>
-          <dd className="tabular truncate text-subheadline font-semibold">{formatCLP(spent + reimbursementAdjustment)}</dd>
-          {reimbursementAdjustment > 0 && <span className="sr-only">Los reembolsos incluidos en ingresos se compensan una sola vez.</span>}
-        </div>
-        <div className="min-w-0">
-          <dt className="text-muted-foreground">Comprometido</dt>
-          <dd className="tabular truncate text-subheadline font-semibold">{formatCLP(committed)}</dd>
-        </div>
+      <dl className="grid grid-cols-3 gap-3 text-footnote">
+        <div className="min-w-0"><dt className="text-muted-foreground">Ingresos</dt><dd className="tabular truncate text-subheadline font-semibold">{formatCLP(income)}</dd></div>
+        <div className="min-w-0"><dt className="text-muted-foreground">Gastado</dt><dd className="tabular truncate text-subheadline font-semibold">{formatCLP(spent + reimbursementAdjustment)}</dd></div>
+        <div className="min-w-0"><dt className="text-muted-foreground">Comprometido</dt><dd className="tabular truncate text-subheadline font-semibold">{formatCLP(committed)}</dd></div>
       </dl>
-      {/* Liquidez registrada (últimos saldos, neta de la línea usada). */}
-      <div className="border-t border-border pt-3 text-footnote">
-        <p className={`flex flex-wrap items-baseline gap-x-2 ${liquidityTone}`}>
-          <span className={liquidityTone ? "font-semibold" : "text-muted-foreground"}>
-            {net < 0 ? "Cuentas en negativo" : "Disponible en cuentas"}
-          </span>
-          <strong className="tabular font-semibold">{formatCLP(net)}</strong>
-        </p>
-      </div>
+      <button type="button" disabled={!onOpenLiquidity} onClick={onOpenLiquidity}
+        className="press flex min-h-11 items-center justify-between gap-3 rounded-lg px-1 text-left hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent"
+        aria-label="Ver detalle de liquidez y cuentas">
+        <span className={`text-subheadline ${net < 0 ? "text-destructive" : "text-muted-foreground"}`}>{net < 0 ? "Cuentas en negativo" : "Disponible en cuentas"}</span>
+        <span className="flex items-center gap-1"><strong className={`tabular text-subheadline font-semibold ${net < 0 ? "text-destructive" : ""}`}>{formatCLP(net)}</strong>{onOpenLiquidity && <ChevronRight aria-hidden className="size-4 text-muted-foreground" />}</span>
+      </button>
     </div>
   )
 }

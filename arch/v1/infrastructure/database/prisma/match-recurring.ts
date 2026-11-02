@@ -4,7 +4,7 @@
 import { prisma } from "./client.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import type { Direction } from "../../../domain/finance/finance.domain.ts"
-import { confirmFromMovement } from "../../../application/finance-use-cases/recurring-use-cases.ts"
+import { confirmFromMovements } from "../../../application/finance-use-cases/recurring-use-cases.ts"
 import { recurringTemplateRepository } from "./recurring.infrastructure.ts"
 
 /** Devuelve cuántos movimientos recién importados quedaron vinculados a una plantilla. */
@@ -22,23 +22,21 @@ export async function matchRecurringForImported(
       externalId: { in: externalIds },
       isInternal: false,
       recurringTemplateId: null,
+      installmentItemId: null,
     },
   })
 
-  let matched = 0
-  for (const row of movements) {
-    const claimed = await confirmFromMovement(
-      { recurring: recurringTemplateRepository },
-      templates,
-      {
-        id: row.id,
-        description: row.description,
-        amount: Money.of(row.amount.toString(), row.currency as CurrencyCode),
-        direction: row.direction as Direction,
-        date: row.transactionDate,
-      }
-    )
-    if (claimed) matched++
-  }
-  return matched
+  const claimed = await confirmFromMovements(
+    { recurring: recurringTemplateRepository },
+    templates,
+    movements.map((row) => ({
+      id: row.id,
+      description: row.description,
+      amount: Money.of(row.amount.toString(), row.currency as CurrencyCode),
+      direction: row.direction as Direction,
+      date: row.transactionDate,
+      accountId: row.accountId,
+    }))
+  )
+  return claimed.size
 }

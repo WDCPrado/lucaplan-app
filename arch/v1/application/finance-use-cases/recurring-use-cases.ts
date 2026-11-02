@@ -23,13 +23,20 @@ import {
   executionDateFor,
   hasEnded,
   isValidTolerance,
+  matchesAmount,
   paymentCandidateRejection,
   periodIsWithinValidity,
   periodKeyFor,
+  periodsAround,
   rankTemplatesFor,
   requiresDayOfMonth,
 } from "../../domain/finance/recurring.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
+import { todayKey } from "../../../shared/today.ts"
+
+// "Hoy" del usuario: su día civil en Chile, como fecha a medianoche UTC (lo que esperan las reglas
+// de período). A las 22:00 del 31-oct en Chile ya es 1-nov en UTC, y sigue siendo octubre.
+const civilToday = (now: Date) => new Date(`${todayKey(now)}T00:00:00.000Z`)
 
 type RecurringDeps = {
   recurring: RecurringTemplateRepository
@@ -227,7 +234,7 @@ export async function setRecurringActive(
   if (!existing) throw new RecurringTemplateNotFoundError(input.id)
   if (existing.userId !== userId) throw new NotOwnerError()
   // Terminada = no se reactiva sola; hay que correr su fecha de fin primero.
-  if (input.isActive && hasEnded(existing, today))
+  if (input.isActive && hasEnded(existing, civilToday(today)))
     throw new RecurringTemplateEndedError()
   return deps.recurring.update({ ...existing, isActive: input.isActive })
 }
@@ -278,8 +285,9 @@ export async function setRecurringPeriodPaid(
   deps: { recurring: RecurringTemplateRepository },
   userId: string,
   input: { id: string; paid: boolean },
-  today = new Date()
+  now = new Date()
 ): Promise<{ ok: true }> {
+  const today = civilToday(now)
   const template = await chargeableTemplate(deps, userId, input.id, today)
 
   if (input.paid) {
@@ -314,8 +322,9 @@ export async function payRecurringPeriodWith(
   },
   userId: string,
   input: { id: string; transactionId: string },
-  today = new Date()
+  now = new Date()
 ): Promise<{ ok: true }> {
+  const today = civilToday(now)
   const template = await chargeableTemplate(deps, userId, input.id, today)
   // Valida el movimiento: 404 si no está o no es suyo, 422 si no puede ser el cobro.
   const assertCandidate = async () => {
@@ -345,7 +354,8 @@ export async function payRecurringPeriodWith(
   return { ok: true }
 }
 
-// Plantilla del usuario que todavía tiene período que cobrar: ni pausada ni terminada.
+// Plantilla del usuario que todavía tiene período que cobrar: ni pausada ni terminada. `today` es
+// el día civil (`civilToday`), igual que en `openCurrentPeriod`.
 async function chargeableTemplate(
   deps: { recurring: RecurringTemplateRepository },
   userId: string,
@@ -383,11 +393,28 @@ async function openCurrentPeriod(
   return periodKeyFor(template, today)
 }
 
+// Período que salda el cargo: el pendiente más antiguo cuyo vencimiento cae en la ventana (borde de
+// mes: vence el 31, se cobra el 1). Pendiente = comprometido o marcado a mano («Ya lo pagué»: el
+// cargo real lo reemplaza); lo que ya cobró el banco no. Sin abrir no cuenta.
+async function oldestPendingPeriod(
+  deps: { recurring: RecurringTemplateRepository },
+  template: RecurringTemplate,
+  date: Date
+): Promise<string | null> {
+  for (const { periodKey } of periodsAround(template, date)) {
+    const tx = await deps.recurring.findPeriodTransaction(template.id, periodKey)
+    if (tx && (tx.status === "pending" || tx.isManual)) return periodKey
+  }
+  return null
+}
+
 /**
- * ¿Este movimiento recién importado es la ejecución de alguna plantilla? Si lo es, pasa a ser la
- * ejecución del período (categoría de la plantilla, vínculo, revisado) y consume el comprometido
- * `pending`. Devuelve la plantilla que lo reclamó; null si ninguna matchea o si el período ya
- * tenía ejecución confirmada (entonces el movimiento sigue el flujo normal de IA/triage).
+ * ¿Este movimiento recién importado es la ejecución de alguna plantilla POR TEXTO? Si lo es, pasa a
+ * ser la ejecución del período (categoría de la plantilla, vínculo, revisado) y consume el
+ * comprometido `pending`. El período es el pendiente más antiguo de la ventana y, si no hay, el de
+ * la fecha del cargo (como siempre: un cargo tarde del mismo mes sigue saldándolo). Devuelve la
+ * plantilla que lo reclamó; null si ninguna matchea o si el período ya tenía ejecución confirmada
+ * (entonces el movimiento sigue el flujo normal de IA/triage).
  */
 export async function confirmFromMovement(
   deps: { recurring: RecurringTemplateRepository },
@@ -400,7 +427,9 @@ export async function confirmFromMovement(
   // PRIMERA cuyo período aún no esté consumido (`attach` rebota si ya está confirmado). Así dos
   // (o N) plantillas equivalentes reparten un cargo a cada una en vez de dejar el segundo huérfano.
   for (const template of rankTemplatesFor(movement, vigentes)) {
-    const periodKey = periodKeyFor(template, movement.date)
+    const periodKey =
+      (await oldestPendingPeriod(deps, template, movement.date)) ??
+      periodKeyFor(template, movement.date)
     const attached = await deps.recurring.attachImportedMovement(
       movement.id,
       template,
@@ -409,6 +438,55 @@ export async function confirmFromMovement(
     if (attached) return template
   }
   return null
+}
+
+/**
+ * Concilia el LOTE de cargos recién importados con las recurrentes. Primero el texto idéntico, cargo
+ * por cargo (`confirmFromMovement`, que no mira la cuenta). Después, lo que quedó libre concilia por
+ * otro texto —o sin texto, una planificada— si es de la misma cuenta, el monto está en tolerancia y
+ * cae en la ventana de un período pendiente, y solo si el par es único en los dos sentidos: una sola
+ * recurrente calza con ese cargo y ese cargo es el único del lote que calza con ella. Ante la duda no
+ * se vincula: queda para resolver a mano. Devuelve los vinculados (id del movimiento → plantilla).
+ */
+export async function confirmFromMovements(
+  deps: { recurring: RecurringTemplateRepository },
+  templates: RecurringTemplate[],
+  movements: (MovementForMatch & { id: string; date: Date; accountId: string })[]
+): Promise<Map<string, RecurringTemplate>> {
+  const claimed = new Map<string, RecurringTemplate>()
+  for (const movement of movements) {
+    const template = await confirmFromMovement(deps, templates, movement)
+    if (template) claimed.set(movement.id, template)
+  }
+
+  // Candidatos por monto, cuenta y ventana, con el período que saldarían (leído tras el texto).
+  const pairs: { movement: (typeof movements)[number]; template: RecurringTemplate; periodKey: string }[] = []
+  for (const movement of movements) {
+    if (claimed.has(movement.id)) continue
+    for (const template of templates) {
+      if (
+        template.accountId !== movement.accountId ||
+        hasEnded(template, movement.date) ||
+        !matchesAmount(movement, template)
+      )
+        continue
+      const periodKey = await oldestPendingPeriod(deps, template, movement.date)
+      if (periodKey) pairs.push({ movement, template, periodKey })
+    }
+  }
+  const count = (key: (p: (typeof pairs)[number]) => string) => {
+    const n = new Map<string, number>()
+    for (const p of pairs) n.set(key(p), (n.get(key(p)) ?? 0) + 1)
+    return n
+  }
+  const perMovement = count((p) => p.movement.id)
+  const perTemplate = count((p) => p.template.id)
+  for (const { movement, template, periodKey } of pairs) {
+    if (perMovement.get(movement.id) !== 1 || perTemplate.get(template.id) !== 1) continue
+    if (await deps.recurring.attachImportedMovement(movement.id, template, periodKey))
+      claimed.set(movement.id, template)
+  }
+  return claimed
 }
 
 /**
@@ -425,17 +503,15 @@ export async function materializeUserPeriods(
   userId: string,
   year: number,
   month: number,
-  today = new Date()
+  now = new Date()
 ): Promise<number> {
-  const isPast =
-    year < today.getFullYear() ||
-    (year === today.getFullYear() && month < today.getMonth() + 1)
-  if (isPast) return 0
+  const today = civilToday(now)
+  const current = today.getUTCFullYear() * 12 + today.getUTCMonth()
+  const asked = year * 12 + (month - 1)
+  if (asked < current) return 0
 
   // Día de referencia del mes pedido: hoy si es el mes en curso, el día 1 si es un mes futuro.
-  const isCurrent =
-    year === today.getFullYear() && month === today.getMonth() + 1
-  const reference = isCurrent ? today : new Date(year, month - 1, 1)
+  const reference = asked === current ? today : new Date(Date.UTC(year, month - 1, 1))
 
   const templates = await deps.recurring.listActiveByUser(userId)
   let materialized = 0

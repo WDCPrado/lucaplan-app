@@ -1102,10 +1102,12 @@ export async function syncMailbox(
 
   if (created.length > 0) {
     // Plantilla > IA: el match corre primero y deja categorizado y revisado lo que reclama.
-    if (deps.matchRecurring)
-      await deps.matchRecurring(mailbox.userId, created).catch(() => {})
+    // Cuotas antes que recurrentes: un pago de crédito ya enganchado a su plan no debe
+    // conciliar además una recurrente del mismo monto y cuenta.
     if (deps.runInstallments)
       await deps.runInstallments(mailbox.userId, created).catch(() => {})
+    if (deps.matchRecurring)
+      await deps.matchRecurring(mailbox.userId, created).catch(() => {})
     if (deps.categorize) await deps.categorize(mailbox.userId).catch(() => {})
     // Solo lo que el usuario NO registró a mano y no es un traspaso interno merece notificación.
     if (deps.notify && notifiable.length > 0)

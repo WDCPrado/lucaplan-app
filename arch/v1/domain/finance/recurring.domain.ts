@@ -74,12 +74,23 @@ export function lastDayOfMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate()
 }
 
-// Días transcurridos entre dos fechas contando solo el día calendario (UTC): inmune a la hora.
+// Todas las fechas de este módulo son días CIVILES (`@db.Date`, medianoche UTC) y se leen con
+// getters UTC: con getters locales el resultado dependería de la TZ del proceso (en Chile, UTC−3/−4,
+// la medianoche UTC del 1-nov es el 31-oct). Quien tenga un instante ("ahora") lo pasa antes a su
+// día civil en Chile (`todayKey`).
+
+// Días transcurridos entre dos días civiles.
 function daysBetween(from: Date, to: Date): number {
-  const a = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate())
-  const b = Date.UTC(to.getFullYear(), to.getMonth(), to.getDate())
+  const a = Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate())
+  const b = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate())
   return Math.floor((b - a) / MS_PER_DAY)
 }
+
+/**
+ * Días alrededor del vencimiento de un período en los que un cargo con otro texto todavía puede
+ * ser su cobro (bordes incluidos). Es también la ventana por defecto del buscador de candidatos.
+ */
+export const RECURRING_MATCH_WINDOW_DAYS = 10
 
 /**
  * Clave del período que contiene a `date`: `YYYY-MM` mensual, `YYYY` anual, `YYYY-Qnn` quincenal
@@ -89,50 +100,46 @@ function daysBetween(from: Date, to: Date): number {
 export function periodKeyFor(template: RecurringTemplate, date: Date): string {
   switch (template.periodicity) {
     case "monthly":
-      return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`
+      return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}`
     case "yearly":
-      return String(date.getFullYear())
+      return String(date.getUTCFullYear())
     case "biweekly": {
       const index = Math.floor(daysBetween(template.startDate, date) / 14)
-      return `${template.startDate.getFullYear()}-Q${pad2(index)}`
+      return `${template.startDate.getUTCFullYear()}-Q${pad2(index)}`
     }
   }
 }
 
 /**
  * Fecha de ejecución del período: el `dayOfMonth` de la plantilla, recortado al último día cuando
- * el mes es más corto (31 en un mes de 30 → 30). En quincenal, `startDate + 14·índice`.
+ * el mes es más corto (31 en un mes de 30 → 30). En quincenal, `startDate + 14·índice`. Siempre
+ * un día civil a medianoche UTC.
  */
 export function executionDateFor(
   template: RecurringTemplate,
   periodKey: string
 ): Date {
+  const start = template.startDate
   if (template.periodicity === "biweekly") {
     const index = Number(periodKey.split("Q")[1] ?? 0)
-    const d = new Date(template.startDate)
-    d.setDate(d.getDate() + index * 14)
-    return d
+    // Sumar días en UTC: en hora local el cambio de hora corría el vencimiento un día.
+    return new Date(
+      Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate() + index * 14)
+    )
   }
   const [yearPart, monthPart] = periodKey.split("-")
   const year = Number(yearPart)
   // Anual: el mes lo fija la plantilla por su fecha de inicio; mensual: el del propio período.
-  // Getters UTC: `startDate` es un DATE (medianoche UTC) y en local retrocedería un día.
-  const month = monthPart
-    ? Number(monthPart)
-    : template.startDate.getUTCMonth() + 1
-  const day = template.dayOfMonth ?? template.startDate.getUTCDate()
-  return new Date(year, month - 1, Math.min(day, lastDayOfMonth(year, month)))
+  const month = monthPart ? Number(monthPart) : start.getUTCMonth() + 1
+  const day = template.dayOfMonth ?? start.getUTCDate()
+  return new Date(Date.UTC(year, month - 1, Math.min(day, lastDayOfMonth(year, month))))
 }
 
 // --- Vigencia ---
 
-// Compara solo el día calendario, leído en UTC: `endDate` es un DATE (medianoche UTC) y con
-// getters locales (Chile, UTC-4) retrocedería un día.
+// Compara solo el día civil.
 function isAfterDay(a: Date, b: Date): boolean {
-  return (
-    Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate()) >
-    Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate())
-  )
+  return daysBetween(b, a) > 0
 }
 
 /**
@@ -199,19 +206,49 @@ export function matchesTemplate(
   movement: MovementForMatch,
   template: RecurringTemplate
 ): boolean {
-  if (!template.isActive) return false
   // Planificada sin cobro real todavía: no tiene clave de match y no reclama nada por texto (un
-  // texto vacío calzaría con cualquier descripción que normalice a vacío). Se vincula a mano.
+  // texto vacío calzaría con cualquier descripción que normalice a vacío).
   if (!normalizeMovementText(template.description)) return false
-  if (movement.direction !== template.direction) return false
-  if (movement.amount.currency !== template.baseAmount.currency) return false
   if (
     normalizeMovementText(movement.description) !==
     normalizeMovementText(template.description)
   )
     return false
+  return matchesAmount(movement, template)
+}
+
+/** Lo que pide el match sin mirar el texto: activa, misma dirección y moneda, monto en tolerancia. */
+export function matchesAmount(
+  movement: MovementForMatch,
+  template: RecurringTemplate
+): boolean {
+  if (!template.isActive) return false
+  if (movement.direction !== template.direction) return false
+  if (movement.amount.currency !== template.baseAmount.currency) return false
   const { min, max } = toleranceRange(template)
   return movement.amount.compare(min) >= 0 && movement.amount.compare(max) <= 0
+}
+
+/**
+ * Períodos vigentes cuyo vencimiento cae a ±`RECURRING_MATCH_WINDOW_DAYS` días de `date` (bordes
+ * incluidos), del más antiguo al más nuevo. Un cargo en el borde de mes puede saldar el período
+ * anterior (vence el 31, se cobra el 1) o el siguiente (se paga adelantado).
+ */
+export function periodsAround(
+  template: RecurringTemplate,
+  date: Date
+): { periodKey: string; executionDate: Date }[] {
+  const keys = new Set<string>()
+  for (let i = -RECURRING_MATCH_WINDOW_DAYS; i <= RECURRING_MATCH_WINDOW_DAYS; i++)
+    keys.add(periodKeyFor(template, new Date(date.getTime() + i * MS_PER_DAY)))
+  return [...keys]
+    .map((periodKey) => ({ periodKey, executionDate: executionDateFor(template, periodKey) }))
+    .filter(
+      ({ executionDate }) =>
+        Math.abs(daysBetween(executionDate, date)) <= RECURRING_MATCH_WINDOW_DAYS &&
+        periodIsWithinValidity(template, executionDate)
+    )
+    .sort((a, b) => a.executionDate.getTime() - b.executionDate.getTime())
 }
 
 /**

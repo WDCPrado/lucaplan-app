@@ -115,13 +115,13 @@ test("periodKey mensual, anual y quincenal", () => {
 test("día 31 en un mes de 30 cae al último día", () => {
   const t = template({ dayOfMonth: 31 })
   const d = executionDateFor(t, "2026-09")
-  assert.equal(d.getMonth() + 1, 9)
-  assert.equal(d.getDate(), 30)
+  assert.equal(d.getUTCMonth() + 1, 9)
+  assert.equal(d.getUTCDate(), 30)
 })
 
 test("día 31 en febrero cae al 28", () => {
   const d = executionDateFor(template({ dayOfMonth: 31 }), "2027-02")
-  assert.equal(d.getDate(), 28)
+  assert.equal(d.getUTCDate(), 28)
 })
 
 test("fecha de ejecución quincenal avanza de a 14 días", () => {
@@ -129,7 +129,7 @@ test("fecha de ejecución quincenal avanza de a 14 días", () => {
     periodicity: "biweekly",
     startDate: new Date(2026, 6, 1),
   })
-  assert.equal(executionDateFor(quincenal, "2026-Q02").getDate(), 29)
+  assert.equal(executionDateFor(quincenal, "2026-Q02").getUTCDate(), 29)
 })
 
 // --- fecha de fin (WDC-31) ---

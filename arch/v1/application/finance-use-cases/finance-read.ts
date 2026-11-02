@@ -28,6 +28,7 @@ import {
   hasEnded,
   periodKeyFor,
   toleranceRange,
+  RECURRING_MATCH_WINDOW_DAYS,
   InvalidRecurringTemplateError,
   RecurringTemplateNotFoundError,
   type RecurringTemplateRepository,
@@ -1147,7 +1148,7 @@ export async function listRecurringCandidates(
   const template = await deps.recurring.findById(id)
   if (!template) throw new RecurringTemplateNotFoundError(id)
   if (template.userId !== userId) throw new NotOwnerError()
-  const days = filters.days ?? 10
+  const days = filters.days ?? RECURRING_MATCH_WINDOW_DAYS
   if (!Number.isInteger(days) || days < 1 || days > 365)
     throw new InvalidRecurringTemplateError(
       "Los días deben ser un número entero entre 1 y 365"

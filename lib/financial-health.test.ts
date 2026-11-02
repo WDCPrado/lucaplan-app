@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { calculateFinancialHealth } from "./financial-health.ts"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+import { calculateFinancialHealth, calculateFinancialOverview } from "./financial-health.ts"
 
 test("sano, al límite y en déficit usan todos los ingresos y gastos del plan", () => {
   assert.equal(calculateFinancialHealth({ income: 1000, spent: 899 }).status, "sano")
@@ -19,7 +21,7 @@ test("compromisos cuentan en el medidor y no se duplican", () => {
 })
 
 test("sin ingresos no se divide por cero", () => {
-  assert.equal(calculateFinancialHealth({ income: 0, spent: 0 }).status, "al_limite")
+  // WDC-171: sin ingresos ni gastos el plan queda «sano» (ver pres-plan-vacio).
   assert.equal(calculateFinancialHealth({ income: 0, spent: 50 }).utilization, null)
   assert.equal(calculateFinancialHealth({ income: 0, spent: 50 }).status, "en_deficit")
 })
@@ -92,4 +94,34 @@ test("caja cero o línea utilizada impiden sano aunque el plan esté cubierto", 
   assert.equal(calculateFinancialOverview({ ...base, cash: 200, overdraftDebt: 100 }).status, "al_limite")
   assert.equal(calculateFinancialOverview({ ...base, cash: 200 }).status, "sano")
   assert.equal(calculateFinancialOverview({ ...base, cash: 200, spent: 1001 }).status, "en_deficit")
+})
+
+// --- WDC-171 · titular del Inicio ---
+// El Inicio es un .tsx sin infraestructura de componentes: se fija qué campo pinta leyendo su fuente.
+const source = (path: string) => readFileSync(join(import.meta.dirname, "..", path), "utf8")
+
+test("pres-titular-comprometido: «Disponible para planificar» es ingresos − gastado − comprometido, y bajo cero «Faltan para cubrir el plan»", () => {
+  const titular = (spent: number, committed: number, reimbursementAdjustment = 0) =>
+    calculateFinancialOverview({ income: 1000000, spent, committed, reimbursementAdjustment, cash: 500000, overdraftDebt: 0 }).balance
+  assert.equal(titular(300000, 400000), 300000, "1.000.000 − 300.000 gastado − 400.000 comprometido")
+  // Bordes: justo en cero sigue siendo «Disponible» ($0); un peso más es «Faltan $1».
+  assert.equal(titular(600000, 400000), 0)
+  assert.equal(titular(600001, 400000), -1)
+  // El reembolso legado se descuenta una sola vez.
+  assert.equal(titular(300000, 400000, 50000), 250000)
+  // El titular pinta `balance`; `remainingBeforeCommitments` sigue siendo «antes de compromisos» para el plugin.
+  assert.equal(source("components/finance/financial-health-meter.tsx").match(/const remaining = health\.(\w+)/)?.[1], "balance")
+})
+
+test("pres-plan-vacio: sin ingresos ni gastos el plan queda «sano», no «Plan al límite»", () => {
+  assert.equal(calculateFinancialHealth({ income: 0, spent: 0 }).status, "sano")
+  assert.equal(calculateFinancialOverview({ income: 0, spent: 0, cash: 100000, overdraftDebt: 0 }).planStatus, "sano")
+  // Bordes: un peso gastado o comprometido sin ingresos sí es déficit.
+  assert.equal(calculateFinancialHealth({ income: 0, spent: 1 }).status, "en_deficit")
+  assert.equal(calculateFinancialHealth({ income: 0, spent: 0, committed: 1 }).status, "en_deficit")
+})
+
+test("pres-total-en-cuentas: «Total en cuentas» del Inicio muestra caja menos sobregiro usado, no solo la caja", () => {
+  const shown = source("components/finance/dashboard.tsx").match(/Total en cuentas[\s\S]{0,300}?formatCLP\(summary\.(\w+)\)/)?.[1]
+  assert.equal(shown, "netPosition")
 })

@@ -74,7 +74,7 @@ export function SyncBancoChileButton({
           className="press flex min-h-11 items-center gap-1 text-body text-primary"
         >
           <Plus className="size-4" />
-          Conectar correo del banco
+          Conectar banco
         </button>
       ) : (
         <button

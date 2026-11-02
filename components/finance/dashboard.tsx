@@ -431,12 +431,12 @@ export function Dashboard({
             onOpenCategory={openCategory}
           />
 
-          {/* Escritorio: categorías a la izquierda; el día elegido a la derecha; las cuentas abajo, a lo ancho. Móvil: una columna en el orden del DOM —
-              categorías, día elegido, cuentas—. Todo scrollea con la página (nada fijo). */}
+          {/* Escritorio: categorías a la izquierda y movimientos a la derecha. En móvil los movimientos van primero,
+              luego ritmo por categoría y finalmente cuentas, sin duplicar componentes. */}
           <div className="grid gap-x-6 gap-y-8 lg:grid-cols-2 lg:items-start">
             <section
               id="presupuestos"
-              className="min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1"
+              className="order-2 min-w-0 lg:order-none lg:col-start-1 lg:row-span-2 lg:row-start-1"
             >
               <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
                 {/* Los días que faltan ya los dice la tarjeta principal («N días para cerrar»). */}
@@ -515,7 +515,7 @@ export function Dashboard({
                 con la búsqueda (lupa). */}
             <section
               id="movimientos"
-              className="min-w-0 max-lg:pb-6 lg:col-start-2 lg:row-start-1"
+              className="order-1 min-w-0 max-lg:pb-6 lg:order-none lg:col-start-2 lg:row-start-1"
             >
               <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
                 <h2 className="truncate text-title-3 font-bold">
@@ -554,9 +554,16 @@ export function Dashboard({
 
             {/* Cuentas: consulta, no decisión diaria. Escritorio: bajo las dos columnas, a lo
                 ancho, como grilla de tarjetas. Móvil: al final, como carrusel. */}
-            <section className="min-w-0 lg:col-span-2 lg:row-start-3">
+            <section className="order-3 min-w-0 lg:order-none lg:col-span-2 lg:row-start-3">
               <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
                 <h2 className="text-title-3 font-bold">Cuentas</h2>
+                {hasConnected && (
+                  <SyncBancoChileButton
+                    variant="row"
+                    outlookResult={onboarding ? null : outlookResult}
+                    outlookReason={outlookReason}
+                  />
+                )}
               </div>
               <div
                 ref={cardsRef}
@@ -602,13 +609,6 @@ export function Dashboard({
                   />
                 )}
               </div>
-              {hasConnected && (
-                <SyncBancoChileButton
-                  variant="row"
-                  outlookResult={onboarding ? null : outlookResult}
-                  outlookReason={outlookReason}
-                />
-              )}
             </section>
           </div>
         </div>

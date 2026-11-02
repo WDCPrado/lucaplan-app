@@ -175,17 +175,26 @@ agrupaciones, la tipografía y los controles.
     salen de `lib/liquid-refraction.ts` (lógica pura, con test) y se regeneran solo al cambiar el
     tamaño, nunca en una animación: el press anima el `scale` del filtro.
   - **Movimiento del vidrio**: `liquid-squish` encoge la cápsula al 97 % al presionarla (ella o un
-    control suyo con `data-squish`) y vuelve con un spring (`linear()`, con `cubic-bezier` de respaldo); la pastilla activa de
-    las pestañas se estira como gota al deslizarse (`.tab-pill`). Solo CSS, interrumpible, y nada
-    con movimiento reducido.
+    control suyo con `data-squish`) y vuelve con un spring (`linear()`, con `cubic-bezier` de respaldo). Solo CSS,
+    interrumpible, y nada con movimiento reducido.
+  - **Cambio de pantalla** (React `<ViewTransition>` en `AppShell`, clase `nav`): solo el contenido
+    se desliza un poco (24 px en móvil, 14 px en escritorio) y funde; el marco (sidebar, topbar,
+    fila superior, barra de pestañas) tiene nombre propio y queda quieto. La dirección sale de
+    `lib/nav-direction.ts` (orden de `NAV` y profundidad de la ruta) y la deja `data-nav-dir` en
+    `<html>` antes de navegar, también con el atrás del navegador: móvil siempre horizontal;
+    escritorio, entre links del sidebar en vertical y entrar/volver en horizontal. Dentro de la
+    misma ruta (mes, `?tx=`) no anima. La pastilla activa de las pestañas (`.tab-pill`) y la del
+    sidebar (`.nav-pill`) se deslizan con la misma `--nav-duration`/`--nav-ease`. Con movimiento
+    reducido solo queda el fundido y las pastillas saltan.
   - **Material regular (`--material`)** para lo que lleva texto encima del contenido:
     menús, select, popover, tooltip, toasts, alertas y el aviso de refresco de la PWA. Más opaco que
     el vidrio de las barras, con la misma saturación moderada; la utilidad `material` concentra la
     receta. Los toasts de estado conservan su color semántico. Las hojas van sólidas (`--sheet`).
   - **Color con moderación**: el vidrio no tiene color propio; textos e íconos encima van en
-    `foreground`. La pestaña móvil activa lleva fondo azul (`--glass-tab-active`); el sidebar
-    conserva la selección neutra (`--glass-active`), clara en light y oscura en dark. Ambas usan
-    `--glass-active-shadow`, sin vidrio adicional dentro del vidrio.
+    `foreground`. La pestaña móvil activa y el link activo del sidebar llevan el mismo fondo azul
+    (`--glass-tab-active`) con `--glass-active-shadow`, sin vidrio adicional dentro del vidrio; en
+    el sidebar el ícono y el texto del activo van además en `primary`. Hover y press sobre el
+    vidrio son un velo de `foreground` (5 % y 10 %), no el gris sólido `--sidebar-accent`.
   - **Scroll edge effect** (`scroll-edge-top`) queda solo detrás de la topbar de escritorio:
     un velo tenue (`--scroll-edge-amount`, 22 % por defecto y proporcional al nivel de vidrio),
     desenfoque leve (`--scroll-edge-blur`, 4 px) y fundido largo. En móvil el desenfoque queda

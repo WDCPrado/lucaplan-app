@@ -87,6 +87,30 @@ export function formatLongDate(iso: string): string {
   return dateHeaderFmt.format(new Date(iso))
 }
 
+// YYYY-MM-DD desde los componentes locales (sin corrimiento de zona horaria como toISOString).
+export function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+// Inverso de `ymd`: "2026-10-15" → fecha local de ese día (new Date("2026-10-15") sería UTC y en
+// Chile mostraría el día anterior).
+export function fromYmd(s: string | undefined): Date | undefined {
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return undefined
+  const [y, m, d] = s.split("-").map(Number)
+  return new Date(y, m - 1, d)
+}
+
+const WEEKDAYS_SHORT = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
+
+/** Encabezado corto, para cuando el largo no cabe: "Hoy", "Ayer" o "Sáb 31 oct". */
+export function formatShortDateHeader(iso: string): string {
+  const long = formatDateHeader(iso)
+  if (long === "Hoy" || long === "Ayer") return long
+  const d = new Date(iso)
+  const mon = monthName(d.getUTCMonth() + 1).slice(0, 3).toLowerCase()
+  return `${WEEKDAYS_SHORT[d.getUTCDay()]} ${d.getUTCDate()} ${mon}`
+}
+
 export function formatDateHeader(iso: string): string {
   const key = iso.slice(0, 10) // YYYY-MM-DD del @db.Date (día civil)
   const now = new Date()

@@ -4,6 +4,7 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
+import { navDirection, reverseNav, type NavDirection } from "@/lib/nav-direction"
 import { useAppearance } from "@/components/appearance-provider"
 import {
   Home,
@@ -175,6 +176,8 @@ export function AppFrame({
     router.push("/login")
   }
 
+  useNavDirection()
+
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (shortcutBlocked(e)) return
@@ -238,6 +241,88 @@ export function AppFrame({
   )
 }
 
+// Deja en <html> hacia dónde va la próxima navegación (`data-nav-dir`, que lee la view transition
+// de AppShell en globals.css), antes de que llegue la página: en el clic de cualquier enlace interno
+// que cambia de ruta (captura, antes de su onClick: Link y la barra inferior siempre hacen
+// preventDefault y navegan ellos, así que defaultPrevented no sirve para saber si hubo navegación) y
+// en el atrás/adelante del navegador. Una pila corta de lo visitado hace que el atrás deshaga el
+// último movimiento en sentido contrario («Ver todos ›» entra desde la derecha; volver, desde la
+// izquierda). Un enlace puede forzar la suya con `data-nav`. La marca se borra cuando la ruta ya
+// cambió y la transición terminó, así un router.push posterior sin enlace no hereda una vieja.
+function useNavDirection() {
+  const pathname = usePathname()
+  const markId = React.useRef(0)
+
+  React.useEffect(() => {
+    const tabs = NAV.map((n) => n.href)
+    const root = document.documentElement
+    const stack: { path: string; dir: NavDirection | null }[] = [
+      { path: location.pathname, dir: null },
+    ]
+    let stale: ReturnType<typeof setTimeout> | undefined
+    const mark = (dir: NavDirection | null) => {
+      const id = ++markId.current
+      clearTimeout(stale)
+      if (!dir) return void delete root.dataset.navDir
+      root.dataset.navDir = dir
+      // ponytail: si la navegación nunca llega (cancelada), la marca caduca sola; una página que
+      // tarde más que esto en llegar entra sin desplazamiento.
+      stale = setTimeout(() => {
+        if (markId.current === id) delete root.dataset.navDir
+      }, 5000)
+    }
+    const push = (path: string, dir: NavDirection | null) => {
+      stack.push({ path, dir })
+      if (stack.length > 20) stack.shift()
+    }
+    function onClick(e: MouseEvent) {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      const a = (e.target as Element | null)?.closest?.("a[href]")
+      if (!(a instanceof HTMLAnchorElement) || a.origin !== location.origin) return
+      if ((a.target && a.target !== "_self") || a.hasAttribute("download")) return
+      const from = location.pathname
+      if (a.pathname === from) return // misma ruta (query, #hash): no hay desplazamiento
+      const forced = a.dataset.nav as NavDirection | undefined
+      const dir = forced ?? navDirection(from, a.pathname, tabs)
+      mark(dir)
+      push(a.pathname, dir)
+    }
+    function onPop() {
+      const to = location.pathname
+      const top = stack[stack.length - 1]
+      if (top.path === to) return mark(null)
+      if (stack.length > 1 && stack[stack.length - 2].path === to) {
+        stack.pop()
+        return mark(top.dir && reverseNav[top.dir])
+      }
+      const dir = navDirection(top.path, to, tabs)
+      push(to, dir)
+      mark(dir)
+    }
+    document.addEventListener("click", onClick, true)
+    window.addEventListener("popstate", onPop)
+    return () => {
+      clearTimeout(stale)
+      delete document.documentElement.dataset.navDir
+      document.removeEventListener("click", onClick, true)
+      window.removeEventListener("popstate", onPop)
+    }
+  }, [])
+
+  // Llegó la ruta nueva: la transición ya arrancó con la marca. Se borra al terminar el
+  // deslizamiento (--nav-duration 280 ms + margen); borrarla antes cortaría la animación, que lee
+  // `data-nav-dir` mientras corre. Si otra navegación marcó entretanto, se respeta la suya.
+  React.useEffect(() => {
+    const root = document.documentElement
+    if (!root.dataset.navDir) return
+    const id = markId.current
+    const t = setTimeout(() => {
+      if (markId.current === id) delete root.dataset.navDir
+    }, 400)
+    return () => clearTimeout(t)
+  }, [pathname])
+}
+
 // Móvil: la búsqueda va suelta a la derecha de la cápsula de pestañas (iOS 26, como Música o Fotos),
 // del alto de la cápsula. Está en todas las vistas, así la cápsula no cambia de ancho al navegar.
 function SearchCircle({ onSearch }: { onSearch: () => void }) {
@@ -282,7 +367,11 @@ export function AppShell({ actions, children, ...props }: AppShellProps) {
     )
   return (
     <>
-      {children}
+      {/* Cambio de pantalla: el contenido de la vista que sale y el de la que entra se deslizan
+          (clase `nav`, globals.css); dentro de la misma ruta (mes, `?tx=`, refresh) no anima. */}
+      <React.ViewTransition enter="nav" exit="nav" default="none">
+        {children}
+      </React.ViewTransition>
       {actions && slots.desktop && createPortal(actions, slots.desktop)}
       {actions && slots.mobile && createPortal(actions, slots.mobile)}
     </>
@@ -354,7 +443,10 @@ function Chrome({
               (0.5rem, el p-2 de su contenedor) y hacia el sidebar, mismo radio, mismo vidrio y alineada
               con su borde superior. Detrás, el scroll edge effect funde lo que pasa por debajo. Lo que
               va adentro tiene radio concéntrico (--radius-bar-inner). */}
-          <div className="sticky top-0 z-10 hidden scroll-edge-top pt-2 pr-2 md:block">
+          <div
+            style={{ viewTransitionName: "app-topbar" }}
+            className="sticky top-0 z-10 hidden scroll-edge-top pt-2 pr-2 md:block"
+          >
             <header className="flex h-14 items-center gap-2 rounded-xl liquid-glass p-2 pl-3">
               <SidebarTrigger className="size-10 rounded-(--radius-bar-inner)" />
               {title && (
@@ -404,6 +496,7 @@ function Chrome({
               (`.top-title`). Solo las cápsulas desenfocan el fondo y reciben toques. */}
           <div
             data-scrolled={scrolled || undefined}
+            style={{ viewTransitionName: "app-top-mobile" }}
             className="top-bar pwa-safe-top pointer-events-none sticky top-0 z-20 flex items-center px-2 py-2 md:hidden"
           >
             {title && (
@@ -483,20 +576,34 @@ function NavMenu({
   const pathname = usePathname()
   const { isMobile, setOpenMobile } = useSidebar()
   const activeKey = active ?? navKeyOf(pathname)
+  const activeIndex = NAV.findIndex((n) => n.key === activeKey)
 
   return (
-    <SidebarMenu>
+    <SidebarMenu className="relative">
+      {/* Pastilla del activo, como la de la barra inferior: una sola, que se desliza en vertical
+          de un link a otro (paso = alto del link + gap-1; colapsado, size-8 + gap-1). */}
+      <span
+        aria-hidden
+        style={{ "--i": Math.max(activeIndex, 0) } as React.CSSProperties}
+        className={cn(
+          "nav-pill liquid-glass-active pointer-events-none absolute top-0 left-0 h-9 w-full rounded-(--radius-bar-inner) [transform:translateY(calc(var(--i)*2.5rem))] group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:[transform:translateY(calc(var(--i)*2.25rem))]",
+          activeIndex < 0 && "opacity-0"
+        )}
+      />
       {NAV.map(({ key, label, Icon, href }) => (
         <SidebarMenuItem key={key}>
-          {/* El sidebar conserva su selección neutra. */}
+          {/* Mismo lenguaje que la pestaña activa móvil: la pastilla azul de arriba (--glass-tab-active)
+              y el ícono y el texto en el acento. Hover y press en un velo del texto, como el resto
+              de los controles sobre vidrio (el --sidebar-accent de shadcn es un gris sólido). */}
           <SidebarMenuButton
             asChild
             isActive={activeKey === key}
             tooltip={label}
-            className="h-9 rounded-(--radius-bar-inner) text-subheadline data-active:bg-(--glass-active) data-active:shadow-(--glass-active-shadow) data-active:font-semibold"
+            className="h-9 rounded-(--radius-bar-inner) text-subheadline hover:bg-foreground/5 active:bg-foreground/10 data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:hover:bg-transparent data-active:hover:text-primary"
           >
             <Link
               href={href}
+              aria-current={activeKey === key ? "page" : undefined}
               prefetch
               onClick={() => {
                 haptic("light")
@@ -522,8 +629,8 @@ function NavMenu({
 // vive en el layout y no se desmonta al navegar, basta una transición de transform. Las etiquetas
 // van en el color y el peso del texto; el activo se marca con el fondo azul de su pastilla, así
 // ningún ancho cambia al cambiar de pestaña.
-// Al deslizarse la pastilla se estira como una gota: el borde que va adelante llega antes que el de
-// atrás (`.tab-pill[data-dir]`, globals.css). La cápsula hace squish al tocar una pestaña y, en
+// La pastilla se desliza con la misma duración y curva que el contenido al cambiar de pantalla
+// (`.tab-pill`, --nav-duration/--nav-ease en globals.css). La cápsula hace squish al tocar una pestaña y, en
 // Chromium, refracta lo que pasa por debajo (useLiquidRefraction). La pastilla no refracta: vive
 // dentro del vidrio de la cápsula, que es su «backdrop root», así que debajo solo tiene el relleno
 // liso de la cápsula y no habría nada que desviar.
@@ -551,15 +658,13 @@ function BottomNav({
     (sum, n) => sum + n.weight,
     0
   )
-  // Hacia dónde se movió la pastilla la última vez, derivado en render al cambiar la pestaña activa.
-  const [move, setMove] = React.useState({ index: activeIndex, dir: 0 })
-  if (move.index !== activeIndex)
-    setMove({ index: activeIndex, dir: activeIndex > move.index ? 1 : -1 })
   const navRef = React.useRef<HTMLElement>(null)
   useLiquidRefraction(navRef)
 
   return (
     <div
+      // Nombre propio en el cambio de pantalla: la barra queda quieta encima del contenido que se desliza.
+      style={{ viewTransitionName: "app-tabbar" }}
       className="pointer-events-none fixed right-[env(safe-area-inset-right)] bottom-0 left-[env(safe-area-inset-left)] z-30 flex items-center gap-3 px-2 pt-3 pb-(--tab-bar-inset) md:hidden"
     >
       <nav
@@ -572,7 +677,6 @@ function BottomNav({
               (es un elemento chico; animarlos no pesa). */}
           <span
             aria-hidden
-            data-dir={move.dir > 0 ? "next" : move.dir < 0 ? "prev" : undefined}
             className={cn(
               "tab-pill pointer-events-none absolute inset-y-0 flex",
               activeIndex < 0 && "opacity-0"
@@ -659,7 +763,7 @@ function UserMenu({
       <DropdownMenuTrigger asChild>
         <SidebarMenuButton
           size="lg"
-          className="data-[state=open]:bg-sidebar-accent"
+          className="hover:bg-foreground/5 active:bg-foreground/10 data-[state=open]:bg-foreground/5"
         >
           {/* Sin el aro del Avatar de shadcn (`after:border`): con el relleno ya se lee el círculo. */}
           <Avatar className="size-8 rounded-full bg-primary after:hidden">

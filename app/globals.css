@@ -101,6 +101,18 @@
        la deja casi concéntrica con la esquina del iPhone (radio ≈ 55 px = 32 de la cápsula + 22);
        sin safe area (navegador, Android), 8 px. */
     --tab-bar-inset: max(calc(env(safe-area-inset-bottom) - 0.75rem), 0.5rem);
+    /* Alto de las barras móviles, para que una vista mida «lo que queda» de la pantalla: la fila
+       superior (py-2 + min-h-11; instalada, `.pwa-safe-top` cambia su padding de arriba) y la
+       barra de pestañas (pt-3 + h-16 + --tab-bar-inset). */
+    --top-bar-h: 3.75rem;
+    --tab-bar-h: calc(4.75rem + var(--tab-bar-inset));
+    /* Inicio móvil: cuánto de los movimientos se asoma bajo el bloque del mes en la primera
+       pantalla (gap + su encabezado + el comienzo de la primera fila), para que se note que sigue. */
+    --home-peek: 7rem;
+    /* Navegación entre pantallas (WDC-170): una sola duración y curva para el deslizamiento del
+       contenido (view transition) y el de la pastilla activa de la barra y del sidebar. */
+    --nav-duration: 280ms;
+    --nav-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
     --background: oklch(0.963 0.007 286.3);          /* #F2F2F7 systemGroupedBackground */
     --foreground: oklch(0.232 0.004 286.1);          /* #1D1D1F label */
@@ -161,8 +173,6 @@
     --glass-rim: oklch(1 0 0 / 0.2);
     --glass-reflection-opacity: 0.8;
     --glass-shadow: 0 1px 2px oklch(0.2 0.01 286 / 0.06), 0 8px 24px -6px oklch(0.2 0.01 286 / 0.16);
-    /* Selección neutra: clara en light, oscura en dark; no vuelve a colorear el vidrio. */
-    --glass-active: oklch(1 0 0 / 0.72);
     --glass-tab-active: color-mix(in oklch, var(--primary) 16%, transparent);
     --glass-active-shadow: inset 0 0 0 0.5px var(--glass-edge), 0 1px 3px oklch(0 0 0 / 0.12);
     /* Material «regular» de iOS para lo que lleva texto encima del contenido (menús, popovers,
@@ -292,7 +302,6 @@ html:has(main[data-landing]) body {
     --glass-rim: oklch(1 0 0 / 0.045);
     --glass-reflection-opacity: 0.8;
     --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 8px 24px -6px oklch(0 0 0 / 0.55);
-    --glass-active: oklch(0.1 0 0 / 0.6);
     --glass-tab-active: color-mix(in oklch, var(--primary) 26%, transparent);
     --glass-active-shadow: inset 0 0 0 0.5px var(--glass-edge), 0 1px 3px oklch(0 0 0 / 0.18);
     --material: color-mix(in oklch, oklch(0.26 0.004 286 / 0.84), var(--card) var(--glass-tint));
@@ -596,24 +605,121 @@ html:has(main[data-landing]) body {
   }
 }
 
-/* Pastilla activa de las pestañas (BottomNav): se mueve con left/right y, según hacia dónde va
-   (`data-dir`), el borde de adelante llega antes que el de atrás, así se estira como una gota y se
-   recoge al llegar. Solo transiciones: un toque a mitad de camino la redirige desde donde está. */
+/* Pastilla activa de la barra inferior (y la del sidebar, `.nav-pill`): se desliza con la misma
+   duración y curva que el contenido al cambiar de pantalla (--nav-duration, --nav-ease). Solo
+   transiciones: un toque a mitad de camino la redirige desde donde está. */
 .tab-pill {
-  transition: left 260ms cubic-bezier(0.2, 0.8, 0.2, 1), right 260ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 240ms ease-out;
+  transition:
+    left var(--nav-duration) var(--nav-ease),
+    right var(--nav-duration) var(--nav-ease),
+    opacity 240ms ease-out;
 }
-.tab-pill[data-dir="next"] {
-  transition-duration: 360ms, 220ms, 240ms;
-  transition-delay: 50ms, 0ms, 0ms;
-}
-.tab-pill[data-dir="prev"] {
-  transition-duration: 220ms, 360ms, 240ms;
-  transition-delay: 0ms, 50ms, 0ms;
+.nav-pill {
+  transition:
+    transform var(--nav-duration) var(--nav-ease),
+    opacity 240ms ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
-  .tab-pill {
+  .tab-pill,
+  .nav-pill {
     transition: none;
   }
+}
+
+/* Cambio de pantalla (React <ViewTransition> en AppShell, clase `nav`): desplazamiento corto y
+   fundido, solo del contenido. La dirección la deja `data-nav-dir` en <html> justo antes de navegar
+   (useNavDirection, app-shell.tsx); sin ella no hay animación. Móvil: todo horizontal; escritorio:
+   entre pestañas del sidebar en vertical, entrar/volver en horizontal. */
+:root {
+  --nav-shift: 24px;
+}
+@media (min-width: 48rem) {
+  :root {
+    --nav-shift: 14px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --nav-shift: 0px; /* solo el fundido */
+  }
+}
+:root[data-nav-dir="forward"],
+:root[data-nav-dir="down"] {
+  --nav-x: var(--nav-shift);
+}
+:root[data-nav-dir="back"],
+:root[data-nav-dir="up"] {
+  --nav-x: calc(-1 * var(--nav-shift));
+}
+@media (min-width: 48rem) {
+  :root[data-nav-dir="down"] {
+    --nav-x: 0px;
+    --nav-y: var(--nav-shift);
+  }
+  :root[data-nav-dir="up"] {
+    --nav-x: 0px;
+    --nav-y: calc(-1 * var(--nav-shift));
+  }
+}
+::view-transition {
+  pointer-events: none; /* un toque durante la transición llega a la página viva */
+}
+::view-transition-old(.nav) {
+  animation:
+    nav-out var(--nav-duration) var(--nav-ease) both,
+    nav-fade-out 140ms ease-out both;
+}
+::view-transition-new(.nav) {
+  animation:
+    nav-in var(--nav-duration) var(--nav-ease) both,
+    nav-fade-in 200ms ease-out both;
+}
+:root:not([data-nav-dir])::view-transition-old(.nav),
+:root:not([data-nav-dir])::view-transition-new(.nav) {
+  animation: none;
+}
+@keyframes nav-out {
+  to { transform: translate(calc(-1 * var(--nav-x, 0px)), calc(-1 * var(--nav-y, 0px))); }
+}
+@keyframes nav-in {
+  from { transform: translate(var(--nav-x, 0px), var(--nav-y, 0px)); }
+}
+@keyframes nav-fade-out {
+  to { opacity: 0; }
+}
+@keyframes nav-fade-in {
+  from { opacity: 0; }
+}
+/* El marco queda quieto: sin fundido de la página entera y las barras por encima del contenido que
+   se desliza (cada una con su nombre en app-shell.tsx; el sidebar, por su data-slot). */
+::view-transition-group(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-old(root) {
+  display: none;
+}
+[data-slot="sidebar-container"] {
+  view-transition-name: app-sidebar;
+}
+::view-transition-group(app-sidebar),
+::view-transition-group(app-topbar),
+::view-transition-group(app-top-mobile),
+::view-transition-group(app-tabbar) {
+  animation: none;
+  z-index: 1;
+}
+::view-transition-old(app-sidebar),
+::view-transition-old(app-topbar),
+::view-transition-old(app-top-mobile),
+::view-transition-old(app-tabbar) {
+  display: none;
+}
+::view-transition-new(app-sidebar),
+::view-transition-new(app-topbar),
+::view-transition-new(app-top-mobile),
+::view-transition-new(app-tabbar) {
+  animation: none;
 }
 
 /* Relleno de controles shadcn (systemFill de iOS). Fuera de @layer para ganar a las utilidades de
@@ -718,7 +824,6 @@ html:has(main[data-landing]) body {
     --glass-fill-large: oklch(1 0 0 / 0.94);
     --material: oklch(1 0 0 / 0.96);
     --glass-edge: oklch(0.359 0.012 285.8 / 0.45);
-    --glass-active: oklch(1 0 0);
     --glass-active-shadow: inset 0 0 0 1px var(--glass-edge);
     --glass-reflection-opacity: 0;
     --border: oklch(0.359 0.012 285.8 / 0.45);
@@ -728,7 +833,6 @@ html:has(main[data-landing]) body {
     --glass-fill-large: oklch(0.2 0.004 286 / 0.95);
     --material: oklch(0.2 0.004 286 / 0.96);
     --glass-edge: oklch(1 0 0 / 0.4);
-    --glass-active: oklch(0.1 0 0);
     --glass-active-shadow: inset 0 0 0 1px var(--glass-edge);
     --glass-reflection-opacity: 0;
     --border: oklch(1 0 0 / 0.4);
@@ -784,6 +888,9 @@ html:has(main[data-landing]) body {
   }
   .pwa-safe-top {
     padding-top: max(env(safe-area-inset-top), 0.75rem);
+  }
+  :root {
+    --top-bar-h: calc(max(env(safe-area-inset-top), 0.75rem) + 3.25rem);
   }
   /* El sidebar es `fixed`, así que el padding del body no lo alcanza: sin esto el logo queda bajo
      el notch/Dynamic Island y el menú de usuario bajo el home indicator (iOS instalado). Cubre el

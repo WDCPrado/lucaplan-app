@@ -3,6 +3,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import {
   categoryUsageLine,
+  formatShortDateHeader,
   quartileVar,
   statusVar,
   usageBarPct,
@@ -97,4 +98,8 @@ test("con límite 0 el color sigue el criterio de categoryStatus", () => {
     quartileVar(usageBarPct(0, 0)),
     statusVar(categoryStatus(cero, cero))
   )
+})
+
+test("formatShortDateHeader abrevia el día y el mes para el selector de día", () => {
+  assert.equal(formatShortDateHeader("2020-10-31T00:00:00.000Z"), "Sáb 31 oct")
 })

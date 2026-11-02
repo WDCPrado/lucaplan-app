@@ -11,7 +11,7 @@ export function dateOf(tx: Pick<TransactionDTO, "date">): string {
 }
 
 /**
- * Gasto por fecha, en CLP, para la tira de días: una cifra por cada fecha de `days`, en su orden.
+ * Gasto por fecha, en CLP, para la curva de gasto del Inicio: una cifra por cada fecha de `days`, en su orden.
  * Solo cargos confirmados de categorías con presupuesto, sin ajustes de saldo y con el equivalente CLP cuando la
  * moneda es otra. Agrupa por fecha y no por día del mes: un ciclo de tarjeta cruza dos meses y el
  * 25/09 no es el 25/10.

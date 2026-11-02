@@ -1,10 +1,8 @@
 // Tipo de cambio USD→CLP (dólar observado) desde mindicador.cl — API pública chilena, gratis y sin
 // key. Convierte los movimientos internacionales de tarjeta (montoCompra en USD) a CLP para que
 // entren en los cálculos. Se pide el rate de la FECHA del movimiento (el observado histórico no
-// cambia → el CLP estimado es estable). Best-effort: si la API falla, cae a un aproximado.
+// cambia → el CLP estimado es estable). Si la API falla no hay tasa (null): nunca un aproximado fijo.
 import type { ExchangeRateProvider } from "../../../domain/finance/exchange.domain.ts"
-
-const FALLBACK_CLP_PER_USD = 950 // ponytail: aproximado de respaldo si mindicador no responde.
 
 type Series = { byDay: Map<string, number>; latest: number | null }
 
@@ -36,7 +34,7 @@ function seriesForYear(year: number): Promise<Series> {
   let s = yearCache.get(year)
   if (!s) {
     // Un fallo de red no se cachea como error permanente: se guarda una serie vacía y el próximo
-    // request reintenta (borrándola). El fallback cubre mientras tanto.
+    // request reintenta (borrándola). Mientras tanto no hay tasa.
     s = fetchYear(year).catch(() => {
       yearCache.delete(year)
       return { byDay: new Map(), latest: null } as Series
@@ -56,7 +54,7 @@ export const exchangeRateProvider: ExchangeRateProvider = {
       const v = series.byDay.get(dayKey(d))
       if (v) return v
     }
-    // Sin match (fecha muy reciente sin publicar aún, o serie vacía): último conocido o fallback.
-    return series.latest ?? FALLBACK_CLP_PER_USD
+    // Sin match (fecha muy reciente sin publicar aún): último observado; serie vacía: sin tasa.
+    return series.latest
   },
 }

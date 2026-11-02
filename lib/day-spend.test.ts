@@ -37,7 +37,7 @@ test("dateOf lee la fecha civil del ISO sin pasar por la zona horaria", () => {
   assert.equal(dateOf(tx("2026-09-08", 1)), "2026-09-08")
 })
 
-test("spendByDate suma solo cargos confirmados, sin internos, en CLP", () => {
+test("spendByDate suma todo cargo confirmado no interno, con o sin categoría o tope", () => {
   const byDay = spendByDate(
     [
       tx("2026-09-05", -38900),
@@ -55,7 +55,7 @@ test("spendByDate suma solo cargos confirmados, sin internos, en CLP", () => {
     categories
   )
   assert.equal(byDay.length, 30)
-  assert.equal(byDay[4], 45350) // día 5
+  assert.equal(byDay[4], 55350) // día 5: sin categoría y sin tope también son gasto real
   assert.equal(byDay[6], 0) // día 7
   assert.equal(byDay[8], 47500) // día 9
 })

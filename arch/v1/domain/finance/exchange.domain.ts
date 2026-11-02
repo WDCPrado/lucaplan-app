@@ -5,7 +5,8 @@ import { Money } from "./money.ts"
 
 export interface ExchangeRateProvider {
   // CLP por 1 USD en la fecha dada (dólar observado; el día hábil más cercano si es finde/feriado).
-  clpPerUsdAt(date: Date): Promise<number>
+  // null = no hay dólar observado (la fuente no respondió): nunca se inventa una tasa.
+  clpPerUsdAt(date: Date): Promise<number | null>
 }
 
 // Convierte un monto a CLP con el rate dado (CLP por unidad de la moneda). Los CLP pasan intactos.

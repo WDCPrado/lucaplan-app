@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { formatCLP, monthName, usagePct } from "@/lib/finance-format"
+import { closedPeriodLine } from "@/lib/period-status"
 import { estimateClosing, type PeriodMode } from "@/arch/shared/billing-cycle"
 import { PlanSummary, type PlanInput } from "./financial-health-meter"
 import { Segmented } from "./segmented"
@@ -24,7 +25,8 @@ import type { CycleProps } from "./dashboard"
  * Estado del período en el Inicio. En el mes en curso, lo primero y más grande es cuánto queda del
  * plan; los días para cerrar van en la línea de abajo. Al pie, «Ajustar plan», que abre donde se
  * decide todo esto (también el modo del período y el cierre de la tarjeta).
- * Para períodos históricos se conserva el saldo final sin gastar.
+ * Fuera del mes en curso, una línea: un futuro todavía no empieza; uno pasado cerró sin gastar o
+ * pasado por cuánto (`closedPeriodLine`).
  */
 export function MonthStatus({
   period,
@@ -107,18 +109,11 @@ export function MonthStatus({
     )
   }
 
-  const free = globalLimit - spent - committed
   const usedPct = usagePct(spent, globalLimit)
   return (
     <section className="glass flex flex-1 flex-col rounded-xl p-5 lg:p-6">
-      <p className="text-subheadline text-muted-foreground">
-        {monthName(period.month)} {period.year} cerró con
-      </p>
-      <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
-        <span className="tabular text-hero font-bold">
-          {formatCLP(Math.max(0, free))}
-        </span>
-        <span className="text-headline font-semibold">sin gastar</span>
+      <p className="text-title-3 font-bold text-pretty">
+        {closedPeriodLine({ period, current: cycle.current, globalLimit, spent, committed })}
       </p>
       <p className="mt-2 text-subheadline text-muted-foreground">
         Gastaste <span className="tabular">{formatCLP(spent)}</span> de{" "}

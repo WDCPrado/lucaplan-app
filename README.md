@@ -77,10 +77,14 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
   disponible restante en CLP.
 - El presupuesto global, los topes por categoría y los ingresos planificados son independientes
   en débito y crédito. Los montos se **heredan entre períodos del mismo modo** (carry-forward).
-- En débito y crédito, el gastado y el comprometido del plan solo incluyen categorías
-  de gasto con tope efectivo mayor que cero, dentro del período. Sin categoría o sin
-  tope quedan fuera; los excesos sobre un tope cuentan completos. Las categorías sin
-  tope se pueden consultar en un grupo cerrado por defecto.
+- En débito y crédito, el gastado del plan es todo gasto real confirmado del período
+  (no interno), con o sin categoría y con o sin tope; el comprometido suma todas las
+  recurrentes y cuotas por cobrar. Los topes miden cada categoría y su ritmo: las categorías
+  sin tope no tienen ritmo y se consultan en un grupo cerrado por defecto.
+- El ritmo y el «quedan» de una categoría parten de tope − usado − comprometido: el pago que
+  concilia una recurrente o una cuota no cuenta como gasto del ritmo.
+- Los movimientos en USD entran convertidos con el dólar observado de su fecha. Si mindicador
+  no responde, quedan fuera de los totales y el Inicio lo avisa; nunca se usa una tasa fija.
 - Categorías de ingreso con avance hacia tu meta mensual.
 - Vincular un reembolso aumenta el tope de la categoría de gasto solo en el período de la
   compra y modo activo. El gasto permanece bruto y el abono conserva su categoría de ingreso;

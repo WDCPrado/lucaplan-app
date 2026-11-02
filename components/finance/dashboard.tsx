@@ -222,6 +222,8 @@ export function Dashboard({
     const paceLeft = c.pace && c.pace.budget > 0 ? c.pace.budget - c.pace.spent : null
     // Con ritmo pero sin presupuesto del período, ya no queda nada que repartir.
     const noMargin = !!c.pace && c.pace.budget <= 0
+    // «quedan» descuenta lo comprometido (tope − usado − comprometido); «sobre el tope» sale de `available`.
+    const quedan = Math.max(0, c.free)
     const figure = noMargin ? (
       "Sin margen"
     ) : c.pace && paceLeft !== null ? (
@@ -244,7 +246,7 @@ export function Dashboard({
           </>
         ) : (
           <>
-            quedan <span className="tabular">{formatCLP(c.available)}</span>
+            quedan <span className="tabular">{formatCLP(quedan)}</span>
           </>
         )
       ) : (
@@ -401,6 +403,7 @@ export function Dashboard({
     spent: totalUsed,
     committed: totalCommitted,
     reimbursementAdjustment: budget.reimbursementAdjustment,
+    exchangeRateUnavailable: budget.exchangeRateUnavailable,
   }
 
   const hasConnected = accounts.some((a) => a.provider !== "manual")
@@ -723,7 +726,7 @@ export function Dashboard({
                       Total en cuentas
                     </div>
                     <div className="tabular text-title-1 font-bold">
-                      {formatCLP(summary.activeCash)}
+                      {formatCLP(summary.netPosition)}
                     </div>
                   </div>
                 )}

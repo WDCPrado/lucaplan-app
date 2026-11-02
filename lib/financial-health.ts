@@ -20,7 +20,8 @@ export function calculateFinancialHealth(input: {
     income > 0 ? (projectedSpent / income) * 100 : projectedSpent > 0 ? null : 0
 
   function status(amount: number): FinancialHealthStatus {
-    if (income <= 0) return amount > 0 ? "en_deficit" : "al_limite"
+    // Sin ingresos ni gastos no hay nada que cubrir: el plan está sano, no al límite.
+    if (income <= 0) return amount > 0 ? "en_deficit" : "sano"
     if (amount > income) return "en_deficit"
     if (amount >= income * 0.9) return "al_limite"
     return "sano"

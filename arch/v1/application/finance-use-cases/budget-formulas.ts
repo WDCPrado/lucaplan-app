@@ -170,15 +170,18 @@ export function pacePeriod(
 
 /**
  * Ritmo de una categoría: lo gastado en el período (hoy / esta semana) y el presupuesto de ese
- * período. El presupuesto reparte lo disponible AL INICIO del período (disponible actual +
- * gastado del período) entre los días del mes que quedaban desde ese inicio, × los días del
- * período. Así la cifra es estable: registrar un gasto sube el "gastado" pero no mueve la meta,
- * y la semana vale lo mismo el lunes que el jueves. Puede ser $0 si la categoría llegó al
- * período sin margen.
+ * período. El presupuesto reparte lo libre AL INICIO del período (libre actual + gastado del
+ * período) entre los días del mes que quedaban desde ese inicio, × los días del período. Así la
+ * cifra es estable: registrar un gasto sube el "gastado" pero no mueve la meta, y la semana vale
+ * lo mismo el lunes que el jueves. Puede ser $0 si la categoría llegó al período sin margen.
+ *
+ * Lo libre ya descuenta lo comprometido (recurrentes y cuotas por cobrar), así que el pago que
+ * concilia una recurrente o una cuota no es gasto del ritmo: ya estaba fuera de la meta y pagarlo
+ * por su monto no mueve ni la meta ni lo gastado (WDC-171).
  */
 export function computeCategoryPace(
   categoryId: string,
-  available: Money, // límite − usado del MES (puede ser negativo)
+  available: Money, // límite − usado − comprometido del MES (puede ser negativo)
   transactions: Transaction[],
   today: string, // "YYYY-MM-DD", dentro de `range`
   frequency: PaceFrequency,
@@ -193,6 +196,8 @@ export function computeCategoryPace(
         t.direction === "debit" &&
         t.status === "confirmed" &&
         !t.isInternal &&
+        !t.recurringTemplateId &&
+        !t.installmentItemId &&
         t.amount.currency === available.currency &&
         inRange(t.date, period)
     )

@@ -617,9 +617,9 @@ for (const sourceState of ["activa", "inactiva", "terminada", "sin-monto-vigente
     } as unknown as NonNullable<typeof deps.incomes>
     deps.exchangeRates = { clpPerUsdAt: async () => 950 }
     const view = await getBudgetView(deps, "u1", 2026, 10)
-    assert.equal(view.income, 3182394)
+    assert.equal(view.income, 3201394) // + abono US$20 convertido a 950
     assert.equal(view.spent, 2832794)
-    assert.equal(view.income - view.spent, 349600)
+    assert.equal(view.income - view.spent, 368600)
     assert.equal(view.monthOverspend, 416289, "el exceso sobre el tope no es déficit de ingresos")
     const debt = await getPreviousMonthDebt(deps, "u1", 2026, 11)
     assert.equal(debt, 0)
@@ -907,7 +907,7 @@ for (const scenario of [
   { name: "sin fuente", planned: 40000, active: true, category: "c-super", incomeId: null, expected: 40000 },
   { name: "fuente ausente", planned: 40000, active: true, category: "c-super", incomeId: "missing", expected: 40000 },
   { name: "inactivo", planned: 40000, active: false, category: "c-super", incomeId: "refund", expected: 40000 },
-  { name: "sin tope", planned: 40000, active: true, category: "c-transfer", incomeId: "refund", expected: 0 },
+  { name: "sin tope", planned: 40000, active: true, category: "c-transfer", incomeId: "refund", expected: 40000 },
 ]) {
   test(`reembolso ${scenario.name}: conserva neto por categoría y neutraliza solo ingreso incluido`, async () => {
     const rows = [
@@ -922,10 +922,10 @@ for (const scenario of [
     } as unknown as NonNullable<typeof deps.incomes>
     deps.reimbursements = { listForTransactions: async () => [{ expenseId: "expense", creditId: "credit", amount: 40000 }] }
     const result = await getBudgetView(deps, "u1", 2026, 8)
-    assert.equal(result.spent, scenario.category === "c-super" ? 20000 : 0)
+    assert.equal(result.spent, 20000)
     assert.equal(result.reimbursementAdjustment, scenario.expected)
     deps.monthlyBudgets.listByUser = async () => [monthBudget(2026, 8, 10000)]
-    assert.equal(await getPreviousMonthDebt(deps, "u1", 2026, 9), scenario.category === "c-super" ? 20000 : 0,
+    assert.equal(await getPreviousMonthDebt(deps, "u1", 2026, 9), 20000,
       "el reembolso compensa una sola vez: no es ingreso libre además de reducir el gasto")
     assert.equal(rows[0].amount.toMajor(), 60000, "no altera el movimiento bancario")
     rows[1].date = new Date("2026-09-01")

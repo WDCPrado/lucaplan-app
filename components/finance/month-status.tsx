@@ -36,6 +36,7 @@ export function MonthStatus({
   committed,
   plan,
   onOpenPlan,
+  onOpenLiquidity,
   children,
 }: {
   period: { year: number; month: number }
@@ -47,6 +48,7 @@ export function MonthStatus({
   committed: number
   plan: PlanInput // restante antes de compromisos, cobertura del plan y liquidez
   onOpenPlan: () => void
+  onOpenLiquidity?: () => void
   children?: React.ReactNode // el gráfico de gasto contra el ritmo; sin presupuesto no se muestra
 }) {
   const mes = monthName(period.month).toLowerCase()
@@ -56,7 +58,7 @@ export function MonthStatus({
     <button
       type="button"
       onClick={onOpenPlan}
-      className="press -mx-5 -mb-5 mt-4 flex min-h-12 w-[calc(100%+2.5rem)] items-center justify-between gap-2 rounded-b-xl border-t border-border px-5 text-left text-body text-primary hover:bg-foreground/5 focus-visible:-outline-offset-2 lg:-mx-6 lg:-mb-6 lg:w-[calc(100%+3rem)] lg:px-6"
+      className="press -mx-5 -mb-5 mt-4 flex min-h-12 w-[calc(100%+2.5rem)] items-center justify-between gap-2 rounded-b-xl px-5 text-left text-body text-primary hover:bg-foreground/5 focus-visible:-outline-offset-2 lg:-mx-6 lg:-mb-6 lg:w-[calc(100%+3rem)] lg:px-6"
     >
       Ajustar plan
       <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
@@ -98,7 +100,7 @@ export function MonthStatus({
           }`
     return (
       <section className="glass flex flex-1 flex-col rounded-xl p-5 lg:p-6">
-        <PlanSummary {...plan} subtitle={daysLine} />
+        <PlanSummary {...plan} subtitle={daysLine} onOpenLiquidity={onOpenLiquidity} />
         {children && <div className="mt-4 flex flex-1 flex-col">{children}</div>}
         {footer}
       </section>
@@ -129,7 +131,7 @@ export function MonthStatus({
         )}
       </p>
       <div className="mt-4 border-t border-border pt-4">
-        <PlanSummary {...plan} />
+        <PlanSummary {...plan} onOpenLiquidity={onOpenLiquidity} />
       </div>
       {children && <div className="mt-4 flex flex-1 flex-col">{children}</div>}
       {footer}

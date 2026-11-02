@@ -35,6 +35,7 @@ import { CategoryModal } from "./category-modal"
 import { BudgetLimitModal } from "./budget-limit-modal"
 import { CategoryDetailSheet } from "./category-detail-sheet"
 import { AccountInfoModal } from "./account-info-modal"
+import { LiquidityDetailModal } from "./liquidity-detail-modal"
 import { SyncBancoChileButton } from "./sync-bancochile-button"
 import { TransactionModal } from "./transaction-modal"
 import { IncomeModal } from "./income-modal"
@@ -118,6 +119,7 @@ export function Dashboard({
   const router = useRouter()
   // Primera conexión de correo (callback OAuth ?outlook=setup, aún sin banco): onboarding fullscreen.
   const [onboarding, setOnboarding] = useState(outlookResult === "setup")
+  const [liquidityOpen, setLiquidityOpen] = useState(false)
   const [detail, setDetail] = useState<CategoryDTO | null>(null)
   const [detailTx, setDetailTx] = useState<TransactionDTO | null>(
     () => transactions.find((t) => t.id === openTxId) ?? null
@@ -442,6 +444,7 @@ export function Dashboard({
               committed={totalCommitted}
               plan={planProps}
               onOpenPlan={() => setPlanOpen(true)}
+              onOpenLiquidity={() => setLiquidityOpen(true)}
             >
               {budget.globalLimit !== null && (
                 <SpendPaceChart
@@ -759,6 +762,13 @@ export function Dashboard({
       {/* Superficies (adaptativas: dialog en escritorio, sheet en móvil).
           La búsqueda vive en el marco (AppFrame): es la misma
           en toda la app. */}
+      <LiquidityDetailModal
+        open={liquidityOpen}
+        onOpenChange={setLiquidityOpen}
+        accounts={accounts}
+        cash={summary.activeCash}
+        overdraftDebt={summary.overdraftDebt}
+      />
       <AccountInfoModal
         account={infoAccount}
         onOpenChange={(o) => !o && setInfoAccount(null)}

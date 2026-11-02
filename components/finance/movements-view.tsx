@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { SlidersHorizontal } from "lucide-react"
 
-import { formatDateHeader, monthName } from "@/lib/finance-format"
+import { formatDateHeader, fromYmd, monthName } from "@/lib/finance-format"
 import { Button } from "@/components/ui/button"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { AppShell } from "./app-shell"
@@ -17,7 +17,6 @@ import {
   SearchField,
   activeFilterCount,
   filtersToParams,
-  fromYmd,
   type Dir,
   type FilterValues,
 } from "./transaction-filters"

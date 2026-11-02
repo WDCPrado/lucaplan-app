@@ -54,9 +54,9 @@ acabado de `liquid-glass` con más relleno. El borde combina un contorno tenue d
 reflejo localizado arriba-izquierda y un eco más débil abajo-derecha; no ilumina todo el perímetro.
 Los cinco niveles de Apariencia cambian la transparencia, conservando el desenfoque.
 
-`liquid-glass-active` usa `--glass-tab-active` para recuperar el acento azul de la pestaña móvil.
-El sidebar conserva `--glass-active`, neutro: claro en light, oscuro en dark. Ambos usan
-`--glass-active-shadow`; textos e íconos conservan `foreground`.
+`liquid-glass-active` usa `--glass-tab-active`, el acento azul, con `--glass-active-shadow`: es la
+pastilla de la pestaña móvil activa y la del link activo del sidebar. En la barra móvil textos e
+íconos conservan `foreground`; en el sidebar el activo los lleva en `text-primary`.
 `scroll-edge-top` (`--scroll-edge`, `--scroll-edge-amount`, `--scroll-edge-blur`) queda solo detrás
 de la topbar de escritorio. En móvil el desenfoque se limita a las cápsulas del selector de mes y
 la navegación, sin velos fuera de sus bordes. La fila superior móvil anula la sombra exterior

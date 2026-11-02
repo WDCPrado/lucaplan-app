@@ -5,13 +5,20 @@ import type { IncomeSource } from "@/arch/v1/domain/finance/income.domain"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ChevronRight, Plus } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react"
+import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { isBudgetedExpenseCategory } from "@/arch/v1/domain/finance/budget-scope.domain"
 import { haptic } from "@/lib/haptics"
 import { useCardCarousel } from "@/hooks/use-card-carousel"
@@ -22,7 +29,7 @@ import { OverspendBanner } from "./overspend-banner"
 import { PlanSheet } from "./plan-sheet"
 import { AccountCard } from "./account-card"
 import { MovementRow } from "./movement-row"
-import { DayStrip } from "./day-strip"
+import { SpendPaceChart } from "./spend-pace-chart"
 import { CategoryIcon } from "./category-icons"
 import { CategoryModal } from "./category-modal"
 import { BudgetLimitModal } from "./budget-limit-modal"
@@ -35,6 +42,10 @@ import { OnboardingFlow } from "./onboarding/onboarding-flow"
 import {
   formatCLP,
   formatDateHeader,
+  formatLongDate,
+  formatShortDateHeader,
+  fromYmd,
+  ymd,
   statusVar,
   todayKey,
 } from "@/lib/finance-format"
@@ -86,7 +97,8 @@ type Props = {
 }
 
 // Inicio: AppShell (sidebar + topbar + barra inferior) con el mes convertido en una decisión
-// (cuánto queda), la tira de días, el ritmo por categoría y los movimientos del día elegido; las
+// (cuánto queda), la curva de gasto contra el ritmo, el ritmo por categoría y los movimientos del
+// día elegido (con su selector de día); las
 // cuentas al final. La búsqueda es global y vive en el marco (AppFrame). Las mutaciones van por la API + router.refresh() dentro de cada superficie.
 export function Dashboard({
   period,
@@ -169,6 +181,24 @@ export function Dashboard({
     if (cat) setDetail(cat)
   }
   const dayIso = `${selectedDay}T00:00:00.000Z`
+  // Selector de día de los movimientos: dentro del período y, en el mes en curso, nunca después de hoy.
+  const lastSelectable = todayInRange ? today : lastDay
+  const dayIndex = days.indexOf(selectedDay)
+  const selectDay = (day: string) => {
+    haptic("light")
+    setDayState({ key: periodKey, day })
+  }
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const showToday = todayInRange && selectedDay !== today
+  // Curva del mes: hasta hoy en el mes en curso, todo el período en uno pasado, nada en uno futuro.
+  const chartLastIndex = todayInRange
+    ? days.indexOf(today)
+    : days[0] > today
+      ? -1
+      : days.length - 1
+  const civilDate = (d: string) => fromYmd(d)!
+  const prevDisabled = dayIndex <= 0
+  const nextDisabled = dayIndex < 0 || selectedDay >= lastSelectable
   // El presupuesto de gastos usa las categorías de gasto (tope/uso). Las de ingreso se muestran
   // en su propio grupo con lo recibido en el mes (y su meta, si tienen límite).
   const expenseCategories = budget.categories.filter(
@@ -392,44 +422,54 @@ export function Dashboard({
         <div className="flex flex-col gap-5">
           {/* Estado del mes: la respuesta a "¿cuánto puedo gastar hoy?" antes que cualquier
               detalle. Desde acá se abre el plan (ingresos y presupuesto), que es lo que lo
-              determina. La tira de días vive adentro: es el mes que ese número reparte. */}
-          <MonthStatus
-            period={period}
-            cycle={cycle}
-            isCurrentMonth={isCurrentMonth}
-            daysLeft={daysLeft}
-            globalLimit={budget.globalLimit}
-            spent={totalUsed}
-            committed={totalCommitted}
-            plan={planProps}
-            onOpenPlan={() => setPlanOpen(true)}
+              determina. Adentro, la curva del gasto contra el ritmo ideal: cómo vas en el mes.
+              Móvil: con presupuesto, este bloque (tarjeta + avisos) llena la primera pantalla
+              menos un asomo de los movimientos (--home-peek); el gráfico es lo que estira. */}
+          <div
+            className={cn(
+              "flex flex-col gap-5",
+              budget.globalLimit !== null &&
+                "max-md:min-h-[calc(100dvh_-_var(--top-bar-h)_-_0.25rem_-_var(--tab-bar-h)_-_var(--home-peek))]"
+            )}
           >
-            <DayStrip
-                days={days}
-                spend={spend}
-                selectedDay={selectedDay}
-                today={todayInRange ? today : null}
-                onSelect={(day) => {
-                  haptic("light")
-                setDayState({ key: periodKey, day })
-              }}
+            <MonthStatus
+              period={period}
+              cycle={cycle}
+              isCurrentMonth={isCurrentMonth}
+              daysLeft={daysLeft}
+              globalLimit={budget.globalLimit}
+              spent={totalUsed}
+              committed={totalCommitted}
+              plan={planProps}
+              onOpenPlan={() => setPlanOpen(true)}
+            >
+              {budget.globalLimit !== null && (
+                <SpendPaceChart
+                  days={days}
+                  spend={spend}
+                  limit={budget.globalLimit}
+                  income={budget.income}
+                  lastIndex={chartLastIndex}
+                  current={todayInRange}
+                />
+              )}
+            </MonthStatus>
+            <AllocationNudge
+              remainingToAllocate={budget.remainingToAllocate}
+              onOpenPlan={() => setPlanOpen(true)}
             />
-          </MonthStatus>
-          <AllocationNudge
-            remainingToAllocate={budget.remainingToAllocate}
-            onOpenPlan={() => setPlanOpen(true)}
-          />
 
-          {/* Cuánto te pasaste, junto: el excedente del mes (contra el presupuesto global) y el de
-              los topes por categoría, que no son la misma cifra. Con ambos en $0 no se renderiza. */}
-          <OverspendBanner
-            period={period}
-            capsOverspend={budget.capsOverspend}
-            monthOverspend={budget.monthOverspend}
-            globalLimit={budget.globalLimit}
-            categories={budget.categories}
-            onOpenCategory={openCategory}
-          />
+            {/* Cuánto te pasaste, junto: el excedente del mes (contra el presupuesto global) y el de
+                los topes por categoría, que no son la misma cifra. Con ambos en $0 no se renderiza. */}
+            <OverspendBanner
+              period={period}
+              capsOverspend={budget.capsOverspend}
+              monthOverspend={budget.monthOverspend}
+              globalLimit={budget.globalLimit}
+              categories={budget.categories}
+              onOpenCategory={openCategory}
+            />
+          </div>
 
           {/* Escritorio: categorías a la izquierda y movimientos a la derecha. En móvil los movimientos van primero,
               luego ritmo por categoría y finalmente cuentas, sin duplicar componentes. */}
@@ -511,22 +551,124 @@ export function Dashboard({
               </div>
             </section>
 
-            {/* Los movimientos del día elegido en la tira. El mes completo se recorre día a día o
-                con la búsqueda (lupa). */}
+            {/* Los movimientos del día elegido: flechas al día anterior/siguiente y, tocando la
+                fecha, un calendario del período. El mes completo, en Movimientos o la búsqueda. */}
             <section
               id="movimientos"
               className="order-1 min-w-0 max-lg:pb-6 lg:order-none lg:col-start-2 lg:row-start-1"
             >
-              <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
-                <h2 className="truncate text-title-3 font-bold">
-                  {formatDateHeader(dayIso)}
-                </h2>
+              <div className="mb-2 flex min-h-11 items-center justify-between gap-0.5">
+                <div className="-ml-3 flex min-w-0 items-center">
+                  <button
+                    type="button"
+                    aria-label="Día anterior"
+                    // aria-disabled y no disabled: al llegar al extremo el foco se queda en la flecha.
+                    aria-disabled={prevDisabled || undefined}
+                    onClick={() => !prevDisabled && selectDay(days[dayIndex - 1])}
+                    className="press grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent aria-disabled:cursor-default aria-disabled:text-muted-foreground/40 aria-disabled:hover:bg-transparent"
+                  >
+                    <ChevronLeft className="size-5" />
+                  </button>
+                  {/* «Hoy», dentro del selector junto a la flecha izquierda: su columna crece de 0 y funde al aparecer. Solo en
+                      el mes en curso y con otro día elegido. */}
+                  <div
+                    inert={!showToday}
+                    className={cn(
+                      "grid transition-[grid-template-columns,opacity] duration-(--nav-duration) ease-(--nav-ease) motion-reduce:transition-none",
+                      showToday ? "grid-cols-[1fr] opacity-100" : "grid-cols-[0fr] opacity-0"
+                    )}
+                  >
+                    {/* Entra desde la izquierda, como el título de la fila móvil (.top-title). */}
+                    <div
+                      className={cn(
+                        "min-w-0 transition-transform duration-(--nav-duration) ease-(--nav-ease) motion-reduce:transition-none",
+                        showToday ? "translate-x-0" : "-translate-x-3 overflow-hidden"
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => selectDay(today)}
+                        // Mismo botón que el «Hoy» del MonthNav (pedido de Willy): vidrio en móvil.
+                        className="press mx-1 min-h-11 rounded-full px-4 text-subheadline font-semibold whitespace-nowrap max-md:liquid-glass md:min-h-10 md:rounded-(--radius-bar-inner) md:bg-(--glass-control) md:hover:bg-accent"
+                      >
+                        Hoy
+                      </button>
+                    </div>
+                  </div>
+                  <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                    <h2 className="flex min-w-0 text-title-3 font-bold">
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          aria-describedby="day-picker-hint"
+                          className="press min-h-11 min-w-0 truncate rounded-lg px-1 text-left whitespace-nowrap hover:bg-accent"
+                        >
+                          {/* El nombre es el texto visible. El largo («Sábado, 31 de octubre») solo
+                              cabe en una columna ancha (sm–lg); en móvil y en la columna de
+                              escritorio va «Sáb 31 oct», con la fecha completa para el lector. El
+                              día nuevo se anuncia al cambiarlo con las flechas. */}
+                          <span aria-live="polite">
+                            <span className="sm:hidden lg:inline">
+                              {formatShortDateHeader(dayIso)}
+                              <span className="sr-only">, {formatLongDate(dayIso)}</span>
+                            </span>
+                            <span className="hidden sm:inline lg:hidden">
+                              {formatDateHeader(dayIso)}
+                              {["Hoy", "Ayer"].includes(formatDateHeader(dayIso)) && (
+                                <span className="sr-only">, {formatLongDate(dayIso)}</span>
+                              )}
+                            </span>
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                    </h2>
+                    <span id="day-picker-hint" className="sr-only">
+                      Elegir otro día
+                    </span>
+                    <PopoverContent align="start" className="w-auto p-3">
+                      <Calendar
+                        mode="single"
+                        locale={es}
+                        required
+                        selected={civilDate(selectedDay)}
+                        defaultMonth={civilDate(selectedDay)}
+                        startMonth={civilDate(days[0])}
+                        endMonth={civilDate(lastSelectable)}
+                        disabled={[
+                          { before: civilDate(days[0]) },
+                          { after: civilDate(lastSelectable) },
+                        ]}
+                        onSelect={(d) => {
+                          const key = ymd(d)
+                          setCalendarOpen(false)
+                          if (key !== selectedDay) selectDay(key)
+                        }}
+                        // Celdas de 44 px: el mínimo táctil.
+                        className="p-0 [--cell-size:--spacing(11)]"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <button
+                    type="button"
+                    aria-label="Día siguiente"
+                    aria-disabled={nextDisabled || undefined}
+                    onClick={() => !nextDisabled && selectDay(days[dayIndex + 1])}
+                    className="press grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent aria-disabled:cursor-default aria-disabled:text-muted-foreground/40 aria-disabled:hover:bg-transparent"
+                  >
+                    <ChevronRight className="size-5" />
+                  </button>
+                </div>
                 {/* El resto del período vive en Movimientos: navegación en texto azul, como iOS. */}
                 <Link
                   href="/movements"
+                  // Entrar: la pantalla llega desde la derecha (no como un cambio de pestaña).
+                  data-nav="forward"
+                  aria-label="Ver todos"
                   className="press flex min-h-11 shrink-0 items-center gap-0.5 text-body text-primary"
                 >
-                  Ver todos
+                  {/* Angosto (≤400 px), «Todos»: así la fecha y «Hoy» no se cortan. */}
+                  <span className="max-[401px]:hidden">Ver todos</span>
+                  <span className="min-[401px]:hidden">Todos</span>
                   <ChevronRight aria-hidden className="size-4" />
                 </Link>
               </div>

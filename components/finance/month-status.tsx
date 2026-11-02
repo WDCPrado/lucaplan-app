@@ -47,7 +47,7 @@ export function MonthStatus({
   committed: number
   plan: PlanInput // restante antes de compromisos, cobertura del plan y liquidez
   onOpenPlan: () => void
-  children?: React.ReactNode // la tira de días
+  children?: React.ReactNode // el gráfico de gasto contra el ritmo; sin presupuesto no se muestra
 }) {
   const mes = monthName(period.month).toLowerCase()
 
@@ -82,7 +82,6 @@ export function MonthStatus({
         <div className="mt-4">
           <PlanSummary {...plan} />
         </div>
-        {children && <div className="mt-4">{children}</div>}
       </section>
     )
   }
@@ -98,9 +97,9 @@ export function MonthStatus({
             cycle.mode === "calendar" ? ` · ${shortDate(cycle.range.end)}` : ""
           }`
     return (
-      <section className="glass rounded-xl p-5 lg:p-6">
+      <section className="glass flex flex-1 flex-col rounded-xl p-5 lg:p-6">
         <PlanSummary {...plan} subtitle={daysLine} />
-        {children && <div className="mt-4">{children}</div>}
+        {children && <div className="mt-4 flex flex-1 flex-col">{children}</div>}
         {footer}
       </section>
     )
@@ -109,7 +108,7 @@ export function MonthStatus({
   const free = globalLimit - spent - committed
   const usedPct = usagePct(spent, globalLimit)
   return (
-    <section className="glass rounded-xl p-5 lg:p-6">
+    <section className="glass flex flex-1 flex-col rounded-xl p-5 lg:p-6">
       <p className="text-subheadline text-muted-foreground">
         {monthName(period.month)} {period.year} cerró con
       </p>
@@ -132,7 +131,7 @@ export function MonthStatus({
       <div className="mt-4 border-t border-border pt-4">
         <PlanSummary {...plan} />
       </div>
-      {children && <div className="mt-4">{children}</div>}
+      {children && <div className="mt-4 flex flex-1 flex-col">{children}</div>}
       {footer}
     </section>
   )

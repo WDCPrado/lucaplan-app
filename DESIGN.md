@@ -4,7 +4,7 @@ La fuente canónica del sistema es [docs/design/design-system.md](docs/design/de
 y sus tokens viven en [app/globals.css](app/globals.css).
 
 El Home recupera la distribución de `d090ab5`, anterior al rediseño del PR #56:
-resumen de presupuesto con Libre hoy y tira de días, categorías y actividad en
+resumen de presupuesto con Libre hoy y la curva de gasto contra el ritmo, categorías y actividad en
 columnas en escritorio, y cuentas con arte en el carrusel inferior. En móvil se
 conservan los botones superiores flotantes y la navegación inferior.
 

@@ -20,7 +20,7 @@ import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Segmented } from "./segmented"
-import { formatCompact } from "@/lib/finance-format"
+import { formatCompact, ymd } from "@/lib/finance-format"
 import type {
   AccountDTO,
   AmountBoundsDTO,
@@ -31,19 +31,6 @@ const RANGE_FMT = new Intl.DateTimeFormat("es-CL", {
   day: "numeric",
   month: "short",
 })
-
-// YYYY-MM-DD desde los componentes locales (sin corrimiento de zona horaria como toISOString).
-export function ymd(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-}
-
-// Inverso de `ymd`: "2026-10-15" → fecha local de ese día (new Date("2026-10-15") sería UTC y en
-// Chile mostraría el día anterior).
-export function fromYmd(s: string | undefined): Date | undefined {
-  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return undefined
-  const [y, m, d] = s.split("-").map(Number)
-  return new Date(y, m - 1, d)
-}
 
 // Fila de filtro estilo iOS: mismo alto y ancho que el buscador y el segmentado.
 const ROW =

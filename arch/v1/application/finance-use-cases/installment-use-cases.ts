@@ -1,8 +1,8 @@
 // Casos de uso de deudas en cuotas: alta del plan, y los dos disparadores que registran cada
 // cuota. La asimetría entre ellos es deliberada y vive aquí:
 //
-//   card → `executeCardInstallments` CREA el movimiento de la cuota. La compra ya entró completa
-//     el día que ocurrió (se neutraliza) y el correo del pago trae el total de la factura.
+//   card → el plan CREA el movimiento de la cuota al saldarla (`payInstallmentManually`, al
+//     conciliar la factura). La compra ya entró completa el día que ocurrió (se neutraliza).
 //   loan → `adoptLoanInstallment` ENGANCHA el movimiento que el correo ya creó. Crearlo también
 //     aquí duplicaría el gasto.
 //
@@ -85,8 +85,8 @@ async function validateInput(
   const account = await deps.accounts.findById(input.accountId)
   if (!account) throw new AccountNotFoundError(input.accountId)
   if (account.userId !== userId) throw new NotOwnerError()
-  // La cuenta válida depende del disparador: `card` se dispara con el pago de UNA TARJETA, así que
-  // sobre otra cuenta el plan no se ejecutaría nunca.
+  // La cuenta válida depende del tipo: `card` se salda al conciliar la factura de UNA TARJETA, así
+  // que sobre otra cuenta el plan no se saldaría nunca.
   if (!accountAllowsKind(input.kind, account.accountType))
     throw new InstallmentAccountMismatchError()
 
@@ -268,15 +268,13 @@ async function adoptOrMarkOutside(
   if (outside.length > 0) await deps.installments.markPaidOutsideApp(outside)
 }
 
-// --- Disparador de tarjeta: crea el movimiento de la cuota ---
+// --- Tarjeta: crea el movimiento de la cuota ---
 
+// Ya no lo dispara el correo del pago de tarjeta (WDC-171): las cuotas `card` se saldan al conciliar.
 /**
- * Al detectarse el pago de una tarjeta, registra UNA cuota por cada plan `card` de esa cuenta: la
- * pendiente más antigua ya vencida. Una sola por plan — cada factura trae una cuota de cada uno, y
- * saldar todas las atrasadas de golpe concentraría meses de gasto en el mes que el usuario mira.
- *
- * El monto del pago no condiciona nada: el correo informa el total de la factura, no el de la
- * cuota, así que un pago mínimo cierra igual el ciclo.
+ * Registra UNA cuota por cada plan `card` de esa cuenta: la pendiente más antigua ya vencida. Una
+ * sola por plan — cada factura trae una cuota de cada uno, y saldar todas las atrasadas de golpe
+ * concentraría meses de gasto en el mes que el usuario mira.
  */
 export async function executeCardInstallments(
   deps: { installments: InstallmentPlanRepository },

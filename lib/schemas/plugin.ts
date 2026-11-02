@@ -529,7 +529,7 @@ export const pluginTools = {
   ),
   lucaplan_previsualizar_conciliacion: read(
     "Previsualizar conciliación bancaria completa",
-    "Simula correcciones explícitas por ID (moneda, importe, fecha, categoría), altas sin contraparte y saldos de UNA cuenta. Conserva vínculos, rechaza ambigüedad y reejecuta solo movimientos posteriores al corte. Incluye todos los buckets de esa cuenta e IDs del día del corte que el documento ya incluye. Devuelve previewToken y diferencias; no escribe. No adivinar categorías ni convertir CLP a USD por tipo de cambio estimado: usar moneda e importe de cartola. Si un alta tiene candidatos, devuelve sus IDs para revisarlos con distinctFrom y evidencia por operación distinta. Para liquidar un cobro recurrente conservando su plan usa settleRecurringCharge=true.",
+    "Simula correcciones explícitas por ID (moneda, importe, fecha, categoría), altas sin contraparte y saldos de UNA cuenta. Conserva vínculos, rechaza ambigüedad y reejecuta solo movimientos posteriores al corte. Incluye todos los buckets de esa cuenta e IDs del día del corte que el documento ya incluye. Devuelve previewToken y diferencias; no escribe. No adivinar categorías ni convertir CLP a USD por tipo de cambio estimado: usar moneda e importe de cartola. Si un alta tiene candidatos, devuelve sus IDs para revisarlos con distinctFrom y evidencia por operación distinta. Para liquidar un cobro recurrente conservando su plan usa settleRecurringCharge=true. En una tarjeta devuelve cuotasPendientes: cuotas de planes card sin saldar que vencen hasta el día del corte; sáldalas después con lucaplan_pagar_cuota usando la fecha y el monto de la factura.",
     bankReconciliationSchema
   ),
   lucaplan_aplicar_conciliacion: write(
@@ -809,7 +809,7 @@ export const pluginTools = {
   ),
   lucaplan_crear_plan_cuotas: write(
     { title: "Crear plan de cuotas" },
-    "Crea un plan. card: exige la compra origen (sourceTransactionId, cargo confirmado de esa tarjeta), que deja de contar entera y se reparte en cuotas. loan: sin compra origen; las cuotas se enganchan a los pagos del banco. No mueve caja. startIndex = número de la primera cuota que sigue el plan (créditos ya empezados: totalAmount es el saldo restante).",
+    "Crea un plan. card: exige la compra origen (sourceTransactionId, cargo confirmado de esa tarjeta), que deja de contar entera y se reparte en cuotas; cada cuota se salda al conciliar la factura con lucaplan_pagar_cuota, no con el pago de la tarjeta. loan: sin compra origen; las cuotas se enganchan a los pagos del banco. No mueve caja. startIndex = número de la primera cuota que sigue el plan (créditos ya empezados: totalAmount es el saldo restante).",
     z
       .strictObject({
         kind: z
@@ -901,7 +901,7 @@ export const pluginTools = {
   ),
   lucaplan_pagar_cuota: write(
     { title: "Registrar pago de cuota" },
-    "CREA el movimiento de pago de una cuota vencida cuando el pago no dejó rastro en la app (se pagó desde otro banco o no llegó el aviso). Si el cargo ya existe, usa lucaplan_vincular_pago_cuota para no contarlo dos veces. No admite cuotas ni fechas futuras.",
+    "CREA el movimiento de pago de una cuota vencida cuando el pago no dejó rastro en la app (se pagó desde otro banco o no llegó el aviso). Las cuotas de tarjeta no se cobran solas con el pago de la tarjeta: se saldan al conciliar la factura (cuotasPendientes de lucaplan_previsualizar_conciliacion), con la fecha y el monto que trae la factura. Si el cargo ya existe, usa lucaplan_vincular_pago_cuota para no contarlo dos veces. No admite cuotas ni fechas futuras.",
     z.strictObject({
       planId: ref("Plan"),
       itemId: ref("Cuota vencida"),

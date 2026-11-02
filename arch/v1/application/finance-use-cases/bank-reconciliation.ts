@@ -14,6 +14,10 @@ import {
   type ReconciliationState,
 } from "../../domain/finance/bank-reconciliation.domain.ts"
 import {
+  isSettled,
+  type InstallmentPlanRepository,
+} from "../../domain/finance/installment.domain.ts"
+import {
   applyDebitToCash,
   applyInternalCredit,
   applyCreditPurchase,
@@ -307,9 +311,14 @@ export function planBankReconciliation(
  * Previsualiza (sin `previewToken`) o aplica la conciliación. Preview y aplicación recorren la misma
  * validación; el token incluye el día civil de `now` (`todayKey`), así que vence al cambiar el día.
  * Un token ya aplicado con el mismo input devuelve su recibo.
+ * En una tarjeta, la previsualización trae además `cuotasPendientes`: las cuotas `card` sin saldar
+ * que vencen hasta el día del corte, para saldarlas después con lucaplan_pagar_cuota.
  */
 export async function reconcileBankAccount(
-  deps: { bankReconciliation: BankReconciliationStore },
+  deps: {
+    bankReconciliation: BankReconciliationStore
+    installments: Pick<InstallmentPlanRepository, "listActiveByAccount">
+  },
   userId: string,
   input: BankReconciliationInput,
   previewToken?: string,
@@ -336,11 +345,51 @@ export async function reconcileBankAccount(
         canonicalJson({ userId, input, state, version, day: todayKey(now) })
       )
       .digest("hex")
-    if (!previewToken) return { dryRun: true, previewToken: token, ...plan }
+    if (!previewToken)
+      return {
+        dryRun: true,
+        previewToken: token,
+        ...plan,
+        cuotasPendientes:
+          state.accountType === "credit_card"
+            ? await pendingCardInstallments(
+                deps.installments,
+                input.accountId,
+                todayKey(new Date(input.snapshotAt))
+              )
+            : [],
+      }
     if (token !== previewToken)
       throw new EmailSetupStateError(
         "Los datos cambiaron desde la previsualización; repite el dry run"
       )
     return tx.apply(userId, input, plan, token, now)
   })
+}
+
+/** Cuotas `card` sin saldar de la cuenta que vencen hasta `cutoffDay` (YYYY-MM-DD), por vencimiento. */
+async function pendingCardInstallments(
+  installments: Pick<InstallmentPlanRepository, "listActiveByAccount">,
+  accountId: string,
+  cutoffDay: string
+) {
+  const plans = await installments.listActiveByAccount(accountId, "card")
+  return plans
+    .flatMap((p) =>
+      p.items
+        .filter((i) => !isSettled(i))
+        .map((i) => ({
+          planId: p.id,
+          itemId: i.id,
+          description: p.description,
+          index: i.index,
+          installmentsCount: p.installmentsCount,
+          // dueDate es un día civil guardado a medianoche UTC.
+          dueDate: i.dueDate.toISOString().slice(0, 10),
+          amount: i.amount.toMajor(),
+          currency: i.amount.currency,
+        }))
+    )
+    .filter((c) => c.dueDate <= cutoffDay)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
 }

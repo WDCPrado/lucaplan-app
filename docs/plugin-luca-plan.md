@@ -278,6 +278,11 @@ corte sin hora de recepción conocida deben declararse expresamente en
 identifica lo que se reproyectará. Un cambio concurrente invalida el token del dry run, y
 también vence al cambiar el día en Chile.
 
+En una tarjeta, el dry run trae además `cuotasPendientes`: las cuotas de planes `card` sin saldar
+que vencen hasta el día del corte (en Chile), ordenadas por vencimiento. El pago de la tarjeta no
+las cobra solo: se saldan después, una por una, con `pagar_cuota` y la fecha y el monto de la
+factura. Es solo lectura y no forma parte del recibo de aplicar.
+
 Los movimientos vinculados admiten corregir fecha y texto conservando sus enlaces; solo los
 cobros recurrentes vinculados admiten además corregir importe o moneda. Para ingresos y cuotas
 vinculados hay que revisar primero el ingreso o la cuota. Con un reembolso vinculado no se

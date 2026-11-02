@@ -47,7 +47,7 @@ export function SpendPaceChart({
   const over = diff > 0
   const tone = over ? "var(--destructive)" : "var(--success)"
   // Un poco de aire arriba para que el techo no quede pegado al borde.
-  const yMax = Math.max(1, income, limit, spent) * 1.06
+  const yMax = Math.max(1, limit, spent) * 1.06
 
   const { w, h } = size
   const PAD = 4 // el grosor del trazo y el punto de hoy no se cortan en los bordes
@@ -73,39 +73,16 @@ export function SpendPaceChart({
 
   return (
     <figure
-      className="flex min-h-40 flex-1 flex-col gap-2 md:h-64 md:flex-none"
+      className="flex h-36 flex-none flex-col gap-2 md:h-44"
     >
       <figcaption className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <span
-          className="tabular text-subheadline font-semibold"
+          className="tabular text-footnote font-medium"
           style={started ? { color: tone } : undefined}
         >
           {summary}
         </span>
-        {/* Una sola fila que no se parte (cabe a 375 px): la muestra de cada línea con su nombre;
-            el ingreso va aquí y no sobre su línea, así el gráfico gana ese alto. */}
-        <span
-          aria-hidden
-          className="ml-auto flex shrink-0 items-center gap-3 text-caption whitespace-nowrap text-muted-foreground"
-        >
-          <span className="flex items-center gap-1">
-            <span
-              className="h-0.5 w-3 rounded-full"
-              style={{ background: tone }}
-            />
-            Gastado
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 border-t-2 border-dashed border-muted-foreground/60" />
-            Ritmo
-          </span>
-          {income > 0 && (
-            <span className="tabular flex items-center gap-1">
-              <span className="h-px w-3 bg-muted-foreground/45" />
-              Ingreso {formatCLP(income)}
-            </span>
-          )}
-        </span>
+
       </figcaption>
 
       <div
@@ -125,17 +102,6 @@ export function SpendPaceChart({
             className="absolute inset-0 overflow-visible"
             aria-hidden
           >
-            {income > 0 && (
-              <line
-                x1={x(0)}
-                x2={x(n)}
-                y1={y(income)}
-                y2={y(income)}
-                stroke="var(--muted-foreground)"
-                strokeOpacity={0.45}
-                strokeWidth={1}
-              />
-            )}
             {/* Base: el $0 del período. */}
             <line
               x1={x(0)}
@@ -157,12 +123,12 @@ export function SpendPaceChart({
             />
             {started && (
               <>
-                <polygon points={area} fill={tone} fillOpacity={0.14} />
+                <polygon points={area} fill={tone} fillOpacity={0.07} />
                 <polyline
                   points={curve}
                   fill="none"
                   stroke={tone}
-                  strokeWidth={2.5}
+                  strokeWidth={2}
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />

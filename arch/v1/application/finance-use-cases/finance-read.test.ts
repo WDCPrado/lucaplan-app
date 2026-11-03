@@ -30,6 +30,7 @@ import type { InstallmentPlan } from "../../domain/finance/installment.domain.ts
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import type { PeriodMode, PeriodRange } from "../../../shared/billing-cycle.ts"
+import { daysOf } from "../../../shared/billing-cycle.ts"
 
 const mov = (id: string, accountId = "a1"): Transaction => ({
   id,
@@ -1247,4 +1248,237 @@ test("pres-detalle-cuadra: el detalle de Hogar dice el mismo comprometido y «li
   assert.equal(detalle.committed, fila.committed)
   assert.equal(detalle.free, fila.free)
   assert.equal(detalle.used, fila.used)
+})
+
+// --- WDC-177 · disponible para gastar (titular del Inicio) y ritmo global ---
+// Noviembre 2026, mes calendario; hoy lunes 2-nov (índice 1 de los 30 días del mes).
+const sueldo = (amount: number, date = new Date(Date.UTC(2026, 10, 1))) =>
+  novTx({ id: `sueldo-${amount}`, categoryId: "c-sueldo", direction: "credit", amount: Money.of(amount, "CLP"), date })
+const HOGAR_REGALOS = [cat("c-hogar", "expense", "Hogar"), cat("c-regalos", "expense", "Regalos"), cat("c-sueldo", "income", "Sueldo")]
+const viewOf = (deps: Parameters<typeof getBudgetView>[0], pace: { frequency: "daily" | "weekly"; today: string } = NOV_TODAY, month = 11) =>
+  getBudgetView(deps, "u1", 2026, month, pace)
+const catOf = (view: Awaited<ReturnType<typeof getBudgetView>>, id: string) => view.categories.find((c) => c.id === id)!
+const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
+const NOV_2 = 1
+
+test("disp-falta-repartir: ingresos 2.000.000, arriendo comprometido 600.000 y supermercado 300.000 gastado de un tope de 1.200.000: el disponible es 900.000, limitado por el plan", async () => {
+  const mes = (topeSuper: number) => wdc171Deps({
+    cats: [cat("c-hogar", "expense", "Hogar"), cat("c-super", "expense", "Supermercado"), cat("c-sueldo", "income", "Sueldo")],
+    limits: [limitOf("c-hogar", 600000), limitOf("c-super", topeSuper)],
+    txs: [
+      sueldo(2000000),
+      novTx({ id: "arriendo", categoryId: "c-hogar", amount: Money.of(600000, "CLP"), status: "pending", recurringTemplateId: "rec-arriendo" }),
+      novTx({ id: "super", categoryId: "c-super", amount: Money.of(300000, "CLP") }),
+    ],
+  })
+  const view = await viewOf(mes(1200000))
+  // Topes 1.800.000 de 2.000.000: los 200.000 sin repartir no se ofrecen para gastar.
+  assert.deepEqual(view.spendable, { amount: 900000, margin: 1100000, plannedLeft: 900000, limitedBy: "plan" })
+  const titular = calculateFinancialOverview({
+    cash: 0, overdraftDebt: 0, income: view.income, spent: view.spent,
+    committed: view.committed, reimbursementAdjustment: view.reimbursementAdjustment,
+  })
+  assert.equal(view.spendable.margin, titular.balance, "el margen es el balance del medidor")
+})
+
+test("disp-repartio-de-mas: con el mismo mes pero el supermercado con tope 2.500.000, manda el margen: 1.100.000", async () => {
+  const view = await viewOf(wdc171Deps({
+    cats: [cat("c-hogar", "expense", "Hogar"), cat("c-super", "expense", "Supermercado"), cat("c-sueldo", "income", "Sueldo")],
+    limits: [limitOf("c-hogar", 600000), limitOf("c-super", 2500000)],
+    txs: [
+      sueldo(2000000),
+      novTx({ id: "arriendo", categoryId: "c-hogar", amount: Money.of(600000, "CLP"), status: "pending", recurringTemplateId: "rec-arriendo" }),
+      novTx({ id: "super", categoryId: "c-super", amount: Money.of(300000, "CLP") }),
+    ],
+  }))
+  assert.deepEqual(view.spendable, { amount: 1100000, margin: 1100000, plannedLeft: 2200000, limitedBy: "margin" })
+})
+
+test("disp-sin-tope-con-gasto: Regalos no tiene tope y se gastan 50.000: entra al plan con tope 0 y el disponible baja de 450.000 a 400.000", async () => {
+  const cats = [...HOGAR_REGALOS, cat("c-viajes", "expense", "Viajes")]
+  const sinGasto = await viewOf(wdc171Deps({ cats, txs: [sueldo(1000000)] }))
+  assert.equal(sinGasto.spendable.amount, 450000)
+  assert.equal(catOf(sinGasto, "c-hogar").inPlan, true, "con tope está en el plan aunque no tenga movimientos")
+  assert.equal(catOf(sinGasto, "c-regalos").inPlan, false)
+
+  const view = await viewOf(wdc171Deps({ cats, txs: [sueldo(1000000), novTx({ id: "regalo", categoryId: "c-regalos", amount: Money.of(50000, "CLP") })] }))
+  const regalos = catOf(view, "c-regalos")
+  assert.equal(regalos.inPlan, true)
+  assert.equal(regalos.limit, 0, "entra con tope 0")
+  assert.equal(regalos.free, -50000, "todo su gasto es exceso")
+  assert.deepEqual(view.spendable, { amount: 400000, margin: 950000, plannedLeft: 400000, limitedBy: "plan" })
+  assert.equal(catOf(view, "c-viajes").inPlan, false, "sin tope y sin movimientos sigue «sin tope»")
+  assert.equal(catOf(view, "c-sueldo").inPlan, false, "una categoría de ingreso no es parte del plan de gasto")
+
+  // Borde: $1 gastado basta para entrar.
+  const unPeso = await viewOf(wdc171Deps({ cats, txs: [sueldo(1000000), novTx({ id: "regalo", categoryId: "c-regalos", amount: Money.of(1, "CLP") })] }))
+  assert.equal(catOf(unPeso, "c-regalos").inPlan, true)
+  assert.equal(unPeso.spendable.amount, 449999)
+})
+
+test("disp-sin-tope-vuelve: si se elimina o se recategoriza el único gasto de Regalos, vuelve a «sin tope» y el disponible se recupera", async () => {
+  const mes = (regalo: Transaction | null) =>
+    viewOf(wdc171Deps({ cats: HOGAR_REGALOS, txs: regalo ? [sueldo(1000000), regalo] : [sueldo(1000000)] }))
+  const regalo = (categoryId: string | null) => novTx({ id: "regalo", categoryId, amount: Money.of(50000, "CLP") })
+
+  const eliminado = await mes(null)
+  assert.equal(catOf(eliminado, "c-regalos").inPlan, false)
+  assert.equal(eliminado.spendable.amount, 450000)
+
+  const aHogar = await mes(regalo("c-hogar"))
+  assert.equal(catOf(aHogar, "c-regalos").inPlan, false, "recategorizado a Hogar: Regalos queda sin movimientos")
+  assert.equal(aHogar.spendable.plannedLeft, 400000, "ahora lo descuenta el tope de Hogar")
+
+  const aSinCategoria = await mes(regalo(null))
+  assert.equal(catOf(aSinCategoria, "c-regalos").inPlan, false)
+  assert.equal(aSinCategoria.spendable.plannedLeft, 450000, "sin categoría no resta del plan")
+  assert.equal(aSinCategoria.spendable.margin, 950000, "pero sí del margen: es plata que salió")
+})
+
+test("disp-sin-tope-comprometido: Regalos sin tope solo tiene una recurrente de 30.000 por cobrar: entra al plan y el disponible baja a 420.000", async () => {
+  const view = await viewOf(wdc171Deps({
+    cats: HOGAR_REGALOS,
+    txs: [sueldo(1000000), novTx({ id: "regalo-rec", categoryId: "c-regalos", amount: Money.of(30000, "CLP"), status: "pending", recurringTemplateId: "rec-regalo" })],
+  }))
+  const regalos = catOf(view, "c-regalos")
+  assert.equal(regalos.inPlan, true)
+  assert.equal(regalos.committed, 30000)
+  assert.equal(view.spendable.plannedLeft, 420000)
+  assert.equal(view.spendable.amount, 420000)
+})
+
+test("disp-negativo: el disponible puede quedar bajo cero, por el margen o por el plan, y no se recorta a 0", async () => {
+  // Por el margen: ingresos 300.000 y Hogar gastó su tope entero de 450.000.
+  const sinPlata = await viewOf(wdc171Deps({
+    cats: HOGAR_REGALOS,
+    txs: [sueldo(300000), novTx({ id: "hogar", categoryId: "c-hogar", amount: Money.of(450000, "CLP") })],
+  }))
+  assert.deepEqual(sinPlata.spendable, { amount: -150000, margin: -150000, plannedLeft: 0, limitedBy: "margin" })
+
+  // Por el plan: ingresos 1.000.000, Hogar intacto y Regalos (sin tope) gastó 600.000.
+  const sinPlan = await viewOf(wdc171Deps({
+    cats: HOGAR_REGALOS,
+    txs: [sueldo(1000000), novTx({ id: "regalos", categoryId: "c-regalos", amount: Money.of(600000, "CLP") })],
+  }))
+  assert.deepEqual(sinPlan.spendable, { amount: -150000, margin: 400000, plannedLeft: -150000, limitedBy: "plan" })
+})
+
+test("ritmo-pagar-compromiso: pagar el arriendo de 400.000 y la cuota del sillón de 20.000 no suma al ritmo ni mueve la meta de la curva", async () => {
+  const mes = (arriendoPagado: boolean, cuotaPagada: boolean, extra: Transaction[] = []) => viewOf(wdc171Deps({
+    cats: HOGAR_REGALOS,
+    plans: [cuota(cuotaPagada)],
+    txs: [
+      sueldo(1000000),
+      novTx({ id: "t-arriendo", categoryId: "c-hogar", amount: Money.of(400000, "CLP"), recurringTemplateId: "rec-arriendo", status: arriendoPagado ? "confirmed" : "pending" }),
+      ...(cuotaPagada ? [novTx({ id: "t-cuota", categoryId: "c-hogar", amount: Money.of(20000, "CLP"), installmentItemId: "item-nov" })] : []),
+      ...extra,
+    ],
+  }))
+  const antes = await mes(false, false)
+  assert.equal(antes.spendable.amount, 30000, "450.000 − 400.000 − 20.000 por cobrar")
+  assert.equal(antes.globalPace.budget, 30000)
+  assert.equal(antes.globalPace.daily.length, 30)
+
+  const arriendo = await mes(true, false)
+  assert.equal(sum(arriendo.globalPace.daily), 0, "el arriendo conciliado no es gasto del ritmo")
+  assert.equal(arriendo.globalPace.budget, antes.globalPace.budget)
+  assert.equal(arriendo.spendable.amount, antes.spendable.amount)
+
+  const ambos = await mes(true, true)
+  assert.equal(ambos.spent, 420000, "sí es gastado del mes")
+  assert.equal(sum(ambos.globalPace.daily), 0, "la cuota pagada tampoco")
+  assert.equal(ambos.globalPace.budget, antes.globalPace.budget)
+
+  // Un gasto variable el mismo día sí pinta el ritmo.
+  const conPan = await mes(true, true, [novTx({ id: "pan", categoryId: "c-hogar", amount: Money.of(5000, "CLP") })])
+  assert.equal(conPan.globalPace.daily[NOV_2], 5000)
+  assert.equal(conPan.globalPace.budget, antes.globalPace.budget)
+})
+
+test("ritmo-meta-estable: un gasto de 20.000 hoy sube lo gastado del ritmo, pero la meta de la curva sigue en 450.000", async () => {
+  const mes = (txs: Transaction[]) => viewOf(wdc171Deps({ cats: HOGAR_REGALOS, txs: [sueldo(1000000), ...txs] }))
+  const antes = await mes([])
+  assert.equal(antes.globalPace.budget, 450000)
+
+  const ayer = novTx({ id: "ayer", categoryId: "c-hogar", amount: Money.of(10000, "CLP"), date: new Date(Date.UTC(2026, 10, 1)) })
+  const hoy = novTx({ id: "hoy", categoryId: "c-hogar", amount: Money.of(20000, "CLP") })
+  const despues = await mes([ayer, hoy])
+  assert.equal(despues.globalPace.daily[0], 10000, "1-nov")
+  assert.equal(despues.globalPace.daily[NOV_2], 20000, "2-nov")
+  assert.equal(despues.spendable.amount, 420000)
+  assert.equal(despues.globalPace.budget, despues.spendable.amount + sum(despues.globalPace.daily))
+  assert.equal(despues.globalPace.budget, 450000, "registrar gastos no mueve la meta")
+
+  // Lo pendiente no es gasto del ritmo (aún no salió).
+  const pendiente = await mes([novTx({ id: "pend", categoryId: "c-hogar", amount: Money.of(40000, "CLP"), status: "pending" })])
+  assert.equal(sum(pendiente.globalPace.daily), 0)
+})
+
+test("ritmo-sin-tope-global: el tope de gasto global ya no fija la meta de la curva; con tope de 100.000 o sin él, la meta es la misma", async () => {
+  const mes = (budgets: MonthlyBudget[]) => viewOf(wdc171Deps({
+    cats: HOGAR_REGALOS,
+    budgets,
+    txs: [sueldo(1000000), novTx({ id: "hoy", categoryId: "c-hogar", amount: Money.of(20000, "CLP") })],
+  }))
+  const sinTope = await mes([])
+  const conTope = await mes([{ id: "mb-nov", userId: "u1", year: 2026, month: 11, globalLimit: Money.of(100000, "CLP") }])
+  assert.equal(sinTope.globalPace.budget, 450000)
+  assert.equal(conTope.globalPace.budget, 450000)
+  assert.deepEqual(conTope.spendable, sinTope.spendable)
+})
+
+test("disp-modo-tarjeta: en el ciclo 23-sep a 22-oct, un regalo del 25-sep cuenta en «octubre» y uno del 25-oct no", async () => {
+  const txs = [
+    novTx({ id: "sueldo", categoryId: "c-sueldo", direction: "credit", amount: Money.of(1000000, "CLP"), date: day("2026-09-24") }),
+    novTx({ id: "regalo-sep", categoryId: "c-regalos", amount: Money.of(30000, "CLP"), date: day("2026-09-25") }),
+    novTx({ id: "hogar-oct", categoryId: "c-hogar", amount: Money.of(9000, "CLP"), date: day("2026-10-25") }),
+  ]
+  const deps = (mode: PeriodMode) => ({
+    ...wdc171Deps({ cats: HOGAR_REGALOS, limits: [limitOf("c-hogar", 450000, 2026, 10)], txs }),
+    budgetPeriod: { get: async () => ({ mode, overrides: {} }), setMode: async () => {}, setClosing: async () => {} },
+  }) as unknown as Parameters<typeof getBudgetView>[0]
+  const today = { frequency: "daily" as const, today: "2026-10-01" }
+
+  const ciclo = await viewOf(deps("card_cycle"), today, 10)
+  const dias = daysOf({ start: "2026-09-23", end: "2026-10-22" })
+  assert.equal(ciclo.globalPace.daily.length, dias.length)
+  assert.equal(ciclo.globalPace.daily[dias.indexOf("2026-09-25")], 30000)
+  assert.equal(sum(ciclo.globalPace.daily), 30000, "el 25-oct es del ciclo siguiente")
+  assert.equal(catOf(ciclo, "c-regalos").inPlan, true)
+  assert.deepEqual(ciclo.spendable, { amount: 420000, margin: 970000, plannedLeft: 420000, limitedBy: "plan" })
+
+  // Mismo mes en modo débito (1 al 31 de octubre): el regalo es de septiembre y el gasto del 25-oct sí entra.
+  const mesCalendario = await viewOf(deps("calendar"), today, 10)
+  assert.equal(mesCalendario.globalPace.daily.length, 31)
+  assert.equal(mesCalendario.globalPace.daily[24], 9000)
+  assert.equal(catOf(mesCalendario, "c-regalos").inPlan, false)
+})
+
+test("disp-usd-sin-tasa: un regalo de US$10 entra convertido con el dólar del día; sin dólar observado queda fuera del plan, del disponible y del ritmo", async () => {
+  const deps = wdc171Deps({ cats: HOGAR_REGALOS, txs: [sueldo(1000000), novTx({ id: "usd", categoryId: "c-regalos", amount: Money.of(10, "USD") })] })
+  const conTasa = await viewOf(withRate(deps, 950))
+  assert.equal(catOf(conTasa, "c-regalos").inPlan, true)
+  assert.equal(conTasa.spendable.plannedLeft, 450000 - 9500)
+  assert.equal(conTasa.globalPace.daily[NOV_2], 9500)
+
+  const sinTasa = await viewOf(withRate(deps, null))
+  assert.equal(catOf(sinTasa, "c-regalos").inPlan, false, "sin tasa no hay gasto que cuente")
+  assert.deepEqual(sinTasa.spendable, { amount: 450000, margin: 1000000, plannedLeft: 450000, limitedBy: "plan" })
+  assert.equal(sum(sinTasa.globalPace.daily), 0)
+})
+
+test("disp-interno: un movimiento interno de 500.000 en Regalos no la mete al plan ni toca el disponible ni el ritmo", async () => {
+  const base = await viewOf(wdc171Deps({ cats: HOGAR_REGALOS, txs: [sueldo(1000000)] }))
+  const view = await viewOf(wdc171Deps({
+    cats: HOGAR_REGALOS,
+    txs: [
+      sueldo(1000000),
+      novTx({ id: "int-regalos", categoryId: "c-regalos", amount: Money.of(500000, "CLP"), isInternal: true }),
+      novTx({ id: "int-hogar", categoryId: "c-hogar", amount: Money.of(500000, "CLP"), isInternal: true }),
+    ],
+  }))
+  assert.equal(catOf(view, "c-regalos").inPlan, false)
+  assert.deepEqual(view.spendable, base.spendable)
+  assert.equal(sum(view.globalPace.daily), 0)
+  assert.equal(view.globalPace.budget, base.globalPace.budget)
 })

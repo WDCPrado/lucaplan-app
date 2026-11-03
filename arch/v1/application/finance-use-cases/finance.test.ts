@@ -26,6 +26,8 @@ import {
   effectiveLimit,
   effectiveGlobalLimit,
   remainingToAllocate,
+  isInPlan,
+  computeSpendable,
 } from "./budget-formulas.ts"
 import { setMonthlyBudget } from "./set-monthly-budget-use-case.ts"
 import { periodRange } from "../../../shared/billing-cycle.ts"
@@ -382,4 +384,42 @@ test("setMonthlyBudget: rechaza decimales, negativos y periodos inválidos (sin 
     )
   }
   assert.equal(repo.rows.length, 0) // nada persistido
+})
+
+// --- WDC-177 · disponible para gastar = mín(margen, lo planificado que queda) ---
+
+test("disp-empate-y-bordes: con margen 1.100.000 y lo planificado que queda 1.100.000 manda el plan; $1 de diferencia cambia quién manda, y una sin tope resta todo su gasto", () => {
+  const super_ = (limit: number) => ({ limit, used: 300000, committed: 0 })
+  const arriendo = { limit: 600000, used: 0, committed: 600000 } // tope justo para la recurrente
+
+  const empate = computeSpendable({ margin: 1100000, categories: [arriendo, super_(1400000)] })
+  assert.deepEqual(empate, { amount: 1100000, margin: 1100000, plannedLeft: 1100000, limitedBy: "plan" }, "empate: manda el plan")
+
+  const planUnPesoMenos = computeSpendable({ margin: 1100000, categories: [arriendo, super_(1399999)] })
+  assert.equal(planUnPesoMenos.amount, 1099999)
+  assert.equal(planUnPesoMenos.limitedBy, "plan")
+
+  const planUnPesoMas = computeSpendable({ margin: 1100000, categories: [arriendo, super_(1400001)] })
+  assert.equal(planUnPesoMas.amount, 1100000)
+  assert.equal(planUnPesoMas.limitedBy, "margin")
+
+  // Sin tope (tope 0) con 50.000 gastados y 10.000 por cobrar: aporta −60.000 a lo que queda.
+  const conSinTope = computeSpendable({
+    margin: 1100000,
+    categories: [arriendo, super_(1200000), { limit: 0, used: 50000, committed: 10000 }],
+  })
+  assert.equal(conSinTope.plannedLeft, 900000 - 60000)
+  assert.equal(conSinTope.amount, 840000)
+
+  // Negativo: el monto no se recorta a 0.
+  const enRojo = computeSpendable({ margin: -150000, categories: [{ limit: 450000, used: 450000, committed: 0 }] })
+  assert.deepEqual(enRojo, { amount: -150000, margin: -150000, plannedLeft: 0, limitedBy: "margin" })
+})
+
+test("disp-en-el-plan-bordes: una categoría con tope siempre está en el plan; sin tope entra con $1 gastado o por cobrar y sale con $0", () => {
+  assert.equal(isInPlan({ limit: 450000, used: 0, committed: 0 }), true, "con tope, aunque no tenga movimientos")
+  assert.equal(isInPlan({ limit: 1, used: 0, committed: 0 }), true)
+  assert.equal(isInPlan({ limit: 0, used: 0, committed: 0 }), false, "sin tope y sin movimientos: «sin tope»")
+  assert.equal(isInPlan({ limit: 0, used: 1, committed: 0 }), true, "sin tope con $1 gastado")
+  assert.equal(isInPlan({ limit: 0, used: 0, committed: 1 }), true, "sin tope con $1 por cobrar")
 })

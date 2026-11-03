@@ -39,11 +39,8 @@ export function PlanSummary({
 }) {
   const remaining = spendable.amount
   const net = cash - overdraftDebt // liquidez registrada: caja menos línea usada
-  // Quién manda en la cifra: los topes (y lo que sobra sin repartir) o el margen real.
-  const unallocated = spendable.margin - spendable.plannedLeft
-  const limitLine = spendable.limitedBy === "margin"
-    ? "Repartiste más de lo que entra"
-    : unallocated > 0 ? <>Según tus topes; te quedan <span className="tabular">{formatCLP(unallocated)}</span> sin repartir</> : null
+  // Solo se avisa cuando manda el margen: repartir de más es lo que pide una acción.
+  const limitLine = spendable.limitedBy === "margin" ? "Repartiste más de lo que entra" : null
   return (
     <div className="flex min-w-0 flex-col gap-4" role="group" aria-label="Resumen del plan">
       <div className="space-y-1">

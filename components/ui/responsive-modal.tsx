@@ -432,7 +432,8 @@ export function ResponsiveModal({
               />
             </DrawerHeader>
             {/* El contenido se desplaza dentro del drawer, sin pie: el final deja aire y el espacio
-              seguro para el gesto inferior del teléfono. */}
+              seguro para el gesto inferior del teléfono. El modal legal de la landing (app/page.tsx)
+              descuenta este pb-6 de su espacio seguro: si cambia, ajústalo allá. */}
             <div className="flex min-h-0 min-w-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] flex-col overflow-x-hidden overflow-y-auto pb-6 [&>*]:min-w-0 [&>*]:shrink-0">
               <HeaderSlotsContext.Provider value={slots}>
                 {children}

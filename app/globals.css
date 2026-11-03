@@ -382,8 +382,8 @@ html:has(main[data-landing]) body {
    Un ícono toma el peso del texto que acompaña, como un símbolo junto a su etiqueta: regular con
    texto regular, más grueso con texto semibold/bold. El tamaño lo sigue poniendo `size-*` según la
    escala tipográfica (`size-4` junto a subheadline/body, `size-5` en barras, `size-6` sueltos). */
-/* En @layer base para que `disclosure` y las utilidades `stroke-*` le ganen; solo toca el trazo por
-   defecto de lucide (`stroke-width="2"`), así un `strokeWidth` explícito se respeta. La landing no
+/* En @layer base para que `disclosure` y las utilidades `stroke-*` le ganen; solo toca el trazo
+   `stroke-width="2"` (el de lucide por defecto); un `strokeWidth` distinto de 2 se respeta. La landing no
    sigue el lenguaje iOS. */
 @layer base {
   :is(.font-semibold, .font-bold):not([data-landing] *) > svg.lucide[stroke-width="2"] {

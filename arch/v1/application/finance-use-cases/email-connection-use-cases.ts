@@ -11,6 +11,8 @@
 // Qué es de quién: la autorización, el delta y la suscripción son del BUZÓN; el snapshot, los
 // instrumentos y los mensajes omitidos son del VÍNCULO con cada banco.
 import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
+import { LockBusyError } from "../../../shared/mutex.ts"
+import type { PushMessage } from "../../domain/notifications/push.domain.ts"
 import { todayKey } from "../../../shared/today.ts"
 import type {
   BucketKind,
@@ -23,6 +25,7 @@ import {
   BankLabelRequiredError,
   EmailConnectionNotFoundError,
   EmailDeltaExpiredError,
+  EmailReauthRequiredError,
   EmailSetupStateError,
   type BankEmailMessage,
   type BankMailProvider,
@@ -59,7 +62,7 @@ import {
 } from "./email-projection.ts"
 
 // Renovar la suscripción cuando le queda menos de un día (Outlook la limita a <7 días; se renueva a
-// diario vía sync/refresco; ver docs/email-connection-outlook.md).
+// cada 12 horas y durante el refresco; ver docs/email-connection-outlook.md).
 const SUBSCRIPTION_RENEW_WINDOW_MS = 24 * 60 * 60 * 1000
 
 // --- Persistencia (la implementa infraestructura con Prisma) ---
@@ -199,6 +202,7 @@ export type EmailConnectionDeps = {
   // Notificación push de lo que entró SOLO por correo (best-effort, después de categorizar para
   // que el usuario abra la app con el movimiento ya clasificado).
   notify?: (userId: string, movements: NotifiableMovement[]) => Promise<void>
+  notifyConnectionError?: (userId: string, message: PushMessage) => Promise<void>
 }
 
 function registryOf(deps: { registry?: BankEmailRegistry }): BankEmailRegistry {
@@ -977,6 +981,7 @@ export async function syncMailbox(
   const mailbox = await deps.mailboxes.findById(mailboxId)
   if (!mailbox)
     throw new EmailConnectionNotFoundError("No existe ese correo conectado")
+  if (mailbox.status === "reauth_required") throw new EmailReauthRequiredError()
   const links = (await deps.links.listByMailbox(mailboxId)).filter(
     (l) => l.bankId !== null
   )
@@ -1068,10 +1073,10 @@ export async function syncMailbox(
     })
   }
 
-  // Renovación diaria de la suscripción (best-effort; su falla no pierde datos: delta recupera).
+  // La importación ya terminada se conserva aunque falle la renovación del webhook.
   let subscriptionId = mailbox.subscriptionId
   let subscriptionExpiresAt = mailbox.subscriptionExpiresAt
-  let lastError: string | null = null
+  let renewalError: unknown = null
   const needsRenewal =
     !mailbox.subscriptionExpiresAt ||
     mailbox.subscriptionExpiresAt.getTime() - now.getTime() <
@@ -1084,21 +1089,21 @@ export async function syncMailbox(
         subscriptionExpiresAt = sub.expiresAt
       }
     } catch (e) {
-      lastError = `Suscripción webhook no disponible: ${(e as Error).message}`
+      renewalError = e
     }
   }
 
   await deps.mailboxes.update(mailbox.id, {
-    status: "active",
     deltaLink,
     subscriptionId,
     subscriptionExpiresAt,
     lastSyncedAt: now,
-    lastError,
     // Un reproceso vuelve a ver los mismos correos ajenos: sumarlos otra vez falsearía el contador.
     discardedCount:
       mailbox.discardedCount + (opts.reprocessSince ? 0 : discarded),
   })
+  if (renewalError) await markSyncError(deps, mailbox, renewalError)
+  else await deps.mailboxes.updateIfState(mailbox.id, mailbox, { status: "active", lastError: null })
 
   if (created.length > 0) {
     // Plantilla > IA: el match corre primero y deja categorizado y revisado lo que reclama.
@@ -1351,18 +1356,70 @@ function applyCashDebitToStoredBuckets(
   if (od && res.overdraft) bucketById.set(od.id, { ...od, ...res.overdraft })
 }
 
-async function markSyncError(
-  deps: Pick<EmailConnectionDeps, "mailboxes">,
+export async function markSyncError(
+  deps: Pick<EmailConnectionDeps, "mailboxes" | "notifyConnectionError">,
   mailbox: EmailMailbox,
-  error: Error
+  error: unknown
 ): Promise<void> {
-  const reauth = error.name === "EmailReauthRequiredError"
-  await deps.mailboxes
-    .update(mailbox.id, {
-      status: reauth ? "reauth_required" : "error",
-      lastError: error.message,
-    })
-    .catch(() => {})
+  if (error instanceof LockBusyError) return
+  const reauth = error instanceof Error && error.name === "EmailReauthRequiredError"
+  const status = reauth ? "reauth_required" : "error"
+  const lastError = reauth
+    ? "La autorización de Outlook venció o fue revocada. Reconecta tu correo en Ajustes."
+    : "No se pudo actualizar la conexión de Outlook. Puedes reintentar con Sincronizar ahora."
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const current = await deps.mailboxes.findById(mailbox.id)
+    if (!current || current.status === "reauth_required" || current.status === status) return
+    if (!await deps.mailboxes.updateIfState(mailbox.id, current, { status, lastError })) continue
+    await deps.notifyConnectionError?.(mailbox.userId, {
+      title: reauth ? "Reconecta tu correo" : "Falló la conexión de Outlook",
+      body: lastError,
+      url: "/settings",
+      tag: `email-connection:${mailbox.id}`,
+    }).catch(() => {})
+    return
+  }
+}
+
+export async function renewMailboxSubscriptions(
+  deps: Pick<EmailConnectionDeps, "mailboxes" | "mail" | "notifyConnectionError">,
+  now = new Date()
+) {
+  const mailboxes = await deps.mailboxes.listForSubscriptionRenewal(new Date(now.getTime() + SUBSCRIPTION_RENEW_WINDOW_MS))
+  let renewed = 0
+  let failed = 0
+  for (const mailbox of mailboxes) {
+    if (mailbox.status === "reauth_required") continue
+    try {
+      const sub = await deps.mail.ensureSubscription(mailbox.id)
+      if (sub) {
+        await deps.mailboxes.update(mailbox.id, {
+          subscriptionId: sub.subscriptionId, subscriptionExpiresAt: sub.expiresAt,
+        })
+        await deps.mailboxes.updateIfState(mailbox.id, mailbox, { status: "active", lastError: null })
+        renewed++
+      }
+    } catch (error) {
+      failed++
+      await markSyncError(deps, mailbox, error)
+    }
+  }
+  return { checked: mailboxes.length, renewed, failed }
+}
+
+export async function syncWebhookMessages(deps: EmailConnectionDeps, mailbox: EmailMailbox, messageIds: string[]) {
+  try {
+    const messages: BankEmailMessage[] = []
+    for (const id of new Set(messageIds)) {
+      const message = await deps.mail.fetchMessage(mailbox.id, id)
+      if (message) messages.push(message)
+    }
+    // También limpia un error previo si el mensaje ya no existe.
+    await syncMailbox(deps, mailbox.id, { messages })
+  } catch (error) {
+    await markSyncError(deps, mailbox, error)
+    throw error
+  }
 }
 
 // --- Reconciliación manual ("Actualizar saldos") ---
@@ -1658,15 +1715,6 @@ async function removeMailbox(
   // Best-effort: si Microsoft falla, igual se borra local (el usuario no queda atascado).
   await deps.mail.deleteSubscription(mailboxId).catch(() => {})
   await deps.mailboxes.delete(mailboxId)
-}
-
-// --- Webhook: localizar el buzón notificado (la validación de clientState la hace el caller) ---
-
-export async function findWebhookMailbox(
-  deps: Pick<EmailConnectionDeps, "mailboxes">,
-  subscriptionId: string
-): Promise<EmailMailbox | null> {
-  return deps.mailboxes.findBySubscriptionId(subscriptionId)
 }
 
 // --- Vista de estado para la UI (sin tokens ni contenido de correo) ---

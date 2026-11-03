@@ -154,6 +154,9 @@ export interface EmailMailboxRepository {
   listForSubscriptionRenewal(before: Date): Promise<EmailMailbox[]>
   create(input: NewEmailMailbox): Promise<EmailMailbox>
   update(id: string, patch: EmailMailboxPatch): Promise<EmailMailbox>
+  // Transición atómica: evita avisos duplicados y que un éxito pise otro fallo concurrente.
+  updateIfState(id: string, expected: Pick<EmailMailbox, "status" | "lastError">,
+    patch: Omit<EmailMailboxPatch, "refreshToken">): Promise<boolean>
   delete(id: string): Promise<void>
 }
 

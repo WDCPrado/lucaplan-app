@@ -3,9 +3,6 @@ import { setTimeout } from "node:timers/promises"
 
 export function dueJobs(now, previous) {
   const jobs = []
-  if (Math.floor(now / 300_000) !== Math.floor(previous / 300_000)) {
-    jobs.push("scripts/sync-email.ts")
-  }
   if (Math.floor(now / 86_400_000) !== Math.floor(previous / 86_400_000)) {
     jobs.push("scripts/notify-due.ts")
   }
@@ -71,7 +68,7 @@ if (import.meta.main && process.argv[2] === "--renew-once") {
   }
 } else if (import.meta.main) {
   console.log(
-    "[cron] Correo cada 5 minutos; recordatorios 00:00 UTC; renovar Outlook 00:00 y 12:00 UTC."
+    "[cron] Correo por webhook; recordatorios 00:00 UTC; renovar Outlook 00:00 y 12:00 UTC."
   )
   let previous = Date.now()
   while (true) {

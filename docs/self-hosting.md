@@ -71,7 +71,6 @@ dump y de los secretos; el volumen persistente no es un backup.
 
 El cron reutiliza la imagen de la app:
 
-- `scripts/sync-email.ts` cada cinco minutos, como respaldo de los webhooks.
 - `scripts/notify-due.ts` a las **00:00 UTC** (21:00 del día anterior en Chile durante UTC−3).
 - `POST http://app:3005/api/email-connection/renew` a las **00:00 y 12:00 UTC**, usando
   `OUTLOOK_RENEW_SECRET` como Bearer. Detecta errores HTTP y renovaciones parciales fallidas
@@ -81,7 +80,9 @@ Las corridas son secuenciales y se cortan a los cuatro minutos si no terminan. L
 en los logs y se reintentan en el siguiente horario programado. Tras reiniciar, espera al
 siguiente tick: no repite automáticamente trabajos perdidos durante el apagado.
 
-`sync-email.ts` usa `OUTLOOK_USER_ID` o el dueño del primer buzón activo: es la configuración
+El correo automático usa solo webhooks, sin sondeo periódico. Los fallos detectados se muestran
+en la conexión de Outlook y generan un push si el usuario lo tiene habilitado.
+`sync-email.ts` queda como herramienta manual y usa `OUTLOOK_USER_ID` o el dueño del primer buzón activo: es la configuración
 personal existente. Para revisar la sincronización manualmente:
 
 ```powershell

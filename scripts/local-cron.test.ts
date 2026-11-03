@@ -15,29 +15,25 @@ test("renovación one-shot usa localhost y termina con error cuando falta secret
   assert.match(result.stderr, /Falta OUTLOOK_RENEW_SECRET/)
 })
 
-test("sincroniza cada cinco minutos sin repetir y recupera un tick atrasado", () => {
+test("no sondea correo cada cinco minutos ni al recuperar un tick atrasado", () => {
   assert.deepEqual(dueJobs(299_999, 240_000), [])
-  assert.deepEqual(dueJobs(300_000, 299_999), ["scripts/sync-email.ts"])
+  assert.deepEqual(dueJobs(300_000, 299_999), [])
   assert.deepEqual(dueJobs(360_000, 300_000), [])
-  assert.deepEqual(dueJobs(900_000, 300_000), ["scripts/sync-email.ts"])
+  assert.deepEqual(dueJobs(900_000, 300_000), [])
 })
 
-test("ejecuta los tres trabajos a medianoche UTC y no repite el diario", () => {
+test("ejecuta recordatorios y renovación a medianoche UTC y no repite el diario", () => {
   const midnight = Date.parse("2026-10-31T00:00:00Z")
   assert.deepEqual(dueJobs(midnight, midnight - 60_000), [
-    "scripts/sync-email.ts",
     "scripts/notify-due.ts",
     "renew-outlook",
   ])
-  assert.deepEqual(dueJobs(midnight + 300_000, midnight), [
-    "scripts/sync-email.ts",
-  ])
+  assert.deepEqual(dueJobs(midnight + 300_000, midnight), [])
 })
 
 test("renueva Outlook cada doce horas sin repetir recordatorios", () => {
   const noon = Date.parse("2026-10-31T12:00:00Z")
   assert.deepEqual(dueJobs(noon, noon - 60_000), [
-    "scripts/sync-email.ts",
     "renew-outlook",
   ])
   assert.deepEqual(dueJobs(noon + 60_000, noon), [])

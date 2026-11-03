@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto"
-import { emailMailboxRepository } from "@/arch/v1/infrastructure/database/prisma/email-connection.infrastructure"
-import { makeEmailMailRouter } from "@/arch/v1/infrastructure/http/email/provider-registry"
+import { makeEmailConnectionDeps } from "@/arch/v1/infrastructure/database/prisma/email-connection.infrastructure"
+import { renewMailboxSubscriptions } from "@/arch/v1/application/finance-use-cases/email-connection-use-cases"
 
 function authorized(req: Request): boolean {
   const secret = process.env.OUTLOOK_RENEW_SECRET
@@ -18,35 +18,5 @@ function authorized(req: Request): boolean {
 export async function POST(req: Request) {
   if (!authorized(req))
     return Response.json({ error: "unauthorized" }, { status: 401 })
-  const renewBefore = new Date(Date.now() + 24 * 60 * 60 * 1000)
-  const mailboxes =
-    await emailMailboxRepository.listForSubscriptionRenewal(renewBefore)
-  const mail = makeEmailMailRouter()
-  let renewed = 0
-  let failed = 0
-  for (const mailbox of mailboxes) {
-    try {
-      const subscription = await mail.ensureSubscription(mailbox.id)
-      if (subscription) {
-        await emailMailboxRepository.update(mailbox.id, {
-          subscriptionId: subscription.subscriptionId,
-          subscriptionExpiresAt: subscription.expiresAt,
-          lastError: null,
-        })
-        renewed++
-      }
-    } catch (error) {
-      failed++
-      await emailMailboxRepository
-        .update(mailbox.id, {
-          status:
-            (error as Error).name === "EmailReauthRequiredError"
-              ? "reauth_required"
-              : "error",
-          lastError: (error as Error).message,
-        })
-        .catch(() => {})
-    }
-  }
-  return Response.json({ checked: mailboxes.length, renewed, failed })
+  return Response.json(await renewMailboxSubscriptions(makeEmailConnectionDeps()))
 }

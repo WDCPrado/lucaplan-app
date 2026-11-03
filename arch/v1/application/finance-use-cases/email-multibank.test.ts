@@ -150,6 +150,7 @@ function depsFor(
       findByAddress: async () => null,
       findBySubscriptionId: async () => null,
       listForSubscriptionRenewal: async () => [],
+      updateIfState: async () => true,
       create: async () => links[0].mailbox,
       update: async (_id: string, patch: { discardedCount?: number }) => {
         captured.mailboxPatches.push(patch)
@@ -324,6 +325,7 @@ function linkDeps(existing: EmailBankLinkWithMailbox[]) {
         findByAddress: async () => null,
         findBySubscriptionId: async () => null,
         listForSubscriptionRenewal: async () => [],
+        updateIfState: async () => true,
         create: async () => mailbox(),
         update: async () => mailbox(),
         delete: async () => {},

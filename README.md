@@ -169,7 +169,7 @@ lectura de cartolas por foto, así nada se cuenta dos veces cuando el correo lle
   registras tus saldos iniciales y listo.
 - Saldos proyectados en tiempo real desde tu último saldo confirmado; "Actualizar
   saldos" los reconcilia en un paso cuando algo no generó correo.
-- Sincronización por webhook (tiempo real) o por cron; desconexión en un clic que borra
+- Sincronización automática por webhook (tiempo real) y recuperación manual; desconexión en un clic que borra
   la conexión, los movimientos importados y el token.
 - El refresh token se guarda **cifrado con AES-256-GCM**; los cuerpos de correo se
   procesan en memoria y nunca se persisten.
@@ -215,7 +215,7 @@ arch/
    ├─ application/      # use-cases: orquestan el dominio, no tocan IO
    └─ infrastructure/   # adapters que implementan los ports (Prisma, OpenAI, MS Graph…)
 prisma/                 # schema + migraciones + seed
-scripts/                # setup de DB, seeds, sync por cron
+scripts/                # setup de DB, seeds, sync manual y recordatorios
 docs/                   # guías (conexión Outlook, design system…)
 ```
 
@@ -394,7 +394,7 @@ Reinicia `pnpm dev` para que tome los cambios.
 ### Paso 7 — Sincronización continua
 
 - **Desarrollo local** (sin webhook): deja `OUTLOOK_WEBHOOK_URL` vacío. Sincroniza con
-  el botón **"Sincronizar ahora"** o por consola/cron:
+  el botón **"Sincronizar ahora"** o por consola:
 
   ```bash
   pnpm sync:email
@@ -415,8 +415,10 @@ Reinicia `pnpm dev` para que tome los cambios.
     https://tu-dominio.com/api/email-connection/renew
   ```
 
-  El delta de Graph queda como respaldo ante webhooks perdidos: cualquier "Sincronizar
-  ahora" recupera lo que falte.
+  No programes sondeo de correo: la renovación mantiene el webhook, sin leer mensajes.
+  Los fallos detectados generan aviso en la conexión de Outlook y push si está habilitado.
+  El delta queda para recuperación manual mediante "Sincronizar ahora"; no podemos detectar
+  notificaciones que Microsoft nunca entregue.
 
 ### Nota sobre la llave de cifrado
 
@@ -445,7 +447,7 @@ los tokens ya cifrados dejan de poder descifrarse y habrá que reconectar el cor
 | `pnpm seed`            | Siembra la cuenta demo `demo@lucaplan.cl` en la base local (solo localhost) |
 | `pnpm seed:categories` | Set completo de categorías con contexto para la IA (idempotente)           |
 | `pnpm create:account`  | Crea una cuenta en la base que se le indique por `--db-prod`               |
-| `pnpm sync:email`      | Corre la sincronización del correo (para cron / tarea programada)          |
+| `pnpm sync:email`      | Corre una sincronización manual del correo                                |
 | `pnpm notify:due`      | Notifica los pagos por vencer (recurrentes y cuotas); una corrida diaria    |
 
 En el despliegue el recordatorio no lo corre este script sino un **servicio cron** de Railway que

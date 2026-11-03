@@ -45,9 +45,12 @@ En la Application configura **Scheduled Tasks** con timezone del servidor **UTC*
 
 | Comando dentro del contenedor | Cron UTC | Propósito |
 | --- | --- | --- |
-| `node /app/scripts/sync-email.ts` | `*/5 * * * *` | Sincronizar correo |
 | `node /app/scripts/notify-due.ts` | `0 0 * * *` | Recordatorios diarios |
 | `node /app/scripts/local-cron.mjs --renew-once` | `0 0,12 * * *` | Renovar Outlook |
+
+El correo automático entra solo por webhook. Elimina o deja deshabilitada cualquier
+tarea antigua de `sync-email.ts` cada cinco minutos; no se reactiva tras un despliegue.
+La sincronización manual sigue disponible para recuperar mensajes.
 
 La renovación llama a `127.0.0.1:3005` desde la propia app y termina con error si
 falla. Cada comando hace una corrida y sale; no programes el loop `local-cron.mjs`

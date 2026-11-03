@@ -37,7 +37,8 @@ import { makeEmailMailRouter } from "../../http/email/provider-registry.ts"
 import { categorizePendingMovements } from "./categorize-pending.infrastructure.ts"
 import { matchRecurringForImported } from "./match-recurring.ts"
 import { runInstallmentsForImported } from "./run-installments.ts"
-import { notifyImportedForSync } from "./push-deps.ts"
+import { notifyImportedForSync, pushDeps } from "./push-deps.ts"
+import { sendPushToUser } from "../../../application/notification-use-cases/push-use-cases.ts"
 
 const CHUNK = 10 // upsert en lotes acotados (no satura el pool de conexiones)
 
@@ -107,7 +108,7 @@ export const emailMailboxRepository: EmailMailboxRepository = {
   async listForSubscriptionRenewal(before) {
     const rows = await prisma.emailMailbox.findMany({
       where: {
-        status: "active",
+        status: { in: ["active", "error"] },
         OR: [
           { subscriptionExpiresAt: null },
           { subscriptionExpiresAt: { lt: before } },
@@ -142,6 +143,13 @@ export const emailMailboxRepository: EmailMailboxRepository = {
   },
   async delete(id) {
     await prisma.emailMailbox.delete({ where: { id } })
+  },
+  async updateIfState(id, expected, patch) {
+    const result = await prisma.emailMailbox.updateMany({
+      where: { id, status: expected.status, lastError: expected.lastError },
+      data: patch,
+    })
+    return result.count === 1
   },
 }
 
@@ -545,6 +553,7 @@ export function makeEmailConnectionDeps(): EmailConnectionDeps {
     runInstallments: runInstallmentsForImported,
     categorize: categorizePendingMovements,
     notify: notifyImportedForSync,
+    notifyConnectionError: async (userId, message) => { await sendPushToUser(pushDeps, userId, message) },
   }
 }
 

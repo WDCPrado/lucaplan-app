@@ -36,6 +36,20 @@ La ruta valida el desafío de Microsoft y el `clientState` de cada notificación
 curl -X POST -H "Authorization: Bearer $OUTLOOK_RENEW_SECRET" https://app.example.com/api/email-connection/renew
 ```
 
-Usa un secreto aleatorio independiente. El delta de Graph queda guardado como recuperación ante webhooks perdidos o repetidos; el botón “Sincronizar ahora” también ejecuta esa recuperación.
+Usa un secreto aleatorio independiente. No se sondea el correo cada cinco minutos: el delta
+de Graph queda para recuperación manual con “Sincronizar ahora”.
+
+Un webhook válido que falla, o que encuentra una sincronización ocupada, responde `503`
+para que Microsoft reintente; solo lo procesado se confirma con `202`. Los buzones con
+errores transitorios siguen admitiendo esos reintentos. Graph limita los reintentos a
+unas cuatro horas ([contrato de entrega](https://learn.microsoft.com/en-us/graph/change-notifications-delivery-webhooks)).
+No se puede detectar ni garantizar recuperación automática de una notificación que nunca llegó.
+
+Los fallos detectados en webhook o renovación se muestran en la conexión de Outlook y
+envían un push a los dispositivos suscritos, una vez por incidente. Los errores transitorios
+permiten reintentar; una autorización vencida o revocada pide **Reconectar**. Un éxito limpia
+el aviso y un fallo posterior abre otro incidente. El push es best-effort; el aviso dentro
+de la app permanece aunque el dispositivo no reciba la notificación. No se guardan ni envían
+mensajes de error del proveedor, tokens o contenido de correo.
 
 En desarrollo local deja `OUTLOOK_WEBHOOK_URL` vacío: el setup y la carga inicial siguen funcionando, pero la sincronización posterior será manual.

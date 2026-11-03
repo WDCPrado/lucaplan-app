@@ -104,6 +104,7 @@ const repos = (links: EmailBankLinkWithMailbox[]) => ({
     findByAddress: async () => links[0]?.mailbox ?? null,
     findBySubscriptionId: async () => null,
     listForSubscriptionRenewal: async () => [],
+    updateIfState: async () => true,
     create: async () => links[0].mailbox,
     update: async () => links[0].mailbox,
     delete: async () => {},
@@ -985,6 +986,10 @@ async function assertSyncIdempotent(expiredDelta: boolean) {
     savedStatus = patch.status ?? savedStatus
     return activeLink.mailbox
   }
+  deps.mailboxes.updateIfState = async (_id, _expected, patch) => {
+    savedStatus = patch.status ?? savedStatus
+    return true
+  }
   await syncMailbox(deps, "mbx-1", {
     now: new Date("2026-07-14T12:00:00Z"),
   })
@@ -1249,6 +1254,11 @@ test("sync de usuario omite reauth_required y recupera el siguiente buzón en er
   deps.mailboxes.update = async (_id, patch) => {
     Object.assign(recoverable, patch)
     return recoverable
+  }
+  deps.mailboxes.updateIfState = async (_id, expected, patch) => {
+    if (recoverable.status !== expected.status || recoverable.lastError !== expected.lastError) return false
+    Object.assign(recoverable, patch)
+    return true
   }
   await syncUserMailboxes(deps, "user-1")
   assert.deepEqual(consulted, ["mbx-1"])

@@ -104,6 +104,7 @@ test("un aviso ambiguo frente a altas conciliadas se salta y queda omitido para 
       findByAddress: async () => null,
       findBySubscriptionId: async () => null,
       listForSubscriptionRenewal: async () => [],
+      updateIfState: async () => true,
       create: async () => mailbox,
       update: async () => mailbox,
       delete: async () => {},

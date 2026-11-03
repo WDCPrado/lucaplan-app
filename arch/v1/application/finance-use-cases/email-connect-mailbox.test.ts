@@ -38,6 +38,7 @@ function repo(existing: EmailMailbox | null) {
         findByAddress: async () => existing,
         findBySubscriptionId: async () => null,
         listForSubscriptionRenewal: async () => [],
+        updateIfState: async () => true,
         create: async (input: NewEmailMailbox) => {
           seen.created = input
           return mailbox({ emailProvider: input.emailProvider })

@@ -198,7 +198,9 @@ function SignOutRow() {
   async function signOut() {
     setPending(true)
     try {
-      await authClient.signOut()
+      // better-auth devuelve el rechazo del servidor en `error`; solo lanza si se cae la red.
+      const { error } = await authClient.signOut()
+      if (error) throw error
       router.push("/login")
     } catch {
       toast.error("No se pudo cerrar la sesión. Inténtalo de nuevo.")
@@ -494,6 +496,7 @@ function BudgetAlertsSection({
               aria-pressed={on}
               aria-busy={pending === p || undefined}
               onClick={() => toggle(p)}
+              disabled={pending !== null && pending !== p}
               className={ROW}
             >
               <span className="tabular flex-1">{p}%</span>

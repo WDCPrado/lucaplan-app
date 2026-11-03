@@ -1,5 +1,7 @@
 "use client"
 
+import { toast } from "sonner"
+
 import * as React from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
@@ -171,7 +173,11 @@ export function AppFrame({
   const openProfile = React.useCallback(() => setProfileOpen(true), [])
 
   async function signOut() {
-    await authClient.signOut()
+    // Mismo cierre que Ajustes: el rechazo del servidor llega en `error`, no como excepción.
+    const { error } = await authClient
+      .signOut()
+      .catch(() => ({ error: true }))
+    if (error) return toast.error("No se pudo cerrar la sesión. Inténtalo de nuevo.")
     router.push("/login")
   }
 

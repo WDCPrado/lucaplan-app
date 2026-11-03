@@ -57,7 +57,12 @@ export async function enablePush(vapidPublicKey: string): Promise<EnableResult> 
       headers: { "content-type": "application/json" },
       body: JSON.stringify(sub.toJSON()),
     })
-    return res.ok ? "ok" : "error"
+    // Sin el servidor, la suscripción del navegador mentiría: el switch se vería encendido.
+    if (!res.ok) {
+      await sub.unsubscribe().catch(() => {})
+      return "error"
+    }
+    return "ok"
   } catch {
     return "error"
   }

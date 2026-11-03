@@ -138,7 +138,7 @@ export function MovementRow({
       >
         <div className="min-w-0 flex-1">
           <div className="truncate text-body">{tx.description}</div>
-          <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-footnote text-muted-foreground">
+          <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-footnote text-muted-foreground">
             <span className="truncate">
               {tx.categoryName ?? "Sin categoría"}
             </span>

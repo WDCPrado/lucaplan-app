@@ -35,7 +35,7 @@ const RANGE_FMT = new Intl.DateTimeFormat("es-CL", {
 // elegido en gris a la derecha y `chevron.up.chevron.down`. Sin borde ni relleno propio: la celda
 // es el grupo.
 const ROW =
-  "press flex h-11 w-full min-w-0 items-center gap-2 rounded-none border-0 bg-transparent px-4 text-left text-body shadow-none hover:bg-foreground/5 focus-visible:outline-offset-[-2px] data-[size=default]:h-11 dark:bg-transparent dark:hover:bg-foreground/5"
+  "press flex h-11 w-full min-w-0 items-center gap-2 rounded-none border-0 bg-transparent px-4 text-left text-body shadow-none hover:bg-foreground/5 focus-visible:ring-inset data-[size=default]:h-11 dark:bg-transparent dark:hover:bg-foreground/5"
 const ROW_VALUE = "ml-auto min-w-0 truncate text-right text-muted-foreground"
 
 export type Dir = "" | "debit" | "credit"

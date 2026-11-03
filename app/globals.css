@@ -967,6 +967,10 @@ html:has(main[data-landing]) body {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
+/* Dentro de una lista agrupada (que recorta con overflow-hidden) el contorno va por dentro. */
+.inset-list :is(button, a, [role="button"], summary):focus-visible {
+  outline-offset: -2px;
+}
 [data-product] ::selection {
   background: var(--accent);
   color: var(--accent-foreground);

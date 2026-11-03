@@ -15,6 +15,8 @@ export type ReconciliationMovement = {
   isInternal: boolean
   bankReceivedAt: string | null
   recurringOnly?: boolean
+  installmentItemId?: string | null
+  installmentOnly?: boolean
   // Cuota que creó un plan `card`: la compra original ya consumió el cupo entero.
   cardInstallment?: boolean
   linked: boolean
@@ -31,6 +33,40 @@ export type ReconciliationState = {
   }[]
   movements: ReconciliationMovement[]
   categories: { id: string; type: string }[]
+  loanPlans?: ReconciliationLoanPlan[]
+}
+
+/** Cronograma e identidad leídos dentro de la misma transacción que los movimientos. */
+export type ReconciliationLoanPlan = {
+  id: string
+  currency: string
+  categoryId: string
+  totalAmount: number
+  installmentsCount: number
+  updatedAt: string
+  items: {
+    id: string
+    index: number
+    amount: number
+    dueDate: string
+    transactionId: string | null
+    paidOutsideApp: boolean
+    updatedAt: string
+  }[]
+}
+
+export type LoanCorrectionInput = {
+  planId: string
+  totalAmount: number
+  evidence: string
+  items: { itemId: string; amount: number }[]
+}
+export type ReconciliationLoanCorrection = {
+  before: ReconciliationLoanPlan
+  after: ReconciliationLoanPlan
+  evidence: string
+  outstandingBefore: number
+  outstandingAfter: number
 }
 
 /** Lo que el documento bancario fija para un movimiento (corrección o alta). */
@@ -45,7 +81,11 @@ type SettledFields = {
 export type ReconciliationCorrection = {
   before: ReconciliationMovement
   after: ReconciliationMovement &
-    SettledFields & { transactionId: string; settleRecurringCharge?: boolean }
+    SettledFields & {
+      transactionId: string
+      settleRecurringCharge?: boolean
+      correctedLoanPlanId?: string
+    }
 }
 export type ReconciliationAddition = SettledFields & {
   direction: string
@@ -65,6 +105,7 @@ export type ReconciliationProjectedBucket = {
 export type BankReconciliationPlan = {
   corrections: ReconciliationCorrection[]
   additions: ReconciliationAddition[]
+  loanCorrections: ReconciliationLoanCorrection[]
   projectedBuckets: ReconciliationProjectedBucket[]
   replayedIds: string[]
   snapshotAt: string
@@ -103,7 +144,9 @@ export interface BankReconciliationTx {
   apply(
     userId: string,
     input: { accountId: string },
-    plan: BankReconciliationPlan & { beforeBuckets: ReconciliationBucketSnapshot[] },
+    plan: BankReconciliationPlan & {
+      beforeBuckets: ReconciliationBucketSnapshot[]
+    },
     token: string,
     now: Date
   ): Promise<unknown>
@@ -209,7 +252,8 @@ export function decideEmailNotice(
   previous: { reconciled: boolean } | null,
   nearby: (BankMovementKey & { id: string })[]
 ): EmailNoticeDecision {
-  if (previous) return previous.reconciled ? { kind: "keep" } : { kind: "update" }
+  if (previous)
+    return previous.reconciled ? { kind: "keep" } : { kind: "update" }
   const candidates = nearby.filter((c) =>
     isSameBankMovement(notice, c, { days: 4, match: "amountOrDescription" })
   )

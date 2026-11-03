@@ -173,7 +173,10 @@ function movementView(
         ...reconciliationLinks(row),
       }),
       currencyCorrectionBlockedReason:
-        "Usar previsualizar_conciliacion y aplicar_conciliacion con cartola y snapshot. Cobros recurrentes: settleRecurringCharge=true permite liquidar importe/moneda conservando categoría, vínculo y plan futuro. Ingresos y cuotas vinculados requieren revisar su plan; reembolsos y transferencias internas tienen restricciones.",
+        "Usar previsualizar_conciliacion y aplicar_conciliacion con cartola y snapshot. Cobros recurrentes: settleRecurringCharge=true permite liquidar importe/moneda conservando categoría, vínculo y plan futuro. Para importes de cuotas loan y su total usa loanCorrections con el cronograma completo; conserva moneda y fechas. Ingresos y cuotas card requieren revisar su plan; reembolsos y transferencias internas tienen restricciones.",
+      installmentCorrectionNote: row.installmentItem?.plan.kind === "loan"
+        ? "Para corregir importe y total del préstamo usa loanCorrections en lucaplan_previsualizar_conciliacion y lucaplan_aplicar_conciliacion, con cartola, snapshot y todas sus cuotas; conserva fechas y vínculos"
+        : null,
       canEdit: editBlocked === null,
       editableFields:
         editBlocked !== null

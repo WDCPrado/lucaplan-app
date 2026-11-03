@@ -394,7 +394,7 @@ Reinicia `pnpm dev` para que tome los cambios.
 ### Paso 7 — Sincronización continua
 
 - **Desarrollo local** (sin webhook): deja `OUTLOOK_WEBHOOK_URL` vacío. Sincroniza con
-  el botón **"Sincronizar ahora"** o por consola:
+  el botón **"Sincronizar"** o por consola:
 
   ```bash
   pnpm sync:email
@@ -417,7 +417,7 @@ Reinicia `pnpm dev` para que tome los cambios.
 
   No programes sondeo de correo: la renovación mantiene el webhook, sin leer mensajes.
   Los fallos detectados generan aviso en la conexión de Outlook y push si está habilitado.
-  El delta queda para recuperación manual mediante "Sincronizar ahora"; no podemos detectar
+  El delta queda para recuperación manual mediante "Sincronizar"; no podemos detectar
   notificaciones que Microsoft nunca entregue.
 
 ### Nota sobre la llave de cifrado

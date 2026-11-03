@@ -1,5 +1,7 @@
 "use client"
 
+import { toast } from "sonner"
+
 import * as React from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
@@ -16,7 +18,7 @@ import {
   Settings,
   ChevronsUpDown,
   Search,
-  ListFilter,
+  List,
 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -77,7 +79,7 @@ const NAV: {
   {
     key: "movimientos",
     label: "Movimientos",
-    Icon: ListFilter,
+    Icon: List,
     href: "/movements",
   },
   // Un solo nombre por sección: el mismo en la barra lateral, la inferior y el título.
@@ -171,7 +173,11 @@ export function AppFrame({
   const openProfile = React.useCallback(() => setProfileOpen(true), [])
 
   async function signOut() {
-    await authClient.signOut()
+    // Mismo cierre que Ajustes: el rechazo del servidor llega en `error`, no como excepción.
+    const { error } = await authClient
+      .signOut()
+      .catch(() => ({ error: true }))
+    if (error) return toast.error("No se pudo cerrar la sesión. Inténtalo de nuevo.")
     router.push("/login")
   }
 
@@ -588,14 +594,15 @@ function NavMenu({
       />
       {NAV.map(({ key, label, Icon, href }) => (
         <SidebarMenuItem key={key}>
-          {/* Mismo lenguaje que la pestaña activa móvil: la pastilla azul de arriba (--glass-tab-active)
-              y el ícono y el texto en el acento. Hover y press en un velo del texto, como el resto
+          {/* Mismo lenguaje que la pestaña activa móvil: la pastilla neutra de arriba (--glass-tab-active)
+              y el ícono y el texto en el acento (--tab-active, más claro en oscuro por contraste).
+              Hover y press en un velo del texto, como el resto
               de los controles sobre vidrio (el --sidebar-accent de shadcn es un gris sólido). */}
           <SidebarMenuButton
             asChild
             isActive={activeKey === key}
             tooltip={label}
-            className="h-9 rounded-(--radius-bar-inner) text-subheadline hover:bg-foreground/5 active:bg-foreground/10 data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:hover:bg-transparent data-active:hover:text-primary"
+            className="h-9 rounded-(--radius-bar-inner) text-subheadline hover:bg-foreground/5 active:bg-foreground/10 data-active:bg-transparent data-active:font-semibold data-active:text-tab-active data-active:hover:bg-transparent data-active:hover:text-tab-active"
           >
             <Link
               href={href}
@@ -711,9 +718,9 @@ function BottomNav({
                 }}
                 data-squish
                 style={{ flexGrow: weight }}
-                // Sin negrita en la activa: la marcan la pastilla y aria-current; un peso distinto
+                // Sin negrita en la activa: la marcan la pastilla, el azul y aria-current; un peso distinto
                 // ensancharía su etiqueta y movería a las vecinas bajo la pastilla.
-                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-foreground aria-[current=page]:text-tab-active focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
               >
                 <Icon className="size-5 shrink-0" />
                 {short ? (

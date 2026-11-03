@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown } from "lucide-react"
+import { ChevronsUpDown } from "lucide-react"
 import { SearchInput } from "@/components/ui/search-input"
 import type { DateRange } from "react-day-picker"
 import { Calendar } from "@/components/ui/calendar"
@@ -17,7 +17,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
-import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Segmented } from "./segmented"
 import { formatCompact, ymd } from "@/lib/finance-format"
@@ -32,9 +31,11 @@ const RANGE_FMT = new Intl.DateTimeFormat("es-CL", {
   month: "short",
 })
 
-// Fila de filtro estilo iOS: mismo alto y ancho que el buscador y el segmentado.
+// Fila de una lista agrupada de iOS con un botón emergente: el nombre a la izquierda, el valor
+// elegido en gris a la derecha y `chevron.up.chevron.down`. Sin borde ni relleno propio: la celda
+// es el grupo.
 const ROW =
-  "flex h-11 w-full min-w-0 items-center gap-2 rounded-lg border border-input bg-input/30 px-3 text-left text-body data-[size=default]:h-11"
+  "press flex h-11 w-full min-w-0 items-center gap-2 rounded-none border-0 bg-transparent px-4 text-left text-body shadow-none hover:bg-foreground/5 focus-visible:ring-inset data-[size=default]:h-11 dark:bg-transparent dark:hover:bg-foreground/5"
 const ROW_VALUE = "ml-auto min-w-0 truncate text-right text-muted-foreground"
 
 export type Dir = "" | "debit" | "credit"
@@ -148,7 +149,7 @@ export function SearchField({
       value={q}
       onValueChange={(q) => set({ q })}
       aria-label="Buscar movimientos por descripción o categoría"
-      placeholder="Buscar por descripción o categoría…"
+      placeholder="Buscar"
     />
   )
 }
@@ -195,12 +196,11 @@ export function FilterControls({
         options={DIRS}
       />
 
-      {/* Filtros como filas de iOS: el nombre a la izquierda, el valor elegido a la derecha y el
-          chevron. Una columna en angosto; con ancho (el modal en escritorio), categoría y banco en
-          dos columnas parejas y Fechas debajo a lo ancho. Por contenedor, no por pantalla: el panel
-          lateral de Movimientos es angosto aunque la pantalla sea ancha. */}
-      <div className="@container">
-        <div className="grid gap-3 @md:grid-cols-2">
+      {/* Filtros como una lista agrupada de iOS (HIG: dentro de una hoja, botones emergentes en
+          las filas en vez de abrir otra vista). Un solo grupo con separadores; `glass` es la
+          celda sólida en la página y en la hoja. */}
+      <div>
+        <div className="glass inset-list flex flex-col overflow-hidden rounded-xl">
           <Select
             value={categoryId}
             onValueChange={(v) => set({ categoryId: v })}
@@ -247,7 +247,7 @@ export function FilterControls({
                 aria-label={
                   range?.from ? "Cambiar fechas" : "Filtrar por fechas"
                 }
-                className={cn(ROW, "@md:col-span-2")}
+                className={ROW}
               >
                 <span className="shrink-0">Fechas</span>
                 <span className={ROW_VALUE}>
@@ -257,7 +257,7 @@ export function FilterControls({
                       : RANGE_FMT.format(range.from)
                     : "Todas"}
                 </span>
-                <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                <ChevronsUpDown aria-hidden className="size-4 shrink-0 text-muted-foreground" />
               </button>
             </PopoverTrigger>
             <PopoverContent
@@ -274,16 +274,19 @@ export function FilterControls({
             </PopoverContent>
           </Popover>
 
-          {hasFilters && (
+        </div>
+        {/* Acción del grupo en texto azul, como el pie de una sección de Ajustes. */}
+        {hasFilters && (
+          <div className="flex justify-end px-1">
             <button
               type="button"
               onClick={() => onChange(emptyFilters(amountBounds))}
-              className="col-span-full h-11 justify-self-end text-subheadline text-primary"
+              className="press h-11 px-3 text-body text-primary"
             >
-              Limpiar
+              Limpiar filtros
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Rango de monto */}
@@ -295,7 +298,7 @@ export function FilterControls({
               {formatCompact(amount[0])} – {formatCompact(amount[1])}
             </span>
           </div>
-          {/* Margen lateral del radio del thumb (size-4, más su anillo): sin él, los extremos tocan
+          {/* Margen lateral para la sombra de la perilla (size-7): sin él, los extremos tocan
               el borde. La cabecera lleva el mismo margen para que el rango quede alineado. */}
           <div className="px-2">
             <Slider

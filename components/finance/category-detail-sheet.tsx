@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react"
 
-import { Pencil } from "lucide-react"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { MovementRow } from "./movement-row"
 import { CategoryIcon } from "./category-icons"
@@ -44,13 +43,8 @@ export function CategoryDetailSheet({
       primary={
         category
           ? {
-              label: (
-                <>
-                  <Pencil className="size-4" />
-                  Editar categoría
-                </>
-              ),
-              mobileLabel: "Editar",
+              label: "Editar",
+              plain: true,
               onClick: () => onEdit(category),
             }
           : undefined

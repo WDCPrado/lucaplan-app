@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { REGEXP_ONLY_DIGITS } from "input-otp"
-import { Loader2 } from "lucide-react"
+import { Loader } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import { mailAppsFor, maskEmail } from "@/lib/mail-apps"
 import {
@@ -125,7 +125,7 @@ function EmailStep({
       </div>
       <Button type="submit" disabled={pending} className="h-11 text-base">
         {pending && (
-          <Loader2
+          <Loader
             aria-hidden
             className="size-4 animate-spin motion-reduce:animate-none"
           />

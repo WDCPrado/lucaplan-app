@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, Loader2 } from "lucide-react"
+import { Check, Loader } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { IMPORT_STEPS } from "@/lib/import-progress"
 
@@ -41,7 +41,7 @@ export function ImportProgressTimeline({
                 {done ? (
                   <Check className="size-4 animate-in duration-300 zoom-in-50" />
                 ) : active ? (
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader className="size-4 animate-spin" />
                 ) : (
                   <span className="size-1.5 rounded-full bg-current" />
                 )}

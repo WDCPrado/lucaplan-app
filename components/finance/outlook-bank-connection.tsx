@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useId, useRef, useState } from "react"
-import { Check, CircleAlert, Loader2, Mail, Plus } from "lucide-react"
+import { Check, CircleAlert, Loader, Mail, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { haptic } from "@/lib/haptics"
 import {
@@ -460,7 +460,7 @@ export function OutlookBankConnection({
   if (!status)
     return (
       <div role="status" className="flex justify-center py-8">
-        <Loader2 className="size-5 animate-spin text-primary" aria-hidden />
+        <Loader className="size-5 animate-spin text-primary" aria-hidden />
         <span className="sr-only">Cargando la conexión del banco</span>
       </div>
     )
@@ -494,7 +494,7 @@ export function OutlookBankConnection({
               </Notice>
             ) : (
               <div role="status" className={ROW}>
-                <Loader2
+                <Loader
                   className="size-5 shrink-0 animate-spin text-primary"
                   aria-hidden
                 />
@@ -508,8 +508,8 @@ export function OutlookBankConnection({
           {scanError && (
             <ModalActions
               primary={{
-                label: "Reintentar revisión",
-                mobileLabel: "Reintentar",
+                label: "Reintentar",
+                plain: true,
                 onClick: () => detect(pending.id),
                 disabled: busy,
               }}
@@ -544,8 +544,8 @@ export function OutlookBankConnection({
         {cancelPending}
         <ModalActions
           primary={{
-            label: "Validar e importar movimientos",
-            mobileLabel: "Importar",
+            label: "Importar",
+            plain: true,
             onClick: () => startInitialImport(pending.id),
             disabled: busy || invalidSnapshot || Boolean(blockingHint),
           }}
@@ -631,8 +631,8 @@ export function OutlookBankConnection({
 
       <ModalActions
         primary={{
-          label: "Sincronizar ahora",
-          mobileLabel: "Sincronizar",
+          label: "Sincronizar",
+          plain: true,
           onClick: refresh,
           disabled: busy,
         }}
@@ -830,7 +830,7 @@ function AddBankSection({
           className={ACTION_ROW}
         >
           {busy ? (
-            <Loader2 className="size-5 shrink-0 animate-spin" aria-hidden />
+            <Loader className="size-5 shrink-0 animate-spin" aria-hidden />
           ) : (
             <Plus className="size-5 shrink-0" aria-hidden />
           )}
@@ -1005,7 +1005,6 @@ function FirstBankPicker({
 }) {
   const [selected, setSelected] = useState(banks[0]?.key ?? "")
   const [provider, setProvider] = useState(providers[0]?.key ?? "")
-  const providerLabel = providers.find((p) => p.key === provider)?.name ?? ""
 
   return (
     <>
@@ -1040,8 +1039,9 @@ function FirstBankPicker({
       )}
       <ModalActions
         primary={{
-          label: busy ? "Conectando…" : `Conectar ${providerLabel}`,
-          mobileLabel: busy ? "Conectando…" : "Conectar",
+          label: "Conectar",
+          plain: true,
+          busy,
           onClick: () => onSubmit(selected, provider),
           disabled: busy || !selected || !provider,
         }}

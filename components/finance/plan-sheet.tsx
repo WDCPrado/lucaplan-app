@@ -275,7 +275,7 @@ export function PlanSheet({
               </span>
               <ChevronRight
                 aria-hidden
-                className="size-4 shrink-0 text-muted-foreground/60"
+                className="disclosure"
               />
             </button>
           )}
@@ -376,7 +376,7 @@ export function PlanSheet({
                 </span>
                 <ChevronRight
                   aria-hidden
-                  className="size-4 shrink-0 text-muted-foreground/60"
+                  className="disclosure"
                 />
               </button>
             ))}
@@ -431,7 +431,7 @@ export function PlanSheet({
       <ModalFooter className="px-5">
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           className="h-12 flex-1 text-body"
           onClick={() => {
             setDrafts({})

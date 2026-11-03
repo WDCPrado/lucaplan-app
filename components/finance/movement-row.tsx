@@ -1,4 +1,4 @@
-import { CreditCard, Repeat, Link2 } from "lucide-react"
+import { ChevronRight, CreditCard, Repeat, Link2 } from "lucide-react"
 import type { TransactionDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
@@ -137,8 +137,8 @@ export function MovementRow({
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
         <div className="min-w-0 flex-1">
-          <div className="truncate text-body font-medium">{tx.description}</div>
-          <div className="flex items-center gap-1.5 text-footnote text-muted-foreground">
+          <div className="truncate text-body">{tx.description}</div>
+          <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-footnote text-muted-foreground">
             <span className="truncate">
               {tx.categoryName ?? "Sin categoría"}
             </span>
@@ -170,7 +170,7 @@ export function MovementRow({
           )}
         </div>
         <div
-          className={`tabular shrink-0 text-right text-subheadline font-semibold ${income ? "text-success" : "text-foreground"}`}
+          className={`tabular shrink-0 text-right text-body font-semibold ${income ? "text-success" : "text-foreground"}`}
         >
           <div>
             {income ? "+" : "−"}
@@ -185,6 +185,8 @@ export function MovementRow({
             </div>
           )}
         </div>
+        {/* La fila abre el detalle: chevron de lista de iOS. */}
+        {onOpen && <ChevronRight aria-hidden className="disclosure -ml-1" />}
       </button>
     </div>
   )

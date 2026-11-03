@@ -186,14 +186,19 @@ export function RecurringLinkPicker({
             No hay movimientos para elegir.
           </p>
         ) : (
-          <ul className="mt-3 flex flex-col gap-0.5" aria-busy={busy}>
+          // Lista agrupada de la hoja: una celda con separadores desde el texto, como las demás.
+          <ul
+
+            className="sheet-group inset-list mt-4 overflow-hidden"
+            aria-busy={busy}
+          >
             {items.map((tx) => (
               <li key={tx.id}>
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => setPending(tx)}
-                  className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors outline-none hover:bg-secondary/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+                  className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left outline-none hover:bg-secondary/60 focus-visible:bg-secondary/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-subheadline font-medium">

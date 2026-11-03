@@ -208,8 +208,8 @@ export function InstallmentModal({
           ? undefined
           : {
               label: saving ? "Creando…" : "Crear plan",
-              mobileLabel: saving ? "Creando…" : "Crear",
               onClick: save,
+              busy: saving,
               disabled: !canSave,
             }
       }

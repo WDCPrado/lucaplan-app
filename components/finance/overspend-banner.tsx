@@ -100,7 +100,7 @@ export function OverspendBanner({
     >
       {icon}
       <span className="min-w-0 flex-1">{text}</span>
-      <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+      <ChevronRight aria-hidden className="disclosure" />
     </button>
   )
 }

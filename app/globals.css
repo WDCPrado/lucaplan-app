@@ -40,6 +40,7 @@
     --color-secondary: var(--secondary);
     --color-primary-foreground: var(--primary-foreground);
     --color-primary: var(--primary);
+    --color-tab-active: var(--tab-active);
     --color-popover-foreground: var(--popover-foreground);
     --color-popover: var(--popover);
     --color-card-foreground: var(--card-foreground);
@@ -173,7 +174,8 @@
     --glass-rim: oklch(1 0 0 / 0.2);
     --glass-reflection-opacity: 0.8;
     --glass-shadow: 0 1px 2px oklch(0.2 0.01 286 / 0.06), 0 8px 24px -6px oklch(0.2 0.01 286 / 0.16);
-    --glass-tab-active: color-mix(in oklch, var(--primary) 16%, transparent);
+    --glass-tab-active: color-mix(in oklch, var(--foreground) 9%, transparent); /* pastilla neutra; el acento va en ícono y etiqueta */
+    --tab-active: var(--primary);                    /* ícono y etiqueta de la pestaña activa: 4.8:1 sobre la pastilla */
     --glass-active-shadow: inset 0 0 0 0.5px var(--glass-edge), 0 1px 3px oklch(0 0 0 / 0.12);
     /* Material «regular» de iOS para lo que lleva texto encima del contenido (menús, popovers,
        select, tooltip, toasts, alertas): la misma familia, más opaco y con más desenfoque. */
@@ -186,6 +188,12 @@
     /* Relleno de controles (systemFill): pista del segmentado, inputs y controles de la topbar. */
     --glass-control: oklch(0.569 0.015 285.9 / 0.12);
     --glass-control-active: oklch(1 0 0);
+    /* Toggle y perillas de iOS: verde de sistema (sin oscurecer: no es texto) y perilla blanca. */
+    --switch-on: oklch(0.723 0.192 149.6);           /* #34C759 systemGreen */
+    --knob: oklch(1 0 0);
+    --knob-shadow: 0 0 0 0.5px oklch(0 0 0 / 0.04), 0 3px 8px oklch(0 0 0 / 0.15), 0 3px 1px oklch(0 0 0 / 0.06);
+    /* Spring corto de iOS (el mismo del squish), para la perilla del toggle y la pastilla del segmentado. */
+    --ease-spring: linear(0, 0.058, 0.193, 0.358, 0.523, 0.67, 0.791, 0.884, 0.951, 0.995, 1.021, 1.034, 1.038, 1.037, 1.032, 1.025, 1.019, 1.013, 1.008, 1.005, 1);
     /* Scrollbar minimalista (escritorio): pulgar translúcido del color del texto, pista invisible. */
     --scrollbar: color-mix(in oklch, var(--foreground) 20%, transparent);
     --scrollbar-hover: color-mix(in oklch, var(--foreground) 35%, transparent);
@@ -302,13 +310,17 @@ html:has(main[data-landing]) body {
     --glass-rim: oklch(1 0 0 / 0.045);
     --glass-reflection-opacity: 0.8;
     --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 8px 24px -6px oklch(0 0 0 / 0.55);
-    --glass-tab-active: color-mix(in oklch, var(--primary) 26%, transparent);
+    --glass-tab-active: color-mix(in oklch, var(--foreground) 14%, transparent);
+    /* #0A84FF sobre la pastilla da ~2.7:1; este azul más claro llega a 5.1:1 (≥4.5 de la etiqueta). */
+    --tab-active: oklch(0.8 0.12 255.5);             /* #89C1FF */
     --glass-active-shadow: inset 0 0 0 0.5px var(--glass-edge), 0 1px 3px oklch(0 0 0 / 0.18);
     --material: color-mix(in oklch, oklch(0.26 0.004 286 / 0.84), var(--card) var(--glass-tint));
     --material-shadow: 0 0 0 0.5px var(--glass-edge), 0 12px 40px -8px oklch(0 0 0 / 0.6);
     --scroll-edge: color-mix(in oklch, var(--background) var(--scroll-edge-amount), transparent);
     --glass-control: oklch(0.569 0.015 285.9 / 0.24);
     --glass-control-active: oklch(0.501 0.005 286.2); /* #636366 segmento activo */
+    --switch-on: oklch(0.756 0.208 147.0);           /* #30D158 systemGreen oscuro */
+    --knob-shadow: 0 0 0 0.5px oklch(0 0 0 / 0.1), 0 3px 8px oklch(0 0 0 / 0.3), 0 3px 1px oklch(0 0 0 / 0.1);
 }
 
 @layer base {
@@ -364,6 +376,28 @@ html:has(main[data-landing]) body {
   .press:active {
     opacity: 0.55;
   }
+}
+
+/* === Íconos como SF Symbols (lucide-react; los SF Symbols no se licencian para web) ===
+   Un ícono toma el peso del texto que acompaña, como un símbolo junto a su etiqueta: regular con
+   texto regular, más grueso con texto semibold/bold. El tamaño lo sigue poniendo `size-*` según la
+   escala tipográfica (`size-4` junto a subheadline/body, `size-5` en barras, `size-6` sueltos). */
+/* En @layer base para que `disclosure` y las utilidades `stroke-*` le ganen; solo toca el trazo
+   `stroke-width="2"` (el de lucide por defecto); un `strokeWidth` distinto de 2 se respeta. La landing no
+   sigue el lenguaje iOS. */
+@layer base {
+  :is(.font-semibold, .font-bold):not([data-landing] *) > svg.lucide[stroke-width="2"] {
+    stroke-width: 2.5;
+  }
+}
+/* Chevron de fila (`chevron.right` de una lista de iOS): más chico que el texto, semibold y en
+   gris terciario. Para el chevron que abre algo desde una fila, nunca para navegar. */
+@utility disclosure {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  stroke-width: 3;
+  color: color-mix(in oklch, var(--muted-foreground) 60%, transparent);
 }
 
 
@@ -423,7 +457,7 @@ html:has(main[data-landing]) body {
     }
   }
 }
-/* Pestaña móvil activa: acento azul, sin otro desenfoque ni refracción dentro del vidrio. */
+/* Pestaña móvil activa (y la del sidebar): pastilla neutra, sin otro desenfoque dentro del vidrio. */
 @utility liquid-glass-active {
   background-color: var(--glass-tab-active);
   box-shadow: var(--glass-active-shadow);
@@ -781,6 +815,24 @@ html:has(main[data-landing]) body {
 :is([data-landing], .force-light) .account-card {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 8px 20px -10px rgb(0 0 0 / 0.25);
 }
+/* La landing no sigue el lenguaje iOS de la app (WDC-176). Su hoja vuelve a ir pegada abajo desde
+   el `className` del modal (app/page.tsx); aquí solo la X de escritorio, que no tiene prop: un botón
+   fantasma de 44 px en vez del círculo gris. */
+.force-light [data-slot="dialog-close"] {
+  top: 1rem;
+  right: 1rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-lg);
+  background-color: transparent;
+  color: var(--foreground);
+}
+.force-light [data-slot="dialog-close"]:hover {
+  background-color: var(--muted);
+}
+.force-light [data-slot="dialog-close"] svg {
+  stroke-width: 2;
+}
 /* El modal legal de la landing conserva su título de antes: grande y a la izquierda. */
 .force-light :is([data-slot="drawer-title"], [data-slot="dialog-title"]) {
   font-size: 1.25rem;
@@ -915,6 +967,10 @@ html:has(main[data-landing]) body {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
+/* Dentro de una lista agrupada (que recorta con overflow-hidden) el contorno va por dentro. */
+.inset-list :is(button, a, [role="button"], summary):focus-visible {
+  outline-offset: -2px;
+}
 [data-product] ::selection {
   background: var(--accent);
   color: var(--accent-foreground);
@@ -938,8 +994,8 @@ html:has(main[data-landing]) body {
      hojas de iOS. En claro, gris #F2F2F7 con celdas blancas; en oscuro, la hoja elevada #1C1C1E con
      celdas #2C2C2E (el negro puro del fondo de la app no se usa en hojas).
    - Menú (dropdown, select, popover): material translúcido que sigue el tema, sin sombra dura.
-   - Alerta (AlertDialog): bloque angosto centrado de material, texto centrado y dos botones.
-   Los estilos van aquí y no en components/ui, que solo se toca para los radios. */
+   - Alerta (AlertDialog): vive en components/ui/alert-dialog.tsx (excepción iOS, WDC-176).
+   Lo demás va aquí; components/ui solo lleva las excepciones de docs/development.md. */
 :root {
     /* Esquinas de hoja/alerta de iOS 26: más grandes que las de una tarjeta (rounded-xl). Se usa
        como `rounded-(--radius-sheet)` para que tailwind-merge la reconozca como radio. */
@@ -1059,6 +1115,19 @@ html:has(main[data-landing]) body {
   -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
   box-shadow: var(--material-shadow);
 }
+/* Toast como banner de iOS (WDC-176): título en subheadline semibold y detalle en footnote. */
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
+  gap: 0.75rem;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-title] {
+  font-size: var(--text-subheadline);
+  line-height: var(--text-subheadline--line-height);
+  font-weight: 600;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-description] {
+  font-size: var(--text-footnote);
+  line-height: var(--text-footnote--line-height);
+}
 /* Táctil: filas de 44 px y texto body (17 px), como un menú de iOS. */
 @media (pointer: coarse) {
   :is(
@@ -1074,37 +1143,4 @@ html:has(main[data-landing]) body {
   }
 }
 
-/* Alerta de iOS: angosta, centrada, título headline, mensaje en subheadline y botones lado a lado. */
-[data-slot="alert-dialog-content"] {
-  @apply material;
-  max-width: min(20rem, calc(100% - 2.5rem));
-  gap: 1.25rem;
-  padding: 1.25rem;
-  border-radius: var(--radius-sheet);
-}
-[data-slot="alert-dialog-header"] {
-  place-items: center;
-  text-align: center;
-}
-[data-slot="alert-dialog-title"] {
-  font-size: var(--text-headline);
-  line-height: var(--text-headline--line-height);
-  font-weight: 600;
-}
-[data-slot="alert-dialog-description"] {
-  font-size: var(--text-subheadline);
-  line-height: var(--text-subheadline--line-height);
-}
-[data-slot="alert-dialog-footer"] {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-[data-slot="alert-dialog-footer"] > * {
-  min-height: 2.75rem;
-  font-size: var(--text-body);
-}
-[data-slot="alert-dialog-cancel"] {
-  background-color: var(--glass-control);
-  border-color: transparent;
-}
+/* La alerta de iOS vive en components/ui/alert-dialog.tsx (WDC-176). */

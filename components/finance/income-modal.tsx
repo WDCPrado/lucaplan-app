@@ -208,12 +208,8 @@ export function IncomeModal({
                 : income
                   ? "Guardar ingreso"
                   : "Agregar ingreso",
-              mobileLabel: isSubmitting
-                ? "Guardando…"
-                : income
-                  ? "Guardar"
-                  : "Agregar",
               form: formId,
+              busy: isSubmitting,
               disabled:
                 busy ||
                 incomeCategories.length === 0 ||
@@ -230,7 +226,7 @@ export function IncomeModal({
           <ModalFooter className="px-5">
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               className="h-12 flex-1 text-body"
               onClick={() => onOpenChange(false)}
             >
@@ -415,9 +411,9 @@ export function IncomeModal({
                 />
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   onClick={onCreateCategory}
-                  className="h-auto min-h-11 w-full min-w-0 py-2 whitespace-normal"
+                  className="h-auto min-h-11 w-full min-w-0 py-2 whitespace-normal text-primary"
                 >
                   Crear categoría de ingreso
                 </Button>

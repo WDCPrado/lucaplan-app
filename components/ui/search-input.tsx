@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, type ComponentProps } from "react"
-import { Search, X } from "lucide-react"
+import { CircleX, Search } from "lucide-react"
 import { Input } from "./input"
 import { cn } from "@/lib/utils"
 
@@ -23,7 +23,7 @@ export function SearchInput({
     <div className="relative">
       <Search
         aria-hidden
-        className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+        className="pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2 text-muted-foreground"
       />
       <Input
         {...props}
@@ -32,20 +32,25 @@ export function SearchInput({
         disabled={disabled}
         onChange={(event) => onValueChange(event.target.value)}
         inputMode="search"
-        className={cn("h-11 pr-11 pl-10 text-body md:text-body", className)}
+        className={cn("h-11 rounded-full pr-11 pl-10 text-body md:text-body", className)}
       />
       {value && (
         <button
           type="button"
           disabled={disabled}
           aria-label="Limpiar búsqueda"
-          className="absolute top-1/2 right-0 grid size-11 -translate-y-1/2 place-items-center rounded-lg text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+          className="press absolute top-1/2 right-0 grid size-11 -translate-y-1/2 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
           onClick={() => {
             onValueChange("")
             input.current?.focus()
           }}
         >
-          <X aria-hidden className="size-4" />
+          {/* `xmark.circle.fill` de iOS: círculo gris relleno con la X calada en el color del campo. */}
+          <CircleX
+            aria-hidden
+            className="size-4.5 fill-muted-foreground/70 text-(--sheet-cell)"
+            strokeWidth={2.5}
+          />
         </button>
       )}
     </div>

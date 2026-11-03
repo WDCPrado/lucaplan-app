@@ -214,6 +214,20 @@ function PlanRow({
               )}
             </span>
           )}
+          {/* Avance del plan; el texto «cuota X de Y» ya lo dice para lectores de pantalla. */}
+          {!completed && p.installmentsCount > 0 && (
+            <span
+              aria-hidden
+              className="mt-2 block h-1.5 overflow-hidden rounded-full bg-muted"
+            >
+              <span
+                className="block h-full rounded-full bg-primary"
+                style={{
+                  width: `${Math.min(100, (p.settledCount / p.installmentsCount) * 100)}%`,
+                }}
+              />
+            </span>
+          )}
         </span>
       </button>
     </li>

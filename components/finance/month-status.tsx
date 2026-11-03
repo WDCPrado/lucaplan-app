@@ -61,7 +61,7 @@ export function MonthStatus({
       className="press -mx-5 -mb-5 mt-4 flex min-h-12 w-[calc(100%+2.5rem)] items-center justify-between gap-2 rounded-b-xl px-5 text-left text-body text-primary hover:bg-foreground/5 focus-visible:-outline-offset-2 lg:-mx-6 lg:-mb-6 lg:w-[calc(100%+3rem)] lg:px-6"
     >
       Ajustar plan
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
+      <ChevronRight className="disclosure" />
     </button>
   )
 
@@ -162,7 +162,7 @@ export function AllocationNudge({
           ? `Sobre-asignado ${formatCLP(Math.abs(remainingToAllocate))} en categorías`
           : `Te falta repartir ${formatCLP(remainingToAllocate)} en categorías`}
       </span>
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
+      <ChevronRight className="disclosure" />
     </button>
   )
 }
@@ -283,7 +283,7 @@ export function ClosingPicker({
                   Estimado
                 </span>
               )}
-              <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
+              <ChevronRight className="disclosure" />
             </button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-auto gap-2 p-3">

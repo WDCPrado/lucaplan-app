@@ -218,7 +218,7 @@ function PlanRow({
           {!completed && p.installmentsCount > 0 && (
             <span
               aria-hidden
-              className="mt-2 block h-1 overflow-hidden rounded-full bg-muted"
+              className="mt-2 block h-1.5 overflow-hidden rounded-full bg-muted"
             >
               <span
                 className="block h-full rounded-full bg-primary"

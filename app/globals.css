@@ -990,8 +990,8 @@ html:has(main[data-landing]) body {
      hojas de iOS. En claro, gris #F2F2F7 con celdas blancas; en oscuro, la hoja elevada #1C1C1E con
      celdas #2C2C2E (el negro puro del fondo de la app no se usa en hojas).
    - Menú (dropdown, select, popover): material translúcido que sigue el tema, sin sombra dura.
-   - Alerta (AlertDialog): bloque angosto centrado de material, texto centrado y dos botones.
-   Los estilos van aquí y no en components/ui, que solo se toca para los radios. */
+   - Alerta (AlertDialog): vive en components/ui/alert-dialog.tsx (excepción iOS, WDC-176).
+   Lo demás va aquí; components/ui solo lleva las excepciones de docs/development.md. */
 :root {
     /* Esquinas de hoja/alerta de iOS 26: más grandes que las de una tarjeta (rounded-xl). Se usa
        como `rounded-(--radius-sheet)` para que tailwind-merge la reconozca como radio. */
@@ -1111,6 +1111,19 @@ html:has(main[data-landing]) body {
   -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
   box-shadow: var(--material-shadow);
 }
+/* Toast como banner de iOS (WDC-176): título en subheadline semibold y detalle en footnote. */
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
+  gap: 0.75rem;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-title] {
+  font-size: var(--text-subheadline);
+  line-height: var(--text-subheadline--line-height);
+  font-weight: 600;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-description] {
+  font-size: var(--text-footnote);
+  line-height: var(--text-footnote--line-height);
+}
 /* Táctil: filas de 44 px y texto body (17 px), como un menú de iOS. */
 @media (pointer: coarse) {
   :is(
@@ -1126,37 +1139,4 @@ html:has(main[data-landing]) body {
   }
 }
 
-/* Alerta de iOS: angosta, centrada, título headline, mensaje en subheadline y botones lado a lado. */
-[data-slot="alert-dialog-content"] {
-  @apply material;
-  max-width: min(20rem, calc(100% - 2.5rem));
-  gap: 1.25rem;
-  padding: 1.25rem;
-  border-radius: var(--radius-sheet);
-}
-[data-slot="alert-dialog-header"] {
-  place-items: center;
-  text-align: center;
-}
-[data-slot="alert-dialog-title"] {
-  font-size: var(--text-headline);
-  line-height: var(--text-headline--line-height);
-  font-weight: 600;
-}
-[data-slot="alert-dialog-description"] {
-  font-size: var(--text-subheadline);
-  line-height: var(--text-subheadline--line-height);
-}
-[data-slot="alert-dialog-footer"] {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-[data-slot="alert-dialog-footer"] > * {
-  min-height: 2.75rem;
-  font-size: var(--text-body);
-}
-[data-slot="alert-dialog-cancel"] {
-  background-color: var(--glass-control);
-  border-color: transparent;
-}
+/* La alerta de iOS vive en components/ui/alert-dialog.tsx (WDC-176). */

@@ -214,7 +214,7 @@ agrupaciones, la tipografía y los controles.
   - **Material regular (`--material`)** para lo que lleva texto encima del contenido:
     menús, select, popover, tooltip, toasts, alertas y el aviso de refresco de la PWA. Más opaco que
     el vidrio de las barras, con la misma saturación moderada; la utilidad `material` concentra la
-    receta. Los toasts de estado conservan su color semántico. Las hojas van sólidas (`--sheet`).
+    receta. Los toasts de estado conservan su color semántico y salen arriba, como el banner de iOS. En las alertas, el destructivo es texto rojo sobre la misma cápsula gris de Cancelar. Las hojas van sólidas (`--sheet`).
   - **Color con moderación**: el vidrio no tiene color propio; textos e íconos encima van en
     `foreground`, salvo la selección. La pestaña móvil activa y el link activo del sidebar llevan
     la misma pastilla neutra (`--glass-tab-active`, un velo de `foreground`) con

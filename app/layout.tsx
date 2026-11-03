@@ -118,7 +118,12 @@ export default function RootLayout({
           <div data-vaul-drawer-wrapper className="min-h-dvh">
             {children}
           </div>
-          <Toaster  richColors={true} position="bottom-center"/>
+          {/* Arriba como el banner de iOS, bajo la isla dinámica en la PWA. */}
+          <Toaster
+            richColors={true}
+            position="top-center"
+            mobileOffset={{ top: "calc(env(safe-area-inset-top) + 8px)" }}
+          />
           <ServiceWorkerRegistration />
           <PwaRefresh />
         </ThemeProvider>

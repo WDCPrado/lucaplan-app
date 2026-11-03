@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 
 // Excepción iOS (WDC-176): la alerta de iOS 26. Bloque angosto de material centrado, título y
 // mensaje centrados, botones en cápsula de 44 px: dos en fila, más de dos apilados con Cancelar al
-// final. Cancelar en gris (systemFill); el destructivo en rojo (variante `destructive`).
+// final. Cancelar en gris (systemFill); el destructivo, texto rojo sobre ese mismo gris.
 
 function AlertDialog({
   ...props
@@ -160,7 +160,17 @@ function AlertDialogAction({
 }: React.ComponentProps<typeof AlertDialogPrimitive.Action> &
   Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
   return (
-    <Button variant={variant} size={size} className={className} asChild>
+    <Button
+      variant={variant}
+      size={size}
+      // iOS 26: el destructivo es texto rojo sobre la misma cápsula gris de Cancelar.
+      className={cn(
+        variant === "destructive" &&
+          "bg-(--glass-control) font-semibold hover:bg-(--glass-control) dark:bg-(--glass-control) dark:hover:bg-(--glass-control)",
+        className
+      )}
+      asChild
+    >
       <AlertDialogPrimitive.Action
         data-slot="alert-dialog-action"
         {...props}

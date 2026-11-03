@@ -211,7 +211,7 @@ export function DatePicker({
           aria-invalid={invalid}
           aria-describedby={describedBy}
           variant="outline"
-          className="h-12 w-full justify-start rounded-lg text-body font-normal"
+          className="h-12 w-full min-w-0 justify-start rounded-lg text-body font-normal"
         >
           <CalendarIcon className="size-4 text-muted-foreground" />
           {selected ? (
@@ -223,7 +223,7 @@ export function DatePicker({
               year: "numeric",
             })
           ) : (
-            <span className="text-muted-foreground">{placeholder}</span>
+            <span className="truncate text-muted-foreground">{placeholder}</span>
           )}
         </Button>
       </PopoverTrigger>

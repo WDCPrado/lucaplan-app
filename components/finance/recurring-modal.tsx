@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronRight, Loader } from "lucide-react"
+import { Check, ChevronRight, Loader } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -27,7 +27,7 @@ import {
 import { haptic } from "@/lib/haptics"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
-import { Chip, DatePicker } from "./transaction-modal"
+import { DatePicker } from "./transaction-modal"
 import { Segmented } from "./segmented"
 import { DayOfMonthPicker } from "./income-modal"
 import {
@@ -496,7 +496,7 @@ export function RecurringModal({
                     <DatePicker
                       value={endDate}
                       onChange={setEndDate}
-                      placeholder="Elegir fecha de término"
+                      placeholder="Fecha de término"
                       fromDate={(
                         template?.startDate ?? new Date().toISOString()
                       ).slice(0, 10)}
@@ -534,18 +534,29 @@ export function RecurringModal({
               )}
             </ModalSection>
 
+            {/* Elección única entre cuentas, como en Ajustes de iOS: filas con ✓ en la elegida. */}
             <ModalSection title="Cuenta del cargo">
-              <ChipRow>
-                {accounts.map((a) => (
-                  <Chip
+              {accounts.map((a) => {
+                const selected = a.id === account?.id
+                return (
+                  <button
                     key={a.id}
-                    active={a.id === account?.id}
+                    type="button"
+                    aria-pressed={selected}
                     onClick={() => setAccountId(a.id)}
+                    className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body"
                   >
-                    {a.name}
-                  </Chip>
-                ))}
-              </ChipRow>
+                    <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                    {selected && (
+                      <Check
+                        aria-hidden
+                        className="size-5 shrink-0 text-primary"
+                        strokeWidth={2.5}
+                      />
+                    )}
+                  </button>
+                )
+              })}
             </ModalSection>
           </form>
 
@@ -650,11 +661,3 @@ function BusySpinner() {
   )
 }
 
-// Fila de chips con scroll horizontal dentro de su celda.
-function ChipRow({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex scrollbar-none gap-2 overflow-x-auto px-4 py-2">
-      {children}
-    </div>
-  )
-}

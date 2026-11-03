@@ -406,7 +406,7 @@ export function ResponsiveModal({
               // el notch. El teclado se superpone sin redimensionar ni elevar el panel.
               // Hoja de iOS 26: flota despegada de los bordes, con las cuatro esquinas redondeadas y
               // casi concéntrica con las del teléfono (el mismo `--tab-bar-inset` de la barra).
-              "h-auto rounded-(--radius-sheet) bg-sheet p-0 text-body before:hidden after:hidden [--initial-transform:calc(100%+var(--tab-bar-inset))] data-[vaul-drawer-direction=bottom]:inset-x-2 data-[vaul-drawer-direction=bottom]:bottom-(--tab-bar-inset) data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top)-var(--tab-bar-inset))]",
+              "h-auto rounded-(--radius-sheet) bg-sheet p-0 text-body outline-none before:hidden after:hidden [--initial-transform:calc(100%+var(--tab-bar-inset))] data-[vaul-drawer-direction=bottom]:inset-x-2 data-[vaul-drawer-direction=bottom]:bottom-(--tab-bar-inset) data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top)-var(--tab-bar-inset))]",
               className
             )}
           >

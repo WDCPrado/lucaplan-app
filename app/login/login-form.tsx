@@ -1,9 +1,12 @@
 "use client"
 
+import { Button } from "glisse"
+import { Button as SlotButton } from "@/components/ui/button"
+
 import { useState } from "react"
 import { useTheme } from "next-themes"
 import { Check, Copy, Moon, Sun } from "lucide-react"
-import { Button } from "@/components/ui/button"
+
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { LEGAL, type LegalKey } from "@/components/landing/legal-content"
@@ -16,15 +19,16 @@ function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme()
   return (
     <Button
-      variant="ghost"
-      size="icon"
       aria-label="Cambiar tema"
-      className="absolute top-4 right-4 z-10 size-11"
+      style={{ position: "absolute", top: 16, right: 16, zIndex: 10 }}
+      icon={
+        <>
+          <Sun className="size-5 dark:hidden" />
+          <Moon className="hidden size-5 dark:block" />
+        </>
+      }
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-    >
-      <Sun className="size-5 dark:hidden" />
-      <Moon className="hidden size-5 dark:block" />
-    </Button>
+    ></Button>
   )
 }
 
@@ -90,12 +94,16 @@ function OpenSourceNotice() {
           <Copy className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/copy:text-foreground" />
         )}
       </button>
-      <Button asChild variant="outline" className="mt-3 h-11 w-full text-base">
+      <SlotButton
+        asChild
+        variant="outline"
+        className="mt-3 h-11 w-full text-base"
+      >
         <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
           <GitHubIcon />
           Ver en GitHub
         </a>
-      </Button>
+      </SlotButton>
     </div>
   )
 }

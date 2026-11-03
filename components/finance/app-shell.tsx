@@ -4,7 +4,11 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { navDirection, reverseNav, type NavDirection } from "@/lib/nav-direction"
+import {
+  navDirection,
+  reverseNav,
+  type NavDirection,
+} from "@/lib/nav-direction"
 import { useAppearance } from "@/components/appearance-provider"
 import {
   Home,
@@ -36,8 +40,9 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { authClient } from "@/lib/auth-client"
-import { useLiquidRefraction } from "@/hooks/use-liquid-refraction"
+import { Button, Glass, TabBar } from "glisse"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
 import { TransactionSearch } from "./transaction-search"
 import { TransactionModal } from "./transaction-modal"
@@ -87,21 +92,6 @@ const NAV: {
 
 // El perfil no es una ruta: es una hoja (ProfileSheet) que se abre desde la fila de la cuenta en
 // Ajustes (móvil) y desde el menú de la cuenta del sidebar (escritorio).
-// Ancho relativo de cada pestaña: las etiquetas largas («Recurrentes», «Movimientos») reciben más
-// que las cortas, así a 375 px entran completas a 12 px sin cortarse. Bajo 375 px «Movimientos» pasa
-// a «Movim.» (`short`), nunca a «…».
-const TAB: Partial<Record<NavKey, { weight: number; short?: string }>> = {
-  inicio: { weight: 0.8 },
-  recurrentes: { weight: 1.2 },
-  movimientos: { weight: 1.2, short: "Movim." },
-  configuracion: { weight: 0.8 },
-}
-const BOTTOM_NAV = NAV.map((n) => ({
-  ...n,
-  weight: TAB[n.key]?.weight ?? 1,
-  short: TAB[n.key]?.short,
-}))
-const TAB_TOTAL = BOTTOM_NAV.reduce((sum, n) => sum + n.weight, 0)
 
 function navKeyOf(pathname: string): NavKey | undefined {
   return NAV.find(
@@ -326,19 +316,14 @@ function useNavDirection() {
 // Móvil: la búsqueda va suelta a la derecha de la cápsula de pestañas (iOS 26, como Música o Fotos),
 // del alto de la cápsula. Está en todas las vistas, así la cápsula no cambia de ancho al navegar.
 function SearchCircle({ onSearch }: { onSearch: () => void }) {
-  const ref = React.useRef<HTMLButtonElement>(null)
-  useLiquidRefraction(ref)
   return (
-    <button
-      ref={ref}
-      type="button"
+    <Button
       onClick={onSearch}
       aria-label="Buscar movimientos"
-      data-squish
-      className="press liquid-glass liquid-squish pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full"
-    >
-      <Search className="size-6" />
-    </button>
+      icon={<Search className="size-6" />}
+      style={{ width: 60, height: 60 }}
+      className="pointer-events-auto shrink-0"
+    />
   )
 }
 
@@ -405,6 +390,7 @@ function Chrome({
   const title =
     titleProp ?? NAV.find((n) => n.key === navKeyOf(pathname))?.label
   const { topRef, scrolled } = useScrolled()
+  const isMobile = useIsMobile()
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -444,47 +430,53 @@ function Chrome({
               con su borde superior. Detrás, el scroll edge effect funde lo que pasa por debajo. Lo que
               va adentro tiene radio concéntrico (--radius-bar-inner). */}
           <div
+            key={`desktop-${isMobile}`}
             style={{ viewTransitionName: "app-topbar" }}
-            className="sticky top-0 z-10 hidden scroll-edge-top pt-2 pr-2 md:block"
+            className="sticky top-0 z-10 hidden pt-2 pr-2 md:block"
           >
-            <header className="flex h-14 items-center gap-2 rounded-xl liquid-glass p-2 pl-3">
-              <SidebarTrigger className="size-10 rounded-(--radius-bar-inner)" />
-              {title && (
-                <h1 className="text-title-3 font-semibold">{title}</h1>
-              )}
-              {/* Las acciones de la vista (el selector de mes) van junto al título; sin ellas, el mismo
-                  selector deshabilitado con el período en curso. La búsqueda global, al final. */}
-              <div
-                ref={desktopSlotRef}
-                className="peer ml-2 flex items-center empty:hidden"
-              >
-                {actions}
-              </div>
-              {idle && (
-                <div className="ml-2 hidden items-center peer-empty:flex">
-                  {idle}
-                </div>
-              )}
-              <div className="ml-auto flex items-center gap-2">
-                {/* Búsqueda global: abre el mismo modal que el círculo de la barra móvil. */}
-                {onSearch && (
-                  <button
-                    type="button"
-                    onClick={onSearch}
-                    aria-label="Buscar movimientos"
-                    title="Buscar (/ o Ctrl K)"
-                    className="press flex size-10 shrink-0 items-center justify-center gap-2 rounded-(--radius-bar-inner) bg-(--glass-control) text-subheadline text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:w-56 lg:justify-start lg:px-3"
-                  >
-                    <Search className="size-4 shrink-0" />
-                    <span className="hidden flex-1 text-left lg:inline">
-                      Buscar
-                    </span>
-                    <kbd className="hidden rounded-sm bg-card px-1.5 font-sans text-caption lg:inline">
-                      /
-                    </kbd>
-                  </button>
+            <header>
+              <Glass className="flex min-h-14 items-center gap-2 rounded-xl p-2 pl-3">
+                <SidebarTrigger className="size-10 rounded-(--radius-bar-inner)" />
+                {title && (
+                  <h1 className="text-title-3 font-semibold">{title}</h1>
                 )}
-              </div>
+                {/* Las acciones de la vista (el selector de mes) van junto al título; sin ellas, el mismo
+                  selector deshabilitado con el período en curso. La búsqueda global, al final. */}
+                <div
+                  ref={desktopSlotRef}
+                  className="peer ml-2 flex items-center empty:hidden"
+                >
+                  {actions}
+                </div>
+                {idle && (
+                  <div
+                    key={pathname}
+                    className="ml-2 hidden items-center peer-empty:flex"
+                  >
+                    {idle}
+                  </div>
+                )}
+                <div className="ml-auto flex items-center gap-2">
+                  {/* Búsqueda global: abre el mismo modal que el círculo de la barra móvil. */}
+                  {onSearch && (
+                    <Button
+                      type="button"
+                      onClick={onSearch}
+                      aria-label="Buscar movimientos"
+                      title="Buscar (/ o Ctrl K)"
+                      className="press flex size-10 shrink-0 items-center justify-center gap-2 rounded-(--radius-bar-inner) bg-(--glass-control) text-subheadline text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:w-56 lg:justify-start lg:px-3"
+                    >
+                      <Search className="size-4 shrink-0" />
+                      <span className="hidden flex-1 text-left lg:inline">
+                        Buscar
+                      </span>
+                      <kbd className="hidden rounded-sm bg-card px-1.5 font-sans text-caption lg:inline">
+                        /
+                      </kbd>
+                    </Button>
+                  )}
+                </div>
+              </Glass>
             </header>
           </div>
           {/* Móvil: controles flotantes en vidrio (iOS 26), sin barra a lo ancho. A la izquierda el
@@ -495,6 +487,7 @@ function Chrome({
               primer scroll el título se va y el selector se ensancha hasta llenar la fila
               (`.top-title`). Solo las cápsulas desenfocan el fondo y reciben toques. */}
           <div
+            key={`mobile-${isMobile}`}
             data-scrolled={scrolled || undefined}
             style={{ viewTransitionName: "app-top-mobile" }}
             className="top-bar pwa-safe-top pointer-events-none sticky top-0 z-20 flex items-center px-4 py-2 md:hidden"
@@ -514,7 +507,10 @@ function Chrome({
             )}
             <div className="grid min-h-11 min-w-0 flex-1 items-center *:col-start-1 *:row-start-1">
               {idle && (
-                <div className="top-idle pointer-events-auto flex w-full min-w-0">
+                <div
+                  key={pathname}
+                  className="top-idle pointer-events-auto flex w-full min-w-0"
+                >
                   {idle}
                 </div>
               )}
@@ -529,7 +525,10 @@ function Chrome({
           </div>
           {/* Aire inferior solo en móvil, por la navegación flotante (64px + 1rem + su margen al
               borde, --tab-bar-inset). En escritorio no flota nada. */}
-          <div className="min-w-0 flex-1 pb-[calc(5rem+var(--tab-bar-inset))] md:pb-0">
+          <div
+            data-glisse-backdrop
+            className="app-glass-backdrop min-w-0 flex-1 pb-[calc(5rem+var(--tab-bar-inset))] md:pb-0"
+          >
             {children}
           </div>
         </SidebarInset>
@@ -586,7 +585,7 @@ function NavMenu({
         aria-hidden
         style={{ "--i": Math.max(activeIndex, 0) } as React.CSSProperties}
         className={cn(
-          "nav-pill liquid-glass-active pointer-events-none absolute top-0 left-0 h-9 w-full rounded-(--radius-bar-inner) [transform:translateY(calc(var(--i)*2.5rem))] group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:[transform:translateY(calc(var(--i)*2.25rem))]",
+          "nav-pill pointer-events-none absolute top-0 left-0 h-9 w-full [transform:translateY(calc(var(--i)*2.5rem))] rounded-(--radius-bar-inner) bg-(--lg-selection) group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:[transform:translateY(calc(var(--i)*2.25rem))]",
           activeIndex < 0 && "opacity-0"
         )}
       />
@@ -623,17 +622,7 @@ function NavMenu({
   )
 }
 
-// Navegación inferior (solo móvil), flotante como en iOS 26: una cápsula de vidrio con los mismos
-// destinos del sidebar y, suelta a la derecha, la búsqueda (`trailing`). La pastilla del activo
-// (concéntrica: rounded-full dentro de rounded-full) se desliza de una pestaña a otra: como la barra
-// vive en el layout y no se desmonta al navegar, basta una transición de transform. Las etiquetas
-// van en el color y el peso del texto; el activo se marca con el fondo azul de su pastilla, así
-// ningún ancho cambia al cambiar de pestaña.
-// La pastilla se desliza con la misma duración y curva que el contenido al cambiar de pantalla
-// (`.tab-pill`, --nav-duration/--nav-ease en globals.css). La cápsula hace squish al tocar una pestaña y, en
-// Chromium, refracta lo que pasa por debajo (useLiquidRefraction). La pastilla no refracta: vive
-// dentro del vidrio de la cápsula, que es su «backdrop root», así que debajo solo tiene el relleno
-// liso de la cápsula y no habría nada que desviar.
+// Glisse conserva los enlaces de Next y gestiona la selección y su movimiento.
 function BottomNav({
   active,
   onNavigate,
@@ -644,102 +633,42 @@ function BottomNav({
   trailing?: React.ReactNode
 }) {
   const pathname = usePathname()
-  const router = useRouter()
-  // Toque optimista: la pestaña tocada se marca al instante, sin esperar a que llegue la página.
-  // Dura lo que dura la navegación (su transición); al terminar —llegó, falló o se volvió atrás—
-  // manda el pathname.
-  const [optimisticKey, setOptimisticKey] = React.useOptimistic(
-    navKeyOf(pathname)
-  )
-  const activeKey = active ?? optimisticKey
-  const activeIndex = BOTTOM_NAV.findIndex((n) => n.key === activeKey)
-  const pill = BOTTOM_NAV[Math.max(activeIndex, 0)]
-  const pillLeft = BOTTOM_NAV.slice(0, Math.max(activeIndex, 0)).reduce(
-    (sum, n) => sum + n.weight,
-    0
-  )
-  const navRef = React.useRef<HTMLElement>(null)
-  useLiquidRefraction(navRef)
-
+  const isMobile = useIsMobile()
   return (
-    <div
-      // Nombre propio en el cambio de pantalla: la barra queda quieta encima del contenido que se desliza.
+    <nav
+      key={String(isMobile)}
+      aria-label="Navegación principal"
       style={{ viewTransitionName: "app-tabbar" }}
-      className="pointer-events-none fixed right-[env(safe-area-inset-right)] bottom-0 left-[env(safe-area-inset-left)] z-30 flex items-center gap-3 px-2 pt-3 pb-(--tab-bar-inset) md:hidden"
+      className="app-bottom-nav pointer-events-none fixed right-[env(safe-area-inset-right)] bottom-0 left-[env(safe-area-inset-left)] z-30 flex items-center gap-2 px-2 pt-3 pb-(--tab-bar-inset) md:hidden"
     >
-      <nav
-        ref={navRef}
-        aria-label="Navegación principal"
-        className="liquid-glass liquid-squish pointer-events-auto flex h-16 min-w-0 flex-1 rounded-full p-1"
-      >
-        <div className="relative flex min-w-0 flex-1">
-          {/* Las pestañas no miden lo mismo: la pastilla se ubica con left/right en % de la fila
-              (es un elemento chico; animarlos no pesa). */}
-          <span
-            aria-hidden
-            className={cn(
-              "tab-pill pointer-events-none absolute inset-y-0 flex",
-              activeIndex < 0 && "opacity-0"
-            )}
-            style={{
-              left: `${(pillLeft / TAB_TOTAL) * 100}%`,
-              right: `${((TAB_TOTAL - pillLeft - pill.weight) / TAB_TOTAL) * 100}%`,
-            }}
-          >
-            <span className="liquid-glass-active w-full rounded-full" />
-          </span>
-          {BOTTOM_NAV.map(({ key, label, short, weight, Icon, href }) => {
-            const isActive = activeKey === key
-            return (
-              <Link
-                key={key}
-                href={href}
-                prefetch
-                aria-current={isActive ? "page" : undefined}
-                onClick={(e) => {
-                  haptic("light")
-                  onNavigate?.(key)
-                  if (pathname === href) {
-                    window.scrollTo({ top: 0, behavior: "smooth" })
-                    return
-                  }
-                  // Ctrl/⌘/Shift/Alt-clic sigue siendo del navegador (pestaña nueva, descargar).
-                  if (
-                    e.button !== 0 ||
-                    e.metaKey ||
-                    e.ctrlKey ||
-                    e.shiftKey ||
-                    e.altKey
-                  )
-                    return
-                  e.preventDefault()
-                  React.startTransition(() => {
-                    setOptimisticKey(key)
-                    router.push(href)
-                  })
-                }}
-                data-squish
-                style={{ flexGrow: weight }}
-                // Sin negrita en la activa: la marcan la pastilla y aria-current; un peso distinto
-                // ensancharía su etiqueta y movería a las vecinas bajo la pastilla.
-                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-foreground"
-              >
-                <Icon className="size-5 shrink-0" />
-                {short ? (
-                  <span className="text-caption whitespace-nowrap">
-                    <span className="max-[375px]:sr-only">{label}</span>
-                    <span aria-hidden className="min-[375px]:hidden">{short}</span>
-                  </span>
-                ) : (
-                  <span className="text-caption whitespace-nowrap">{label}</span>
-                )}
-              </Link>
-            )
-          })}
-        </div>
-      </nav>
+      <TabBar
+        className="pointer-events-auto min-w-0"
+        link={Link}
+        value={active ?? navKeyOf(pathname) ?? null}
+        items={NAV.map(({ key, label, Icon, href }) => ({
+          value: key,
+          label: key === "movimientos" ? "Movim." : label,
+          icon: <Icon className="size-5" />,
+          href,
+        }))}
+        onValueChange={(value) => {
+          haptic("light")
+          onNavigate?.(value as NavKey)
+        }}
+        onClickCapture={(event) => {
+          const link = (event.target as HTMLElement).closest("a")
+          if (
+            link?.getAttribute("href") === pathname &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.shiftKey &&
+            !event.altKey
+          )
+            window.scrollTo({ top: 0, behavior: "smooth" })
+        }}
+      />
       {trailing}
-    </div>
+    </nav>
   )
 }
 

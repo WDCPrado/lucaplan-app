@@ -1,11 +1,13 @@
 "use client"
 
+import { Button, SegmentedControl } from "glisse"
+
 import { useOptimistic, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
 import { ChevronRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
+
 import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
@@ -18,7 +20,6 @@ import { formatCLP, monthName, usagePct } from "@/lib/finance-format"
 import { closedPeriodLine, isFuturePeriod } from "@/lib/period-status"
 import { estimateClosing, type PeriodMode } from "@/arch/shared/billing-cycle"
 import { PlanSummary, type PlanInput } from "./financial-health-meter"
-import { Segmented } from "./segmented"
 import type { CycleProps } from "./dashboard"
 
 /**
@@ -58,7 +59,7 @@ export function MonthStatus({
     <button
       type="button"
       onClick={onOpenPlan}
-      className="press -mx-5 -mb-5 mt-4 flex min-h-12 w-[calc(100%+2.5rem)] items-center justify-between gap-2 rounded-b-xl px-5 text-left text-body text-primary hover:bg-foreground/5 focus-visible:-outline-offset-2 lg:-mx-6 lg:-mb-6 lg:w-[calc(100%+3rem)] lg:px-6"
+      className="press -mx-5 mt-4 -mb-5 flex min-h-12 w-[calc(100%+2.5rem)] items-center justify-between gap-2 rounded-b-xl px-5 text-left text-body text-primary hover:bg-foreground/5 focus-visible:-outline-offset-2 lg:-mx-6 lg:-mb-6 lg:w-[calc(100%+3rem)] lg:px-6"
     >
       Ajustar plan
       <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
@@ -77,7 +78,11 @@ export function MonthStatus({
               Configura el plan de este período para organizar tus ingresos y gastos.
             </p>
           </div>
-          <Button onClick={onOpenPlan} className="h-11 shrink-0">
+          <Button
+            variant="filled"
+            onClick={onOpenPlan}
+            className="h-11 shrink-0"
+          >
             Definir tope de gasto
           </Button>
         </div>
@@ -100,8 +105,14 @@ export function MonthStatus({
           }`
     return (
       <section className="glass flex flex-1 flex-col rounded-xl p-5 lg:p-6">
-        <PlanSummary {...plan} subtitle={daysLine} onOpenLiquidity={onOpenLiquidity} />
-        {children && <div className="mt-4 flex flex-1 flex-col">{children}</div>}
+        <PlanSummary
+          {...plan}
+          subtitle={daysLine}
+          onOpenLiquidity={onOpenLiquidity}
+        />
+        {children && (
+          <div className="mt-4 flex flex-1 flex-col">{children}</div>
+        )}
         {footer}
       </section>
     )
@@ -111,7 +122,12 @@ export function MonthStatus({
   return (
     <section className="glass flex flex-1 flex-col rounded-xl p-5 lg:p-6">
       <p className="text-title-1 font-bold tracking-tight text-pretty">
-        {closedPeriodLine({ period, current: cycle.current, globalLimit, spent })}
+        {closedPeriodLine({
+          period,
+          current: cycle.current,
+          globalLimit,
+          spent,
+        })}
       </p>
       {/* Un período que no empieza no tiene gasto que contar. */}
       {!isFuturePeriod(period, cycle.current) && (
@@ -211,12 +227,20 @@ export function PeriodModeControl({ mode: savedMode }: { mode: PeriodMode }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <Segmented
-        label="Período del plan"
+      <SegmentedControl
+        style={
+          {
+            "--lg-tab-width": "min(160px, calc((100vw - 64px) / 2))",
+          } as React.CSSProperties
+        }
+        aria-label="Período del plan"
         value={mode}
-        disabled={pending}
-        onChange={changeMode}
-        options={[
+        inert={pending}
+        aria-disabled={pending}
+        onValueChange={(value) => {
+          if (!pending) changeMode(value as PeriodMode)
+        }}
+        items={[
           { value: "calendar", label: "Mes calendario" },
           { value: "card_cycle", label: "Ciclo de tarjeta" },
         ]}

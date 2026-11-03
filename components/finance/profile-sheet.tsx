@@ -1,6 +1,8 @@
 "use client"
 
-import { useForm, useWatch } from "react-hook-form"
+import { Input } from "glisse"
+
+import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -12,7 +14,6 @@ import {
   ModalSection,
   ResponsiveModal,
 } from "@/components/ui/responsive-modal"
-import { Input } from "@/components/ui/input"
 
 const NAME_FORM = "profile-name-form"
 
@@ -110,16 +111,23 @@ function NameForm({
         }
       >
         {/* El campo es la celda: sin relleno propio ni contorno hasta enfocarlo. */}
-        <Input
-          {...form.register("name")}
-          id="profile-name"
-          autoComplete="name"
-          inputMode="text"
-          maxLength={PROFILE_NAME_MAX}
-          placeholder="Tu nombre"
-          aria-invalid={!!errors.name}
-          aria-describedby={errors.name ? "profile-name-error" : undefined}
-          className="h-11 rounded-none border-0 bg-transparent px-4 text-body shadow-none focus-visible:ring-inset md:text-body"
+        <Controller
+          control={form.control}
+          name={"name"}
+          render={({ field: { onChange, ...field } }) => (
+            <Input
+              {...field}
+              onValueChange={onChange}
+              id="profile-name"
+              autoComplete="name"
+              inputMode="text"
+              maxLength={PROFILE_NAME_MAX}
+              placeholder="Tu nombre"
+              aria-invalid={!!errors.name}
+              aria-describedby={errors.name ? "profile-name-error" : undefined}
+              className="h-11 rounded-none border-0 bg-transparent px-4 text-body shadow-none focus-visible:ring-inset md:text-body"
+            />
+          )}
         />
       </ModalSection>
       <ModalActions

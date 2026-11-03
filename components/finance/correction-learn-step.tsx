@@ -1,8 +1,9 @@
 "use client"
 
+import { Button, Input } from "glisse"
+
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+
 import { Label } from "@/components/ui/label"
 
 // Paso de aprendizaje tras categorizar a mano: pregunta el "porqué" (opcional) y ofrece propagar la
@@ -44,7 +45,7 @@ export function CorrectionLearnStep({
         <Input
           id="correction-note"
           value={note}
-          onChange={(e) => setNote(e.target.value)}
+          onValueChange={(value) => setNote(value)}
           maxLength={120}
           placeholder="Ej.: pedidos de comida a domicilio"
           inputMode="text"
@@ -70,6 +71,7 @@ export function CorrectionLearnStep({
       <div className="flex flex-col gap-2">
         {(n > 0 || learnedCategoryName) && (
           <Button
+            variant="filled"
             onClick={() => onFinish({ note, applyToSameText: true })}
             disabled={saving}
             className="h-12 text-base"
@@ -82,7 +84,7 @@ export function CorrectionLearnStep({
           </Button>
         )}
         <Button
-          variant={n > 0 || learnedCategoryName ? "outline" : "default"}
+          variant={n > 0 || learnedCategoryName ? "glass" : "filled"}
           onClick={() => onFinish({ note, applyToSameText: false })}
           disabled={saving}
           className="h-12 text-base"

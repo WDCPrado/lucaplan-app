@@ -8,14 +8,15 @@ Fuente de verdad: [app/globals.css](../../app/globals.css). No hardcodees valore
 componentes — siempre tira de estos tokens (variables CSS / utilidades Tailwind v4). Las reglas de
 uso están en [Lenguaje visual](../development.md#lenguaje-visual-ios-y-liquid-glass).
 
-## Contrato de estabilidad de Liquid Glass
+## Materiales de Glisse
 
-**Los efectos son parte del diseño, no un detalle del layout.** Una tarea de reordenar secciones, cambiar tamaños, añadir gráficos o modificar navegación **no autoriza** modificar el material de vidrio. Preservar en móvil y escritorio: `liquid-glass`, los cinco niveles de `data-glass` en Apariencia, `--glass-fill`, `--glass-clear`, `--glass-tint`, `--glass-blur`, `--glass-saturate`, `--glass-shadow`, `--glass-rim`, `--glass-reflection-opacity`, `--glass-refraction`, el reflejo `::before` y el comportamiento de refracción compatible por navegador.
+WDC-173 sustituye expresamente el motor y el acabado anterior por Glisse 0.5.0. Los controles
+compatibles se importan de la biblioteca, sin clones ni una segunda capa de diseño. El CSS local
+sólo adapta tamaños, texto, disposición, tokens y preferencias de accesibilidad.
 
-- Para cambios de UI, modificar únicamente distribución, jerarquía y espaciado; no anular tokens de vidrio en contenedores como `.top-bar` para solucionar problemas de layout.
-- «Hoy» del selector de ciclo y «Hoy» del selector de movimientos deben heredar el mismo `liquid-glass` en móvil y el mismo material de control en escritorio, respetando Apariencia y accesibilidad. Si cambia el material compartido, revisar ambos controles.
-- Si un pedido requiere alterar transparencia, sombra, blur, brillo o refracción, tratarlo como cambio explícito de material, acotado y con revisión visual en iOS Safari/PWA y escritorio, ambos temas y niveles de Apariencia. Nunca mezclarlo silenciosamente con un PR de layout.
-- Antes del merge, inspeccionar `git diff` de `app/globals.css` y de clases `liquid-glass` de los controles; verificar que el efecto no haya variado accidentalmente. Las preferencias del usuario siguen siendo la única fuente de nivel de vidrio.
+El nivel de Apariencia sigue siendo del usuario. Tanto «Hoy» del ciclo como «Hoy» de movimientos
+usan Button de Glisse. No modificar sus efectos al resolver un problema de layout.
+Ver [mapa de migración y límites](glisse.md), incluido el mecanismo oficial de refracción en Safari.
 
 ## Principios
 
@@ -50,36 +51,15 @@ y los tokens glass.
 
 ## Materiales
 
-Tres superficies, todas desde tokens de `globals.css`:
+Superficies de Glisse y tokens de contenido de `globals.css`:
 
 | Superficie | Clase / token | Dónde |
 | --- | --- | --- |
-| Liquid Glass | `liquid-glass` (`--glass-fill`, `--glass-fill-large` en el sidebar) | barras, topbar, sidebar, cápsulas y botones flotantes |
-| Material regular | `material` (`--material`) y `[data-slot]` de menús, select, popover, tooltip, toasts y alertas | lectura sobre contenido y aviso de refresco PWA |
-| Sólido | `card`, `--sheet`, `--sheet-cell` | contenido, listas, hojas y diálogos |
+| Liquid Glass | Glass y controles de Glisse | navegación, acciones, campos y popovers compatibles |
+| Superficie sólida | card / sheet / popover | contenido, diálogos y controles sin equivalente |
 
-El vidrio usa un relleno neutro, desenfoque de 16 px y saturación de 120 %. El sidebar reutiliza el
-acabado de `liquid-glass` con más relleno. El borde combina un contorno tenue de 0.5 px con un
-reflejo localizado arriba-izquierda y un eco más débil abajo-derecha; no ilumina todo el perímetro.
-Los cinco niveles de Apariencia cambian la transparencia, conservando el desenfoque.
-
-`liquid-glass-active` usa `--glass-tab-active`, el acento azul, con `--glass-active-shadow`: es la
-pastilla de la pestaña móvil activa y la del link activo del sidebar. En la barra móvil textos e
-íconos conservan `foreground`; en el sidebar el activo los lleva en `text-primary`.
-`scroll-edge-top` (`--scroll-edge`, `--scroll-edge-amount`, `--scroll-edge-blur`) queda solo detrás
-de la topbar de escritorio. En móvil el desenfoque se limita a las cápsulas del selector de mes y
-la navegación, sin velos fuera de sus bordes. La fila superior móvil anula la sombra exterior
-de sus cápsulas, conservando blur, contorno y rim internos; escritorio y barra inferior mantienen
-su sombra. Los controles (`input`, segmentado) usan
-`--glass-control` / `--glass-control-active`.
-`--radius-bar-inner` es el radio concéntrico de lo que va dentro de una barra `rounded-xl`.
-`--card-art-*` colorea el cupo sobre el arte de las tarjetas de cuenta. `--scrollbar` pinta el
-scrollbar fino de escritorio.
-
-Accesibilidad: con `prefers-reduced-transparency: reduce` todo material cae a sólido y pierde el
-desenfoque; con `prefers-contrast: more` el vidrio y su selección ganan relleno y contorno. Ambas
-apagan `--glass-reflection-opacity`, también en el sidebar y las variantes responsive. Sin soporte
-de desenfoque, los materiales caen a sólido. `prefers-reduced-motion` sigue siendo para animaciones.
+El acabado del vidrio pertenece a la biblioteca; los tokens de la app conservan los colores de
+datos y contenido. La selección de TabBar y SegmentedControl también pertenece a Glisse.
 
 ## Forma y tipografía
 
@@ -91,7 +71,7 @@ de desenfoque, los materiales caen a sólido. `prefers-reduced-motion` sigue sie
 
 ## Dark mode
 
-Conmuta con la clase `.dark` (vía `next-themes`). Todos los tokens —incluido el fondo
+Conmuta con la clase `.dark` y `data-theme` (vía `next-themes`). Todos los tokens —incluido el fondo
 ambiental y el glass— tienen su variante. Diseña y prueba ambos modos juntos, no infieras
 uno del otro.
 

@@ -1,5 +1,7 @@
 "use client"
 
+import { Button, Input, Switch } from "glisse"
+
 import { useCallback, useEffect, useId, useRef, useState } from "react"
 import { Check, CircleAlert, Loader2, Mail, Plus } from "lucide-react"
 import { toast } from "sonner"
@@ -15,9 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
+
 import {
   ModalActions,
   ModalDangerRow,
@@ -804,7 +804,7 @@ function AddBankSection({
         >
           <Input
             value={label}
-            onChange={(e) => setLabel(e.target.value)}
+            onValueChange={(value) => setLabel(value)}
             placeholder="Empresa, Personal…"
             aria-label="Etiqueta"
             maxLength={24}
@@ -1090,12 +1090,9 @@ function DisconnectBankButton({
       <AlertDialogTrigger asChild>
         <Button
           type="button"
-          variant="ghost"
           disabled={busy}
-          className={cn(
-            TEXT_BUTTON,
-            "text-destructive hover:text-destructive"
-          )}
+          destructive
+          className={TEXT_BUTTON}
         >
           Desconectar
         </Button>
@@ -1207,8 +1204,8 @@ export function SnapshotForm({
           <Input
             type="time"
             value={snapshotAt.slice(11, 16)}
-            onChange={(e) =>
-              setSnapshotAt(`${snapshotAt.slice(0, 10)}T${e.target.value}`)
+            onValueChange={(value) =>
+              setSnapshotAt(`${snapshotAt.slice(0, 10)}T${value}`)
             }
             aria-label="Hora del saldo"
             className="h-12 w-auto shrink-0"
@@ -1391,7 +1388,7 @@ function MoneyField({
       value={money.display}
       placeholder={currency === "USD" ? "0,00" : "0"}
       aria-label={ariaLabel}
-      onChange={(e) => onValue(money.onChange(e.target.value))}
+      onValueChange={(value) => onValue(money.onChange(value))}
       className={cn(
         "tabular",
         kind === "primary" ? primaryMoneyInput : boxedMoneyInput
@@ -1570,9 +1567,10 @@ function CandidateCard({
             aria-label={refLabel}
             aria-invalid={refInvalid || undefined}
             aria-describedby={refInvalid ? refErrorId : undefined}
-            onChange={(e) => onRef(e.target.value)}
+            onValueChange={(value) => onRef(value)}
             onBlur={() => setRefTouched(true)}
-            className="tabular h-11 w-24 rounded-lg px-3 text-body tracking-widest md:text-body"
+            style={{ width: 96 }}
+            className="tabular text-body tracking-widest"
           />
           {movementCount ? (
             <span className="text-subheadline text-muted-foreground">
@@ -1581,14 +1579,14 @@ function CandidateCard({
           ) : null}
           {/* Fuera del título: el encabezado se lee solo con el instrumento, y cada «Quitar» dice
               cuál quita. */}
-          <button
+          <Button
             type="button"
             onClick={onRemove}
             aria-label={`Quitar ${typeLabel}${refValue ? ` ${refValue}` : ""}`}
             className="press ml-auto min-h-11 shrink-0 text-body text-primary"
           >
             Quitar
-          </button>
+          </Button>
         </div>
         {refInvalid && (
           <p

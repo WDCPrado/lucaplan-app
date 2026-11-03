@@ -28,7 +28,7 @@ function ThemeProvider({
 
   return (
     <NextThemesProvider
-      attribute="class"
+      attribute={["class", "data-theme"]}
       defaultTheme="dark"
       enableSystem
       disableTransitionOnChange

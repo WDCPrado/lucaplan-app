@@ -1,5 +1,7 @@
 "use client"
 
+import { Button } from "glisse"
+
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Landmark, Plus } from "lucide-react"
@@ -68,14 +70,14 @@ export function SyncBancoChileButton({
   return (
     <>
       {variant === "row" ? (
-        <button
+        <Button
           type="button"
           onClick={openModal}
           className="press flex min-h-11 items-center gap-1 text-body text-primary"
         >
           <Plus className="size-4" />
           Conectar banco
-        </button>
+        </Button>
       ) : (
         <button
           type="button"

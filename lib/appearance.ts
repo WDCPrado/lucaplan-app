@@ -60,7 +60,7 @@ export function appearanceScript(server: UserSettings, stored: boolean) {
     .replace(/</g, "\\u003c")
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029")
-  return `(function(s){var t=s.theme,g=s.glassLevel,r=document.documentElement;try{var l=localStorage;if(${!stored}&&!l.getItem("${MIGRATED}")){var lt=l.getItem("${THEME}"),lg=l.getItem("${LEGACY_GLASS}");if(lt==="light"||lt==="dark"||lt==="system")t=lt;if(/^[0-4]$/.test(lg))g=+lg}l.setItem("${THEME}",t)}catch(e){}var m=t==="system"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):t;r.classList.remove("light","dark");r.classList.add(m);r.style.colorScheme=m;if(g!==${USER_SETTINGS_DEFAULTS.glassLevel})r.dataset.glass=String(g);else delete r.dataset.glass})(${s})`
+  return `(function(s){var t=s.theme,g=s.glassLevel,r=document.documentElement;try{var l=localStorage;if(${!stored}&&!l.getItem("${MIGRATED}")){var lt=l.getItem("${THEME}"),lg=l.getItem("${LEGACY_GLASS}");if(lt==="light"||lt==="dark"||lt==="system")t=lt;if(/^[0-4]$/.test(lg))g=+lg}l.setItem("${THEME}",t)}catch(e){}var m=t==="system"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):t;r.classList.remove("light","dark");r.classList.add(m);r.dataset.theme=m;r.style.colorScheme=m;if(g!==${USER_SETTINGS_DEFAULTS.glassLevel})r.dataset.glass=String(g);else delete r.dataset.glass})(${s})`
 }
 
 // Guardado optimista: la pantalla cambia al instante y cada PATCH puede fallar o llegar en

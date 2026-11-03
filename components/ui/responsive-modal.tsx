@@ -1,10 +1,12 @@
 "use client"
 
+import { Button } from "glisse"
+
+import { X } from "lucide-react"
 import * as React from "react"
 import { createPortal } from "react-dom"
-import { X } from "lucide-react"
 import { Drawer as DrawerPrimitive } from "vaul"
-import { Button } from "@/components/ui/button"
+
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -173,7 +175,6 @@ export function ModalActions({
             <Button
               {...actionProps(cancel)}
               disabled={cancel.disabled}
-              variant="ghost"
               className={sheetActionClass}
             >
               {cancel.mobileLabel ?? cancel.label}
@@ -184,9 +185,9 @@ export function ModalActions({
           slots?.end &&
           createPortal(
             <Button
+              variant="filled"
               {...actionProps(primary)}
               disabled={primary.disabled}
-              variant="ghost"
               className={cn(sheetActionClass, "font-semibold")}
             >
               {primary.mobileLabel ?? primary.label}
@@ -202,7 +203,6 @@ export function ModalActions({
         <Button
           {...actionProps(cancel)}
           disabled={cancel.disabled}
-          variant="outline"
           className="h-12 flex-1 text-body"
         >
           {cancel.label}
@@ -210,6 +210,7 @@ export function ModalActions({
       )}
       {primary && (
         <Button
+          variant="filled"
           {...actionProps(primary)}
           disabled={primary.disabled}
           className="h-auto min-h-12 min-w-0 flex-1 py-3 text-body whitespace-normal"
@@ -265,8 +266,8 @@ export function ModalDangerRow({
 }: React.ComponentProps<typeof Button>) {
   return (
     <Button
+      destructive
       type="button"
-      variant="ghost"
       className={cn(
         "sheet-group press h-auto min-h-11 w-full justify-center rounded-xl px-4 py-2.5 text-body font-normal whitespace-normal text-destructive hover:bg-(--sheet-cell) hover:text-destructive aria-expanded:bg-(--sheet-cell) aria-expanded:text-destructive dark:hover:bg-(--sheet-cell)",
         className
@@ -361,7 +362,7 @@ export function ResponsiveModal({
             className={cn(
               // Los paneles cortos usan su contenido; los largos desplazan el cuerpo sin alcanzar
               // el notch. El teclado se superpone sin redimensionar ni elevar el panel.
-              "h-auto rounded-t-(--radius-sheet) bg-sheet p-0 text-body before:hidden data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))]",
+              "h-auto rounded-t-(--radius-sheet) p-0 text-body before:hidden data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))]",
               className
             )}
           >
@@ -419,7 +420,7 @@ export function ResponsiveModal({
             dismissible ? undefined : (e) => e.preventDefault()
           }
           className={cn(
-            "max-h-[90dvh] rounded-(--radius-sheet) bg-sheet [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto p-0 text-body sm:max-w-2xl [&>*]:min-w-0 [&>[data-slot=dialog-close]]:size-11 [&>[data-slot=modal-footer]]:mx-0",
+            "max-h-[90dvh] [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto rounded-(--radius-sheet) p-0 text-body sm:max-w-2xl [&>*]:min-w-0 [&>[data-slot=dialog-close]]:size-11 [&>[data-slot=modal-footer]]:mx-0",
             className
           )}
         >
@@ -430,17 +431,14 @@ export function ResponsiveModal({
             {dismissible && (
               <DialogClose asChild>
                 <Button
+                  icon={<X aria-hidden="true" />}
                   id={`${scope.id}-close`}
                   data-modal-owner={scope.id}
                   data-slot="dialog-close"
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-4 right-4 hidden size-11 md:inline-flex"
+                  style={{ position: "absolute", top: 16, right: 16 }}
                   aria-label={`Cerrar ${title}`}
-                >
-                  <X aria-hidden="true" />
-                </Button>
+                ></Button>
               </DialogClose>
             )}
           </DialogHeader>

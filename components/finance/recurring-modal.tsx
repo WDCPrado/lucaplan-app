@@ -1,5 +1,7 @@
 "use client"
 
+import { Button, Input, Slider } from "glisse"
+
 import { useId, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronRight } from "lucide-react"
@@ -10,8 +12,7 @@ import {
   ModalSection,
   ResponsiveModal,
 } from "@/components/ui/responsive-modal"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -369,7 +370,7 @@ export function RecurringModal({
               <Input
                 placeholder="Ej. Arriendo depto"
                 value={label}
-                onChange={(e) => setLabel(e.target.value)}
+                onValueChange={(value) => setLabel(value)}
                 aria-label="Nombre"
                 className="h-11 rounded-none border-0 bg-transparent px-4 text-body shadow-none focus-visible:ring-0 md:text-body"
               />
@@ -400,7 +401,7 @@ export function RecurringModal({
                   inputMode="numeric"
                   placeholder="0"
                   value={money.display}
-                  onChange={(e) => money.onChange(e.target.value)}
+                  onValueChange={(value) => money.onChange(value)}
                   aria-label="Monto base"
                   // md:text-large-title: el Input trae su tamaño de escritorio y dejaba el monto chico.
                   className="tabular h-12 min-w-0 border-0 bg-transparent px-0 text-large-title font-bold shadow-none focus-visible:ring-0 md:text-large-title"
@@ -420,13 +421,12 @@ export function RecurringModal({
                   <span className="text-muted-foreground">—</span>
                   <span>{fmt(max)}</span>
                 </div>
-                <input
-                  type="range"
+                <Slider
                   min={0}
                   max={50}
                   step={5}
                   value={tolerancePct}
-                  onChange={(e) => setTolerancePct(Number(e.target.value))}
+                  onValueChange={setTolerancePct}
                   className="mt-3 h-11 w-full accent-primary"
                   aria-label="Tolerancia del monto"
                 />
@@ -486,7 +486,6 @@ export function RecurringModal({
                   </span>
                   <Button
                     type="button"
-                    variant="ghost"
                     onClick={() => {
                       setWithEnd(false)
                       setEndDate("")

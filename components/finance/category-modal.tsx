@@ -1,5 +1,7 @@
 "use client"
 
+import { Button, Input, Switch } from "glisse"
+
 import { z } from "zod"
 import { useId, useState } from "react"
 import { useForm, Controller, useWatch } from "react-hook-form"
@@ -22,10 +24,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+
 import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
+
 import {
   Select,
   SelectContent,
@@ -236,17 +237,24 @@ export function CategoryModal({
             required
             error={errors.name?.message}
           >
-            <Input
-              {...form.register("name")}
-              id={`${formId}-name`}
-              required
-              inputMode="text"
-              className="h-12 text-body"
-              placeholder="Ej. Supermercado"
-              aria-invalid={!!errors.name}
-              aria-describedby={
-                errors.name ? `${formId}-name-error` : undefined
-              }
+            <Controller
+              control={form.control}
+              name={"name"}
+              render={({ field: { onChange, ...field } }) => (
+                <Input
+                  {...field}
+                  onValueChange={onChange}
+                  id={`${formId}-name`}
+                  required
+                  inputMode="text"
+                  className="h-12 text-body"
+                  placeholder="Ej. Supermercado"
+                  aria-invalid={!!errors.name}
+                  aria-describedby={
+                    errors.name ? `${formId}-name-error` : undefined
+                  }
+                />
+              )}
             />
           </FinanceField>
           {!category && !lockedType && (
@@ -339,20 +347,15 @@ export function CategoryModal({
               {CATEGORY_ICONS.map(({ name, Icon }) => (
                 <Button
                   key={name}
+                  icon={<Icon className="size-5" />}
+                  variant={icon === name ? "filled" : "glass"}
                   type="button"
-                  variant="outline"
-                  className={cn(
-                    "size-11",
-                    icon === name && "border-primary bg-primary/10 text-primary"
-                  )}
                   aria-label={name}
                   aria-pressed={icon === name}
                   onClick={() =>
                     form.setValue("icon", name, { shouldDirty: true })
                   }
-                >
-                  <Icon size={18} />
-                </Button>
+                />
               ))}
             </div>
           </fieldset>

@@ -1,3 +1,4 @@
+@import "glisse/styles.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -153,36 +154,7 @@
     --sidebar-border: oklch(0.359 0.012 285.8 / 0.22);
     --sidebar-ring: oklch(0.507 0.185 257.7);
 
-    /* === Materiales (apple-hig/foundations/materials) ===
-       Liquid Glass: solo la capa de controles y navegación que flota sobre el contenido (barras,
-       sidebar, topbar, cápsulas y botones flotantes). Variante «regular»: desenfoque + luminosidad;
-       sin color propio. Lo grande (sidebar) un poco más opaco que lo chico (barra, botones).
-       Ajustes → Apariencia (`data-glass` en <html>; por usuario, en la base: lib/appearance.ts) lo mueve: 2 (sin atributo)
-       es el vidrio por defecto; 0–1 lo aclaran más (`--glass-clear`) y 3–4 lo tiñen hacia la celda
-       sólida (`--glass-tint`). El desenfoque se conserva en los cinco niveles: transparencia no
-       significa dejar que las letras del fondo compitan con los controles. Los menús no se aclaran. */
-    --glass-tint: 0%;
-    --glass-clear: 20%;
-    --scroll-edge-amount: 22%; /* velo del scroll edge, suave: baja con el nivel de vidrio */
-    --glass-fill: color-mix(in oklch, color-mix(in oklch, oklch(1 0 0 / 0.72), transparent var(--glass-clear)), var(--card) var(--glass-tint));
-    --glass-fill-large: color-mix(in oklch, color-mix(in oklch, oklch(0.985 0 0 / 0.86), transparent var(--glass-clear)), var(--card) var(--glass-tint));
-    --glass-blur: 16px;
-    --glass-saturate: 120%;
-    --glass-highlight: oklch(1 0 0 / 0.9);           /* reflejo localizado, no un aro uniforme */
-    --glass-edge: oklch(0.359 0 0 / 0.08);
-    --glass-rim: oklch(1 0 0 / 0.2);
-    --glass-reflection-opacity: 0.8;
-    --glass-shadow: 0 1px 2px oklch(0.2 0.01 286 / 0.06), 0 8px 24px -6px oklch(0.2 0.01 286 / 0.16);
-    --glass-tab-active: color-mix(in oklch, var(--primary) 16%, transparent);
-    --glass-active-shadow: inset 0 0 0 0.5px var(--glass-edge), 0 1px 3px oklch(0 0 0 / 0.12);
-    /* Material «regular» de iOS para lo que lleva texto encima del contenido (menús, popovers,
-       select, tooltip, toasts, alertas): la misma familia, más opaco y con más desenfoque. */
-    --material: color-mix(in oklch, oklch(0.985 0.002 286 / 0.86), var(--card) var(--glass-tint));
-    --material-blur: 28px;
-    --scroll-edge-blur: 4px;
-    --material-shadow: 0 0 0 0.5px var(--glass-edge), 0 12px 40px -8px oklch(0.2 0.01 286 / 0.2);
-    /* Scroll edge effect: el contenido que pasa bajo los controles se funde con el fondo. */
-    --scroll-edge: color-mix(in oklch, var(--background) var(--scroll-edge-amount), transparent);
+    /* Solid fills for retained list rows and calendar controls. */
     /* Relleno de controles (systemFill): pista del segmentado, inputs y controles de la topbar. */
     --glass-control: oklch(0.569 0.015 285.9 / 0.12);
     --glass-control-active: oklch(1 0 0);
@@ -295,18 +267,6 @@ html:has(main[data-landing]) body {
     --sidebar-ring: oklch(0.624 0.206 255.5);
 
     /* Materiales */
-    --glass-fill: color-mix(in oklch, color-mix(in oklch, oklch(0.32 0 0 / 0.64), transparent var(--glass-clear)), var(--card) var(--glass-tint));
-    --glass-fill-large: color-mix(in oklch, color-mix(in oklch, oklch(0.3 0 0 / 0.8), transparent var(--glass-clear)), var(--card) var(--glass-tint));
-    --glass-highlight: oklch(1 0 0 / 0.34);
-    --glass-edge: oklch(1 0 0 / 0.05);
-    --glass-rim: oklch(1 0 0 / 0.045);
-    --glass-reflection-opacity: 0.8;
-    --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 8px 24px -6px oklch(0 0 0 / 0.55);
-    --glass-tab-active: color-mix(in oklch, var(--primary) 26%, transparent);
-    --glass-active-shadow: inset 0 0 0 0.5px var(--glass-edge), 0 1px 3px oklch(0 0 0 / 0.18);
-    --material: color-mix(in oklch, oklch(0.26 0.004 286 / 0.84), var(--card) var(--glass-tint));
-    --material-shadow: 0 0 0 0.5px var(--glass-edge), 0 12px 40px -8px oklch(0 0 0 / 0.6);
-    --scroll-edge: color-mix(in oklch, var(--background) var(--scroll-edge-amount), transparent);
     --glass-control: oklch(0.569 0.015 285.9 / 0.24);
     --glass-control-active: oklch(0.501 0.005 286.2); /* #636366 segmento activo */
 }
@@ -367,104 +327,6 @@ html:has(main[data-landing]) body {
 }
 
 
-/* === Liquid Glass (iOS 26) ===
-   Una sola receta para toda la capa de controles, igual en Safari, Firefox y Chrome: desenfoque con
-   saturación moderada, relleno neutro, brillo especular localizado, rim interior (la luz que el canto
-   devuelve hacia adentro, solo en el borde: no toca el texto), contorno fino y sombra difusa. El
-   ::before dibuja el reflejo del canto en un anillo de 1px con una luz fija arriba-izquierda (cónico:
-   máximo en el canto de arriba-izquierda, un eco débil abajo-derecha).
-   En Chromium, hooks/use-liquid-refraction.ts suma la refracción real con `--glass-refraction` (un
-   filtro SVG al final del backdrop-filter, después del desenfoque); sin ella la lista queda igual.
-   Son utilidades (no componentes) para poder usarlas con variantes: `max-md:liquid-glass`.
-   No se combinan con fixed/sticky/absolute: fijan `position: relative` para el reflejo. */
-@utility liquid-glass {
-  position: relative;
-  background-color: var(--glass-fill);
-  /* El prefijo va antes: si un motor lo trata como alias, gana la línea con la refracción. */
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) var(--glass-refraction,);
-  box-shadow:
-    inset 0 0 0 0.5px var(--glass-edge),
-    inset 0 0 8px 0 var(--glass-rim),
-    var(--glass-shadow);
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1px;
-    background: conic-gradient(
-      from 225deg,
-      transparent 35deg,
-      var(--glass-highlight) 90deg,
-      transparent 145deg 215deg,
-      color-mix(in oklch, var(--glass-highlight) 35%, transparent) 270deg,
-      transparent 325deg
-    );
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    opacity: var(--glass-reflection-opacity);
-    pointer-events: none;
-  }
-}
-/* Squish de iOS al presionar: la cápsula se encoge un 3 % y al soltar vuelve con un spring corto. La
-   dispara la propia cápsula o un control suyo marcado con `data-squish` (pestañas, flechas del mes).
-   Solo transform y transiciones de CSS: interrumpible y sin JS. Repite las transiciones de `.press`
-   porque esta propiedad las pisa. Sin :has (Firefox < 121) solo la cápsula que se toca a sí misma
-   hace squish. Con movimiento reducido, nada. */
-@utility liquid-squish {
-  transition: transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 120ms ease-out, background-color 120ms ease-out;
-  /* linear() en línea, no con var(): con var() la línea sería inválida recién al computarse y el
-     cubic-bezier de arriba no quedaría como respaldo en navegadores sin linear(). */
-  transition: transform 500ms linear(0, 0.058, 0.193, 0.358, 0.523, 0.67, 0.791, 0.884, 0.951, 0.995, 1.021, 1.034, 1.038, 1.037, 1.032, 1.025, 1.019, 1.013, 1.008, 1.005, 1), opacity 120ms ease-out, background-color 120ms ease-out;
-  @media (prefers-reduced-motion: no-preference) {
-    &:is([data-squish]:active, :has([data-squish]:active)) {
-      transform: scale(0.97);
-      transition-duration: 120ms;
-      transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
-    }
-  }
-}
-/* Pestaña móvil activa: acento azul, sin otro desenfoque ni refracción dentro del vidrio. */
-@utility liquid-glass-active {
-  background-color: var(--glass-tab-active);
-  box-shadow: var(--glass-active-shadow);
-}
-/* Material de lectura para menús, avisos y alertas: misma saturación, más opacidad que las barras. */
-@utility material {
-  background-color: var(--material);
-  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
-  backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
-  box-shadow: var(--material-shadow);
-}
-/* Velo detrás de la topbar de escritorio. En móvil el desenfoque queda dentro de las cápsulas,
-   sin overlays a ancho completo que formen franjas fuera del selector y la barra inferior. */
-@utility scroll-edge-top {
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 0 0 -1.5rem 0;
-    z-index: -1;
-    background: linear-gradient(to bottom, var(--scroll-edge) 30%, transparent);
-    backdrop-filter: blur(var(--scroll-edge-blur));
-    -webkit-backdrop-filter: blur(var(--scroll-edge-blur));
-    -webkit-mask-image: linear-gradient(to bottom, #000 30%, transparent);
-    mask-image: linear-gradient(to bottom, #000 30%, transparent);
-    pointer-events: none;
-    transition: opacity 240ms ease-out;
-  }
-}
-/* Título de la fila móvil. Arriba del todo ocupa su ancho y el selector de mes el resto; con el
-   primer scroll (`data-scrolled`, del IntersectionObserver de AppFrame) se va con un fundido y un
-   leve desplazamiento a la izquierda, y su columna se cierra (1fr → 0fr, el mismo recurso que «Hoy»
-   en el MonthNav): el selector se corre a la izquierda y se ensancha en una sola transición de
-   grid-template-columns. CSS puro, así un cambio a mitad de camino retoma desde donde está. El
-   ensanche cambia el tamaño de la cápsula del selector: la refracción solo estira su mapa cuadro a
-   cuadro y lo regenera una vez, 150 ms después del último cambio (lib/liquid-refraction-dom.ts). */
-/* El material de las cápsulas móviles hereda íntegramente el efecto global.
-   No anular --glass-shadow aquí: quitar su profundidad cambia el Liquid Glass
-   pese a mantener intacta la posición, la forma y el blur de los controles. */
 .top-title {
   grid-template-columns: 1fr;
   transition: grid-template-columns 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -496,8 +358,7 @@ html:has(main[data-landing]) body {
   transition: opacity 200ms ease-out;
 }
 .top-bar:not(:has([data-top-actions]:empty)) .top-idle {
-  visibility: hidden;
-  transition: visibility 0s linear 220ms;
+  display: none;
 }
 .top-bar:not(:has([data-top-actions]:empty)) .top-idle .idle-ink {
   opacity: 1;
@@ -797,66 +658,31 @@ html:has(main[data-landing]) body {
   font-variant-numeric: tabular-nums slashed-zero;
 }
 
-/* Sidebar de escritorio flotante (macOS 26): el mismo Liquid Glass de los controles móviles, con
-   el radio de superficie. Fuera de @layer para ganarle a bg-sidebar/rounded-lg/ring/shadow que
-   shadcn le pone a su panel interno (components/ui no se edita). */
-[data-variant="floating"] > [data-slot="sidebar-container"] > [data-slot="sidebar-inner"] {
-  @apply liquid-glass;
-  border-radius: var(--radius-xl);
-  background-color: var(--glass-fill-large);
-}
+/* Glisse supplies all surface rendering. These tokens preserve the saved tint preference. */
+:root[data-glass="0"] { --lg-glass: color-mix(in srgb, var(--card) 15%, transparent); }
+:root[data-glass="1"] { --lg-glass: color-mix(in srgb, var(--card) 30%, transparent); }
+:root[data-glass="3"] { --lg-glass: color-mix(in srgb, var(--card) 65%, transparent); }
+:root[data-glass="4"] { --lg-glass: color-mix(in srgb, var(--card) 85%, transparent); }
 
-/* Nivel del vidrio elegido en Ajustes (0 = más transparente; 4 = teñido, casi sólido).
-   Solo cambia el relleno y el velo: el desenfoque de 16px protege la lectura en los cinco pasos.
-   Más contraste y menos transparencia del sistema, abajo, siguen ganando. */
-:root[data-glass="0"] { --glass-clear: 65%; --scroll-edge-amount: 0%; }
-:root[data-glass="1"] { --glass-clear: 40%; --scroll-edge-amount: 10%; }
-:root[data-glass="3"] { --glass-clear: 0%; --glass-tint: 30%; --scroll-edge-amount: 34%; }
-:root[data-glass="4"] { --glass-clear: 0%; --glass-tint: 75%; --scroll-edge-amount: 42%; }
-
-/* Accesibilidad (apple-hig/foundations/materials): con MÁS CONTRASTE el vidrio gana relleno y
-   contorno; con MENOS TRANSPARENCIA todo material cae a sólido, y va después para ganarle a
-   contraste cuando están las dos. No se usa prefers-reduced-motion para esto: es para animaciones. */
-@media (prefers-contrast: more) {
-  :root {
-    --glass-fill: oklch(1 0 0 / 0.9);
-    --glass-fill-large: oklch(1 0 0 / 0.94);
-    --material: oklch(1 0 0 / 0.96);
-    --glass-edge: oklch(0.359 0.012 285.8 / 0.45);
-    --glass-active-shadow: inset 0 0 0 1px var(--glass-edge);
-    --glass-reflection-opacity: 0;
-    --border: oklch(0.359 0.012 285.8 / 0.45);
-  }
-  .dark {
-    --glass-fill: oklch(0.22 0.004 286 / 0.92);
-    --glass-fill-large: oklch(0.2 0.004 286 / 0.95);
-    --material: oklch(0.2 0.004 286 / 0.96);
-    --glass-edge: oklch(1 0 0 / 0.4);
-    --glass-active-shadow: inset 0 0 0 1px var(--glass-edge);
-    --glass-reflection-opacity: 0;
-    --border: oklch(1 0 0 / 0.4);
-  }
-}
-@media (prefers-reduced-transparency: reduce) {
-  :root, .dark {
-    --glass-fill: var(--card);
-    --glass-fill-large: var(--card);
-    --material: var(--card);
-    --scroll-edge: var(--background);
-    --glass-blur: 0px;
-    --material-blur: 0px;
-    --scroll-edge-blur: 0px;
-    --glass-reflection-opacity: 0;
-  }
-}
-/* Respaldo legible si el motor no puede desenfocar el fondo. */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root, .dark {
-    --glass-fill: var(--card);
-    --glass-fill-large: var(--card);
-    --material: var(--card);
-    --glass-reflection-opacity: 0;
-  }
+/* Integration only: Glisse CSS is unlayered, so Tailwind sizing alone cannot override it. */
+.lg-button { min-width: 44px; min-height: 44px; font-family: inherit; font-size: 1rem; }
+.lg-input { width: 100%; max-width: none; min-height: 44px; font-size: 1rem; }
+.lg-input input { font: inherit; text-align: inherit; }
+.lg-input.text-title-3 { font-size: var(--text-title-3); }
+.lg-input.text-large-title { font-size: var(--text-large-title); }
+.lg-input:has(input[aria-invalid="true"]) { outline: 2px solid var(--destructive); }
+.lg-slider { min-height: 44px; }
+.lg-segmented { --lg-tab-height: 44px; }
+/* The source extends behind the sticky chrome from mount; no duplicated page content. */
+.app-glass-backdrop { min-height: 100dvh; margin-top: calc(-1 * var(--top-bar-h)); padding-top: var(--top-bar-h); }
+@media (min-width: 768px) { .app-glass-backdrop { margin-top: -4rem; padding-top: 4rem; } }
+.app-bottom-nav { container-type: inline-size; }
+.app-bottom-nav .lg-tab-bar { --lg-tab-width: calc((100cqw - 76px) / 4); }
+.app-bottom-nav .lg-tab-bar[data-icons] :is(.lg-tab, .lg-tab-copy) { font-size: 11px; }
+@media (prefers-contrast: more), (prefers-reduced-transparency: reduce) {
+  :root[data-theme] { --lg-glass: var(--card); --lg-surface: var(--card); --lg-edge: var(--foreground); }
+  .app-glass-backdrop { filter: none !important; }
+  .lg-glass { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background-image: none !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   .press {
@@ -966,7 +792,6 @@ html:has(main[data-landing]) body {
 .force-light {
     --sheet: var(--background);
     --sheet-cell: var(--card);
-    --material: oklch(0.985 0.002 286 / 0.86);
     --scrim: oklch(0 0 0 / 0.3);
     --grabber: oklch(0.359 0.012 285.8 / 0.3);
 }
@@ -1011,11 +836,10 @@ html:has(main[data-landing]) body {
 /* Campos rellenos como las celdas, sin contorno hasta enfocarlos o marcar error. */
 [data-product] [data-slot="input"],
 [data-product] [data-slot="textarea"],
-[data-product] [data-slot="select-trigger"],
 [data-product] [data-slot="input-group"] {
   background-color: var(--sheet-cell);
 }
-[data-product] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]):not([aria-invalid="true"]):not(:focus-visible) {
+[data-product] :is([data-slot="input"], [data-slot="textarea"]):not([aria-invalid="true"]):not(:focus-visible) {
   border-color: transparent;
 }
 [data-product] [data-slot="input"].bg-transparent,
@@ -1030,16 +854,10 @@ html:has(main[data-landing]) body {
   background-color: var(--glass-control-active);
 }
 
-/* Material regular para todo lo que se abre con texto sobre el contenido: menús, select, popover,
-   tooltip y toasts. Sigue el tema. Fuera de @layer para ganarle a lo que traen los primitivos
-   (`bg-popover/70`, `shadow-2xl`, `ring-1`, el ::before con `backdrop-blur-2xl`, el tooltip
-   invertido `bg-foreground`): ningún componente pone su propio blur ni su fondo. */
-[data-slot="dropdown-menu-content"],
+/* Remaining primitives have no Glisse equivalent and keep an opaque readable surface. */
 [data-slot="dropdown-menu-sub-content"],
-[data-slot="select-content"],
-[data-slot="popover-content"],
 [data-slot="tooltip-content"] {
-  @apply material;
+  background-color: var(--popover);
   color: var(--popover-foreground);
 }
 :is([data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="select-content"])::before {
@@ -1055,14 +873,11 @@ html:has(main[data-landing]) body {
 }
 /* Toasts neutros (los de estado conservan su color de sonner con richColors). */
 [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:is([data-type="default"], [data-type="loading"], :not([data-type])) {
-  background-color: var(--material);
+  background-color: var(--popover);
   border-color: transparent;
   color: var(--popover-foreground);
 }
 [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
-  backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--glass-saturate));
-  box-shadow: var(--material-shadow);
 }
 /* Táctil: filas de 44 px y texto body (17 px), como un menú de iOS. */
 @media (pointer: coarse) {
@@ -1081,7 +896,7 @@ html:has(main[data-landing]) body {
 
 /* Alerta de iOS: angosta, centrada, título headline, mensaje en subheadline y botones lado a lado. */
 [data-slot="alert-dialog-content"] {
-  @apply material;
+  background-color: var(--popover);
   max-width: min(20rem, calc(100% - 2.5rem));
   gap: 1.25rem;
   padding: 1.25rem;
@@ -1113,3 +928,6 @@ html:has(main[data-landing]) body {
   background-color: var(--glass-control);
   border-color: transparent;
 }
+
+/* The select keeps Radix semantics while Glisse owns its surface and focus appearance. */
+.lg-button[data-slot="select-trigger"][aria-invalid="true"] { outline: 2px solid var(--destructive); }

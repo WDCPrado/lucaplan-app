@@ -1,5 +1,7 @@
 "use client"
 
+import { Button } from "glisse"
+
 import type { ReactNode } from "react"
 
 import { useId, useState } from "react"
@@ -12,7 +14,7 @@ import {
   ModalSection,
   ResponsiveModal,
 } from "@/components/ui/responsive-modal"
-import { Button } from "@/components/ui/button"
+
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
@@ -183,15 +185,22 @@ export function PlanSheet({
             className="px-4 [--inset:3.5rem]"
             footer="Son para cubrir la factura anterior. Un ingreso generado en la app no significa que el banco lo haya abonado."
           >
-            {previousCycleIncomes.filter((inc) => {
-              const payDate = new Date(Date.UTC(
-                period.month === 1 ? period.year - 1 : period.year,
-                period.month === 1 ? 11 : period.month - 2,
-                inc.dayOfMonth
-              ))
-              return !inc.generated || payDate.toISOString().slice(0, 10) > todayKey()
-            }).map((inc) => (
-              <IncomeRow
+            {previousCycleIncomes
+              .filter((inc) => {
+                const payDate = new Date(
+                  Date.UTC(
+                    period.month === 1 ? period.year - 1 : period.year,
+                    period.month === 1 ? 11 : period.month - 2,
+                    inc.dayOfMonth
+                  )
+                )
+                return (
+                  !inc.generated ||
+                  payDate.toISOString().slice(0, 10) > todayKey()
+                )
+              })
+              .map((inc) => (
+                <IncomeRow
                   key={inc.id}
                   income={inc}
                   period={{
@@ -290,7 +299,6 @@ export function PlanSheet({
               </p>
               <Button
                 type="button"
-                variant="ghost"
                 onClick={applySuggested}
                 disabled={applying}
                 className="press h-11 shrink-0 px-3 text-body font-semibold text-primary hover:bg-transparent hover:text-primary"
@@ -307,43 +315,43 @@ export function PlanSheet({
 
         {/* Ingresos: una fila por fuente, con su estado del mes */}
         <ModalSection title="Ingresos" className="px-4 [--inset:3.5rem]">
-            {incomes.map((inc) => (
-              <IncomeRow
-                key={inc.id}
-                income={inc}
-                period={period}
-                cycleRange={cycleRange}
-                isCurrentMonth={isCurrentMonth}
-                onEdit={() => onEditIncome(inc)}
-                onOpenCategory={() => {
-                  const cat = incomeCategories.find(
-                    (c) => c.id === inc.categoryId
-                  )
-                  if (cat) onOpenIncomeCategory(cat)
-                }}
-              />
-            ))}
-            <button
-              type="button"
-              onClick={onAddIncome}
-              className="press flex w-full items-center gap-3 py-2.5 text-left text-primary"
-            >
-              <span className="grid size-11 shrink-0 place-items-center rounded-lg">
-                <Plus className="size-5" aria-hidden="true" />
-              </span>
-              {incomes.length > 0 ? (
-                <span className="text-body">Agregar ingreso</span>
-              ) : (
-                <span className="min-w-0">
-                  <span className="block text-subheadline font-medium">
-                    Registra tus ingresos
-                  </span>
-                  <span className="block text-footnote text-muted-foreground">
-                    Sueldo, arriendo u otros · planifica cuánto entra
-                  </span>
+          {incomes.map((inc) => (
+            <IncomeRow
+              key={inc.id}
+              income={inc}
+              period={period}
+              cycleRange={cycleRange}
+              isCurrentMonth={isCurrentMonth}
+              onEdit={() => onEditIncome(inc)}
+              onOpenCategory={() => {
+                const cat = incomeCategories.find(
+                  (c) => c.id === inc.categoryId
+                )
+                if (cat) onOpenIncomeCategory(cat)
+              }}
+            />
+          ))}
+          <button
+            type="button"
+            onClick={onAddIncome}
+            className="press flex w-full items-center gap-3 py-2.5 text-left text-primary"
+          >
+            <span className="grid size-11 shrink-0 place-items-center rounded-lg">
+              <Plus className="size-5" aria-hidden="true" />
+            </span>
+            {incomes.length > 0 ? (
+              <span className="text-body">Agregar ingreso</span>
+            ) : (
+              <span className="min-w-0">
+                <span className="block text-subheadline font-medium">
+                  Registra tus ingresos
                 </span>
-              )}
-            </button>
+                <span className="block text-footnote text-muted-foreground">
+                  Sueldo, arriendo u otros · planifica cuánto entra
+                </span>
+              </span>
+            )}
+          </button>
         </ModalSection>
 
         {/* Categorías de ingreso: mismo patrón visual que las de gasto */}
@@ -431,7 +439,6 @@ export function PlanSheet({
       <ModalFooter className="px-5">
         <Button
           type="button"
-          variant="outline"
           className="h-12 flex-1 text-body"
           onClick={() => {
             setDrafts({})
@@ -534,7 +541,8 @@ function LimitRow({
               aria-invalid={!!errors.limit}
               aria-describedby={errors.limit ? `${fieldId}-error` : undefined}
               placeholder="0"
-              className="w-32 text-right"
+              style={{ width: 128 }}
+              className="text-right"
             />
           )}
         />
@@ -557,7 +565,6 @@ function LimitRow({
         <div className="-my-2 flex justify-end gap-1">
           <Button
             type="button"
-            variant="ghost"
             className="press h-11 px-3 text-body font-normal text-primary hover:bg-transparent hover:text-primary"
             disabled={isSubmitting}
             onClick={() => {
@@ -570,7 +577,6 @@ function LimitRow({
           <Button
             type="submit"
             form={formId}
-            variant="ghost"
             className="press h-11 px-3 text-body font-semibold text-primary hover:bg-transparent hover:text-primary"
             disabled={isSubmitting}
           >
@@ -686,9 +692,10 @@ function IncomeRow({
         <span className="tabular text-subheadline font-semibold text-success">
           +{formatMoney(income.amount, income.currency as CurrencyCode)}
         </span>
-        <button
+        <Button
           type="button"
           onClick={toggleGenerated}
+          tint={income.generated ? "var(--success)" : undefined}
           disabled={busy || (priorCycle && income.generated)}
           title={income.generated ? "Deshacer" : "Registrar el ingreso del mes"}
           className={cn(
@@ -697,8 +704,12 @@ function IncomeRow({
           )}
         >
           {income.generated && <Check className="size-3.5" />}
-          {income.generated ? (priorCycle ? "Verificar" : "Recibido") : "Generar"}
-        </button>
+          {income.generated
+            ? priorCycle
+              ? "Verificar"
+              : "Recibido"
+            : "Generar"}
+        </Button>
       </div>
     </div>
   )

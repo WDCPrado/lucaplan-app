@@ -1,5 +1,7 @@
 "use client"
 
+import { Button } from "glisse"
+
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import Link from "next/link"
@@ -8,7 +10,6 @@ import {
   pluginConsentSchema,
   type PluginConsentInput,
 } from "@/lib/schemas/plugin-auth"
-import { Button } from "@/components/ui/button"
 
 export function ConsentForm({
   email,
@@ -110,6 +111,7 @@ export function ConsentForm({
         )}
         <div className="flex flex-col gap-2">
           <Button
+            variant="filled"
             id="plugin-authorize"
             className="h-11 w-full text-base"
             type="submit"
@@ -121,7 +123,6 @@ export function ConsentForm({
           </Button>
           <Button
             id="plugin-cancel"
-            variant="outline"
             className="h-11 w-full text-base"
             type="submit"
             form="plugin-consent-form"

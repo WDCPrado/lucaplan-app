@@ -1,5 +1,7 @@
 "use client"
 
+import { Button } from "glisse"
+
 import type { IncomeSource } from "@/arch/v1/domain/finance/income.domain"
 
 import { useState } from "react"
@@ -219,7 +221,8 @@ export function Dashboard({
     // UNA cifra por fila. Con ritmo (mes en curso y con tope), lo libre del período (hoy / esta
     // semana), que el backend deja estable; sin ritmo, lo que queda del mes. «X de Y» vive en el
     // detalle que abre la fila. Semáforo silencioso: gris, alerta, excedido.
-    const paceLeft = c.pace && c.pace.budget > 0 ? c.pace.budget - c.pace.spent : null
+    const paceLeft =
+      c.pace && c.pace.budget > 0 ? c.pace.budget - c.pace.spent : null
     // Con ritmo pero sin presupuesto del período, ya no queda nada que repartir.
     const noMargin = !!c.pace && c.pace.budget <= 0
     // «quedan» descuenta lo comprometido (tope − usado − comprometido); «sobre el tope» sale de `available`.
@@ -227,33 +230,33 @@ export function Dashboard({
     const figure = noMargin ? (
       "Sin margen"
     ) : c.pace && paceLeft !== null ? (
-        paceLeft >= 0 ? (
-          <>
-            <span className="tabular">{formatCLP(paceLeft)}</span> libres{" "}
-            {c.pace.frequency === "daily" ? "hoy" : "esta semana"}
-          </>
-        ) : (
-          <>
-            <span className="tabular">{formatCLP(-paceLeft)}</span> sobre el
-            ritmo {c.pace.frequency === "daily" ? "de hoy" : "semanal"}
-          </>
-        )
-      ) : c.limit > 0 ? (
-        c.available < 0 ? (
-          <>
-            <span className="tabular">{formatCLP(-c.available)}</span> sobre el
-            tope
-          </>
-        ) : (
-          <>
-            quedan <span className="tabular">{formatCLP(quedan)}</span>
-          </>
-        )
+      paceLeft >= 0 ? (
+        <>
+          <span className="tabular">{formatCLP(paceLeft)}</span> libres{" "}
+          {c.pace.frequency === "daily" ? "hoy" : "esta semana"}
+        </>
       ) : (
         <>
-          sin tope · <span className="tabular">{formatCLP(c.used)}</span>
+          <span className="tabular">{formatCLP(-paceLeft)}</span> sobre el ritmo{" "}
+          {c.pace.frequency === "daily" ? "de hoy" : "semanal"}
         </>
       )
+    ) : c.limit > 0 ? (
+      c.available < 0 ? (
+        <>
+          <span className="tabular">{formatCLP(-c.available)}</span> sobre el
+          tope
+        </>
+      ) : (
+        <>
+          quedan <span className="tabular">{formatCLP(quedan)}</span>
+        </>
+      )
+    ) : (
+      <>
+        sin tope · <span className="tabular">{formatCLP(c.used)}</span>
+      </>
+    )
     const figureTone =
       noMargin ||
       (paceLeft !== null && c.pace?.status === "excedido") ||
@@ -309,7 +312,10 @@ export function Dashboard({
           )}
           {c.pace?.frequency === "weekly" && (
             <span className="text-footnote text-muted-foreground">
-              Se reinicia el {resetDayFormat.format(new Date(`${c.pace.nextResetDate}T00:00:00Z`))}
+              Se reinicia el{" "}
+              {resetDayFormat.format(
+                new Date(`${c.pace.nextResetDate}T00:00:00Z`)
+              )}
             </span>
           )}
         </div>
@@ -485,13 +491,13 @@ export function Dashboard({
                   Ritmo por categoría
                 </h2>
                 {expenseCategories.length > 0 && (
-                  <button
+                  <Button
                     onClick={newExpenseCategory}
                     aria-label="Nueva categoría de gasto"
                     className="press flex min-h-11 shrink-0 items-center gap-1 text-body text-primary"
                   >
                     <Plus className="size-4" /> Categoría
-                  </button>
+                  </Button>
                 )}
               </div>
               {/* Lista agrupada: las filas se separan con líneas finas que arrancan en el texto
@@ -503,12 +509,12 @@ export function Dashboard({
                     <p className="text-subheadline text-muted-foreground">
                       Reparte tu tope de gasto en categorías para ver su ritmo.
                     </p>
-                    <button
+                    <Button
                       onClick={newExpenseCategory}
                       className="press flex min-h-11 items-center gap-1 text-body text-primary"
                     >
                       <Plus className="size-4" /> Crear categoría
-                    </button>
+                    </Button>
                   </div>
                 ) : (
                   // Lista vertical de barras: gastado + comprometido sobre el tope, con el ritmo
@@ -517,10 +523,7 @@ export function Dashboard({
                     {cappedCategories.map(renderExpenseCat)}
                     {/* Fuera del plan: consultables, cerradas al entrar o cambiar de período. */}
                     {uncappedCategories.length > 0 && (
-                      <Collapsible
-                        key={periodKey}
-                        defaultOpen={false}
-                      >
+                      <Collapsible key={periodKey} defaultOpen={false}>
                         <CollapsibleTrigger asChild>
                           <button
                             type="button"
@@ -560,46 +563,51 @@ export function Dashboard({
             >
               <div className="mb-2 flex min-h-11 items-center justify-between gap-0.5">
                 <div className="-ml-3 flex min-w-0 items-center">
-                  <button
+                  <Button
+                    icon={<ChevronLeft className="size-5" />}
                     type="button"
                     aria-label="Día anterior"
                     // aria-disabled y no disabled: al llegar al extremo el foco se queda en la flecha.
                     aria-disabled={prevDisabled || undefined}
-                    onClick={() => !prevDisabled && selectDay(days[dayIndex - 1])}
+                    onClick={() =>
+                      !prevDisabled && selectDay(days[dayIndex - 1])
+                    }
                     className="press grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent aria-disabled:cursor-default aria-disabled:text-muted-foreground/40 aria-disabled:hover:bg-transparent"
-                  >
-                    <ChevronLeft className="size-5" />
-                  </button>
+                  ></Button>
                   {/* «Hoy», dentro del selector junto a la flecha izquierda: su columna crece de 0 y funde al aparecer. Solo en
                       el mes en curso y con otro día elegido. */}
                   <div
                     inert={!showToday}
                     className={cn(
                       "grid transition-[grid-template-columns,opacity] duration-(--nav-duration) ease-(--nav-ease) motion-reduce:transition-none",
-                      showToday ? "grid-cols-[1fr] opacity-100" : "grid-cols-[0fr] opacity-0"
+                      showToday
+                        ? "grid-cols-[1fr] opacity-100"
+                        : "grid-cols-[0fr] opacity-0"
                     )}
                   >
                     {/* Entra desde la izquierda, como el título de la fila móvil (.top-title). */}
                     <div
                       className={cn(
                         "min-w-0 transition-transform duration-(--nav-duration) ease-(--nav-ease) motion-reduce:transition-none",
-                        showToday ? "translate-x-0" : "-translate-x-3 overflow-hidden"
+                        showToday
+                          ? "translate-x-0"
+                          : "-translate-x-3 overflow-hidden"
                       )}
                     >
-                      <button
+                      <Button
                         type="button"
                         onClick={() => selectDay(today)}
                         // Mismo material y clases que «Hoy» de MonthNav: hereda los cinco niveles de Apariencia; no crear efectos locales.
-                        className="press ml-2 min-h-11 rounded-full px-4 text-subheadline font-semibold whitespace-nowrap max-md:liquid-glass md:min-h-10 md:rounded-(--radius-bar-inner) md:bg-(--glass-control) md:hover:bg-accent"
+                        className="ml-2 whitespace-nowrap"
                       >
                         Hoy
-                      </button>
+                      </Button>
                     </div>
                   </div>
                   <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                     <h2 className="flex min-w-0 text-title-3 font-bold">
                       <PopoverTrigger asChild>
-                        <button
+                        <Button
                           type="button"
                           aria-describedby="day-picker-hint"
                           className="press min-h-11 min-w-0 truncate rounded-lg px-1 text-left whitespace-nowrap hover:bg-accent"
@@ -611,16 +619,22 @@ export function Dashboard({
                           <span aria-live="polite">
                             <span className="sm:hidden lg:inline">
                               {formatShortDateHeader(dayIso)}
-                              <span className="sr-only">, {formatLongDate(dayIso)}</span>
+                              <span className="sr-only">
+                                , {formatLongDate(dayIso)}
+                              </span>
                             </span>
                             <span className="hidden sm:inline lg:hidden">
                               {formatDateHeader(dayIso)}
-                              {["Hoy", "Ayer"].includes(formatDateHeader(dayIso)) && (
-                                <span className="sr-only">, {formatLongDate(dayIso)}</span>
+                              {["Hoy", "Ayer"].includes(
+                                formatDateHeader(dayIso)
+                              ) && (
+                                <span className="sr-only">
+                                  , {formatLongDate(dayIso)}
+                                </span>
                               )}
                             </span>
                           </span>
-                        </button>
+                        </Button>
                       </PopoverTrigger>
                     </h2>
                     <span id="day-picker-hint" className="sr-only">
@@ -649,15 +663,16 @@ export function Dashboard({
                       />
                     </PopoverContent>
                   </Popover>
-                  <button
+                  <Button
+                    icon={<ChevronRight className="size-5" />}
                     type="button"
                     aria-label="Día siguiente"
                     aria-disabled={nextDisabled || undefined}
-                    onClick={() => !nextDisabled && selectDay(days[dayIndex + 1])}
+                    onClick={() =>
+                      !nextDisabled && selectDay(days[dayIndex + 1])
+                    }
                     className="press grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent aria-disabled:cursor-default aria-disabled:text-muted-foreground/40 aria-disabled:hover:bg-transparent"
-                  >
-                    <ChevronRight className="size-5" />
-                  </button>
+                  ></Button>
                 </div>
                 {/* El resto del período vive en Movimientos: navegación en texto azul, como iOS. */}
                 <Link
@@ -726,10 +741,14 @@ export function Dashboard({
                     <div
                       className={cn(
                         "text-subheadline",
-                        summary.netPosition < 0 ? "text-destructive" : "text-muted-foreground"
+                        summary.netPosition < 0
+                          ? "text-destructive"
+                          : "text-muted-foreground"
                       )}
                     >
-                      {summary.netPosition < 0 ? "Cuentas en negativo" : "Disponible en cuentas"}
+                      {summary.netPosition < 0
+                        ? "Cuentas en negativo"
+                        : "Disponible en cuentas"}
                     </div>
                     <div
                       className={cn(
@@ -799,7 +818,9 @@ export function Dashboard({
           (c) => c.type === "expense"
         )}
         incomes={incomes}
-        previousCycleIncomes={cycle.mode === "card_cycle" ? previousCycleIncomes : []}
+        previousCycleIncomes={
+          cycle.mode === "card_cycle" ? previousCycleIncomes : []
+        }
         incomeCategories={incomeCategories}
         activeIncomeTotal={activeIncomeTotal}
         previousMonthDebt={previousMonthDebt}

@@ -1,5 +1,7 @@
 "use client"
 
+import { Button, Input } from "glisse"
+
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Check, MoreHorizontal } from "lucide-react"
@@ -10,7 +12,7 @@ import {
   ModalFooter,
   ResponsiveModal,
 } from "@/components/ui/responsive-modal"
-import { Button } from "@/components/ui/button"
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -71,11 +73,11 @@ function ItemEditor({
       </div>
       <div className="flex items-center gap-2">
         <span className="w-6 shrink-0" aria-hidden />
-        <input
+        <Input
           inputMode="numeric"
           value={amount ? amount.toLocaleString("es-CL") : ""}
-          onChange={(e) =>
-            setAmount(Number(e.target.value.replace(/\D/g, "")) || 0)
+          onValueChange={(value) =>
+            setAmount(Number(value.replace(/\D/g, "")) || 0)
           }
           aria-label={`Monto de la cuota ${item.index}`}
           aria-invalid={over}
@@ -101,7 +103,6 @@ function ItemEditor({
       <div className="flex justify-end gap-2">
         <Button
           type="button"
-          variant="ghost"
           onClick={onCancel}
           disabled={busy}
           className="h-11 text-body"
@@ -109,6 +110,7 @@ function ItemEditor({
           Cancelar
         </Button>
         <Button
+          variant="filled"
           type="button"
           className="h-11 text-body"
           onClick={() =>
@@ -338,15 +340,12 @@ export function InstallmentPlanModal({
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
+                            icon={<MoreHorizontal className="size-5" />}
                             type="button"
-                            variant="ghost"
-                            size="icon"
                             disabled={busy}
                             aria-label={`Más acciones de la cuota ${item.index}`}
                             className="size-11 shrink-0 text-muted-foreground"
-                          >
-                            <MoreHorizontal className="size-5" />
-                          </Button>
+                          ></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           {canEdit && (
@@ -383,7 +382,6 @@ export function InstallmentPlanModal({
                   {!settled && !notDueYet && (
                     <Button
                       type="button"
-                      variant="ghost"
                       onClick={() => payManually(item)}
                       disabled={busy}
                       className="press ml-6 h-11 self-start px-3 text-body font-semibold text-primary hover:bg-transparent hover:text-primary"
@@ -460,6 +458,7 @@ export function InstallmentPlanModal({
         </AlertDialog>
         <ModalFooter>
           <Button
+            variant="filled"
             type="button"
             onClick={() => onOpenChange(false)}
             className="h-12 flex-1 text-body"

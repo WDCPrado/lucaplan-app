@@ -1,8 +1,14 @@
 "use client"
 
-import { Search, X, ChevronDown } from "lucide-react"
+import {
+  Button,
+  SearchField as GlisseSearchField,
+  SegmentedControl,
+} from "glisse"
+
+import { ChevronDown } from "lucide-react"
 import type { DateRange } from "react-day-picker"
-import { Input } from "@/components/ui/input"
+
 import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
@@ -19,7 +25,6 @@ import {
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { Segmented } from "./segmented"
 import { formatCompact, ymd } from "@/lib/finance-format"
 import type {
   AccountDTO,
@@ -139,32 +144,16 @@ export function SearchField({
   autoFocus?: boolean
   inputId?: string
 }) {
-  const q = value.q
-  const set = (patch: Partial<FilterValues>) => onChange({ ...value, ...patch })
   return (
-    <div className="relative">
-      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input
-        id={inputId}
-        autoFocus={autoFocus}
-        value={q}
-        onChange={(e) => set({ q: e.target.value })}
-        aria-label="Buscar movimientos por descripción o categoría"
-        inputMode="search"
-        placeholder="Buscar por descripción o categoría…"
-        className="h-11 pr-10 pl-10 text-body"
-      />
-      {q && (
-        <button
-          type="button"
-          onClick={() => set({ q: "" })}
-          className="absolute top-1/2 right-0 grid size-11 -translate-y-1/2 place-items-center text-muted-foreground hover:text-foreground"
-          aria-label="Limpiar búsqueda"
-        >
-          <X className="size-4" />
-        </button>
-      )}
-    </div>
+    <GlisseSearchField
+      id={inputId}
+      autoFocus={autoFocus}
+      value={value.q}
+      onValueChange={(q) => onChange({ ...value, q })}
+      aria-label="Buscar movimientos por descripción o categoría"
+      placeholder="Buscar por descripción o categoría…"
+      className="text-body"
+    />
   )
 }
 
@@ -203,11 +192,11 @@ export function FilterControls({
   return (
     <>
       {/* Tipo: segmentado de iOS, un solo estilo activo para las tres opciones. */}
-      <Segmented
-        label="Tipo de movimiento"
+      <SegmentedControl
+        aria-label="Tipo de movimiento"
         value={direction === "" ? "all" : direction}
-        onChange={(v) => set({ direction: v === "all" ? "" : v })}
-        options={DIRS}
+        onValueChange={(v) => set({ direction: v === "all" ? "" : (v as Dir) })}
+        items={DIRS}
       />
 
       {/* Filtros como filas de iOS: el nombre a la izquierda, el valor elegido a la derecha y el
@@ -257,9 +246,11 @@ export function FilterControls({
               apilados en el teléfono, con scroll dentro del popover si no caben. */}
           <Popover>
             <PopoverTrigger asChild>
-              <button
+              <Button
                 type="button"
-                aria-label={range?.from ? "Cambiar fechas" : "Filtrar por fechas"}
+                aria-label={
+                  range?.from ? "Cambiar fechas" : "Filtrar por fechas"
+                }
                 className={cn(ROW, "@md:col-span-2")}
               >
                 <span className="shrink-0">Fechas</span>
@@ -271,7 +262,7 @@ export function FilterControls({
                     : "Todas"}
                 </span>
                 <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-              </button>
+              </Button>
             </PopoverTrigger>
             <PopoverContent
               className="max-h-(--radix-popover-content-available-height) w-auto overflow-y-auto p-0"
@@ -288,13 +279,13 @@ export function FilterControls({
           </Popover>
 
           {hasFilters && (
-            <button
+            <Button
               type="button"
               onClick={() => onChange(emptyFilters(amountBounds))}
               className="col-span-full h-11 justify-self-end text-subheadline text-primary"
             >
               Limpiar
-            </button>
+            </Button>
           )}
         </div>
       </div>

@@ -30,7 +30,7 @@ function runScript(
       remove: (...c: string[]) => c.forEach((x) => classes.delete(x)),
     },
     style: {} as { colorScheme?: string },
-    dataset: {} as { glass?: string },
+    dataset: {} as { glass?: string; theme?: string },
   }
   new Function(
     "document",
@@ -40,6 +40,11 @@ function runScript(
   )({ documentElement: html }, globalThis.localStorage, () => ({
     matches: prefersDark,
   }))
+  assert.equal(
+    html.dataset.theme,
+    [...classes].join(),
+    "Glisse and app theme match before hydration"
+  )
   return {
     theme: [...classes].join(),
     glass: html.dataset.glass,
@@ -181,4 +186,11 @@ test("Si el pedido nuevo falla antes que el viejo, la pantalla sigue a lo que qu
   assert.deepEqual(r.revert, { glassLevel: 3 })
   assert.equal(r.tracker.saved.glassLevel, 3)
   assert.equal(r.tracker.requested.glassLevel, 3)
+})
+
+test("System theme initializes Glisse in either OS appearance", () => {
+  store.clear()
+  const settings = { ...USER_SETTINGS_DEFAULTS, theme: "system" as const }
+  assert.equal(runScript(settings, true, true).theme, "dark")
+  assert.equal(runScript(settings, true, false).theme, "light")
 })

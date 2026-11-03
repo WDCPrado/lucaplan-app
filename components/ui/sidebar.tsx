@@ -1,13 +1,14 @@
 "use client"
 
+import { Button, Glass, Input } from "glisse"
+
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+
 import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
@@ -238,13 +239,13 @@ function Sidebar({
         )}
         {...props}
       >
-        <div
+        <Glass
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="flex size-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border"
+          className="flex size-full flex-col rounded-xl"
         >
           {children}
-        </div>
+        </Glass>
       </div>
     </div>
   )
@@ -259,20 +260,17 @@ function SidebarTrigger({
 
   return (
     <Button
+      icon={<PanelLeftIcon />}
+      aria-label="Alternar barra lateral"
       data-sidebar="trigger"
       data-slot="sidebar-trigger"
-      variant="ghost"
-      size="icon-sm"
       className={cn(className)}
       onClick={(event) => {
         onClick?.(event)
         toggleSidebar()
       }}
       {...props}
-    >
-      <PanelLeftIcon />
-      <span className="sr-only">Toggle Sidebar</span>
-    </Button>
+    ></Button>
   )
 }
 

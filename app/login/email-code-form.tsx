@@ -1,5 +1,8 @@
 "use client"
 
+import { Button, Input } from "glisse"
+import { Button as SlotButton } from "@/components/ui/button"
+
 import { useEffect, useRef, useState } from "react"
 import { REGEXP_ONLY_DIGITS } from "input-otp"
 import { Loader2 } from "lucide-react"
@@ -10,8 +13,7 @@ import {
   loginEmailSchema,
   loginErrorMessage,
 } from "@/lib/schemas/login-code"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+
 import { Label } from "@/components/ui/label"
 import {
   InputOTP,
@@ -123,7 +125,12 @@ function EmailStep({
           Te mandamos un código de 6 dígitos para entrar sin contraseña.
         </p>
       </div>
-      <Button type="submit" disabled={pending} className="h-11 text-base">
+      <Button
+        variant="filled"
+        type="submit"
+        disabled={pending}
+        className="h-11 text-base"
+      >
         {pending && (
           <Loader2
             aria-hidden
@@ -315,7 +322,7 @@ function CodeStep({
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">
         {mailAppsFor(email).map((app) => (
-          <Button
+          <SlotButton
             key={app.label}
             variant="outline"
             asChild
@@ -329,13 +336,12 @@ function CodeStep({
               )}
               Abrir {app.label}
             </a>
-          </Button>
+          </SlotButton>
         ))}
       </div>
       <div className="flex flex-col items-center gap-1 sm:flex-row sm:justify-between">
         <Button
           type="button"
-          variant="link"
           onClick={resend}
           disabled={!!pending || wait > 0}
           className="h-11"
@@ -348,7 +354,6 @@ function CodeStep({
         </Button>
         <Button
           type="button"
-          variant="link"
           onClick={onChangeEmail}
           disabled={!!pending}
           className="h-11"
@@ -357,6 +362,7 @@ function CodeStep({
         </Button>
       </div>
       <Button
+        variant="filled"
         type="submit"
         disabled={!!pending || code.length !== 6}
         className="h-11 text-base"

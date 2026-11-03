@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, Loader } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Slider } from "@/components/ui/slider"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +28,7 @@ import { haptic } from "@/lib/haptics"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
 import { Chip, DatePicker } from "./transaction-modal"
+import { Segmented } from "./segmented"
 import { DayOfMonthPicker } from "./income-modal"
 import {
   RecurringLinkPicker,
@@ -55,7 +57,10 @@ const PERIODICITIES = [
   { value: "monthly", label: "Mensual" },
   { value: "biweekly", label: "Quincenal" },
   { value: "yearly", label: "Anual" },
-] as const
+]
+
+// Qué escritura está en curso: la acción tocada muestra su spinner y todas quedan deshabilitadas.
+type Busy = "save" | "pick" | "toggle" | "undo" | "delete" | null
 
 // Modal de plantilla recurrente (crear/editar). El monto base no es el monto exacto del cargo: es
 // el centro del rango ± tolerancia con el que se reconoce el cobro cuando llega por correo.
@@ -112,7 +117,8 @@ export function RecurringModal({
     template?.endDate ? template.endDate.slice(0, 10) : ""
   )
   const [withEnd, setWithEnd] = useState(!!template?.endDate)
-  const [saving, setSaving] = useState(false)
+  const [busy, setBusy] = useState<Busy>(null)
+  const saving = busy !== null
   // Selector de un movimiento existente como cobro del período. null = cargando.
   const [pickerOpen, setPickerOpen] = useState(false)
   const [candidates, setCandidates] = useState<
@@ -148,7 +154,7 @@ export function RecurringModal({
 
   async function save() {
     if (!canSave || !account || !categoryId) return
-    setSaving(true)
+    setBusy("save")
     const res = await fetch(
       template ? `/api/recurring/${template.id}` : "/api/recurring",
       {
@@ -173,7 +179,7 @@ export function RecurringModal({
       }
     )
     const data = await res.json().catch(() => ({}))
-    setSaving(false)
+    setBusy(null)
     if (!res.ok) {
       haptic("error")
       return toast.error(data.error ?? "No se pudo guardar la recurrente")
@@ -187,16 +193,21 @@ export function RecurringModal({
 
   // Cambio de estado de la plantilla. Cierra el modal como las demás acciones — el estado nuevo
   // se ve en la fila, que sí se refresca.
-  async function patch(body: object, ok: string, fail: string) {
+  async function patch(
+    kind: Exclude<Busy, "save" | "delete" | null>,
+    body: object,
+    ok: string,
+    fail: string
+  ) {
     if (!template || saving) return
-    setSaving(true)
+    setBusy(kind)
     const res = await fetch(`/api/recurring/${template.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     })
     const data = await res.json().catch(() => ({}))
-    setSaving(false)
+    setBusy(null)
     if (!res.ok) {
       haptic("error")
       return toast.error(data.error ?? fail)
@@ -210,7 +221,7 @@ export function RecurringModal({
 
   // Deshace el "Ya lo pagué" de la fila. Solo lo marcado a mano: un cargo del banco es un hecho.
   function undoPaid() {
-    patch({ periodPaid: false }, "Marca deshecha", "No se pudo deshacer la marca")
+    patch("undo", { periodPaid: false }, "Marca deshecha", "No se pudo deshacer la marca")
   }
 
   // El cargo llegó con otra fecha y no se enganchó solo: se elige a mano entre los gastos sueltos.
@@ -253,6 +264,7 @@ export function RecurringModal({
   // En error, patch no cierra nada: la lista sigue abierta para elegir otro.
   function pickTransaction(transactionId: string) {
     patch(
+      "pick",
       { paidWithTransactionId: transactionId },
       "Cobro vinculado al movimiento",
       "No se pudo vincular el movimiento"
@@ -264,6 +276,7 @@ export function RecurringModal({
   function toggleActive() {
     if (!template) return
     patch(
+      "toggle",
       { isActive: !template.isActive },
       template.isActive ? "Recurrente pausada" : "Recurrente reanudada",
       "No se pudo cambiar el estado"
@@ -272,11 +285,11 @@ export function RecurringModal({
 
   async function remove() {
     if (!template || saving) return
-    setSaving(true)
+    setBusy("delete")
     const res = await fetch(`/api/recurring/${template.id}`, {
       method: "DELETE",
     })
-    setSaving(false)
+    setBusy(null)
     if (!res.ok) {
       haptic("error")
       return toast.error("No se pudo eliminar la recurrente")
@@ -305,13 +318,9 @@ export function RecurringModal({
         accounts.length === 0
           ? undefined
           : {
-              label: saving
-                ? "Guardando…"
-                : template
-                  ? "Guardar"
-                  : "Crear recurrente",
+              label: template ? "Guardar" : "Crear recurrente",
               form: formId,
-              busy: saving,
+              busy: busy === "save",
               disabled: !canSave,
             }
       }
@@ -333,13 +342,21 @@ export function RecurringModal({
               </p>
               {(!template.currentPeriodPaid ||
                 template.currentPeriodPaidManually) && (
+                // Abre otra hoja: fila con chevron, como las de Ajustes.
                 <button
+                 
                   type="button"
                   onClick={openPicker}
                   disabled={saving}
-                  className={ACTION_ROW}
+                  aria-busy={busy === "pick" || undefined}
+                  className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body disabled:opacity-50"
                 >
-                  Elegir movimiento
+                  <span className="min-w-0 flex-1">Elegir movimiento</span>
+                  {busy === "pick" ? (
+                    <BusySpinner />
+                  ) : (
+                    <ChevronRight aria-hidden className="disclosure" />
+                  )}
                 </button>
               )}
             </ModalSection>
@@ -416,14 +433,18 @@ export function RecurringModal({
                   <span className="text-muted-foreground">—</span>
                   <span>{fmt(max)}</span>
                 </div>
-                <input
-                  type="range"
+                <Slider
+                 
                   min={0}
                   max={50}
                   step={5}
-                  value={tolerancePct}
-                  onChange={(e) => setTolerancePct(Number(e.target.value))}
-                  className="mt-3 h-11 w-full accent-primary"
+                  value={[tolerancePct]}
+                  onValueChange={([v]) => {
+                    if (v === tolerancePct) return
+                    haptic("light")
+                    setTolerancePct(v)
+                  }}
+                  className="mt-2"
                   aria-label="Tolerancia del monto"
                   aria-valuetext={`Más o menos ${tolerancePct} por ciento`}
                 />
@@ -453,17 +474,17 @@ export function RecurringModal({
                 </>
               }
             >
-              <ChipRow>
-                {PERIODICITIES.map((p) => (
-                  <Chip
-                    key={p.value}
-                    active={p.value === periodicity}
-                    onClick={() => setPeriodicity(p.value)}
-                  >
-                    {p.label}
-                  </Chip>
-                ))}
-              </ChipRow>
+              <div className="px-4 py-2">
+                <Segmented
+                  value={periodicity}
+                  options={PERIODICITIES}
+                  onChange={(v) => {
+                    haptic("light")
+                    setPeriodicity(v)
+                  }}
+                  label="Frecuencia"
+                />
+              </div>
               {needsDay && (
                 <div className="px-4 py-2">
                   <DayOfMonthPicker value={day} onChange={setDay} />
@@ -539,11 +560,13 @@ export function RecurringModal({
                     type="button"
                     onClick={toggleActive}
                     disabled={saving}
+                    aria-busy={busy === "toggle" || undefined}
                     className={ACTION_ROW}
                   >
                     {template.isActive
                       ? "Pausar recurrente"
                       : "Reanudar recurrente"}
+                    {busy === "toggle" && <BusySpinner />}
                   </button>
                 )}
                 {template.isActive &&
@@ -553,9 +576,11 @@ export function RecurringModal({
                       type="button"
                       onClick={undoPaid}
                       disabled={saving}
+                      aria-busy={busy === "undo" || undefined}
                       className={ACTION_ROW}
                     >
                       Deshacer «Ya lo pagué»
+                      {busy === "undo" && <BusySpinner />}
                     </button>
                   )}
               </ModalSection>
@@ -563,8 +588,12 @@ export function RecurringModal({
           {template && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <ModalDangerRow disabled={saving}>
+                <ModalDangerRow
+                  disabled={saving}
+                  aria-busy={busy === "delete" || undefined}
+                >
                   Eliminar recurrente
+                  {busy === "delete" && <BusySpinner />}
                 </ModalDangerRow>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -596,7 +625,7 @@ export function RecurringModal({
               items={candidates}
               filters={filters}
               onFiltersChange={changeFilters}
-              busy={saving}
+              busy={busy === "pick"}
               onPick={pickTransaction}
               onRetry={() => loadCandidates(filters)}
             />
@@ -607,9 +636,19 @@ export function RecurringModal({
   )
 }
 
-// Fila de acción de una lista agrupada: texto azul, 44 px de alto.
+// Fila de acción de una lista agrupada: texto azul, 44 px de alto; el spinner va al final.
 const ACTION_ROW =
-  "press flex min-h-11 w-full items-center px-4 py-2.5 text-left text-body text-primary disabled:opacity-50"
+  "press flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-body text-primary disabled:opacity-50"
+
+// Indicador de actividad de una fila mientras escribe; quieto con «reducir movimiento».
+function BusySpinner() {
+  return (
+    <Loader
+      aria-hidden
+      className="size-4 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none"
+    />
+  )
+}
 
 // Fila de chips con scroll horizontal dentro de su celda.
 function ChipRow({ children }: { children: React.ReactNode }) {

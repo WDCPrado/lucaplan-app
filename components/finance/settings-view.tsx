@@ -177,7 +177,8 @@ function AppearanceSection() {
       title="Apariencia"
       description="Cuánto se ve el contenido a través de las barras y los menús."
     >
-      <div className="glass rounded-xl p-4">
+      {/* Superficie sólida de grupo (card), como una celda inset grouped: el vidrio es de los controles. */}
+      <div className="rounded-xl bg-card p-4">
         <Slider
           value={[level]}
           onValueChange={([v]) => {

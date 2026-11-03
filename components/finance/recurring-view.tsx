@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check } from "lucide-react"
+import { Check, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 
 import { haptic } from "@/lib/haptics"
@@ -248,7 +248,7 @@ function RecurringRow({
       ? nextChargeLabel(t.nextExecution)
       : null
   return (
-    <li className={cn("flex items-center", inactive && "opacity-60")}>
+    <li className="flex items-center">
       <button
         type="button"
         onClick={onEdit}
@@ -258,11 +258,13 @@ function RecurringRow({
         )}
       >
         <span
-          className="grid size-10 shrink-0 place-items-center rounded-full"
+          className="grid size-10 shrink-0 place-items-center rounded-full data-inactive:opacity-50"
           style={{
             background: t.categoryColor ? `${t.categoryColor}1f` : "var(--muted)",
           }}
           aria-hidden
+          // Decorativo: atenuarlo marca la fila inactiva sin tocar el contraste del texto.
+          data-inactive={inactive || undefined}
         >
           <CategoryIcon
             icon={t.categoryIcon}
@@ -280,7 +282,14 @@ function RecurringRow({
           </span>
         </span>
         <span className="shrink-0 text-right">
-          <span className="tabular block text-body font-semibold">
+          {/* Pausada o finalizada: el monto en gris secundario (ya no compromete el mes), sin
+              atenuar toda la fila, que dejaba el texto secundario bajo 4.5:1. */}
+          <span
+            className={cn(
+              "tabular block text-body font-semibold",
+              inactive && "text-muted-foreground"
+            )}
+          >
             {formatCLP(t.baseAmount)}
           </span>
           {t.currentPeriodPaid && !t.hasEnded && t.isActive ? (
@@ -296,6 +305,8 @@ function RecurringRow({
             )
           )}
         </span>
+        {/* La fila abre el detalle: chevron de lista de iOS. */}
+        <ChevronRight aria-hidden className="disclosure" />
       </button>
       {/* El banco a veces avisa días después: hasta entonces el gasto sigue como comprometido.
           Esto lo cierra sin salir de la lista. Solo aparece cuando hay algo que marcar. */}

@@ -443,7 +443,9 @@ export const emailSetupStore: EmailSetupStore = {
                 externalId: m.externalId,
                 ...fields,
               },
-              update: fields, // categoryId intacto → categoría preservada
+              // categoryId intacto → categoría preservada. isInternal nunca baja de true a false:
+              // una compra neutralizada al pasarla a cuotas volvería a contar entera al reprocesar.
+              update: { ...fields, isInternal: m.isInternal || (previous?.isInternal ?? false) },
             })
             if (decision.kind === "create") created.add(m.externalId)
           })

@@ -58,6 +58,10 @@ Reglas de dominio — no son detalles de UI; romper una rompe los números:
   observado quedan fuera de los totales con aviso, nunca con una tasa inventada.
 - El gastado del plan es todo gasto real confirmado, con o sin categoría o tope; los topes
   miden categorías y ritmo.
+- El titular del Inicio es lo disponible para gastar según lo planificado: lo menor entre el
+  margen (ingresos − gastado − comprometido) y lo que queda de los topes. La curva del ritmo
+  global reparte lo disponible al inicio del período y no cuenta los pagos de recurrentes ni
+  cuotas.
 - Sobregiro y cupos de crédito son deuda, no caja disponible.
 - Los movimientos internos no consumen presupuesto.
 - Lo que se pasó del tope un mes se descuenta del siguiente.

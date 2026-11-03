@@ -79,8 +79,9 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
   en débito y crédito. Los montos se **heredan entre períodos del mismo modo** (carry-forward).
 - En débito y crédito, el gastado del plan es todo gasto real confirmado del período
   (no interno), con o sin categoría y con o sin tope; el comprometido suma todas las
-  recurrentes y cuotas por cobrar. Los topes miden cada categoría y su ritmo: las categorías
-  sin tope no tienen ritmo y se consultan en un grupo cerrado por defecto.
+  recurrentes y cuotas por cobrar. Los topes miden cada categoría y su ritmo. Una categoría sin
+  tope pero con gasto o comprometido en el período entra al plan con tope $0 (todo es exceso);
+  las sin tope y sin movimientos se consultan en un grupo cerrado por defecto.
 - El ritmo y el «quedan» de una categoría parten de tope − usado − comprometido: el pago que
   concilia una recurrente o una cuota no cuenta como gasto del ritmo.
 - Los movimientos en USD entran convertidos con el dólar observado de su fecha. Si mindicador
@@ -100,7 +101,14 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
 - «Ajustar plan» sugiere esos ingresos menos el déficit entre gastos realizados e ingresos
   del período anterior: mes en débito, ciclo en crédito. El presupuesto global y los topes
   no determinan ese déficit; aplicar la sugerencia es manual.
-- El resumen del plan separa el margen del plan de la liquidez registrada (caja menos línea
+- El titular del Inicio es el **disponible para gastar**: lo menor entre el margen (ingresos −
+  gastado − comprometido) y lo que queda de los topes de las categorías del plan. Debajo dice
+  quién manda: los topes (y cuánto queda sin repartir) o el margen, cuando se repartió más de lo
+  que entra. Negativo, «Te pasaste del plan» en rojo.
+- La curva del Inicio es el ritmo global: va de $0 a lo disponible al inicio del período y solo
+  cuenta el gasto que no salda una recurrente o una cuota. Se muestra aunque no haya tope
+  global, siempre que haya algo que repartir.
+- El resumen del plan separa ese disponible de la liquidez registrada (caja menos línea
   usada, con el desglose cuando hay línea). Un plan cubierto no oculta corriente negativa. Los saldos son los últimos registrados,
   no una reconstrucción histórica del mes seleccionado.
 - Selector de mes para navegar tu historial; movimientos con búsqueda y filtros.

@@ -46,10 +46,10 @@ export function MonthStatus({
   daysLeft: number // días que quedan, hoy incluido; 0 fuera del mes en curso
   globalLimit: number | null
   spent: number
-  plan: PlanInput // ingresos − gastado − comprometido, sus componentes y liquidez
+  plan: PlanInput // disponible para gastar (servidor), los componentes del margen y liquidez
   onOpenPlan: () => void
   onOpenLiquidity?: () => void
-  children?: React.ReactNode // el gráfico de gasto contra el ritmo; sin presupuesto no se muestra
+  children?: React.ReactNode // el gráfico de gasto contra el ritmo; sin nada que repartir no se muestra
 }) {
   const mes = monthName(period.month).toLowerCase()
 
@@ -84,6 +84,7 @@ export function MonthStatus({
         <div className="mt-4">
           <PlanSummary {...plan} />
         </div>
+        {children && <div data-nuevo className="mt-4 flex flex-col">{children}</div>}
       </section>
     )
   }

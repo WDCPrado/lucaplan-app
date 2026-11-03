@@ -192,7 +192,7 @@ lectura de cartolas por foto, así nada se cuenta dos veces cuando el correo lle
 | ------------- | ----------------------------------------------------------------------- |
 | Framework     | [Next.js 16](https://nextjs.org) (App Router) + [React 19](https://react.dev) |
 | Lenguaje      | TypeScript                                                               |
-| UI            | [Glisse](https://glisse.kelvinzhang.ca/) + [Tailwind CSS v4](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com) / Radix para capacidades sin equivalente, `lucide-react`, `next-themes` |
+| UI            | [Tailwind CSS v4](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com) + Base UI, `lucide-react`, `next-themes` |
 | Base de datos | PostgreSQL 17 + [Prisma 7](https://www.prisma.io)                        |
 | Auth          | [better-auth](https://better-auth.com) (código por correo, roles)       |
 | IA            | OpenAI Chat Completions (`gpt-4o-mini` por defecto)                      |
@@ -206,7 +206,7 @@ Backend con **clean architecture** en `arch/` (la definición completa está en
 
 ```
 app/                    # Presentation: UI + Route Handlers (app/api/**) y Server Actions
-components/             # UI: Glisse + primitivos sin equivalente (components/ui) + finanzas
+components/             # UI: shadcn/ui (components/ui) + componentes de finanzas
 lib/  hooks/            # utilidades y hooks de cliente
 arch/
 ├─ shared/              # código puro, sin negocio, cross-version
@@ -535,9 +535,8 @@ plugin. Cómo agregarle datos, en
    issue, sigue con implementación, revisión y verificación. OpenSpec es optativo y se usa solo
    cuando Willy lo pide expresamente.
 3. Antes de abrir el PR: `pnpm lint && pnpm typecheck && pnpm test`.
-4. Respeta la regla de dependencias de `arch/` y usa Glisse para los controles compatibles.
-   Las capacidades sin equivalente conservan los primitivos documentados en
-   [la integración de UI](docs/design/glisse.md).
+4. Respeta la regla de dependencias de `arch/` y los primitivos de UI (shadcn/ui — si
+   falta un componente, se instala con `pnpm dlx shadcn@latest add <componente>`).
 
 ## Licencia
 

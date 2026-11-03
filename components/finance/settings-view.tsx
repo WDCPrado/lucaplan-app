@@ -1,7 +1,5 @@
 "use client"
 
-import { Button, Slider, SegmentedControl } from "glisse"
-
 import { useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -16,14 +14,9 @@ import { useAppearance } from "@/components/appearance-provider"
 import { PushToggle } from "@/components/pwa/push-toggle"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
 import { AppShell, useOpenProfile } from "./app-shell"
-
-import {
-  GLASS_DEFAULT,
-  GLASS_MAX,
-  getGlass,
-  setGlass,
-  subscribeGlass,
-} from "@/lib/glass-level"
+import { Button } from "@/components/ui/button"
+import { Slider } from "@/components/ui/slider"
+import { GLASS_DEFAULT, GLASS_MAX, getGlass, setGlass, subscribeGlass } from "@/lib/glass-level"
 import type { BudgetAlert } from "@/arch/v1/domain/notifications/budget-alert.domain"
 
 // Umbrales ofrecidos. Son los que la gente usa: elegir "aviso al 80%" es una decisión discreta,
@@ -168,13 +161,7 @@ function SettingsSection({
 }
 
 // Lo que lee el lector de pantalla en cada paso (0 a GLASS_MAX); el 2 es el por defecto.
-const GLASS_NAMES = [
-  "Más transparente",
-  "Transparente",
-  "Normal",
-  "Teñido",
-  "Muy teñido",
-]
+const GLASS_NAMES = ["Más transparente", "Transparente", "Normal", "Teñido", "Muy teñido"]
 
 // Cuánto vidrio llevan barras, sidebar y menús: de transparente (el de siempre) a teñido, casi
 // sólido. Cinco pasos; es del usuario (en la base): se ve al arrastrar y se guarda al soltar.
@@ -191,15 +178,13 @@ function AppearanceSection() {
     >
       <div className="glass rounded-xl p-4">
         <Slider
-          value={level}
-          onValueChange={(v) => {
+          value={[level]}
+          onValueChange={([v]) => {
             if (v === level) return
             haptic("light")
             setGlass(v)
           }}
-          onPointerUp={() => saveGlass(getGlass())}
-          onKeyUp={() => saveGlass(getGlass())}
-          onBlur={() => saveGlass(getGlass())}
+          onValueCommit={([v]) => saveGlass(v)}
           min={0}
           max={GLASS_MAX}
           step={1}
@@ -261,36 +246,40 @@ function DueReminderSection({ initialDays }: { initialDays: number }) {
       description="Cuántos días antes te avisamos de recurrentes y cuotas."
     >
       <div className="glass rounded-xl p-4">
-        <div className="flex items-center gap-3">
-          <Button
-            icon={<Minus className="size-4" />}
-            disabled={pending || days === 0}
-            onClick={() => change(days - 1)}
-            aria-label="Avisar un día menos antes"
-            className="size-11 shrink-0"
-          ></Button>
-          <p
-            aria-live="polite"
-            className="tabular flex-1 text-center text-title-3 font-bold"
-          >
-            {days === 0
-              ? "El mismo día"
-              : `${days} día${days === 1 ? "" : "s"}`}
-          </p>
-          <Button
-            icon={<Plus className="size-4" />}
-            disabled={pending || days === DUE_MAX}
-            onClick={() => change(days + 1)}
-            aria-label="Avisar un día más antes"
-            className="size-11 shrink-0"
-          ></Button>
-        </div>
-        {/* El ajuste se confirma con su efecto, no con el número suelto. */}
-        <p className="mt-3 text-center text-subheadline text-muted-foreground">
-          {days === 0
-            ? "Recibirás el aviso el mismo día del cobro."
-            : `Un cobro del día 20 se avisaría el día ${20 - days}.`}
+      <div className="flex items-center gap-3">
+        <Button
+          variant="secondary"
+          size="icon"
+          disabled={pending || days === 0}
+          onClick={() => change(days - 1)}
+          aria-label="Avisar un día menos antes"
+          className="size-11 shrink-0"
+        >
+          <Minus className="size-4" />
+        </Button>
+        <p
+          aria-live="polite"
+          className="tabular flex-1 text-center text-title-3 font-bold"
+        >
+          {days === 0 ? "El mismo día" : `${days} día${days === 1 ? "" : "s"}`}
         </p>
+        <Button
+          variant="secondary"
+          size="icon"
+          disabled={pending || days === DUE_MAX}
+          onClick={() => change(days + 1)}
+          aria-label="Avisar un día más antes"
+          className="size-11 shrink-0"
+        >
+          <Plus className="size-4" />
+        </Button>
+      </div>
+      {/* El ajuste se confirma con su efecto, no con el número suelto. */}
+      <p className="mt-3 text-center text-subheadline text-muted-foreground">
+        {days === 0
+          ? "Recibirás el aviso el mismo día del cobro."
+          : `Un cobro del día 20 se avisaría el día ${20 - days}.`}
+      </p>
       </div>
     </SettingsSection>
   )
@@ -338,19 +327,33 @@ function PaceSection({
           : "Un gasto grande puede reventar el día; la semana lo absorbe mejor."
       }
     >
-      <SegmentedControl
+      <div
+        role="radiogroup"
         aria-label="Frecuencia del ritmo"
-        value={frequency}
-        items={PACE_OPTIONS}
-        inert={pending}
-        aria-disabled={pending}
-        onValueChange={(value) => void change(value as PaceFrequency)}
-        style={
-          {
-            "--lg-tab-width": "min(160px, calc((100vw - 64px) / 2))",
-          } as React.CSSProperties
-        }
-      />
+        className="flex gap-0.5 rounded-lg bg-(--glass-control) p-0.5"
+      >
+        {PACE_OPTIONS.map((opt) => {
+          const active = opt.value === frequency
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              disabled={pending}
+              onClick={() => change(opt.value)}
+              className={cn(
+                "h-11 flex-1 rounded-md px-4 text-subheadline font-medium transition-colors disabled:opacity-60",
+                active
+                  ? "bg-(--glass-control-active) text-foreground shadow-sm"
+                  : "text-muted-foreground"
+              )}
+            >
+              {opt.label}
+            </button>
+          )
+        })}
+      </div>
     </SettingsSection>
   )
 }

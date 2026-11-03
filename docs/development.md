@@ -53,12 +53,12 @@ Todo el backend (doc + código) vive en `arch/`; no hay carpeta `src/`. Dentro d
 
 ## UI / frontend
 
-- **La UI de la app usa Glisse directamente donde el contrato es compatible**, con Tailwind v4,
-  `lucide-react` y `next-themes`. Los componentes sin equivalente conservan shadcn/Radix
-  (`components.json`, estilo `radix-maia`). No crear clones ni otra biblioteca de controles.
+- **La UI se construye con shadcn/ui + Base UI** (`components.json`, estilo `radix-maia`),
+  Tailwind v4, `lucide-react`, `next-themes`. Respeta siempre esos primitivos; no
+  introduzcas otra librería de componentes.
 - **Componente que no existe → instálalo con el comando**, no lo escribas a mano:
   `pnpm dlx shadcn@latest add <componente>` → cae en `components/ui/`.
-- **Confirmaciones y avisos dentro de la app.** Prohibido `window.confirm/alert/prompt` y
+- **Siempre shadcn, nunca primitivos del navegador.** Prohibido `window.confirm/alert/prompt` y
   diálogos/notificaciones nativas. Usa los primitivos de shadcn: **AlertDialog** para
   confirmaciones (sobre todo acciones destructivas), **Dialog**/`ResponsiveModal` para contenido en
   modal, toast/sonner para avisos. Cualquier interacción modal, de confirmación o de aviso pasa por
@@ -91,10 +91,12 @@ colores siguen siendo los de Luca Plan; lo que se copia es cómo se usan los com
 Rigen para todo lo nuevo; un formulario o modal existente se adapta cuando se toca, no en
 un barrido aparte.
 
-- **Glisse es la fuente de los controles y del vidrio.** Importar sus componentes directamente;
-  no envolverlos para mantener una segunda API de diseño. `components/ui/` conserva las capacidades
-  ausentes en Glisse, incluidos Dialog/Drawer, calendarios y portales. `responsive-modal.tsx`
-  compone Dialog y Drawer; Popover y DropdownMenu conservan Radix y delegan su superficie a Glass.
+- **shadcn es la fuente de verdad; `components/ui/` solo se toca para los radios.** Los primitivos
+  llevan la jerarquía de radios de abajo aplicada a mano: al reinstalar uno con `shadcn add`,
+  volver a aplicarla. Nada más se edita ahí. Lo reutilizable
+  se compone encima, en `components/<carpeta>/` (`finance/`, `landing/`, `pwa/`): un
+  componente propio envuelve a los primitivos, nunca los reemplaza. Una excepción documentada:
+  `responsive-modal.tsx`, que es composición de Dialog y Drawer.
 - **Tokens, no valores.** Color, fuente, radio y espaciado salen de `app/globals.css`, en los
   dos temas. Un color nuevo es un token nuevo, no un hex en `className`.
 - **Radio sobrio, con jerarquía de tres niveles** (`--radius: 0.625rem`):
@@ -151,29 +153,63 @@ agrupaciones, la tipografía y los controles.
   responde a qué decisión o acción de la persona sirve. Si no sirve ninguna o repite algo que ya
   está, se quita o se funde; si sirve, su peso visual corresponde a su importancia. Quitar va antes
   que agregar.
-- **Materiales y controles:** la app importa directamente Glisse 0.5.0. Su biblioteca dibuja
-  superficies, refracción, bordes y movimiento. No agregar otro motor ni recetas locales de blur,
-  sombras o squish. Las tarjetas y listas siguen sólidas; Dialog/Drawer usan Glass con el token
-  oficial de superficie para mantener la lectura. La landing conserva
-  sus componentes y diseño. Ver [integración de Glisse](design/glisse.md) para el mapa y excepciones.
-- **Refracción en Safari:** el contenido de Chrome tiene `data-glisse-backdrop`, como hermano de
-  las barras. Glisse filtra esa fuente directamente, sin duplicar el árbol de la app. El pequeño
-  solape superior existe desde montaje porque Glisse busca una fuente visible al montar cada lente.
-  No marcar un ancestro de los controles ni meter overlays fixed en esa fuente; usar Portal.
-  Se prioriza refracción completa también en Safari, aceptando el seguimiento por frame oficial.
-- **Tema y accesibilidad:** next-themes actualiza tanto `class` como `data-theme`; el script de
-  apariencia del servidor sincroniza ambos antes de hidratar. El puente CSS sólo adapta tipografía,
-  tamaños táctiles, distribución, tokens y accesibilidad. Menos transparencia/más contraste dejan
-  superficies opacas y anulan también el filtro sobre la fuente de contenido.
-- **Apariencia:** se conservan los cinco niveles por usuario y la persistencia optimista con
-  reversión ante error; los niveles ajustan el token oficial `--lg-glass`. El slider guarda al
-  soltar, terminar una tecla o salir del control, sin solicitudes por cada frame del arrastre.
-- **Campos:** Glisse Input usa `value`/`onValueChange`, y su className corresponde al wrapper.
-  Con React Hook Form usar Controller y separar `onChange` del resto de field; no propagar
-  `register()` directamente porque reemplaza el manejador interno. Mantener ref, name y onBlur.
-- **Cambio de pantalla:** se conservan ViewTransition y dirección de navegación del contenido;
-  Glisse gestiona la selección y el movimiento de TabBar/SegmentedControl. Los enlaces reales
-  siguen usando Next Link, incluidos clics modificados y navegación por teclado.
+- **Materiales (apple-hig `foundations/materials`, `color`, `components/scroll-views`).** Todo sale
+  de los tokens y utilidades de `app/globals.css`; ningún componente pone su propio blur o fondo.
+  - **Liquid Glass (`liquid-glass`) solo en la capa de controles y navegación**: fila superior y
+    barra de pestañas en móvil, sidebar y topbar en escritorio, cápsulas y botones flotantes. Nunca
+    en el contenido (tarjetas, listas, hojas), que va sólido en `card` sobre el fondo agrupado.
+    Variante regular (desenfoque + luminosidad), sin «clear». Lo grande (sidebar) un poco más opaco
+    que lo chico, pero reutiliza `liquid-glass` para el mismo acabado. La base es CSS compatible con
+    Safari, Firefox y Chrome: desenfoque de 16 px, saturación moderada (120 %), relleno neutro,
+    reflejo localizado arriba-izquierda y un eco menor abajo-derecha (`::before` cónico), rim
+    interior (`--glass-rim`), contorno de 0.5 px y sombra. No hay una línea brillante continua.
+  - **Sin motor de refracción (WDC-174).** El acabado usa sólo CSS: no hay filtros SVG sobre el
+    contenido, clones ni seguimiento continuo. Se retiraron Glisse y el motor anterior para
+    recuperar la composición estable en Safari móvil. Tabs y búsquedas usan enlaces/botones/
+    inputs nativos; Select, menús, sliders y modales conservan los contratos accesibles de Radix/Vaul.
+  - **Movimiento del vidrio**: `liquid-squish` encoge la cápsula al 97 % al presionarla (ella o un
+    control suyo con `data-squish`) y vuelve con un spring (`linear()`, con `cubic-bezier` de respaldo). Solo CSS,
+    interrumpible, y nada con movimiento reducido.
+  - **Cambio de pantalla** (React `<ViewTransition>` en `AppShell`, clase `nav`): solo el contenido
+    se desliza un poco (24 px en móvil, 14 px en escritorio) y funde; el marco (sidebar, topbar,
+    fila superior, barra de pestañas) tiene nombre propio y queda quieto. La dirección sale de
+    `lib/nav-direction.ts` (orden de `NAV` y profundidad de la ruta) y la deja `data-nav-dir` en
+    `<html>` antes de navegar, también con el atrás del navegador: móvil siempre horizontal;
+    escritorio, entre links del sidebar en vertical y entrar/volver en horizontal. Dentro de la
+    misma ruta (mes, `?tx=`) no anima. La pastilla activa de las pestañas (`.tab-pill`) y la del
+    sidebar (`.nav-pill`) se deslizan con la misma `--nav-duration`/`--nav-ease`. Con movimiento
+    reducido solo queda el fundido y las pastillas saltan.
+  - **Material regular (`--material`)** para lo que lleva texto encima del contenido:
+    menús, select, popover, tooltip, toasts, alertas y el aviso de refresco de la PWA. Más opaco que
+    el vidrio de las barras, con la misma saturación moderada; la utilidad `material` concentra la
+    receta. Los toasts de estado conservan su color semántico. Las hojas van sólidas (`--sheet`).
+  - **Color con moderación**: el vidrio no tiene color propio; textos e íconos encima van en
+    `foreground`. La pestaña móvil activa y el link activo del sidebar llevan el mismo fondo azul
+    (`--glass-tab-active`) con `--glass-active-shadow`, sin vidrio adicional dentro del vidrio; en
+    el sidebar el ícono y el texto del activo van además en `primary`. Hover y press sobre el
+    vidrio son un velo de `foreground` (5 % y 10 %), no el gris sólido `--sidebar-accent`.
+  - **Scroll edge effect** (`scroll-edge-top`) queda solo detrás de la topbar de escritorio:
+    un velo tenue (`--scroll-edge-amount`, 22 % por defecto y proporcional al nivel de vidrio),
+    desenfoque leve (`--scroll-edge-blur`, 4 px) y fundido largo. En móvil el desenfoque queda
+    dentro de las cápsulas, sin franjas a ancho completo alrededor de los controles.
+  - **Concentricidad**: lo que va dentro de una barra o cápsula usa el radio externo menos el
+    margen (`--radius-bar-inner` en la topbar y el sidebar; `rounded-full` dentro de cápsulas).
+  - Con `prefers-reduced-transparency` todo material cae a sólido, sin desenfoque ni reflejo;
+    con `prefers-contrast: more` gana relleno y contorno, también en la selección activa. Ambas
+    preferencias apagan el reflejo por token, incluso en variantes responsive y en el sidebar.
+    Sin soporte de `backdrop-filter`, el relleno cae a sólido.
+  - **Nivel del vidrio** (Ajustes → Apariencia): un slider de 5 pasos, de «Transparente» (el vidrio
+    más translúcido) a «Teñido» (casi sólido), ajusta el relleno de `--glass-fill` y
+    `--glass-fill-large` con `--glass-clear` (65 %, 40 %, 20 %, 0 %, 0 %), y desde el nivel 3 los
+    lleva junto a `--material` hacia `--card` con `--glass-tint` (30 % y 75 %). El desenfoque se
+    mantiene en los cinco pasos para separar las letras del fondo de los controles; solo la
+    preferencia de reducir transparencia lo apaga. `data-glass` vive en `<html>`. Es por usuario, en la base junto
+    con el tema (`user_setting`, `PATCH /api/user-settings`); el layout de `app/(app)` la lee en el
+    servidor y un script la aplica a `<html>` antes del primer pintado (`lib/appearance.ts`). Los
+    cambios se ven al instante y, si el guardado falla, vuelven al valor guardado. Los valores
+    viejos de localStorage (`glass-level`, `theme`) se suben una sola vez por dispositivo, solo si
+    el usuario aún está en los valores por defecto. Las rutas públicas no la usan. Las dos
+    preferencias del sistema de arriba siguen ganando.
 - **Navegación flotante, sin barras a lo ancho**: en móvil, arriba una sola fila: a la izquierda
   el título de la vista (`text-headline` en negrita; sale del mapa de rutas `NAV` y es el `h1` de la
   página en móvil, las vistas no traen el suyo) y el resto para las acciones de la vista (el

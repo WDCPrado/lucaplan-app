@@ -1,8 +1,5 @@
 "use client"
 
-import { Button } from "glisse"
-import { Button as SlotButton } from "@/components/ui/button"
-
 import { useRef, useState } from "react"
 import Link from "next/link"
 import { useForm } from "react-hook-form"
@@ -12,7 +9,7 @@ import {
   pluginConnectionsSchema,
   type PluginConnectionResponse,
 } from "@/lib/schemas/plugin-auth"
-
+import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -113,6 +110,7 @@ export function ConnectionsView({
           </p>
           <Button
             type="button"
+            variant="outline"
             className="h-11"
             onClick={reload}
             disabled={loading}
@@ -168,6 +166,7 @@ export function ConnectionsView({
               </p>
               <Button
                 type="button"
+                variant="outline"
                 className="h-11 w-full text-base"
                 onClick={(event) => {
                   returnFocus.current = event.currentTarget
@@ -202,13 +201,9 @@ export function ConnectionsView({
           {message}
         </p>
       )}
-      <SlotButton
-        asChild
-        variant="outline"
-        className="mt-6 h-11 w-full text-base"
-      >
+      <Button asChild variant="outline" className="mt-6 h-11 w-full text-base">
         <Link href="/dashboard">Volver a Luca Plan</Link>
-      </SlotButton>
+      </Button>
       <AlertDialog
         open={selected !== null}
         onOpenChange={(open) => {
@@ -258,7 +253,7 @@ export function ConnectionsView({
               id="plugin-revoke-confirm"
               type="submit"
               form="plugin-revoke-form"
-              destructive
+              variant="destructive"
               className="h-11"
               disabled={pending}
             >

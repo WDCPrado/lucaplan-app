@@ -1,14 +1,11 @@
 "use client"
 
-import { Button } from "glisse"
-import { Portal } from "radix-ui"
-
 import type { IncomeSource } from "@/arch/v1/domain/finance/income.domain"
 
 import { useCallback, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowRight, Check, Plus, Wallet } from "lucide-react"
-
+import { Button } from "@/components/ui/button"
 import { formatMoney } from "@/lib/finance-format"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import {
@@ -77,98 +74,96 @@ export function OnboardingFlow({
   const view = step
 
   return (
-    <Portal.Root>
-      <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background p-[env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)]">
-        <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-5 py-8">
-          <StepDots step={view} />
-          <div
-            key={view}
-            className="flex flex-1 animate-in flex-col duration-300 fade-in-0 slide-in-from-right-4 motion-reduce:slide-in-from-right-0"
-          >
-            {view === "welcome" && (
-              <Welcome
-                onStart={() => {
-                  setStep("connect")
-                  void loadStatus()
-                }}
-              />
-            )}
+    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background p-[env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)]">
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-5 py-8">
+        <StepDots step={view} />
+        <div
+          key={view}
+          className="flex flex-1 animate-in flex-col duration-300 fade-in-0 slide-in-from-right-4 motion-reduce:slide-in-from-right-0"
+        >
+          {view === "welcome" && (
+            <Welcome
+              onStart={() => {
+                setStep("connect")
+                void loadStatus()
+              }}
+            />
+          )}
 
-            {view === "connect" && (
-              <div className="flex flex-1 flex-col gap-8">
-                <Header
-                  title="Revisemos tus correos"
-                  subtitle="Detectamos tus cuentas y tarjetas desde las notificaciones del banco."
-                />
-                <div className="flex items-start gap-2 rounded-xl border border-primary/25 bg-primary/5 p-3 text-subheadline text-muted-foreground">
-                  <Wallet className="mt-0.5 size-4 shrink-0 text-primary" />
-                  <span>
-                    Ingresa el{" "}
-                    <span className="font-medium text-foreground">
-                      saldo actual
-                    </span>{" "}
-                    de cada cuenta y tarjeta.
-                  </span>
-                </div>
-                <OutlookBankConnection
-                  status={status}
-                  onReload={afterImport}
-                  onImportingChange={setLocked}
-                  inline
-                />
+          {view === "connect" && (
+            <div className="flex flex-1 flex-col gap-8">
+              <Header
+                title="Revisemos tus correos"
+                subtitle="Detectamos tus cuentas y tarjetas desde las notificaciones del banco."
+              />
+              <div className="flex items-start gap-2 rounded-xl border border-primary/25 bg-primary/5 p-3 text-subheadline text-muted-foreground">
+                <Wallet className="mt-0.5 size-4 shrink-0 text-primary" />
+                <span>
+                  Ingresa el{" "}
+                  <span className="font-medium text-foreground">
+                    saldo actual
+                  </span>{" "}
+                  de cada cuenta y tarjeta.
+                </span>
               </div>
-            )}
-
-            {view === "income" && (
-              <IncomeStep
-                incomes={incomes}
-                onAdd={() => setIncomeOpen(true)}
-                onContinue={() => setStep("budget")}
+              <OutlookBankConnection
+                status={status}
+                onReload={afterImport}
+                onImportingChange={setLocked}
+                inline
               />
-            )}
+            </div>
+          )}
 
-            {view === "budget" && (
-              <BudgetReady
-                globalLimit={globalLimit}
-                spent={totalSpent}
-                onFinish={onFinish}
-              />
-            )}
-          </div>
+          {view === "income" && (
+            <IncomeStep
+              incomes={incomes}
+              onAdd={() => setIncomeOpen(true)}
+              onContinue={() => setStep("budget")}
+            />
+          )}
 
-          {!locked && view !== "welcome" && view !== "budget" && (
-            <Button
-              onClick={onFinish}
-              className="mt-6 min-h-11 self-center px-4 text-subheadline text-muted-foreground hover:text-foreground"
-            >
-              Omitir por ahora
-            </Button>
+          {view === "budget" && (
+            <BudgetReady
+              globalLimit={globalLimit}
+              spent={totalSpent}
+              onFinish={onFinish}
+            />
           )}
         </div>
 
-        <IncomeModal
-          availableSources={availableIncomeSources}
-          open={incomeOpen}
-          onOpenChange={setIncomeOpen}
-          accounts={accounts}
-          categories={categories}
-          income={null}
-          period={period}
-          onCreateCategory={() => {
-            setCatOpen(true)
-          }}
-        >
-          <CategoryModal
-            open={catOpen}
-            onOpenChange={setCatOpen}
-            period={period}
-            category={null}
-            lockedType="income"
-            remainingToAllocate={remainingToAllocate}
-          />
-        </IncomeModal>
+        {!locked && view !== "welcome" && view !== "budget" && (
+          <button
+            onClick={onFinish}
+            className="mt-6 min-h-11 self-center px-4 text-subheadline text-muted-foreground hover:text-foreground"
+          >
+            Omitir por ahora
+          </button>
+        )}
       </div>
-    </Portal.Root>
+
+      <IncomeModal
+        availableSources={availableIncomeSources}
+        open={incomeOpen}
+        onOpenChange={setIncomeOpen}
+        accounts={accounts}
+        categories={categories}
+        income={null}
+        period={period}
+        onCreateCategory={() => {
+          setCatOpen(true)
+        }}
+      >
+        <CategoryModal
+          open={catOpen}
+          onOpenChange={setCatOpen}
+          period={period}
+          category={null}
+          lockedType="income"
+          remainingToAllocate={remainingToAllocate}
+        />
+      </IncomeModal>
+    </div>
   )
 }
 
@@ -226,11 +221,7 @@ function Welcome({ onStart }: { onStart: () => void }) {
           </p>
         </div>
       </div>
-      <Button
-        variant="filled"
-        onClick={onStart}
-        className="h-12 w-full text-body"
-      >
+      <Button onClick={onStart} className="h-12 w-full text-body">
         Comenzar <ArrowRight className="size-4" />
       </Button>
     </div>
@@ -274,13 +265,12 @@ function IncomeStep({
           ))}
         </ul>
       )}
-      <Button onClick={onAdd} className="h-12 w-full text-body">
+      <Button variant="outline" onClick={onAdd} className="h-12 w-full text-body">
         <Plus className="size-4" />
         Agregar ingreso
       </Button>
       <div className="flex-1" />
       <Button
-        variant="filled"
         onClick={onContinue}
         disabled={incomes.length === 0}
         className="h-12 w-full text-body"
@@ -323,11 +313,7 @@ function BudgetReady({
           )}
         </div>
       </div>
-      <Button
-        variant="filled"
-        onClick={onFinish}
-        className="h-12 w-full text-body"
-      >
+      <Button onClick={onFinish} className="h-12 w-full text-body">
         Ir al dashboard <ArrowRight className="size-4" />
       </Button>
     </div>

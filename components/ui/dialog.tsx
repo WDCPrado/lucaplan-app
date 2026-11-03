@@ -4,8 +4,7 @@ import * as React from "react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
-import { usePortalContainer } from "./portal-container"
-import { Button, Glass } from "glisse"
+import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
 
 function Dialog({
@@ -23,14 +22,7 @@ function DialogTrigger({
 function DialogPortal({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
-  const container = usePortalContainer()
-  return (
-    <DialogPrimitive.Portal
-      container={container}
-      data-slot="dialog-portal"
-      {...props}
-    />
-  )
+  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
 }
 
 function DialogClose({
@@ -67,7 +59,6 @@ function DialogContent({
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
-        asChild
         data-slot="dialog-content"
         tabIndex={-1}
         // Radix enfoca el primer input con `select: true`: al editar un movimiento, la descripción
@@ -77,30 +68,24 @@ function DialogContent({
           ;(e.currentTarget as HTMLElement).focus()
         }}
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-xl p-6 text-sm text-popover-foreground duration-100 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-xl bg-popover p-6 text-sm text-popover-foreground ring-1 ring-foreground/5 duration-100 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
       >
-        <Glass
-          style={
-            {
-              position: "fixed",
-              "--lg-glass": "var(--lg-surface)",
-            } as React.CSSProperties
-          }
-        >
-          {children}
-          {showCloseButton && (
-            <DialogPrimitive.Close data-slot="dialog-close" asChild>
-              <Button
-                icon={<XIcon />}
-                aria-label="Cerrar"
-                style={{ position: "absolute", top: 16, right: 16 }}
-              ></Button>
-            </DialogPrimitive.Close>
-          )}
-        </Glass>
+        {children}
+        {showCloseButton && (
+          <DialogPrimitive.Close data-slot="dialog-close" asChild>
+            <Button
+              variant="ghost"
+              className="absolute top-4 right-4"
+              size="icon-sm"
+            >
+              <XIcon />
+              <span className="sr-only">Close</span>
+            </Button>
+          </DialogPrimitive.Close>
+        )}
       </DialogPrimitive.Content>
     </DialogPortal>
   )
@@ -136,7 +121,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close asChild>
-          <Button>Cerrar</Button>
+          <Button variant="outline">Close</Button>
         </DialogPrimitive.Close>
       )}
     </div>

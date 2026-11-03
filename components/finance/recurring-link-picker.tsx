@@ -1,11 +1,11 @@
 "use client"
 
-import { Button, Input, SearchField } from "glisse"
-
 import { useState } from "react"
+import { Search, X } from "lucide-react"
 
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
-
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -101,14 +101,27 @@ export function RecurringLinkPicker({
           a ser el cobro.
         </p>
 
-        <SearchField
-          id="recurring-link-q"
-          value={filters.q}
-          onValueChange={(value) => onFiltersChange({ ...filters, q: value })}
-          placeholder="Buscar por descripción…"
-          aria-label="Buscar movimiento"
-          className="text-body"
-        />
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="recurring-link-q"
+            value={filters.q}
+            onChange={(e) => onFiltersChange({ ...filters, q: e.target.value })}
+            placeholder="Buscar por descripción…"
+            aria-label="Buscar movimiento"
+            className="h-11 pr-10 pl-10 text-body md:text-body"
+          />
+          {filters.q && (
+            <button
+              type="button"
+              onClick={() => onFiltersChange({ ...filters, q: "" })}
+              className="absolute top-1/2 right-1 grid size-11 -translate-y-1/2 place-items-center text-muted-foreground hover:text-foreground"
+              aria-label="Limpiar búsqueda"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
 
         <div className="mt-4 space-y-2">
           <span className="block text-footnote font-medium text-muted-foreground">
@@ -145,14 +158,13 @@ export function RecurringLinkPicker({
                   inputMode="numeric"
                   maxLength={3}
                   value={customDays}
-                  onValueChange={(value) => changeCustomDays(value)}
+                  onChange={(e) => changeCustomDays(e.target.value)}
                   aria-label="Días hacia atrás"
                   aria-invalid={customInvalid}
                   aria-describedby={
                     customInvalid ? "recurring-link-days-error" : undefined
                   }
-                  style={{ width: 96 }}
-                  className="tabular text-body"
+                  className="tabular h-11 w-24 text-body md:text-body"
                 />
                 <span className="text-subheadline text-muted-foreground">días</span>
               </div>
@@ -177,7 +189,7 @@ export function RecurringLinkPicker({
             <p className="text-subheadline text-muted-foreground">
               No se pudieron cargar los movimientos.
             </p>
-            <Button onClick={onRetry} className="h-11">
+            <Button variant="outline" onClick={onRetry} className="h-11">
               Reintentar
             </Button>
           </div>

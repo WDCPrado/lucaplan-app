@@ -1,7 +1,5 @@
 "use client"
 
-import { Button, Input, SegmentedControl } from "glisse"
-
 import * as React from "react"
 import { useEffect, useId, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
@@ -45,9 +43,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-
+import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Popover,
@@ -211,6 +209,7 @@ export function DatePicker({
           id={id}
           aria-invalid={invalid}
           aria-describedby={describedBy}
+          variant="outline"
           className="h-12 w-full justify-start rounded-lg text-body font-normal"
         >
           <CalendarIcon className="size-4 text-muted-foreground" />
@@ -250,11 +249,7 @@ export function DatePicker({
 }
 
 // Movimiento manual → editable (form tipo crear + eliminar). Movimiento conectado → solo lectura.
-type ReimbursementCounterpart = {
-  id: string
-  amount: number
-  transaction: TransactionDTO
-}
+type ReimbursementCounterpart = { id: string; amount: number; transaction: TransactionDTO }
 
 export function TransactionModal({
   tx,
@@ -275,25 +270,13 @@ export function TransactionModal({
     setLinks([])
     if (!activeTx?.reimbursementCount) return
     const controller = new AbortController()
-    fetch(`/api/transactions/${activeTx.id}/reimbursements`, {
-      signal: controller.signal,
-    })
-      .then((res) => {
-        if (!res.ok)
-          throw new Error("No se pudieron cargar los movimientos relacionados")
-        return res.json()
-      })
-      .then((data: { links: ReimbursementCounterpart[] }) => {
-        if (!controller.signal.aborted) setLinks(data.links)
-      })
-      .catch(() => {
-        /* Modal sigue utilizable aunque falle la consulta de enlaces. */
-      })
+    fetch(`/api/transactions/${activeTx.id}/reimbursements`, { signal: controller.signal })
+      .then(res => { if (!res.ok) throw new Error("No se pudieron cargar los movimientos relacionados"); return res.json() })
+      .then((data: { links: ReimbursementCounterpart[] }) => { if (!controller.signal.aborted) setLinks(data.links) })
+      .catch(() => { /* Modal sigue utilizable aunque falle la consulta de enlaces. */ })
     return () => controller.abort()
   }, [activeTx?.id, activeTx?.reimbursementCount])
-  const account = activeTx
-    ? accounts.find((a) => a.id === activeTx.accountId)
-    : undefined
+  const account = activeTx ? accounts.find(a => a.id === activeTx.accountId) : undefined
   return (
     <ResponsiveModal
       open={tx !== null}
@@ -302,35 +285,17 @@ export function TransactionModal({
     >
       {!!links.length && (
         <div className="mb-6 px-5">
-          <ModalSection title="Reembolso vinculado">
-            {links.map((link) => (
-              <button
-                key={link.id}
-                type="button"
-                onClick={() => setRelatedTx(link.transaction)}
-                className="press flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2 text-left"
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-subheadline font-medium">
-                    {link.transaction.description}
-                  </span>
-                  <span className="block text-footnote text-muted-foreground">
-                    {link.transaction.date.slice(0, 10)} ·{" "}
-                    {link.transaction.direction === "credit"
-                      ? "Ingreso recibido"
-                      : "Compra original"}
-                  </span>
-                </span>
-                <span className="flex shrink-0 items-center gap-1 text-subheadline font-semibold tabular-nums">
-                  ${link.amount.toLocaleString("es-CL")} CLP
-                  <ChevronRight
-                    aria-hidden
-                    className="size-4 text-muted-foreground/60"
-                  />
-                </span>
-              </button>
-            ))}
-          </ModalSection>
+        <ModalSection title="Reembolso vinculado">
+          {links.map(link => (
+            <button key={link.id} type="button" onClick={() => setRelatedTx(link.transaction)}
+              className="press flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2 text-left">
+              <span className="min-w-0"><span className="block truncate text-subheadline font-medium">{link.transaction.description}</span>
+                <span className="block text-footnote text-muted-foreground">{link.transaction.date.slice(0, 10)} · {link.transaction.direction === "credit" ? "Ingreso recibido" : "Compra original"}</span>
+              </span>
+              <span className="flex shrink-0 items-center gap-1 text-subheadline font-semibold tabular-nums">${link.amount.toLocaleString("es-CL")} CLP<ChevronRight aria-hidden className="size-4 text-muted-foreground/60" /></span>
+            </button>
+          ))}
+        </ModalSection>
         </div>
       )}
       {activeTx && (activeTx.editable ? (
@@ -494,18 +459,11 @@ function EditForm({
         label="Descripción"
         error={form.formState.errors.description?.message}
       >
-        <Controller
-          control={form.control}
-          name={"description"}
-          render={({ field: { onChange, ...field } }) => (
-            <Input
-              id={`transaction-description-${tx.id}-${instanceId}`}
-              {...field}
-              onValueChange={onChange}
-              inputMode="text"
-              className="h-12 text-body"
-            />
-          )}
+        <Input
+          id={`transaction-description-${tx.id}-${instanceId}`}
+          {...form.register("description")}
+          inputMode="text"
+          className="h-12 text-body"
         />
       </FinanceField>
       <div className="flex flex-col gap-3">
@@ -1410,27 +1368,30 @@ export function DirectionToggle({
   disabled?: boolean
 }) {
   return (
-    <SegmentedControl
-      aria-label="Tipo de movimiento"
-      value={value}
-      inert={disabled}
-      aria-disabled={disabled}
-      items={[
-        { value: "debit", label: "− Gasto" },
-        { value: "credit", label: "+ Ingreso" },
-      ]}
-      onValueChange={(next) => {
-        if (!disabled) {
-          haptic("light")
-          onChange(next as Direction)
-        }
-      }}
-      style={
-        {
-          "--lg-tab-width": "min(160px, calc((100vw - 64px) / 2))",
-        } as React.CSSProperties
-      }
-    />
+    <div className="flex w-full gap-0.5 rounded-xl bg-(--glass-control) p-0.5">
+      {(["debit", "credit"] as const).map((d) => (
+        <button
+          key={d}
+          type="button"
+          onClick={() => {
+            haptic("light")
+            onChange(d)
+          }}
+          disabled={disabled}
+          aria-pressed={value === d}
+          aria-label={d === "debit" ? "Gasto" : "Ingreso"}
+          className={cn(
+            "flex h-11 flex-1 items-center justify-center gap-2 rounded-[calc(var(--radius-xl)-0.125rem)] px-4 text-subheadline font-medium transition-colors disabled:opacity-50",
+            value === d &&
+              (d === "debit"
+                ? "bg-primary text-primary-foreground"
+                : "bg-success text-success-foreground")
+          )}
+        >
+          {d === "debit" ? "− Gasto" : "+ Ingreso"}
+        </button>
+      ))}
+    </div>
   )
 }
 

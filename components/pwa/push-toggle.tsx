@@ -1,7 +1,5 @@
 "use client"
 
-import { Button } from "glisse"
-
 import { useEffect, useState } from "react"
 import { BellOff, BellRing, Check, Loader2 } from "lucide-react"
 import { toast } from "sonner"
@@ -14,6 +12,7 @@ import {
   isPushEnabled,
 } from "@/lib/push"
 import { haptic } from "@/lib/haptics"
+import { Button } from "@/components/ui/button"
 
 /** Botón de alta/baja de notificaciones en este dispositivo (Configuración → Notificaciones). */
 export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string }) {
@@ -74,7 +73,7 @@ export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string }) {
       <Button
         onClick={toggle}
         disabled={pending || enabled === null}
-        variant={enabled ? "glass" : "filled"}
+        variant={enabled ? "outline" : "default"}
         className="h-11"
       >
         {pending || enabled === null ? (

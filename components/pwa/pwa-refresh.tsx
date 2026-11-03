@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Glass } from "glisse"
 import { Loader2 } from "lucide-react"
 
 // Isla que refresca al volver a primer plano: el modo standalone (PWA instalada) reanuda la app
@@ -36,9 +35,9 @@ export function PwaRefresh() {
       aria-hidden
       className="pwa-safe-top pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center"
     >
-      <Glass className="mt-2 rounded-lg p-2">
+      <div className="material mt-2 rounded-lg p-2">
         <Loader2 className="size-5 animate-spin" />
-      </Glass>
+      </div>
     </div>
   )
 }

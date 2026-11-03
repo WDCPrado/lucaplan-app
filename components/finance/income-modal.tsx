@@ -1,7 +1,5 @@
 "use client"
 
-import { Button, Input } from "glisse"
-
 import type { IncomeSource } from "@/arch/v1/domain/finance/income.domain"
 
 import type { ReactNode } from "react"
@@ -18,7 +16,8 @@ import {
   ModalFooter,
   ResponsiveModal,
 } from "@/components/ui/responsive-modal"
-
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Select,
@@ -101,9 +100,7 @@ export function IncomeModal({
     },
   })
   const sourceId = useWatch({ control: form.control, name: "sourceId" })
-  const selectedSource = availableSources.find(
-    (source) => source.id === sourceId
-  )
+  const selectedSource = availableSources.find(source => source.id === sourceId)
   const accountId = useWatch({ control: form.control, name: "accountId" })
   const currency = (destinations.find((account) => account.id === accountId)
     ?.currency ?? "CLP") as CurrencyCode
@@ -233,6 +230,7 @@ export function IncomeModal({
           <ModalFooter className="px-5">
             <Button
               type="button"
+              variant="outline"
               className="h-12 flex-1 text-body"
               onClick={() => onOpenChange(false)}
             >
@@ -254,121 +252,93 @@ export function IncomeModal({
                 </p>
               )}
               {!income && availableSources.length > 0 && (
-                <FinanceField
-                  id={`${formId}-source`}
-                  label="Fuente de ingreso"
-                  hint="Puedes usar una fuente del otro modo conservando sus cobros. Define aquí el monto de este plan."
-                >
-                  <Select
-                    value={sourceId || "new"}
-                    onValueChange={(value) => {
-                      const source = availableSources.find(
-                        (item) => item.id === value
-                      )
-                      form.reset({
-                        sourceId: source?.id ?? "",
-                        name: source?.name ?? "",
-                        amount: 0,
-                        accountId:
-                          source?.accountId ?? destinations[0]?.id ?? "",
-                        categoryId:
-                          source?.categoryId ?? incomeCategories[0]?.id ?? "",
-                        dayOfMonth: source?.dayOfMonth ?? 1,
-                      })
-                    }}
-                  >
-                    <SelectTrigger
-                      id={`${formId}-source`}
-                      className="h-12! w-full text-body"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
+                <FinanceField id={`${formId}-source`} label="Fuente de ingreso"
+                  hint="Puedes usar una fuente del otro modo conservando sus cobros. Define aquí el monto de este plan.">
+                  <Select value={sourceId || "new"} onValueChange={(value) => {
+                    const source = availableSources.find(item => item.id === value)
+                    form.reset({
+                      sourceId: source?.id ?? "", name: source?.name ?? "", amount: 0,
+                      accountId: source?.accountId ?? destinations[0]?.id ?? "",
+                      categoryId: source?.categoryId ?? incomeCategories[0]?.id ?? "",
+                      dayOfMonth: source?.dayOfMonth ?? 1,
+                    })
+                  }}>
+                    <SelectTrigger id={`${formId}-source`} className="h-12! w-full text-body"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="new">Crear nueva fuente</SelectItem>
-                      {availableSources.map((source) => (
-                        <SelectItem key={source.id} value={source.id}>
-                          {source.name}
-                        </SelectItem>
-                      ))}
+                      {availableSources.map(source => <SelectItem key={source.id} value={source.id}>{source.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </FinanceField>
               )}
               <fieldset disabled={!!selectedSource} className="contents">
-                <FinanceField
+              <FinanceField
+                id={`${formId}-name`}
+                label="Nombre del ingreso"
+                error={errors.name?.message}
+              >
+                <Input
                   id={`${formId}-name`}
-                  label="Nombre del ingreso"
-                  error={errors.name?.message}
-                >
-                  <Controller
-                    control={form.control}
-                    name={"name"}
-                    render={({ field: { onChange, ...field } }) => (
-                      <Input
-                        id={`${formId}-name`}
-                        {...field}
-                        onValueChange={onChange}
-                        required
-                        inputMode="text"
-                        className="h-12 text-body"
-                        placeholder="Ej. Sueldo"
-                        aria-invalid={!!errors.name}
+                  {...form.register("name")}
+                  required
+                  inputMode="text"
+                  className="h-12 text-body"
+                  placeholder="Ej. Sueldo"
+                  aria-invalid={!!errors.name}
+                  aria-describedby={
+                    errors.name ? `${formId}-name-error` : undefined
+                  }
+                />
+              </FinanceField>
+              <FinanceField
+                id={`${formId}-account`}
+                label="Cuenta donde entra"
+                error={errors.accountId?.message}
+              >
+                <Controller
+                  control={form.control}
+                  name="accountId"
+                  render={({ field }) => (
+                    <Select
+                      required
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger
+                        id={`${formId}-account`}
+                        className="h-12! w-full min-w-0 text-body"
+                        aria-invalid={!!errors.accountId}
                         aria-describedby={
-                          errors.name ? `${formId}-name-error` : undefined
+                          errors.accountId
+                            ? `${formId}-account-error`
+                            : undefined
                         }
-                      />
-                    )}
-                  />
-                </FinanceField>
-                <FinanceField
-                  id={`${formId}-account`}
-                  label="Cuenta donde entra"
-                  error={errors.accountId?.message}
-                >
-                  <Controller
-                    control={form.control}
-                    name="accountId"
-                    render={({ field }) => (
-                      <Select
-                        required
-                        value={field.value}
-                        onValueChange={field.onChange}
                       >
-                        <SelectTrigger
-                          id={`${formId}-account`}
-                          className="h-12! w-full min-w-0 text-body"
-                          aria-invalid={!!errors.accountId}
-                          aria-describedby={
-                            errors.accountId
-                              ? `${formId}-account-error`
-                              : undefined
-                          }
-                        >
-                          <SelectValue
-                            className="min-w-0 flex-1 text-left"
-                            placeholder="Elige una cuenta"
-                          />
-                        </SelectTrigger>
-                        <SelectContent
-                          position="popper"
-                          className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)]"
-                        >
-                          {destinations.map((account) => (
-                            <SelectItem
-                              key={account.id}
-                              value={account.id}
-                              className="[&>span:last-child]:min-w-0"
-                            >
-                              <span className="truncate">
-                                {account.name} · {account.currency}
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </FinanceField>
+                        <SelectValue
+                          className="min-w-0 flex-1 text-left"
+                          placeholder="Elige una cuenta"
+                        />
+                      </SelectTrigger>
+                      <SelectContent
+                        position="popper"
+                        className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)]"
+                      >
+                        {destinations.map((account) => (
+                          <SelectItem
+                            key={account.id}
+                            value={account.id}
+                            className="[&>span:last-child]:min-w-0"
+                          >
+                            <span className="truncate">
+                              {account.name} · {account.currency}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </FinanceField>
               </fieldset>
               <FinanceField
                 id={`${formId}-amount`}
@@ -397,80 +367,81 @@ export function IncomeModal({
                 />
               </FinanceField>
               <fieldset disabled={!!selectedSource} className="contents">
-                <FinanceField
-                  id={`${formId}-category`}
-                  label="Categoría de ingreso"
-                  error={errors.categoryId?.message}
-                >
-                  <Controller
-                    control={form.control}
-                    name="categoryId"
-                    render={({ field }) => (
-                      <Select
-                        required
-                        value={field.value}
-                        onValueChange={field.onChange}
+              <FinanceField
+                id={`${formId}-category`}
+                label="Categoría de ingreso"
+                error={errors.categoryId?.message}
+              >
+                <Controller
+                  control={form.control}
+                  name="categoryId"
+                  render={({ field }) => (
+                    <Select
+                      required
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger
+                        id={`${formId}-category`}
+                        className="h-12! w-full min-w-0 text-body"
+                        aria-invalid={!!errors.categoryId}
+                        aria-describedby={
+                          errors.categoryId
+                            ? `${formId}-category-error`
+                            : undefined
+                        }
                       >
-                        <SelectTrigger
-                          id={`${formId}-category`}
-                          className="h-12! w-full min-w-0 text-body"
-                          aria-invalid={!!errors.categoryId}
-                          aria-describedby={
-                            errors.categoryId
-                              ? `${formId}-category-error`
-                              : undefined
-                          }
-                        >
-                          <SelectValue
-                            className="min-w-0 flex-1 text-left"
-                            placeholder="Elige una categoría"
-                          />
-                        </SelectTrigger>
-                        <SelectContent
-                          position="popper"
-                          className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)]"
-                        >
-                          {incomeCategories.map((category) => (
-                            <SelectItem
-                              key={category.id}
-                              value={category.id}
-                              className="[&>span:last-child]:min-w-0"
-                            >
-                              <span className="truncate">{category.name}</span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  <Button
-                    type="button"
-                    onClick={onCreateCategory}
-                    className="h-auto min-h-11 w-full min-w-0 py-2 whitespace-normal"
-                  >
-                    Crear categoría de ingreso
-                  </Button>
-                </FinanceField>
-                <FinanceField
-                  id={`${formId}-day`}
-                  label="Día de ingreso"
-                  error={errors.dayOfMonth?.message}
-                  hint="Si ese día no existe en el mes, se usa el último día."
+                        <SelectValue
+                          className="min-w-0 flex-1 text-left"
+                          placeholder="Elige una categoría"
+                        />
+                      </SelectTrigger>
+                      <SelectContent
+                        position="popper"
+                        className="w-(--radix-select-trigger-width) max-w-[calc(100vw-2rem)]"
+                      >
+                        {incomeCategories.map((category) => (
+                          <SelectItem
+                            key={category.id}
+                            value={category.id}
+                            className="[&>span:last-child]:min-w-0"
+                          >
+                            <span className="truncate">{category.name}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onCreateCategory}
+                  className="h-auto min-h-11 w-full min-w-0 py-2 whitespace-normal"
                 >
-                  <Controller
-                    control={form.control}
-                    name="dayOfMonth"
-                    render={({ field }) => (
-                      <DayOfMonthPicker
-                        id={`${formId}-day`}
-                        value={field.value}
-                        onChange={field.onChange}
-                        aria-invalid={!!errors.dayOfMonth}
-                        aria-describedby={`${formId}-day-${errors.dayOfMonth ? "error" : "hint"}`}
-                      />
-                    )}
-                  />
-                </FinanceField>
+                  Crear categoría de ingreso
+                </Button>
+              </FinanceField>
+              <FinanceField
+                id={`${formId}-day`}
+                label="Día de ingreso"
+                error={errors.dayOfMonth?.message}
+                hint="Si ese día no existe en el mes, se usa el último día."
+              >
+                <Controller
+                  control={form.control}
+                  name="dayOfMonth"
+                  render={({ field }) => (
+                    <DayOfMonthPicker
+                      id={`${formId}-day`}
+                      value={field.value}
+                      onChange={field.onChange}
+                      aria-invalid={!!errors.dayOfMonth}
+                      aria-describedby={`${formId}-day-${errors.dayOfMonth ? "error" : "hint"}`}
+                    />
+                  )}
+                />
+              </FinanceField>
               </fieldset>
             </fieldset>
           </form>
@@ -533,6 +504,7 @@ export function DayOfMonthPicker({
           id={id}
           {...props}
           type="button"
+          variant="outline"
           className="h-11 w-full justify-start rounded-lg text-body font-normal"
         >
           <CalendarIcon className="size-4 text-muted-foreground" />

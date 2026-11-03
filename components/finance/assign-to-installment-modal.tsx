@@ -1,5 +1,4 @@
 "use client"
-import { Button } from "glisse"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -153,13 +152,13 @@ export function AssignToInstallmentModal({
                 ¿Qué cuota de {plan.description} salda?
               </p>
               {(plans?.length ?? 0) > 1 && (
-                <Button
+                <button
                   type="button"
                   onClick={() => setPlanId(null)}
                   className="min-h-11 shrink-0 text-subheadline text-primary"
                 >
                   Cambiar
-                </Button>
+                </button>
               )}
             </div>
             <ul className="sheet-group inset-list flex flex-col overflow-hidden [--inset:3.25rem]">

@@ -39,7 +39,7 @@ function Slider({
     >
       <SliderPrimitive.Track
         data-slot="slider-track"
-        className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-secondary"
+        className="relative h-1 w-full grow overflow-hidden rounded-full bg-(--glass-control)"
       >
         <SliderPrimitive.Range
           data-slot="slider-range"
@@ -56,7 +56,8 @@ function Slider({
               : ariaLabel
           }
           aria-valuetext={ariaValueText}
-          className="block size-4 shrink-0 rounded-full border border-primary bg-background shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden disabled:pointer-events-none"
+          // Perilla de iOS: círculo blanco de 28 px con sombra, sólida (sin vidrio).
+          className="block size-7 shrink-0 rounded-full bg-(--knob) shadow-(--knob-shadow) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none"
         />
       ))}
     </SliderPrimitive.Root>

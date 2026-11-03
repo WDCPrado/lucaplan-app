@@ -59,6 +59,7 @@ import { RecurringModal } from "./recurring-modal"
 import { InstallmentModal } from "./installment-modal"
 import { AssignToInstallmentModal } from "./assign-to-installment-modal"
 import { CategoryIcon } from "./category-icons"
+import { Segmented } from "./segmented"
 import {
   categoryUsageLine,
   formatCLP,
@@ -1366,31 +1367,22 @@ export function DirectionToggle({
   onChange: (d: Direction) => void
   disabled?: boolean
 }) {
+  // El segmentado de iOS, como el resto de la app: la selección no cambia de color según el lado.
   return (
-    <div className="flex w-full gap-0.5 rounded-xl bg-(--glass-control) p-0.5">
-      {(["debit", "credit"] as const).map((d) => (
-        <button
-          key={d}
-          type="button"
-          onClick={() => {
-            haptic("light")
-            onChange(d)
-          }}
-          disabled={disabled}
-          aria-pressed={value === d}
-          aria-label={d === "debit" ? "Gasto" : "Ingreso"}
-          className={cn(
-            "flex h-11 flex-1 items-center justify-center gap-2 rounded-[calc(var(--radius-xl)-0.125rem)] px-4 text-subheadline font-medium transition-colors disabled:opacity-50",
-            value === d &&
-              (d === "debit"
-                ? "bg-primary text-primary-foreground"
-                : "bg-success text-success-foreground")
-          )}
-        >
-          {d === "debit" ? "− Gasto" : "+ Ingreso"}
-        </button>
-      ))}
-    </div>
+    <Segmented
+      label="Tipo de movimiento"
+      value={value}
+      disabled={disabled}
+      onChange={(d) => {
+        haptic("light")
+        onChange(d)
+      }}
+      options={[
+        { value: "debit", label: "− Gasto" },
+        { value: "credit", label: "+ Ingreso" },
+      ]}
+      className="w-full"
+    />
   )
 }
 

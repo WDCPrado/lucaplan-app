@@ -91,10 +91,11 @@ colores siguen siendo los de Luca Plan; lo que se copia es cómo se usan los com
 Rigen para todo lo nuevo; un formulario o modal existente se adapta cuando se toca, no en
 un barrido aparte.
 
-- **shadcn es la fuente de verdad; `components/ui/` solo se toca para los radios y la escala del
-  `Button`.** Los primitivos llevan la jerarquía de radios de abajo aplicada a mano, y `button.tsx`
+- **shadcn es la fuente de verdad; `components/ui/` solo se toca para los radios, la escala del
+  `Button` y la forma iOS de `slider.tsx`, `switch.tsx` y `tabs.tsx`.** Los primitivos llevan la jerarquía de radios de abajo aplicada a mano, y `button.tsx`
   además la escala de iOS (cápsula, `text-body` en el tamaño por defecto, ≥44 px de alto en táctil,
-  atenuado de `.press` al tocar en vez del desplazamiento de 1 px): al reinstalar uno con
+  atenuado de `.press` al tocar en vez del desplazamiento de 1 px), y el slider y el switch la
+  forma de los controles de iOS (ver «Controles de iOS» abajo): al reinstalar uno con
   `shadcn add`, volver a aplicarlas. Nada más se edita ahí. Lo reutilizable
   se compone encima, en `components/<carpeta>/` (`finance/`, `landing/`, `pwa/`): un
   componente propio envuelve a los primitivos, nunca los reemplaza. Una excepción documentada:
@@ -255,6 +256,13 @@ agrupaciones, la tipografía y los controles.
   cifra protagonista), `text-title-1`, `text-title-3`, `text-headline`, `text-body`,
   `text-subheadline`, `text-footnote`, `text-caption`. Un tamaño nuevo se registra también en
   `lib/utils.ts` o `cn()` lo confunde con un color. Los montos van con `.tabular`.
+- **Controles de iOS**: el **switch** es el toggle de iOS (pista de 51×31 en cápsula, verde
+  `--switch-on`, perilla `--knob` con `--knob-shadow`, spring `--ease-spring`, área táctil de 47 px
+  y sin movimiento con movimiento reducido); el **slider**, pista fina de 4 px en cápsula
+  (`--glass-control`), lo lleno en `primary` y perilla blanca sólida de 28 px con sombra; el
+  **segmentado** es `Segmented`, cápsula gris con una pastilla clara que se desliza al elegido y
+  texto `text-subheadline` (semibold el elegido). Todo selector exclusivo de pocas opciones usa
+  `Segmented`, también Gasto/Ingreso del movimiento, sin colorear la selección.
 - **Hoja móvil flotante (iOS 26)**: el drawer de `ResponsiveModal` se despega de los bordes
   (`inset-x-2`, abajo `--tab-bar-inset`) con las cuatro esquinas en `--radius-sheet`; el alto sigue
   siendo el del contenido.

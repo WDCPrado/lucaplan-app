@@ -186,6 +186,12 @@
     /* Relleno de controles (systemFill): pista del segmentado, inputs y controles de la topbar. */
     --glass-control: oklch(0.569 0.015 285.9 / 0.12);
     --glass-control-active: oklch(1 0 0);
+    /* Toggle y perillas de iOS: verde de sistema (sin oscurecer: no es texto) y perilla blanca. */
+    --switch-on: oklch(0.723 0.192 149.6);           /* #34C759 systemGreen */
+    --knob: oklch(1 0 0);
+    --knob-shadow: 0 0 0 0.5px oklch(0 0 0 / 0.04), 0 3px 8px oklch(0 0 0 / 0.15), 0 3px 1px oklch(0 0 0 / 0.06);
+    /* Spring corto de iOS (el mismo del squish), para la perilla del toggle y la pastilla del segmentado. */
+    --ease-spring: linear(0, 0.058, 0.193, 0.358, 0.523, 0.67, 0.791, 0.884, 0.951, 0.995, 1.021, 1.034, 1.038, 1.037, 1.032, 1.025, 1.019, 1.013, 1.008, 1.005, 1);
     /* Scrollbar minimalista (escritorio): pulgar translúcido del color del texto, pista invisible. */
     --scrollbar: color-mix(in oklch, var(--foreground) 20%, transparent);
     --scrollbar-hover: color-mix(in oklch, var(--foreground) 35%, transparent);
@@ -309,6 +315,8 @@ html:has(main[data-landing]) body {
     --scroll-edge: color-mix(in oklch, var(--background) var(--scroll-edge-amount), transparent);
     --glass-control: oklch(0.569 0.015 285.9 / 0.24);
     --glass-control-active: oklch(0.501 0.005 286.2); /* #636366 segmento activo */
+    --switch-on: oklch(0.756 0.208 147.0);           /* #30D158 systemGreen oscuro */
+    --knob-shadow: 0 0 0 0.5px oklch(0 0 0 / 0.1), 0 3px 8px oklch(0 0 0 / 0.3), 0 3px 1px oklch(0 0 0 / 0.1);
 }
 
 @layer base {

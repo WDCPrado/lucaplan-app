@@ -295,7 +295,7 @@ export function FilterControls({
               {formatCompact(amount[0])} – {formatCompact(amount[1])}
             </span>
           </div>
-          {/* Margen lateral del radio del thumb (size-4, más su anillo): sin él, los extremos tocan
+          {/* Margen lateral para la sombra de la perilla (size-7): sin él, los extremos tocan
               el borde. La cabecera lleva el mismo margen para que el rango quede alineado. */}
           <div className="px-2">
             <Slider

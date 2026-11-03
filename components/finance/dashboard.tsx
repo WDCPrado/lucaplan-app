@@ -19,7 +19,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { isBudgetedExpenseCategory } from "@/arch/v1/domain/finance/budget-scope.domain"
 import { haptic } from "@/lib/haptics"
 import { useCardCarousel } from "@/hooks/use-card-carousel"
 import { AppShell } from "./app-shell"
@@ -50,7 +49,7 @@ import {
   statusVar,
   todayKey,
 } from "@/lib/finance-format"
-import { dateOf, daysLeftIn, spendByDate } from "@/lib/day-spend"
+import { dateOf, daysLeftIn } from "@/lib/day-spend"
 import {
   daysOf,
   type PeriodMode,
@@ -162,7 +161,6 @@ export function Dashboard({
   const daysLeft = isCurrentMonth ? daysLeftIn(cycle.range, today) : 0
   // Un día por fecha del rango: en modo tarjeta cruza dos meses (23 sep – 22 oct).
   const days = daysOf(cycle.range)
-  const spend = spendByDate(transactions, days, budget.categories)
   const lastDay = days[days.length - 1]
   // Día que se lista: hoy en el mes en curso; en otro mes, el último con movimientos. Al cambiar
   // de mes (o de rango) se vuelve al default ajustando el estado en render (mismo patrón que
@@ -206,16 +204,22 @@ export function Dashboard({
   const expenseCategories = budget.categories.filter(
     (c) => c.type === "expense"
   )
-  // Las con tope son las que importan en el mes; las sin tope van aparte, en su propio grupo.
-  const cappedCategories = expenseCategories.filter(isBudgetedExpenseCategory)
-  const uncappedCategories = expenseCategories.filter(
-    (c) => !isBudgetedExpenseCategory(c)
-  )
+  // En el plan: con tope, o sin tope pero con gasto en el período (tope $0: todo es exceso). Las
+  // demás van aparte, en su propio grupo cerrado.
+  const planCategories = expenseCategories.filter((c) => c.inPlan)
+  const outOfPlanCategories = expenseCategories.filter((c) => !c.inPlan)
   const renderExpenseCat = (c: CategoryDTO) => {
-    const pct = c.limit > 0 ? Math.min(100, (c.used / c.limit) * 100) : 0
+    // Una sin tope pero en el plan tiene tope $0: lo usado llena la barra, lo comprometido el resto.
+    const capped = c.inPlan
+    const pct =
+      c.limit > 0 ? Math.min(100, (c.used / c.limit) * 100) : c.used > 0 ? 100 : 0
     // El comprometido continúa al gastado en lo que queda de barra (no se suma).
     const commPct =
-      c.limit > 0 ? Math.min(100 - pct, (c.committed / c.limit) * 100) : 0
+      c.limit > 0
+        ? Math.min(100 - pct, (c.committed / c.limit) * 100)
+        : c.committed > 0
+          ? 100 - pct
+          : 0
     // UNA cifra por fila. Con ritmo (mes en curso y con tope), lo libre del período (hoy / esta
     // semana), que el backend deja estable; sin ritmo, lo que queda del mes. «X de Y» vive en el
     // detalle que abre la fila. Semáforo silencioso: gris, alerta, excedido.
@@ -238,7 +242,7 @@ export function Dashboard({
             ritmo {c.pace.frequency === "daily" ? "de hoy" : "semanal"}
           </>
         )
-      ) : c.limit > 0 ? (
+      ) : capped ? (
         c.available < 0 ? (
           <>
             <span className="tabular">{formatCLP(-c.available)}</span> sobre el
@@ -257,11 +261,11 @@ export function Dashboard({
     const figureTone =
       noMargin ||
       (paceLeft !== null && c.pace?.status === "excedido") ||
-      (paceLeft === null && c.available < 0 && c.limit > 0)
+      (paceLeft === null && c.available < 0 && capped)
         ? "text-destructive"
         : (paceLeft !== null && c.pace?.status === "alerta") ||
             // Sin pasarse del tope, pero lo comprometido ya se come lo que queda: «quedan $0».
-            (paceLeft === null && c.limit > 0 && c.free < 0)
+            (paceLeft === null && capped && c.free < 0)
           ? "text-warning"
           : "text-muted-foreground"
     return (
@@ -291,7 +295,7 @@ export function Dashboard({
             />
           </div>
           {/* Mismo semáforo que el arco (statusVar): gastado sólido + comprometido tenue detrás. */}
-          {c.limit > 0 && (
+          {capped && (
             <div className="mr-6 flex h-1.5 overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full transition-[width] duration-500 ease-out"
@@ -397,7 +401,7 @@ export function Dashboard({
       {detail && transactionEditor}
     </CategoryDetailSheet>
   )
-  // Resumen del plan; la liquidez es la CLP registrada.
+  // Resumen del plan: el titular llega resuelto del servidor; la liquidez es la CLP registrada.
   const planProps = {
     cash: summary.activeCash,
     overdraftDebt: summary.overdraftDebt,
@@ -406,6 +410,7 @@ export function Dashboard({
     committed: totalCommitted,
     reimbursementAdjustment: budget.reimbursementAdjustment,
     exchangeRateUnavailable: budget.exchangeRateUnavailable,
+    spendable: budget.spendable,
   }
 
   const hasConnected = accounts.some((a) => a.provider !== "manual")
@@ -444,11 +449,13 @@ export function Dashboard({
               onOpenPlan={() => setPlanOpen(true)}
               onOpenLiquidity={() => setLiquidityOpen(true)}
             >
-              {budget.globalLimit !== null && (
+              {/* Ritmo global: reparte lo disponible al inicio del período y solo cuenta el gasto
+                  que no salda un compromiso. Con o sin tope global, si hay algo que repartir. */}
+              {budget.globalPace.budget > 0 && (
                 <SpendPaceChart
                   days={days}
-                  spend={spend}
-                  limit={budget.globalLimit}
+                  spend={budget.globalPace.daily}
+                  limit={budget.globalPace.budget}
                   income={budget.income}
                   lastIndex={chartLastIndex}
                   current={todayInRange}
@@ -514,9 +521,9 @@ export function Dashboard({
                   // Lista vertical de barras: gastado + comprometido sobre el tope, con el ritmo
                   // del período y lo que queda del mes debajo. El arco sigue viviendo en el detalle.
                   <div className="inset-list flex flex-col [--inset:3.5rem]">
-                    {cappedCategories.map(renderExpenseCat)}
+                    {planCategories.map(renderExpenseCat)}
                     {/* Fuera del plan: consultables, cerradas al entrar o cambiar de período. */}
-                    {uncappedCategories.length > 0 && (
+                    {outOfPlanCategories.length > 0 && (
                       <Collapsible
                         key={periodKey}
                         defaultOpen={false}
@@ -533,7 +540,7 @@ export function Dashboard({
                               Sin tope · fuera del tope de gasto
                             </span>
                             <span className="tabular">
-                              {uncappedCategories.length}
+                              {outOfPlanCategories.length}
                             </span>
                           </button>
                         </CollapsibleTrigger>
@@ -542,7 +549,7 @@ export function Dashboard({
                             No afectan lo gastado ni lo disponible del plan.
                           </p>
                           <div className="inset-list flex flex-col [--inset:3.5rem]">
-                            {uncappedCategories.map(renderExpenseCat)}
+                            {outOfPlanCategories.map(renderExpenseCat)}
                           </div>
                         </CollapsibleContent>
                       </Collapsible>

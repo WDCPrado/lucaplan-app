@@ -159,17 +159,18 @@ export function usageBarPct(amount: number, limit: number): number {
  * Línea de uso del presupuesto de una categoría, para el modal de movimiento. Solo gasto: los
  * ingresos no consumen presupuesto → null (la línea no se muestra). Con tope, el texto es el mismo
  * del dashboard ("$X de $Y") y el color el del semáforo (`statusVar` del status que ya calculó el
- * servidor). Sin tope definido, solo el monto usado y sin color de alerta — mismo criterio que el
- * grupo "sin tope" del dashboard.
+ * servidor). En el plan sin tope cuenta como tope $0 (todo lo usado es exceso), como en la fila
+ * del dashboard. Fuera del plan y sin tope, solo el monto usado y sin color de alerta.
  */
 export function categoryUsageLine(c: {
   type: string
   used: number
   limit: number
   status: string
+  inPlan?: boolean
 }): { text: string; color: string | null } | null {
   if (c.type !== "expense") return null
-  if (c.limit > 0)
+  if (c.limit > 0 || c.inPlan)
     return {
       text: `${formatCLP(c.used)} de ${formatCLP(c.limit)}`,
       color: statusVar(c.status),

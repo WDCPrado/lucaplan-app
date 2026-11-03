@@ -291,7 +291,7 @@ export async function getPeriodPlan(
       capsOverspend: budget.capsOverspend,
       monthOverspend: budget.monthOverspend,
       categories: budget.categories
-        .filter((cat) => cat.type === "expense" && cat.limit > 0)
+        .filter((cat) => cat.inPlan)
         .map((cat) => ({
           id: cat.id,
           name: cat.name,

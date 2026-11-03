@@ -418,3 +418,46 @@ test("Dadas las herramientas, cuando el host las lista, entonces solo borrar o s
   assert.equal(tools.lucaplan_previsualizar_eliminar_cuenta.readOnly, true)
 })
 
+test("planificar_periodo: budgetCLP.categories incluye la sin tope que gastó (tope 0) y deja fuera la sin tope ni gasto", async () => {
+  const day = new Date("2030-03-10T00:00:00Z")
+  const category = (id: string) => ({
+    id, userId: "u1", name: id, type: "expense", icon: null, color: null, description: null, paceEnabled: true,
+  })
+  const debit = (id: string, categoryId: string, amount: number) => ({
+    id, userId: "u1", accountId: "a1", categoryId, date: day, description: id, amount: clp(amount),
+    direction: "debit", status: "confirmed", isInternal: false, externalId: null,
+  })
+  const plan = await getPeriodPlan(
+    {
+      accounts: readOnly({ listByUser: async () => [] }),
+      banks: readOnly({}),
+      budgetPeriod: readOnly({ get: async () => ({ mode: "calendar", overrides: {} }) }),
+      balanceBuckets: readOnly({ listByUser: async () => [] }),
+      categories: readOnly({
+        listByUser: async () => ["hogar", "regalos", "viajes"].map(category),
+        listLimitsByUser: async () => [
+          { id: "l1", categoryId: "hogar", year: 2030, month: 3, limit: clp(450000) },
+        ],
+      }),
+      monthlyBudgets: readOnly({ listByUser: async () => [] }),
+      transactions: readOnly({
+        listByUserPeriod: async () => [debit("t-hogar", "hogar", 10000), debit("t-regalo", "regalos", 50000)],
+      }),
+      incomes: readOnly({
+        listByUser: async () => [],
+        listAmountsByUser: async () => [],
+        hasGeneratedFor: async () => false,
+      }),
+      recurring: readOnly({ listActiveByUser: async () => [] }),
+      installments: readOnly({ listByUser: async () => [] }),
+      exchangeRates: readOnly({ clpPerUsdAt: async () => 900 }),
+    } as unknown as Parameters<typeof getPeriodPlan>[0],
+    "u1",
+    2030,
+    3,
+    "2030-03-15"
+  )
+  const rows = Object.fromEntries(plan.budgetCLP.categories.map((c) => [c.id, [c.limit, c.used]]))
+  assert.deepEqual(rows, { hogar: [450000, 10000], regalos: [0, 50000] }, "viajes sin tope ni gasto no está en el plan")
+  assert.equal(plan.budgetCLP.capsOverspend, 50000)
+})

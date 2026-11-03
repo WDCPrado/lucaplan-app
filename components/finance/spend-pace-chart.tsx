@@ -6,8 +6,8 @@ import { spendPace } from "@/lib/spend-pace"
 import { shortDate } from "./month-status"
 
 /**
- * El mes como curva: lo gastado acumulado (sólida) contra el ritmo ideal (punteada, de $0 al
- * presupuesto en línea recta) y el ingreso del mes como techo. El color dice de un vistazo si vas
+ * El mes como curva: el gasto de ritmo acumulado (sólida; sin los pagos que saldan una recurrente
+ * o una cuota) contra el ritmo ideal (punteada, de $0 a lo disponible al inicio en línea recta) y el ingreso del mes como techo. El color dice de un vistazo si vas
  * bajo el ritmo (verde) o sobre él (rojo); la línea de arriba lo dice en pesos. SVG propio en
  * píxeles reales (medido con ResizeObserver) para que trazos y puntos no se deformen al estirar.
  */
@@ -20,8 +20,8 @@ export function SpendPaceChart({
   current,
 }: {
   days: string[] // fechas "YYYY-MM-DD" del período, en orden
-  spend: number[] // gasto de cada fecha de `days` (spendByDate)
-  limit: number // presupuesto del período
+  spend: number[] // gasto de ritmo de cada fecha de `days` (budget.globalPace.daily)
+  limit: number // base del ritmo del período (budget.globalPace.budget)
   income: number // ingreso del período; 0 = sin línea de techo
   lastIndex: number // hoy en el mes en curso; el último día en uno pasado; -1 si aún no empieza
   current: boolean // mes en curso: «Vas…» y marca de hoy; si no, «Cerraste…»
@@ -88,7 +88,7 @@ export function SpendPaceChart({
       <div
         ref={plotRef}
         role="img"
-        aria-label={`${summary}. Gastado ${formatCLP(spent)} de ${formatCLP(limit)}${
+        aria-label={`${summary}. Gasto del ritmo ${formatCLP(spent)} de ${formatCLP(limit)} disponibles al inicio del período${
           started
             ? `; el ritmo ideal a la fecha era ${formatCLP(Math.round(ideal[k]))}`
             : ""

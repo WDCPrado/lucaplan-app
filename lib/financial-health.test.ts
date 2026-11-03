@@ -100,7 +100,7 @@ test("caja cero o línea utilizada impiden sano aunque el plan esté cubierto", 
 // El Inicio es un .tsx sin infraestructura de componentes: se fija qué campo pinta leyendo su fuente.
 const source = (path: string) => readFileSync(join(import.meta.dirname, "..", path), "utf8")
 
-test("pres-titular-comprometido: «Disponible para planificar» es ingresos − gastado − comprometido, y bajo cero «Faltan para cubrir el plan»", () => {
+test("disp-titular-margen: el margen del titular sigue siendo ingresos − gastado − comprometido, pero la cifra grande del Inicio es el disponible para gastar que manda el servidor", () => {
   const titular = (spent: number, committed: number, reimbursementAdjustment = 0) =>
     calculateFinancialOverview({ income: 1000000, spent, committed, reimbursementAdjustment, cash: 500000, overdraftDebt: 0 }).balance
   assert.equal(titular(300000, 400000), 300000, "1.000.000 − 300.000 gastado − 400.000 comprometido")
@@ -109,8 +109,13 @@ test("pres-titular-comprometido: «Disponible para planificar» es ingresos − 
   assert.equal(titular(600001, 400000), -1)
   // El reembolso legado se descuenta una sola vez.
   assert.equal(titular(300000, 400000, 50000), 250000)
-  // El titular pinta `balance`; `remainingBeforeCommitments` sigue siendo «antes de compromisos» para el plugin.
-  assert.equal(source("components/finance/financial-health-meter.tsx").match(/const remaining = health\.(\w+)/)?.[1], "balance")
+  // WDC-177: `balance` es el margen (`spendable.margin`); la cifra grande pinta `spendable.amount`,
+  // mín(margen, lo planificado que queda), y no la recalcula en el cliente.
+  const meter = source("components/finance/financial-health-meter.tsx")
+  // En el período en curso pinta `spendable.amount`; un período cerrado muestra el margen (lo que
+  // de verdad sobró o faltó de los ingresos), decidido en la revisión de WDC-177.
+  assert.match(meter, /const remaining = closed \? spendable\.margin : spendable\.amount\b/)
+  assert.ok(!meter.includes("health.balance"), "el titular no vuelve a leer el balance")
 })
 
 test("pres-plan-vacio: sin ingresos ni gastos el plan queda «sano», no «Plan al límite»", () => {

@@ -38,9 +38,9 @@ export function OverspendBanner({
 
   const mes = monthName(period.month).toLowerCase()
   // Las culpables del excedente de topes, la más pasada primero (mismo criterio que la cifra:
-  // gasto con tope y solo lo confirmado).
+  // gasto en el plan, también las sin tope, y solo lo confirmado).
   const culprits = categories
-    .filter((c) => c.type === "expense" && c.limit > 0 && c.used > c.limit)
+    .filter((c) => c.type === "expense" && c.inPlan && c.used > c.limit)
     .sort((a, b) => b.used - b.limit - (a.used - a.limit))
   const cuantas = `${culprits.length} ${culprits.length === 1 ? "categoría" : "categorías"}`
   const overMonth = monthOverspend > 0

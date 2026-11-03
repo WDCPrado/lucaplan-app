@@ -73,6 +73,11 @@ test("la línea de uso del modal: sin tope solo el monto, sin alerta", () => {
     }),
     { text: "sin tope · $45.000", color: null }
   )
+  // En el plan, sin tope es tope $0: se ve excedida como en la fila del dashboard.
+  assert.deepEqual(
+    categoryUsageLine({ type: "expense", used: 45_000, limit: 0, status: "excedido", inPlan: true }),
+    { text: "$45.000 de $0", color: statusVar("excedido") }
+  )
 })
 
 test("la línea de uso del modal: ingreso no consume presupuesto", () => {

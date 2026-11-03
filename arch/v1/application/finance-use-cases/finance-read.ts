@@ -59,7 +59,11 @@ import {
   paceStatus,
   pacePeriod,
   remainingToAllocate,
+  isInPlan,
+  computeSpendable,
+  computeGlobalPaceDaily,
 } from "./budget-formulas.ts"
+import { calculateFinancialHealth } from "../../../../lib/financial-health.ts"
 import type { PaceFrequency } from "../../domain/finance/pace.domain.ts"
 import type { BudgetPeriodRepository } from "../../domain/finance/budget-period.domain.ts"
 import type { PeriodRange } from "../../../shared/billing-cycle.ts"
@@ -177,6 +181,9 @@ export type CategoryDTO = {
   committed: number // comprometido: Σ pending del mes (recurrentes aún no cobradas); capa aparte del usado
   available: number // limit − used (para «sobre el tope»)
   free: number // limit − used − committed: lo que «quedan» de verdad
+  // ¿Está en el plan del período? Gasto con tope, o sin tope pero con gasto o comprometido en el
+  // período (entra con tope 0: todo es exceso). Se calcula al leer; sin movimientos vuelve a «sin tope».
+  inPlan: boolean
   status: string
   // Ritmo del período en curso (hoy / esta semana): gastado vs presupuesto, con su semáforo.
   // Solo en categorías de gasto con tope, mirando el mes actual; null/ausente en el resto.
@@ -206,6 +213,26 @@ export type BudgetViewDTO = {
   // descuadre entre categorías vs. plata que de verdad no había. 0 = nadie se pasó.
   capsOverspend: number // Σ max(0, usado − tope) de las categorías de gasto con tope
   monthOverspend: number // max(0, gasto del mes − límite global); 0 sin límite global
+  // Titular del Inicio (WDC-177): mín(margen real, lo planificado que queda). Puede ser negativo.
+  spendable: SpendableDTO
+  // Ritmo global (WDC-177): reparte lo disponible al inicio del período y solo cuenta el gasto
+  // que no salda un compromiso (recurrente o cuota). Reemplaza a `globalLimit` en la curva.
+  globalPace: GlobalPaceDTO
+}
+
+export type SpendableDTO = {
+  amount: number // mín(margin, plannedLeft)
+  margin: number // ingresos − gastado − comprometido (− compensación de reembolsos): el balance de hoy
+  plannedLeft: number // Σ free de las categorías inPlan (las sin tope aportan −(usado + comprometido))
+  limitedBy: "margin" | "plan" // cuál de las dos manda; empate = "plan"
+}
+
+export type GlobalPaceDTO = {
+  // Base de la curva, estable en el período: spendable.amount + gasto de ritmo ya hecho en el período.
+  budget: number
+  // Gasto de ritmo por fecha del período (mismo orden que los días del rango), en CLP: cargos
+  // confirmados no internos SIN recurringTemplateId ni installmentItemId.
+  daily: number[]
 }
 
 function txToDTO(
@@ -872,6 +899,9 @@ export async function getBudgetView(
         : null
     return { category, limit, used, available, committed, paceDTO }
   })
+  // Sin ningún tope de gasto no hay plan: ninguna categoría entra (mismo criterio que
+  // `computeSpendable` y `computeCapsOverspend`).
+  const hasPlan = computed.some((x) => x.category.type === "expense" && x.limit.isPositive)
   const categories = computed.map(
     ({
       category,
@@ -893,6 +923,10 @@ export async function getBudgetView(
       committed: committed.toMajor(),
       available: available.toMajor(),
       free: available.subtract(committed).toMajor(),
+      inPlan:
+        hasPlan &&
+        category.type === "expense" &&
+        isInPlan({ limit: limit.toMajor(), used: used.toMajor(), committed: committed.toMajor() }),
       // Ingreso: llegar a la meta es bueno, no "excedido" — el semáforo es solo de gastos.
       status:
         category.type === "income" ? "bueno" : categoryStatus(used, limit),
@@ -964,8 +998,21 @@ export async function getBudgetView(
     creditRemaining.set(credit.id, creditLeft - adjustment)
     if (plannedId) incomeRemaining.set(plannedId, incomeLeft - adjustment)
   }
+  // Disponible para gastar (WDC-177): solo categorías CLP en el plan; el margen es el balance del medidor.
+  const spendable = computeSpendable({
+    margin: calculateFinancialHealth({
+      income: income.toMajor(), spent: spent.toMajor(), committed: committed.toMajor(), reimbursementAdjustment,
+    }).balance,
+    categories: computed
+      .filter(({ category, limit }) => category.type === "expense" && limit.currency === CLP)
+      .map(({ limit, used, committed }) => ({ limit: limit.toMajor(), used: used.toMajor(), committed: committed.toMajor() }))
+      .filter(isInPlan),
+  })
+  const daily = computeGlobalPaceDaily(netBudgetTxs, range, CLP)
   return {
     categories,
+    spendable,
+    globalPace: { budget: spendable.amount + daily.reduce((a, b) => a + b, 0), daily },
     income: income.toMajor(),
     reimbursementAdjustment,
     spent: spent.toMajor(),
@@ -1221,6 +1268,10 @@ export async function getCategoryDetail(
 
   const limits = await deps.categories.listLimitsByUser(userId, (await getBudgetPeriod(deps)).mode)
   const limit = effectiveLimit(limits, categoryId, year, month)
+  // Igual que en `getBudgetView`: sin ningún tope de gasto no hay plan.
+  const hasPlan = (await deps.categories.listByUser(userId)).some(
+    (c) => c.type === "expense" && effectiveLimit(limits, c.id, year, month).isPositive
+  )
   const range = await rangeOf(deps, year, month)
   const txs = await deps.transactions.listByCategoryPeriod(categoryId, range)
   const accounts = await deps.accounts.listByUser(userId)
@@ -1253,6 +1304,10 @@ export async function getCategoryDetail(
     committed: committed.toMajor(),
     available: available.toMajor(),
     free: available.subtract(committed).toMajor(),
+    inPlan:
+      hasPlan &&
+      category.type === "expense" &&
+      isInPlan({ limit: limit.toMajor(), used: used.toMajor(), committed: committed.toMajor() }),
     status: categoryStatus(used, limit),
     transactions: txs
       .map((t, i) => ({ t, clp: clpAmounts[i] }))

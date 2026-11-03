@@ -169,6 +169,20 @@ export function pacePeriod(
 }
 
 /**
+ * ¿Cuenta este movimiento como gasto del ritmo? Cargo confirmado no interno que no salda un
+ * compromiso: lo que paga una recurrente o una cuota ya estaba descontado como comprometido.
+ */
+export function isPaceSpend(t: Transaction): boolean {
+  return (
+    t.direction === "debit" &&
+    t.status === "confirmed" &&
+    !t.isInternal &&
+    !t.recurringTemplateId &&
+    !t.installmentItemId
+  )
+}
+
+/**
  * Ritmo de una categoría: lo gastado en el período (hoy / esta semana) y el presupuesto de ese
  * período. El presupuesto reparte lo libre AL INICIO del período (libre actual + gastado del
  * período) entre los días del mes que quedaban desde ese inicio, × los días del período. Así la
@@ -196,11 +210,7 @@ export function computeCategoryPace(
     .filter(
       (t) =>
         t.categoryId === categoryId &&
-        t.direction === "debit" &&
-        t.status === "confirmed" &&
-        !t.isInternal &&
-        !t.recurringTemplateId &&
-        !t.installmentItemId &&
+        isPaceSpend(t) &&
         t.amount.currency === available.currency &&
         inRange(t.date, period)
     )
@@ -303,10 +313,10 @@ export function remainingToAllocate(
 }
 
 /**
- * Excedente de TOPES del mes = Σ max(0, usado − tope) de las categorías de GASTO con tope > 0.
+ * Excedente de TOPES del mes = Σ max(0, usado − tope) de las categorías de GASTO en el plan.
  * Junta en una cifra lo que hoy solo se ve categoría por categoría. Solo cuenta lo confirmado
- * (`used`), no el comprometido: son dos capas distintas. Sin tope no hay de qué pasarse, así que
- * las categorías sin límite no participan.
+ * (`used`), no el comprometido: son dos capas distintas. Una sin tope con gasto entra al plan con
+ * tope 0 (`isInPlan`), así que todo lo usado es exceso; sin gasto no suma nada.
  *
  * Es un DESCUADRE ENTRE CATEGORÍAS, no plata que falte: puede ser positivo con presupuesto del mes
  * de sobra. La plata que de verdad no había la mide `computeMonthOverspend`.
@@ -315,11 +325,12 @@ export function computeCapsOverspend(
   categories: { type: CategoryType; used: Money; limit: Money }[],
   currency: CurrencyCode
 ): Money {
+  // Sin ningún tope definido no hay plan del que pasarse (mismo criterio que `computeSpendable`).
+  if (!categories.some((c) => c.type === "expense" && c.limit.isPositive)) return Money.zero(currency)
   return categories
     .filter(
       (c) =>
         c.type === "expense" &&
-        c.limit.isPositive &&
         c.limit.currency === currency
     )
     .reduce((sum, c) => {
@@ -341,4 +352,54 @@ export function computeMonthOverspend(
   if (globalLimit === null) return Money.zero(spent.currency)
   const over = spent.subtract(globalLimit)
   return over.isPositive ? over : Money.zero(spent.currency)
+}
+
+/**
+ * ¿Está la categoría de gasto en el plan del período? Con tope > 0 siempre; sin tope, solo si tiene
+ * gasto confirmado o comprometido en el período (entra con tope 0, todo su gasto es exceso). Se
+ * deriva al leer: eliminar o recategorizar su último movimiento la devuelve sola a «sin tope».
+ */
+export function isInPlan(c: { limit: number; used: number; committed: number }): boolean {
+  return c.limit > 0 || c.used > 0 || c.committed > 0
+}
+
+/**
+ * Disponible para gastar = mín(margen, lo planificado que queda). `margin` = ingresos − gastado −
+ * comprometido (el balance del medidor); `plannedLeft` = Σ (tope − usado − comprometido) de las
+ * categorías en el plan. Lo no repartido no se ofrece para gastar; si se repartió de más, manda el
+ * margen. Empate: "plan". Sin ningún tope > 0 no hay plan que limite: manda el margen.
+ */
+export function computeSpendable(input: {
+  margin: number
+  categories: { limit: number; used: number; committed: number }[]
+}): { amount: number; margin: number; plannedLeft: number; limitedBy: "margin" | "plan" } {
+  const plannedLeft = input.categories.reduce((s, c) => s + c.limit - c.used - c.committed, 0)
+  const hasPlan = input.categories.some((c) => c.limit > 0)
+  const limitedBy = !hasPlan || input.margin < plannedLeft ? "margin" : "plan"
+  return {
+    amount: hasPlan ? Math.min(input.margin, plannedLeft) : input.margin,
+    margin: input.margin,
+    plannedLeft,
+    limitedBy,
+  }
+}
+
+/**
+ * Gasto del ritmo global por fecha del período, en el orden de `daysOf(range)`. Solo movimientos
+ * en `currency` (la vista ya llevó los USD a CLP; sin tasa no llegan aquí).
+ */
+export function computeGlobalPaceDaily(
+  transactions: Transaction[],
+  range: PeriodRange,
+  currency: CurrencyCode
+): number[] {
+  const days = daysOf(range)
+  const index = new Map(days.map((d, i) => [d, i]))
+  const out = new Array<number>(days.length).fill(0)
+  for (const t of transactions) {
+    if (!isPaceSpend(t) || t.amount.currency !== currency) continue
+    const i = index.get(t.date.toISOString().slice(0, 10))
+    if (i !== undefined) out[i] += t.amount.toMajor()
+  }
+  return out
 }

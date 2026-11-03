@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { createPortal } from "react-dom"
-import { Check, X, type LucideIcon } from "lucide-react"
+import { Check, X } from "lucide-react"
 import { Drawer as DrawerPrimitive } from "vaul"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -105,8 +105,11 @@ function isolateModalEvent(event: React.SyntheticEvent) {
 /** Acción del modal: con `form` envía ese `<form>` (mismo submit que Enter); sin él, `onClick`. */
 export type ModalAction = {
   label: React.ReactNode
-  /** Glifo del círculo de la hoja en móvil; por defecto `Check` (confirmar). */
-  icon?: LucideIcon
+  /**
+   * Acción que no confirma (Editar): en la hoja móvil va como texto en una cápsula de vidrio, no
+   * como el círculo azul. La HIG reserva el estilo prominente para Listo/Guardar.
+   */
+  plain?: boolean
   form?: string
   onClick?: () => void
   disabled?: boolean
@@ -165,7 +168,6 @@ export function ModalActions({
   const scope = React.useContext(ModalScopeContext)
   const slots = React.useContext(HeaderSlotsContext)
   if (scope?.kind === "drawer") {
-    const PrimaryIcon = primary?.icon ?? Check
     // iOS 26: círculos flotantes en el encabezado de la hoja. Cancelar es vidrio con `xmark`; la
     // primaria, un círculo azul con `checkmark`, gris mientras no se puede (sin cambios o guardando).
     // El texto completo queda como nombre accesible.
@@ -188,17 +190,28 @@ export function ModalActions({
         {primary &&
           slots?.end &&
           createPortal(
-            <button
-              {...actionProps(primary)}
-              disabled={primary.disabled}
-              className={cn(
-                sheetCircleClass,
-                "bg-primary text-primary-foreground shadow-(--glass-shadow) disabled:bg-(--glass-control) disabled:text-muted-foreground disabled:shadow-none"
-              )}
-            >
-              <PrimaryIcon aria-hidden className="size-5" strokeWidth={2.75} />
-              <span className="sr-only">{primary.label}</span>
-            </button>,
+            primary.plain ? (
+              <button
+                {...actionProps(primary)}
+                disabled={primary.disabled}
+                data-squish
+                className="press liquid-glass liquid-squish h-11 shrink-0 rounded-full px-4 text-body font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:text-muted-foreground"
+              >
+                {primary.label}
+              </button>
+            ) : (
+              <button
+                {...actionProps(primary)}
+                disabled={primary.disabled}
+                className={cn(
+                  sheetCircleClass,
+                  "bg-primary text-primary-foreground disabled:bg-(--glass-control) disabled:text-muted-foreground"
+                )}
+              >
+                <Check aria-hidden className="size-5" strokeWidth={2.75} />
+                <span className="sr-only">{primary.label}</span>
+              </button>
+            ),
             slots.end
           )}
       </>

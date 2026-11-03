@@ -120,8 +120,9 @@ un barrido aparte.
   el drawer se cierra además por arrastre o tocando el fondo. Las confirmaciones se resuelven
   con sus botones. Las acciones se declaran con `ModalActions` (`primary`, `cancel`): en móvil
   van en el encabezado de la hoja como en iOS 26, en círculos de 44 px: a la izquierda uno de
-  vidrio con ✕ (`X`, cancela) y a la derecha uno azul con ✓ (`Check`, la primaria; `icon` lo
-  cambia cuando la acción no es confirmar, como el lápiz de «Editar categoría»). La primaria queda
+  vidrio con ✕ (`X`, cancela) y a la derecha uno azul con ✓ (`Check`, la primaria). Solo
+  confirmar (Listo, Guardar) es prominente: una acción que no confirma, como «Editar», lleva
+  `plain` y va en texto sobre una cápsula de vidrio (HIG: editar se dice con texto, no con símbolo). La primaria queda
   gris y deshabilitada sin cambios o mientras guarda; el texto de cada acción es su nombre
   accesible. En escritorio van en el pie (Cancelar o Cerrar en
   gris, `secondary`, como el botón *bordered* de iOS; la primaria rellena y en semibold); el botón que envía va

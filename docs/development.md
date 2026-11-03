@@ -314,59 +314,40 @@ el PR. Las operaciones destructivas y los cambios de secretos reales requieren a
 
 ### Sembrar los datos de la feature
 
-Cada PR levanta un entorno efímero en Railway con su propia base vacía, que `scripts/seed-pr.ts`
-llena con el usuario demo y su mes de datos ([detalle en el README](../README.md#railway-entornos-de-pr-con-datos-falsos)).
-Ese usuario base es igual para todos los PR, así que **una feature que necesite datos que ahí no
-existen no se puede revisar**: hay que sembrarlos.
+Hay **una sola cuenta demo**, `demo@lucaplan.cl`, con toda la data: la siembra `scripts/seed.ts` en
+la base vacía de cada entorno de PR y en la local (`pnpm setup:db` o `pnpm seed`)
+([detalle en el README](../README.md#railway-entornos-de-pr-con-datos-falsos)). Una feature que
+necesite datos que ahí no existen no se puede revisar: hay que agregarlos a esa cuenta.
 
-Para eso, **agrega tu escena**: un archivo en `scripts/seed-pr/escenas/` con **su propio usuario
-demo**, que el seed descubre solo. No se toca ningún archivo compartido, así que dos ramas en
-paralelo no chocan, y la escena no se borra en el PR siguiente — la feature se sigue pudiendo
-probar en todos los entornos que vengan.
+El seed se separa en dos, y el orden lo declaran las listas de `scripts/seed/orden.ts` (el seed
+aborta, y su test falla, si hay un archivo fuera de ellas o falta uno declarado):
 
-`scripts/seed-pr/escenas/wdc-91-aviso-de-sobregiro.ts`:
-
-```ts
-import type { EscenaContext } from "../sembrar-usuario.ts" // solo el tipo: no ejecuta el seed
-
-export const correo = "wdc-91@lucaplan.cl"
-export const titulo = "WDC-91 — cuenta en sobregiro"
-
-export async function seed({ prisma, checkingId }: EscenaContext) {
-  // El aviso de sobregiro que trae este PR solo se ve con la cuenta en rojo.
-  await prisma.financialAccount.update({
-    where: { id: checkingId },
-    data: { balance: -120000 },
-  })
-}
-```
-
-Eso es todo: el seed crea el usuario `correo` con el mes de datos completo, le pone `titulo` de
-nombre y le pasa a `seed` el contexto ya sembrado — `prisma`, `userId`, `checkingId`,
-`creditCardId` y `categoryId` (Map nombre → id). El login del entorno de PR lista las cuentas con
-su título; elegir una rellena el formulario.
+- `scripts/seed/produccion/` — lo que debe existir en todo entorno (catálogos fijos): `upsert` que
+  no pisa, sin `delete`. Hoy no tiene archivos.
+- `scripts/seed/demo/` — la cuenta demo, solo fuera de producción y siempre después de
+  producción. `1-base/cuenta-demo.ts` crea el usuario, sus cuentas, categorías, presupuesto,
+  movimientos, recurrentes y cuotas; `2-casos/` tiene un archivo por dominio (`presupuesto.ts`,
+  `recurrentes.ts`, `cuentas.ts`, `cuotas.ts`, `conciliacion.ts`, `correo.ts`, `plugin.ts`), que
+  recibe el contexto de la base (`prisma`, `userId`, `checkingId`, `creditCardId`, los buckets de
+  la tarjeta y el mapa nombre → id de las categorías).
 
 Reglas:
 
-- **Nombre del archivo: `<id-de-la-tarjeta>-<slug>.ts`.** Las escenas corren en orden alfabético,
-  que con el ID delante es estable.
-- **El `correo` va bajo el mismo dominio que el del usuario base** (`@lucaplan.cl` por defecto):
-  es de donde el login saca la lista.
-- **Ajusta solo lo tuyo.** El usuario ya viene con cuentas, categorías, presupuesto, movimientos,
-  recurrentes y planes: tómalos del contexto en vez de crear otros.
-- **Tu usuario es tuyo: siembra los montos que quieras.** No calcules contra los datos base para
-  "encajar" — sobrescríbelos. Un número fijo es el que después va escrito en el guion de prueba.
-- **Filtra SIEMPRE por `userId` en cada query.** Acá está el único punto delicado: el `prisma` que
-  recibes es el cliente normal, **sin límite por usuario**. Que las escenas no se estorben no es
-  algo que la estructura garantice — depende de que cada `where` lleve el `userId` del contexto. Un
-  `deleteMany` sin él borra los datos de todos los usuarios demo, base incluido.
-- **No toques al usuario base ni al de otra escena.** Ese es el punto de tener uno por escena, y se
-  sostiene solo si respetas la regla de arriba.
-- **Nada de datos reales ni secretos** — el entorno de PR es público.
-- **Pruébala antes de abrir el PR**: `SEED_PR_FORCE=1 RAILWAY_ENVIRONMENT_NAME=pr-0 pnpm seed:pr`
-  contra una base local (⚠️ re-siembra desde cero a todos los usuarios demo). Si una escena falla
-  en Railway, el seed lo registra y sigue con las demás —el deploy no se cae— pero esa queda sin
-  los datos que iba a mostrar.
+- **Un PR no crea un archivo por escenario**: agrega o corrige casos en el archivo de su dominio.
+  Un dominio nuevo trae su archivo, declarado en la lista.
+- **Montos fijos**: el número que siembras es el que va escrito en el guion de prueba.
+- **Filtra SIEMPRE por `userId`** en cada query: el `prisma` es el cliente normal, sin límite por
+  usuario.
+- **Nada de datos reales ni secretos**: el entorno de PR es público.
+- **Pruébalo antes de abrir el PR** contra una base local: `SEED_DEMO_FORCE=1 pnpm seed` rehace la
+  cuenta demo desde cero. Si un caso falla en Railway, el seed lo registra y sigue con los demás —el
+  deploy no se cae— pero ese queda sin sus datos.
+
+### Entrar en local
+
+Con `pnpm dev` (`NODE_ENV=development`) el login no manda correo: el código es siempre
+**`000000`**. Entra con `demo@lucaplan.cl` y `000000`. Nunca vale en producción ni en un entorno
+de Railway, aunque corra en modo dev (`devLoginCode` en `arch/v1/infrastructure/auth/login-code.ts`).
 
 ## Convenciones
 

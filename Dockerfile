@@ -21,7 +21,7 @@ RUN NEXT_PUBLIC_LANDING_ONLY="$NEXT_PUBLIC_LANDING_ONLY" DATABASE_URL="postgresq
 EXPOSE 3005
 HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=10 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:3005/login',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-# Arranque: aplica migraciones pendientes (incremental, NUNCA borra datos), siembra datos falsos si
-# esto es un entorno de PR de Railway (el script se autoexcluye en cualquier otro lado) y levanta
+# Arranque: aplica migraciones pendientes (incremental, NUNCA borra datos), corre el seed (la cuenta
+# demo solo se siembra en un entorno de PR de Railway: acá NODE_ENV no es development) y levanta
 # Next en 0.0.0.0 para que la IP de Tailscale del host lo alcance.
-CMD ["sh", "-c", "pnpm exec prisma migrate deploy && pnpm seed:pr && pnpm exec next start -p 3005 -H 0.0.0.0"]
+CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node scripts/seed.ts && pnpm exec next start -p 3005 -H 0.0.0.0"]

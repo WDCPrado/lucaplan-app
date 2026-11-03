@@ -5,7 +5,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { formatCLP } from "./finance-format.ts"
-import { closedPeriodLine } from "./period-status.ts"
+import { closedPeriodLine, isFuturePeriod } from "./period-status.ts"
 
 const NOV_2026 = { year: 2026, month: 11 }
 
@@ -29,4 +29,17 @@ test("pres-mes-pasado-excedido: octubre que se pasó del presupuesto dice cuánt
   const unPeso = octubre(500001)
   assert.match(unPeso, /\$1(?![\d.])/)
   assert.doesNotMatch(unPeso, /sin gastar/)
+})
+
+test("pres-mes-pasado-sin-comprometido: un compromiso que nunca se cobró no cuenta como gastado al cerrar", () => {
+  const linea = closedPeriodLine({ period: { year: 2026, month: 10 }, current: NOV_2026, globalLimit: 500000, spent: 300000, committed: 150000 })
+  assert.match(linea, new RegExp(`cerró con ${formatCLP(200000).replace(/[$.]/g, "\\$&")} sin gastar`))
+  assert.match(closedPeriodLine({ period: { year: 2026, month: 10 }, current: NOV_2026, globalLimit: 500000, spent: 530000, committed: 0 }), /por sobre el tope de gasto/)
+})
+
+test("isFuturePeriod: solo los meses posteriores al en curso, también al cruzar el año", () => {
+  assert.equal(isFuturePeriod({ year: 2026, month: 12 }, NOV_2026), true)
+  assert.equal(isFuturePeriod({ year: 2027, month: 1 }, { year: 2026, month: 12 }), true)
+  assert.equal(isFuturePeriod(NOV_2026, NOV_2026), false)
+  assert.equal(isFuturePeriod({ year: 2026, month: 10 }, NOV_2026), false)
 })

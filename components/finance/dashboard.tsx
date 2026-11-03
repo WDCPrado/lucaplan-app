@@ -259,7 +259,9 @@ export function Dashboard({
       (paceLeft !== null && c.pace?.status === "excedido") ||
       (paceLeft === null && c.available < 0 && c.limit > 0)
         ? "text-destructive"
-        : paceLeft !== null && c.pace?.status === "alerta"
+        : (paceLeft !== null && c.pace?.status === "alerta") ||
+            // Sin pasarse del tope, pero lo comprometido ya se come lo que queda: «quedan $0».
+            (paceLeft === null && c.limit > 0 && c.free < 0)
           ? "text-warning"
           : "text-muted-foreground"
     return (
@@ -722,10 +724,21 @@ export function Dashboard({
                     data-card
                     className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-xl p-5 lg:w-auto lg:snap-start"
                   >
-                    <div className="text-subheadline text-muted-foreground">
-                      Total en cuentas
+                    <div
+                     
+                      className={cn(
+                        "text-subheadline",
+                        summary.netPosition < 0 ? "text-destructive" : "text-muted-foreground"
+                      )}
+                    >
+                      {summary.netPosition < 0 ? "Cuentas en negativo" : "Disponible en cuentas"}
                     </div>
-                    <div className="tabular text-title-1 font-bold">
+                    <div
+                      className={cn(
+                        "tabular text-title-1 font-bold",
+                        summary.netPosition < 0 && "text-destructive"
+                      )}
+                    >
                       {formatCLP(summary.netPosition)}
                     </div>
                   </div>

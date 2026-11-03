@@ -33,8 +33,26 @@ export function assertLoginCodeRequest(path: string, body: unknown) {
   }
 }
 
-export function createLoginCodePlugin(mailer: LoginCodeMailer) {
+/**
+ * Código fijo para entrar en local (`demo@lucaplan.cl` + `000000`) sin depender del correo. Solo
+ * con `NODE_ENV === "development"` exacto —Next fuerza `production` en `next build`/`next start`,
+ * que es como corren producción y los PR— y nunca en un entorno de Railway, aunque alguien lo
+ * levante en modo dev. `null` = código aleatorio y por correo, como siempre.
+ */
+export function devLoginCode(
+  env: { NODE_ENV?: string; RAILWAY_ENVIRONMENT_NAME?: string } = process.env
+): string | null {
+  return env.NODE_ENV === "development" && !env.RAILWAY_ENVIRONMENT_NAME ? "000000" : null
+}
+
+export function createLoginCodePlugin(
+  mailer: LoginCodeMailer,
+  env: Parameters<typeof devLoginCode>[0] = process.env
+) {
+  const fixed = devLoginCode(env)
   return emailOTP({
+    // Sin la clave fuera de local: un `generateOTP: undefined` pisaría el generador por defecto.
+    ...(fixed ? { generateOTP: () => fixed } : {}),
     disableSignUp: true,
     otpLength: 6,
     expiresIn: LOGIN_CODE_MINUTES * 60,
@@ -43,7 +61,7 @@ export function createLoginCodePlugin(mailer: LoginCodeMailer) {
     resendStrategy: "rotate",
     rateLimit: { window: 60, max: 3 },
     sendVerificationOTP: async ({ email, otp, type }) => {
-      if (type !== "sign-in") return
+      if (type !== "sign-in" || fixed) return
       // Servidor Node persistente: enviar fuera de la respuesta evita revelar cuentas por latencia.
       // La respuesta es igual si el correo no existe. Solo se registra un fallo genérico.
       void mailer.send(email, otp).catch(() => {

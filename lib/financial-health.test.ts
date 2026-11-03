@@ -121,7 +121,7 @@ test("pres-plan-vacio: sin ingresos ni gastos el plan queda «sano», no «Plan 
   assert.equal(calculateFinancialHealth({ income: 0, spent: 0, committed: 1 }).status, "en_deficit")
 })
 
-test("pres-total-en-cuentas: «Total en cuentas» del Inicio muestra caja menos sobregiro usado, no solo la caja", () => {
-  const shown = source("components/finance/dashboard.tsx").match(/Total en cuentas[\s\S]{0,300}?formatCLP\(summary\.(\w+)\)/)?.[1]
+test("pres-total-en-cuentas: la tarjeta de cuentas del Inicio muestra caja menos sobregiro usado, no solo la caja", () => {
+  const shown = source("components/finance/dashboard.tsx").match(/"Disponible en cuentas"[\s\S]{0,400}?formatCLP\(summary\.(\w+)\)/)?.[1]
   assert.equal(shown, "netPosition")
 })

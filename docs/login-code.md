@@ -57,7 +57,10 @@ reenvío, uso simultáneo, usuario desconocido/bloqueado, sesiones y continuaci�
 El adapter Resend se prueba con transporte HTTP falso, sin destinatarios reales ni claves.
 
 Para una preview local se usa una base desechable separada y `next dev -p 3154 -H 127.0.0.1`.
-Un harness de pruebas externo puede interceptar HTTP de Resend y mostrar el correo en un
-buzón local; no se añade un OTP fijo ni una puerta de acceso al código de producto. La prueba
+Con `NODE_ENV=development` exacto y sin `RAILWAY_ENVIRONMENT_NAME`, el código es siempre
+`000000` y no se envía correo (`devLoginCode`): en local se entra con `demo@lucaplan.cl` y
+`000000`. En producción y en los entornos de PR nunca: Next corre `next start` con `production`.
+Para probar el correo de verdad en local, un harness externo puede interceptar HTTP de Resend y
+mostrarlo en un buzón local. La prueba
 real de entrega de Resend requiere autorización del destinatario y configuración del operador;
 los tests y el buzón simulado no afirman que el proveedor haya entregado un correo real.

@@ -20,6 +20,10 @@ export type NotifyDueDeps = PushDeps & {
 
 const DAY_MS = 86_400_000
 
+// «Ahora» como día civil de Chile a medianoche UTC, igual que las fechas de cuotas y períodos: a las
+// 22:00 en Chile ya es mañana en UTC y la ventana (y el «hoy/mañana» del aviso) se corría un día.
+const civilNow = (instant: Date) => new Date(`${todayKey(instant)}T00:00:00.000Z`)
+
 /**
  * Pagos que vencen dentro de la ventana: cuotas de planes sin saldar y ejecuciones de plantillas
  * recurrentes vigentes que aún no se cobraron.
@@ -33,9 +37,7 @@ export async function collectDueItems(
   instant: Date,
   windowDays: number
 ): Promise<DueItem[]> {
-  // «Ahora» como día civil de Chile a medianoche UTC, igual que las fechas de cuotas y períodos:
-  // a las 22:00 en Chile ya es mañana en UTC y la ventana se corría un día.
-  const now = new Date(`${todayKey(instant)}T00:00:00.000Z`)
+  const now = civilNow(instant)
   const end = new Date(now.getTime() + windowDays * DAY_MS)
   const inWindow = (d: Date) =>
     Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) >=
@@ -93,7 +95,7 @@ export async function notifyDueSoon(
   windowDays = 2
 ): Promise<number> {
   const items = await collectDueItems(deps, userId, now, windowDays)
-  const message = dueSoonMessage(items, now, windowDays)
+  const message = dueSoonMessage(items, civilNow(now), windowDays)
   if (!message) return 0
   return sendPushToUser(deps, userId, message)
 }

@@ -32,6 +32,7 @@ import {
   requiresDayOfMonth,
 } from "../../domain/finance/recurring.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
+import { normalizeMovementText } from "../../domain/finance/categorization-learning.domain.ts"
 import { todayKey } from "../../../shared/today.ts"
 
 // "Hoy" del usuario: su día civil en Chile, como fecha a medianoche UTC (lo que esperan las reglas
@@ -461,8 +462,14 @@ export async function confirmFromMovements(
 
   // Candidatos por monto, cuenta y ventana, con el período que saldarían (leído tras el texto).
   const pairs: { movement: (typeof movements)[number]; template: RecurringTemplate; periodKey: string }[] = []
+  // Un cargo con el texto de una recurrente es de esa recurrente, aunque la fase 1 no lo vinculara
+  // (su período ya lo cobró el banco): no se lo presta a otra por monto.
+  const templateTexts = new Set(
+    templates.map((t) => normalizeMovementText(t.description)).filter(Boolean)
+  )
   for (const movement of movements) {
     if (claimed.has(movement.id)) continue
+    if (templateTexts.has(normalizeMovementText(movement.description))) continue
     for (const template of templates) {
       if (
         template.accountId !== movement.accountId ||

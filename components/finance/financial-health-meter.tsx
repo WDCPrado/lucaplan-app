@@ -28,19 +28,28 @@ export function PlanSummary({
   overdraftDebt,
   exchangeRateUnavailable = false,
   subtitle,
+  closed = false,
   onOpenLiquidity,
-}: PlanInput & { subtitle?: ReactNode; onOpenLiquidity?: () => void }) {
+}: PlanInput & {
+  subtitle?: ReactNode
+  closed?: boolean // período que no es el en curso: compacto, la cifra grande es la línea de cierre
+  onOpenLiquidity?: () => void
+}) {
   const health = calculateFinancialOverview({ income, spent, committed, reimbursementAdjustment, cash, overdraftDebt })
   const remaining = health.balance
   const net = health.liquidity.netPosition
   return (
     <div className="flex min-w-0 flex-col gap-4" role="group" aria-label="Resumen del plan">
       <div className="space-y-1">
-        <p className="text-subheadline text-muted-foreground">{remaining < 0 ? "Faltan para cubrir el plan" : "Disponible para planificar"}</p>
-        <p className={`tabular text-hero font-bold tracking-tight ${remaining < 0 ? "text-destructive" : "text-foreground"}`}>{formatCLP(Math.abs(remaining))}</p>
+        <p className="text-subheadline text-muted-foreground">
+          {closed
+            ? remaining < 0 ? "Faltó para el plan" : "Quedó del plan"
+            : remaining < 0 ? "Faltan para cubrir el plan" : "Disponible para planificar"}
+        </p>
+        <p className={`tabular font-bold tracking-tight ${closed ? "text-title-3" : "text-hero"} ${remaining < 0 ? "text-destructive" : "text-foreground"}`}>{formatCLP(Math.abs(remaining))}</p>
         {subtitle && <p className="text-subheadline text-muted-foreground">{subtitle}</p>}
         {exchangeRateUnavailable && (
-          <p className="text-footnote text-muted-foreground">Sin dólar observado: los montos en USD no están sumados</p>
+          <p className="text-footnote text-muted-foreground">Sin dólar observado: los montos en USD no están sumados.</p>
         )}
         <span className="sr-only">Ingresos planificados menos gasto realizado y comprometido; no es el saldo bancario.</span>
       </div>

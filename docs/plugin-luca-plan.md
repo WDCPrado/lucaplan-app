@@ -280,8 +280,11 @@ también vence al cambiar el día en Chile.
 
 En una tarjeta, el dry run trae además `cuotasPendientes`: las cuotas de planes `card` sin saldar
 que vencen hasta el día del corte (en Chile), ordenadas por vencimiento. El pago de la tarjeta no
-las cobra solo: se saldan después, una por una, con `pagar_cuota` y la fecha y el monto de la
-factura. Es solo lectura y no forma parte del recibo de aplicar.
+las cobra solo, y las líneas de cuota de la factura **no van como `additions`**: se saldan después,
+una por una, con `pagar_cuota` (o `vincular_pago_cuota` si su cargo ya está en la app), con la
+fecha de facturación (el día del corte) y el monto de la línea, no la fecha de vencimiento del
+pago. En un plan `card`, `startDate` y `dayOfMonth` son el día de facturación de la cuota. Es solo
+lectura y no forma parte del recibo de aplicar.
 
 Los movimientos vinculados admiten corregir fecha y texto conservando sus enlaces; solo los
 cobros recurrentes vinculados admiten además corregir importe o moneda. Para ingresos y cuotas

@@ -206,3 +206,46 @@ test("rate limit del servidor limita solicitudes aunque se omita el contador UI"
   assert.equal((await f.send()).status, 429)
   assert.equal(f.sent.length, 3)
 })
+
+test("código fijo 000000 solo en desarrollo local: nunca en producción ni en un entorno de Railway", async () => {
+  const { devLoginCode } = await import("./login-code.ts")
+  assert.equal(devLoginCode({ NODE_ENV: "development" }), "000000")
+  assert.equal(devLoginCode({ NODE_ENV: "production" }), null)
+  assert.equal(devLoginCode({}), null)
+  assert.equal(devLoginCode({ NODE_ENV: "Development" }), null)
+  assert.equal(devLoginCode({ NODE_ENV: "development", RAILWAY_ENVIRONMENT_NAME: "lucaplan-app-pr-2" }), null)
+  assert.equal(devLoginCode({ NODE_ENV: "development", RAILWAY_ENVIRONMENT_NAME: "production" }), null)
+})
+
+test("en desarrollo local se entra con 000000 sin enviar correo; fuera de local el código no es 000000 y sí se envía", async () => {
+  const sesion = async (env: Record<string, string>) => {
+    const sent: string[] = []
+    const auth = betterAuth({
+      baseURL: "http://localhost:3171",
+      secret: "wdc171-test-secret-only-not-a-real-secret-123456",
+      database: memoryAdapter({
+        user: [{ id: "u", name: "Demo", email: "demo@lucaplan.cl", emailVerified: true, createdAt: new Date(), updatedAt: new Date() }],
+        session: [], account: [], verification: [],
+      }),
+      emailAndPassword: { enabled: false },
+      plugins: [createLoginCodePlugin({ async send(_e, code) { sent.push(code) } }, env)],
+      rateLimit: { enabled: false },
+      logger: { disabled: true },
+    })
+    const post = (path: string, body: unknown) =>
+      auth.handler(new Request(`http://localhost:3171/api/auth${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "http://localhost:3171" },
+        body: JSON.stringify(body),
+      }))
+    await post("/email-otp/send-verification-otp", { email: "demo@lucaplan.cl", type: "sign-in" })
+    await new Promise((r) => setImmediate(r))
+    const res = await post("/sign-in/email-otp", { email: "demo@lucaplan.cl", otp: "000000" })
+    return { sent, ok: res.ok }
+  }
+  assert.deepEqual(await sesion({ NODE_ENV: "development" }), { sent: [], ok: true })
+  const prod = await sesion({ NODE_ENV: "production" })
+  assert.equal(prod.sent.length, 1)
+  assert.notEqual(prod.sent[0], "000000")
+  assert.equal(prod.ok, false)
+})

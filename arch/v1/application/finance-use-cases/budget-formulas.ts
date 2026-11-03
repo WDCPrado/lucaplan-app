@@ -176,8 +176,11 @@ export function pacePeriod(
  * lo mismo el lunes que el jueves. Puede ser $0 si la categoría llegó al período sin margen.
  *
  * Lo libre ya descuenta lo comprometido (recurrentes y cuotas por cobrar), así que el pago que
- * concilia una recurrente o una cuota no es gasto del ritmo: ya estaba fuera de la meta y pagarlo
- * por su monto no mueve ni la meta ni lo gastado (WDC-171).
+ * concilia una recurrente o una cuota no es gasto del ritmo: nunca suma a lo gastado del período.
+ * La meta sí se mueve si el cobro real difiere de lo comprometido: al conciliar, el comprometido
+ * sale y entra el monto cobrado al usado, así que lo libre cambia en esa diferencia (un arriendo
+ * comprometido en $350.000 que se cobra en $352.000 baja la meta en $2.000 repartidos en los días
+ * que quedan). Aceptado (WDC-171).
  */
 export function computeCategoryPace(
   categoryId: string,

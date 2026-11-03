@@ -494,3 +494,19 @@ test("rec-15 · Abrir el mes a las 22:00 de Chile del 31-oct abre octubre (no lo
     assert.equal(b.rows.length, 0, tz)
   })
 })
+
+test("rec-16 · Un segundo NETFLIX.COM cuando octubre ya lo cobró el banco no concilia otra recurrente de la misma cuenta y monto (SMARTFIT pendiente)", async () => {
+  const base = { ...arriendo, baseAmount: Money.of(9_990, "CLP"), tolerancePct: 0 }
+  const netflix: RecurringTemplate = { ...base, id: "netflix", label: "Netflix", description: "NETFLIX.COM" }
+  const smartfit: RecurringTemplate = { ...base, id: "smartfit", label: "Smartfit", description: "SMARTFIT" }
+  const { repo, abrir, estado } = makeRepo([netflix, smartfit])
+  await abrir(netflix, "2026-10")
+  await abrir(smartfit, "2026-10")
+  await repo.attachImportedMovement("banco-netflix", netflix, "2026-10")
+  const claimed = await confirmFromMovements({ recurring: repo }, [netflix, smartfit], [
+    cargo("c1", "2026-10-06", 9_990, "NETFLIX.COM"),
+  ])
+  assert.equal(claimed.size, 0)
+  assert.equal(estado("smartfit", "2026-10"), "comprometido")
+  assert.equal(estado("netflix", "2026-10"), "banco-netflix")
+})

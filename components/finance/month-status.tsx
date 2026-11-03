@@ -15,7 +15,7 @@ import {
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { formatCLP, monthName, usagePct } from "@/lib/finance-format"
-import { closedPeriodLine } from "@/lib/period-status"
+import { closedPeriodLine, isFuturePeriod } from "@/lib/period-status"
 import { estimateClosing, type PeriodMode } from "@/arch/shared/billing-cycle"
 import { PlanSummary, type PlanInput } from "./financial-health-meter"
 import { Segmented } from "./segmented"
@@ -48,7 +48,7 @@ export function MonthStatus({
   globalLimit: number | null
   spent: number
   committed: number
-  plan: PlanInput // restante antes de compromisos, cobertura del plan y liquidez
+  plan: PlanInput // ingresos − gastado − comprometido, sus componentes y liquidez
   onOpenPlan: () => void
   onOpenLiquidity?: () => void
   children?: React.ReactNode // el gráfico de gasto contra el ritmo; sin presupuesto no se muestra
@@ -112,9 +112,11 @@ export function MonthStatus({
   const usedPct = usagePct(spent, globalLimit)
   return (
     <section className="glass flex flex-1 flex-col rounded-xl p-5 lg:p-6">
-      <p className="text-title-3 font-bold text-pretty">
+      <p className="text-title-1 font-bold tracking-tight text-pretty">
         {closedPeriodLine({ period, current: cycle.current, globalLimit, spent, committed })}
       </p>
+      {/* Un período que no empieza no tiene gasto que contar. */}
+      {!isFuturePeriod(period, cycle.current) && (
       <p className="mt-2 text-subheadline text-muted-foreground">
         Gastaste <span className="tabular">{formatCLP(spent)}</span> de{" "}
         <span className="tabular">{formatCLP(globalLimit)}</span>
@@ -125,8 +127,9 @@ export function MonthStatus({
           </>
         )}
       </p>
+      )}
       <div className="mt-4 border-t border-border pt-4">
-        <PlanSummary {...plan} onOpenLiquidity={onOpenLiquidity} />
+        <PlanSummary {...plan} closed onOpenLiquidity={onOpenLiquidity} />
       </div>
       {children && <div className="mt-4 flex flex-1 flex-col">{children}</div>}
       {footer}

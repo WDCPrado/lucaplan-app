@@ -1,15 +1,14 @@
-// Cuenta de demostración de los entornos EFÍMEROS de PR en Railway: la siembra scripts/seed-pr.ts y
+// Cuenta de demostración de los entornos EFÍMEROS de PR en Railway: la siembra scripts/seed.ts y
 // la muestra el formulario de login. Vive en un solo lugar para que nunca se ofrezcan credenciales
 // distintas a las sembradas. Server-only: RAILWAY_ENVIRONMENT_NAME no existe en el cliente.
 
 export type DemoAccount = { env: string; email: string; password: string }
 
-// Una cuenta sembrada, tal como la ofrece el login. `titulo` es el nombre del usuario: "Demo Luca"
-// en la cuenta base y el título de la escena ("WDC-74 — mes anterior sobregirado") en las demás.
+// Una cuenta sembrada, tal como la ofrece el login. `titulo` es el nombre del usuario ("Demo Luca").
 export type DemoUser = { email: string; titulo: string }
 
 // Todo lo que el login del entorno de PR necesita: el entorno, la contraseña que TODAS comparten
-// (varía el correo, no la clave) y las cuentas que scripts/seed-pr.ts dejó sembradas.
+// (varía el correo, no la clave) y las cuentas que scripts/seed.ts dejó sembradas.
 export type DemoLogin = { env: string; password: string; cuentas: DemoUser[] }
 
 // Railway nombra el entorno del PR `pr-<n>`, y cuando el proyecto tiene varios servicios lo

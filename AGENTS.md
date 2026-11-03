@@ -16,8 +16,8 @@ stack, arquitectura, puesta en marcha y el mapa de toda la documentación.
 Desde ahí abre lo que necesites, sobre todo:
 
 - [docs/development.md](docs/development.md) — flujo de trabajo, reglas de UI, convenciones, qué
-  correr antes del PR y cómo sembrar los datos con los que se prueba la feature en su entorno de PR
-  (una "escena" con su propio usuario demo en `scripts/seed-pr/escenas/`).
+  correr antes del PR y cómo sembrar los datos con los que se prueba la feature (la cuenta demo
+  única `demo@lucaplan.cl`, en `scripts/seed/`).
 - OpenSpec se usa solo cuando Willy lo pide expresamente para ese trabajo.
 
 ## Rama base

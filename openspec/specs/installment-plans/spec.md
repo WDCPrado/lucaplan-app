@@ -4,9 +4,9 @@
 
 Modelar una deuda en cuotas con el banco —compra en cuotas con tarjeta de crédito o
 crédito de consumo— como un plan con cronograma, avance y saldo real, registrando cada
-cuota en el mes en que efectivamente se paga. Un solo modelo con dos disparadores por
-correo: el pago de la tarjeta crea la cuota (card) y el pago de la propia cuota se adopta
-(loan). Sin cron.
+cuota en el mes en que efectivamente se cobra. Un solo modelo con dos disparadores: la
+conciliación de la factura de la tarjeta salda la cuota (card) y el pago de la propia cuota
+que llega por correo se adopta (loan). Sin cron.
 ## Requirements
 ### Requirement: Plan de cuotas con disparador según su tipo
 
@@ -20,7 +20,8 @@ Un plan SHALL declarar su tipo, que determina **cómo se entera el sistema de qu
 pagó**:
 
 - `card` — compra en cuotas con tarjeta de crédito. Requiere una cuenta de crédito. La cuota
-  se registra al detectarse el **pago de la tarjeta**.
+  se salda al **conciliar la factura** de la tarjeta; el pago de la tarjeta no la cobra. Su
+  fecha de inicio y su día son el **día de facturación** de la cuota.
 - `loan` — crédito de consumo. Requiere la cuenta desde la que se paga la cuota. La cuota se
   registra al detectarse el **pago de esa cuota** en el correo.
 
@@ -92,40 +93,38 @@ SHALL exigirse.
 - **WHEN** un plan empieza en agosto 2026 con día de pago 5 y 3 cuotas
 - **THEN** las cuotas vencen el 5 de agosto, el 5 de septiembre y el 5 de octubre de 2026
 
-### Requirement: La cuota de tarjeta se registra al pagarse la tarjeta
+### Requirement: La cuota de tarjeta se salda al conciliar la factura
 
-En los planes `card` el sistema SHALL ejecutar las cuotas a partir del **pago de la tarjeta
-detectado en el correo**, y NO a partir de una fecha de calendario: el gasto de una cuota
-ocurre cuando el usuario paga la factura, no el día en que el banco la emite.
+En los planes `card` el pago de la tarjeta detectado en el correo NO SHALL ejecutar cuotas: ese
+correo informa el total de la factura, no qué cuotas trae. Las cuotas se saldan al **conciliar
+la factura** de la tarjeta.
 
-Al detectarse un pago de una cuenta de crédito, el sistema SHALL ejecutar **una** cuota por
-cada plan de esa cuenta: la pendiente **más antigua** con vencimiento anterior o igual a la
-fecha del pago. Ejecutar una cuota SHALL crear su `Transaction` (débito, monto del ítem,
-categoría del plan, **sin IA**) con fecha del pago y vínculo al ítem. La ejecución SHALL ser
-idempotente por ítem: un ítem ya ejecutado NO SHALL generar un segundo movimiento.
+La previsualización de la conciliación de una tarjeta SHALL devolver `cuotasPendientes`: las
+cuotas de planes `card` de esa tarjeta sin saldar con vencimiento hasta el día del corte (en
+Chile), ordenadas por vencimiento. Es solo lectura y no forma parte del recibo de aplicar.
 
-El monto del pago NO SHALL condicionar la ejecución: un pago parcial o mínimo cierra igual el
-ciclo, porque el correo del pago informa el total de la factura y no el de la cuota.
+Las líneas de cuota de la factura NO SHALL ir como altas de la conciliación. Cada cuota SHALL
+saldarse después, una por una, con `pagar_cuota` —o con `vincular_pago_cuota` si su cargo ya
+está en la app— usando la **fecha de facturación** (el día del corte) y el **monto de la línea**
+de la factura, no la fecha de vencimiento del pago. Saldarla SHALL crear su `Transaction`
+(débito, categoría del plan, **sin IA**, en el cupo de su moneda de la tarjeta) vinculada al
+ítem, de forma idempotente: un ítem ya saldado NO SHALL generar un segundo movimiento.
 
-#### Scenario: El pago de la tarjeta registra la cuota
+#### Scenario: El pago de la tarjeta no salda cuotas
 - **WHEN** llega el correo del pago de la tarjeta y el plan tiene la cuota 2 pendiente y vencida
-- **THEN** se crea la `Transaction` de la cuota 2 por su monto, en la categoría del plan y sin pasar por IA
+- **THEN** la cuota 2 sigue pendiente y no se crea ninguna `Transaction`
 
-#### Scenario: Un pago cubre varios planes de la misma tarjeta
-- **WHEN** llega un pago de una tarjeta con tres planes activos y cuotas pendientes
-- **THEN** se ejecuta una cuota de cada plan, no más
+#### Scenario: La conciliación muestra las cuotas por saldar
+- **WHEN** se previsualiza la conciliación de una tarjeta con el corte el 25 y un plan con la cuota 2 vencida el 15 sin saldar
+- **THEN** `cuotasPendientes` trae la cuota 2; una cuota que vence después del corte no aparece
 
-#### Scenario: Varias cuotas atrasadas se saldan de a una
-- **WHEN** un plan tiene dos cuotas vencidas pendientes y llega un pago
-- **THEN** se ejecuta solo la más antigua; la otra espera el pago siguiente
+#### Scenario: Saldar la cuota con los datos de la factura
+- **WHEN** la factura trae la línea de la cuota 2 por $99.990 con corte el 25-09 y se salda con `pagar_cuota`
+- **THEN** se crea la `Transaction` de la cuota 2 por $99.990 el 25-09, en la categoría del plan y sin pasar por IA
 
-#### Scenario: Reprocesar el pago no duplica
-- **WHEN** el mismo pago se reprocesa por una resincronización del correo
-- **THEN** no se crea una segunda `Transaction` para una cuota ya ejecutada
-
-#### Scenario: Pago de otra cuenta no ejecuta nada
-- **WHEN** llega el pago de una tarjeta distinta a la del plan
-- **THEN** el plan no ejecuta ninguna cuota
+#### Scenario: Saldar dos veces no duplica
+- **WHEN** se intenta saldar de nuevo una cuota ya saldada
+- **THEN** no se crea una segunda `Transaction`
 
 ### Requirement: La cuota de crédito de consumo adopta el movimiento del correo
 
@@ -253,7 +252,7 @@ recategorizar el plan desde ahí.
 - **THEN** la lista del mes la muestra como "Por cobrar" en su fecha y suma al comprometido de su categoría
 
 #### Scenario: Al pagarse desaparece la fila derivada
-- **WHEN** el pago de la tarjeta ejecuta esa cuota
+- **WHEN** la cuota se salda al conciliar la factura
 - **THEN** la fila "Por cobrar" desaparece y queda solo la transacción real
 
 #### Scenario: Tocarla abre el detalle

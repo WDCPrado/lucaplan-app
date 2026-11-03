@@ -16,6 +16,7 @@ import type {
 } from "../../domain/finance/finance.domain.ts"
 import {
   getBudgetView,
+  getCategoryDetail,
   getPreviousMonthDebt,
   listUncategorized,
   searchTransactions,
@@ -1222,4 +1223,28 @@ test("pres-usd-ingreso: un abono en USD suma a los ingresos convertido con el d�
   const sinTasa = await getBudgetView(withRate(deps, null), "u1", 2026, 11)
   assert.equal(sinTasa.income, 500000)
   assert.equal(rateFlag(sinTasa), true)
+})
+
+test("pres-detalle-cuadra: el detalle de Hogar dice el mismo comprometido y «libre» que la vista del mes, con la cuota del sillón por cobrar", async () => {
+  const txs = [
+    novTx({ id: "t-arriendo", categoryId: "c-hogar", amount: Money.of(400000, "CLP"), status: "pending", recurringTemplateId: "rec-arriendo" }),
+    novTx({ id: "t-super", categoryId: "c-hogar", amount: Money.of(10000, "CLP") }),
+  ]
+  const base = wdc171Deps({ txs, plans: [cuota(false)] }) as unknown as Record<string, Record<string, unknown>>
+  const deps = {
+    ...base,
+    categories: { ...base.categories, findById: async (id: string) => (id === "c-hogar" ? cat("c-hogar", "expense", "Hogar") : null) },
+    transactions: {
+      ...base.transactions,
+      listByCategoryPeriod: async (categoryId: string, range: PeriodRange) =>
+        txs.filter((t) => t.categoryId === categoryId && inRange(t.date, range)),
+    },
+    accounts: { listByUser: async () => [] },
+  } as unknown as Parameters<typeof getBudgetView>[0]
+  const fila = await hogarOf(deps)
+  const detalle = await getCategoryDetail(deps, "u1", "c-hogar", 2026, 11)
+  assert.equal(fila.committed, 420000, "arriendo 400.000 + cuota 20.000")
+  assert.equal(detalle.committed, fila.committed)
+  assert.equal(detalle.free, fila.free)
+  assert.equal(detalle.used, fila.used)
 })

@@ -23,6 +23,43 @@ export const bankReconciliationSchema = z.strictObject({
   accountId: id,
   snapshotAt: z.iso.datetime({ offset: true }),
   source: z.string().trim().min(1).max(2000),
+  loanCorrections: z
+    .array(
+      z.strictObject({
+        planId: id.describe(
+          "Plan de tipo loan de esta cuenta; obtén sus IDs con ver_plan_cuotas"
+        ),
+        totalAmount: money
+          .positive()
+          .describe(
+            "Total a devolver confirmado por el banco, en la moneda del plan; debe sumar todas las cuotas"
+          ),
+        evidence: settled.shape.evidence.describe(
+          "Documento y líneas que justifican el total y el cronograma completo del préstamo o avance"
+        ),
+        items: z
+          .array(
+            z.strictObject({
+              itemId: id,
+              amount: money
+                .positive()
+                .describe(
+                  "Monto bancario de esta cuota; corrige también su movimiento si ya existe, sin cambiar fechas ni vínculos"
+                ),
+            })
+          )
+          .min(1)
+          .max(1000)
+          .describe(
+            "Todas las cuotas del plan, una vez cada una, incluidas las pagadas y fuera de la app. No crea movimientos para las pendientes."
+          ),
+      })
+    )
+    .max(20)
+    .optional()
+    .describe(
+      "Corrección completa de préstamos/avances loan contra cartola. Conserva moneda, fechas, cuenta, categoría e IDs. No usar para planes card ni repetir sus movimientos en corrections."
+    ),
   buckets: z
     .array(
       z.strictObject({

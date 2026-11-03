@@ -5,11 +5,13 @@ import { todayKey } from "../../../shared/today.ts"
 import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
 import { NotOwnerError } from "../../domain/finance/finance.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
+import { planLoanCorrections } from "./loan-reconciliation.ts"
 import {
   canReconcileCorrection,
   isSameBankMovement,
   type BankReconciliationPlan,
   type BankReconciliationStore,
+  type ReconciliationCorrection,
   type ReconciliationMovement,
   type ReconciliationState,
 } from "../../domain/finance/bank-reconciliation.domain.ts"
@@ -107,8 +109,23 @@ export function planBankReconciliation(
       reject("No existe cupo en la moneda bancaria")
     )
   }
-  const ids = new Set<string>()
-  const corrections = input.corrections.map((c) => {
+  const loanChanges = planLoanCorrections(
+    state,
+    input.loanCorrections ?? [],
+    cutoffDay
+  )
+  // Ni dos importes para el mismo pago ni una fecha distinta al corregir su cronograma.
+  const loanPaymentIds = new Set(
+    loanChanges.loans.flatMap((p) =>
+      p.before.items.flatMap((i) => (i.transactionId ? [i.transactionId] : []))
+    )
+  )
+  if (input.corrections.some((c) => loanPaymentIds.has(c.transactionId)))
+    reject(
+      "No repitas pagos de loanCorrections en corrections; concilia sus fechas por separado"
+    )
+  const ids = new Set<string>(loanChanges.movements.map((c) => c.before.id))
+  const corrections: ReconciliationCorrection[] = input.corrections.map((c) => {
     if (ids.has(c.transactionId))
       reject("Un movimiento no puede corregirse dos veces en el lote")
     ids.add(c.transactionId)
@@ -171,6 +188,15 @@ export function planBankReconciliation(
       },
     }
   })
+  corrections.push(
+    ...loanChanges.movements.map((c) => ({
+      ...c,
+      after: {
+        ...c.after,
+        bucketId: target(c.after.currency, false, c.before.bucketId),
+      },
+    }))
+  )
   const movements = state.movements.map(
     (m) => corrections.find((c) => c.before.id === m.id)?.after ?? m
   )
@@ -303,6 +329,7 @@ export function planBankReconciliation(
   return {
     corrections,
     additions,
+    loanCorrections: loanChanges.loans,
     projectedBuckets: projected,
     replayedIds: replay.map((m) => m.id),
     snapshotAt: input.snapshotAt,

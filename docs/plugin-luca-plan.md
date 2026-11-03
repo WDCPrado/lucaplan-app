@@ -286,9 +286,10 @@ fecha de facturación (el día del corte) y el monto de la línea, no la fecha d
 pago. En un plan `card`, `startDate` y `dayOfMonth` son el día de facturación de la cuota. Es solo
 lectura y no forma parte del recibo de aplicar.
 
-Los movimientos vinculados admiten corregir fecha y texto conservando sus enlaces; solo los
-cobros recurrentes vinculados admiten además corregir importe o moneda. Para ingresos y cuotas
-vinculados hay que revisar primero el ingreso o la cuota. Con un reembolso vinculado no se
+Los movimientos vinculados admiten corregir fecha y texto conservando sus enlaces. Los cobros
+recurrentes permiten corregir importe o moneda con `settleRecurringCharge`; los préstamos permiten
+corregir importes junto con su cronograma mediante `loanCorrections` (ver abajo). Para ingresos y
+cuotas `card` vinculados hay que revisar primero su plan. Con un reembolso vinculado no se
 corrige importe ni moneda, y una transferencia interna tampoco lo admite.
 Editar el importe o la fecha de un movimiento conciliado (en la app, en el MCP o al editar su
 cuota) borra su conciliación; cambiar solo categoría o descripción la conserva.
@@ -318,3 +319,36 @@ otra. No usar esta opción para cambiar el precio futuro de una suscripción. In
 cuotas, compras origen de cuotas, transferencias y reembolsos mantienen sus restricciones.
 Ambas opciones están disponibles en el mismo contrato de la API y del MCP; siempre requieren
 previsualizar y aplicar con el mismo token y evidencia bancaria.
+
+### Corregir un préstamo o avance ya registrado
+
+`previsualizar_conciliacion` y `aplicar_conciliacion` aceptan `loanCorrections` para planes
+de tipo `loan` de la cuenta conciliada. Primero lee `ver_plan_cuotas`: cada corrección incluye
+`planId`, `totalAmount`, `evidence` y **todas** sus cuotas como `items: [{ itemId, amount }]`.
+El total es el **total a devolver confirmado por el documento**, incluidos sus intereses si
+corresponde, y debe coincidir con la suma del cronograma completo. No uses este flujo si solo
+conoces el capital o una estimación de cuotas futuras; no calcula intereses ni los inventa.
+
+Ejemplo: total estimado de $335.000, primer pago de $111.666 y segundo de $111.627.
+Si el documento confirma tres cuotas de $111.627, envía total $334.881 y esos tres importes.
+El preview muestra `loanCorrections` antes/después y el saldo pendiente de $111.707 a $111.627;
+`corrections` muestra el primer pago de $111.666 a $111.627. No crea pagos para las pendientes
+ni para las cuotas marcadas fuera de la app. Conserva IDs, externalId, vínculos, categoría,
+moneda, fechas de los movimientos, vencimientos y estado del plan. Un desfase de un mes entre
+el cronograma y la facturación no se cambia como efecto de corregir importes.
+
+Los pagos corregidos deben ser gastos confirmados, anteriores o iguales al corte, sin otros
+vínculos ni reembolsos. El documento debe aportar también todos los saldos al corte: los cargos
+ya incluidos no se descuentan de nuevo. No repitas estos pagos en `corrections`; cualquier
+corrección de fecha va en una conciliación aparte. Un plan `card` sigue su flujo de cuotas de
+tarjeta. Un préstamo con un pago de otra cuenta necesita resolver ese vínculo primero.
+
+Plan, cuotas, pagos, saldos y auditoría se guardan en una sola transacción. Cambios del plan,
+sus cuotas o sus pagos invalidan el preview; repetir el mismo token devuelve el recibo. El
+movimiento corregido conserva evidencia y su valor anterior, y el correo no lo sobrescribe.
+`editar_cuota` mantiene su protección para préstamos ya pagados; no es esta corrección bancaria.
+
+La cuenta demo incluye **Avance demo por corregir** con estos importes y dos pagos registrados.
+La prueba de persistencia corre con `node scripts/verify-loan-reconciliation.ts` contra una base
+local desechable `loan_correction_test`, indicada en `INSTALLMENT_TEST_DATABASE_URL` y con las
+migraciones aplicadas. CI la ejecuta sobre PostgreSQL 17.

@@ -19,6 +19,12 @@ export function reconciliationLinks(m: {
   reimbursementsReceived: { amount: Prisma.Decimal }[]
 }) {
   return {
+    installmentItemId: m.installmentItemId,
+    installmentOnly:
+      !!m.installmentItemId &&
+      !m.recurringTemplateId &&
+      !m.incomeId &&
+      !m.installmentPlanAsSource,
     recurringOnly:
       !!m.recurringTemplateId &&
       !m.incomeId &&
@@ -61,7 +67,7 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
         include: { buckets: { orderBy: { id: "asc" } } },
       })
       if (!account) return null
-      const [rows, categories, links] = await Promise.all([
+      const [rows, categories, links, loans] = await Promise.all([
         db.transaction.findMany({
           where: { accountId: account.id, userId },
           orderBy: { id: "asc" },
@@ -80,6 +86,21 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
         db.emailBankLink.findMany({
           where: { userId, bankId: account.bankId },
           select: { lastBalanceReconciledAt: true },
+        }),
+        db.installmentPlan.findMany({
+          where: {
+            userId,
+            accountId: account.id,
+            kind: "loan",
+            sourceTransactionId: null,
+          },
+          orderBy: { id: "asc" },
+          include: {
+            items: {
+              orderBy: { index: "asc" },
+              include: { transaction: { select: { id: true } } },
+            },
+          },
         }),
       ])
       loaded = { account, rows }
@@ -115,6 +136,23 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
             updatedAt: m.updatedAt.toISOString(),
           })),
           categories,
+          loanPlans: loans.map((p) => ({
+            id: p.id,
+            currency: p.currency,
+            categoryId: p.categoryId,
+            totalAmount: Number(p.totalAmount),
+            installmentsCount: p.installmentsCount,
+            updatedAt: p.updatedAt.toISOString(),
+            items: p.items.map((i) => ({
+              id: i.id,
+              index: i.index,
+              amount: Number(i.amount),
+              dueDate: i.dueDate.toISOString().slice(0, 10),
+              transactionId: i.transaction?.id ?? null,
+              paidOutsideApp: i.paidOutsideApp,
+              updatedAt: i.updatedAt.toISOString(),
+            })),
+          })),
         },
         version: {
           accountUpdatedAt: account.updatedAt.toISOString(),
@@ -138,6 +176,28 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
       if (!loaded || loaded.account.id !== input.accountId)
         throw new Error("apply sin loadState de la misma cuenta")
       const { account, rows } = loaded
+      // El cronograma, sus pagos, los saldos y el recibo se guardan juntos o se deshacen juntos.
+      for (const correction of plan.loanCorrections) {
+        await db.installmentPlan.update({
+          where: {
+            id: correction.before.id,
+            userId,
+            accountId: account.id,
+            kind: "loan",
+          },
+          data: { totalAmount: correction.after.totalAmount },
+        })
+        for (const item of correction.after.items) {
+          await db.installmentItem.update({
+            where: {
+              id: item.id,
+              planId: correction.before.id,
+              plan: { userId },
+            },
+            data: { amount: item.amount },
+          })
+        }
+      }
       for (const c of plan.corrections) {
         const row = rows.find((r) => r.id === c.before.id)!
         await db.transaction.update({
@@ -155,6 +215,9 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
               evidence: c.after.evidence,
               recurringSettlement: c.after.settleRecurringCharge === true,
               recurringTemplateId: row.recurringTemplateId,
+              ...(c.after.correctedLoanPlanId
+                ? { correctedLoanPlanId: c.after.correctedLoanPlanId }
+                : {}),
               bankPostingDate: c.after.date,
               snapshotAt: plan.snapshotAt,
               reconciledAt: now.toISOString(),

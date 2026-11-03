@@ -31,7 +31,7 @@ Se eliminan el hook y los módulos propios de refracción, el segmentado propio 
 
 El contenido de la app es la única fuente `data-glisse-backdrop`. Es hermano de las barras y ocupa también el espacio detrás de la topbar desde el montaje. Glisse coloca sus lentes sobre esa fuente y escribe el filtro directamente: no se clona la página ni se añade un renderer propio. Los diálogos y el onboarding viven en portales fuera de la fuente, para conservar su posición, scroll y foco.
 
-La biblioteca comparte el seguimiento por fuente mediante requestAnimationFrame y cachea los mapas. Se prioriza la refracción completa en Safari, según la elección del usuario; ese seguimiento continuo tiene un coste mayor que el acabado de blur/rim. Las superficies que no se superponen a una fuente, como el sidebar sobre fondo vacío o un menú portaleado, mantienen el comportamiento oficial por navegador: refracción de backdrop en Chromium y frost/rim donde no se puede aplicar. No se inventa contenido detrás de ellas.
+La biblioteca comparte el seguimiento por fuente mediante requestAnimationFrame y cachea los mapas. Se prioriza la refracción completa en Safari, según la elección del usuario; ese seguimiento continuo tiene un coste mayor que el acabado de blur/rim. Las superficies que no se superponen a una fuente, como el sidebar sobre fondo vacío o un portal fuera de AppFrame, mantienen el comportamiento oficial por navegador: refracción de backdrop en Chromium y frost/rim donde no se puede aplicar. No se inventa contenido detrás de ellas.
 
 El CSS oficial se importa estáticamente para el primer render. Glisse también lo inyecta al cargar su módulo cliente; la versión 0.5 no ofrece un mecanismo público para desactivar esa inyección. Se acepta ese duplicado de estilo, sin sentinel privado ni modificaciones del paquete.
 
@@ -59,4 +59,6 @@ La preview usa la base demo aislada y el usuario existente `demo@lucaplan.cl` (c
 
 Los sliders de Ajustes, tolerancia de recurrente y tolerancia al asignar una cuota son Glisse. El único slider de dominio que conserva Radix es el rango de dos importes de Movimientos.
 
-Dialog/Drawer y los desplegables se portalean a `body`. Glisse 0.5 no busca fuentes por encima de ese contenedor, por lo que en Safari sus superficies usan el acabado oficial frost/rim; la refracción de la navegación sí usa la fuente de contenido. Cambiar el destino de todos los portales requeriría otro contrato de composición y no se introduce para simular una capacidad ausente.
+Dentro de AppFrame, Dialog/Drawer y los desplegables usan la API pública `container` de sus portales. El host es hermano del contenido dentro de la escena, sin filtro ni transform propio: Glisse puede encontrar la fuente también desde los modales y menús, mientras fixed, scroll y foco siguen gestionados por Radix/Vaul. La búsqueda global y Perfil comparten ese destino.
+
+Fuera de AppFrame (por ejemplo acceso o landing), los portales mantienen el destino predeterminado `body`; sin una fuente que se superponga, Safari usa el acabado oficial frost/rim. No se crea contenido de fondo artificial ni se modifica el motor de Glisse.

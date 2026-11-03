@@ -38,6 +38,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { PortalContainerContext } from "@/components/ui/portal-container"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -152,6 +153,8 @@ export function AppFrame({
   // montan sus portales en el render siguiente.
   const [desktopSlot, setDesktopSlot] = React.useState<HTMLElement | null>(null)
   const [mobileSlot, setMobileSlot] = React.useState<HTMLElement | null>(null)
+  const [portalContainer, setPortalContainer] =
+    React.useState<HTMLElement | null>(null)
   const slots = React.useMemo(
     () => ({ desktop: desktopSlot, mobile: mobileSlot }),
     [desktopSlot, mobileSlot]
@@ -182,52 +185,55 @@ export function AppFrame({
   }, [])
 
   return (
-    <SlotsContext.Provider value={slots}>
-      <OpenProfileContext.Provider value={openProfile}>
-        <Chrome
-          user={user}
-          onSignOut={signOut}
-          onProfile={openProfile}
-          onSearch={openSearch}
-          desktopSlotRef={setDesktopSlot}
-          mobileSlotRef={setMobileSlot}
-          idle={
-            <MonthNav
-              period={currentPeriod}
-              current={currentPeriod}
-              cycleRange={currentPeriod.cycleRange}
-              onNavigate={() => {}}
-              disabled
-            />
-          }
-        >
-          {children}
-        </Chrome>
-        <TransactionSearch
-          open={searchOpen}
-          detailOpen={searchTx !== null}
-          onOpenChange={setSearchOpen}
-          categories={categories}
-          accounts={accounts}
-          amountBounds={amountBounds}
-          onOpenTransaction={setSearchTx}
-        >
-          {searchOpen && (
-            <TransactionModal
-              tx={searchTx}
-              categories={categories}
-              accounts={accounts}
-              onOpenChange={(o) => !o && setSearchTx(null)}
-            />
-          )}
-        </TransactionSearch>
-        <ProfileSheet
-          open={profileOpen}
-          onOpenChange={setProfileOpen}
-          user={user}
-        />
-      </OpenProfileContext.Provider>
-    </SlotsContext.Provider>
+    <PortalContainerContext.Provider value={portalContainer}>
+      <SlotsContext.Provider value={slots}>
+        <OpenProfileContext.Provider value={openProfile}>
+          <Chrome
+            user={user}
+            onSignOut={signOut}
+            onProfile={openProfile}
+            onSearch={openSearch}
+            desktopSlotRef={setDesktopSlot}
+            mobileSlotRef={setMobileSlot}
+            portalContainerRef={setPortalContainer}
+            idle={
+              <MonthNav
+                period={currentPeriod}
+                current={currentPeriod}
+                cycleRange={currentPeriod.cycleRange}
+                onNavigate={() => {}}
+                disabled
+              />
+            }
+          >
+            {children}
+          </Chrome>
+          <TransactionSearch
+            open={searchOpen}
+            detailOpen={searchTx !== null}
+            onOpenChange={setSearchOpen}
+            categories={categories}
+            accounts={accounts}
+            amountBounds={amountBounds}
+            onOpenTransaction={setSearchTx}
+          >
+            {searchOpen && (
+              <TransactionModal
+                tx={searchTx}
+                categories={categories}
+                accounts={accounts}
+                onOpenChange={(o) => !o && setSearchTx(null)}
+              />
+            )}
+          </TransactionSearch>
+          <ProfileSheet
+            open={profileOpen}
+            onOpenChange={setProfileOpen}
+            user={user}
+          />
+        </OpenProfileContext.Provider>
+      </SlotsContext.Provider>
+    </PortalContainerContext.Provider>
   )
 }
 
@@ -379,6 +385,7 @@ function Chrome({
   actions,
   desktopSlotRef,
   mobileSlotRef,
+  portalContainerRef,
   idle,
   children,
 }: Omit<AppShellProps, "actions"> & {
@@ -388,6 +395,7 @@ function Chrome({
   onProfile?: () => void
   desktopSlotRef?: (el: HTMLElement | null) => void
   mobileSlotRef?: (el: HTMLElement | null) => void
+  portalContainerRef?: (el: HTMLElement | null) => void
 }) {
   const pathname = usePathname()
   const title =
@@ -545,6 +553,7 @@ function Chrome({
           onNavigate={onNavigate}
           trailing={onSearch && <SearchCircle onSearch={onSearch} />}
         />
+        <div ref={portalContainerRef} data-app-portals />
       </SidebarProvider>
     </TooltipProvider>
   )

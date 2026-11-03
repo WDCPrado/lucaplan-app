@@ -1516,8 +1516,10 @@ export default function Home() {
           onOpenChange={(o) => !o && setLegal(null)}
           title={LEGAL[legal].title}
           // force-light: el portal se monta fuera de [data-landing]; sin esto, con tema
-          // dark el modal saldría oscuro sobre una landing siempre clara.
-          className="force-light"
+          // dark el modal saldría oscuro sobre una landing siempre clara. El resto deshace la hoja
+          // flotante de la app: pegada abajo, sin radio abajo, con el relleno de vaul bajo ella y el
+          // espacio seguro del teléfono (el cuerpo ya deja 1.5rem).
+          className="force-light rounded-b-none after:block [--initial-transform:100%] pb-[max(0px,calc(env(safe-area-inset-bottom)-1.5rem))] data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:bottom-0 data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))]"
           headerClassName="max-md:pt-5 max-md:pb-6 max-md:text-left max-md:[&>div:empty]:hidden"
         >
           <ScrollArea className="max-h-[62dvh] px-6">

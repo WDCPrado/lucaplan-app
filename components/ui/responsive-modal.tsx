@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { createPortal } from "react-dom"
-import { Check, X } from "lucide-react"
+import { Check, Loader, X } from "lucide-react"
 import { Drawer as DrawerPrimitive } from "vaul"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -113,13 +113,27 @@ export type ModalAction = {
   form?: string
   onClick?: () => void
   disabled?: boolean
+  /** Guardando o conectando: deshabilita la acción y muestra un spinner en su lugar. */
+  busy?: boolean
 }
 
 function actionProps(action: ModalAction) {
-  return action.form
-    ? ({ type: "submit", form: action.form } as const)
-    : ({ type: "button", onClick: action.onClick } as const)
+  return {
+    ...(action.form
+      ? ({ type: "submit", form: action.form } as const)
+      : ({ type: "button", onClick: action.onClick } as const)),
+    disabled: action.disabled || action.busy,
+    "aria-busy": action.busy || undefined,
+  }
 }
+
+// Spinner de una acción ocupada; quieto con «reducir movimiento».
+const busySpinner = (className: string) => (
+  <Loader
+    aria-hidden
+    className={cn("animate-spin motion-reduce:animate-none", className)}
+  />
+)
 
 /**
  * Pie del diálogo de ESCRITORIO, anclado abajo (`sticky`, dentro del contenido que hace scroll) y
@@ -178,9 +192,11 @@ export function ModalActions({
           createPortal(
             <button
               {...actionProps(cancel)}
-              disabled={cancel.disabled}
               data-squish
-              className={cn(sheetCircleClass, "liquid-glass liquid-squish text-foreground")}
+              className={cn(
+                sheetCircleClass,
+                "liquid-glass liquid-squish text-foreground disabled:text-muted-foreground"
+              )}
             >
               <X aria-hidden className="size-5" strokeWidth={2.5} />
               <span className="sr-only">{cancel.label}</span>
@@ -193,22 +209,29 @@ export function ModalActions({
             primary.plain ? (
               <button
                 {...actionProps(primary)}
-                disabled={primary.disabled}
                 data-squish
-                className="press liquid-glass liquid-squish h-11 shrink-0 rounded-full px-4 text-body font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:text-muted-foreground"
+                className="press liquid-glass liquid-squish relative h-11 shrink-0 rounded-full px-4 text-body font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:text-muted-foreground"
               >
-                {primary.label}
+                {/* Ocupado: el spinner ocupa el centro y el texto se queda (transparente) para que
+                  la cápsula no cambie de ancho ni pierda su nombre accesible. */}
+                <span className={cn(primary.busy && "opacity-0")}>
+                  {primary.label}
+                </span>
+                {primary.busy && busySpinner("absolute inset-0 m-auto size-5")}
               </button>
             ) : (
               <button
                 {...actionProps(primary)}
-                disabled={primary.disabled}
                 className={cn(
                   sheetCircleClass,
                   "bg-primary text-primary-foreground disabled:bg-(--glass-control) disabled:text-muted-foreground"
                 )}
               >
-                <Check aria-hidden className="size-5" strokeWidth={2.75} />
+                {primary.busy ? (
+                  busySpinner("size-5")
+                ) : (
+                  <Check aria-hidden className="size-5" strokeWidth={2.75} />
+                )}
                 <span className="sr-only">{primary.label}</span>
               </button>
             ),
@@ -222,9 +245,8 @@ export function ModalActions({
       {cancel && (
         <Button
           {...actionProps(cancel)}
-          disabled={cancel.disabled}
           variant="secondary"
-          className="h-12 flex-1 text-body"
+          className="h-12 flex-1"
         >
           {cancel.label}
         </Button>
@@ -232,9 +254,9 @@ export function ModalActions({
       {primary && (
         <Button
           {...actionProps(primary)}
-          disabled={primary.disabled}
-          className="h-auto min-h-12 min-w-0 flex-1 py-3 text-body font-semibold whitespace-normal"
+          className="h-auto min-h-12 min-w-0 flex-1 py-3 whitespace-normal"
         >
+          {primary.busy && busySpinner("size-5")}
           {primary.label}
         </Button>
       )}
@@ -384,7 +406,7 @@ export function ResponsiveModal({
               // el notch. El teclado se superpone sin redimensionar ni elevar el panel.
               // Hoja de iOS 26: flota despegada de los bordes, con las cuatro esquinas redondeadas y
               // casi concéntrica con las del teléfono (el mismo `--tab-bar-inset` de la barra).
-              "h-auto rounded-(--radius-sheet) bg-sheet p-0 text-body before:hidden data-[vaul-drawer-direction=bottom]:inset-x-2 data-[vaul-drawer-direction=bottom]:bottom-(--tab-bar-inset) data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top)-var(--tab-bar-inset))]",
+              "h-auto rounded-(--radius-sheet) bg-sheet p-0 text-body before:hidden after:hidden [--initial-transform:calc(100%+var(--tab-bar-inset))] data-[vaul-drawer-direction=bottom]:inset-x-2 data-[vaul-drawer-direction=bottom]:bottom-(--tab-bar-inset) data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top)-var(--tab-bar-inset))]",
               className
             )}
           >
@@ -460,7 +482,7 @@ export function ResponsiveModal({
                   variant="secondary"
                   size="icon"
                   // `xmark` en círculo gris, como el cierre de una hoja de iOS 26 / macOS 26.
-                  className="absolute top-5 right-5 hidden size-9 rounded-full text-muted-foreground hover:text-foreground md:inline-flex"
+                  className="absolute top-5 right-5 hidden size-9 rounded-full pointer-coarse:size-11 text-muted-foreground hover:text-foreground md:inline-flex"
                   aria-label={`Cerrar ${title}`}
                 >
                   <X aria-hidden="true" className="size-4" strokeWidth={2.5} />

@@ -1366,7 +1366,7 @@ export async function markSyncError(
   const status = reauth ? "reauth_required" : "error"
   const lastError = reauth
     ? "La autorización de Outlook venció o fue revocada. Reconecta tu correo en Ajustes."
-    : "No se pudo actualizar la conexión de Outlook. Puedes reintentar con Sincronizar ahora."
+    : "No se pudo actualizar la conexión de Outlook. Puedes reintentar con Sincronizar."
   for (let attempt = 0; attempt < 2; attempt++) {
     const current = await deps.mailboxes.findById(mailbox.id)
     if (!current || current.status === "reauth_required" || current.status === status) return

@@ -589,13 +589,14 @@ function NavMenu({
       {NAV.map(({ key, label, Icon, href }) => (
         <SidebarMenuItem key={key}>
           {/* Mismo lenguaje que la pestaña activa móvil: la pastilla neutra de arriba (--glass-tab-active)
-              y el ícono y el texto en el acento. Hover y press en un velo del texto, como el resto
+              y el ícono y el texto en el acento (--tab-active, más claro en oscuro por contraste).
+              Hover y press en un velo del texto, como el resto
               de los controles sobre vidrio (el --sidebar-accent de shadcn es un gris sólido). */}
           <SidebarMenuButton
             asChild
             isActive={activeKey === key}
             tooltip={label}
-            className="h-9 rounded-(--radius-bar-inner) text-subheadline hover:bg-foreground/5 active:bg-foreground/10 data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:hover:bg-transparent data-active:hover:text-primary"
+            className="h-9 rounded-(--radius-bar-inner) text-subheadline hover:bg-foreground/5 active:bg-foreground/10 data-active:bg-transparent data-active:font-semibold data-active:text-tab-active data-active:hover:bg-transparent data-active:hover:text-tab-active"
           >
             <Link
               href={href}
@@ -713,7 +714,7 @@ function BottomNav({
                 style={{ flexGrow: weight }}
                 // Sin negrita en la activa: la marcan la pastilla, el azul y aria-current; un peso distinto
                 // ensancharía su etiqueta y movería a las vecinas bajo la pastilla.
-                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-foreground aria-[current=page]:text-primary focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-foreground aria-[current=page]:text-tab-active focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
               >
                 <Icon className="size-5 shrink-0" />
                 {short ? (

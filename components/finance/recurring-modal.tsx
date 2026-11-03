@@ -311,6 +311,7 @@ export function RecurringModal({
                   ? "Guardar"
                   : "Crear recurrente",
               form: formId,
+              busy: saving,
               disabled: !canSave,
             }
       }

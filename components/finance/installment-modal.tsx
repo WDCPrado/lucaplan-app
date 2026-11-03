@@ -209,6 +209,7 @@ export function InstallmentModal({
           : {
               label: saving ? "Creando…" : "Crear plan",
               onClick: save,
+              busy: saving,
               disabled: !canSave,
             }
       }

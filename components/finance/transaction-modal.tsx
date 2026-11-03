@@ -694,6 +694,7 @@ function EditForm({
         primary={{
           label: busy === "save" ? "Guardando…" : "Guardar",
           form: `edit-transaction-${tx.id}-${instanceId}`,
+          busy: busy === "save",
           disabled: !canSave,
         }}
       />
@@ -1214,6 +1215,7 @@ function ConnectedDetail({
               ? "Guardar categoría"
               : "Guardado",
           onClick: saveCategory,
+          busy: saving,
           disabled: !changed || saving,
         }}
       />

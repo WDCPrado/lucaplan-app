@@ -1,6 +1,6 @@
 // Recuperación manual del correo (Outlook); no se programa sondeo periódico.
 // Ejecuta el delta de Microsoft Graph: importa idempotente, proyecta buckets y categoriza los
-// movimientos nuevos. Mismo efecto que "Sincronizar ahora" en la app; alternativa local al
+// movimientos nuevos. Mismo efecto que "Sincronizar" en la app; alternativa local al
 // webhook, que exige una URL HTTPS pública (ver docs/email-connection-outlook.md).
 //
 //   pnpm sync:email

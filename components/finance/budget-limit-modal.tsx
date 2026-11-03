@@ -90,6 +90,7 @@ export function BudgetLimitModal({
       primary={{
         label: isSubmitting ? "Guardando…" : "Guardar tope de gasto",
         form: formId,
+        busy: isSubmitting,
         disabled: isSubmitting || (current !== null && !isDirty),
       }}
     >

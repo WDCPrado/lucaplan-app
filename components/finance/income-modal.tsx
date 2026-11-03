@@ -209,6 +209,7 @@ export function IncomeModal({
                   ? "Guardar ingreso"
                   : "Agregar ingreso",
               form: formId,
+              busy: isSubmitting,
               disabled:
                 busy ||
                 incomeCategories.length === 0 ||
@@ -412,7 +413,7 @@ export function IncomeModal({
                   type="button"
                   variant="secondary"
                   onClick={onCreateCategory}
-                  className="h-auto min-h-11 w-full min-w-0 py-2 text-body whitespace-normal text-primary"
+                  className="h-auto min-h-11 w-full min-w-0 py-2 whitespace-normal text-primary"
                 >
                   Crear categoría de ingreso
                 </Button>

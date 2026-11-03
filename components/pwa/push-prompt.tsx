@@ -91,7 +91,9 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
             disabled: pending,
           }}
           primary={{
-            label: pending ? "Activando…" : "Activar notificaciones",
+            label: "Activar",
+            plain: true,
+            busy: pending,
             onClick: activate,
             disabled: pending,
           }}

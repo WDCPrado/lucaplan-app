@@ -508,7 +508,8 @@ export function OutlookBankConnection({
           {scanError && (
             <ModalActions
               primary={{
-                label: "Reintentar revisión",
+                label: "Reintentar",
+                plain: true,
                 onClick: () => detect(pending.id),
                 disabled: busy,
               }}
@@ -543,7 +544,8 @@ export function OutlookBankConnection({
         {cancelPending}
         <ModalActions
           primary={{
-            label: "Validar e importar movimientos",
+            label: "Importar",
+            plain: true,
             onClick: () => startInitialImport(pending.id),
             disabled: busy || invalidSnapshot || Boolean(blockingHint),
           }}
@@ -629,7 +631,8 @@ export function OutlookBankConnection({
 
       <ModalActions
         primary={{
-          label: "Sincronizar ahora",
+          label: "Sincronizar",
+          plain: true,
           onClick: refresh,
           disabled: busy,
         }}
@@ -1002,7 +1005,6 @@ function FirstBankPicker({
 }) {
   const [selected, setSelected] = useState(banks[0]?.key ?? "")
   const [provider, setProvider] = useState(providers[0]?.key ?? "")
-  const providerLabel = providers.find((p) => p.key === provider)?.name ?? ""
 
   return (
     <>
@@ -1037,7 +1039,9 @@ function FirstBankPicker({
       )}
       <ModalActions
         primary={{
-          label: busy ? "Conectando…" : `Conectar ${providerLabel}`,
+          label: "Conectar",
+          plain: true,
+          busy,
           onClick: () => onSubmit(selected, provider),
           disabled: busy || !selected || !provider,
         }}

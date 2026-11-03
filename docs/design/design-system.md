@@ -65,7 +65,9 @@ Los cinco niveles de Apariencia cambian la transparencia, conservando el desenfo
 
 `liquid-glass-active` usa `--glass-tab-active`, un velo neutro de `foreground`, con
 `--glass-active-shadow`: es la pastilla de la pestaña móvil activa y la del link activo del
-sidebar. En los dos, el ícono y el texto del activo van en `text-primary`.
+sidebar. En los dos, el ícono y el texto del activo van en `text-tab-active` (`--tab-active`):
+`primary` en claro y un azul más claro en oscuro (#89C1FF), porque #0A84FF sobre la pastilla no
+llega a 4.5:1.
 `scroll-edge-top` (`--scroll-edge`, `--scroll-edge-amount`, `--scroll-edge-blur`) queda solo detrás
 de la topbar de escritorio. En móvil el desenfoque se limita a las cápsulas del selector de mes y
 la navegación, sin velos fuera de sus bordes. La fila superior móvil anula la sombra exterior

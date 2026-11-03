@@ -37,7 +37,7 @@ curl -X POST -H "Authorization: Bearer $OUTLOOK_RENEW_SECRET" https://app.exampl
 ```
 
 Usa un secreto aleatorio independiente. No se sondea el correo cada cinco minutos: el delta
-de Graph queda para recuperación manual con “Sincronizar ahora”.
+de Graph queda para recuperación manual con “Sincronizar”.
 
 Un webhook válido que falla, o que encuentra una sincronización ocupada, responde `503`
 para que Microsoft reintente; solo lo procesado se confirma con `202`. Los buzones con

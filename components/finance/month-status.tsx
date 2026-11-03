@@ -77,7 +77,7 @@ export function MonthStatus({
               Configura el plan de este período para organizar tus ingresos y gastos.
             </p>
           </div>
-          <Button onClick={onOpenPlan} className="h-11 shrink-0 px-4 text-body font-semibold">
+          <Button onClick={onOpenPlan} className="h-11 shrink-0">
             Definir tope de gasto
           </Button>
         </div>

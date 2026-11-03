@@ -92,7 +92,8 @@ Rigen para todo lo nuevo; un formulario o modal existente se adapta cuando se to
 un barrido aparte.
 
 - **shadcn es la fuente de verdad; `components/ui/` solo se toca para los radios, la escala del
-  `Button` y la forma iOS de `slider.tsx`, `switch.tsx` y `tabs.tsx`.** Los primitivos llevan la jerarquía de radios de abajo aplicada a mano, y `button.tsx`
+  `Button` y la forma iOS de `slider.tsx`, `switch.tsx` y `tabs.tsx`.** `calendar.tsx` además
+  devuelve sus días y flechas a la celda de 32 px (`text-sm`, sin el mínimo táctil del botón). Los primitivos llevan la jerarquía de radios de abajo aplicada a mano, y `button.tsx`
   además la escala de iOS (cápsula, `text-body` en el tamaño por defecto, ≥44 px de alto en táctil,
   atenuado de `.press` al tocar en vez del desplazamiento de 1 px), y el slider y el switch la
   forma de los controles de iOS (ver «Controles de iOS» abajo): al reinstalar uno con
@@ -122,9 +123,12 @@ un barrido aparte.
   van en el encabezado de la hoja como en iOS 26, en círculos de 44 px: a la izquierda uno de
   vidrio con ✕ (`X`, cancela) y a la derecha uno azul con ✓ (`Check`, la primaria). Solo
   confirmar (Listo, Guardar) es prominente: una acción que no confirma, como «Editar», lleva
-  `plain` y va en texto sobre una cápsula de vidrio (HIG: editar se dice con texto, no con símbolo). La primaria queda
-  gris y deshabilitada sin cambios o mientras guarda; el texto de cada acción es su nombre
-  accesible. En escritorio van en el pie (Cancelar o Cerrar en
+  `plain` y va en texto sobre una cápsula de vidrio (HIG: editar se dice con texto, no con símbolo):
+  así van también Reintentar, Importar, Sincronizar, Conectar y Activar, con el verbo corto para
+  que quepa junto al título. El ✓ queda para Guardar, Crear, Agregar, Listo y Aplicar. La primaria
+  queda gris y deshabilitada sin cambios; mientras guarda lleva `busy`, que la deshabilita y pone
+  un spinner (quieto con reducir movimiento) en el círculo, en la cápsula o junto al texto en
+  escritorio. El ✕ deshabilitado queda en gris. El texto de cada acción es su nombre accesible. En escritorio van en el pie (Cancelar o Cerrar en
   gris, `secondary`, como el botón *bordered* de iOS; la primaria rellena y en semibold); el botón que envía va
   con `form="<id>"` del `<form>` del modal. `ModalFooter` solo existe en escritorio. Borrar va
   en `ModalDangerRow`, una fila roja al final del contenido, nunca junto a la primaria. Las
@@ -159,7 +163,8 @@ agrupaciones, la tipografía y los controles.
 - **Skills de referencia, obligatorias al tocar UI de la app:** `apple-hig` (las Human Interface
   Guidelines completas, por componente) y `apple-design` (revisión de diseño contra la HIG), las
   dos declaradas en `skills-lock.json`; se restauran con `npx skills experimental_install`. Para
-  anti-slop y escaneabilidad manda `impeccable`. La landing no sigue estas reglas.
+  anti-slop y escaneabilidad manda `impeccable`. La landing no sigue estas reglas: su modal legal
+  deshace la hoja flotante desde su `className` (`app/page.tsx`) y el peso de íconos no la alcanza.
 - **Cada elemento tiene un propósito.** Todo botón, texto, ícono, color, borde, badge o sección
   responde a qué decisión o acción de la persona sirve. Si no sirve ninguna o repite algo que ya
   está, se quita o se funde; si sirve, su peso visual corresponde a su importancia. Quitar va antes
@@ -205,7 +210,8 @@ agrupaciones, la tipografía y los controles.
     `foreground`, salvo la selección. La pestaña móvil activa y el link activo del sidebar llevan
     la misma pastilla neutra (`--glass-tab-active`, un velo de `foreground`) con
     `--glass-active-shadow`, sin vidrio adicional dentro del vidrio, y su ícono y su etiqueta en
-    `primary`, como la pestaña elegida de iOS 26. Hover y press sobre el
+    azul (`text-tab-active`: `primary` en claro, más claro en oscuro para llegar a 4.5:1), como la
+    pestaña elegida de iOS 26. Hover y press sobre el
     vidrio son un velo de `foreground` (5 % y 10 %), no el gris sólido `--sidebar-accent`.
   - **Scroll edge effect** (`scroll-edge-top`) queda solo detrás de la topbar de escritorio:
     un velo tenue (`--scroll-edge-amount`, 22 % por defecto y proporcional al nivel de vidrio),

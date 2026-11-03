@@ -215,6 +215,7 @@ export function CategoryModal({
       primary={{
         label: isSubmitting ? "Guardando…" : "Guardar categoría",
         form: formId,
+        busy: isSubmitting,
         disabled: busy || (!!category && !isDirty),
       }}
     >

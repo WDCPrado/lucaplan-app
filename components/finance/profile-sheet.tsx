@@ -126,6 +126,7 @@ function NameForm({
         primary={{
           label: isSubmitting ? "Guardando…" : "Guardar",
           form: NAME_FORM,
+          busy: isSubmitting,
           disabled: !dirty || isSubmitting,
         }}
       />

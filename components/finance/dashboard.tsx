@@ -210,7 +210,7 @@ export function Dashboard({
   const outOfPlanCategories = expenseCategories.filter((c) => !c.inPlan)
   const renderExpenseCat = (c: CategoryDTO) => {
     // Una sin tope pero en el plan tiene tope $0: lo usado llena la barra, lo comprometido el resto.
-    const capped = c.limit > 0 || c.inPlan
+    const capped = c.inPlan
     const pct =
       c.limit > 0 ? Math.min(100, (c.used / c.limit) * 100) : c.used > 0 ? 100 : 0
     // El comprometido continúa al gastado en lo que queda de barra (no se suma).

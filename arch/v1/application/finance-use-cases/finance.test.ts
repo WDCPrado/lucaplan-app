@@ -285,13 +285,16 @@ test("computeCapsOverspend: suma los excesos; el margen de una holgada no compen
   assert.equal(computeCapsOverspend(cats, "CLP").toMajor(), 22359)
 })
 
-test("computeCapsOverspend: ignora las categorías sin tope y las de ingreso", () => {
+test("computeCapsOverspend: una sin tope con gasto entra al plan con tope 0 y todo lo usado es exceso; sin gasto e ingreso no suman", () => {
   const cats = [
-    cat("expense", 250000, 0), // sin tope (Transferencias, Invertir): no hay de qué pasarse
+    cat("expense", 50000, 0), // Regalos sin tope gastó 50.000: entra al plan, +50.000
+    cat("expense", 0, 0), // Viajes sin tope ni gasto: fuera del plan, no suma
     cat("income", 1400000, 1000000), // superar la meta de ingreso no es un excedente
     cat("expense", 12000, 10000), // +2.000
   ]
-  assert.equal(computeCapsOverspend(cats, "CLP").toMajor(), 2000)
+  assert.equal(computeCapsOverspend(cats, "CLP").toMajor(), 52000)
+  // Sin ningún tope definido (usuario nuevo) no hay plan del que pasarse.
+  assert.equal(computeCapsOverspend([cat("expense", 50000, 0)], "CLP").toMajor(), 0)
 })
 
 test("computeMonthOverspend: solo lo gastado por sobre el límite global", () => {
@@ -414,6 +417,23 @@ test("disp-empate-y-bordes: con margen 1.100.000 y lo planificado que queda 1.10
   // Negativo: el monto no se recorta a 0.
   const enRojo = computeSpendable({ margin: -150000, categories: [{ limit: 450000, used: 450000, committed: 0 }] })
   assert.deepEqual(enRojo, { amount: -150000, margin: -150000, plannedLeft: 0, limitedBy: "margin" })
+})
+
+test("computeSpendable sin ningún tope definido: manda el margen aunque una sin tope haya gastado", () => {
+  // Usuario nuevo: ingresos 1.000.000 y 50.000 en Regalos (sin tope). Sin plan no hay de qué pasarse.
+  assert.deepEqual(
+    computeSpendable({ margin: 950000, categories: [{ limit: 0, used: 50000, committed: 0 }] }),
+    { amount: 950000, margin: 950000, plannedLeft: -50000, limitedBy: "margin" }
+  )
+  assert.deepEqual(
+    computeSpendable({ margin: 1000000, categories: [] }),
+    { amount: 1000000, margin: 1000000, plannedLeft: 0, limitedBy: "margin" }
+  )
+  // Con $1 de tope en alguna ya hay plan y vuelve a mandar el menor.
+  assert.equal(
+    computeSpendable({ margin: 950000, categories: [{ limit: 1, used: 0, committed: 0 }, { limit: 0, used: 50000, committed: 0 }] }).limitedBy,
+    "plan"
+  )
 })
 
 test("disp-en-el-plan-bordes: una categoría con tope siempre está en el plan; sin tope entra con $1 gastado o por cobrar y sale con $0", () => {

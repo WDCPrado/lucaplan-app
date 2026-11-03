@@ -313,10 +313,10 @@ export function remainingToAllocate(
 }
 
 /**
- * Excedente de TOPES del mes = Σ max(0, usado − tope) de las categorías de GASTO con tope > 0.
+ * Excedente de TOPES del mes = Σ max(0, usado − tope) de las categorías de GASTO en el plan.
  * Junta en una cifra lo que hoy solo se ve categoría por categoría. Solo cuenta lo confirmado
- * (`used`), no el comprometido: son dos capas distintas. Sin tope no hay de qué pasarse, así que
- * las categorías sin límite no participan.
+ * (`used`), no el comprometido: son dos capas distintas. Una sin tope con gasto entra al plan con
+ * tope 0 (`isInPlan`), así que todo lo usado es exceso; sin gasto no suma nada.
  *
  * Es un DESCUADRE ENTRE CATEGORÍAS, no plata que falte: puede ser positivo con presupuesto del mes
  * de sobra. La plata que de verdad no había la mide `computeMonthOverspend`.
@@ -325,11 +325,12 @@ export function computeCapsOverspend(
   categories: { type: CategoryType; used: Money; limit: Money }[],
   currency: CurrencyCode
 ): Money {
+  // Sin ningún tope definido no hay plan del que pasarse (mismo criterio que `computeSpendable`).
+  if (!categories.some((c) => c.type === "expense" && c.limit.isPositive)) return Money.zero(currency)
   return categories
     .filter(
       (c) =>
         c.type === "expense" &&
-        c.limit.isPositive &&
         c.limit.currency === currency
     )
     .reduce((sum, c) => {
@@ -366,16 +367,17 @@ export function isInPlan(c: { limit: number; used: number; committed: number }):
  * Disponible para gastar = mín(margen, lo planificado que queda). `margin` = ingresos − gastado −
  * comprometido (el balance del medidor); `plannedLeft` = Σ (tope − usado − comprometido) de las
  * categorías en el plan. Lo no repartido no se ofrece para gastar; si se repartió de más, manda el
- * margen. Empate: "plan".
+ * margen. Empate: "plan". Sin ningún tope > 0 no hay plan que limite: manda el margen.
  */
 export function computeSpendable(input: {
   margin: number
   categories: { limit: number; used: number; committed: number }[]
 }): { amount: number; margin: number; plannedLeft: number; limitedBy: "margin" | "plan" } {
   const plannedLeft = input.categories.reduce((s, c) => s + c.limit - c.used - c.committed, 0)
-  const limitedBy = input.margin < plannedLeft ? "margin" : "plan"
+  const hasPlan = input.categories.some((c) => c.limit > 0)
+  const limitedBy = !hasPlan || input.margin < plannedLeft ? "margin" : "plan"
   return {
-    amount: Math.min(input.margin, plannedLeft),
+    amount: hasPlan ? Math.min(input.margin, plannedLeft) : input.margin,
     margin: input.margin,
     plannedLeft,
     limitedBy,

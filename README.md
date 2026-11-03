@@ -102,8 +102,8 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
   del período anterior: mes en débito, ciclo en crédito. El presupuesto global y los topes
   no determinan ese déficit; aplicar la sugerencia es manual.
 - El titular del Inicio es el **disponible para gastar**: lo menor entre el margen (ingresos −
-  gastado − comprometido) y lo que queda de los topes de las categorías del plan. Si se repartió más
-  de lo que entra, manda el margen y lo avisa debajo. Negativo, «Te pasaste del plan» en rojo.
+  gastado − comprometido) y lo que queda de los topes de las categorías del plan. Negativo, «Te
+  pasaste del plan» en rojo. Un período cerrado muestra el margen: lo que quedó o faltó del plan.
 - La curva del Inicio es el ritmo global: va de $0 a lo disponible al inicio del período y solo
   cuenta el gasto que no salda una recurrente o una cuota. Se muestra aunque no haya tope
   global, siempre que haya algo que repartir.

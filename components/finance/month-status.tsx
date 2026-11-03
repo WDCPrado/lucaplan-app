@@ -82,9 +82,9 @@ export function MonthStatus({
           </Button>
         </div>
         <div className="mt-4">
-          <PlanSummary {...plan} />
+          <PlanSummary {...plan} closed={!isCurrentMonth && !isFuturePeriod(period, cycle.current)} />
         </div>
-        {children && <div data-nuevo className="mt-4 flex flex-col">{children}</div>}
+        {children && <div className="mt-4 flex flex-col">{children}</div>}
       </section>
     )
   }

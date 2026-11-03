@@ -17,8 +17,9 @@ export type PlanInput = {
 /**
  * Resumen del plan del Inicio. Primero y más grande, lo disponible para gastar según lo planificado
  * (`spendable`, del servidor: lo menor entre el margen y lo que queda de los topes; no es el saldo
- * bancario); debajo, quién manda en esa cifra y la línea que manda quien lo muestra (los días para
- * cerrar); después los tres componentes del margen y lo disponible en cuentas.
+ * bancario); debajo, la línea que manda quien lo muestra (los días para cerrar); después los tres
+ * componentes del margen y lo disponible en cuentas. En un período cerrado la cifra es el margen:
+ * lo que de verdad sobró o faltó de los ingresos.
  */
 export function PlanSummary({
   income,
@@ -37,10 +38,8 @@ export function PlanSummary({
   closed?: boolean // período que no es el en curso: compacto, la cifra grande es la línea de cierre
   onOpenLiquidity?: () => void
 }) {
-  const remaining = spendable.amount
+  const remaining = closed ? spendable.margin : spendable.amount
   const net = cash - overdraftDebt // liquidez registrada: caja menos línea usada
-  // Solo se avisa cuando manda el margen: repartir de más es lo que pide una acción.
-  const limitLine = spendable.limitedBy === "margin" ? "Repartiste más de lo que entra" : null
   return (
     <div className="flex min-w-0 flex-col gap-4" role="group" aria-label="Resumen del plan">
       <div className="space-y-1">
@@ -50,12 +49,13 @@ export function PlanSummary({
             : remaining < 0 ? "Te pasaste del plan" : "Disponible para gastar"}
         </p>
         <p className={`tabular font-bold tracking-tight ${closed ? "text-title-3" : "text-hero"} ${remaining < 0 ? "text-destructive" : "text-foreground"}`}>{formatCLP(Math.abs(remaining))}</p>
-        {!closed && limitLine && <p data-nuevo className="text-subheadline text-muted-foreground">{limitLine}</p>}
         {subtitle && <p className="text-subheadline text-muted-foreground">{subtitle}</p>}
         {exchangeRateUnavailable && (
           <p className="text-footnote text-muted-foreground">Sin dólar observado: los montos en USD no están sumados.</p>
         )}
-        <span className="sr-only">Lo menor entre tu margen (ingresos menos gastado y comprometido) y lo que queda de tus topes; no es el saldo bancario.</span>
+        <span className="sr-only">{closed
+          ? "Tus ingresos menos lo gastado y comprometido en el período; no es el saldo bancario."
+          : "Lo menor entre tu margen (ingresos menos gastado y comprometido) y lo que queda de tus topes; no es el saldo bancario."}</span>
       </div>
       <dl className="grid grid-cols-3 gap-3 text-footnote">
         <div className="min-w-0"><dt className="text-muted-foreground">Ingresos</dt><dd className="tabular truncate text-subheadline font-semibold">{formatCLP(income)}</dd></div>

@@ -29,12 +29,18 @@ export function CategoryDetailSheet({
   const txs = category
     ? transactions.filter((tx) => tx.categoryId === category.id)
     : []
-  const spentPct = category && category.limit > 0
-    ? Math.max(0, Math.min(100, (category.used / category.limit) * 100))
-    : 0
-  const committedPct = category && category.limit > 0
-    ? Math.max(0, Math.min(100 - spentPct, (category.committed / category.limit) * 100))
-    : 0
+  // En el plan sin tope es tope $0 (como en la fila del dashboard): lo usado llena la barra.
+  const capped = !!category && (category.limit > 0 || category.inPlan)
+  const spentPct = !category
+    ? 0
+    : category.limit > 0
+      ? Math.max(0, Math.min(100, (category.used / category.limit) * 100))
+      : category.used > 0 ? 100 : 0
+  const committedPct = !category
+    ? 0
+    : category.limit > 0
+      ? Math.max(0, Math.min(100 - spentPct, (category.committed / category.limit) * 100))
+      : category.committed > 0 ? 100 - spentPct : 0
   return (
     <ResponsiveModal
       open={category !== null}
@@ -84,7 +90,7 @@ export function CategoryDetailSheet({
                 )}
               </p>
               {category.type !== "income" && (
-                category.limit > 0 ? (
+                capped ? (
                   <div
                     role="img"
                     aria-label={`Uso del presupuesto: ${formatCLP(category.used)} gastados y ${formatCLP(category.committed)} comprometidos de ${formatCLP(category.limit)}.`}

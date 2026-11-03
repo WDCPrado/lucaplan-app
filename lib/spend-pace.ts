@@ -3,7 +3,7 @@
  * fin del día `k` (0 = antes del primer día), así las dos líneas arrancan en $0 y el ideal llega al
  * presupuesto justo al cierre.
  *
- * - `spend`: gasto de cada fecha del período (`spendByDate`), en orden.
+ * - `spend`: gasto de cada fecha del período (`globalPace.daily` de la vista del presupuesto), en orden.
  * - `lastIndex`: último día con datos (hoy en el mes en curso, el último en un mes pasado, -1 si el
  *   período aún no empieza).
  */

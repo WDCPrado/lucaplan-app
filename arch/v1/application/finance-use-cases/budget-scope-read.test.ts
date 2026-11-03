@@ -9,18 +9,13 @@ import type {
   InstallmentPlan,
   InstallmentPlanRepository,
 } from "../../domain/finance/installment.domain.ts"
-import {
-  daysOf,
-  periodRange,
-  type PeriodMode,
-} from "../../../shared/billing-cycle.ts"
+import type { PeriodMode } from "../../../shared/billing-cycle.ts"
 import {
   getBudgetView,
   getMonthlySummary,
   getPreviousMonthDebt,
 } from "./finance-read.ts"
 import { inRange } from "./budget-formulas.ts"
-import { spendByDate } from "../../../../lib/day-spend.ts"
 
 function fixture(mode: PeriodMode) {
   const categories = [
@@ -127,19 +122,7 @@ function fixture(mode: PeriodMode) {
   async function read() {
     const view = await getBudgetView(deps, "u1", 2026, 10)
     const summary = await getMonthlySummary(deps, "u1", 2026, 10)
-    const bars = spendByDate(
-      txs.map((t) => ({
-        ...t,
-        date: t.date.toISOString(),
-        amount: t.amount.toMajor(),
-        currency: t.amount.currency,
-        amountClp:
-          t.amount.currency === "USD" ? t.amount.toMajor() * 950 : null,
-      })),
-      daysOf(periodRange(2026, 10, mode, {})),
-      view.categories
-    )
-    return { view, summary, dailyTotal: bars.reduce((s, n) => s + n, 0) }
+    return { view, summary, dailyTotal: view.globalPace.daily.reduce((s, n) => s + n, 0) }
   }
   return { txs, limits, deps, read }
 }
@@ -254,7 +237,7 @@ for (const mode of ["calendar", "card_cycle"] as const) {
     assert.equal(view.spent, 170000)
     assert.equal(summary.expense, 170000)
     assert.equal(dailyTotal, 170000)
-    assert.equal(view.capsOverspend, 20000)
+    assert.equal(view.capsOverspend, 40000) // 20.000 sobre el tope + 20.000 de la sin tope (WDC-177)
     assert.equal(view.monthOverspend, 70000)
     assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 80000)
   })

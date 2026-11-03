@@ -88,7 +88,7 @@ export function SpendPaceChart({
       <div
         ref={plotRef}
         role="img"
-        aria-label={`${summary}. Gastado ${formatCLP(spent)} de ${formatCLP(limit)}${
+        aria-label={`${summary}. Gasto del ritmo ${formatCLP(spent)} de ${formatCLP(limit)} disponibles al inicio del período${
           started
             ? `; el ritmo ideal a la fecha era ${formatCLP(Math.round(ideal[k]))}`
             : ""

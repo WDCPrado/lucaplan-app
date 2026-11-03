@@ -387,9 +387,9 @@ test("getBudgetView: el excedente de topes suma lo confirmado sobre el tope y na
     2026,
     8
   )
-  // Solo Supermercado se pasó: 130.000 de 100.000. Ni el pending de 40.000, ni el interno de
-  // 500.000, ni los 200.000 de la categoría sin tope, ni el sueldo.
-  assert.equal(view.capsOverspend, 30000)
+  // Supermercado se pasó 30.000 (130.000 de 100.000) y la sin tope entra al plan con tope 0:
+  // sus 200.000 son exceso (WDC-177). Ni el pending de 40.000, ni el interno de 500.000, ni el sueldo.
+  assert.equal(view.capsOverspend, 230000)
   // WDC-171: el gastado suma todo gasto real, también la categoría sin tope: 130.000 + 20.000 + 200.000.
   assert.equal(view.spent, 350000)
   assert.equal(view.committed, 40000)
@@ -403,7 +403,7 @@ test("getBudgetView: pasarse del presupuesto global cuenta todo el gasto incluid
   // WDC-171: incluye los 200.000 de la categoría sin tope.
   assert.equal(view.spent, 350000)
   assert.equal(view.monthOverspend, 250000)
-  assert.equal(view.capsOverspend, 30000)
+  assert.equal(view.capsOverspend, 230000) // 30.000 de Supermercado + 200.000 de la sin tope
 })
 
 test("getBudgetView: el DTO de la categoría excedida conserva sus cifras", async () => {
@@ -428,14 +428,14 @@ test("getBudgetView: con el gasto bajo el presupuesto solo queda el excedente de
     2026,
     8
   )
-  assert.equal(view.capsOverspend, 30000)
+  assert.equal(view.capsOverspend, 230000) // 30.000 de Supermercado + 200.000 de la sin tope
   assert.equal(view.monthOverspend, 0) // el mes todavía alcanza: son dos cifras independientes
 })
 
 test("getBudgetView: sin presupuesto del mes el excedente del mes es 0, no el gasto entero", async () => {
   const view = await getBudgetView(budgetDeps([]), "u1", 2026, 8)
   assert.equal(view.globalLimit, null)
-  assert.equal(view.capsOverspend, 30000)
+  assert.equal(view.capsOverspend, 230000) // 30.000 de Supermercado + 200.000 de la sin tope
   assert.equal(view.monthOverspend, 0)
 })
 
@@ -1481,4 +1481,43 @@ test("disp-interno: un movimiento interno de 500.000 en Regalos no la mete al pl
   assert.deepEqual(view.spendable, base.spendable)
   assert.equal(sum(view.globalPace.daily), 0)
   assert.equal(view.globalPace.budget, base.globalPace.budget)
+})
+
+test("disp-sin-ningun-tope: usuario nuevo sin topes con 50.000 en Regalos: el disponible es el margen 950.000 y manda el margen", async () => {
+  const view = await viewOf(wdc171Deps({
+    cats: HOGAR_REGALOS,
+    limits: [],
+    txs: [sueldo(1000000), novTx({ id: "regalo", categoryId: "c-regalos", amount: Money.of(50000, "CLP") })],
+  }))
+  assert.deepEqual(view.spendable, { amount: 950000, margin: 950000, plannedLeft: -50000, limitedBy: "margin" })
+  assert.equal(view.globalPace.budget, 1000000, "la meta del ritmo es el margen más lo ya gastado")
+})
+
+test("caps-sin-tope-en-el-plan: Regalos sin tope con 50.000 gastados cuenta 50.000 de exceso; Viajes sin tope ni gasto no suma", async () => {
+  const view = await viewOf(wdc171Deps({
+    cats: [...HOGAR_REGALOS, cat("c-viajes", "expense", "Viajes")],
+    txs: [
+      sueldo(1000000),
+      novTx({ id: "hogar", categoryId: "c-hogar", amount: Money.of(100000, "CLP") }),
+      novTx({ id: "regalo", categoryId: "c-regalos", amount: Money.of(50000, "CLP") }),
+    ],
+  }))
+  assert.equal(view.capsOverspend, 50000)
+})
+
+test("ritmo-meta-estable-margen: con topes por encima de los ingresos manda el margen, y un gasto de 20.000 en Hogar no mueve la meta", async () => {
+  const mes = (txs: Transaction[]) => viewOf(wdc171Deps({
+    cats: HOGAR_REGALOS,
+    limits: [limitOf("c-hogar", 2000000)],
+    txs: [sueldo(1000000), ...txs],
+  }))
+  const antes = await mes([])
+  assert.equal(antes.spendable.limitedBy, "margin")
+  assert.equal(antes.globalPace.budget, 1000000)
+
+  const despues = await mes([novTx({ id: "hoy", categoryId: "c-hogar", amount: Money.of(20000, "CLP") })])
+  assert.equal(despues.spendable.limitedBy, "margin")
+  assert.equal(despues.spendable.amount, 980000)
+  assert.equal(despues.globalPace.daily[NOV_2], 20000)
+  assert.equal(despues.globalPace.budget, antes.globalPace.budget)
 })

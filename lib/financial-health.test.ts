@@ -114,7 +114,7 @@ test("disp-titular-margen: el margen del titular sigue siendo ingresos − gasta
   const meter = source("components/finance/financial-health-meter.tsx")
   // En el período en curso pinta `spendable.amount`; un período cerrado muestra el margen (lo que
   // de verdad sobró o faltó de los ingresos), decidido en la revisión de WDC-177.
-  assert.match(meter, /const remaining = (?:closed \? spendable\.margin : )?spendable\.amount\b/)
+  assert.match(meter, /const remaining = closed \? spendable\.margin : spendable\.amount\b/)
   assert.ok(!meter.includes("health.balance"), "el titular no vuelve a leer el balance")
 })
 

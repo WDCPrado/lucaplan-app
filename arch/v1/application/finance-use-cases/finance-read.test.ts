@@ -380,7 +380,7 @@ const globalBudget = (amount: number): MonthlyBudget[] => [
   },
 ]
 
-test("getBudgetView: el excedente de topes suma lo confirmado sobre el tope y nada más", async () => {
+test("getBudgetView: el excedente de topes suma lo confirmado sobre el tope (todo lo usado en una sin tope del plan)", async () => {
   const view = await getBudgetView(
     budgetDeps(globalBudget(300000)),
     "u1",
@@ -1491,6 +1491,9 @@ test("disp-sin-ningun-tope: usuario nuevo sin topes con 50.000 en Regalos: el di
   }))
   assert.deepEqual(view.spendable, { amount: 950000, margin: 950000, plannedLeft: -50000, limitedBy: "margin" })
   assert.equal(view.globalPace.budget, 1000000, "la meta del ritmo es el margen más lo ya gastado")
+  // Sin plan ninguna categoría entra: Regalos no se pinta como excedida ni suma exceso.
+  assert.equal(view.categories.find((c) => c.id === "c-regalos")?.inPlan, false)
+  assert.equal(view.capsOverspend, 0)
 })
 
 test("caps-sin-tope-en-el-plan: Regalos sin tope con 50.000 gastados cuenta 50.000 de exceso; Viajes sin tope ni gasto no suma", async () => {

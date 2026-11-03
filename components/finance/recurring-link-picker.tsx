@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Search, X } from "lucide-react"
+import { SearchInput } from "@/components/ui/search-input"
 
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
@@ -101,27 +101,13 @@ export function RecurringLinkPicker({
           a ser el cobro.
         </p>
 
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id="recurring-link-q"
-            value={filters.q}
-            onChange={(e) => onFiltersChange({ ...filters, q: e.target.value })}
-            placeholder="Buscar por descripción…"
-            aria-label="Buscar movimiento"
-            className="h-11 pr-10 pl-10 text-body md:text-body"
-          />
-          {filters.q && (
-            <button
-              type="button"
-              onClick={() => onFiltersChange({ ...filters, q: "" })}
-              className="absolute top-1/2 right-1 grid size-11 -translate-y-1/2 place-items-center text-muted-foreground hover:text-foreground"
-              aria-label="Limpiar búsqueda"
-            >
-              <X className="size-4" />
-            </button>
-          )}
-        </div>
+        <SearchInput
+          id="recurring-link-q"
+          value={filters.q}
+          onValueChange={(q) => onFiltersChange({ ...filters, q })}
+          placeholder="Buscar por descripción…"
+          aria-label="Buscar movimiento"
+        />
 
         <div className="mt-4 space-y-2">
           <span className="block text-footnote font-medium text-muted-foreground">
@@ -166,7 +152,9 @@ export function RecurringLinkPicker({
                   }
                   className="tabular h-11 w-24 text-body md:text-body"
                 />
-                <span className="text-subheadline text-muted-foreground">días</span>
+                <span className="text-subheadline text-muted-foreground">
+                  días
+                </span>
               </div>
               {customInvalid && (
                 <p

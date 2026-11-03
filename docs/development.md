@@ -167,6 +167,13 @@ agrupaciones, la tipografía y los controles.
     contenido, clones ni seguimiento continuo. Se retiraron Glisse y el motor anterior para
     recuperar la composición estable en Safari móvil. Tabs y búsquedas usan enlaces/botones/
     inputs nativos; Select, menús, sliders y modales conservan los contratos accesibles de Radix/Vaul.
+  - **Patrones de controles (WDC-175).** `SearchInput` comparte búsqueda, limpiar y recuperación
+    de foco en Inicio/Movimientos y los pickers de recurrentes/cuotas. `Segmented` usa selección
+    exclusiva y flechas de Radix RadioGroup en modo, filtros y frecuencia de Ajustes. MonthPicker
+    enfoca el mes seleccionado y anuncia selección/período actual. Los sliders conservan teclado,
+    guardado al terminar y un área de 44 px; los filtros desactivados también lo están para teclado.
+    Tabs siguen siendo enlaces con `aria-current`; Select y menús conservan typeahead, portales y
+    Escape; ResponsiveModal conserva foco, scroll y cierre anidado. No se copia CSS ni motor de Glisse.
   - **Movimiento del vidrio**: `liquid-squish` encoge la cápsula al 97 % al presionarla (ella o un
     control suyo con `data-squish`) y vuelve con un spring (`linear()`, con `cubic-bezier` de respaldo). Solo CSS,
     interrumpible, y nada con movimiento reducido.

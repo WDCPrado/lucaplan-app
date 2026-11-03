@@ -713,7 +713,7 @@ function BottomNav({
                 style={{ flexGrow: weight }}
                 // Sin negrita en la activa: la marcan la pastilla y aria-current; un peso distinto
                 // ensancharía su etiqueta y movería a las vecinas bajo la pastilla.
-                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-foreground"
+                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
               >
                 <Icon className="size-5 shrink-0" />
                 {short ? (

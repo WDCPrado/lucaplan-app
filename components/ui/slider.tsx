@@ -32,7 +32,7 @@ function Slider({
       min={min}
       max={max}
       className={cn(
-        "relative flex w-full touch-none items-center select-none data-disabled:opacity-50",
+        "relative flex min-h-11 w-full touch-none items-center select-none data-disabled:opacity-50",
         className
       )}
       {...props}
@@ -50,7 +50,11 @@ function Slider({
         <SliderPrimitive.Thumb
           key={i}
           data-slot="slider-thumb"
-          aria-label={ariaLabel}
+          aria-label={
+            values.length > 1 && ariaLabel
+              ? `${ariaLabel}: ${i === 0 ? "mínimo" : "máximo"}`
+              : ariaLabel
+          }
           aria-valuetext={ariaValueText}
           className="block size-4 shrink-0 rounded-full border border-primary bg-background shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden disabled:pointer-events-none"
         />

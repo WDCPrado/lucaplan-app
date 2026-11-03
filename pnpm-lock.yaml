@@ -38,9 +38,6 @@ importers:
       date-fns:
         specifier: ^4.4.0
         version: 4.4.0
-      glisse:
-        specifier: 0.5.0
-        version: 0.5.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       input-otp:
         specifier: ^1.5.0
         version: 1.5.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -134,13 +131,6 @@ importers:
         version: 5.9.3
 
 packages:
-
-  glisse@0.5.0:
-    resolution: {integrity: sha512-FVL7wBj6JS9hx7FrikqLGiJojy4RX1sIRlBSUDZW/3f9+LwILqX9hsILHPgi54PsKSfHFL+C4k6YB411f0mJhA==}
-    peerDependencies:
-      react: '>=18'
-      react-dom: '>=18'
-
 
   input-otp@1.5.0:
     resolution: {integrity: sha512-3AcfdW1sNG0FmSA5hHMBXG7jNW5CdcdKs8ln8JOmn6S2SRkoXoJx+2UwC+ZvjflfnOdHJx0SfQ9/YjlxVYLtGQ==}
@@ -4900,12 +4890,6 @@ packages:
     resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
 snapshots:
-
-  glisse@0.5.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
-    dependencies:
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
-
 
   input-otp@1.5.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:

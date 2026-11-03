@@ -1,11 +1,11 @@
 "use client"
 
-import { Button, SearchField, Slider } from "glisse"
-
 import { useEffect, useState } from "react"
+import { Search } from "lucide-react"
 
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
-
+import { Input } from "@/components/ui/input"
+import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/finance-format"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
@@ -110,13 +110,16 @@ export function InstallmentLinkPicker({
           movimiento pasa a ser la cuota.
         </p>
 
-        <SearchField
-          value={query}
-          onValueChange={(value) => setQuery(value)}
-          placeholder="Buscar por descripción"
-          aria-label="Buscar movimiento"
-          className="text-body"
-        />
+        <div className="relative mb-2">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por descripción"
+            aria-label="Buscar movimiento"
+            className="h-11 pr-3 pl-10 text-body md:text-body"
+          />
+        </div>
 
         {/* Filtros de cercanía: se atenúan mientras hay texto porque el texto manda. */}
         {(!!categoryId || !!expectedAmount) && (
@@ -127,11 +130,10 @@ export function InstallmentLinkPicker({
             )}
           >
             {categoryId && categoryName && (
-              <Button
+              <button
                 type="button"
                 onClick={() => setOnlyCategory(!onlyCategory)}
                 aria-pressed={onlyCategory}
-                variant={onlyCategory ? "filled" : "glass"}
                 className={cn(
                   "h-11 shrink-0 rounded-lg border px-3 text-footnote whitespace-nowrap transition-colors",
                   onlyCategory
@@ -140,7 +142,7 @@ export function InstallmentLinkPicker({
                 )}
               >
                 Solo {categoryName}
-              </Button>
+              </button>
             )}
             {expectedAmount ? (
               <label className="flex min-w-0 flex-1 items-center gap-2 text-footnote text-muted-foreground">
@@ -148,8 +150,8 @@ export function InstallmentLinkPicker({
                   Monto ±{tolerance}%
                 </span>
                 <Slider
-                  value={tolerance}
-                  onValueChange={setTolerance}
+                  value={[tolerance]}
+                  onValueChange={([v]) => setTolerance(v)}
                   min={0}
                   max={100}
                   step={5}

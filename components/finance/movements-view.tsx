@@ -1,15 +1,12 @@
 "use client"
 
-import { Button } from "glisse"
-import { Button as SlotButton } from "@/components/ui/button"
-
 import { useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { SlidersHorizontal } from "lucide-react"
 
 import { formatDateHeader, fromYmd, monthName } from "@/lib/finance-format"
-
+import { Button } from "@/components/ui/button"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { AppShell } from "./app-shell"
 import { MonthNav } from "./month-nav"
@@ -181,6 +178,7 @@ export function MovementsView({
               </div>
               <Button
                 type="button"
+                variant="secondary"
                 onClick={() => setFiltersOpen(true)}
                 className="h-11 shrink-0 text-subheadline lg:hidden"
               >
@@ -263,6 +261,7 @@ export function MovementsView({
               </nav>
             )}
           </section>
+
         </div>
       </div>
 
@@ -297,13 +296,13 @@ function PageButton({
   const className = "h-11 flex-1 sm:flex-none"
   if (!href)
     return (
-      <Button disabled className={className}>
+      <Button variant="outline" disabled className={className}>
         {children}
       </Button>
     )
   return (
-    <SlotButton asChild variant="outline" className={className}>
+    <Button asChild variant="outline" className={className}>
       <Link href={href}>{children}</Link>
-    </SlotButton>
+    </Button>
   )
 }

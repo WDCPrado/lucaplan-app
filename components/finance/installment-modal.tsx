@@ -1,13 +1,11 @@
 "use client"
 
-import { Input } from "glisse"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
-
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { formatCLP } from "@/lib/finance-format"
@@ -231,7 +229,7 @@ export function InstallmentModal({
                 kind === "card" ? "Ej. Notebook" : "Ej. Crédito de consumo"
               }
               value={description}
-              onValueChange={(value) => setDescription(value)}
+              onChange={(e) => setDescription(e.target.value)}
               aria-label="Descripción"
               className="h-11 rounded-lg text-body md:text-body"
             />
@@ -288,8 +286,8 @@ export function InstallmentModal({
               <Input
                 inputMode="numeric"
                 value={total ? total.toLocaleString("es-CL") : ""}
-                onValueChange={(value) => {
-                  setTotal(Number(value.replace(/\D/g, "")) || 0)
+                onChange={(e) => {
+                  setTotal(Number(e.target.value.replace(/\D/g, "")) || 0)
                   setAmounts(null)
                 }}
                 placeholder="0"
@@ -328,14 +326,13 @@ export function InstallmentModal({
                 <span className="text-muted-foreground">Cuotas en total</span>
                 <Input
                   inputMode="numeric"
-                  value={String(count)}
-                  onValueChange={(value) => {
-                    const n = Number(value.replace(/\D/g, "")) || 1
+                  value={count}
+                  onChange={(e) => {
+                    const n = Number(e.target.value.replace(/\D/g, "")) || 1
                     setCountAndReset(Math.min(n, 240))
                   }}
                   aria-label="Número total de cuotas"
-                  style={{ width: 80 }}
-                  className="tabular text-right text-body"
+                  className="tabular h-11 w-20 text-right text-body md:text-body"
                 />
               </label>
             )}
@@ -353,15 +350,14 @@ export function InstallmentModal({
                 <span className="flex items-center gap-1.5">
                   <Input
                     inputMode="numeric"
-                    value={String(startIndex)}
-                    onValueChange={(value) => {
-                      const n = Number(value.replace(/\D/g, "")) || 1
+                    value={startIndex}
+                    onChange={(e) => {
+                      const n = Number(e.target.value.replace(/\D/g, "")) || 1
                       setStartIndex(Math.min(Math.max(n, 1), count))
                       setAmounts(null)
                     }}
                     aria-label="Número de la próxima cuota"
-                    style={{ width: 64 }}
-                    className="tabular text-right text-body"
+                    className="tabular h-11 w-16 text-right text-body md:text-body"
                   />
                   <span className="text-muted-foreground">de {count}</span>
                 </span>
@@ -470,8 +466,11 @@ export function InstallmentModal({
                     <Input
                       inputMode="numeric"
                       value={values[pos]?.toLocaleString("es-CL") ?? ""}
-                      onValueChange={(value) =>
-                        setAmountAt(pos, Number(value.replace(/\D/g, "")) || 0)
+                      onChange={(e) =>
+                        setAmountAt(
+                          pos,
+                          Number(e.target.value.replace(/\D/g, "")) || 0
+                        )
                       }
                       aria-label={`Monto de la cuota ${index}`}
                       className="tabular h-11 min-w-0 flex-1 px-2 text-right text-body md:text-body"

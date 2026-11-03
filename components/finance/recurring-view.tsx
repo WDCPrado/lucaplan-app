@@ -1,7 +1,5 @@
 "use client"
 
-import { Button } from "glisse"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Check } from "lucide-react"
@@ -14,7 +12,7 @@ import { AppShell } from "./app-shell"
 import { CategoryIcon } from "./category-icons"
 import { RecurringModal } from "./recurring-modal"
 import { InstallmentsSection } from "./installments-view"
-
+import { Button } from "@/components/ui/button"
 import type {
   AccountDTO,
   CategoryDTO,
@@ -303,6 +301,7 @@ function RecurringRow({
           Esto lo cierra sin salir de la lista. Solo aparece cuando hay algo que marcar. */}
       {canMarkPaid && (
         <Button
+          variant="ghost"
           onClick={onMarkPaid}
           aria-label={`Ya lo pagué: ${t.label}`}
           // Escritorio: la acción con su nombre; en móvil solo el icono, que el ancho es del nombre.

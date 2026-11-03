@@ -1,6 +1,6 @@
 // Nivel del Liquid Glass (Ajustes → Apariencia): 0 = más transparente … 2 = el de siempre … 4 = teñido.
 // Es del usuario (en la base, ver lib/appearance.ts) y se aplica como `data-glass` en <html>, que en
-// globals.css mueve el token oficial `--lg-glass`. En el nivel por defecto el atributo no va.
+// globals.css mueve `--glass-clear`/`--glass-tint`. En el nivel por defecto el atributo no va.
 // Este módulo es solo el DOM y sus suscriptores; guardar lo hace AppearanceProvider.
 export const GLASS_MAX = 4
 export const GLASS_DEFAULT = 2

@@ -1,7 +1,5 @@
 "use client"
 
-import { Button } from "glisse"
-
 import { useState } from "react"
 import { Check, Plus } from "lucide-react"
 
@@ -10,7 +8,7 @@ import { currentPeriod, formatCLP } from "@/lib/finance-format"
 import { CategoryIcon } from "./category-icons"
 import { InstallmentModal } from "./installment-modal"
 import { InstallmentPlanModal } from "./installment-plan-modal"
-
+import { Button } from "@/components/ui/button"
 import type {
   AccountDTO,
   CategoryDTO,
@@ -93,13 +91,13 @@ export function InstallmentsSection({
         {/* Crear un plan es la acción de la sección: texto azul a la derecha del encabezado.
             Vacía, el CTA es el del empty state. */}
         {plans.length > 0 && (
-          <Button
+          <button
             type="button"
             onClick={() => setCreating(true)}
             className="press flex min-h-11 shrink-0 items-center gap-1 text-body text-primary"
           >
             <Plus className="size-4" /> Nueva compra
-          </Button>
+          </button>
         )}
       </div>
 
@@ -230,11 +228,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       <p className="mx-auto mt-1 max-w-sm text-subheadline text-balance text-muted-foreground">
         Una compra en cuotas convertida en plan hace que cada mes cargue solo su cuota, y te dice cuánto falta de verdad.
       </p>
-      <Button
-        variant="filled"
-        onClick={onCreate}
-        className="mt-5 h-11 text-body"
-      >
+      <Button onClick={onCreate} className="mt-5 h-11 text-body">
         <Plus className="size-4" />
         Registrar un crédito
       </Button>

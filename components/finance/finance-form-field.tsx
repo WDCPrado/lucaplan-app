@@ -1,9 +1,7 @@
 "use client"
 
-import { Input } from "glisse"
-
 import type { ReactNode, ComponentProps } from "react"
-
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { groupByCurrency } from "@/lib/finance-format"
 import {
@@ -56,7 +54,7 @@ export function MoneyFormInput({
   currency = "CLP",
   allowNegative = false,
   ...props
-}: Omit<ComponentProps<typeof Input>, "value" | "onValueChange"> & {
+}: Omit<ComponentProps<typeof Input>, "value" | "onChange"> & {
   value: number
   onValueChange: (value: number) => void
   currency?: CurrencyCode
@@ -75,10 +73,12 @@ export function MoneyFormInput({
             ? ""
             : groupByCurrency(value, currency)
       }
-      onValueChange={(value) =>
+      onChange={(event) =>
         onValueChange(
-          ((allowNegative && value.trim().startsWith("-") ? -1 : 1) *
-            Number(value.replace(/\D/g, "").slice(0, 15) || "0")) /
+          ((allowNegative && event.target.value.trim().startsWith("-")
+            ? -1
+            : 1) *
+            Number(event.target.value.replace(/\D/g, "").slice(0, 15) || "0")) /
             scale
         )
       }

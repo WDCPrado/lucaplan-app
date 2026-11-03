@@ -14,6 +14,7 @@ import { useAppearance } from "@/components/appearance-provider"
 import { PushToggle } from "@/components/pwa/push-toggle"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
 import { AppShell, useOpenProfile } from "./app-shell"
+import { Segmented } from "./segmented"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { GLASS_DEFAULT, GLASS_MAX, getGlass, setGlass, subscribeGlass } from "@/lib/glass-level"
@@ -327,33 +328,13 @@ function PaceSection({
           : "Un gasto grande puede reventar el día; la semana lo absorbe mejor."
       }
     >
-      <div
-        role="radiogroup"
-        aria-label="Frecuencia del ritmo"
-        className="flex gap-0.5 rounded-lg bg-(--glass-control) p-0.5"
-      >
-        {PACE_OPTIONS.map((opt) => {
-          const active = opt.value === frequency
-          return (
-            <button
-              key={opt.value}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              disabled={pending}
-              onClick={() => change(opt.value)}
-              className={cn(
-                "h-11 flex-1 rounded-md px-4 text-subheadline font-medium transition-colors disabled:opacity-60",
-                active
-                  ? "bg-(--glass-control-active) text-foreground shadow-sm"
-                  : "text-muted-foreground"
-              )}
-            >
-              {opt.label}
-            </button>
-          )
-        })}
-      </div>
+      <Segmented
+        label="Frecuencia del ritmo"
+        value={frequency}
+        options={PACE_OPTIONS}
+        onChange={change}
+        disabled={pending}
+      />
     </SettingsSection>
   )
 }

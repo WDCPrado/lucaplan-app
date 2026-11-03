@@ -429,6 +429,7 @@ export function RecurringModal({
                   onChange={(e) => setTolerancePct(Number(e.target.value))}
                   className="mt-3 h-11 w-full accent-primary"
                   aria-label="Tolerancia del monto"
+                  aria-valuetext={`Más o menos ${tolerancePct} por ciento`}
                 />
               </div>
             </ModalSection>

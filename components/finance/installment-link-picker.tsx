@@ -1,10 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Search } from "lucide-react"
 
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
-import { Input } from "@/components/ui/input"
+import { SearchInput } from "@/components/ui/search-input"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/finance-format"
@@ -111,13 +110,11 @@ export function InstallmentLinkPicker({
         </p>
 
         <div className="relative mb-2">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
+          <SearchInput
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onValueChange={setQuery}
             placeholder="Buscar por descripción"
             aria-label="Buscar movimiento"
-            className="h-11 pr-3 pl-10 text-body md:text-body"
           />
         </div>
 
@@ -134,6 +131,7 @@ export function InstallmentLinkPicker({
                 type="button"
                 onClick={() => setOnlyCategory(!onlyCategory)}
                 aria-pressed={onlyCategory}
+                disabled={!!q}
                 className={cn(
                   "h-11 shrink-0 rounded-lg border px-3 text-footnote whitespace-nowrap transition-colors",
                   onlyCategory
@@ -156,6 +154,8 @@ export function InstallmentLinkPicker({
                   max={100}
                   step={5}
                   aria-label="Umbral de monto"
+                  aria-valuetext={`Más o menos ${tolerance} por ciento`}
+                  disabled={!!q}
                   className="min-w-0 flex-1"
                 />
               </label>

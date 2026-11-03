@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import {
   Popover,
@@ -14,7 +14,9 @@ import { currentPeriod, monthName } from "@/lib/finance-format"
 // Etiqueta del período: el mes («Octubre») o, en modo tarjeta, el rango del ciclo
 // («Ciclo 23 sep – 22 oct»). La misma en el selector y en el MonthNav deshabilitado.
 const day = (key: string) =>
-  `${key.slice(8, 10)} ${monthName(Number(key.slice(5, 7))).slice(0, 3).toLowerCase()}`
+  `${key.slice(8, 10)} ${monthName(Number(key.slice(5, 7)))
+    .slice(0, 3)
+    .toLowerCase()}`
 export function periodLabel(
   period: { month: number },
   cycleRange?: { start: string; end: string }
@@ -44,6 +46,7 @@ export function MonthPicker({
   const [open, setOpen] = useState(false)
   const [year, setYear] = useState(period.year)
   const now = current ?? currentPeriod()
+  const selectedMonth = useRef<HTMLButtonElement>(null)
 
   return (
     <Popover
@@ -55,6 +58,7 @@ export function MonthPicker({
     >
       <PopoverTrigger asChild>
         <button
+          type="button"
           className={cn(
             "press min-h-11 max-w-full truncate rounded-full px-3 text-center text-headline font-semibold md:min-h-8 md:text-subheadline",
             className
@@ -64,17 +68,29 @@ export function MonthPicker({
           {withYear && <span className="tabular-nums"> {period.year}</span>}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="center" sideOffset={8} className="w-64 p-3">
+      <PopoverContent
+        align="center"
+        sideOffset={8}
+        className="w-64 p-3"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          selectedMonth.current?.focus()
+        }}
+      >
         <div className="mb-2 flex items-center justify-between">
           <button
+            type="button"
             onClick={() => setYear((y) => y - 1)}
             className="grid size-11 place-items-center rounded-lg transition-colors hover:bg-foreground/10 md:size-9"
             aria-label="Año anterior"
           >
             <ChevronLeft className="size-4" />
           </button>
-          <span className="text-subheadline font-semibold tabular-nums">{year}</span>
+          <span className="text-subheadline font-semibold tabular-nums">
+            {year}
+          </span>
           <button
+            type="button"
             onClick={() => setYear((y) => y + 1)}
             className="grid size-11 place-items-center rounded-lg transition-colors hover:bg-foreground/10 md:size-9"
             aria-label="Año siguiente"
@@ -85,10 +101,14 @@ export function MonthPicker({
         <div className="grid grid-cols-3 gap-1">
           {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
             const selected = year === period.year && m === period.month
-            const isNow =
-              year === now.year && m === now.month
+            const isNow = year === now.year && m === now.month
             return (
               <button
+                type="button"
+                ref={selected ? selectedMonth : undefined}
+                aria-pressed={selected}
+                aria-current={isNow ? "date" : undefined}
+                aria-label={`${monthName(m)} ${year}`}
                 key={m}
                 onClick={() => {
                   haptic("light")

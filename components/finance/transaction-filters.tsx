@@ -1,9 +1,8 @@
 "use client"
 
-import { useRef } from "react"
-import { Search, X, ChevronDown } from "lucide-react"
+import { ChevronDown } from "lucide-react"
+import { SearchInput } from "@/components/ui/search-input"
 import type { DateRange } from "react-day-picker"
-import { Input } from "@/components/ui/input"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
@@ -141,36 +140,16 @@ export function SearchField({
   inputId?: string
 }) {
   const q = value.q
-  const inputRef = useRef<HTMLInputElement>(null)
   const set = (patch: Partial<FilterValues>) => onChange({ ...value, ...patch })
   return (
-    <div className="relative">
-      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input
-        ref={inputRef}
-        id={inputId}
-        autoFocus={autoFocus}
-        value={q}
-        onChange={(e) => set({ q: e.target.value })}
-        aria-label="Buscar movimientos por descripción o categoría"
-        inputMode="search"
-        placeholder="Buscar por descripción o categoría…"
-        className="h-11 pr-10 pl-10 text-body"
-      />
-      {q && (
-        <button
-          type="button"
-          onClick={() => {
-            set({ q: "" })
-            inputRef.current?.focus()
-          }}
-          className="absolute top-1/2 right-0 grid size-11 -translate-y-1/2 place-items-center text-muted-foreground hover:text-foreground"
-          aria-label="Limpiar búsqueda"
-        >
-          <X className="size-4" />
-        </button>
-      )}
-    </div>
+    <SearchInput
+      id={inputId}
+      autoFocus={autoFocus}
+      value={q}
+      onValueChange={(q) => set({ q })}
+      aria-label="Buscar movimientos por descripción o categoría"
+      placeholder="Buscar por descripción o categoría…"
+    />
   )
 }
 
@@ -265,7 +244,9 @@ export function FilterControls({
             <PopoverTrigger asChild>
               <button
                 type="button"
-                aria-label={range?.from ? "Cambiar fechas" : "Filtrar por fechas"}
+                aria-label={
+                  range?.from ? "Cambiar fechas" : "Filtrar por fechas"
+                }
                 className={cn(ROW, "@md:col-span-2")}
               >
                 <span className="shrink-0">Fechas</span>

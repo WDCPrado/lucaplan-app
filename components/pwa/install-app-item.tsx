@@ -119,13 +119,13 @@ export function InstallAppItem({
             <ol className="flex flex-col gap-3">
               <li className="flex items-center gap-3 text-body">
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary">
-                  <Share className="size-4.5" aria-hidden="true" />
+                  <Share className="size-5" aria-hidden="true" />
                 </span>
                 Toca el botón <strong>Compartir</strong> en la barra de Safari.
               </li>
               <li className="flex items-center gap-3 text-body">
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary">
-                  <SquarePlus className="size-4.5" aria-hidden="true" />
+                  <SquarePlus className="size-5" aria-hidden="true" />
                 </span>
                 Elige <strong>Agregar a pantalla de inicio</strong>.
               </li>

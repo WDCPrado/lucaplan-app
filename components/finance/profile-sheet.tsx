@@ -54,10 +54,11 @@ function NameForm({
   const dirty = name.trim() !== initialName.trim()
 
   async function save({ name }: { name: string }) {
-    const res = await authClient.updateUser({ name })
-    if (res.error) {
+    // Sin red, updateUser lanza: cae al mismo mensaje que un rechazo sin texto.
+    const res = await authClient.updateUser({ name }).catch(() => null)
+    if (!res || res.error) {
       form.setError("root", {
-        message: res.error.message ?? "No se pudo guardar el nombre.",
+        message: res?.error?.message ?? "No se pudo guardar el nombre.",
       })
       return
     }
@@ -119,12 +120,12 @@ function NameForm({
           placeholder="Tu nombre"
           aria-invalid={!!errors.name}
           aria-describedby={errors.name ? "profile-name-error" : undefined}
-          className="h-11 rounded-none border-0 bg-transparent px-4 text-body shadow-none focus-visible:ring-inset md:text-body"
+          className="h-11 rounded-none border-0 bg-transparent px-4 shadow-none focus-visible:ring-inset"
         />
       </ModalSection>
       <ModalActions
         primary={{
-          label: isSubmitting ? "Guardando…" : "Guardar",
+          label: "Guardar",
           form: NAME_FORM,
           busy: isSubmitting,
           disabled: !dirty || isSubmitting,

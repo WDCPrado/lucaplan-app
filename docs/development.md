@@ -267,7 +267,12 @@ agrupaciones, la tipografía y los controles.
 - **Listas agrupadas («inset grouped»)**: secciones en tarjetas con filas de ≥44 px, separadores
   finos con inset desde el texto (`.inset-list`), chevron cuando la fila abre algo y la acción de la
   sección en texto azul a la derecha del encabezado. Las superficies se separan por el fondo, no
-  por bordes ni sombras.
+  por bordes ni sombras. El encabezado de un grupo (el día en Movimientos, la sección en
+  Recurrentes) va en `text-footnote` gris, en mayúsculas y con `tracking-wide`. En una fila de
+  movimiento, la descripción va en body regular y el monto en body semibold `.tabular` (ingreso en
+  `text-success`). Los filtros (Movimientos, buscador) son filas de un solo grupo con botón
+  emergente: el nombre a la izquierda, el valor en gris y `ChevronsUpDown`; el botón «Filtros»
+  queda teñido de azul con su conteo cuando hay filtros puestos, y su hoja cierra con ✓ Listo.
 - **Tipografía de la escala de iOS**, nunca tamaños sueltos: `text-large-title`, `text-hero` (la
   cifra protagonista), `text-title-1`, `text-title-3`, `text-headline`, `text-body`,
   `text-subheadline`, `text-footnote`, `text-caption`. Un tamaño nuevo se registra también en

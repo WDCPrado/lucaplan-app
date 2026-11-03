@@ -1,13 +1,14 @@
 "use client"
 
-import { useRef, useState, type ReactNode } from "react"
+import { useRef, useState, useTransition, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { SlidersHorizontal } from "lucide-react"
 
 import { formatDateHeader, fromYmd, monthName } from "@/lib/finance-format"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { ModalActions, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { AppShell } from "./app-shell"
 import { MonthNav } from "./month-nav"
 import { MovementRow } from "./movement-row"
@@ -67,6 +68,8 @@ export function MovementsView({
   const searchParams = useSearchParams()
   const [detailTx, setDetailTx] = useState<TransactionDTO | null>(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  // Mientras el servidor trae la lista filtrada, la actual se atenúa (sin esqueleto que salte).
+  const [loading, startLoading] = useTransition()
 
   // Estado local del panel (el input responde al tiro); la URL se actualiza después. Se inicializa
   // una vez desde la URL.
@@ -104,7 +107,9 @@ export function MovementsView({
         const month = searchParams.get("month")
         if (year) params.set("year", year)
         if (month) params.set("month", month)
-        router.replace(`/movements?${params.toString()}`, { scroll: false })
+        startLoading(() =>
+          router.replace(`/movements?${params.toString()}`, { scroll: false })
+        )
       },
       typing ? 300 : 0
     )
@@ -117,7 +122,7 @@ export function MovementsView({
     params.set("month", String(month))
     for (const k of ["page", "from", "to"]) params.delete(k)
     setValues((v) => ({ ...v, range: undefined }))
-    router.push(`/movements?${params.toString()}`)
+    startLoading(() => router.push(`/movements?${params.toString()}`))
   }
   function pageHref(page: number) {
     const params = new URLSearchParams(searchParams.toString())
@@ -166,7 +171,7 @@ export function MovementsView({
               el resto en una hoja; escritorio: todo abierto en el panel lateral. */}
           <aside
             aria-label="Filtrar movimientos"
-            className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:col-start-2 lg:row-start-1 lg:gap-6 lg:rounded-xl lg:bg-card lg:px-5 lg:pt-5 lg:pb-6"
+            className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:col-start-2 lg:row-start-1 lg:gap-5"
           >
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
@@ -176,14 +181,22 @@ export function MovementsView({
                   inputId={SEARCH_INPUT_ID}
                 />
               </div>
+              {/* Botón que se comporta como toggle (HIG): con filtros puestos queda teñido de azul. */}
               <Button
                 type="button"
                 variant="secondary"
                 onClick={() => setFiltersOpen(true)}
-                className="h-11 shrink-0 text-subheadline lg:hidden"
+                aria-label={
+                  filterCount > 0 ? `Filtros, ${filterCount} activos` : "Filtros"
+                }
+                className={cn(
+                  "h-11 shrink-0 text-subheadline lg:hidden",
+                  filterCount > 0 && "bg-primary/10 text-primary hover:bg-primary/15"
+                )}
               >
-                <SlidersHorizontal className="size-4" />
-                Filtros{filterCount > 0 && ` (${filterCount})`}
+                <SlidersHorizontal aria-hidden className="size-4" />
+                Filtros
+                {filterCount > 0 && <span className="tabular">{filterCount}</span>}
               </Button>
             </div>
             <div className="flex flex-col gap-6 max-lg:hidden">
@@ -191,10 +204,14 @@ export function MovementsView({
             </div>
           </aside>
 
-          <section aria-label="Lista de movimientos" className="min-w-0 lg:col-start-1 lg:row-start-1">
+          <section
+            aria-label="Lista de movimientos"
+            aria-busy={loading || undefined}
+            className="min-w-0 transition-opacity duration-200 aria-busy:opacity-60 motion-reduce:transition-none lg:col-start-1 lg:row-start-1"
+          >
             {result.items.length === 0 ? (
               <div className="glass rounded-xl px-6 py-12 text-center">
-                <p className="text-body font-medium">
+                <p className="text-headline font-semibold">
                   {hasFilters
                     ? "No hay movimientos con estos filtros"
                     : `No hay movimientos en ${monthName(period.month).toLowerCase()}`}
@@ -202,7 +219,7 @@ export function MovementsView({
                 <p className="mt-1 text-subheadline text-muted-foreground">
                   {hasFilters
                     ? "Prueba otra descripción, cambia los filtros o elige otro mes."
-                    : "Cuando lleguen los cargos del banco o registres uno, aparecen aquí."}
+                    : "Los cargos llegan desde el correo del banco y aparecen aquí."}
                 </p>
               </div>
             ) : (
@@ -211,7 +228,7 @@ export function MovementsView({
               <div className="flex flex-col gap-5">
                 {groups.map((g) => (
                   <div key={g.key}>
-                    <h2 className="mb-1.5 px-4 text-footnote font-medium text-muted-foreground">
+                    <h2 className="mb-1.5 px-4 text-footnote tracking-wide text-muted-foreground uppercase">
                       {g.header}
                     </h2>
                     <div className="glass inset-list flex flex-col overflow-hidden rounded-xl [--inset:4.5rem]">
@@ -273,6 +290,11 @@ export function MovementsView({
         <div className="flex flex-col gap-6 px-5 pb-6">
           <FilterControls {...filterProps} />
         </div>
+        {/* Los filtros se aplican al tocarlos; Listo solo cierra la hoja (HIG: toda hoja tiene una
+            salida visible, no solo el arrastre). */}
+        <ModalActions
+          primary={{ label: "Listo", onClick: () => setFiltersOpen(false) }}
+        />
       </ResponsiveModal>
 
       <TransactionModal
@@ -296,12 +318,12 @@ function PageButton({
   const className = "h-11 flex-1 sm:flex-none"
   if (!href)
     return (
-      <Button variant="outline" disabled className={className}>
+      <Button variant="secondary" disabled className={className}>
         {children}
       </Button>
     )
   return (
-    <Button asChild variant="outline" className={className}>
+    <Button asChild variant="secondary" className={className}>
       <Link href={href}>{children}</Link>
     </Button>
   )

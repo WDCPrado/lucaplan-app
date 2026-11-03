@@ -4,8 +4,8 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
-import { Plus } from "lucide-react"
-import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { ChevronRight, Loader, Plus } from "lucide-react"
+import { ModalActions, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 import { formatCLP } from "@/lib/finance-format"
@@ -44,15 +44,20 @@ export function AssignToInstallmentModal({
 }) {
   const router = useRouter()
   const [plans, setPlans] = useState<InstallmentPlanDTO[] | null>(null)
+  const [failed, setFailed] = useState(false)
   const [planId, setPlanId] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  // La cuota que se está asignando: su fila lleva el spinner.
+  const [busy, setBusy] = useState<string | null>(null)
 
   // Efecto genuino: se consulta la API al abrirse, desde una interacción del cliente.
   useEffect(() => {
     if (!open) return
     let alive = true
     fetch("/api/installments")
-      .then((r) => (r.ok ? r.json() : []))
+      .then((r) => {
+        if (!r.ok) throw new Error()
+        return r.json()
+      })
       .then((data: InstallmentPlanDTO[]) => {
         if (!alive) return
         // Solo planes que tengan alguna cuota esperando: el resto no puede recibir nada.
@@ -62,7 +67,12 @@ export function AssignToInstallmentModal({
         setPlans(open)
         if (open.length === 1) setPlanId(open[0].id)
       })
-      .catch(() => alive && setPlans([]))
+      .catch(() => {
+        if (!alive) return
+        // Un fallo no es «no tienes planes»: se dice que no se pudo consultar.
+        setFailed(true)
+        setPlans([])
+      })
     return () => {
       alive = false
     }
@@ -72,17 +82,26 @@ export function AssignToInstallmentModal({
 
   async function assign(itemId: string) {
     if (busy || !plan) return
-    setBusy(true)
-    const res = await fetch(`/api/installments/${plan.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemId, transactionId }),
-    })
-    const data = await res.json().catch(() => ({}))
-    setBusy(false)
-    if (!res.ok) {
+    setBusy(itemId)
+    let error: string | null = null
+    try {
+      const res = await fetch(`/api/installments/${plan.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId, transactionId }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        error = data.error ?? "No se pudo asignar a la cuota"
+      }
+    } catch {
+      error = "No se pudo asignar a la cuota. Revisa tu conexión."
+    } finally {
+      setBusy(null)
+    }
+    if (error) {
       haptic("error")
-      return toast.error(data.error ?? "No se pudo asignar a la cuota")
+      return toast.error(error)
     }
     haptic("success")
     toast.success("Movimiento asignado a la cuota")
@@ -99,8 +118,16 @@ export function AssignToInstallmentModal({
     >
       <div className="flex flex-col px-5 pb-4">
         {plans === null ? (
-          <p className="py-8 text-center text-subheadline text-muted-foreground">
+          <p
+            role="status"
+            className="flex items-center justify-center gap-2 py-8 text-subheadline text-muted-foreground"
+          >
+            <Loader aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
             Buscando planes…
+          </p>
+        ) : failed ? (
+          <p role="alert" className="py-8 text-center text-subheadline text-balance text-muted-foreground">
+            No se pudieron cargar tus planes de cuotas. Cierra y vuelve a intentarlo.
           </p>
         ) : plans.length === 0 ? (
           <p className="py-8 text-center text-subheadline text-balance text-muted-foreground">
@@ -119,7 +146,7 @@ export function AssignToInstallmentModal({
                   <button
                     type="button"
                     onClick={() => setPlanId(p.id)}
-                    className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
+                    className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left hover:bg-foreground/5"
                   >
                     <span
                       className="grid size-11 shrink-0 place-items-center rounded-full bg-muted"
@@ -132,14 +159,16 @@ export function AssignToInstallmentModal({
                       />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-subheadline font-medium">
+                      <span className="block truncate text-body">
                         {p.description}
                       </span>
                       <span className="block truncate text-footnote text-muted-foreground">
-                        cuota {p.settledCount} de {p.installmentsCount} ·{" "}
-                        {formatCLP(p.outstanding)} por pagar
+                        Cuota {p.settledCount} de {p.installmentsCount} ·{" "}
+                        <span className="tabular">{formatCLP(p.outstanding)}</span> por pagar
                       </span>
                     </span>
+                    {/* Abre el paso de elegir la cuota: chevron de lista de iOS. */}
+                    <ChevronRight aria-hidden className="disclosure" />
                   </button>
                 </li>
               ))}
@@ -155,7 +184,7 @@ export function AssignToInstallmentModal({
                 <button
                   type="button"
                   onClick={() => setPlanId(null)}
-                  className="min-h-11 shrink-0 text-subheadline text-primary"
+                  className="press min-h-11 shrink-0 px-1 text-body text-primary"
                 >
                   Cambiar
                 </button>
@@ -171,14 +200,15 @@ export function AssignToInstallmentModal({
                     <button
                       type="button"
                       onClick={() => assign(item.id)}
-                      disabled={busy}
-                      className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left disabled:opacity-50"
+                      disabled={busy !== null}
+                      aria-busy={busy === item.id || undefined}
+                      className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left hover:bg-foreground/5 disabled:opacity-50"
                     >
                       <span className="tabular w-6 shrink-0 text-footnote text-muted-foreground">
                         {item.index}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-subheadline">
+                        <span className="block text-body">
                           {shortDate(item.dueDate)}
                         </span>
                         <span
@@ -192,9 +222,13 @@ export function AssignToInstallmentModal({
                           {item.status === "overdue" ? "Vencida" : "Por venir"}
                         </span>
                       </span>
-                      <span className="tabular shrink-0 text-subheadline font-medium">
-                        {formatCLP(item.amount)}
-                      </span>
+                      {busy === item.id ? (
+                        <Loader aria-hidden className="size-5 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none" />
+                      ) : (
+                        <span className="tabular shrink-0 text-body font-semibold">
+                          {formatCLP(item.amount)}
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}
@@ -216,6 +250,11 @@ export function AssignToInstallmentModal({
           </div>
         )}
       </div>
+      {/* Elegir la cuota ya asigna: no hay ✓ que confirmar, solo la salida (HIG: Cancelar a la
+          izquierda de la hoja). */}
+      <ModalActions
+        cancel={{ label: "Cancelar", onClick: () => onOpenChange(false), disabled: busy !== null }}
+      />
     </ResponsiveModal>
   )
 }

@@ -265,17 +265,21 @@ export function TransactionModal({
   accounts: AccountDTO[]
   onOpenChange: (o: boolean) => void
 }) {
-  const [relatedTx, setRelatedTx] = useState<TransactionDTO | null>(null)
+  // El movimiento relacionado y los vínculos valen solo para el movimiento con que se pidieron:
+  // se derivan en render (abrir otro los descarta) en vez de limpiarlos en un efecto.
+  const [related, setRelated] = useState<{ forId: string; tx: TransactionDTO } | null>(null)
+  const relatedTx = related && related.forId === tx?.id ? related.tx : null
+  const setRelatedTx = (next: TransactionDTO) => tx && setRelated({ forId: tx.id, tx: next })
   const activeTx = relatedTx ?? tx
-  const [links, setLinks] = useState<ReimbursementCounterpart[]>([])
-  useEffect(() => { setRelatedTx(null) }, [tx?.id])
+  const [fetchedLinks, setFetchedLinks] = useState<{ forId: string; links: ReimbursementCounterpart[] } | null>(null)
+  const links = fetchedLinks && fetchedLinks.forId === activeTx?.id ? fetchedLinks.links : []
   useEffect(() => {
-    setLinks([])
     if (!activeTx?.reimbursementCount) return
+    const id = activeTx.id
     const controller = new AbortController()
-    fetch(`/api/transactions/${activeTx.id}/reimbursements`, { signal: controller.signal })
+    fetch(`/api/transactions/${id}/reimbursements`, { signal: controller.signal })
       .then(res => { if (!res.ok) throw new Error("No se pudieron cargar los movimientos relacionados"); return res.json() })
-      .then((data: { links: ReimbursementCounterpart[] }) => { if (!controller.signal.aborted) setLinks(data.links) })
+      .then((data: { links: ReimbursementCounterpart[] }) => { if (!controller.signal.aborted) setFetchedLinks({ forId: id, links: data.links }) })
       .catch(() => { /* Modal sigue utilizable aunque falle la consulta de enlaces. */ })
     return () => controller.abort()
   }, [activeTx?.id, activeTx?.reimbursementCount])
@@ -291,11 +295,11 @@ export function TransactionModal({
         <ModalSection title="Reembolso vinculado">
           {links.map(link => (
             <button key={link.id} type="button" onClick={() => setRelatedTx(link.transaction)}
-              className="press flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2 text-left">
-              <span className="min-w-0"><span className="block truncate text-subheadline font-medium">{link.transaction.description}</span>
-                <span className="block text-footnote text-muted-foreground">{link.transaction.date.slice(0, 10)} · {link.transaction.direction === "credit" ? "Ingreso recibido" : "Compra original"}</span>
+              className="press flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2 text-left hover:bg-foreground/5">
+              <span className="min-w-0"><span className="block truncate text-body">{link.transaction.description}</span>
+                <span className="block text-footnote text-muted-foreground">{fullDate(link.transaction.date)} · {link.transaction.direction === "credit" ? "Ingreso recibido" : "Compra original"}</span>
               </span>
-              <span className="flex shrink-0 items-center gap-1 text-subheadline font-semibold tabular-nums">${link.amount.toLocaleString("es-CL")} CLP<ChevronRight aria-hidden className="disclosure" /></span>
+              <span className="flex shrink-0 items-center gap-1.5 text-body font-semibold"><span className="tabular">{formatCLP(link.amount)}</span><ChevronRight aria-hidden className="disclosure" /></span>
             </button>
           ))}
         </ModalSection>
@@ -681,7 +685,7 @@ function EditForm({
                 onClick={remove}
                 variant="destructive"
               >
-                {busy === "delete" ? "Borrando…" : "Eliminar"}
+                Eliminar
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -694,7 +698,7 @@ function EditForm({
           disabled: busy !== null,
         }}
         primary={{
-          label: busy === "save" ? "Guardando…" : "Guardar",
+          label: "Guardar",
           form: `edit-transaction-${tx.id}-${instanceId}`,
           busy: busy === "save",
           disabled: !canSave,
@@ -811,25 +815,40 @@ function ConnectedDetail({
     tx.categoryId
   )
 
-  async function saveCategory() {
+  // Una acción del detalle: `saving` se suelta siempre (también si la red falla) y el fallo se
+  // avisa; devuelve la respuesta solo si salió bien.
+  async function run(request: () => Promise<Response>, failure: string) {
     setSaving(true)
-    // Una cuota proyectada no es una transacción: recategorizarla es recategorizar su plan.
-    const res = tx.installmentForecast
-      ? await fetch(`/api/installments/${tx.installmentPlanId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ categoryId }),
-        })
-      : await fetch(`/api/transactions/${tx.id}/category`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ categoryId }),
-        })
-    setSaving(false)
-    if (!res.ok) {
-      haptic("error")
-      return
+    try {
+      const res = await request()
+      if (res.ok) return res
+    } catch {
+      // Sin red: mismo aviso que un rechazo.
+    } finally {
+      setSaving(false)
     }
+    haptic("error")
+    toast.error(failure)
+    return null
+  }
+
+  async function saveCategory() {
+    // Una cuota proyectada no es una transacción: recategorizarla es recategorizar su plan.
+    const res = await run(
+      () =>
+        fetch(
+          tx.installmentForecast
+            ? `/api/installments/${tx.installmentPlanId}`
+            : `/api/transactions/${tx.id}/category`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ categoryId }),
+          }
+        ),
+      "No se pudo guardar la categoría"
+    )
+    if (!res) return
     haptic("success")
     // Quitar categoría no aprende nada; una cuota proyectada tampoco (no hay texto del banco).
     if (!categoryId || tx.installmentForecast) {
@@ -848,17 +867,16 @@ function ConnectedDetail({
   // siguientes; lo ya cobrado queda intacto.
   async function toggleRecurring() {
     if (!tx.recurringTemplateId) return
-    setSaving(true)
-    const res = await fetch(`/api/recurring/${tx.recurringTemplateId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive: !recurringActive }),
-    })
-    setSaving(false)
-    if (!res.ok) {
-      haptic("error")
-      return toast.error("No se pudo cambiar la recurrencia")
-    }
+    const res = await run(
+      () =>
+        fetch(`/api/recurring/${tx.recurringTemplateId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isActive: !recurringActive }),
+        }),
+      "No se pudo cambiar la recurrencia"
+    )
+    if (!res) return
     haptic("success")
     setRecurringActive(!recurringActive)
     toast.success(
@@ -871,16 +889,12 @@ function ConnectedDetail({
   // el comprometido del período en curso, que no ocurrió, se va con ella.
   async function deleteRecurring() {
     if (!tx.recurringTemplateId) return
-    setSaving(true)
     haptic("heavy") // destructiva: borra la plantilla
-    const res = await fetch(`/api/recurring/${tx.recurringTemplateId}`, {
-      method: "DELETE",
-    })
-    setSaving(false)
-    if (!res.ok) {
-      haptic("error")
-      return toast.error("No se pudo eliminar la recurrencia")
-    }
+    const res = await run(
+      () => fetch(`/api/recurring/${tx.recurringTemplateId}`, { method: "DELETE" }),
+      "No se pudo eliminar la recurrencia"
+    )
+    if (!res) return
     haptic("success")
     toast.success(
       "Recurrencia eliminada; los movimientos cobrados se conservan"
@@ -891,14 +905,12 @@ function ConnectedDetail({
 
   // Elimina el movimiento (abono o cargo). El backend revierte su efecto en el saldo de la cuenta.
   async function removeTx() {
-    setSaving(true)
     haptic("heavy") // destructiva
-    const res = await fetch(`/api/transactions/${tx.id}`, { method: "DELETE" })
-    setSaving(false)
-    if (!res.ok) {
-      haptic("error")
-      return toast.error("No se pudo eliminar el movimiento")
-    }
+    const res = await run(
+      () => fetch(`/api/transactions/${tx.id}`, { method: "DELETE" }),
+      "No se pudo eliminar el movimiento"
+    )
+    if (!res) return
     haptic("success")
     toast.success(
       income
@@ -917,20 +929,23 @@ function ConnectedDetail({
     applyToSameText: boolean
   }) {
     setSaving(true)
-    if (note.trim() || applyToSameText) {
-      // Best-effort: la categoría ya está guardada; si el follow-up falla, no bloquea el cierre.
-      await fetch("/api/categorization/corrections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transactionId: tx.id,
-          note: note.trim() || undefined,
-          applyToSameText,
-        }),
-      }).catch(() => {})
-      haptic(applyToSameText ? "success" : "light")
+    try {
+      if (note.trim() || applyToSameText) {
+        // Best-effort: la categoría ya está guardada; si el follow-up falla, no bloquea el cierre.
+        await fetch("/api/categorization/corrections", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transactionId: tx.id,
+            note: note.trim() || undefined,
+            applyToSameText,
+          }),
+        }).catch(() => {})
+        haptic(applyToSameText ? "success" : "light")
+      }
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
     onClose()
     router.refresh()
   }
@@ -977,7 +992,7 @@ function ConnectedDetail({
         category={categories.find((c) => c.id === categoryId)}
       />
 
-      <dl className="sheet-group flex flex-col px-4">
+      <dl className="sheet-group inset-list flex flex-col overflow-hidden">
         {account && (
           <Row label="Banco" value={account.bankName || account.name} />
         )}
@@ -1211,11 +1226,7 @@ function ConnectedDetail({
       <ModalActions
         cancel={{ label: "Cerrar", onClick: onClose, disabled: saving }}
         primary={{
-          label: saving
-            ? "Guardando…"
-            : changed
-              ? "Guardar categoría"
-              : "Guardado",
+          label: "Guardar categoría",
           onClick: saveCategory,
           busy: saving,
           disabled: !changed || saving,
@@ -1354,9 +1365,10 @@ const NAV_ROW =
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-border/50 py-3 last:border-0">
-      <dt className="text-subheadline text-muted-foreground">{label}</dt>
-      <dd className="text-right text-subheadline font-medium">{value}</dd>
+    // Celda «value1» de iOS: el nombre en el color del texto y el valor en gris a la derecha.
+    <div className="flex min-h-11 items-center justify-between gap-3 px-4 py-2.5">
+      <dt className="shrink-0 text-body">{label}</dt>
+      <dd className="min-w-0 text-right text-body text-muted-foreground">{value}</dd>
     </div>
   )
 }

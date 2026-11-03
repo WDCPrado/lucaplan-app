@@ -121,7 +121,7 @@ export function TransactionSearch({
             <div className="flex flex-col gap-4">
               {groups.map((g) => (
                 <div key={g.header}>
-                  <div className="mb-1.5 px-4 text-footnote font-medium text-muted-foreground">
+                  <div className="mb-1.5 px-4 text-footnote tracking-wide text-muted-foreground uppercase">
                     {g.header}
                   </div>
                   <div className="sheet-group inset-list flex flex-col overflow-hidden [--inset:4.25rem]">

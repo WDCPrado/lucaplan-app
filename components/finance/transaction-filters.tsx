@@ -148,7 +148,7 @@ export function SearchField({
       value={q}
       onValueChange={(q) => set({ q })}
       aria-label="Buscar movimientos por descripción o categoría"
-      placeholder="Buscar por descripción o categoría…"
+      placeholder="Buscar"
     />
   )
 }

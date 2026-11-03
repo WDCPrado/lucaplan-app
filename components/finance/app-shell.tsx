@@ -16,7 +16,7 @@ import {
   Settings,
   ChevronsUpDown,
   Search,
-  ListFilter,
+  List,
 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -77,7 +77,7 @@ const NAV: {
   {
     key: "movimientos",
     label: "Movimientos",
-    Icon: ListFilter,
+    Icon: List,
     href: "/movements",
   },
   // Un solo nombre por sección: el mismo en la barra lateral, la inferior y el título.
@@ -588,7 +588,7 @@ function NavMenu({
       />
       {NAV.map(({ key, label, Icon, href }) => (
         <SidebarMenuItem key={key}>
-          {/* Mismo lenguaje que la pestaña activa móvil: la pastilla azul de arriba (--glass-tab-active)
+          {/* Mismo lenguaje que la pestaña activa móvil: la pastilla neutra de arriba (--glass-tab-active)
               y el ícono y el texto en el acento. Hover y press en un velo del texto, como el resto
               de los controles sobre vidrio (el --sidebar-accent de shadcn es un gris sólido). */}
           <SidebarMenuButton
@@ -711,9 +711,9 @@ function BottomNav({
                 }}
                 data-squish
                 style={{ flexGrow: weight }}
-                // Sin negrita en la activa: la marcan la pastilla y aria-current; un peso distinto
+                // Sin negrita en la activa: la marcan la pastilla, el azul y aria-current; un peso distinto
                 // ensancharía su etiqueta y movería a las vecinas bajo la pastilla.
-                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-foreground aria-[current=page]:text-primary focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
               >
                 <Icon className="size-5 shrink-0" />
                 {short ? (

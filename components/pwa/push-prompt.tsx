@@ -92,7 +92,6 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
           }}
           primary={{
             label: pending ? "Activando…" : "Activar notificaciones",
-            mobileLabel: pending ? "Activando…" : "Activar",
             onClick: activate,
             disabled: pending,
           }}

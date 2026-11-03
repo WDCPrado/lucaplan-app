@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { BellOff, BellRing, Check, Loader2 } from "lucide-react"
+import { BellOff, BellRing, Check, Loader } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -77,7 +77,7 @@ export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string }) {
         className="h-11"
       >
         {pending || enabled === null ? (
-          <Loader2 className="size-4 animate-spin" />
+          <Loader className="size-4 animate-spin" />
         ) : enabled ? (
           <BellOff className="size-4" />
         ) : (

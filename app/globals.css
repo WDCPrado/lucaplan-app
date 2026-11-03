@@ -173,7 +173,7 @@
     --glass-rim: oklch(1 0 0 / 0.2);
     --glass-reflection-opacity: 0.8;
     --glass-shadow: 0 1px 2px oklch(0.2 0.01 286 / 0.06), 0 8px 24px -6px oklch(0.2 0.01 286 / 0.16);
-    --glass-tab-active: color-mix(in oklch, var(--primary) 16%, transparent);
+    --glass-tab-active: color-mix(in oklch, var(--foreground) 9%, transparent); /* pastilla neutra; el acento va en ícono y etiqueta */
     --glass-active-shadow: inset 0 0 0 0.5px var(--glass-edge), 0 1px 3px oklch(0 0 0 / 0.12);
     /* Material «regular» de iOS para lo que lleva texto encima del contenido (menús, popovers,
        select, tooltip, toasts, alertas): la misma familia, más opaco y con más desenfoque. */
@@ -302,7 +302,7 @@ html:has(main[data-landing]) body {
     --glass-rim: oklch(1 0 0 / 0.045);
     --glass-reflection-opacity: 0.8;
     --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 8px 24px -6px oklch(0 0 0 / 0.55);
-    --glass-tab-active: color-mix(in oklch, var(--primary) 26%, transparent);
+    --glass-tab-active: color-mix(in oklch, var(--foreground) 14%, transparent);
     --glass-active-shadow: inset 0 0 0 0.5px var(--glass-edge), 0 1px 3px oklch(0 0 0 / 0.18);
     --material: color-mix(in oklch, oklch(0.26 0.004 286 / 0.84), var(--card) var(--glass-tint));
     --material-shadow: 0 0 0 0.5px var(--glass-edge), 0 12px 40px -8px oklch(0 0 0 / 0.6);
@@ -366,6 +366,23 @@ html:has(main[data-landing]) body {
   }
 }
 
+/* === Íconos como SF Symbols (lucide-react; los SF Symbols no se licencian para web) ===
+   Un ícono toma el peso del texto que acompaña, como un símbolo junto a su etiqueta: regular con
+   texto regular, más grueso con texto semibold/bold. El tamaño lo sigue poniendo `size-*` según la
+   escala tipográfica (`size-4` junto a subheadline/body, `size-5` en barras, `size-6` sueltos). */
+:is(.font-semibold, .font-bold) > svg.lucide {
+  stroke-width: 2.5;
+}
+/* Chevron de fila (`chevron.right` de una lista de iOS): más chico que el texto, semibold y en
+   gris terciario. Para el chevron que abre algo desde una fila, nunca para navegar. */
+@utility disclosure {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  stroke-width: 3;
+  color: color-mix(in oklch, var(--muted-foreground) 60%, transparent);
+}
+
 
 /* === Liquid Glass (iOS 26) ===
    Una sola receta para toda la capa de controles, igual en Safari, Firefox y Chrome: desenfoque con
@@ -423,7 +440,7 @@ html:has(main[data-landing]) body {
     }
   }
 }
-/* Pestaña móvil activa: acento azul, sin otro desenfoque ni refracción dentro del vidrio. */
+/* Pestaña móvil activa (y la del sidebar): pastilla neutra, sin otro desenfoque dentro del vidrio. */
 @utility liquid-glass-active {
   background-color: var(--glass-tab-active);
   box-shadow: var(--glass-active-shadow);
@@ -782,6 +799,31 @@ html:has(main[data-landing]) body {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 8px 20px -10px rgb(0 0 0 / 0.25);
 }
 /* El modal legal de la landing conserva su título de antes: grande y a la izquierda. */
+/* La landing no sigue el lenguaje iOS de la app (WDC-176): su hoja queda pegada abajo y su X de
+   escritorio como un botón fantasma de 44 px, sin la hoja flotante ni el círculo gris. */
+.force-light[data-slot="drawer-content"] {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.force-light [data-slot="dialog-close"] {
+  top: 1rem;
+  right: 1rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-lg);
+  background-color: transparent;
+  color: var(--foreground);
+}
+.force-light [data-slot="dialog-close"]:hover {
+  background-color: var(--muted);
+}
+.force-light [data-slot="dialog-close"] svg {
+  stroke-width: 2;
+}
 .force-light :is([data-slot="drawer-title"], [data-slot="dialog-title"]) {
   font-size: 1.25rem;
   line-height: 1.375;

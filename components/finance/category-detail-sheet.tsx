@@ -50,7 +50,7 @@ export function CategoryDetailSheet({
                   Editar categoría
                 </>
               ),
-              mobileLabel: "Editar",
+              icon: Pencil,
               onClick: () => onEdit(category),
             }
           : undefined

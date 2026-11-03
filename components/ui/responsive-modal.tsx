@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { createPortal } from "react-dom"
-import { X } from "lucide-react"
+import { Check, X, type LucideIcon } from "lucide-react"
 import { Drawer as DrawerPrimitive } from "vaul"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -105,8 +105,8 @@ function isolateModalEvent(event: React.SyntheticEvent) {
 /** Acción del modal: con `form` envía ese `<form>` (mismo submit que Enter); sin él, `onClick`. */
 export type ModalAction = {
   label: React.ReactNode
-  /** Texto corto para el encabezado de la hoja en móvil («Guardar» en vez de «Guardar presupuesto»). */
-  mobileLabel?: React.ReactNode
+  /** Glifo del círculo de la hoja en móvil; por defecto `Check` (confirmar). */
+  icon?: LucideIcon
   form?: string
   onClick?: () => void
   disabled?: boolean
@@ -165,32 +165,40 @@ export function ModalActions({
   const scope = React.useContext(ModalScopeContext)
   const slots = React.useContext(HeaderSlotsContext)
   if (scope?.kind === "drawer") {
+    const PrimaryIcon = primary?.icon ?? Check
+    // iOS 26: círculos flotantes en el encabezado de la hoja. Cancelar es vidrio con `xmark`; la
+    // primaria, un círculo azul con `checkmark`, gris mientras no se puede (sin cambios o guardando).
+    // El texto completo queda como nombre accesible.
     return (
       <>
         {cancel &&
           slots?.start &&
           createPortal(
-            <Button
+            <button
               {...actionProps(cancel)}
               disabled={cancel.disabled}
-              variant="ghost"
-              className={sheetActionClass}
+              data-squish
+              className={cn(sheetCircleClass, "liquid-glass liquid-squish text-foreground")}
             >
-              {cancel.mobileLabel ?? cancel.label}
-            </Button>,
+              <X aria-hidden className="size-5" strokeWidth={2.5} />
+              <span className="sr-only">{cancel.label}</span>
+            </button>,
             slots.start
           )}
         {primary &&
           slots?.end &&
           createPortal(
-            <Button
+            <button
               {...actionProps(primary)}
               disabled={primary.disabled}
-              variant="ghost"
-              className={cn(sheetActionClass, "font-semibold")}
+              className={cn(
+                sheetCircleClass,
+                "bg-primary text-primary-foreground shadow-(--glass-shadow) disabled:bg-(--glass-control) disabled:text-muted-foreground disabled:shadow-none"
+              )}
             >
-              {primary.mobileLabel ?? primary.label}
-            </Button>,
+              <PrimaryIcon aria-hidden className="size-5" strokeWidth={2.75} />
+              <span className="sr-only">{primary.label}</span>
+            </button>,
             slots.end
           )}
       </>
@@ -202,7 +210,7 @@ export function ModalActions({
         <Button
           {...actionProps(cancel)}
           disabled={cancel.disabled}
-          variant="outline"
+          variant="secondary"
           className="h-12 flex-1 text-body"
         >
           {cancel.label}
@@ -212,7 +220,7 @@ export function ModalActions({
         <Button
           {...actionProps(primary)}
           disabled={primary.disabled}
-          className="h-auto min-h-12 min-w-0 flex-1 py-3 text-body whitespace-normal"
+          className="h-auto min-h-12 min-w-0 flex-1 py-3 text-body font-semibold whitespace-normal"
         >
           {primary.label}
         </Button>
@@ -276,9 +284,9 @@ export function ModalDangerRow({
   )
 }
 
-// Texto de acción del encabezado de la hoja: azul, sin relleno, 44 px de alto; deshabilitada en gris.
-const sheetActionClass =
-  "press h-11 min-w-11 px-3 text-body font-normal text-primary hover:bg-transparent hover:text-primary dark:hover:bg-transparent disabled:text-muted-foreground disabled:opacity-100"
+// Círculo de acción del encabezado de la hoja: 44 px, el mínimo táctil.
+const sheetCircleClass =
+  "press grid size-11 shrink-0 place-items-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default"
 
 // Superficie contextual adaptativa: diálogo centrado en escritorio, drawer inferior estilo iOS
 // en móvil (vaul: altura según el contenido y arrastrable). Mismo contenido y comportamiento;
@@ -361,7 +369,9 @@ export function ResponsiveModal({
             className={cn(
               // Los paneles cortos usan su contenido; los largos desplazan el cuerpo sin alcanzar
               // el notch. El teclado se superpone sin redimensionar ni elevar el panel.
-              "h-auto rounded-t-(--radius-sheet) bg-sheet p-0 text-body before:hidden data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))]",
+              // Hoja de iOS 26: flota despegada de los bordes, con las cuatro esquinas redondeadas y
+              // casi concéntrica con las del teléfono (el mismo `--tab-bar-inset` de la barra).
+              "h-auto rounded-(--radius-sheet) bg-sheet p-0 text-body before:hidden data-[vaul-drawer-direction=bottom]:inset-x-2 data-[vaul-drawer-direction=bottom]:bottom-(--tab-bar-inset) data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top)-var(--tab-bar-inset))]",
               className
             )}
           >
@@ -370,7 +380,7 @@ export function ResponsiveModal({
               título, que es lo único que se encoge y envuelve. */}
             <DrawerHeader
               className={cn(
-                "relative flex shrink-0 flex-row items-center gap-1 px-2 pt-1 pb-3 text-center",
+                "relative flex shrink-0 flex-row items-center gap-2 px-4 pt-1 pb-3 text-center",
                 headerClassName
               )}
             >
@@ -388,7 +398,7 @@ export function ResponsiveModal({
             </DrawerHeader>
             {/* El contenido se desplaza dentro del drawer, sin pie: el final deja aire y el espacio
               seguro para el gesto inferior del teléfono. */}
-            <div className="flex min-h-0 min-w-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] flex-col overflow-x-hidden overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))] [&>*]:min-w-0 [&>*]:shrink-0">
+            <div className="flex min-h-0 min-w-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] flex-col overflow-x-hidden overflow-y-auto pb-6 [&>*]:min-w-0 [&>*]:shrink-0">
               <HeaderSlotsContext.Provider value={slots}>
                 {children}
                 {(cancel || primary) && (
@@ -434,12 +444,13 @@ export function ResponsiveModal({
                   data-modal-owner={scope.id}
                   data-slot="dialog-close"
                   type="button"
-                  variant="ghost"
+                  variant="secondary"
                   size="icon"
-                  className="absolute top-4 right-4 hidden size-11 md:inline-flex"
+                  // `xmark` en círculo gris, como el cierre de una hoja de iOS 26 / macOS 26.
+                  className="absolute top-5 right-5 hidden size-9 rounded-full text-muted-foreground hover:text-foreground md:inline-flex"
                   aria-label={`Cerrar ${title}`}
                 >
-                  <X aria-hidden="true" />
+                  <X aria-hidden="true" className="size-4" strokeWidth={2.5} />
                 </Button>
               </DialogClose>
             )}

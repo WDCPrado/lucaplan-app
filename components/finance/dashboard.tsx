@@ -287,7 +287,7 @@ export function Dashboard({
             </span>
             <ChevronRight
               aria-hidden
-              className="size-4 shrink-0 text-muted-foreground/60"
+              className="disclosure"
             />
           </div>
           {/* Mismo semáforo que el arco (statusVar): gastado sólido + comprometido tenue detrás. */}
@@ -527,7 +527,7 @@ export function Dashboard({
                             className="press group flex min-h-11 w-full items-center gap-3 py-2.5 pr-3 pl-4 text-left text-subheadline text-muted-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
                           >
                             <span className="grid size-7 shrink-0 place-items-center">
-                              <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90 motion-reduce:transition-none" />
+                              <ChevronRight aria-hidden className="size-3.5 transition-transform group-data-[state=open]:rotate-90 motion-reduce:transition-none" strokeWidth={3} />
                             </span>
                             <span className="flex-1">
                               Sin tope · fuera del tope de gasto
@@ -670,7 +670,7 @@ export function Dashboard({
                   {/* Angosto (≤400 px), «Todos»: así la fecha y «Hoy» no se cortan. */}
                   <span className="max-[401px]:hidden">Ver todos</span>
                   <span className="min-[401px]:hidden">Todos</span>
-                  <ChevronRight aria-hidden className="size-4" />
+                  <ChevronRight aria-hidden className="size-3.5" strokeWidth={2.5} />
                 </Link>
               </div>
               {dayTransactions.length === 0 ? (

@@ -63,9 +63,9 @@ acabado de `liquid-glass` con más relleno. El borde combina un contorno tenue d
 reflejo localizado arriba-izquierda y un eco más débil abajo-derecha; no ilumina todo el perímetro.
 Los cinco niveles de Apariencia cambian la transparencia, conservando el desenfoque.
 
-`liquid-glass-active` usa `--glass-tab-active`, el acento azul, con `--glass-active-shadow`: es la
-pastilla de la pestaña móvil activa y la del link activo del sidebar. En la barra móvil textos e
-íconos conservan `foreground`; en el sidebar el activo los lleva en `text-primary`.
+`liquid-glass-active` usa `--glass-tab-active`, un velo neutro de `foreground`, con
+`--glass-active-shadow`: es la pastilla de la pestaña móvil activa y la del link activo del
+sidebar. En los dos, el ícono y el texto del activo van en `text-primary`.
 `scroll-edge-top` (`--scroll-edge`, `--scroll-edge-amount`, `--scroll-edge-blur`) queda solo detrás
 de la topbar de escritorio. En móvil el desenfoque se limita a las cápsulas del selector de mes y
 la navegación, sin velos fuera de sus bordes. La fila superior móvil anula la sombra exterior
@@ -83,8 +83,9 @@ de desenfoque, los materiales caen a sólido. `prefers-reduced-motion` sigue sie
 
 ## Forma y tipografía
 
-- `--radius: 0.625rem`; jerarquía de tres niveles (controles `rounded-lg`, superficies `rounded-xl`,
-  ítems `rounded-md`) y `--radius-sheet` para hojas y alertas.
+- `--radius: 0.625rem`; jerarquía de tres niveles (botones, búsqueda y segmentado en cápsula
+  `rounded-full`, los demás campos `rounded-lg`, superficies `rounded-xl`, ítems `rounded-md`) y
+  `--radius-sheet` para hojas y alertas.
 - Tipografía del sistema: SF en Apple, Geist en el resto (`--font-sans`), con la escala de iOS
   (`text-large-title` … `text-caption`). Cifras con `.tabular` (cifras tabulares de la fuente del
   sistema). La landing conserva Geist, Space Grotesk y cifras mono.

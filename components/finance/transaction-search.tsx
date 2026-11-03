@@ -3,7 +3,7 @@
 import type { ReactNode } from "react"
 
 import { useEffect, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Loader } from "lucide-react"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MovementRow } from "./movement-row"
@@ -110,7 +110,7 @@ export function TransactionSearch({
         <div className="min-h-40">
           {loading && results.length === 0 ? (
             <div className="flex items-center justify-center py-12 text-muted-foreground">
-              <Loader2 className="size-5 animate-spin" />
+              <Loader className="size-5 animate-spin" />
             </div>
           ) : results.length === 0 ? (
             <p className="py-12 text-center text-subheadline text-muted-foreground">

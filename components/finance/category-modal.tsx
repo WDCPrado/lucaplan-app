@@ -214,7 +214,6 @@ export function CategoryModal({
       }}
       primary={{
         label: isSubmitting ? "Guardando…" : "Guardar categoría",
-        mobileLabel: isSubmitting ? "Guardando…" : "Guardar",
         form: formId,
         disabled: busy || (!!category && !isDirty),
       }}

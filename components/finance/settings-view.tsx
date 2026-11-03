@@ -81,7 +81,7 @@ export function SettingsView({
                   </span>
                 )}
               </span>
-              <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+              <ChevronRight aria-hidden className="disclosure" />
             </button>
             <button
               type="button"
@@ -120,7 +120,7 @@ export function SettingsView({
               className="press flex min-h-11 items-center justify-between gap-3 py-3 pr-3 pl-4 text-body hover:bg-accent/60"
             >
               Conexiones del plugin
-              <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+              <ChevronRight aria-hidden className="disclosure" />
             </Link>
           </div>
           <div className="glass overflow-hidden rounded-xl md:hidden">

@@ -292,7 +292,7 @@ export function TransactionModal({
               <span className="min-w-0"><span className="block truncate text-subheadline font-medium">{link.transaction.description}</span>
                 <span className="block text-footnote text-muted-foreground">{link.transaction.date.slice(0, 10)} · {link.transaction.direction === "credit" ? "Ingreso recibido" : "Compra original"}</span>
               </span>
-              <span className="flex shrink-0 items-center gap-1 text-subheadline font-semibold tabular-nums">${link.amount.toLocaleString("es-CL")} CLP<ChevronRight aria-hidden className="size-4 text-muted-foreground/60" /></span>
+              <span className="flex shrink-0 items-center gap-1 text-subheadline font-semibold tabular-nums">${link.amount.toLocaleString("es-CL")} CLP<ChevronRight aria-hidden className="disclosure" /></span>
             </button>
           ))}
         </ModalSection>
@@ -628,7 +628,7 @@ function EditForm({
           >
             <Repeat className="size-5 shrink-0 text-primary" />
             <span className="min-w-0 flex-1">Hacer recurrente</span>
-            <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+            <ChevronRight aria-hidden className="disclosure" />
           </button>
           <button
             type="button"
@@ -649,7 +649,7 @@ function EditForm({
             <span className="min-w-0 flex-1">
               {isCreditCard ? "Pasar a cuotas" : "Es una cuota"}
             </span>
-            <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+            <ChevronRight aria-hidden className="disclosure" />
           </button>
         </ModalSection>
       )}
@@ -1161,7 +1161,7 @@ function ConnectedDetail({
           >
             <Repeat className="size-5 shrink-0 text-primary" />
             <span className="min-w-0 flex-1">Hacer recurrente</span>
-            <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+            <ChevronRight aria-hidden className="disclosure" />
           </button>
           <button
             type="button"
@@ -1177,7 +1177,7 @@ function ConnectedDetail({
             <span className="min-w-0 flex-1">
               {isCreditCard ? "Pasar a cuotas" : "Es una cuota"}
             </span>
-            <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
+            <ChevronRight aria-hidden className="disclosure" />
           </button>
         </ModalSection>
       )}
@@ -1212,7 +1212,6 @@ function ConnectedDetail({
             : changed
               ? "Guardar categoría"
               : "Guardado",
-          mobileLabel: saving ? "Guardando…" : "Guardar",
           onClick: saveCategory,
           disabled: !changed || saving,
         }}

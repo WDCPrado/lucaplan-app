@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { LogOut, Loader2 } from "lucide-react"
+import { LogOut, Loader } from "lucide-react"
 
 import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
@@ -25,7 +25,7 @@ export function SignOutButton() {
       className="h-11"
     >
       {pending ? (
-        <Loader2 className="size-4 animate-spin" />
+        <Loader className="size-4 animate-spin" />
       ) : (
         <LogOut className="size-4" />
       )}

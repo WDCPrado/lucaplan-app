@@ -310,11 +310,6 @@ export function RecurringModal({
                 : template
                   ? "Guardar"
                   : "Crear recurrente",
-              mobileLabel: saving
-                ? "Guardando…"
-                : template
-                  ? "Guardar"
-                  : "Crear",
               form: formId,
               disabled: !canSave,
             }
@@ -511,7 +506,7 @@ export function RecurringModal({
                   </span>
                   <ChevronRight
                     aria-hidden
-                    className="size-4 shrink-0 text-muted-foreground/60"
+                    className="disclosure"
                   />
                 </button>
               )}

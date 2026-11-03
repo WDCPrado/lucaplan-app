@@ -91,30 +91,39 @@ colores siguen siendo los de Luca Plan; lo que se copia es cómo se usan los com
 Rigen para todo lo nuevo; un formulario o modal existente se adapta cuando se toca, no en
 un barrido aparte.
 
-- **shadcn es la fuente de verdad; `components/ui/` solo se toca para los radios.** Los primitivos
-  llevan la jerarquía de radios de abajo aplicada a mano: al reinstalar uno con `shadcn add`,
-  volver a aplicarla. Nada más se edita ahí. Lo reutilizable
+- **shadcn es la fuente de verdad; `components/ui/` solo se toca para los radios y la escala del
+  `Button`.** Los primitivos llevan la jerarquía de radios de abajo aplicada a mano, y `button.tsx`
+  además la escala de iOS (cápsula, `text-body` en el tamaño por defecto, ≥44 px de alto en táctil,
+  atenuado de `.press` al tocar en vez del desplazamiento de 1 px): al reinstalar uno con
+  `shadcn add`, volver a aplicarlas. Nada más se edita ahí. Lo reutilizable
   se compone encima, en `components/<carpeta>/` (`finance/`, `landing/`, `pwa/`): un
   componente propio envuelve a los primitivos, nunca los reemplaza. Una excepción documentada:
   `responsive-modal.tsx`, que es composición de Dialog y Drawer.
 - **Tokens, no valores.** Color, fuente, radio y espaciado salen de `app/globals.css`, en los
   dos temas. Un color nuevo es un token nuevo, no un hex en `className`.
-- **Radio sobrio, con jerarquía de tres niveles** (`--radius: 0.625rem`):
-  `rounded-lg` para controles (botones, inputs, selects, chips, filtros, botones de icono);
-  `rounded-xl` para superficies (tarjetas, paneles `glass`, secciones, modales, drawers,
+- **Radio con jerarquía de tres niveles** (`--radius: 0.625rem`), con los controles en cápsula
+  como en iOS 26: `rounded-full` para botones (también los de ícono, que son círculos), el campo
+  de búsqueda y el control segmentado, cuyos segmentos van concéntricos (`rounded-full` dentro de
+  la cápsula); `rounded-lg` para los demás campos (inputs, selects, el disparador de fecha), chips
+  y filtros; `rounded-xl` para superficies (tarjetas, paneles `glass`, secciones, modales, drawers,
   popovers); `rounded-md` para ítems de lista y de menú. `rounded-full` solo en lo que es un
   círculo o una barra por significado: avatares, anillos de icono, puntos de estado, barras de
-  progreso, el marcador del día, badges de conteo y los controles flotantes de vidrio (cápsulas y círculos de la navegación y la toolbar). Nada de `rounded-2xl`/`3xl`/`4xl`
+  progreso, el marcador del día, badges de conteo, los controles de arriba y los controles
+  flotantes de vidrio (cápsulas y círculos de la navegación, la toolbar y la hoja). Nada de `rounded-2xl`/`3xl`/`4xl`
   en controles ni paneles.
 - **Las alturas no cambian con el radio**: targets táctiles ≥44 px (`h-11`) en móvil, como dice
   la sección de responsividad.
 - **Modales, dos tipos y nada más.** `ResponsiveModal` para crear, editar o mostrar contenido
   (dialog en escritorio, drawer en móvil); `AlertDialog` para confirmar una acción al momento.
-  En escritorio los modales de contenido tienen X arriba; en móvil **no llevan X**: el drawer
-  se cierra por arrastre o tocando el fondo, sin un «Cerrar» ni «Listo» que repita eso. Las
-  confirmaciones se resuelven con sus botones. Las acciones se declaran con `ModalActions`
-  (`primary`, `cancel`): en móvil van en el encabezado de la hoja como en iOS («Cancelar» a la
-  izquierda, la primaria en azul a la derecha) y en escritorio en el pie; el botón que envía va
+  En escritorio los modales de contenido tienen X arriba (`xmark` en un círculo gris); en móvil
+  el drawer se cierra además por arrastre o tocando el fondo. Las confirmaciones se resuelven
+  con sus botones. Las acciones se declaran con `ModalActions` (`primary`, `cancel`): en móvil
+  van en el encabezado de la hoja como en iOS 26, en círculos de 44 px: a la izquierda uno de
+  vidrio con ✕ (`X`, cancela) y a la derecha uno azul con ✓ (`Check`, la primaria; `icon` lo
+  cambia cuando la acción no es confirmar, como el lápiz de «Editar categoría»). La primaria queda
+  gris y deshabilitada sin cambios o mientras guarda; el texto de cada acción es su nombre
+  accesible. En escritorio van en el pie (Cancelar o Cerrar en
+  gris, `secondary`, como el botón *bordered* de iOS; la primaria rellena y en semibold); el botón que envía va
   con `form="<id>"` del `<form>` del modal. `ModalFooter` solo existe en escritorio. Borrar va
   en `ModalDangerRow`, una fila roja al final del contenido, nunca junto a la primaria. Las
   secciones de un modal son grupos al estilo Ajustes (`ModalSection`). Convertir un movimiento
@@ -191,9 +200,10 @@ agrupaciones, la tipografía y los controles.
     el vidrio de las barras, con la misma saturación moderada; la utilidad `material` concentra la
     receta. Los toasts de estado conservan su color semántico. Las hojas van sólidas (`--sheet`).
   - **Color con moderación**: el vidrio no tiene color propio; textos e íconos encima van en
-    `foreground`. La pestaña móvil activa y el link activo del sidebar llevan el mismo fondo azul
-    (`--glass-tab-active`) con `--glass-active-shadow`, sin vidrio adicional dentro del vidrio; en
-    el sidebar el ícono y el texto del activo van además en `primary`. Hover y press sobre el
+    `foreground`, salvo la selección. La pestaña móvil activa y el link activo del sidebar llevan
+    la misma pastilla neutra (`--glass-tab-active`, un velo de `foreground`) con
+    `--glass-active-shadow`, sin vidrio adicional dentro del vidrio, y su ícono y su etiqueta en
+    `primary`, como la pestaña elegida de iOS 26. Hover y press sobre el
     vidrio son un velo de `foreground` (5 % y 10 %), no el gris sólido `--sidebar-accent`.
   - **Scroll edge effect** (`scroll-edge-top`) queda solo detrás de la topbar de escritorio:
     un velo tenue (`--scroll-edge-amount`, 22 % por defecto y proporcional al nivel de vidrio),
@@ -245,6 +255,16 @@ agrupaciones, la tipografía y los controles.
   cifra protagonista), `text-title-1`, `text-title-3`, `text-headline`, `text-body`,
   `text-subheadline`, `text-footnote`, `text-caption`. Un tamaño nuevo se registra también en
   `lib/utils.ts` o `cn()` lo confunde con un color. Los montos van con `.tabular`.
+- **Hoja móvil flotante (iOS 26)**: el drawer de `ResponsiveModal` se despega de los bordes
+  (`inset-x-2`, abajo `--tab-bar-inset`) con las cuatro esquinas en `--radius-sheet`; el alto sigue
+  siendo el del contenido.
+- **Íconos: `lucide-react` leído como SF Symbols.** Los SF Symbols y SF Pro no se licencian para
+  web: se elige el glifo lucide más cercano al símbolo que usaría iOS (`house`, `repeat`,
+  `list.bullet` → `List`, `gearshape`, `magnifyingglass`, `xmark.circle.fill` → `CircleX` relleno, el
+  indicador de actividad → `Loader`). El tamaño sale de la escala (`size-4` junto a subheadline o
+  body, `size-5` en barras, `size-6` sueltos) y el peso del texto vecino: junto a texto semibold o
+  bold el trazo sube solo (`globals.css`). El chevron de una fila que abre algo es `disclosure`
+  (chico, semibold, gris terciario); el de navegación en azul va en `size-3.5` con trazo 2.5.
 - **Menús, popovers y selects siguen el tema** (claro en claro): nada de `dark` fijo en un
   primitivo. El toque da respuesta con `.press`, y el movimiento respeta
   `prefers-reduced-motion`.

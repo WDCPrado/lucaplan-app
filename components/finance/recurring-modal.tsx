@@ -155,40 +155,47 @@ export function RecurringModal({
   async function save() {
     if (!canSave || !account || !categoryId) return
     setBusy("save")
-    const res = await fetch(
-      template ? `/api/recurring/${template.id}` : "/api/recurring",
-      {
-        method: template ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          accountId: account.id,
-          categoryId,
-          label: label.trim(),
-          direction: "debit",
-          baseAmount: money.value,
-          tolerancePct,
-          periodicity,
-          dayOfMonth: needsDay ? day : null,
-          startDate: template?.startDate ?? new Date().toISOString(),
-          endDate: endDate || null,
-          isActive: template?.isActive ?? true,
-          sourceTransactionId: template
-            ? undefined
-            : preset?.sourceTransactionId,
-        }),
+    try {
+      const res = await fetch(
+        template ? `/api/recurring/${template.id}` : "/api/recurring",
+        {
+          method: template ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accountId: account.id,
+            categoryId,
+            label: label.trim(),
+            direction: "debit",
+            baseAmount: money.value,
+            tolerancePct,
+            periodicity,
+            dayOfMonth: needsDay ? day : null,
+            startDate: template?.startDate ?? new Date().toISOString(),
+            endDate: endDate || null,
+            isActive: template?.isActive ?? true,
+            sourceTransactionId: template
+              ? undefined
+              : preset?.sourceTransactionId,
+          }),
+        }
+      )
+      const data = await res.json().catch(() => ({}))
+      setBusy(null)
+      if (!res.ok) {
+        haptic("error")
+        return toast.error(data.error ?? "No se pudo guardar la recurrente")
       }
-    )
-    const data = await res.json().catch(() => ({}))
-    setBusy(null)
-    if (!res.ok) {
+      haptic("success")
+      toast.success(template ? "Recurrente actualizada" : "Recurrente creada")
+      onOpenChange(false)
+      onSaved?.()
+      router.refresh()
+    } catch {
       haptic("error")
-      return toast.error(data.error ?? "No se pudo guardar la recurrente")
+      toast.error("No se pudo guardar la recurrente")
+    } finally {
+      setBusy(null)
     }
-    haptic("success")
-    toast.success(template ? "Recurrente actualizada" : "Recurrente creada")
-    onOpenChange(false)
-    onSaved?.()
-    router.refresh()
   }
 
   // Cambio de estado de la plantilla. Cierra el modal como las demás acciones — el estado nuevo
@@ -201,27 +208,39 @@ export function RecurringModal({
   ) {
     if (!template || saving) return
     setBusy(kind)
-    const res = await fetch(`/api/recurring/${template.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    const data = await res.json().catch(() => ({}))
-    setBusy(null)
-    if (!res.ok) {
+    try {
+      const res = await fetch(`/api/recurring/${template.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json().catch(() => ({}))
+      setBusy(null)
+      if (!res.ok) {
+        haptic("error")
+        return toast.error(data.error ?? fail)
+      }
+      haptic("success")
+      toast.success(ok)
+      setPickerOpen(false)
+      onOpenChange(false)
+      router.refresh()
+    } catch {
       haptic("error")
-      return toast.error(data.error ?? fail)
+      toast.error(fail)
+    } finally {
+      setBusy(null)
     }
-    haptic("success")
-    toast.success(ok)
-    setPickerOpen(false)
-    onOpenChange(false)
-    router.refresh()
   }
 
   // Deshace el "Ya lo pagué" de la fila. Solo lo marcado a mano: un cargo del banco es un hecho.
   function undoPaid() {
-    patch("undo", { periodPaid: false }, "Marca deshecha", "No se pudo deshacer la marca")
+    patch(
+      "undo",
+      { periodPaid: false },
+      "Marca deshecha",
+      "No se pudo deshacer la marca"
+    )
   }
 
   // El cargo llegó con otra fecha y no se enganchó solo: se elige a mano entre los gastos sueltos.
@@ -286,18 +305,25 @@ export function RecurringModal({
   async function remove() {
     if (!template || saving) return
     setBusy("delete")
-    const res = await fetch(`/api/recurring/${template.id}`, {
-      method: "DELETE",
-    })
-    setBusy(null)
-    if (!res.ok) {
+    try {
+      const res = await fetch(`/api/recurring/${template.id}`, {
+        method: "DELETE",
+      })
+      setBusy(null)
+      if (!res.ok) {
+        haptic("error")
+        return toast.error("No se pudo eliminar la recurrente")
+      }
+      haptic("success")
+      toast.success("Recurrente eliminada")
+      onOpenChange(false)
+      router.refresh()
+    } catch {
       haptic("error")
-      return toast.error("No se pudo eliminar la recurrente")
+      toast.error("No se pudo eliminar la recurrente")
+    } finally {
+      setBusy(null)
     }
-    haptic("success")
-    toast.success("Recurrente eliminada")
-    onOpenChange(false)
-    router.refresh()
   }
 
   return (
@@ -344,7 +370,6 @@ export function RecurringModal({
                 template.currentPeriodPaidManually) && (
                 // Abre otra hoja: fila con chevron, como las de Ajustes.
                 <button
-                 
                   type="button"
                   onClick={openPicker}
                   disabled={saving}
@@ -434,7 +459,6 @@ export function RecurringModal({
                   <span>{fmt(max)}</span>
                 </div>
                 <Slider
-                 
                   min={0}
                   max={50}
                   step={5}
@@ -526,10 +550,7 @@ export function RecurringModal({
                   <span className="shrink-0 text-muted-foreground">
                     No termina
                   </span>
-                  <ChevronRight
-                    aria-hidden
-                    className="disclosure"
-                  />
+                  <ChevronRight aria-hidden className="disclosure" />
                 </button>
               )}
             </ModalSection>
@@ -611,8 +632,8 @@ export function RecurringModal({
                 <AlertDialogHeader>
                   <AlertDialogTitle>¿Eliminar la recurrencia?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Se borra la plantilla y deja de cobrarse. Los movimientos
-                    ya cobrados se conservan.
+                    Se borra la plantilla y deja de cobrarse. Los movimientos ya
+                    cobrados se conservan.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -660,4 +681,3 @@ function BusySpinner() {
     />
   )
 }
-

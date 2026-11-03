@@ -188,7 +188,7 @@ export function RecurringLinkPicker({
         ) : (
           // Lista agrupada de la hoja: una celda con separadores desde el texto, como las demás.
           <ul
-           
+
             className="sheet-group inset-list mt-4 overflow-hidden"
             aria-busy={busy}
           >

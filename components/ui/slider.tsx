@@ -86,7 +86,7 @@ function Slider({
             // Perilla de iOS 26: cápsula de 38×24, clara y sólida en reposo para leerse sobre la
             // pista. Al arrastrar crece un 15 % y se vuelve vidrio; al soltar vuelve con un spring.
             // Reducir movimiento: sin escala. Reducir transparencia: el vidrio cae a sólido (token).
-            "block h-6 w-[2.375rem] shrink-0 rounded-full bg-(--knob) shadow-(--knob-shadow) outline-none",
+            "block h-6 w-[2.375rem] shrink-0 rounded-full bg-(--knob) shadow-(--knob-shadow)",
             "transition-transform duration-500 ease-(--ease-spring) motion-reduce:transition-none",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none",
             // El simple se activa al tocar cualquier punto (Radix captura el puntero en el Root);

@@ -217,11 +217,13 @@ export function DatePicker({
           {selected ? (
             // Mes completo y año: en una fecha de vigencia, "25/08" oculta justo el dato que
             // más se equivoca.
-            selected.toLocaleDateString("es-CL", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })
+            <span className="truncate">
+              {selected.toLocaleDateString("es-CL", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            </span>
           ) : (
             <span className="truncate text-muted-foreground">{placeholder}</span>
           )}

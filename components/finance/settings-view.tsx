@@ -196,7 +196,7 @@ function AppearanceSection() {
         />
         <div
           aria-hidden
-          className="flex justify-between text-footnote text-muted-foreground"
+          className="flex justify-between px-[1.1875rem] text-footnote text-muted-foreground"
         >
           <span>Transparente</span>
           <span>Teñido</span>

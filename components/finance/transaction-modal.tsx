@@ -268,11 +268,17 @@ export function TransactionModal({
   // El movimiento relacionado y los vínculos valen solo para el movimiento con que se pidieron:
   // se derivan en render (abrir otro los descarta) en vez de limpiarlos en un efecto.
   const [related, setRelated] = useState<{ forId: string; tx: TransactionDTO } | null>(null)
+  // Al cerrar (tx = null) o abrir otro, se descarta durante el render: si no, reabrir el mismo
+  // movimiento mostraría el relacionado que se vio antes.
+  if (related && related.forId !== tx?.id) setRelated(null)
   const relatedTx = related && related.forId === tx?.id ? related.tx : null
   const setRelatedTx = (next: TransactionDTO) => tx && setRelated({ forId: tx.id, tx: next })
   const activeTx = relatedTx ?? tx
   const [fetchedLinks, setFetchedLinks] = useState<{ forId: string; links: ReimbursementCounterpart[] } | null>(null)
-  const links = fetchedLinks && fetchedLinks.forId === activeTx?.id ? fetchedLinks.links : []
+  const links =
+    activeTx?.reimbursementCount && fetchedLinks && fetchedLinks.forId === activeTx.id
+      ? fetchedLinks.links
+      : []
   useEffect(() => {
     if (!activeTx?.reimbursementCount) return
     const id = activeTx.id

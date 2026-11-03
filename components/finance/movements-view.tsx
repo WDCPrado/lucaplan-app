@@ -187,11 +187,11 @@ export function MovementsView({
                 variant="secondary"
                 onClick={() => setFiltersOpen(true)}
                 aria-label={
-                  filterCount > 0 ? `Filtros, ${filterCount} activos` : "Filtros"
+                  filterCount > 0 ? `Filtros, ${filterCount} ${filterCount === 1 ? "activo" : "activos"}` : "Filtros"
                 }
                 className={cn(
                   "h-11 shrink-0 text-subheadline lg:hidden",
-                  filterCount > 0 && "bg-primary/10 text-primary hover:bg-primary/15"
+                  filterCount > 0 && "bg-primary/10 text-primary hover:bg-primary/10"
                 )}
               >
                 <SlidersHorizontal aria-hidden className="size-4" />

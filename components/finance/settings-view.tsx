@@ -106,7 +106,7 @@ export function SettingsView({
               <ChevronRight aria-hidden className="disclosure" />
             </button>
             {/* Booleano → switch, como el modo oscuro de iOS. El tema se guarda en la base. */}
-            <div data-nuevo className={CONTROL_ROW}>
+            <div className={CONTROL_ROW}>
               <label htmlFor="settings-dark" className="flex-1 text-body">
                 Modo oscuro
               </label>
@@ -219,7 +219,7 @@ function SignOutRow() {
             Cerrar sesión
           </button>
         </AlertDialogTrigger>
-        <AlertDialogContent data-nuevo>
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Cerrar sesión?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -340,7 +340,7 @@ function DueReminderSection({ initialDays }: { initialDays: number }) {
       }
     >
       <div className={GROUP}>
-        <div data-nuevo className={cn(CONTROL_ROW, "pr-2")}>
+        <div className={cn(CONTROL_ROW, "pr-2")}>
           <p aria-live="polite" className="tabular flex-1 text-body">
             {days === 0
               ? "El mismo día"
@@ -482,7 +482,7 @@ function BudgetAlertsSection({
       title="Alertas de presupuesto"
       footer="Te avisamos cuando una categoría cruza cada % marcado de su límite."
     >
-      <div data-nuevo className={GROUP}>
+      <div className={GROUP}>
         {percents.map((p) => {
           // La marca cambia al tocar (como iOS); si el guardado falla, vuelve sola.
           const saved = alerts.some((a) => a.percent === p)

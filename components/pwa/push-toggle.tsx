@@ -61,7 +61,7 @@ export function PushToggle({
   }
 
   return (
-    <div data-nuevo className={className}>
+    <div className={className}>
       <label htmlFor="settings-push" className="flex-1 text-body">
         Avisos en este dispositivo
       </label>

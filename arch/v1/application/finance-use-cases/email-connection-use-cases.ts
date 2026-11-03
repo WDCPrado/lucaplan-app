@@ -190,8 +190,8 @@ export type EmailConnectionDeps = {
   // Match contra plantillas recurrentes de los movimientos recién importados. Corre ANTES de la
   // IA: lo que reclama una plantilla ya queda categorizado y revisado, así que la IA no lo ve.
   matchRecurring?: (userId: string, externalIds: string[]) => Promise<number>
-  // Cuotas de los planes que disparan estos movimientos: el pago de la tarjeta ejecuta las de sus
-  // planes `card`, y el pago de una cuota de crédito lo adopta su plan `loan`. Corre ANTES de la
+  // Cuotas de los planes que disparan estos movimientos: el pago de una cuota de crédito lo adopta
+  // su plan `loan` (las `card` se saldan al conciliar la factura, no aquí). Corre ANTES de la
   // IA por lo mismo que el match: lo que un plan reclama ya queda categorizado y revisado.
   runInstallments?: (userId: string, externalIds: string[]) => Promise<number>
   // Categorización IA best-effort de lo importado no interno (una falla no revierte nada).
@@ -1102,10 +1102,12 @@ export async function syncMailbox(
 
   if (created.length > 0) {
     // Plantilla > IA: el match corre primero y deja categorizado y revisado lo que reclama.
-    if (deps.matchRecurring)
-      await deps.matchRecurring(mailbox.userId, created).catch(() => {})
+    // Cuotas antes que recurrentes: un pago de crédito ya enganchado a su plan no debe
+    // conciliar además una recurrente del mismo monto y cuenta.
     if (deps.runInstallments)
       await deps.runInstallments(mailbox.userId, created).catch(() => {})
+    if (deps.matchRecurring)
+      await deps.matchRecurring(mailbox.userId, created).catch(() => {})
     if (deps.categorize) await deps.categorize(mailbox.userId).catch(() => {})
     // Solo lo que el usuario NO registró a mano y no es un traspaso interno merece notificación.
     if (deps.notify && notifiable.length > 0)

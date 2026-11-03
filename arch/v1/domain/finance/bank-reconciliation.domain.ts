@@ -15,6 +15,8 @@ export type ReconciliationMovement = {
   isInternal: boolean
   bankReceivedAt: string | null
   recurringOnly?: boolean
+  // Cuota que creó un plan `card`: la compra original ya consumió el cupo entero.
+  cardInstallment?: boolean
   linked: boolean
   reimbursementAmount: number
   updatedAt: string

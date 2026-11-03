@@ -222,6 +222,8 @@ export function Dashboard({
     const paceLeft = c.pace && c.pace.budget > 0 ? c.pace.budget - c.pace.spent : null
     // Con ritmo pero sin presupuesto del período, ya no queda nada que repartir.
     const noMargin = !!c.pace && c.pace.budget <= 0
+    // «quedan» descuenta lo comprometido (tope − usado − comprometido); «sobre el tope» sale de `available`.
+    const quedan = Math.max(0, c.free)
     const figure = noMargin ? (
       "Sin margen"
     ) : c.pace && paceLeft !== null ? (
@@ -244,7 +246,7 @@ export function Dashboard({
           </>
         ) : (
           <>
-            quedan <span className="tabular">{formatCLP(c.available)}</span>
+            quedan <span className="tabular">{formatCLP(quedan)}</span>
           </>
         )
       ) : (
@@ -257,7 +259,9 @@ export function Dashboard({
       (paceLeft !== null && c.pace?.status === "excedido") ||
       (paceLeft === null && c.available < 0 && c.limit > 0)
         ? "text-destructive"
-        : paceLeft !== null && c.pace?.status === "alerta"
+        : (paceLeft !== null && c.pace?.status === "alerta") ||
+            // Sin pasarse del tope, pero lo comprometido ya se come lo que queda: «quedan $0».
+            (paceLeft === null && c.limit > 0 && c.free < 0)
           ? "text-warning"
           : "text-muted-foreground"
     return (
@@ -401,6 +405,7 @@ export function Dashboard({
     spent: totalUsed,
     committed: totalCommitted,
     reimbursementAdjustment: budget.reimbursementAdjustment,
+    exchangeRateUnavailable: budget.exchangeRateUnavailable,
   }
 
   const hasConnected = accounts.some((a) => a.provider !== "manual")
@@ -435,7 +440,6 @@ export function Dashboard({
               daysLeft={daysLeft}
               globalLimit={budget.globalLimit}
               spent={totalUsed}
-              committed={totalCommitted}
               plan={planProps}
               onOpenPlan={() => setPlanOpen(true)}
               onOpenLiquidity={() => setLiquidityOpen(true)}
@@ -497,7 +501,7 @@ export function Dashboard({
                   // Vacío: un solo CTA (el "+ Categoría" de la cabecera se esconde mientras tanto).
                   <div className="flex flex-col items-center gap-1 px-4 py-8 text-center">
                     <p className="text-subheadline text-muted-foreground">
-                      Reparte tu presupuesto en categorías para ver su ritmo.
+                      Reparte tu tope de gasto en categorías para ver su ritmo.
                     </p>
                     <button
                       onClick={newExpenseCategory}
@@ -526,7 +530,7 @@ export function Dashboard({
                               <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90 motion-reduce:transition-none" />
                             </span>
                             <span className="flex-1">
-                              Sin tope · fuera del presupuesto
+                              Sin tope · fuera del tope de gasto
                             </span>
                             <span className="tabular">
                               {uncappedCategories.length}
@@ -719,11 +723,21 @@ export function Dashboard({
                     data-card
                     className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-xl p-5 lg:w-auto lg:snap-start"
                   >
-                    <div className="text-subheadline text-muted-foreground">
-                      Total en cuentas
+                    <div
+                      className={cn(
+                        "text-subheadline",
+                        summary.netPosition < 0 ? "text-destructive" : "text-muted-foreground"
+                      )}
+                    >
+                      {summary.netPosition < 0 ? "Cuentas en negativo" : "Disponible en cuentas"}
                     </div>
-                    <div className="tabular text-title-1 font-bold">
-                      {formatCLP(summary.activeCash)}
+                    <div
+                      className={cn(
+                        "tabular text-title-1 font-bold",
+                        summary.netPosition < 0 && "text-destructive"
+                      )}
+                    >
+                      {formatCLP(summary.netPosition)}
                     </div>
                   </div>
                 )}

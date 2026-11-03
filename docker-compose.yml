@@ -27,6 +27,9 @@ services:
     # `environment` pisa el DATABASE_URL del .env (que apunta a localhost para el uso desde Windows).
     environment:
       DATABASE_URL: "postgresql://lucaplan:lucaplan@postgres:5432/lucaplan?schema=public"
+      # Datos reales: `next start` solo pone `production` si NODE_ENV viene vacío, así que un
+      # NODE_ENV=development en el .env activaría el código fijo de la cuenta demo. Se fija aquí.
+      NODE_ENV: production
     ports:
       # host:contenedor — la IP de Tailscale del host (100.101.76.33:3005) enruta hasta aquí.
       - "3005:3005"

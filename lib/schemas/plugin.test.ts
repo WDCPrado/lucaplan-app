@@ -69,3 +69,10 @@ test("vinculación de abono bancario con fuente de ingreso requiere identificado
   assert.equal(schema.safeParse({ ...valid, transactionId: "" }).success, false)
   assert.equal(schema.safeParse({ ...valid, operationId: "" }).success, false)
 })
+
+test("Dado una cuota de tarjeta, cuando el chat lee la herramienta lucaplan_pagar_cuota, entonces su descripción dice que el pago de la tarjeta no la cobra sola y que se salda al conciliar la factura", () => {
+  const { description } = pluginTools.lucaplan_pagar_cuota
+  assert.match(description, /tarjeta/i)
+  assert.match(description, /no se (cobran|saldan|pagan) sol/i)
+  assert.match(description, /concilia/i)
+})

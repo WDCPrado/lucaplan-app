@@ -53,11 +53,11 @@ export function BudgetLimitModal({
         throw new Error(
           await financeResponseError(
             res,
-            "No se pudo guardar el presupuesto. Vuelve a intentarlo."
+            "No se pudo guardar el tope de gasto. Vuelve a intentarlo."
           )
         )
       haptic("success")
-      toast.success("Presupuesto actualizado")
+      toast.success("Tope de gasto actualizado")
       onOpenChange(false)
       router.refresh()
     } catch (error) {
@@ -66,7 +66,7 @@ export function BudgetLimitModal({
         message:
           error instanceof Error
             ? error.message
-            : "No se pudo guardar el presupuesto.",
+            : "No se pudo guardar el tope de gasto.",
       })
     }
   }
@@ -78,7 +78,7 @@ export function BudgetLimitModal({
         if (!next) form.reset()
         onOpenChange(next)
       }}
-      title={`Presupuesto de ${monthName(period.month)}`}
+      title={`Tope de gasto de ${monthName(period.month)}`}
       cancel={{
         label: "Cancelar",
         disabled: isSubmitting,
@@ -88,7 +88,7 @@ export function BudgetLimitModal({
         },
       }}
       primary={{
-        label: isSubmitting ? "Guardando…" : "Guardar presupuesto",
+        label: isSubmitting ? "Guardando…" : "Guardar tope de gasto",
         mobileLabel: isSubmitting ? "Guardando…" : "Guardar",
         form: formId,
         disabled: isSubmitting || (current !== null && !isDirty),
@@ -107,9 +107,9 @@ export function BudgetLimitModal({
           )}
           <FinanceField
             id={fieldId}
-            label="Presupuesto total (CLP)"
+            label="Tope de gasto total (CLP)"
             error={errors.globalLimit?.message}
-            hint="Define cuánto quieres gastar. Puedes dejar dinero por repartir; los meses siguientes heredan este presupuesto hasta que lo cambies."
+            hint="Define cuánto quieres gastar. Puedes dejar dinero por repartir; los meses siguientes heredan este tope hasta que lo cambies."
           >
             <Controller
               name="globalLimit"

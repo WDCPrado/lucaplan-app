@@ -331,21 +331,16 @@ confirmación explícita; SHALL NOT borrarlos en silencio.
 - **WHEN** el usuario pide desconectar un banco cuyas cuentas tienen recurrentes, planes de cuotas o fuentes de ingreso asociadas
 - **THEN** la UI enumera cuántos de esos elementos se eliminarán junto con las cuentas y exige confirmación explícita antes de ejecutar
 
-### Requirement: El pago de tarjeta dispara las cuotas de sus planes
+### Requirement: El pago de tarjeta no salda las cuotas de sus planes
 
-El evento de **pago de tarjeta de crédito** detectado en el correo SHALL disparar, además de
-la proyección de saldos y cupo que ya realiza, la ejecución de la cuota correspondiente de
-cada plan `card` de esa cuenta. La cuenta SHALL resolverse con el mismo mapeo de instrumento
-que ya usa la proyección (últimos 4 de la tarjeta); un pago cuyo instrumento no se resuelve NO
-SHALL ejecutar cuotas.
+El evento de **pago de tarjeta de crédito** detectado en el correo SHALL proyectar el pago
+sobre saldos y cupo y NO SHALL ejecutar cuotas de los planes `card` de esa cuenta: el correo
+informa el total pagado, no qué cuotas trae la factura. Esas cuotas se saldan al conciliar la
+factura (ver installment-plans, "La cuota de tarjeta se salda al conciliar la factura").
 
-#### Scenario: Pago reconocido ejecuta las cuotas
+#### Scenario: Pago reconocido no ejecuta cuotas
 - **WHEN** se importa un correo de pago de tarjeta de una cuenta con planes de cuotas pendientes
-- **THEN** además de proyectarse el pago sobre el cupo, se ejecuta la cuota correspondiente de cada plan
-
-#### Scenario: Pago sin instrumento resuelto no ejecuta cuotas
-- **WHEN** llega un pago cuya tarjeta no puede mapearse a una cuenta del usuario
-- **THEN** no se ejecuta ninguna cuota
+- **THEN** el pago se proyecta sobre el cupo y las cuotas siguen pendientes
 
 ### Requirement: El pago de cuota de crédito de consumo se engancha a su plan
 

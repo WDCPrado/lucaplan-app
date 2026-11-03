@@ -1,15 +1,17 @@
-// Cuenta de demostración de los entornos EFÍMEROS de PR en Railway: la siembra scripts/seed-pr.ts y
+// Cuenta de demostración de los entornos EFÍMEROS de PR en Railway: la siembra scripts/seed.ts y
 // la muestra el formulario de login. Vive en un solo lugar para que nunca se ofrezcan credenciales
 // distintas a las sembradas. Server-only: RAILWAY_ENVIRONMENT_NAME no existe en el cliente.
 
+// Correo de la cuenta demo que siembra scripts/seed.ts (en PR, salvo SEED_PR_EMAIL).
+export const DEMO_EMAIL = "demo@lucaplan.cl"
+
 export type DemoAccount = { env: string; email: string; password: string }
 
-// Una cuenta sembrada, tal como la ofrece el login. `titulo` es el nombre del usuario: "Demo Luca"
-// en la cuenta base y el título de la escena ("WDC-74 — mes anterior sobregirado") en las demás.
+// Una cuenta sembrada, tal como la ofrece el login. `titulo` es el nombre del usuario ("Demo Luca").
 export type DemoUser = { email: string; titulo: string }
 
 // Todo lo que el login del entorno de PR necesita: el entorno, la contraseña que TODAS comparten
-// (varía el correo, no la clave) y las cuentas que scripts/seed-pr.ts dejó sembradas.
+// (varía el correo, no la clave) y las cuentas que scripts/seed.ts dejó sembradas.
 export type DemoLogin = { env: string; password: string; cuentas: DemoUser[] }
 
 // Railway nombra el entorno del PR `pr-<n>`, y cuando el proyecto tiene varios servicios lo
@@ -18,13 +20,18 @@ export type DemoLogin = { env: string; password: string; cuentas: DemoUser[] }
 // datos falsos sobre la base real.
 const PR_ENVIRONMENT = /(?:^|-)(pr-\d+)$/
 
+/** ¿Es un entorno efímero de PR de Railway (`…pr-<n>`)? Nunca "production". */
+export function isPrEnvironment(name: string | undefined): boolean {
+  return PR_ENVIRONMENT.test(name ?? "")
+}
+
 // null en cualquier entorno que no sea un PR de Railway (producción, local, Docker Compose).
 export function prDemoAccount(): DemoAccount | null {
   const match = PR_ENVIRONMENT.exec(process.env.RAILWAY_ENVIRONMENT_NAME ?? "")
   if (!match) return null
   return {
     env: match[1], // "pr-2", sin el prefijo del servicio
-    email: process.env.SEED_PR_EMAIL ?? "demo@lucaplan.cl",
+    email: process.env.SEED_PR_EMAIL ?? DEMO_EMAIL,
     password: process.env.SEED_PR_PASSWORD ?? "lucaplan1234",
   }
 }

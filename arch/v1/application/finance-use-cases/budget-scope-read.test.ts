@@ -145,14 +145,17 @@ function fixture(mode: PeriodMode) {
 }
 
 for (const mode of ["calendar", "card_cycle"] as const) {
-  test(`${mode}: resumen, presupuesto y barras solo suman categorías con tope efectivo`, async () => {
+  // WDC-171 (invierte WDC-165): el gastado es todo gasto real, con o sin categoría y con o sin tope.
+  test(`${mode}: resumen, presupuesto y barras suman todo gasto real, con o sin tope ni categoría`, async () => {
     const { read } = fixture(mode)
     const { view, summary, dailyTotal } = await read()
-    assert.equal(view.spent, 10000)
-    assert.equal(summary.expense, 10000)
-    assert.equal(dailyTotal, 10000)
-    assert.equal(view.committed, 4000)
-    assert.equal(view.globalLimit! - view.spent - view.committed, 86000)
+    // 10.000 con tope + 20.000 sin tope + 30.000 sin categoría; ni pendientes, ni interno, ni reversado, ni duplicado.
+    assert.equal(view.spent, 60000)
+    assert.equal(summary.expense, 60000)
+    assert.equal(dailyTotal, 60000)
+    // El comprometido también cuenta lo pendiente sin tope: 4.000 + 50.000.
+    assert.equal(view.committed, 54000)
+    assert.equal(view.globalLimit! - view.spent - view.committed, -14000)
     assert.equal(summary.income, 90000)
     // Fuera del plan sigue siendo consultable: se excluye del total, no se borra su historial.
     assert.equal(view.categories.find((c) => c.id === "sin-tope")!.used, 20000)
@@ -162,26 +165,18 @@ for (const mode of ["calendar", "card_cycle"] as const) {
     )
   })
 
-  test(`${mode}: quitar y reasignar categoría actualiza todos los totales`, async () => {
+  test(`${mode}: quitar o reasignar la categoría no cambia el gastado (WDC-171)`, async () => {
     const f = fixture(mode)
-    f.txs[0].categoryId = null
-    let result = await f.read()
-    assert.equal(result.view.spent, 0)
-    assert.equal(result.summary.expense, 0)
-    assert.equal(result.dailyTotal, 0)
-    f.txs[0].categoryId = "sin-tope"
-    result = await f.read()
-    assert.equal(result.view.spent, 0)
-    assert.equal(result.summary.expense, 0)
-    assert.equal(result.dailyTotal, 0)
-    f.txs[0].categoryId = "plan"
-    result = await f.read()
-    assert.equal(result.view.spent, 10000)
-    assert.equal(result.summary.expense, 10000)
-    assert.equal(result.dailyTotal, 10000)
+    for (const categoryId of [null, "sin-tope", "plan"]) {
+      f.txs[0].categoryId = categoryId
+      const result = await f.read()
+      assert.equal(result.view.spent, 60000, `categoría ${categoryId}`)
+      assert.equal(result.summary.expense, 60000, `categoría ${categoryId}`)
+      assert.equal(result.dailyTotal, 60000, `categoría ${categoryId}`)
+    }
   })
 
-  test(`${mode}: solo las cuotas de categorías presupuestadas comprometen el plan`, async () => {
+  test(`${mode}: las cuotas pendientes comprometen el plan con o sin tope (WDC-171)`, async () => {
     const f = fixture(mode)
     const plan = (categoryId: string, amount: number): InstallmentPlan => ({
       id: categoryId,
@@ -216,20 +211,21 @@ for (const mode of ["calendar", "card_cycle"] as const) {
       },
     } as unknown as InstallmentPlanRepository
     const { view } = await f.read()
-    assert.equal(view.spent, 10000)
-    assert.equal(view.committed, 10000) // pendiente 4.000 + cuota 6.000
+    assert.equal(view.spent, 60000)
+    assert.equal(view.committed, 68000) // pendientes 4.000 + 50.000 y cuotas 6.000 + 8.000
     assert.equal(
       view.categories.find((c) => c.id === "sin-tope")!.committed,
       58000
     )
     f.txs[0].amount = Money.of(100000, "CLP")
-    assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 10000)
+    // Déficit de octubre: 100.000 + 20.000 + 30.000 gastados − 90.000 de ingreso.
+    assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 60000)
     plans[0].items[0].transactionId = "cuota-pagada"
     f.txs.push({ ...f.txs[0], id: "cuota-pagada", installmentItemId: "plan", amount: Money.of(6000, "CLP"), date: new Date("2026-10-15") })
-    assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 16000)
+    assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 66000)
   })
 
-  test(`${mode}: poner tope cero retira gastos y comprometidos; devolverlo los incluye`, async () => {
+  test(`${mode}: poner tope cero no retira gastos ni comprometidos (WDC-171)`, async () => {
     const f = fixture(mode)
     f.limits.push({
       id: "cero",
@@ -239,28 +235,28 @@ for (const mode of ["calendar", "card_cycle"] as const) {
       limit: Money.zero("CLP"),
     })
     let result = await f.read()
-    assert.equal(result.view.spent, 0)
-    assert.equal(result.view.committed, 0)
-    assert.equal(result.summary.expense, 0)
-    assert.equal(result.dailyTotal, 0)
+    assert.equal(result.view.spent, 60000)
+    assert.equal(result.view.committed, 54000)
+    assert.equal(result.summary.expense, 60000)
+    assert.equal(result.dailyTotal, 60000)
     f.limits[1].limit = Money.of(100000, "CLP")
     result = await f.read()
-    assert.equal(result.view.spent, 10000)
-    assert.equal(result.view.committed, 4000)
-    assert.equal(result.summary.expense, 10000)
-    assert.equal(result.dailyTotal, 10000)
+    assert.equal(result.view.spent, 60000)
+    assert.equal(result.view.committed, 54000)
+    assert.equal(result.summary.expense, 60000)
+    assert.equal(result.dailyTotal, 60000)
   })
 
-  test(`${mode}: el exceso cuenta completo y la deuda siguiente excluye gastos sin tope`, async () => {
+  test(`${mode}: el exceso cuenta completo y la deuda siguiente incluye gastos sin tope (WDC-171)`, async () => {
     const f = fixture(mode)
     f.txs[0].amount = Money.of(120000, "CLP")
     const { view, summary, dailyTotal } = await f.read()
-    assert.equal(view.spent, 120000)
-    assert.equal(summary.expense, 120000)
-    assert.equal(dailyTotal, 120000)
+    assert.equal(view.spent, 170000)
+    assert.equal(summary.expense, 170000)
+    assert.equal(dailyTotal, 170000)
     assert.equal(view.capsOverspend, 20000)
-    assert.equal(view.monthOverspend, 20000)
-    assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 30000)
+    assert.equal(view.monthOverspend, 70000)
+    assert.equal(await getPreviousMonthDebt(f.deps, "u1", 2026, 11), 80000)
   })
 
   test(`${mode}: barras y resumen respetan el mismo rango y conversión USD`, async () => {
@@ -268,7 +264,7 @@ for (const mode of ["calendar", "card_cycle"] as const) {
     f.txs[0].date = new Date("2026-09-25T00:00:00Z")
     f.txs[0].amount = Money.of(10, "USD")
     const { view, summary, dailyTotal } = await f.read()
-    const expected = mode === "card_cycle" ? 9500 : 0
+    const expected = (mode === "card_cycle" ? 9500 : 0) + 50000 // WDC-171: + sin tope y sin categoría
     assert.equal(view.spent, expected)
     assert.equal(summary.expense, expected)
     assert.equal(dailyTotal, expected)
@@ -283,7 +279,7 @@ for (const mode of ["calendar", "card_cycle"] as const) {
     txs.push({ ...base, id: "tarjeta", accountId: "credit-card", amount: Money.of(7000, "CLP") })
     txs.push({ ...base, id: "corriente-septiembre", accountId: "checking", date: new Date("2026-09-25T00:00:00Z"), amount: Money.of(3000, "CLP") })
     const result = await read()
-    const expected = mode === "calendar" ? 17000 : 20000
+    const expected = (mode === "calendar" ? 17000 : 20000) + 50000 // WDC-171: + sin tope y sin categoría
     assert.equal(result.view.spent, expected)
     assert.equal(result.summary.expense, expected)
   })

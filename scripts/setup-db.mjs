@@ -80,6 +80,9 @@ execSync("prisma generate", { stdio: "inherit" });
 console.log("▶ prisma migrate reset --force  (borra todo y re-aplica migraciones)");
 execSync("prisma migrate reset --force", { stdio: "inherit" });
 console.log("▶ seed");
-execSync("node --env-file=.env prisma/seed.ts", { stdio: "inherit" });
+execSync("node --env-file=.env scripts/seed.ts", {
+  stdio: "inherit",
+  env: { ...process.env, NODE_ENV: "development" },
+});
 
 console.log("✓ Base de datos reseteada: todo borrado, migraciones + seed aplicados");

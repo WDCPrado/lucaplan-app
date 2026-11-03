@@ -529,7 +529,7 @@ export const pluginTools = {
   ),
   lucaplan_previsualizar_conciliacion: read(
     "Previsualizar conciliación bancaria completa",
-    "Simula correcciones explícitas por ID (moneda, importe, fecha, categoría), altas sin contraparte y saldos de UNA cuenta. Conserva vínculos, rechaza ambigüedad y reejecuta solo movimientos posteriores al corte. Incluye todos los buckets de esa cuenta e IDs del día del corte que el documento ya incluye. Devuelve previewToken y diferencias; no escribe. No adivinar categorías ni convertir CLP a USD por tipo de cambio estimado: usar moneda e importe de cartola. Si un alta tiene candidatos, devuelve sus IDs para revisarlos con distinctFrom y evidencia por operación distinta. Para liquidar un cobro recurrente conservando su plan usa settleRecurringCharge=true.",
+    "Simula correcciones explícitas por ID (moneda, importe, fecha, categoría), altas sin contraparte y saldos de UNA cuenta. Conserva vínculos, rechaza ambigüedad y reejecuta solo movimientos posteriores al corte. Incluye todos los buckets de esa cuenta e IDs del día del corte que el documento ya incluye. Devuelve previewToken y diferencias; no escribe. No adivinar categorías ni convertir CLP a USD por tipo de cambio estimado: usar moneda e importe de cartola. Si un alta tiene candidatos, devuelve sus IDs para revisarlos con distinctFrom y evidencia por operación distinta. Para liquidar un cobro recurrente conservando su plan usa settleRecurringCharge=true. En una tarjeta devuelve cuotasPendientes: cuotas de planes card sin saldar que vencen hasta el día del corte. Las líneas de cuota de la factura NO van como additions: sáldalas después con lucaplan_pagar_cuota (o lucaplan_vincular_pago_cuota si su cargo ya está en la app), con la fecha de facturación (día del corte) y el monto de la línea, no la fecha de vencimiento del pago.",
     bankReconciliationSchema
   ),
   lucaplan_aplicar_conciliacion: write(
@@ -636,7 +636,7 @@ export const pluginTools = {
   ),
   lucaplan_medidor_financiero: read(
     "Medidor de salud financiera",
-    "Consulta planStatus (presupuesto) y status (plan más liquidez registrada). Una posición neta negativa impide sano, y caja neta cero o línea utilizada implica al menos al_limite. Compara todos los ingresos planificados activos contra los gastos confirmados de categorías con tope >0, más una proyección separada de compromisos pendientes sin doble conteo. Crédito y débito usan el mismo cálculo; cambia solo el rango del período. balance y porcentaje corresponden solo al plan; liquidity separa caja, línea utilizada y posición neta CLP con los últimos saldos registrados, no saldos históricos del período. Ambos modos incluyen corriente y tarjeta; nunca sumar cupos a caja.",
+    "Consulta planStatus (presupuesto) y status (plan más liquidez registrada). Una posición neta negativa impide sano, y caja neta cero o línea utilizada implica al menos al_limite. Compara todos los ingresos planificados activos contra todo gasto confirmado no interno del período (con o sin categoría o tope), más una proyección separada de compromisos pendientes sin doble conteo. Crédito y débito usan el mismo cálculo; cambia solo el rango del período. balance y porcentaje corresponden solo al plan; liquidity separa caja, línea utilizada y posición neta CLP con los últimos saldos registrados, no saldos históricos del período. Ambos modos incluyen corriente y tarjeta; nunca sumar cupos a caja.",
     z.strictObject(period)
   ),
   lucaplan_ver_presupuesto: read(
@@ -809,7 +809,7 @@ export const pluginTools = {
   ),
   lucaplan_crear_plan_cuotas: write(
     { title: "Crear plan de cuotas" },
-    "Crea un plan. card: exige la compra origen (sourceTransactionId, cargo confirmado de esa tarjeta), que deja de contar entera y se reparte en cuotas. loan: sin compra origen; las cuotas se enganchan a los pagos del banco. No mueve caja. startIndex = número de la primera cuota que sigue el plan (créditos ya empezados: totalAmount es el saldo restante).",
+    "Crea un plan. card: exige la compra origen (sourceTransactionId, cargo confirmado de esa tarjeta), que deja de contar entera y se reparte en cuotas; cada cuota se salda al conciliar la factura con lucaplan_pagar_cuota (no como alta de la conciliación), no con el pago de la tarjeta; startDate y dayOfMonth son el día de facturación de la cuota. loan: sin compra origen; las cuotas se enganchan a los pagos del banco. No mueve caja. startIndex = número de la primera cuota que sigue el plan (créditos ya empezados: totalAmount es el saldo restante).",
     z
       .strictObject({
         kind: z
@@ -830,9 +830,11 @@ export const pluginTools = {
           .max(MAX_INSTALLMENTS)
           .describe("Número total de cuotas"),
         startDate: date.describe(
-          "Vencimiento de la cuota startIndex, YYYY-MM-DD"
+          "Vencimiento de la cuota startIndex, YYYY-MM-DD; card: el día de facturación de esa cuota"
         ),
-        dayOfMonth: day.describe("Día de vencimiento de cada mes, 1 a 31"),
+        dayOfMonth: day.describe(
+          "Día de vencimiento de cada mes, 1 a 31; card: el día de facturación de la cuota"
+        ),
         tolerancePct: amount
           .min(0)
           .max(100)
@@ -901,11 +903,13 @@ export const pluginTools = {
   ),
   lucaplan_pagar_cuota: write(
     { title: "Registrar pago de cuota" },
-    "CREA el movimiento de pago de una cuota vencida cuando el pago no dejó rastro en la app (se pagó desde otro banco o no llegó el aviso). Si el cargo ya existe, usa lucaplan_vincular_pago_cuota para no contarlo dos veces. No admite cuotas ni fechas futuras.",
+    "CREA el movimiento de pago de una cuota vencida cuando el pago no dejó rastro en la app (se pagó desde otro banco o no llegó el aviso). Las cuotas de tarjeta no se cobran solas con el pago de la tarjeta: se saldan al conciliar la factura (cuotasPendientes de lucaplan_previsualizar_conciliacion), con la fecha de facturación (día del corte) y el monto de la línea de cuota, no la fecha de vencimiento del pago; esas líneas no van como additions de la conciliación. Si el cargo ya existe, usa lucaplan_vincular_pago_cuota para no contarlo dos veces. No admite cuotas ni fechas futuras.",
     z.strictObject({
       planId: ref("Plan"),
       itemId: ref("Cuota vencida"),
-      date: date.describe("Fecha real del pago YYYY-MM-DD, no futura"),
+      date: date.describe(
+        "Fecha real del pago YYYY-MM-DD, no futura; cuota de tarjeta: la fecha de facturación (día del corte)"
+      ),
       amount: positive.describe(money(" pagado")),
       ...operation,
     })

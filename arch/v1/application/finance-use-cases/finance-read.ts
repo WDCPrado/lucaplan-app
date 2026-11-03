@@ -28,6 +28,7 @@ import {
   hasEnded,
   periodKeyFor,
   toleranceRange,
+  RECURRING_MATCH_WINDOW_DAYS,
   InvalidRecurringTemplateError,
   RecurringTemplateNotFoundError,
   type RecurringTemplateRepository,
@@ -38,13 +39,13 @@ import {
   itemStatus,
   outstanding,
   progress,
+  type InstallmentPlan,
   type InstallmentPlanRepository,
   type ItemStatus,
 } from "../../domain/finance/installment.domain.ts"
 import type { ExchangeRateProvider } from "../../domain/finance/exchange.domain.ts"
 import { toClp } from "../../domain/finance/exchange.domain.ts"
-import { Money } from "../../domain/finance/money.ts"
-import { isBudgetedExpenseCategory } from "../../domain/finance/budget-scope.domain.ts"
+import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
 import {
   inRange,
   computeCategoryUsage,
@@ -174,7 +175,8 @@ export type CategoryDTO = {
   limit: number
   used: number
   committed: number // comprometido: Σ pending del mes (recurrentes aún no cobradas); capa aparte del usado
-  available: number
+  available: number // limit − used (para «sobre el tope»)
+  free: number // limit − used − committed: lo que «quedan» de verdad
   status: string
   // Ritmo del período en curso (hoy / esta semana): gastado vs presupuesto, con su semáforo.
   // Solo en categorías de gasto con tope, mirando el mes actual; null/ausente en el resto.
@@ -192,9 +194,11 @@ export type PaceDTO = {
 export type BudgetViewDTO = {
   categories: CategoryDTO[]
   income: number // fuentes activas efectivas + abonos CLP no cubiertos por esas fuentes
-  spent: number // confirmado de categorías de gasto con tope efectivo > 0
+  spent: number // todo gasto CLP confirmado no interno del período, con o sin categoría o tope
   reimbursementAdjustment?: number // compensación ya incluida en los ingresos del medidor
-  committed: number // pendiente y cuotas por cobrar de esas mismas categorías
+  committed: number // todo gasto pendiente y toda cuota por cobrar del período, con o sin tope
+  // Hay movimientos en USD sin dólar observado: quedaron fuera de los totales (no se inventa tasa).
+  exchangeRateUnavailable: boolean
   globalLimit: number | null // límite global efectivo del mes (carry); null = no definido
   allocated: number // Σ límites efectivos de las categorías de GASTO
   remainingToAllocate: number | null // globalLimit − allocated; null sin límite global
@@ -237,29 +241,33 @@ function txToDTO(
 }
 
 // Lleva a CLP los montos en otra moneda usando el dólar observado de la FECHA de cada movimiento
-// (el histórico no cambia → el CLP estimado es estable entre vistas). Devuelve, alineado a `txs`:
-// las tx con amount en CLP para las FÓRMULAS, y el CLP estimado por tx para el DTO (null si ya venía
-// en CLP). Los rates se cachean por año en el adapter: muchas fechas del mismo año pegan a la red una vez.
+// (el histórico no cambia → el CLP estimado es estable entre vistas). Devuelve las tx con amount en
+// CLP para las FÓRMULAS y, alineado a `txs`, el CLP estimado por tx para el DTO (null si ya venía en
+// CLP o si no hay tasa). Sin dólar observado el movimiento queda FUERA de `clpTxs` (no se inventa una
+// tasa) y `rateUnavailable` lo avisa. Los rates se cachean por año en el adapter.
 async function clpView(
   provider: ExchangeRateProvider,
   txs: Transaction[]
-): Promise<{ clpTxs: Transaction[]; clpAmounts: (number | null)[] }> {
+): Promise<{ clpTxs: Transaction[]; clpAmounts: (number | null)[]; rateUnavailable: boolean }> {
   const rates = await Promise.all(
     txs.map((t) =>
       t.amount.currency === "CLP"
-        ? Promise.resolve(0)
+        ? Promise.resolve(null)
         : provider.clpPerUsdAt(t.date)
     )
   )
-  const clpTxs = txs.map((t, i) =>
-    t.amount.currency === "CLP"
-      ? t
-      : { ...t, amount: toClp(t.amount, rates[i]) }
-  )
-  const clpAmounts = txs.map((t, i) =>
-    t.amount.currency === "CLP" ? null : clpTxs[i].amount.toMajor()
-  )
-  return { clpTxs, clpAmounts }
+  const converted = txs.map((t, i) => {
+    if (t.amount.currency === "CLP") return t
+    const rate = rates[i]
+    return rate === null ? null : { ...t, amount: toClp(t.amount, rate) }
+  })
+  return {
+    clpTxs: converted.filter((t): t is Transaction => t !== null),
+    clpAmounts: txs.map((t, i) =>
+      t.amount.currency === "CLP" ? null : converted[i]?.amount.toMajor() ?? null
+    ),
+    rateUnavailable: converted.some((t) => t === null),
+  }
 }
 
 // "Quedan" histórico: recorre los gastos (débito) de más antiguo a más nuevo acumulando por
@@ -322,24 +330,14 @@ export async function getMonthlySummary(
   // Montos en otra moneda (USD) convertidos a CLP por el dólar de su fecha, para que cuenten.
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
 
-  const budgetedIds = new Set(
-    withLimit
-      .filter(({ category, limit }) =>
-        isBudgetedExpenseCategory({
-          type: category.type,
-          limit: limit.toMajor(),
-        })
-      )
-      .map(({ category }) => category.id)
-  )
-  // Gastos: solo categorías incluidas en el plan. Los ingresos mantienen su total categorizado.
+  // Gastos: todo gasto real, con o sin categoría o tope (mismo criterio que `spent` del plan).
+  // Los ingresos mantienen su total categorizado.
   const sumClp = (dir: string) =>
     clpTxs
       .filter(
         (t) =>
           t.direction === dir &&
-          t.categoryId !== null &&
-          (dir !== "debit" || budgetedIds.has(t.categoryId)) &&
+          (dir === "debit" || t.categoryId !== null) &&
           t.amount.currency === CLP &&
           t.status === "confirmed" &&
           !t.isInternal
@@ -718,6 +716,61 @@ export async function getAmountBounds(
   return b ?? { min: 0, max: 0 }
 }
 
+/**
+ * Lo que el presupuesto mide de los movimientos del período, compartido por la vista del mes y el
+ * detalle de una categoría para que sus cifras cuadren: los movimientos en CLP con el neteo de
+ * reembolso legado y el comprometido de cuotas por categoría (la cuota que vence en el rango y aún
+ * no se paga se anticipa como comprometida, igual que una recurrente; derivado, no filas: al pagarse
+ * pasa a `used` y desaparece de aquí, sin doble conteo).
+ */
+async function budgetInputs(
+  deps: ReadDeps,
+  userId: string,
+  clpTxs: Transaction[],
+  plans: InstallmentPlan[],
+  range: PeriodRange
+) {
+  const reimbursementRows = await deps.reimbursements?.listForTransactions(
+    userId, clpTxs.filter(t => t.direction === "debit").map(t => t.id)
+  ) ?? []
+  const reimbursed = new Map<string, number>()
+  const { mode } = await getBudgetPeriod(deps)
+  const legacyRows = reimbursementRows.filter(row => !usesGrossExpense(row, mode))
+  for (const row of legacyRows)
+    reimbursed.set(row.expenseId, (reimbursed.get(row.expenseId) ?? 0) + Number(row.amount))
+  const netBudgetTxs = clpTxs.map(t => {
+    const deducted = reimbursed.get(t.id) ?? 0
+    if (!deducted || t.direction !== "debit") return t
+    return { ...t, amount: Money.of(Math.max(0, t.amount.toMajor() - deducted), "CLP") }
+  })
+  const installmentCommitted = new Map<string, Money>()
+  for (const plan of plans) {
+    const amount = committedForMonth(plan, range)
+    if (amount.isZero) continue
+    const prev = installmentCommitted.get(plan.categoryId)
+    installmentCommitted.set(plan.categoryId, prev ? prev.add(amount) : amount)
+  }
+  return { legacyRows, netBudgetTxs, installmentCommitted }
+}
+
+// Comprometido de una categoría: recurrentes por cobrar + cuotas de sus planes. Las cuotas solo si
+// coinciden la moneda de la categoría y la del plan (el comprometido es por moneda).
+function categoryCommitted(
+  categoryId: string,
+  currency: CurrencyCode,
+  netBudgetTxs: Transaction[],
+  installmentCommitted: Map<string, Money>,
+  range: PeriodRange,
+  direction: "debit" | "credit"
+): Money {
+  const fromInstallments = installmentCommitted.get(categoryId)
+  return computeCategoryCommitted(categoryId, currency, netBudgetTxs, range, direction).add(
+    fromInstallments && fromInstallments.currency === currency
+      ? fromInstallments
+      : Money.zero(currency)
+  )
+}
+
 export async function getBudgetView(
   deps: ReadDeps,
   userId: string,
@@ -740,31 +793,10 @@ export async function getBudgetView(
       deps.incomes?.listAmountsByUser(userId, (await getBudgetPeriod(deps)).mode) ?? Promise.resolve([]),
     ])
   // USD → CLP por fecha para que el uso por categoría cuente esos movimientos.
-  const { clpTxs } = await clpView(deps.exchangeRates, txs)
-  const reimbursementRows = await deps.reimbursements?.listForTransactions(
-    userId, txs.filter(t => t.direction === "debit").map(t => t.id)
-  ) ?? []
-  const reimbursed = new Map<string, number>()
-  const { mode } = await getBudgetPeriod(deps)
-  const legacyRows = reimbursementRows.filter(row => !usesGrossExpense(row, mode))
-  for (const row of legacyRows)
-    reimbursed.set(row.expenseId, (reimbursed.get(row.expenseId) ?? 0) + Number(row.amount))
-  const netBudgetTxs = clpTxs.map(t => {
-    const deducted = reimbursed.get(t.id) ?? 0
-    if (!deducted || t.direction !== "debit") return t
-    return { ...t, amount: Money.of(Math.max(0, t.amount.toMajor() - deducted), "CLP") }
-  })
-
-  // Comprometido de cuotas por categoría: la cuota que vence en el rango y aún no se paga se anticipa
-  // como comprometida, igual que una recurrente. Derivado, no filas: al pagarse pasa a `used` y
-  // desaparece de aquí, sin doble conteo.
-  const installmentCommitted = new Map<string, Money>()
-  for (const plan of plans) {
-    const amount = committedForMonth(plan, range)
-    if (amount.isZero) continue
-    const prev = installmentCommitted.get(plan.categoryId)
-    installmentCommitted.set(plan.categoryId, prev ? prev.add(amount) : amount)
-  }
+  const { clpTxs, rateUnavailable } = await clpView(deps.exchangeRates, txs)
+  const { legacyRows, netBudgetTxs, installmentCommitted } = await budgetInputs(
+    deps, userId, clpTxs, plans, range
+  )
   // Meta de cada categoría de ingreso = suma de sus ingresos vigentes del mes. Derivada, no
   // persistida: agregar/editar/eliminar un ingreso la actualiza sola.
   // ponytail: suma solo CLP; una fuente en otra moneda no entra a la meta.
@@ -782,7 +814,8 @@ export async function getBudgetView(
     const prev = incomeGoal.get(inc.categoryId)
     incomeGoal.set(inc.categoryId, prev ? prev.add(amount) : amount)
   }
-  for (const tx of txs) {
+  // Abonos en USD convertidos igual que los gastos (sin tasa quedan fuera, con aviso).
+  for (const tx of clpTxs) {
     if (tx.amount.currency === CLP && inRange(tx.date, range) && isAdditionalIncome(tx, plannedIncomeIds))
       income = income.add(tx.amount)
   }
@@ -801,18 +834,8 @@ export async function getBudgetView(
       range,
       direction
     )
-    const fromInstallments = installmentCommitted.get(category.id)
-    const committed = computeCategoryCommitted(
-      category.id,
-      limit.currency,
-      netBudgetTxs,
-      range,
-      direction
-    ).add(
-      // Solo si coinciden la moneda de la categoría y la del plan (el comprometido es por moneda).
-      fromInstallments && fromInstallments.currency === limit.currency
-        ? fromInstallments
-        : Money.zero(limit.currency)
+    const committed = categoryCommitted(
+      category.id, limit.currency, netBudgetTxs, installmentCommitted, range, direction
     )
     // Ritmo del período: solo gasto con tope y solo si la vista mira el mes de "hoy". El DTO
     // se recalcula en cada lectura (router.refresh tras registrar un gasto lo actualiza solo).
@@ -828,7 +851,7 @@ export async function getBudgetView(
         ? (() => {
             const p = computeCategoryPace(
               category.id,
-              available,
+              available.subtract(committed),
               netBudgetTxs,
               pace.today,
               pace.frequency,
@@ -869,6 +892,7 @@ export async function getBudgetView(
       used: used.toMajor(),
       committed: committed.toMajor(),
       available: available.toMajor(),
+      free: available.subtract(committed).toMajor(),
       // Ingreso: llegar a la meta es bueno, no "excedido" — el semáforo es solo de gastos.
       status:
         category.type === "income" ? "bueno" : categoryStatus(used, limit),
@@ -899,19 +923,23 @@ export async function getBudgetView(
     .reduce((s, x) => s.add(x.limit), Money.zero(CLP))
   const globalLimit = effectiveGlobalLimit(budgets, year, month)
   const remaining = remainingToAllocate(globalLimit, allocated)
-  // Una sola selección para gastado, comprometido, disponible y excedente del plan. Las
-  // categorías sin tope conservan su detalle, pero no consumen presupuesto ni generan deuda.
-  const budgeted = computed.filter(({ category, limit }) =>
-    isBudgetedExpenseCategory({ type: category.type, limit: limit.toMajor() })
-  )
-  const spent = budgeted.reduce((s, { used }) => s.add(used), Money.zero(CLP))
-  const committed = budgeted.reduce(
-    (s, { committed }) => s.add(committed),
-    Money.zero(CLP)
-  )
+  // Gastado y comprometido del plan: todo gasto real del período, con o sin categoría o tope
+  // (WDC-171). Los topes solo miden categorías y ritmo; no deciden qué plata salió.
+  const isPlanDebit = (t: Transaction) =>
+    t.direction === "debit" && !t.isInternal && t.amount.currency === CLP && inRange(t.date, range)
+  const spent = netBudgetTxs
+    .filter((t) => isPlanDebit(t) && t.status === "confirmed")
+    .reduce((s, t) => s.add(t.amount), Money.zero(CLP))
+  const committed = plans
+    .filter((plan) => plan.currency === CLP)
+    .reduce(
+      (s, plan) => s.add(committedForMonth(plan, range)),
+      netBudgetTxs
+        .filter((t) => isPlanDebit(t) && t.status === "pending")
+        .reduce((s, t) => s.add(t.amount), Money.zero(CLP))
+    )
   // Solo el legado netea gasto y necesita compensar el ingreso. Los reembolsos con
   // suplemento (o ya ajustados manualmente) mantienen gasto bruto e ingreso una vez.
-  const budgetedIds = new Set(budgeted.map(({ category }) => category.id))
   const byId = new Map(txs.map(t => [t.id, t]))
   const expenseRemaining = new Map<string, number>()
   const creditRemaining = new Map<string, number>()
@@ -922,7 +950,6 @@ export async function getBudgetView(
     if (!expense || !credit || expense.direction !== "debit" || credit.direction !== "credit" ||
         expense.status !== "confirmed" || credit.status !== "confirmed" ||
         expense.isInternal || credit.isInternal ||
-        !expense.categoryId || !budgetedIds.has(expense.categoryId) ||
         expense.amount.currency !== CLP || credit.amount.currency !== CLP ||
         !inRange(expense.date, range) || !inRange(credit.date, range)) continue
     const expenseLeft = expenseRemaining.get(expense.id) ?? expense.amount.toMajor()
@@ -955,6 +982,7 @@ export async function getBudgetView(
       CLP
     ).toMajor(),
     monthOverspend: computeMonthOverspend(spent, globalLimit).toMajor(),
+    exchangeRateUnavailable: rateUnavailable,
   }
 }
 
@@ -1081,8 +1109,11 @@ export async function listRecurringView(
     categories: CategoryRepository
   },
   userId: string,
-  today = new Date()
+  now = new Date()
 ): Promise<RecurringDTO[]> {
+  // «Hoy» es el día civil de Chile a medianoche UTC, como las fechas de período de las plantillas:
+  // a las 22:00 en Chile ya es mañana en UTC y el período en curso no puede adelantarse.
+  const today = new Date(`${todayKey(now)}T00:00:00.000Z`)
   const [templates, accounts, categories] = await Promise.all([
     deps.recurring.listByUser(userId),
     deps.accounts.listByUser(userId),
@@ -1147,7 +1178,7 @@ export async function listRecurringCandidates(
   const template = await deps.recurring.findById(id)
   if (!template) throw new RecurringTemplateNotFoundError(id)
   if (template.userId !== userId) throw new NotOwnerError()
-  const days = filters.days ?? 10
+  const days = filters.days ?? RECURRING_MATCH_WINDOW_DAYS
   if (!Number.isInteger(days) || days < 1 || days > 365)
     throw new InvalidRecurringTemplateError(
       "Los días deben ser un número entero entre 1 y 365"
@@ -1170,9 +1201,9 @@ export async function listRecurringCandidates(
 // Un día dentro del período siguiente al que contiene a `from` (basta para derivar su clave).
 function nextPeriodDate(template: { periodicity: string }, from: Date): Date {
   const d = new Date(from)
-  if (template.periodicity === "biweekly") d.setDate(d.getDate() + 14)
-  else if (template.periodicity === "yearly") d.setFullYear(d.getFullYear() + 1)
-  else d.setMonth(d.getMonth() + 1, 1)
+  if (template.periodicity === "biweekly") d.setUTCDate(d.getUTCDate() + 14)
+  else if (template.periodicity === "yearly") d.setUTCFullYear(d.getUTCFullYear() + 1)
+  else d.setUTCMonth(d.getUTCMonth() + 1, 1)
   return d
 }
 
@@ -1197,14 +1228,18 @@ export async function getCategoryDetail(
   const manual = new Set(
     accounts.filter((a) => a.provider === "manual").map((a) => a.id)
   )
-  const { used, available } = computeCategoryUsage(
-    categoryId,
-    limit,
-    clpTxs,
-    range,
-    category.type === "income" ? "credit" : "debit"
+  const direction = category.type === "income" ? "credit" : "debit"
+  // Mismas cifras que la vista del mes (`getBudgetView`): neteo de reembolso legado y cuotas por
+  // cobrar de los planes de la categoría.
+  const plans = (await deps.installments?.listByUser(userId)) ?? []
+  const { netBudgetTxs, installmentCommitted } = await budgetInputs(
+    deps, userId, clpTxs, plans.filter((p) => p.categoryId === categoryId), range
   )
+  const { used, available } = computeCategoryUsage(categoryId, limit, netBudgetTxs, range, direction)
   const remaining = historicalRemaining(clpTxs, () => limit)
+  const committed = categoryCommitted(
+    categoryId, limit.currency, netBudgetTxs, installmentCommitted, range, direction
+  )
   return {
     id: category.id,
     name: category.name,
@@ -1215,14 +1250,9 @@ export async function getCategoryDetail(
     paceEnabled: category.paceEnabled,
     limit: limit.toMajor(),
     used: used.toMajor(),
-    committed: computeCategoryCommitted(
-      categoryId,
-      limit.currency,
-      clpTxs,
-      range,
-      category.type === "income" ? "credit" : "debit"
-    ).toMajor(),
+    committed: committed.toMajor(),
     available: available.toMajor(),
+    free: available.subtract(committed).toMajor(),
     status: categoryStatus(used, limit),
     transactions: txs
       .map((t, i) => ({ t, clp: clpAmounts[i] }))

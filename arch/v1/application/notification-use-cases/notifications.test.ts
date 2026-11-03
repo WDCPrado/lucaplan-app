@@ -506,3 +506,44 @@ test("modo tarjeta: el cargo del día del cierre que llega al día siguiente con
   assert.equal(enviados[0].url, "/dashboard?tx=cierre")
   assert.match(enviados[0].title, /en Comida$/)
 })
+
+test("notifyDueSoon: a las 22:00 de Chile del 31-oct, el arriendo que vence el 31-oct dice «Vence hoy»", async () => {
+  const { notifyDueSoon } = await import("./notify-due-use-case.ts")
+  const sent: PushMessage[] = []
+  const arriendo = {
+    id: "arriendo",
+    userId: "u1",
+    accountId: "a1",
+    categoryId: "c1",
+    label: "Arriendo",
+    description: "ARRIENDO",
+    direction: "debit",
+    baseAmount: Money.of(350_000, "CLP"),
+    currency: "CLP",
+    tolerancePct: 10,
+    periodicity: "monthly",
+    dayOfMonth: 31,
+    startDate: new Date("2026-01-31T00:00:00.000Z"),
+    endDate: null,
+    isActive: true,
+  }
+  const deps = {
+    subscriptions: {
+      listByUser: async () => [
+        { userId: "u1", endpoint: "https://fcm.googleapis.com/fcm/send/ok", keys: { p256dh: "a", auth: "b" } },
+      ],
+      deleteByEndpoint: async () => {},
+    },
+    sender: {
+      send: async (_s: PushSubscription, m: PushMessage): Promise<PushSendResult> => {
+        sent.push(m)
+        return "sent"
+      },
+    },
+    recurring: { listActiveByUser: async () => [arriendo], findPeriodTransaction: async () => null },
+    installments: { listByUser: async () => [] },
+  } as unknown as Parameters<typeof notifyDueSoon>[0]
+  // 22:00 del 31-oct en Chile (UTC−3) = 01:00 del 1-nov en UTC.
+  assert.equal(await notifyDueSoon(deps, "u1", new Date("2026-11-01T01:00:00.000Z")), 1)
+  assert.match(sent[0].title, /^Vence hoy:/)
+})

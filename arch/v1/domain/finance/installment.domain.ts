@@ -4,7 +4,8 @@
 //
 //   card — compra en cuotas con tarjeta. La compra ya entró completa el día que ocurrió (por eso
 //     se neutraliza) y el correo del pago de la tarjeta trae el total de la factura, no el de la
-//     cuota. Nadie más va a crear ese movimiento: lo CREA el plan, con el monto del cronograma.
+//     cuota. Nadie más va a crear ese movimiento: lo CREA el plan al conciliar la factura, con la
+//     fecha y el monto que ella trae.
 //   loan — crédito de consumo. El consumo financiado nunca entró a la app y el correo de la cuota
 //     ya genera un gasto real con monto y fecha efectivos: el plan lo ADOPTA. Crearlo también aquí
 //     duplicaría el gasto.

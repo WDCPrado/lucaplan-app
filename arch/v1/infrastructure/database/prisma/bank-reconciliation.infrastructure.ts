@@ -69,6 +69,7 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
             reimbursementsPaid: true,
             reimbursementsReceived: true,
             installmentPlanAsSource: true,
+            installmentItem: { select: { plan: { select: { kind: true } } } },
           },
         }),
         db.category.findMany({
@@ -110,6 +111,7 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
             isInternal: m.isInternal,
             bankReceivedAt: m.bankReceivedAt?.toISOString() ?? null,
             ...reconciliationLinks(m),
+            cardInstallment: m.installmentItem?.plan.kind === "card",
             updatedAt: m.updatedAt.toISOString(),
           })),
           categories,

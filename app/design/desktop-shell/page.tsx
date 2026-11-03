@@ -83,6 +83,7 @@ const CATEGORIES: CategoryDTO[] = [
     used: 260_000,
     committed: 0,
     available: 140_000,
+    free: 140_000,
     status: "moderado",
   },
   {
@@ -97,6 +98,7 @@ const CATEGORIES: CategoryDTO[] = [
     used: 60_000,
     committed: 0,
     available: 90_000,
+    free: 90_000,
     status: "bueno",
   },
   {
@@ -111,6 +113,7 @@ const CATEGORIES: CategoryDTO[] = [
     used: 135_000,
     committed: 0,
     available: -15_000,
+    free: -15_000,
     status: "excedido",
   },
   {
@@ -125,6 +128,7 @@ const CATEGORIES: CategoryDTO[] = [
     used: 120_000,
     committed: 0,
     available: 60_000,
+    free: 60_000,
     status: "moderado",
   },
   {
@@ -139,6 +143,7 @@ const CATEGORIES: CategoryDTO[] = [
     used: 40_000,
     committed: 0,
     available: 60_000,
+    free: 60_000,
     status: "bueno",
   },
 ]

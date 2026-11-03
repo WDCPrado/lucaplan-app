@@ -53,7 +53,11 @@ Dos mecanismos que un producto vecino no podría copiar diciendo lo mismo:
 
 Reglas de dominio — no son detalles de UI; romper una rompe los números:
 
-- CLP y USD permanecen separados. No se convierten para sumarlos.
+- Los saldos y cupos CLP y USD permanecen separados: nunca se mezclan. Los movimientos USD
+  entran al plan convertidos a CLP con el dólar observado de su fecha (referencial); sin dólar
+  observado quedan fuera de los totales con aviso, nunca con una tasa inventada.
+- El gastado del plan es todo gasto real confirmado, con o sin categoría o tope; los topes
+  miden categorías y ritmo.
 - Sobregiro y cupos de crédito son deuda, no caja disponible.
 - Los movimientos internos no consumen presupuesto.
 - Lo que se pasó del tope un mes se descuenta del siguiente.

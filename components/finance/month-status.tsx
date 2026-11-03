@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { formatCLP, monthName, usagePct } from "@/lib/finance-format"
+import { closedPeriodLine, isFuturePeriod } from "@/lib/period-status"
 import { estimateClosing, type PeriodMode } from "@/arch/shared/billing-cycle"
 import { PlanSummary, type PlanInput } from "./financial-health-meter"
 import { Segmented } from "./segmented"
@@ -24,7 +25,8 @@ import type { CycleProps } from "./dashboard"
  * Estado del período en el Inicio. En el mes en curso, lo primero y más grande es cuánto queda del
  * plan; los días para cerrar van en la línea de abajo. Al pie, «Ajustar plan», que abre donde se
  * decide todo esto (también el modo del período y el cierre de la tarjeta).
- * Para períodos históricos se conserva el saldo final sin gastar.
+ * Fuera del mes en curso, una línea: un futuro todavía no empieza; uno pasado cerró sin gastar o
+ * pasado por cuánto (`closedPeriodLine`).
  */
 export function MonthStatus({
   period,
@@ -33,7 +35,6 @@ export function MonthStatus({
   daysLeft,
   globalLimit,
   spent,
-  committed,
   plan,
   onOpenPlan,
   onOpenLiquidity,
@@ -45,8 +46,7 @@ export function MonthStatus({
   daysLeft: number // días que quedan, hoy incluido; 0 fuera del mes en curso
   globalLimit: number | null
   spent: number
-  committed: number
-  plan: PlanInput // restante antes de compromisos, cobertura del plan y liquidez
+  plan: PlanInput // ingresos − gastado − comprometido, sus componentes y liquidez
   onOpenPlan: () => void
   onOpenLiquidity?: () => void
   children?: React.ReactNode // el gráfico de gasto contra el ritmo; sin presupuesto no se muestra
@@ -71,14 +71,14 @@ export function MonthStatus({
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="min-w-0">
             <h2 className="text-title-3 font-bold">
-              Define tu presupuesto de {mes}
+              Define tu tope de gasto de {mes}
             </h2>
             <p className="mt-1 text-subheadline text-pretty text-muted-foreground">
               Configura el plan de este período para organizar tus ingresos y gastos.
             </p>
           </div>
           <Button onClick={onOpenPlan} className="h-11 shrink-0">
-            Definir presupuesto
+            Definir tope de gasto
           </Button>
         </div>
         <div className="mt-4">
@@ -107,19 +107,14 @@ export function MonthStatus({
     )
   }
 
-  const free = globalLimit - spent - committed
   const usedPct = usagePct(spent, globalLimit)
   return (
     <section className="glass flex flex-1 flex-col rounded-xl p-5 lg:p-6">
-      <p className="text-subheadline text-muted-foreground">
-        {monthName(period.month)} {period.year} cerró con
+      <p className="text-title-1 font-bold tracking-tight text-pretty">
+        {closedPeriodLine({ period, current: cycle.current, globalLimit, spent })}
       </p>
-      <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
-        <span className="tabular text-hero font-bold">
-          {formatCLP(Math.max(0, free))}
-        </span>
-        <span className="text-headline font-semibold">sin gastar</span>
-      </p>
+      {/* Un período que no empieza no tiene gasto que contar. */}
+      {!isFuturePeriod(period, cycle.current) && (
       <p className="mt-2 text-subheadline text-muted-foreground">
         Gastaste <span className="tabular">{formatCLP(spent)}</span> de{" "}
         <span className="tabular">{formatCLP(globalLimit)}</span>
@@ -130,8 +125,9 @@ export function MonthStatus({
           </>
         )}
       </p>
+      )}
       <div className="mt-4 border-t border-border pt-4">
-        <PlanSummary {...plan} onOpenLiquidity={onOpenLiquidity} />
+        <PlanSummary {...plan} closed={!isFuturePeriod(period, cycle.current)} onOpenLiquidity={onOpenLiquidity} />
       </div>
       {children && <div className="mt-4 flex flex-1 flex-col">{children}</div>}
       {footer}
@@ -226,7 +222,7 @@ export function PeriodModeControl({ mode: savedMode }: { mode: PeriodMode }) {
         ]}
       />
       <p className="px-4 text-footnote text-muted-foreground">
-        Cada modo conserva su presupuesto, topes e ingresos planificados. Ambos incluyen cuenta corriente y tarjeta.
+        Cada modo conserva su tope de gasto, topes por categoría e ingresos planificados. Ambos incluyen cuenta corriente y tarjeta.
       </p>
     </div>
   )

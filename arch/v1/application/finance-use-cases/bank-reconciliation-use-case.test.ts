@@ -113,11 +113,18 @@ function fakeStore() {
       return fn(tx)
     },
   }
-  return { deps: { bankReconciliation: store }, data, applied }
+  return {
+    deps: {
+      bankReconciliation: store,
+      installments: { listActiveByAccount: async () => [] },
+    },
+    data,
+    applied,
+  }
 }
 
 const previewOf = async (
-  deps: { bankReconciliation: BankReconciliationStore },
+  deps: Parameters<typeof reconcileBankAccount>[0],
   userId = "u1",
   i = input(),
   now = NOW

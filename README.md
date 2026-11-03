@@ -77,10 +77,14 @@ categorizado. Nunca conoce tus claves bancarias y no puede mover tu dinero.
   disponible restante en CLP.
 - El presupuesto global, los topes por categoría y los ingresos planificados son independientes
   en débito y crédito. Los montos se **heredan entre períodos del mismo modo** (carry-forward).
-- En débito y crédito, el gastado y el comprometido del plan solo incluyen categorías
-  de gasto con tope efectivo mayor que cero, dentro del período. Sin categoría o sin
-  tope quedan fuera; los excesos sobre un tope cuentan completos. Las categorías sin
-  tope se pueden consultar en un grupo cerrado por defecto.
+- En débito y crédito, el gastado del plan es todo gasto real confirmado del período
+  (no interno), con o sin categoría y con o sin tope; el comprometido suma todas las
+  recurrentes y cuotas por cobrar. Los topes miden cada categoría y su ritmo: las categorías
+  sin tope no tienen ritmo y se consultan en un grupo cerrado por defecto.
+- El ritmo y el «quedan» de una categoría parten de tope − usado − comprometido: el pago que
+  concilia una recurrente o una cuota no cuenta como gasto del ritmo.
+- Los movimientos en USD entran convertidos con el dólar observado de su fecha. Si mindicador
+  no responde, quedan fuera de los totales y el Inicio lo avisa; nunca se usa una tasa fija.
 - Categorías de ingreso con avance hacia tu meta mensual.
 - Vincular un reembolso aumenta el tope de la categoría de gasto solo en el período de la
   compra y modo activo. El gasto permanece bruto y el abono conserva su categoría de ingreso;
@@ -299,7 +303,9 @@ pnpm setup:prisma   # prisma generate + prisma migrate deploy (aditivo, no borra
 pnpm dev
 ```
 
-Abre **http://localhost:3005** y entra a `/login` con el código que llega al correo.
+Abre **http://localhost:3005** y entra a `/login` con el código que llega al correo. En local
+(`pnpm dev`, `NODE_ENV=development`) la cuenta demo que siembra `setup:db` entra con
+`demo@lucaplan.cl` y el código fijo **`000000`**, sin correo.
 El registro público está cerrado: crea la cuenta con `pnpm create:account --db-prod "postgresql://..." --email persona@example.com`.
 Configura `RESEND_API_KEY` en el servidor; [acceso por correo](docs/login-code.md) explica el remitente, la transición y las pruebas locales.
 
@@ -436,8 +442,7 @@ los tokens ya cifrados dejan de poder descifrarse y habrá que reconectar el cor
 | `pnpm setup:prisma`    | `prisma generate` + `prisma migrate deploy` (aditivo)                      |
 | `pnpm deploy:init`     | Migraciones contra una DB por argumento (primer deploy)                    |
 | `pnpm migrate:db`      | `migrate deploy` a una DB elegida por consola, con confirmación            |
-| `pnpm seed`            | Seed de ejemplo (Banco de Chile + categorías + movimientos)                |
-| `pnpm seed:pr`         | Datos falsos para un entorno de PR de Railway; fuera de ahí no hace nada   |
+| `pnpm seed`            | Siembra la cuenta demo `demo@lucaplan.cl` en la base local (solo localhost) |
 | `pnpm seed:categories` | Set completo de categorías con contexto para la IA (idempotente)           |
 | `pnpm create:account`  | Crea una cuenta en la base que se le indique por `--db-prod`               |
 | `pnpm sync:email`      | Corre la sincronización del correo (para cron / tarea programada)          |
@@ -483,50 +488,26 @@ La app queda en el puerto `3005` y Postgres en `5433` (host). Los secretos se le
 
 ### Railway: entornos de PR con datos falsos
 
-El arranque de la imagen aplica las migraciones y luego corre `pnpm seed:pr`. Ese script solo
-siembra cuando `RAILWAY_ENVIRONMENT_NAME` termina en `pr-<número>` — Railway inyecta esa variable
-sola y nombra así los entornos efímeros de pull request (`pr-2`, o `lucaplan-app-pr-2` cuando el
-proyecto tiene varios servicios). En `production` (y en local, y en Docker Compose) se salta sin
+El arranque de la imagen aplica las migraciones y luego corre `scripts/seed.ts`. La cuenta demo
+solo se siembra cuando `RAILWAY_ENVIRONMENT_NAME` termina en `pr-<número>` — Railway inyecta esa
+variable sola y nombra así los entornos efímeros de pull request (`pr-2`, o `lucaplan-app-pr-2`
+cuando el proyecto tiene varios servicios) — o en local con `NODE_ENV=development` (`pnpm seed`,
+`pnpm setup:db`) contra una base en localhost. En `production` y en Docker Compose se salta sin
 tocar la base. No hay nada que configurar.
 
-Los seeds históricos siguen creando datos por escena, sin contraseña ni acceso automático.
-Para este entorno Docker se usa una preview local aislada con correo simulado, como describe
-[acceso por correo](docs/login-code.md). No se envía correo a cuentas ficticias reales.
+| Variable           | Default            | Para qué                                                        |
+| ------------------ | ------------------ | --------------------------------------------------------------- |
+| `SEED_PR_EMAIL`    | `demo@lucaplan.cl` | Correo de la cuenta demo en el entorno del PR                   |
+| `SEED_DEMO_FORCE`  | —                  | `1` borra los datos de la cuenta demo y la vuelve a sembrar      |
 
-| Variable            | Default            | Para qué                                                       |
-| ------------------- | ------------------ | -------------------------------------------------------------- |
-| `SEED_PR_EMAIL`     | `demo@lucaplan.cl` | Correo del usuario base con el que entras al entorno del PR      |
-| `SEED_PR_FORCE`     | —                  | `1` borra los datos de los usuarios demo y los vuelve a sembrar en el próximo deploy |
-
-Es idempotente: si un usuario demo ya existe, los redeploys del PR no lo tocan (lo que probaste
-sigue ahí). A cada uno le siembra 2 cuentas con cupos separados por moneda, 9 categorías con
-contexto para la IA, presupuesto global y por categoría, sueldo con carry-forward, movimientos del
-mes en curso y del anterior, 3 gastos recurrentes y 2 planes de cuotas (tarjeta y crédito de
-consumo).
-
-#### Escenas: los datos de cada feature
-
-Ese usuario base es el mismo para todos los PR y muestra la app en su estado normal. Lo que una
-feature necesita para poder mirarse va en una **escena**: un archivo en
-[`scripts/seed-pr/escenas/`](scripts/seed-pr/escenas/) con **su propio usuario demo**, que el seed
-descubre recorriendo la carpeta en orden alfabético. Cada escena exporta `correo`, `titulo` y
-`seed`, y recibe el usuario ya sembrado (`prisma`, `userId`, cuenta corriente, tarjeta y el mapa
-nombre → id de las categorías), así que son unas pocas líneas.
-
-Un usuario por escena es lo que permite que no se estorben: ninguna deforma los datos de otra ni
-los del usuario base, y ninguna se borra cuando llega el PR siguiente — las features viejas se
-siguen pudiendo probar. Como no hay archivo compartido (no hay `index.ts` a propósito), dos ramas
-en paralelo tampoco chocan.
-
-Ojo con qué garantiza qué: la partición es el `userId`, pero el `prisma` que recibe una escena es
-el cliente normal, **sin límite por usuario**. El aislamiento es una **regla que cada escena
-cumple** filtrando por el `userId` de su contexto, no algo que la estructura imponga; un `where`
-sin él alcanza a los demás usuarios demo.
-
-Cada escena conserva su usuario y correo; el acceso requiere un código, igual que el login normal.
-
-Cada escena corre aislada: si una falla —típicamente una vieja contra un esquema que ya cambió— el
-seed lo registra y sigue con las demás, en vez de caerse el deploy. Cómo escribir una, en
+Es idempotente: si la cuenta demo ya tiene datos, los redeploys del PR no la tocan (lo que
+probaste sigue ahí). Hay **una sola cuenta demo** con toda la data, no una por PR: 2 cuentas con
+cupos separados por moneda y la corriente usando su sobregiro, categorías con y sin tope,
+presupuesto distinto por modo (calendario y ciclo de tarjeta), sueldo, movimientos del mes en curso
+y del anterior (que cerró por sobre el tope), recurrentes en sus tres estados más un arriendo por
+cobrar, planes de cuotas (tarjeta con una cuota vencida sin saldar y crédito de consumo), un
+reembolso, cargos para conciliar la tarjeta, el banco conectado por correo y una conexión del
+plugin. Cómo agregarle datos, en
 [docs/development.md](docs/development.md#sembrar-los-datos-de-la-feature).
 
 ## Mapa documental

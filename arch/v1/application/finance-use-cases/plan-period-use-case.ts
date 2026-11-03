@@ -72,11 +72,8 @@ const flowDTO = (f: Flow) => ({
   pending: f.pending.toMajor(),
 })
 
-// Día civil "YYYY-MM-DD" como fecha local: es lo que esperan periodKeyFor/executionDateFor.
-const localDay = (day: string) => {
-  const [y, m, d] = day.split("-").map(Number)
-  return new Date(y, m - 1, d)
-}
+// Día civil "YYYY-MM-DD" a medianoche UTC: periodKeyFor/executionDateFor leen getters UTC.
+const localDay = (day: string) => new Date(`${day}T00:00:00.000Z`)
 
 export async function getPeriodPlan(
   deps: PlanDeps,

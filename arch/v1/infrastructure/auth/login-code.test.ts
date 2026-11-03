@@ -206,3 +206,62 @@ test("rate limit del servidor limita solicitudes aunque se omita el contador UI"
   assert.equal((await f.send()).status, 429)
   assert.equal(f.sent.length, 3)
 })
+
+test("código fijo 000000 en desarrollo local y en un entorno de PR de Railway; nunca en producción", async () => {
+  const { devLoginCode } = await import("./login-code.ts")
+  assert.equal(devLoginCode({ NODE_ENV: "development" }), "000000")
+  assert.equal(devLoginCode({ NODE_ENV: "production" }), null)
+  assert.equal(devLoginCode({}), null)
+  assert.equal(devLoginCode({ NODE_ENV: "Development" }), null)
+  assert.equal(devLoginCode({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "lucaplan-app-pr-2" }), "000000")
+  assert.equal(devLoginCode({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "pr-17" }), "000000")
+  assert.equal(devLoginCode({ NODE_ENV: "development", RAILWAY_ENVIRONMENT_NAME: "production" }), null)
+  assert.equal(devLoginCode({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "production" }), null)
+  assert.equal(devLoginCode({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "lucaplan-app-pr" }), null)
+})
+
+test("en desarrollo local solo la cuenta demo entra con 000000 sin correo; otra cuenta recibe su código aleatorio", async () => {
+  const sesion = async (env: Record<string, string>, email = "demo@lucaplan.cl") => {
+    const sent: string[] = []
+    const now = new Date()
+    const auth = betterAuth({
+      baseURL: "http://localhost:3171",
+      secret: "wdc171-test-secret-only-not-a-real-secret-123456",
+      database: memoryAdapter({
+        user: [
+          { id: "u", name: "Demo", email: "demo@lucaplan.cl", emailVerified: true, createdAt: now, updatedAt: now },
+          { id: "w", name: "Willy", email: "willy@example.com", emailVerified: true, createdAt: now, updatedAt: now },
+        ],
+        session: [], account: [], verification: [],
+      }),
+      emailAndPassword: { enabled: false },
+      plugins: [createLoginCodePlugin({ async send(_e, code) { sent.push(code) } }, env)],
+      rateLimit: { enabled: false },
+      logger: { disabled: true },
+    })
+    const post = (path: string, body: unknown) =>
+      auth.handler(new Request(`http://localhost:3171/api/auth${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "http://localhost:3171" },
+        body: JSON.stringify(body),
+      }))
+    await post("/email-otp/send-verification-otp", { email, type: "sign-in" })
+    await new Promise((r) => setImmediate(r))
+    const res = await post("/sign-in/email-otp", { email, otp: "000000" })
+    return { sent, ok: res.ok }
+  }
+  assert.deepEqual(await sesion({ NODE_ENV: "development" }), { sent: [], ok: true })
+  assert.deepEqual(await sesion({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "lucaplan-app-pr-2" }), { sent: [], ok: true })
+  for (const [env, email] of [
+    [{ NODE_ENV: "production" }, "demo@lucaplan.cl"],
+    [{ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "production" }, "demo@lucaplan.cl"],
+    [{ NODE_ENV: "development" }, "willy@example.com"],
+    [{ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "lucaplan-app-pr-2" }, "willy@example.com"],
+  ] as const) {
+    const r = await sesion(env, email)
+    assert.equal(r.sent.length, 1, `${env.NODE_ENV} ${email}`)
+    assert.match(r.sent[0], /^\d{6}$/)
+    assert.notEqual(r.sent[0], "000000")
+    assert.equal(r.ok, false)
+  }
+})

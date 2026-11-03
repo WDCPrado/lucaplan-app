@@ -8,13 +8,13 @@ import type { CategoryDTO } from "@/arch/v1/application/finance-use-cases/financ
  * excedente: el titular del mes no lo anuncia y las filas de categoría solo dicen lo suyo.
  *
  * Son DOS cifras distintas y la banda no las suma:
- * - **excedente del mes** (`monthOverspend`): gasto por sobre el presupuesto global. Cuando existe,
+ * - **excedente del mes** (`monthOverspend`): gasto por sobre el tope de gasto global. Cuando existe,
  *   es la que se dice.
  * - **excedente de topes** (`capsOverspend`): lo que se pasó categoría por categoría.
  *
- * Sin excedente del mes pero con presupuesto global, una línea secundaria aclara que el mes todavía
- * alcanza (es un descuadre entre categorías). Sin presupuesto global no se afirma: no hay contra qué
- * medir.
+ * Sin excedente del mes pero con tope de gasto global, una línea secundaria aclara que el tope de gasto
+ * del mes todavía alcanza (es un descuadre entre categorías). Sin tope global no se afirma: no hay
+ * contra qué medir.
  *
  * Tocarla abre la categoría más pasada (el mismo detalle que abre su fila). Con ambos excedentes en
  * $0 no se renderiza nada.
@@ -30,7 +30,7 @@ export function OverspendBanner({
   period: { year: number; month: number }
   capsOverspend: number
   monthOverspend: number
-  globalLimit: number | null // presupuesto del mes; null = todavía sin definir
+  globalLimit: number | null // tope de gasto del mes; null = todavía sin definir
   categories: CategoryDTO[]
   onOpenCategory: (id: string) => void
 }) {
@@ -50,7 +50,7 @@ export function OverspendBanner({
     <>
       Te pasaste{" "}
       <span className="tabular font-semibold">{formatCLP(monthOverspend)}</span>{" "}
-      del presupuesto de {mes}
+      del tope de gasto de {mes}
     </>
   ) : (
     <>
@@ -64,7 +64,7 @@ export function OverspendBanner({
       <span className="block">{headline}</span>
       {!overMonth && globalLimit !== null && (
         <span className="block text-footnote text-muted-foreground">
-          El presupuesto del mes todavía alcanza.
+          El tope de gasto del mes todavía alcanza.
         </span>
       )}
     </>

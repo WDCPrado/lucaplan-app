@@ -1,29 +1,20 @@
-// Siembra UN usuario demo completo: cuentas, cupos, categorías con tope, presupuesto, sueldo,
-// movimientos del mes en curso y del anterior, recurrentes y planes de cuotas. Es el cuerpo que
-// antes vivía suelto en scripts/seed-pr.ts; ahora es una función porque el entorno de PR siembra
-// varios usuarios — el base y uno por escena (scripts/seed-pr/escenas/).
-//
-// No decide si corresponde sembrar ni en qué entorno: de eso se encarga scripts/seed-pr.ts.
+// La cuenta demo: el usuario, su banco, cuentas y cupos, categorías con tope, presupuesto, sueldo,
+// movimientos del mes en curso y del anterior, recurrentes y planes de cuotas. Es la base sobre la
+// que `2-casos/` agrega los casos de cada dominio. No decide el entorno: eso es de scripts/seed.ts.
 
-import { prisma } from "../../arch/v1/infrastructure/database/prisma/client.ts"
+import { prisma } from "../../../../arch/v1/infrastructure/database/prisma/client.ts"
 import { randomUUID } from "node:crypto"
 
-// Lo que recibe una escena: el usuario ya sembrado y lo que casi siempre necesita como
-// dependencia, para que no tenga que volver a consultarlo.
-export type EscenaContext = {
+// Lo que reciben los casos: la cuenta ya sembrada y lo que casi siempre necesitan, para que no
+// tengan que volver a consultarlo.
+export type DemoContext = {
   prisma: typeof prisma
   userId: string
   checkingId: string
   creditCardId: string
+  nationalBucketId: string // cupo CLP de la tarjeta: sin bucket, la conciliación rechaza el cargo
+  internationalBucketId: string // cupo USD
   categoryId: Map<string, string> // nombre de la categoría → id
-}
-
-// Lo que exporta cada archivo de scripts/seed-pr/escenas/. `titulo` termina en el `name` del
-// usuario, que es de donde el login saca la etiqueta de la cuenta.
-export type Escena = {
-  correo: string
-  titulo: string
-  seed: (ctx: EscenaContext) => Promise<void>
 }
 
 // [nombre, icono, color, límite del mes, descripción para la IA]
@@ -85,30 +76,31 @@ async function resolveUser(email: string, nombre: string) {
   // y que nunca se reintentaría. Todo lo sembrado cuelga del banco, así que sin banco no hay nada:
   // ese usuario se trata como fresco y el próximo deploy lo rehace.
   const completo = await prisma.bank.count({ where: { userId: existing.id } })
-  if (completo > 0 && process.env.SEED_PR_FORCE !== "1") {
+  if (completo > 0 && process.env.SEED_DEMO_FORCE !== "1") {
     return { id: existing.id, fresh: false }
   }
   // Re-siembra: borrar el banco arrastra en cascada cuentas, tarjetas, movimientos,
-  // ingresos, recurrentes y planes de cuotas. Las categorías (y sus límites) las borra la
-  // limpieza de más abajo, común a los dos caminos.
+  // ingresos, recurrentes y planes de cuotas. Los buzones de correo cuelgan del usuario, no del
+  // banco. Las categorías (y sus límites) las borra la limpieza de más abajo, común a los dos caminos.
+  await prisma.emailMailbox.deleteMany({ where: { userId: existing.id } })
+  await prisma.bankConnectionMethod.deleteMany({ where: { userId: existing.id } })
   await prisma.bank.deleteMany({ where: { userId: existing.id } })
   await prisma.monthlyBudget.deleteMany({ where: { userId: existing.id } })
   return { id: existing.id, fresh: true }
 }
 
 /**
- * Siembra el usuario y devuelve su contexto. `null` si ya tenía datos y no se pidió re-sembrar
- * (`SEED_PR_FORCE=1`): el entorno de PR es idempotente, un redeploy no pisa lo que ya estaba ahí.
+ * Siembra la cuenta demo y devuelve su contexto. `null` si ya tenía datos y no se pidió re-sembrar
+ * (`SEED_DEMO_FORCE=1`): es idempotente, un redeploy del PR no pisa lo que ya estaba ahí.
  */
-export async function sembrarUsuario({
+export async function seed({
   email,
   nombre,
 }: {
   email: string
-  password: string
   nombre: string
-}): Promise<EscenaContext | null> {
-  // TODO en UTC, igual que las escenas: las fechas de movimiento son días civiles (@db.Date) y
+}): Promise<DemoContext | null> {
+  // TODO en UTC, igual que los casos: las fechas de movimiento son días civiles (@db.Date) y
   // mezclar getters locales acá con UTC allá hace que, corrido desde Chile el último día del mes
   // pasadas las 20:00, "el mes anterior" sea un mes distinto en cada lado.
   const now = new Date()
@@ -122,7 +114,7 @@ export async function sembrarUsuario({
   const { id: userId, fresh } = await resolveUser(email, nombre)
   if (!fresh) {
     console.log(
-      `[seed:pr] ${email} ya tiene datos — no se toca (SEED_PR_FORCE=1 para rehacerlo).`
+      `[seed] ${email} ya tiene datos — no se toca (SEED_DEMO_FORCE=1 para rehacerlo).`
     )
     return null
   }
@@ -348,15 +340,19 @@ export async function sembrarUsuario({
   }
 
   console.log(
-    `[seed:pr] ${email} sembrado — 2 cuentas, ${EXPENSE_CATEGORIES.length + 1} categorías, ` +
+    `[seed] ${email} sembrado — 2 cuentas, ${EXPENSE_CATEGORIES.length + 1} categorías, ` +
       `presupuesto ${month}/${year}, ${movementRows.length + 2} movimientos, ${RECURRING.length} recurrentes, ${plans.length} planes de cuotas.`
   )
 
+  const bucketOf = async (kind: string) =>
+    (await prisma.balanceBucket.findFirstOrThrow({ where: { userId, accountId: creditCard.id, kind } })).id
   return {
     prisma,
     userId,
     checkingId: checking.id,
     creditCardId: creditCard.id,
+    nationalBucketId: await bucketOf("credit_national"),
+    internationalBucketId: await bucketOf("credit_international"),
     categoryId,
   }
 }

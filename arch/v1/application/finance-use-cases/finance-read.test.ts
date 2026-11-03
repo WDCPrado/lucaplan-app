@@ -16,6 +16,7 @@ import type {
 } from "../../domain/finance/finance.domain.ts"
 import {
   getBudgetView,
+  getCategoryDetail,
   getPreviousMonthDebt,
   listUncategorized,
   searchTransactions,
@@ -24,6 +25,10 @@ import {
 import { inRange } from "./budget-formulas.ts"
 import { scopeBudgetPeriod } from "./budget-period-use-cases.ts"
 import { planTotal, shouldSuggest } from "../../../../lib/plan-total.ts"
+import { calculateFinancialOverview } from "../../../../lib/financial-health.ts"
+import type { InstallmentPlan } from "../../domain/finance/installment.domain.ts"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import type { PeriodMode, PeriodRange } from "../../../shared/billing-cycle.ts"
 
 const mov = (id: string, accountId = "a1"): Transaction => ({
@@ -384,18 +389,19 @@ test("getBudgetView: el excedente de topes suma lo confirmado sobre el tope y na
   // Solo Supermercado se pasó: 130.000 de 100.000. Ni el pending de 40.000, ni el interno de
   // 500.000, ni los 200.000 de la categoría sin tope, ni el sueldo.
   assert.equal(view.capsOverspend, 30000)
-  // Solo las categorías de gasto CON presupuesto: 130.000 + 20.000.
-  assert.equal(view.spent, 150000)
+  // WDC-171: el gastado suma todo gasto real, también la categoría sin tope: 130.000 + 20.000 + 200.000.
+  assert.equal(view.spent, 350000)
   assert.equal(view.committed, 40000)
-  assert.equal(view.monthOverspend, 0)
+  assert.equal(view.monthOverspend, 50000)
 })
 
 test("getBudgetView: pasarse del presupuesto global cuenta todo el gasto incluido", async () => {
   const view = await getBudgetView(
     budgetDeps(globalBudget(100000)), "u1", 2026, 8
   )
-  assert.equal(view.spent, 150000)
-  assert.equal(view.monthOverspend, 50000)
+  // WDC-171: incluye los 200.000 de la categoría sin tope.
+  assert.equal(view.spent, 350000)
+  assert.equal(view.monthOverspend, 250000)
   assert.equal(view.capsOverspend, 30000)
 })
 
@@ -612,9 +618,9 @@ for (const sourceState of ["activa", "inactiva", "terminada", "sin-monto-vigente
     } as unknown as NonNullable<typeof deps.incomes>
     deps.exchangeRates = { clpPerUsdAt: async () => 950 }
     const view = await getBudgetView(deps, "u1", 2026, 10)
-    assert.equal(view.income, 3182394)
+    assert.equal(view.income, 3201394) // + abono US$20 convertido a 950
     assert.equal(view.spent, 2832794)
-    assert.equal(view.income - view.spent, 349600)
+    assert.equal(view.income - view.spent, 368600)
     assert.equal(view.monthOverspend, 416289, "el exceso sobre el tope no es déficit de ingresos")
     const debt = await getPreviousMonthDebt(deps, "u1", 2026, 11)
     assert.equal(debt, 0)
@@ -902,7 +908,7 @@ for (const scenario of [
   { name: "sin fuente", planned: 40000, active: true, category: "c-super", incomeId: null, expected: 40000 },
   { name: "fuente ausente", planned: 40000, active: true, category: "c-super", incomeId: "missing", expected: 40000 },
   { name: "inactivo", planned: 40000, active: false, category: "c-super", incomeId: "refund", expected: 40000 },
-  { name: "sin tope", planned: 40000, active: true, category: "c-transfer", incomeId: "refund", expected: 0 },
+  { name: "sin tope", planned: 40000, active: true, category: "c-transfer", incomeId: "refund", expected: 40000 },
 ]) {
   test(`reembolso ${scenario.name}: conserva neto por categoría y neutraliza solo ingreso incluido`, async () => {
     const rows = [
@@ -917,10 +923,10 @@ for (const scenario of [
     } as unknown as NonNullable<typeof deps.incomes>
     deps.reimbursements = { listForTransactions: async () => [{ expenseId: "expense", creditId: "credit", amount: 40000 }] }
     const result = await getBudgetView(deps, "u1", 2026, 8)
-    assert.equal(result.spent, scenario.category === "c-super" ? 20000 : 0)
+    assert.equal(result.spent, 20000)
     assert.equal(result.reimbursementAdjustment, scenario.expected)
     deps.monthlyBudgets.listByUser = async () => [monthBudget(2026, 8, 10000)]
-    assert.equal(await getPreviousMonthDebt(deps, "u1", 2026, 9), scenario.category === "c-super" ? 20000 : 0,
+    assert.equal(await getPreviousMonthDebt(deps, "u1", 2026, 9), 20000,
       "el reembolso compensa una sola vez: no es ingreso libre además de reducir el gasto")
     assert.equal(rows[0].amount.toMajor(), 60000, "no altera el movimiento bancario")
     rows[1].date = new Date("2026-09-01")
@@ -995,4 +1001,250 @@ test("resumen y plan usan los mismos buckets aunque el saldo legado esté desact
   assert.equal(result.overdraftDebt, 200000)
   assert.equal(result.netPosition, -120000)
   assert.deepEqual(result.creditCardDebts, [{ accountId: "card", name: "card", debt: 300000 }])
+})
+
+// --- WDC-171 · presupuesto, ritmo y titular del Inicio ---
+// Noviembre 2026, mes calendario. Hogar tiene tope 450.000 y paga un arriendo recurrente de 400.000.
+// Hoy es lunes 2-nov: del 2 al 30 quedan 29 días (hoy incluido).
+
+const NOV_TODAY = { frequency: "daily" as const, today: "2026-11-02" }
+const novTx = (over: Partial<Transaction> & { id: string }) =>
+  budgetTx({ date: new Date(Date.UTC(2026, 10, 2)), ...over })
+const limitOf = (categoryId: string, amount: number, year = 2026, month = 11): CategoryLimit => ({
+  id: `l-${categoryId}-${year}-${month}`, categoryId, year, month, limit: Money.of(amount, "CLP"),
+})
+const cuota = (paid: boolean): InstallmentPlan => ({
+  id: "plan-sillon", userId: "u1", kind: "loan", accountId: "a1", categoryId: "c-hogar",
+  sourceTransactionId: null, description: "Sillón", totalAmount: Money.of(60000, "CLP"), currency: "CLP",
+  installmentsCount: 3, startDate: new Date(Date.UTC(2026, 9, 10)), dayOfMonth: 10, tolerancePct: 0,
+  completedAt: null,
+  items: [{
+    id: "item-nov", index: 2, dueDate: new Date(Date.UTC(2026, 10, 10)), amount: Money.of(20000, "CLP"),
+    transactionId: paid ? "t-cuota" : null, paidOutsideApp: false,
+  }],
+})
+
+// `listByUserPeriod` respeta el rango: así el arrastre del mes anterior (regla 6) tiene que pedirlo.
+function wdc171Deps(opts: {
+  txs: Transaction[]
+  cats?: Category[]
+  limits?: CategoryLimit[]
+  budgets?: MonthlyBudget[]
+  plans?: InstallmentPlan[]
+}) {
+  return {
+    categories: {
+      async listByUser() {
+        return opts.cats ?? [cat("c-hogar", "expense", "Hogar")]
+      },
+      async listLimitsByUser() {
+        return opts.limits ?? [limitOf("c-hogar", 450000)]
+      },
+    },
+    transactions: {
+      async listByUserPeriod(_userId: string, range: PeriodRange) {
+        return opts.txs.filter((t) => inRange(t.date, range))
+      },
+    },
+    monthlyBudgets: {
+      async listByUser() {
+        return opts.budgets ?? []
+      },
+    },
+    installments: {
+      async listByUser() {
+        return opts.plans ?? []
+      },
+    },
+    exchangeRates: {
+      async clpPerUsdAt(): Promise<never> {
+        throw new Error("no usado: todo el fixture es CLP")
+      },
+    },
+  } as unknown as Parameters<typeof getBudgetView>[0]
+}
+
+// Lo que la fila dice que «quedan»: tope − usado − comprometido.
+const quedan = (c: { limit: number; used: number; committed: number }) => c.limit - c.used - c.committed
+
+const hogarOf = async (deps: Parameters<typeof getBudgetView>[0], year = 2026, month = 11, pace = NOV_TODAY) =>
+  (await getBudgetView(deps, "u1", year, month, pace)).categories.find((c) => c.id === "c-hogar")!
+
+test("pres-ritmo-comprometido: el ritmo y el «quedan» de Hogar descuentan el arriendo y la cuota que faltan pagar", async () => {
+  const arriendoPendiente = novTx({
+    id: "t-arriendo", categoryId: "c-hogar", amount: Money.of(400000, "CLP"),
+    status: "pending", recurringTemplateId: "rec-arriendo", date: new Date(Date.UTC(2026, 10, 5)),
+  })
+  const soloArriendo = await hogarOf(wdc171Deps({ txs: [arriendoPendiente] }))
+  assert.equal(soloArriendo.committed, 400000)
+  assert.equal(soloArriendo.available, 450000, "`available` sigue siendo tope − usado (sirve para «sobre el tope»)")
+  assert.equal(quedan(soloArriendo), 50000, "quedan = 450.000 − 0 usado − 400.000 comprometido")
+  assert.equal(soloArriendo.pace?.budget, Math.floor(50000 / 29), "1.724 por día, no 15.517")
+
+  // La cuota del sillón que vence el 10-nov y aún no se paga también es comprometido de Hogar.
+  const conCuota = await hogarOf(wdc171Deps({ txs: [arriendoPendiente], plans: [cuota(false)] }))
+  assert.equal(conCuota.committed, 420000)
+  assert.equal(quedan(conCuota), 30000)
+  assert.equal(conCuota.pace?.budget, Math.floor(30000 / 29))
+
+  // La fila del Inicio pinta «quedan» con tope − usado − comprometido, no con `available`.
+  const dashboard = readFileSync(join(import.meta.dirname, "../../../../components/finance/dashboard.tsx"), "utf8")
+  const shown = dashboard.match(/quedan <span className="tabular">\{formatCLP\(([^)]*)\)\}/)?.[1]
+  assert.ok(shown, "la fila sigue diciendo «quedan $X»")
+  assert.notEqual(shown.trim(), "c.available")
+})
+
+test("pres-pagar-recurrente: pagar el arriendo y la cuota no pinta el ritmo ni mueve lo que queda de Hogar", async () => {
+  const pendientes = await hogarOf(wdc171Deps({
+    txs: [novTx({ id: "t-arriendo", categoryId: "c-hogar", amount: Money.of(400000, "CLP"), status: "pending", recurringTemplateId: "rec-arriendo" })],
+    plans: [cuota(false)],
+  }))
+  const pagados = (extra: Transaction[] = [], arriendo = 400000) => wdc171Deps({
+    txs: [
+      novTx({ id: "t-arriendo", categoryId: "c-hogar", amount: Money.of(arriendo, "CLP"), recurringTemplateId: "rec-arriendo" }),
+      novTx({ id: "t-cuota", categoryId: "c-hogar", amount: Money.of(20000, "CLP"), installmentItemId: "item-nov" }),
+      ...extra,
+    ],
+    plans: [cuota(true)],
+  })
+  const hoy = await hogarOf(pagados())
+  assert.equal(hoy.used, 420000, "lo pagado sí es usado de la categoría")
+  assert.equal(hoy.committed, 0, "y deja de estar comprometido")
+  assert.equal(quedan(hoy), quedan(pendientes), "lo que queda no cambia al pagar por su monto")
+  assert.equal(hoy.pace?.spent, 0, "el ritmo de hoy no cuenta el arriendo ni la cuota")
+  assert.equal(hoy.pace?.budget, pendientes.pace?.budget, "la meta del día tampoco se mueve")
+  assert.equal(hoy.pace?.status, "ok")
+
+  // Bordes del ritmo con un gasto variable del mismo día: justo en la meta es alerta, $1 más es excedido.
+  const meta = Math.floor(30000 / 29)
+  const justo = await hogarOf(pagados([novTx({ id: "t-pan", categoryId: "c-hogar", amount: Money.of(meta, "CLP") })]))
+  assert.equal(justo.pace?.spent, meta)
+  assert.equal(justo.pace?.status, "alerta")
+  const pasado = await hogarOf(pagados([novTx({ id: "t-pan", categoryId: "c-hogar", amount: Money.of(meta + 1, "CLP") })]))
+  assert.equal(pasado.pace?.status, "excedido")
+
+  // Si el arriendo se cobra por más de lo esperado, la diferencia sí sale de lo que queda.
+  const caro = await hogarOf(pagados([], 410000))
+  assert.equal(quedan(caro), quedan(pendientes) - 10000)
+})
+
+test("pres-gastado-todo: el gastado del Inicio suma todo gasto real en CLP, con o sin categoría y con o sin tope", async () => {
+  const view = await getBudgetView(wdc171Deps({
+    cats: [cat("c-hogar", "expense", "Hogar"), cat("c-regalos", "expense", "Regalos"), cat("c-sueldo", "income", "Sueldo")],
+    txs: [
+      novTx({ id: "con-tope", categoryId: "c-hogar", amount: Money.of(100000, "CLP") }),
+      novTx({ id: "sin-tope", categoryId: "c-regalos", amount: Money.of(50000, "CLP") }),
+      novTx({ id: "sin-categoria", categoryId: null, amount: Money.of(30000, "CLP") }),
+      novTx({ id: "interno", categoryId: "c-hogar", amount: Money.of(500000, "CLP"), isInternal: true }),
+      novTx({ id: "pendiente", categoryId: "c-hogar", amount: Money.of(40000, "CLP"), status: "pending" }),
+      novTx({ id: "pendiente-sin-tope", categoryId: "c-regalos", amount: Money.of(10000, "CLP"), status: "pending", recurringTemplateId: "rec-regalo" }),
+      novTx({ id: "sueldo", categoryId: "c-sueldo", amount: Money.of(1000000, "CLP"), direction: "credit" }),
+    ],
+  }), "u1", 2026, 11, NOV_TODAY)
+  assert.equal(view.spent, 180000, "100.000 + 50.000 + 30.000; ni el interno, ni los pendientes, ni el sueldo")
+  assert.equal(view.committed, 50000, "el comprometido también cuenta la recurrente pendiente sin tope")
+  assert.equal(view.categories.find((c) => c.id === "c-regalos")!.pace, null, "sin tope no hay ritmo")
+})
+
+test("pres-banda-y-titular: con tope de gasto 500.000, ingreso 1.000.000 y gastado 600.000, la banda dice $100.000 sobre el tope y el titular $400.000", async () => {
+  const mes = (sinTope: number) => wdc171Deps({
+    cats: [cat("c-hogar", "expense", "Hogar"), cat("c-regalos", "expense", "Regalos"), cat("c-sueldo", "income", "Sueldo")],
+    budgets: [{ id: "mb-nov", userId: "u1", year: 2026, month: 11, globalLimit: Money.of(500000, "CLP") }],
+    txs: [
+      novTx({ id: "hogar", categoryId: "c-hogar", amount: Money.of(450000, "CLP") }),
+      novTx({ id: "regalos", categoryId: "c-regalos", amount: Money.of(sinTope, "CLP") }),
+      novTx({ id: "sueldo", categoryId: "c-sueldo", amount: Money.of(1000000, "CLP"), direction: "credit" }),
+    ],
+  })
+  const view = await getBudgetView(mes(150000), "u1", 2026, 11)
+  assert.equal(view.spent, 600000)
+  assert.equal(view.monthOverspend, 100000, "la banda mide el tope de gasto global")
+  const titular = calculateFinancialOverview({
+    cash: 0, overdraftDebt: 0, income: view.income, spent: view.spent,
+    committed: view.committed, reimbursementAdjustment: view.reimbursementAdjustment,
+  })
+  assert.equal(titular.balance, 400000, "el titular lee `balance`")
+
+  // Bordes del tope de gasto: gastar justo 500.000 no muestra banda; $1 más, $1.
+  assert.equal((await getBudgetView(mes(50000), "u1", 2026, 11)).monthOverspend, 0)
+  assert.equal((await getBudgetView(mes(50001), "u1", 2026, 11)).monthOverspend, 1)
+
+  // El texto de la banda habla del tope de gasto, no del presupuesto ni del plan.
+  const banner = readFileSync(join(import.meta.dirname, "../../../../components/finance/overspend-banner.tsx"), "utf8")
+  assert.match(banner, /tope de gasto/)
+  assert.doesNotMatch(banner, /del presupuesto de/)
+  assert.doesNotMatch(banner, /El presupuesto del mes todavía alcanza/)
+})
+
+test("pres-aviso-plugin: el aviso del plan en el plugin ya no dice que solo cuentan gastos de categorías con tope", () => {
+  const tools = readFileSync(join(import.meta.dirname, "../../infrastructure/plugin/finance-tools.ts"), "utf8")
+  const schema = readFileSync(join(import.meta.dirname, "../../../../lib/schemas/plugin.ts"), "utf8")
+  // includes y no match: el mensaje de un match fallido vuelca el archivo entero.
+  assert.ok(!tools.includes("solo cuentan gastos de categorías presupuestadas"), "finance-tools.ts: notice de lucaplan_medidor_financiero")
+  assert.ok(!schema.includes("gastos confirmados de categorías con tope >0"), "lib/schemas/plugin.ts: descripción de lucaplan_medidor_financiero")
+})
+
+// --- WDC-171 · USD: se convierte con el dólar observado, pero nunca con una tasa inventada ---
+// Propuesta de contrato: `clpPerUsdAt` devuelve `null` cuando no hay dólar observado, y la vista
+// trae `exchangeRateUnavailable: true` con los montos USD fuera de los totales.
+const withRate = (deps: Parameters<typeof getBudgetView>[0], rate: number | null) =>
+  ({ ...deps, exchangeRates: { clpPerUsdAt: async () => rate } }) as unknown as Parameters<typeof getBudgetView>[0]
+const rateFlag = (view: object) => (view as { exchangeRateUnavailable?: boolean }).exchangeRateUnavailable
+
+test("pres-usd-sin-tasa: si el dólar observado no responde, el gasto en USD queda fuera con aviso y no se convierte a una tasa fija", async () => {
+  const mes = (txs: Transaction[]) => wdc171Deps({ txs })
+  const txs = [
+    novTx({ id: "clp", categoryId: "c-hogar", amount: Money.of(100000, "CLP") }),
+    novTx({ id: "usd", categoryId: "c-hogar", amount: Money.of(10, "USD") }),
+  ]
+  const conTasa = await getBudgetView(withRate(mes(txs), 950), "u1", 2026, 11)
+  assert.equal(conTasa.spent, 109500, "US$10 × 950 del día")
+  assert.equal(rateFlag(conTasa), false)
+
+  const sinTasa = await getBudgetView(withRate(mes(txs), null), "u1", 2026, 11)
+  assert.equal(sinTasa.spent, 100000, "el USD no entra con una tasa inventada")
+  assert.equal(sinTasa.categories.find((c) => c.id === "c-hogar")!.used, 100000)
+  assert.equal(rateFlag(sinTasa), true, "la vista avisa que falta el dólar observado")
+
+  // Borde: sin movimientos en USD no hay nada que avisar aunque el proveedor no responda.
+  assert.equal(rateFlag(await getBudgetView(withRate(mes([txs[0]]), null), "u1", 2026, 11)), false)
+})
+
+test("pres-usd-ingreso: un abono en USD suma a los ingresos convertido con el dólar del día, igual que un gasto", async () => {
+  const deps = wdc171Deps({
+    cats: [cat("c-hogar", "expense", "Hogar"), cat("c-sueldo", "income", "Sueldo")],
+    txs: [
+      novTx({ id: "abono-clp", categoryId: "c-sueldo", direction: "credit", amount: Money.of(500000, "CLP") }),
+      novTx({ id: "abono-usd", categoryId: "c-sueldo", direction: "credit", amount: Money.of(100, "USD") }),
+    ],
+  })
+  const conTasa = await getBudgetView(withRate(deps, 950), "u1", 2026, 11)
+  assert.equal(conTasa.income, 595000, "500.000 + US$100 × 950")
+  const sinTasa = await getBudgetView(withRate(deps, null), "u1", 2026, 11)
+  assert.equal(sinTasa.income, 500000)
+  assert.equal(rateFlag(sinTasa), true)
+})
+
+test("pres-detalle-cuadra: el detalle de Hogar dice el mismo comprometido y «libre» que la vista del mes, con la cuota del sillón por cobrar", async () => {
+  const txs = [
+    novTx({ id: "t-arriendo", categoryId: "c-hogar", amount: Money.of(400000, "CLP"), status: "pending", recurringTemplateId: "rec-arriendo" }),
+    novTx({ id: "t-super", categoryId: "c-hogar", amount: Money.of(10000, "CLP") }),
+  ]
+  const base = wdc171Deps({ txs, plans: [cuota(false)] }) as unknown as Record<string, Record<string, unknown>>
+  const deps = {
+    ...base,
+    categories: { ...base.categories, findById: async (id: string) => (id === "c-hogar" ? cat("c-hogar", "expense", "Hogar") : null) },
+    transactions: {
+      ...base.transactions,
+      listByCategoryPeriod: async (categoryId: string, range: PeriodRange) =>
+        txs.filter((t) => t.categoryId === categoryId && inRange(t.date, range)),
+    },
+    accounts: { listByUser: async () => [] },
+  } as unknown as Parameters<typeof getBudgetView>[0]
+  const fila = await hogarOf(deps)
+  const detalle = await getCategoryDetail(deps, "u1", "c-hogar", 2026, 11)
+  assert.equal(fila.committed, 420000, "arriendo 400.000 + cuota 20.000")
+  assert.equal(detalle.committed, fila.committed)
+  assert.equal(detalle.free, fila.free)
+  assert.equal(detalle.used, fila.used)
 })

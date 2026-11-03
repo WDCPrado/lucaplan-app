@@ -2,7 +2,6 @@ import type {
   CategoryDTO,
   TransactionDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
-import { isBudgetedExpenseCategory } from "../arch/v1/domain/finance/budget-scope.domain.ts"
 import { daysOf, type PeriodRange } from "../arch/shared/billing-cycle.ts"
 
 /** Fecha civil "YYYY-MM-DD" de un movimiento: `date` es el ISO de un @db.Date, así que va en el texto. */
@@ -12,12 +11,12 @@ export function dateOf(tx: Pick<TransactionDTO, "date">): string {
 
 /**
  * Gasto por fecha, en CLP, para la curva de gasto del Inicio: una cifra por cada fecha de `days`, en su orden.
- * Solo cargos confirmados de categorías con presupuesto, sin ajustes de saldo y con el equivalente CLP cuando la
- * moneda es otra. Agrupa por fecha y no por día del mes: un ciclo de tarjeta cruza dos meses y el
+ * Todo cargo confirmado, con o sin categoría o tope (mismo criterio que el gastado del plan), sin ajustes de saldo
+ * y con el equivalente CLP cuando la moneda es otra; sin dólar observado (`amountClp` null) queda fuera. Agrupa por fecha y no por día del mes: un ciclo de tarjeta cruza dos meses y el
  * 25/09 no es el 25/10.
  */
 export function spendByDate(
-  transactions: Pick<
+  transactions: (Pick<
     TransactionDTO,
     | "date"
     | "direction"
@@ -25,14 +24,11 @@ export function spendByDate(
     | "isInternal"
     | "amount"
     | "amountClp"
-    | "categoryId"
-  >[],
+  > & { currency?: string })[],
   days: string[],
-  categories: Pick<CategoryDTO, "id" | "type" | "limit">[]
+  // Ya no filtra: se mantiene para no romper a quien la llama (WDC-171).
+  _categories?: Pick<CategoryDTO, "id" | "type" | "limit">[]
 ): number[] {
-  const budgetedIds = new Set(
-    categories.filter(isBudgetedExpenseCategory).map((c) => c.id)
-  )
   const index = new Map(days.map((d, i) => [d, i]))
   const out = new Array<number>(days.length).fill(0)
   for (const t of transactions) {
@@ -40,8 +36,7 @@ export function spendByDate(
       t.direction !== "debit" ||
       t.status !== "confirmed" ||
       t.isInternal ||
-      t.categoryId === null ||
-      !budgetedIds.has(t.categoryId)
+      (t.currency !== undefined && t.currency !== "CLP" && t.amountClp == null)
     )
       continue
     const i = index.get(dateOf(t))

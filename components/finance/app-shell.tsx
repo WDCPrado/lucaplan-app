@@ -497,7 +497,7 @@ function Chrome({
           <div
             data-scrolled={scrolled || undefined}
             style={{ viewTransitionName: "app-top-mobile" }}
-            className="top-bar pwa-safe-top pointer-events-none sticky top-0 z-20 flex items-center px-2 py-2 md:hidden"
+            className="top-bar pwa-safe-top pointer-events-none sticky top-0 z-20 flex items-center px-4 py-2 md:hidden"
           >
             {title && (
               <div className="top-title grid">

@@ -234,6 +234,11 @@ Una posición negativa implica `en_deficit`; cero o línea utilizada impiden `sa
 suponen al menos `al_limite`. `projectedStatus` combina la proyección del plan con esa
 misma liquidez registrada: no predice un saldo bancario futuro. No incluye cupos como
 caja, ni resta toda la deuda de tarjeta a un plan que ya cuenta sus compras/cuotas.
+`spendable` es la cifra grande del Inicio: disponible para gastar = menor entre margen y
+topes que quedan. `margin` es el mismo `balance`; `plannedLeft` suma tope − gastado −
+comprometido de las categorías de gasto en el plan (con tope, o sin tope pero con gasto o
+comprometido en el período, que entran con tope 0); `limitedBy` dice cuál manda (empate:
+`plan`). Puede ser negativo y no es caja. `balance` se mantiene para los clientes existentes.
 
 Modo débito (`calendar`) organiza por mes; modo crédito (`card_cycle`) por ciclo.
 Ambos incluyen corriente y tarjeta. Cambiar de modo nunca filtra cuentas ni altera saldos.

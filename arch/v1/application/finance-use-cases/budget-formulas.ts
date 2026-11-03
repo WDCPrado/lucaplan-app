@@ -169,6 +169,20 @@ export function pacePeriod(
 }
 
 /**
+ * ¿Cuenta este movimiento como gasto del ritmo? Cargo confirmado no interno que no salda un
+ * compromiso: lo que paga una recurrente o una cuota ya estaba descontado como comprometido.
+ */
+export function isPaceSpend(t: Transaction): boolean {
+  return (
+    t.direction === "debit" &&
+    t.status === "confirmed" &&
+    !t.isInternal &&
+    !t.recurringTemplateId &&
+    !t.installmentItemId
+  )
+}
+
+/**
  * Ritmo de una categoría: lo gastado en el período (hoy / esta semana) y el presupuesto de ese
  * período. El presupuesto reparte lo libre AL INICIO del período (libre actual + gastado del
  * período) entre los días del mes que quedaban desde ese inicio, × los días del período. Así la
@@ -196,11 +210,7 @@ export function computeCategoryPace(
     .filter(
       (t) =>
         t.categoryId === categoryId &&
-        t.direction === "debit" &&
-        t.status === "confirmed" &&
-        !t.isInternal &&
-        !t.recurringTemplateId &&
-        !t.installmentItemId &&
+        isPaceSpend(t) &&
         t.amount.currency === available.currency &&
         inRange(t.date, period)
     )
@@ -348,8 +358,8 @@ export function computeMonthOverspend(
  * gasto confirmado o comprometido en el período (entra con tope 0, todo su gasto es exceso). Se
  * deriva al leer: eliminar o recategorizar su último movimiento la devuelve sola a «sin tope».
  */
-export function isInPlan(_c: { limit: number; used: number; committed: number }): boolean {
-  throw new Error("WDC-177: sin implementar")
+export function isInPlan(c: { limit: number; used: number; committed: number }): boolean {
+  return c.limit > 0 || c.used > 0 || c.committed > 0
 }
 
 /**
@@ -358,9 +368,36 @@ export function isInPlan(_c: { limit: number; used: number; committed: number })
  * categorías en el plan. Lo no repartido no se ofrece para gastar; si se repartió de más, manda el
  * margen. Empate: "plan".
  */
-export function computeSpendable(_input: {
+export function computeSpendable(input: {
   margin: number
   categories: { limit: number; used: number; committed: number }[]
 }): { amount: number; margin: number; plannedLeft: number; limitedBy: "margin" | "plan" } {
-  throw new Error("WDC-177: sin implementar")
+  const plannedLeft = input.categories.reduce((s, c) => s + c.limit - c.used - c.committed, 0)
+  const limitedBy = input.margin < plannedLeft ? "margin" : "plan"
+  return {
+    amount: Math.min(input.margin, plannedLeft),
+    margin: input.margin,
+    plannedLeft,
+    limitedBy,
+  }
+}
+
+/**
+ * Gasto del ritmo global por fecha del período, en el orden de `daysOf(range)`. Solo movimientos
+ * en `currency` (la vista ya llevó los USD a CLP; sin tasa no llegan aquí).
+ */
+export function computeGlobalPaceDaily(
+  transactions: Transaction[],
+  range: PeriodRange,
+  currency: CurrencyCode
+): number[] {
+  const days = daysOf(range)
+  const index = new Map(days.map((d, i) => [d, i]))
+  const out = new Array<number>(days.length).fill(0)
+  for (const t of transactions) {
+    if (!isPaceSpend(t) || t.amount.currency !== currency) continue
+    const i = index.get(t.date.toISOString().slice(0, 10))
+    if (i !== undefined) out[i] += t.amount.toMajor()
+  }
+  return out
 }

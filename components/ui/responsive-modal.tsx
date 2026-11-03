@@ -362,7 +362,7 @@ export function ResponsiveModal({
             className={cn(
               // Los paneles cortos usan su contenido; los largos desplazan el cuerpo sin alcanzar
               // el notch. El teclado se superpone sin redimensionar ni elevar el panel.
-              "h-auto rounded-t-(--radius-sheet) bg-sheet p-0 text-body before:hidden data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))]",
+              "h-auto rounded-t-(--radius-sheet) p-0 text-body before:hidden data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))]",
               className
             )}
           >
@@ -420,7 +420,7 @@ export function ResponsiveModal({
             dismissible ? undefined : (e) => e.preventDefault()
           }
           className={cn(
-            "max-h-[90dvh] [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto rounded-(--radius-sheet) bg-sheet p-0 text-body sm:max-w-2xl [&>*]:min-w-0 [&>[data-slot=dialog-close]]:size-11 [&>[data-slot=modal-footer]]:mx-0",
+            "max-h-[90dvh] [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto rounded-(--radius-sheet) p-0 text-body sm:max-w-2xl [&>*]:min-w-0 [&>[data-slot=dialog-close]]:size-11 [&>[data-slot=modal-footer]]:mx-0",
             className
           )}
         >

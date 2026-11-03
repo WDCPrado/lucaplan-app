@@ -153,7 +153,8 @@ agrupaciones, la tipografía y los controles.
   que agregar.
 - **Materiales y controles:** la app importa directamente Glisse 0.5.0. Su biblioteca dibuja
   superficies, refracción, bordes y movimiento. No agregar otro motor ni recetas locales de blur,
-  sombras o squish. Las tarjetas, listas y hojas de lectura siguen sólidas. La landing conserva
+  sombras o squish. Las tarjetas y listas siguen sólidas; Dialog/Drawer usan Glass con el token
+  oficial de superficie para mantener la lectura. La landing conserva
   sus componentes y diseño. Ver [integración de Glisse](design/glisse.md) para el mapa y excepciones.
 - **Refracción en Safari:** el contenido de Chrome tiene `data-glisse-backdrop`, como hermano de
   las barras. Glisse filtra esa fuente directamente, sin duplicar el árbol de la app. El pequeño

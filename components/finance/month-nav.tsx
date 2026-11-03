@@ -57,60 +57,63 @@ export function MonthNav({
       className="flex w-full min-w-0 items-center md:w-auto"
     >
       <Glass className="flex min-h-11 min-w-0 flex-1 items-center rounded-full">
-        <button
+        <Button
+          icon={<ChevronLeft className="size-5" />}
           type="button"
           onClick={() => step(-1)}
           disabled={disabled}
           className={arrow}
           aria-label="Mes anterior"
+        />
+        <div
+          aria-live="polite"
+          className="flex min-w-0 flex-1 justify-center overflow-hidden"
         >
-          <ChevronLeft className="size-5 md:size-4" />
-        </button>
-        <div aria-live="polite" className="flex min-w-0 flex-1 justify-center overflow-hidden">
           {disabled ? (
             <span className="idle-ink flex min-h-11 max-w-full items-center truncate px-3 text-headline font-semibold md:min-h-8 md:text-subheadline">
               {periodLabel(period, cycleRange)}
             </span>
           ) : (
-          <span
-            key={key}
-            className={cn(
-              "flex min-w-0 justify-center",
-              anim.dir > 0 && "month-in-next",
-              anim.dir < 0 && "month-in-prev"
-            )}
-          >
-            <MonthPicker
-              period={shown}
-              current={current}
-              // El rango del ciclo es el de la página: mientras llega la nueva solo se ve el mes.
-              cycleRange={
-                shown.year === period.year && shown.month === period.month
-                  ? cycleRange
-                  : undefined
-              }
-              onSelect={go}
-              className="md:rounded-(--radius-bar-inner)"
-            />
-          </span>
+            <span
+              key={key}
+              className={cn(
+                "flex min-w-0 justify-center",
+                anim.dir > 0 && "month-in-next",
+                anim.dir < 0 && "month-in-prev"
+              )}
+            >
+              <MonthPicker
+                period={shown}
+                current={current}
+                // El rango del ciclo es el de la página: mientras llega la nueva solo se ve el mes.
+                cycleRange={
+                  shown.year === period.year && shown.month === period.month
+                    ? cycleRange
+                    : undefined
+                }
+                onSelect={go}
+                className="md:rounded-(--radius-bar-inner)"
+              />
+            </span>
           )}
         </div>
-        <button
+        <Button
+          icon={<ChevronRight className="size-5" />}
           type="button"
           onClick={() => step(1)}
           disabled={disabled}
           className={arrow}
           aria-label="Mes siguiente"
-        >
-          <ChevronRight className="size-5 md:size-4" />
-        </button>
+        />
       </Glass>
       {/* «Hoy» entra en la fila: su columna crece de 0 y la cápsula se encoge al mismo ritmo. */}
       <div
         inert={isCurrent}
         className={cn(
           "grid transition-[grid-template-columns,opacity] duration-[260ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
-          isCurrent ? "grid-cols-[0fr] opacity-0" : "grid-cols-[1fr] opacity-100"
+          isCurrent
+            ? "grid-cols-[0fr] opacity-0"
+            : "grid-cols-[1fr] opacity-100"
         )}
       >
         {/* Recorta solo mientras está escondido: abierto, la sombra del vidrio no se corta. */}

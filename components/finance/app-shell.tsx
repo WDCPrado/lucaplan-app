@@ -266,10 +266,13 @@ function useNavDirection() {
       if (stack.length > 20) stack.shift()
     }
     function onClick(e: MouseEvent) {
-      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+        return
       const a = (e.target as Element | null)?.closest?.("a[href]")
-      if (!(a instanceof HTMLAnchorElement) || a.origin !== location.origin) return
-      if ((a.target && a.target !== "_self") || a.hasAttribute("download")) return
+      if (!(a instanceof HTMLAnchorElement) || a.origin !== location.origin)
+        return
+      if ((a.target && a.target !== "_self") || a.hasAttribute("download"))
+        return
       const from = location.pathname
       if (a.pathname === from) return // misma ruta (query, #hash): no hay desplazamiento
       const forced = a.dataset.nav as NavDirection | undefined
@@ -417,7 +420,11 @@ function Chrome({
 
           <SidebarFooter>
             {user && (
-              <UserMenu user={user} onSignOut={onSignOut} onProfile={onProfile} />
+              <UserMenu
+                user={user}
+                onSignOut={onSignOut}
+                onProfile={onProfile}
+              />
             )}
           </SidebarFooter>
         </Sidebar>
@@ -690,9 +697,10 @@ function UserMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <SidebarMenuButton
-          size="lg"
-          className="hover:bg-foreground/5 active:bg-foreground/10 data-[state=open]:bg-foreground/5"
+        <Button
+          aria-label="Menú de la cuenta"
+          style={{ width: "100%", minHeight: 48, padding: 8 }}
+          className="gap-2 group-data-[collapsible=icon]:[&>svg]:hidden"
         >
           {/* Sin el aro del Avatar de shadcn (`after:border`): con el relleno ya se lee el círculo. */}
           <Avatar className="size-8 rounded-full bg-primary after:hidden">
@@ -711,7 +719,7 @@ function UserMenu({
             )}
           </div>
           <ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
-        </SidebarMenuButton>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         side="top"

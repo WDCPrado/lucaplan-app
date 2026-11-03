@@ -87,7 +87,8 @@ para acompañar la app instalada. El tema claro y la landing conservan sus color
 
 ## Modales del producto
 
-Los modales son hojas sólidas (`--sheet`) con celdas `--sheet-cell` encima, mediante `[data-product]`.
+Los modales Dialog/Drawer usan Glass con el token oficial `--lg-surface` y celdas `--sheet-cell`
+encima, mediante `[data-product]`. AlertDialog conserva su superficie de lectura.
 `ResponsiveModal` conserva la altura según el contenido en móvil, los formularios validados y la
 jerarquía de modales anidados: cerrar un hijo mantiene abierto al padre y devuelve el foco al control
 de origen.

@@ -246,9 +246,11 @@ export function FilterControls({
               apilados en el teléfono, con scroll dentro del popover si no caben. */}
           <Popover>
             <PopoverTrigger asChild>
-              <button
+              <Button
                 type="button"
-                aria-label={range?.from ? "Cambiar fechas" : "Filtrar por fechas"}
+                aria-label={
+                  range?.from ? "Cambiar fechas" : "Filtrar por fechas"
+                }
                 className={cn(ROW, "@md:col-span-2")}
               >
                 <span className="shrink-0">Fechas</span>
@@ -260,7 +262,7 @@ export function FilterControls({
                     : "Todas"}
                 </span>
                 <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-              </button>
+              </Button>
             </PopoverTrigger>
             <PopoverContent
               className="max-h-(--radix-popover-content-available-height) w-auto overflow-y-auto p-0"

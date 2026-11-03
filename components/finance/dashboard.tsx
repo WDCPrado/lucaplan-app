@@ -221,7 +221,8 @@ export function Dashboard({
     // UNA cifra por fila. Con ritmo (mes en curso y con tope), lo libre del período (hoy / esta
     // semana), que el backend deja estable; sin ritmo, lo que queda del mes. «X de Y» vive en el
     // detalle que abre la fila. Semáforo silencioso: gris, alerta, excedido.
-    const paceLeft = c.pace && c.pace.budget > 0 ? c.pace.budget - c.pace.spent : null
+    const paceLeft =
+      c.pace && c.pace.budget > 0 ? c.pace.budget - c.pace.spent : null
     // Con ritmo pero sin presupuesto del período, ya no queda nada que repartir.
     const noMargin = !!c.pace && c.pace.budget <= 0
     // «quedan» descuenta lo comprometido (tope − usado − comprometido); «sobre el tope» sale de `available`.
@@ -522,10 +523,7 @@ export function Dashboard({
                     {cappedCategories.map(renderExpenseCat)}
                     {/* Fuera del plan: consultables, cerradas al entrar o cambiar de período. */}
                     {uncappedCategories.length > 0 && (
-                      <Collapsible
-                        key={periodKey}
-                        defaultOpen={false}
-                      >
+                      <Collapsible key={periodKey} defaultOpen={false}>
                         <CollapsibleTrigger asChild>
                           <button
                             type="button"
@@ -571,7 +569,9 @@ export function Dashboard({
                     aria-label="Día anterior"
                     // aria-disabled y no disabled: al llegar al extremo el foco se queda en la flecha.
                     aria-disabled={prevDisabled || undefined}
-                    onClick={() => !prevDisabled && selectDay(days[dayIndex - 1])}
+                    onClick={() =>
+                      !prevDisabled && selectDay(days[dayIndex - 1])
+                    }
                     className="press grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent aria-disabled:cursor-default aria-disabled:text-muted-foreground/40 aria-disabled:hover:bg-transparent"
                   ></Button>
                   {/* «Hoy», dentro del selector junto a la flecha izquierda: su columna crece de 0 y funde al aparecer. Solo en
@@ -580,14 +580,18 @@ export function Dashboard({
                     inert={!showToday}
                     className={cn(
                       "grid transition-[grid-template-columns,opacity] duration-(--nav-duration) ease-(--nav-ease) motion-reduce:transition-none",
-                      showToday ? "grid-cols-[1fr] opacity-100" : "grid-cols-[0fr] opacity-0"
+                      showToday
+                        ? "grid-cols-[1fr] opacity-100"
+                        : "grid-cols-[0fr] opacity-0"
                     )}
                   >
                     {/* Entra desde la izquierda, como el título de la fila móvil (.top-title). */}
                     <div
                       className={cn(
                         "min-w-0 transition-transform duration-(--nav-duration) ease-(--nav-ease) motion-reduce:transition-none",
-                        showToday ? "translate-x-0" : "-translate-x-3 overflow-hidden"
+                        showToday
+                          ? "translate-x-0"
+                          : "-translate-x-3 overflow-hidden"
                       )}
                     >
                       <Button
@@ -603,7 +607,7 @@ export function Dashboard({
                   <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                     <h2 className="flex min-w-0 text-title-3 font-bold">
                       <PopoverTrigger asChild>
-                        <button
+                        <Button
                           type="button"
                           aria-describedby="day-picker-hint"
                           className="press min-h-11 min-w-0 truncate rounded-lg px-1 text-left whitespace-nowrap hover:bg-accent"
@@ -615,16 +619,22 @@ export function Dashboard({
                           <span aria-live="polite">
                             <span className="sm:hidden lg:inline">
                               {formatShortDateHeader(dayIso)}
-                              <span className="sr-only">, {formatLongDate(dayIso)}</span>
+                              <span className="sr-only">
+                                , {formatLongDate(dayIso)}
+                              </span>
                             </span>
                             <span className="hidden sm:inline lg:hidden">
                               {formatDateHeader(dayIso)}
-                              {["Hoy", "Ayer"].includes(formatDateHeader(dayIso)) && (
-                                <span className="sr-only">, {formatLongDate(dayIso)}</span>
+                              {["Hoy", "Ayer"].includes(
+                                formatDateHeader(dayIso)
+                              ) && (
+                                <span className="sr-only">
+                                  , {formatLongDate(dayIso)}
+                                </span>
                               )}
                             </span>
                           </span>
-                        </button>
+                        </Button>
                       </PopoverTrigger>
                     </h2>
                     <span id="day-picker-hint" className="sr-only">
@@ -658,7 +668,9 @@ export function Dashboard({
                     type="button"
                     aria-label="Día siguiente"
                     aria-disabled={nextDisabled || undefined}
-                    onClick={() => !nextDisabled && selectDay(days[dayIndex + 1])}
+                    onClick={() =>
+                      !nextDisabled && selectDay(days[dayIndex + 1])
+                    }
                     className="press grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent aria-disabled:cursor-default aria-disabled:text-muted-foreground/40 aria-disabled:hover:bg-transparent"
                   ></Button>
                 </div>
@@ -729,10 +741,14 @@ export function Dashboard({
                     <div
                       className={cn(
                         "text-subheadline",
-                        summary.netPosition < 0 ? "text-destructive" : "text-muted-foreground"
+                        summary.netPosition < 0
+                          ? "text-destructive"
+                          : "text-muted-foreground"
                       )}
                     >
-                      {summary.netPosition < 0 ? "Cuentas en negativo" : "Disponible en cuentas"}
+                      {summary.netPosition < 0
+                        ? "Cuentas en negativo"
+                        : "Disponible en cuentas"}
                     </div>
                     <div
                       className={cn(
@@ -802,7 +818,9 @@ export function Dashboard({
           (c) => c.type === "expense"
         )}
         incomes={incomes}
-        previousCycleIncomes={cycle.mode === "card_cycle" ? previousCycleIncomes : []}
+        previousCycleIncomes={
+          cycle.mode === "card_cycle" ? previousCycleIncomes : []
+        }
         incomeCategories={incomeCategories}
         activeIncomeTotal={activeIncomeTotal}
         previousMonthDebt={previousMonthDebt}

@@ -75,7 +75,8 @@ export function MonthStatus({
               Define tu tope de gasto de {mes}
             </h2>
             <p className="mt-1 text-subheadline text-pretty text-muted-foreground">
-              Configura el plan de este período para organizar tus ingresos y gastos.
+              Configura el plan de este período para organizar tus ingresos y
+              gastos.
             </p>
           </div>
           <Button
@@ -131,19 +132,23 @@ export function MonthStatus({
       </p>
       {/* Un período que no empieza no tiene gasto que contar. */}
       {!isFuturePeriod(period, cycle.current) && (
-      <p className="mt-2 text-subheadline text-muted-foreground">
-        Gastaste <span className="tabular">{formatCLP(spent)}</span> de{" "}
-        <span className="tabular">{formatCLP(globalLimit)}</span>
-        {usedPct !== null && (
-          <>
-            {" "}
-            · <span className="tabular">{Math.round(usedPct)}%</span>
-          </>
-        )}
-      </p>
+        <p className="mt-2 text-subheadline text-muted-foreground">
+          Gastaste <span className="tabular">{formatCLP(spent)}</span> de{" "}
+          <span className="tabular">{formatCLP(globalLimit)}</span>
+          {usedPct !== null && (
+            <>
+              {" "}
+              · <span className="tabular">{Math.round(usedPct)}%</span>
+            </>
+          )}
+        </p>
       )}
       <div className="mt-4 border-t border-border pt-4">
-        <PlanSummary {...plan} closed={!isFuturePeriod(period, cycle.current)} onOpenLiquidity={onOpenLiquidity} />
+        <PlanSummary
+          {...plan}
+          closed={!isFuturePeriod(period, cycle.current)}
+          onOpenLiquidity={onOpenLiquidity}
+        />
       </div>
       {children && <div className="mt-4 flex flex-1 flex-col">{children}</div>}
       {footer}
@@ -246,7 +251,8 @@ export function PeriodModeControl({ mode: savedMode }: { mode: PeriodMode }) {
         ]}
       />
       <p className="px-4 text-footnote text-muted-foreground">
-        Cada modo conserva su tope de gasto, topes por categoría e ingresos planificados. Ambos incluyen cuenta corriente y tarjeta.
+        Cada modo conserva su tope de gasto, topes por categoría e ingresos
+        planificados. Ambos incluyen cuenta corriente y tarjeta.
       </p>
     </div>
   )
@@ -293,12 +299,14 @@ export function ClosingPicker({
       <div className="sheet-group inset-list px-4">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <button
+            <Button
               type="button"
               aria-label={`Cierre de la tarjeta en ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}. Cambiar`}
               className="press flex min-h-11 w-full items-center gap-2 py-2.5 text-left"
             >
-              <span className="min-w-0 flex-1 text-body">Cierre de la tarjeta</span>
+              <span className="min-w-0 flex-1 text-body">
+                Cierre de la tarjeta
+              </span>
               <span className="text-body text-muted-foreground tabular-nums">
                 {shortDate(closing.date)}
               </span>
@@ -308,10 +316,12 @@ export function ClosingPicker({
                 </span>
               )}
               <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
-            </button>
+            </Button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-auto gap-2 p-3">
-            <p className="px-1 text-footnote text-muted-foreground">Cierre de {mes}</p>
+            <p className="px-1 text-footnote text-muted-foreground">
+              Cierre de {mes}
+            </p>
             <Calendar
               mode="single"
               locale={es}

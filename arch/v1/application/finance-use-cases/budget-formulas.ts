@@ -342,3 +342,25 @@ export function computeMonthOverspend(
   const over = spent.subtract(globalLimit)
   return over.isPositive ? over : Money.zero(spent.currency)
 }
+
+/**
+ * ¿Está la categoría de gasto en el plan del período? Con tope > 0 siempre; sin tope, solo si tiene
+ * gasto confirmado o comprometido en el período (entra con tope 0, todo su gasto es exceso). Se
+ * deriva al leer: eliminar o recategorizar su último movimiento la devuelve sola a «sin tope».
+ */
+export function isInPlan(_c: { limit: number; used: number; committed: number }): boolean {
+  throw new Error("WDC-177: sin implementar")
+}
+
+/**
+ * Disponible para gastar = mín(margen, lo planificado que queda). `margin` = ingresos − gastado −
+ * comprometido (el balance del medidor); `plannedLeft` = Σ (tope − usado − comprometido) de las
+ * categorías en el plan. Lo no repartido no se ofrece para gastar; si se repartió de más, manda el
+ * margen. Empate: "plan".
+ */
+export function computeSpendable(_input: {
+  margin: number
+  categories: { limit: number; used: number; committed: number }[]
+}): { amount: number; margin: number; plannedLeft: number; limitedBy: "margin" | "plan" } {
+  throw new Error("WDC-177: sin implementar")
+}

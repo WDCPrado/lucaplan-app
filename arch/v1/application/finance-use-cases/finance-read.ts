@@ -177,6 +177,9 @@ export type CategoryDTO = {
   committed: number // comprometido: Σ pending del mes (recurrentes aún no cobradas); capa aparte del usado
   available: number // limit − used (para «sobre el tope»)
   free: number // limit − used − committed: lo que «quedan» de verdad
+  // ¿Está en el plan del período? Gasto con tope, o sin tope pero con gasto o comprometido en el
+  // período (entra con tope 0: todo es exceso). Se calcula al leer; sin movimientos vuelve a «sin tope».
+  inPlan: boolean
   status: string
   // Ritmo del período en curso (hoy / esta semana): gastado vs presupuesto, con su semáforo.
   // Solo en categorías de gasto con tope, mirando el mes actual; null/ausente en el resto.
@@ -206,6 +209,26 @@ export type BudgetViewDTO = {
   // descuadre entre categorías vs. plata que de verdad no había. 0 = nadie se pasó.
   capsOverspend: number // Σ max(0, usado − tope) de las categorías de gasto con tope
   monthOverspend: number // max(0, gasto del mes − límite global); 0 sin límite global
+  // Titular del Inicio (WDC-177): mín(margen real, lo planificado que queda). Puede ser negativo.
+  spendable: SpendableDTO
+  // Ritmo global (WDC-177): reparte lo disponible al inicio del período y solo cuenta el gasto
+  // que no salda un compromiso (recurrente o cuota). Reemplaza a `globalLimit` en la curva.
+  globalPace: GlobalPaceDTO
+}
+
+export type SpendableDTO = {
+  amount: number // mín(margin, plannedLeft)
+  margin: number // ingresos − gastado − comprometido (− compensación de reembolsos): el balance de hoy
+  plannedLeft: number // Σ free de las categorías inPlan (las sin tope aportan −(usado + comprometido))
+  limitedBy: "margin" | "plan" // cuál de las dos manda; empate = "plan"
+}
+
+export type GlobalPaceDTO = {
+  // Base de la curva, estable en el período: spendable.amount + gasto de ritmo ya hecho en el período.
+  budget: number
+  // Gasto de ritmo por fecha del período (mismo orden que los días del rango), en CLP: cargos
+  // confirmados no internos SIN recurringTemplateId ni installmentItemId.
+  daily: number[]
 }
 
 function txToDTO(

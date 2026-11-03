@@ -71,14 +71,14 @@ export function MonthStatus({
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="min-w-0">
             <h2 className="text-title-3 font-bold">
-              Define tu presupuesto de {mes}
+              Define tu tope de gasto de {mes}
             </h2>
             <p className="mt-1 text-subheadline text-pretty text-muted-foreground">
               Configura el plan de este período para organizar tus ingresos y gastos.
             </p>
           </div>
           <Button onClick={onOpenPlan} className="h-11 shrink-0">
-            Definir presupuesto
+            Definir tope de gasto
           </Button>
         </div>
         <div className="mt-4">
@@ -222,7 +222,7 @@ export function PeriodModeControl({ mode: savedMode }: { mode: PeriodMode }) {
         ]}
       />
       <p className="px-4 text-footnote text-muted-foreground">
-        Cada modo conserva su presupuesto, topes e ingresos planificados. Ambos incluyen cuenta corriente y tarjeta.
+        Cada modo conserva su tope de gasto, topes por categoría e ingresos planificados. Ambos incluyen cuenta corriente y tarjeta.
       </p>
     </div>
   )

@@ -129,18 +129,18 @@ export function PlanSheet({
         throw new Error(
           await financeResponseError(
             res,
-            "No se pudo actualizar el presupuesto."
+            "No se pudo actualizar el tope de gasto."
           )
         )
       haptic("success")
-      toast.success("Presupuesto actualizado")
+      toast.success("Tope de gasto actualizado")
       router.refresh()
     } catch (error) {
       haptic("error")
       toast.error(
         error instanceof Error
           ? error.message
-          : "No se pudo actualizar el presupuesto."
+          : "No se pudo actualizar el tope de gasto."
       )
     } finally {
       setApplying(false)
@@ -214,7 +214,7 @@ export function PlanSheet({
             desaparecería justo cuando el presupuesto queda más chico —sin rastro de por qué—.
             También es lo único que queda cuando la deuda se comió el ingreso. */}
         <ModalSection
-          title={`Presupuesto del ${periodNoun}`}
+          title={`Tope de gasto del ${periodNoun}`}
           footer={
             previousMonthDebt > 0 && (
               <p>

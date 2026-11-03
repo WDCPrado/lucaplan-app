@@ -501,7 +501,7 @@ export function Dashboard({
                   // Vacío: un solo CTA (el "+ Categoría" de la cabecera se esconde mientras tanto).
                   <div className="flex flex-col items-center gap-1 px-4 py-8 text-center">
                     <p className="text-subheadline text-muted-foreground">
-                      Reparte tu presupuesto en categorías para ver su ritmo.
+                      Reparte tu tope de gasto en categorías para ver su ritmo.
                     </p>
                     <button
                       onClick={newExpenseCategory}
@@ -530,7 +530,7 @@ export function Dashboard({
                               <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90 motion-reduce:transition-none" />
                             </span>
                             <span className="flex-1">
-                              Sin tope · fuera del presupuesto
+                              Sin tope · fuera del tope de gasto
                             </span>
                             <span className="tabular">
                               {uncappedCategories.length}

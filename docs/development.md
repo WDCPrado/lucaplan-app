@@ -343,14 +343,14 @@ Reglas:
   cuenta demo desde cero. Si un caso falla en Railway, el seed lo registra y sigue con los demás —el
   deploy no se cae— pero ese queda sin sus datos.
 
-### Entrar en local
+### Entrar en local y en el entorno de PR
 
-Con `pnpm dev` (`NODE_ENV=development` exacto) la cuenta demo no recibe correo: entra con
-`demo@lucaplan.cl` y **`000000`**. Cualquier otra cuenta recibe su código aleatorio por correo,
-también en local. No depende de Next (`next start` solo pone `production` si `NODE_ENV` viene
-vacío): lo cierran `NODE_ENV` exacto, que no haya `RAILWAY_ENVIRONMENT_NAME` (nunca en producción
-ni en un PR, aunque corra en modo dev) y que sea la cuenta demo (`devLoginCode` en
-`arch/v1/infrastructure/auth/login-code.ts`).
+La cuenta demo entra con `demo@lucaplan.cl` y **`000000`**, sin correo, en dos lugares: en local con
+`pnpm dev` (`NODE_ENV=development` exacto y sin `RAILWAY_ENVIRONMENT_NAME`) y en un entorno de PR de
+Railway (`…pr-<n>`, solo datos sembrados). Nunca en producción. Cualquier otra cuenta recibe su
+código aleatorio por correo, también en local y en PR. No depende de Next (`next start` solo pone
+`production` si `NODE_ENV` viene vacío): lo cierran `devLoginCode` y que sea la cuenta demo
+(`arch/v1/infrastructure/auth/login-code.ts`).
 
 ## Convenciones
 

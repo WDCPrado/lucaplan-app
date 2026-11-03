@@ -207,14 +207,17 @@ test("rate limit del servidor limita solicitudes aunque se omita el contador UI"
   assert.equal(f.sent.length, 3)
 })
 
-test("código fijo 000000 solo en desarrollo local: nunca en producción ni en un entorno de Railway", async () => {
+test("código fijo 000000 en desarrollo local y en un entorno de PR de Railway; nunca en producción", async () => {
   const { devLoginCode } = await import("./login-code.ts")
   assert.equal(devLoginCode({ NODE_ENV: "development" }), "000000")
   assert.equal(devLoginCode({ NODE_ENV: "production" }), null)
   assert.equal(devLoginCode({}), null)
   assert.equal(devLoginCode({ NODE_ENV: "Development" }), null)
-  assert.equal(devLoginCode({ NODE_ENV: "development", RAILWAY_ENVIRONMENT_NAME: "lucaplan-app-pr-2" }), null)
+  assert.equal(devLoginCode({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "lucaplan-app-pr-2" }), "000000")
+  assert.equal(devLoginCode({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "pr-17" }), "000000")
   assert.equal(devLoginCode({ NODE_ENV: "development", RAILWAY_ENVIRONMENT_NAME: "production" }), null)
+  assert.equal(devLoginCode({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "production" }), null)
+  assert.equal(devLoginCode({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "lucaplan-app-pr" }), null)
 })
 
 test("en desarrollo local solo la cuenta demo entra con 000000 sin correo; otra cuenta recibe su código aleatorio", async () => {
@@ -248,9 +251,12 @@ test("en desarrollo local solo la cuenta demo entra con 000000 sin correo; otra 
     return { sent, ok: res.ok }
   }
   assert.deepEqual(await sesion({ NODE_ENV: "development" }), { sent: [], ok: true })
+  assert.deepEqual(await sesion({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "lucaplan-app-pr-2" }), { sent: [], ok: true })
   for (const [env, email] of [
     [{ NODE_ENV: "production" }, "demo@lucaplan.cl"],
+    [{ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "production" }, "demo@lucaplan.cl"],
     [{ NODE_ENV: "development" }, "willy@example.com"],
+    [{ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "lucaplan-app-pr-2" }, "willy@example.com"],
   ] as const) {
     const r = await sesion(env, email)
     assert.equal(r.sent.length, 1, `${env.NODE_ENV} ${email}`)

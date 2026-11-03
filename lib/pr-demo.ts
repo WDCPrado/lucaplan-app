@@ -20,6 +20,11 @@ export type DemoLogin = { env: string; password: string; cuentas: DemoUser[] }
 // datos falsos sobre la base real.
 const PR_ENVIRONMENT = /(?:^|-)(pr-\d+)$/
 
+/** ¿Es un entorno efímero de PR de Railway (`…pr-<n>`)? Nunca "production". */
+export function isPrEnvironment(name: string | undefined): boolean {
+  return PR_ENVIRONMENT.test(name ?? "")
+}
+
 // null en cualquier entorno que no sea un PR de Railway (producción, local, Docker Compose).
 export function prDemoAccount(): DemoAccount | null {
   const match = PR_ENVIRONMENT.exec(process.env.RAILWAY_ENVIRONMENT_NAME ?? "")

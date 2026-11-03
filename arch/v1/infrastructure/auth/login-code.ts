@@ -1,6 +1,6 @@
 import { emailOTP } from "better-auth/plugins"
 import { APIError } from "better-auth/api"
-import { DEMO_EMAIL } from "../../../../lib/pr-demo.ts"
+import { DEMO_EMAIL, isPrEnvironment } from "../../../../lib/pr-demo.ts"
 import {
   LOGIN_CODE_MINUTES,
   type LoginCodeMailer,
@@ -35,16 +35,17 @@ export function assertLoginCodeRequest(path: string, body: unknown) {
 }
 
 /**
- * Código fijo para entrar en local (`demo@lucaplan.cl` + `000000`) sin depender del correo. Tres
- * candados: `NODE_ENV === "development"` exacto (no basta con "no producción": `next start` solo
- * pone `production` si NODE_ENV viene vacío), ningún entorno de Railway aunque corra en modo dev,
- * y solo la cuenta demo: cualquier otra cuenta recibe su código aleatorio por correo, también en
- * local. `null` = código aleatorio y por correo, como siempre.
+ * Código fijo `000000` para la cuenta demo, sin depender del correo, en dos lugares: en local
+ * (`NODE_ENV === "development"` exacto y ningún entorno de Railway; `next start` solo pone
+ * `production` si NODE_ENV viene vacío) y en un entorno efímero de PR de Railway (`…pr-<n>`), que
+ * solo tiene datos sembrados. Nunca en producción. Cualquier otra cuenta recibe su código aleatorio
+ * por correo. `null` = código aleatorio y por correo, como siempre.
  */
 export function devLoginCode(
   env: { NODE_ENV?: string; RAILWAY_ENVIRONMENT_NAME?: string } = process.env
 ): string | null {
-  return env.NODE_ENV === "development" && !env.RAILWAY_ENVIRONMENT_NAME ? "000000" : null
+  const local = env.NODE_ENV === "development" && !env.RAILWAY_ENVIRONMENT_NAME
+  return local || isPrEnvironment(env.RAILWAY_ENVIRONMENT_NAME) ? "000000" : null
 }
 
 export function createLoginCodePlugin(
@@ -53,7 +54,8 @@ export function createLoginCodePlugin(
 ) {
   const fixed = devLoginCode(env)
   // El email llega en minúsculas (better-auth lo normaliza antes de llamar a `generateOTP`).
-  const isFixed = (email: string) => fixed !== null && email === DEMO_EMAIL
+  const demoEmail = (isPrEnvironment(env.RAILWAY_ENVIRONMENT_NAME) && process.env.SEED_PR_EMAIL) || DEMO_EMAIL
+  const isFixed = (email: string) => fixed !== null && email === demoEmail.toLowerCase()
   return emailOTP({
     // `undefined` hace que better-auth use su generador aleatorio (`generateOTP(...) || default`).
     generateOTP: ({ email }) => (isFixed(email) ? fixed! : undefined),

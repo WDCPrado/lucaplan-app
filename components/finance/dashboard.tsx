@@ -440,7 +440,6 @@ export function Dashboard({
               daysLeft={daysLeft}
               globalLimit={budget.globalLimit}
               spent={totalUsed}
-              committed={totalCommitted}
               plan={planProps}
               onOpenPlan={() => setPlanOpen(true)}
               onOpenLiquidity={() => setLiquidityOpen(true)}
@@ -725,7 +724,6 @@ export function Dashboard({
                     className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-xl p-5 lg:w-auto lg:snap-start"
                   >
                     <div
-                     
                       className={cn(
                         "text-subheadline",
                         summary.netPosition < 0 ? "text-destructive" : "text-muted-foreground"

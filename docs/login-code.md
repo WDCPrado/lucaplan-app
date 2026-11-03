@@ -57,9 +57,12 @@ reenvío, uso simultáneo, usuario desconocido/bloqueado, sesiones y continuaci�
 El adapter Resend se prueba con transporte HTTP falso, sin destinatarios reales ni claves.
 
 Para una preview local se usa una base desechable separada y `next dev -p 3154 -H 127.0.0.1`.
-Con `NODE_ENV=development` exacto y sin `RAILWAY_ENVIRONMENT_NAME`, el código es siempre
-`000000` y no se envía correo (`devLoginCode`): en local se entra con `demo@lucaplan.cl` y
-`000000`. En producción y en los entornos de PR nunca: Next corre `next start` con `production`.
+Con `NODE_ENV=development` exacto y sin `RAILWAY_ENVIRONMENT_NAME`, la cuenta `demo@lucaplan.cl`
+entra siempre con `000000` y no se le envía correo (`devLoginCode`); cualquier otra cuenta recibe
+su código aleatorio por correo, también en local. Next no protege esto: `next start` solo pone
+`production` si `NODE_ENV` viene vacío. Lo que lo cierra es `NODE_ENV` exacto, la ausencia de
+`RAILWAY_ENVIRONMENT_NAME` (producción y PR) y que solo vale para la cuenta demo; el
+`docker-compose.yml` con datos reales fija `NODE_ENV=production`.
 Para probar el correo de verdad en local, un harness externo puede interceptar HTTP de Resend y
 mostrarlo en un buzón local. La prueba
 real de entrega de Resend requiere autorización del destinatario y configuración del operador;

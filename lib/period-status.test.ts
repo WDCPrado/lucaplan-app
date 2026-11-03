@@ -10,7 +10,7 @@ import { closedPeriodLine, isFuturePeriod } from "./period-status.ts"
 const NOV_2026 = { year: 2026, month: 11 }
 
 test("pres-periodo-futuro: un período que todavía no empieza no dice «cerró con»", () => {
-  const plan = { globalLimit: 500000, spent: 0, committed: 0 }
+  const plan = { globalLimit: 500000, spent: 0 }
   assert.doesNotMatch(closedPeriodLine({ period: { year: 2026, month: 12 }, current: NOV_2026, ...plan }), /cerr/i)
   // Borde del cambio de año: enero 2027 visto desde diciembre 2026 también es futuro.
   assert.doesNotMatch(closedPeriodLine({ period: { year: 2027, month: 1 }, current: { year: 2026, month: 12 }, ...plan }), /cerr/i)
@@ -20,7 +20,7 @@ test("pres-periodo-futuro: un período que todavía no empieza no dice «cerró 
 
 test("pres-mes-pasado-excedido: octubre que se pasó del presupuesto dice cuánto se pasó, no «$0 sin gastar»", () => {
   const octubre = (spent: number) =>
-    closedPeriodLine({ period: { year: 2026, month: 10 }, current: NOV_2026, globalLimit: 500000, spent, committed: 0 })
+    closedPeriodLine({ period: { year: 2026, month: 10 }, current: NOV_2026, globalLimit: 500000, spent })
   const pasado = octubre(530000)
   assert.ok(pasado.includes(formatCLP(30000)), pasado)
   assert.doesNotMatch(pasado, /sin gastar/)
@@ -32,9 +32,9 @@ test("pres-mes-pasado-excedido: octubre que se pasó del presupuesto dice cuánt
 })
 
 test("pres-mes-pasado-sin-comprometido: un compromiso que nunca se cobró no cuenta como gastado al cerrar", () => {
-  const linea = closedPeriodLine({ period: { year: 2026, month: 10 }, current: NOV_2026, globalLimit: 500000, spent: 300000, committed: 150000 })
+  const linea = closedPeriodLine({ period: { year: 2026, month: 10 }, current: NOV_2026, globalLimit: 500000, spent: 300000 })
   assert.match(linea, new RegExp(`cerró con ${formatCLP(200000).replace(/[$.]/g, "\\$&")} sin gastar`))
-  assert.match(closedPeriodLine({ period: { year: 2026, month: 10 }, current: NOV_2026, globalLimit: 500000, spent: 530000, committed: 0 }), /por sobre el tope de gasto/)
+  assert.match(closedPeriodLine({ period: { year: 2026, month: 10 }, current: NOV_2026, globalLimit: 500000, spent: 530000 }), /por sobre el tope de gasto/)
 })
 
 test("isFuturePeriod: solo los meses posteriores al en curso, también al cruzar el año", () => {

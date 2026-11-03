@@ -35,7 +35,6 @@ export function MonthStatus({
   daysLeft,
   globalLimit,
   spent,
-  committed,
   plan,
   onOpenPlan,
   onOpenLiquidity,
@@ -47,7 +46,6 @@ export function MonthStatus({
   daysLeft: number // días que quedan, hoy incluido; 0 fuera del mes en curso
   globalLimit: number | null
   spent: number
-  committed: number
   plan: PlanInput // ingresos − gastado − comprometido, sus componentes y liquidez
   onOpenPlan: () => void
   onOpenLiquidity?: () => void
@@ -113,7 +111,7 @@ export function MonthStatus({
   return (
     <section className="glass flex flex-1 flex-col rounded-xl p-5 lg:p-6">
       <p className="text-title-1 font-bold tracking-tight text-pretty">
-        {closedPeriodLine({ period, current: cycle.current, globalLimit, spent, committed })}
+        {closedPeriodLine({ period, current: cycle.current, globalLimit, spent })}
       </p>
       {/* Un período que no empieza no tiene gasto que contar. */}
       {!isFuturePeriod(period, cycle.current) && (
@@ -129,7 +127,7 @@ export function MonthStatus({
       </p>
       )}
       <div className="mt-4 border-t border-border pt-4">
-        <PlanSummary {...plan} closed onOpenLiquidity={onOpenLiquidity} />
+        <PlanSummary {...plan} closed={!isFuturePeriod(period, cycle.current)} onOpenLiquidity={onOpenLiquidity} />
       </div>
       {children && <div className="mt-4 flex flex-1 flex-col">{children}</div>}
       {footer}

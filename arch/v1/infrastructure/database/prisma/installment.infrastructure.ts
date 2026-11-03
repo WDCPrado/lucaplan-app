@@ -135,8 +135,9 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
       include: { transaction: { select: { id: true } } },
     })
     if (!item || item.transaction || item.paidOutsideApp) return false
-    // Cuota de tarjeta: va contra el cupo de su moneda (nacional CLP, internacional USD), como los
-    // cargos del banco. Sin bucket, la conciliación siguiente de la tarjeta la rechaza.
+    // Cuota de tarjeta: queda en el cupo de su moneda (nacional CLP, internacional USD), como los
+    // cargos del banco. No lo vuelve a consumir: la compra en cuotas ya lo consumió entero, y la
+    // conciliación salta estas cuotas al reproyectar (`cardInstallment`).
     const bucket =
       plan.kind === "card"
         ? await prisma.balanceBucket.findFirst({

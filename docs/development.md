@@ -345,9 +345,12 @@ Reglas:
 
 ### Entrar en local
 
-Con `pnpm dev` (`NODE_ENV=development`) el login no manda correo: el código es siempre
-**`000000`**. Entra con `demo@lucaplan.cl` y `000000`. Nunca vale en producción ni en un entorno
-de Railway, aunque corra en modo dev (`devLoginCode` en `arch/v1/infrastructure/auth/login-code.ts`).
+Con `pnpm dev` (`NODE_ENV=development` exacto) la cuenta demo no recibe correo: entra con
+`demo@lucaplan.cl` y **`000000`**. Cualquier otra cuenta recibe su código aleatorio por correo,
+también en local. No depende de Next (`next start` solo pone `production` si `NODE_ENV` viene
+vacío): lo cierran `NODE_ENV` exacto, que no haya `RAILWAY_ENVIRONMENT_NAME` (nunca en producción
+ni en un PR, aunque corra en modo dev) y que sea la cuenta demo (`devLoginCode` en
+`arch/v1/infrastructure/auth/login-code.ts`).
 
 ## Convenciones
 

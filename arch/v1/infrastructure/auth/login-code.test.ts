@@ -217,14 +217,18 @@ test("código fijo 000000 solo en desarrollo local: nunca en producción ni en u
   assert.equal(devLoginCode({ NODE_ENV: "development", RAILWAY_ENVIRONMENT_NAME: "production" }), null)
 })
 
-test("en desarrollo local se entra con 000000 sin enviar correo; fuera de local el código no es 000000 y sí se envía", async () => {
-  const sesion = async (env: Record<string, string>) => {
+test("en desarrollo local solo la cuenta demo entra con 000000 sin correo; otra cuenta recibe su código aleatorio", async () => {
+  const sesion = async (env: Record<string, string>, email = "demo@lucaplan.cl") => {
     const sent: string[] = []
+    const now = new Date()
     const auth = betterAuth({
       baseURL: "http://localhost:3171",
       secret: "wdc171-test-secret-only-not-a-real-secret-123456",
       database: memoryAdapter({
-        user: [{ id: "u", name: "Demo", email: "demo@lucaplan.cl", emailVerified: true, createdAt: new Date(), updatedAt: new Date() }],
+        user: [
+          { id: "u", name: "Demo", email: "demo@lucaplan.cl", emailVerified: true, createdAt: now, updatedAt: now },
+          { id: "w", name: "Willy", email: "willy@example.com", emailVerified: true, createdAt: now, updatedAt: now },
+        ],
         session: [], account: [], verification: [],
       }),
       emailAndPassword: { enabled: false },
@@ -238,14 +242,20 @@ test("en desarrollo local se entra con 000000 sin enviar correo; fuera de local 
         headers: { "content-type": "application/json", origin: "http://localhost:3171" },
         body: JSON.stringify(body),
       }))
-    await post("/email-otp/send-verification-otp", { email: "demo@lucaplan.cl", type: "sign-in" })
+    await post("/email-otp/send-verification-otp", { email, type: "sign-in" })
     await new Promise((r) => setImmediate(r))
-    const res = await post("/sign-in/email-otp", { email: "demo@lucaplan.cl", otp: "000000" })
+    const res = await post("/sign-in/email-otp", { email, otp: "000000" })
     return { sent, ok: res.ok }
   }
   assert.deepEqual(await sesion({ NODE_ENV: "development" }), { sent: [], ok: true })
-  const prod = await sesion({ NODE_ENV: "production" })
-  assert.equal(prod.sent.length, 1)
-  assert.notEqual(prod.sent[0], "000000")
-  assert.equal(prod.ok, false)
+  for (const [env, email] of [
+    [{ NODE_ENV: "production" }, "demo@lucaplan.cl"],
+    [{ NODE_ENV: "development" }, "willy@example.com"],
+  ] as const) {
+    const r = await sesion(env, email)
+    assert.equal(r.sent.length, 1, `${env.NODE_ENV} ${email}`)
+    assert.match(r.sent[0], /^\d{6}$/)
+    assert.notEqual(r.sent[0], "000000")
+    assert.equal(r.ok, false)
+  }
 })

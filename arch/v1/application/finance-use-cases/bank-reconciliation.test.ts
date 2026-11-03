@@ -97,6 +97,17 @@ test("reproyecta solo posteriores; createdAt/updatedAt tardíos no invalidan car
   assert.equal(p.projectedBuckets[1].used, 105)
   assert.deepEqual(p.replayedIds, ["after"])
 })
+test("cuota card pagada después del corte no vuelve a consumir cupo ni se rechaza, tenga o no bucket", () => {
+  const s = state()
+  s.movements.push(
+    movement({ id: "cuota-2", date: "2026-10-27", amount: 50000, bucketId: "nat", cardInstallment: true, linked: true }),
+    movement({ id: "cuota-vieja", date: "2026-10-27", amount: 50000, bucketId: null, cardInstallment: true, linked: true })
+  )
+  const p = planBankReconciliation(s, input(), now)
+  assert.equal(p.projectedBuckets[0].used, 200000)
+  assert.equal(p.projectedBuckets[0].available, 800000)
+  assert.deepEqual(p.replayedIds, [])
+})
 test("pago posterior reduce deuda y movimiento interno no se convierte en gasto", () => {
   const s = state()
   s.movements.push(

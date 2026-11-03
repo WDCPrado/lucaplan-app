@@ -2,6 +2,9 @@
 // la muestra el formulario de login. Vive en un solo lugar para que nunca se ofrezcan credenciales
 // distintas a las sembradas. Server-only: RAILWAY_ENVIRONMENT_NAME no existe en el cliente.
 
+// Correo de la cuenta demo que siembra scripts/seed.ts (en PR, salvo SEED_PR_EMAIL).
+export const DEMO_EMAIL = "demo@lucaplan.cl"
+
 export type DemoAccount = { env: string; email: string; password: string }
 
 // Una cuenta sembrada, tal como la ofrece el login. `titulo` es el nombre del usuario ("Demo Luca").
@@ -23,7 +26,7 @@ export function prDemoAccount(): DemoAccount | null {
   if (!match) return null
   return {
     env: match[1], // "pr-2", sin el prefijo del servicio
-    email: process.env.SEED_PR_EMAIL ?? "demo@lucaplan.cl",
+    email: process.env.SEED_PR_EMAIL ?? DEMO_EMAIL,
     password: process.env.SEED_PR_PASSWORD ?? "lucaplan1234",
   }
 }

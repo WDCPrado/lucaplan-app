@@ -8,7 +8,7 @@
 //
 // El orden lo declaran las listas de scripts/seed/orden.ts; un archivo fuera de ellas aborta.
 // Idempotente: una cuenta demo ya sembrada no se toca (SEED_DEMO_FORCE=1 la rehace de cero).
-import { prDemoAccount } from "../lib/pr-demo.ts"
+import { DEMO_EMAIL, prDemoAccount } from "../lib/pr-demo.ts"
 import { DEMO, PRODUCCION, desajustesDelSeed } from "./seed/orden.ts"
 // Solo el tipo: el módulo abre el cliente de Prisma y se carga después de las guardas.
 import type { DemoContext } from "./seed/demo/1-base/cuenta-demo.ts"
@@ -46,7 +46,7 @@ if (!pr) {
   }
 }
 
-const email = pr?.email ?? "demo@lucaplan.cl"
+const email = pr?.email ?? DEMO_EMAIL
 const [[, [base]], ...areas] = DEMO
 const { seed: sembrarBase } = (await import(`./seed/demo/1-base/${base}`)) as {
   seed: (input: { email: string; nombre: string }) => Promise<DemoContext | null>

@@ -233,6 +233,9 @@ export function planBankReconciliation(
   for (const m of movements.filter((m) => m.status === "confirmed")) {
     if (m.date < cutoffDay || included.has(m.id) || ids.has(m.id)) continue
     if (m.date > today) continue // el plan futuro no es dinero bancario ocurrido
+    // La cuota de tarjeta no vuelve a consumir cupo: la compra en cuotas ya lo consumió completo.
+    // Solo las `card`: la cuota `loan` adopta el cargo real del banco y sí mueve el saldo.
+    if (m.cardInstallment) continue
     if (
       m.date === cutoffDay &&
       (!m.bankReceivedAt ||

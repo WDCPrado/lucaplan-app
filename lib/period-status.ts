@@ -10,14 +10,13 @@ export function isFuturePeriod(period: Period, current: Period): boolean {
 /**
  * Línea con que el Inicio resume un período que no es el en curso. Un período futuro todavía no
  * cerró; uno pasado dice cuánto quedó sin gastar bajo el tope de gasto o, si se pasó, por cuánto.
- * `committed` no se resta: un compromiso que nunca se cobró no es plata gastada.
+ * Lo comprometido no se resta: un compromiso que nunca se cobró no es plata gastada.
  */
 export function closedPeriodLine(input: {
   period: Period
   current: Period
   globalLimit: number
   spent: number
-  committed: number
 }): string {
   const { period, current, globalLimit, spent } = input
   const name = `${monthName(period.month)} ${period.year}`

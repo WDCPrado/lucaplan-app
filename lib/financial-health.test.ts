@@ -124,4 +124,7 @@ test("pres-plan-vacio: sin ingresos ni gastos el plan queda «sano», no «Plan 
 test("pres-total-en-cuentas: la tarjeta de cuentas del Inicio muestra caja menos sobregiro usado, no solo la caja", () => {
   const shown = source("components/finance/dashboard.tsx").match(/"Disponible en cuentas"[\s\S]{0,400}?formatCLP\(summary\.(\w+)\)/)?.[1]
   assert.equal(shown, "netPosition")
+  // La rama negativa («Cuentas en negativo») pinta la misma cifra, no la caja.
+  const negative = source("components/finance/dashboard.tsx").match(/"Cuentas en negativo"[\s\S]{0,400}?formatCLP\(summary\.(\w+)\)/)?.[1]
+  assert.equal(negative, "netPosition")
 })

@@ -50,6 +50,38 @@ const withItems = {
   },
 } as const
 
+/** Datos leídos por la edición: también detecta repartos distintos con el mismo total. */
+function samePlanForEdit(current: InstallmentPlan, expected: InstallmentPlan): boolean {
+  return (
+    current.id === expected.id &&
+    current.userId === expected.userId &&
+    current.kind === expected.kind &&
+    current.accountId === expected.accountId &&
+    current.categoryId === expected.categoryId &&
+    current.sourceTransactionId === expected.sourceTransactionId &&
+    current.description === expected.description &&
+    current.currency === expected.currency &&
+    current.totalAmount.compare(expected.totalAmount) === 0 &&
+    current.installmentsCount === expected.installmentsCount &&
+    current.startDate.getTime() === expected.startDate.getTime() &&
+    current.dayOfMonth === expected.dayOfMonth &&
+    current.tolerancePct === expected.tolerancePct &&
+    current.completedAt?.getTime() === expected.completedAt?.getTime() &&
+    current.items.length === expected.items.length &&
+    current.items.every((item) => {
+      const old = expected.items.find((i) => i.id === item.id)
+      return (
+        old &&
+        item.index === old.index &&
+        item.dueDate.getTime() === old.dueDate.getTime() &&
+        item.amount.compare(old.amount) === 0 &&
+        item.transactionId === old.transactionId &&
+        item.paidOutsideApp === old.paidOutsideApp
+      )
+    })
+  )
+}
+
 export const installmentPlanRepository: InstallmentPlanRepository = {
   async listByUser(userId) {
     return (
@@ -199,13 +231,37 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
       data: { paidOutsideApp: true },
     })
   },
-  async updateItems(updates) {
+  async updateItems(updates, expectedPlan) {
     // La cuota y su movimiento son la misma verdad: si ya está registrada, la edición viaja a las
     // dos filas. Todo el lote (cuota editada + pendientes redistribuidas) en una sola transacción.
     await prisma.$transaction(async (db) => {
+      const changed = () => new InvalidInstallmentPlanError(
+        "El plan cambió; vuelve a consultar sus cuotas antes de editar"
+      )
+      // UPDATE real antes de leer/tocar hijos: toma el lock del padre en el mismo orden que
+      // cardCorrections. data:{} no sirve: Prisma lo convierte en SELECT sin bloqueo.
+      const { count } = await db.installmentPlan.updateMany({
+        where: {
+          id: expectedPlan.id,
+          userId: expectedPlan.userId,
+          totalAmount: expectedPlan.totalAmount.toDecimalString(),
+        },
+        data: { totalAmount: expectedPlan.totalAmount.toDecimalString() },
+      })
+      if (count !== 1) throw changed()
+      const current = await db.installmentPlan.findFirst({
+        where: { id: expectedPlan.id, userId: expectedPlan.userId },
+        include: withItems,
+      })
+      if (!current || !samePlanForEdit(toPlan(current), expectedPlan))
+        throw changed()
       for (const u of updates) {
         const item = await db.installmentItem.update({
-          where: { id: u.itemId },
+          where: {
+            id: u.itemId,
+            planId: expectedPlan.id,
+            plan: { userId: expectedPlan.userId },
+          },
           data: {
             amount: u.amount.toDecimalString(),
             ...(u.dueDate ? { dueDate: u.dueDate } : {}),

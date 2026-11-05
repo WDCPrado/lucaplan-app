@@ -30,6 +30,7 @@ export const INSTRUCTIONS = [
   "Caja, sobregiro y cupo de tarjeta son distintos: la línea y el cupo no son caja, y el presupuesto restante es un tope, no dinero disponible. Los movimientos internos no consumen presupuesto.",
   "Un aviso en CLP no prueba cupo nacional: el banco puede notificar convertido un cargo internacional. recordedAmount es lo guardado, no una liquidación validada. financialContext separa impacto registrado, cupo vinculado y conversión presupuestaria referencial. Valores null son desconocidos, no cero.",
   "Conciliar exige contrastar cartola/no facturados, fechas corridas, comercio, moneda y vínculos. No crear otro gasto por diferencia de moneda o fecha. Un saldo bancario al corte ya incluye sus movimientos; no volver a sumarlos. No inferir que faltan cargos solo porque no aparecen en USD.",
+  "Para cambiar el total financiado y las cuotas pendientes de una compra card usa cardCorrections en la conciliación, con todas las cuotas y evidencia bancaria. Conserva la compra origen y los importes ya registrados; no crea pagos ni vuelve a consumir cupo. Editar una cuota redistribuye el total existente y no incorpora financiación nueva. loanCorrections sigue siendo exclusivo de préstamos loan.",
   "Estas herramientas no leen correos ni usan IA; la sincronización puede ser incompleta y el correo no sustituye la cartola.",
 ].join(" ")
 

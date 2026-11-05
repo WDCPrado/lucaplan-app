@@ -6,6 +6,7 @@ import { EmailSetupStateError } from "../../domain/finance/email-connection.doma
 import { NotOwnerError } from "../../domain/finance/finance.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
 import { planLoanCorrections } from "./loan-reconciliation.ts"
+import { planCardCorrections } from "./card-reconciliation.ts"
 import {
   canReconcileCorrection,
   isSameBankMovement,
@@ -114,6 +115,21 @@ export function planBankReconciliation(
     input.loanCorrections ?? [],
     cutoffDay
   )
+  const cardChanges = planCardCorrections(state, input.cardCorrections ?? [])
+  const preservedCardMovementIds = new Set(
+    cardChanges.flatMap((p) => [
+      p.before.sourceTransactionId,
+      ...p.before.items.flatMap((i) =>
+        i.transactionId ? [i.transactionId] : []
+      ),
+    ])
+  )
+  if (
+    input.corrections.some((c) => preservedCardMovementIds.has(c.transactionId))
+  )
+    reject(
+      "cardCorrections conserva la compra origen y las cuotas registradas; no repitas esos movimientos en corrections"
+    )
   // Ni dos importes para el mismo pago ni una fecha distinta al corregir su cronograma.
   const loanPaymentIds = new Set(
     loanChanges.loans.flatMap((p) =>
@@ -330,6 +346,7 @@ export function planBankReconciliation(
     corrections,
     additions,
     loanCorrections: loanChanges.loans,
+    cardCorrections: cardChanges,
     projectedBuckets: projected,
     replayedIds: replay.map((m) => m.id),
     snapshotAt: input.snapshotAt,
@@ -375,20 +392,31 @@ export async function reconcileBankAccount(
         canonicalJson({ userId, input, state, version, day: todayKey(now) })
       )
       .digest("hex")
-    if (!previewToken)
+    if (!previewToken) {
+      const correctedAmounts = new Map(
+        plan.cardCorrections.flatMap((p) =>
+          p.after.items.map((i) => [i.id, i.amount] as const)
+        )
+      )
       return {
         dryRun: true,
         previewToken: token,
         ...plan,
         cuotasPendientes:
           state.accountType === "credit_card"
-            ? await pendingCardInstallments(
-                deps.installments,
-                input.accountId,
-                todayKey(new Date(input.snapshotAt))
-              )
+            ? (
+                await pendingCardInstallments(
+                  deps.installments,
+                  input.accountId,
+                  todayKey(new Date(input.snapshotAt))
+                )
+              ).map((item) => ({
+                ...item,
+                amount: correctedAmounts.get(item.itemId) ?? item.amount,
+              }))
             : [],
       }
+    }
     if (token !== previewToken)
       throw new EmailSetupStateError(
         "Los datos cambiaron desde la previsualización; repite el dry run"

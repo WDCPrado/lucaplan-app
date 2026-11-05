@@ -496,7 +496,7 @@ model InstallmentPlan {
   sourceTransactionId String?           @unique
   sourceTransaction   Transaction?      @relation("InstallmentSource", fields: [sourceTransactionId], references: [id], onDelete: SetNull)
   description         String
-  totalAmount         Decimal           @db.Decimal(18, 2) // capital, sin intereses del banco
+  totalAmount         Decimal           @db.Decimal(18, 2) // total planificado a devolver; card puede incluir financiación confirmada, la compra origen conserva su importe
   currency            String
   installmentsCount   Int
   startDate           DateTime          @db.Date // vencimiento de la cuota 1

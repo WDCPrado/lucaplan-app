@@ -27,7 +27,7 @@ export type InstallmentPlan = {
   categoryId: string
   sourceTransactionId: string | null // solo card: la compra neutralizada
   description: string
-  totalAmount: Money // capital, sin intereses del banco
+  totalAmount: Money // total planificado a devolver; puede incluir financiación confirmada sin cambiar la compra origen
   currency: CurrencyCode
   installmentsCount: number
   startDate: Date // vencimiento de la cuota 1
@@ -397,9 +397,12 @@ export interface InstallmentPlanRepository {
    * Edita varias cuotas de una vez, atómico (editar una en `card` redistribuye las pendientes).
    * Si una cuota ya tiene movimiento, lo actualiza también: el movimiento de una cuota `card` es
    * un espejo del cronograma, y editar uno sin el otro dejaría dos verdades.
+   * Rechaza sin cambios si el plan ya no coincide con el leído para calcular la edición.
+   * La comprobación y la escritura se serializan con las correcciones del total del plan.
    */
   updateItems(
-    updates: { itemId: string; dueDate?: Date; amount: Money }[]
+    updates: { itemId: string; dueDate?: Date; amount: Money }[],
+    expectedPlan: InstallmentPlan
   ): Promise<void>
   /**
    * Recategoriza el plan Y todos sus movimientos (cuotas registradas y compra origen), atómico.

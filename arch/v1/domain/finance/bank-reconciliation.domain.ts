@@ -34,6 +34,7 @@ export type ReconciliationState = {
   movements: ReconciliationMovement[]
   categories: { id: string; type: string }[]
   loanPlans?: ReconciliationLoanPlan[]
+  cardPlans?: ReconciliationCardPlan[]
 }
 
 /** Cronograma e identidad leídos dentro de la misma transacción que los movimientos. */
@@ -64,6 +65,27 @@ export type LoanCorrectionInput = {
 export type ReconciliationLoanCorrection = {
   before: ReconciliationLoanPlan
   after: ReconciliationLoanPlan
+  evidence: string
+  outstandingBefore: number
+  outstandingAfter: number
+}
+
+/** La compra conserva su importe; el total del plan incluye el financiamiento bancario. */
+export type ReconciliationCardPlan = ReconciliationLoanPlan & {
+  sourceTransactionId: string
+}
+
+export type CardCorrectionInput = {
+  planId: string
+  totalAmount: number
+  evidence: string
+  /** Cronograma completo; los importes de cuotas ya registradas o fuera de la app no cambian. */
+  items: { itemId: string; amount: number }[]
+}
+
+export type ReconciliationCardCorrection = {
+  before: ReconciliationCardPlan
+  after: ReconciliationCardPlan
   evidence: string
   outstandingBefore: number
   outstandingAfter: number
@@ -106,6 +128,7 @@ export type BankReconciliationPlan = {
   corrections: ReconciliationCorrection[]
   additions: ReconciliationAddition[]
   loanCorrections: ReconciliationLoanCorrection[]
+  cardCorrections: ReconciliationCardCorrection[]
   projectedBuckets: ReconciliationProjectedBucket[]
   replayedIds: string[]
   snapshotAt: string

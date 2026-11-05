@@ -67,7 +67,7 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
         include: { buckets: { orderBy: { id: "asc" } } },
       })
       if (!account) return null
-      const [rows, categories, links, loans] = await Promise.all([
+      const [rows, categories, links, loans, cards] = await Promise.all([
         db.transaction.findMany({
           where: { accountId: account.id, userId },
           orderBy: { id: "asc" },
@@ -93,6 +93,21 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
             accountId: account.id,
             kind: "loan",
             sourceTransactionId: null,
+          },
+          orderBy: { id: "asc" },
+          include: {
+            items: {
+              orderBy: { index: "asc" },
+              include: { transaction: { select: { id: true } } },
+            },
+          },
+        }),
+        db.installmentPlan.findMany({
+          where: {
+            userId,
+            accountId: account.id,
+            kind: "card",
+            sourceTransactionId: { not: null },
           },
           orderBy: { id: "asc" },
           include: {
@@ -153,6 +168,24 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
               updatedAt: i.updatedAt.toISOString(),
             })),
           })),
+          cardPlans: cards.map((p) => ({
+            id: p.id,
+            sourceTransactionId: p.sourceTransactionId!,
+            currency: p.currency,
+            categoryId: p.categoryId,
+            totalAmount: Number(p.totalAmount),
+            installmentsCount: p.installmentsCount,
+            updatedAt: p.updatedAt.toISOString(),
+            items: p.items.map((i) => ({
+              id: i.id,
+              index: i.index,
+              amount: Number(i.amount),
+              dueDate: i.dueDate.toISOString().slice(0, 10),
+              transactionId: i.transaction?.id ?? null,
+              paidOutsideApp: i.paidOutsideApp,
+              updatedAt: i.updatedAt.toISOString(),
+            })),
+          })),
         },
         version: {
           accountUpdatedAt: account.updatedAt.toISOString(),
@@ -193,6 +226,39 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
               id: item.id,
               planId: correction.before.id,
               plan: { userId },
+            },
+            data: { amount: item.amount },
+          })
+        }
+      }
+      // La compra fuente ya consumió el cupo. Solo cambia la planificación pendiente;
+      // las cuotas facturadas/fuera de la app y sus movimientos conservan hasta su versión.
+      for (const correction of plan.cardCorrections) {
+        await db.installmentPlan.update({
+          where: {
+            id: correction.before.id,
+            userId,
+            accountId: account.id,
+            kind: "card",
+            sourceTransactionId: correction.before.sourceTransactionId,
+          },
+          data: { totalAmount: correction.after.totalAmount },
+        })
+        for (const item of correction.after.items) {
+          if (
+            item.transactionId ||
+            item.paidOutsideApp ||
+            correction.before.items.find((old) => old.id === item.id)
+              ?.amount === item.amount
+          )
+            continue
+          await db.installmentItem.update({
+            where: {
+              id: item.id,
+              planId: correction.before.id,
+              plan: { userId, accountId: account.id, kind: "card" },
+              paidOutsideApp: false,
+              transaction: { is: null },
             },
             data: { amount: item.amount },
           })

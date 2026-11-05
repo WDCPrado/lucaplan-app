@@ -293,8 +293,10 @@ lectura y no forma parte del recibo de aplicar.
 
 Los movimientos vinculados admiten corregir fecha y texto conservando sus enlaces. Los cobros
 recurrentes permiten corregir importe o moneda con `settleRecurringCharge`; los préstamos permiten
-corregir importes junto con su cronograma mediante `loanCorrections` (ver abajo). Para ingresos y
-cuotas `card` vinculados hay que revisar primero su plan. Con un reembolso vinculado no se
+corregir importes junto con su cronograma mediante `loanCorrections`. En compras de tarjeta,
+`cardCorrections` corrige el total financiado y las cuotas pendientes sin cambiar la compra
+original ni cuotas ya registradas (ver ambos flujos abajo). Para ingresos y cuotas `card`
+vinculados hay que revisar primero su plan. Con un reembolso vinculado no se
 corrige importe ni moneda, y una transferencia interna tampoco lo admite.
 Editar el importe o la fecha de un movimiento conciliado (en la app, en el MCP o al editar su
 cuota) borra su conciliación; cambiar solo categoría o descripción la conserva.
@@ -357,3 +359,48 @@ La cuenta demo incluye **Avance demo por corregir** con estos importes y dos pag
 La prueba de persistencia corre con `node scripts/verify-loan-reconciliation.ts` contra una base
 local desechable `loan_correction_test`, indicada en `INSTALLMENT_TEST_DATABASE_URL` y con las
 migraciones aplicadas. CI la ejecuta sobre PostgreSQL 17.
+
+### Corregir el total financiado de una compra con tarjeta
+
+`previsualizar_conciliacion` y `aplicar_conciliacion` aceptan también `cardCorrections` para
+planes `card` de la tarjeta conciliada y del usuario autenticado. Es opcional y no cambia los
+contratos existentes. Cada corrección contiene `planId`, `totalAmount`, `evidence` y
+`items: [{ itemId, amount }]` con **todas las cuotas del plan, una sola vez**. Lee primero
+`ver_plan_cuotas` para obtener sus IDs y comprobar cuáles ya están registradas.
+
+`totalAmount` es el **total financiado confirmado por el documento**, incluidos los intereses
+que corresponda pagar, y debe coincidir exactamente con la suma de las cuotas. Puede diferir
+del importe de la compra original: una compra de $600.000 financiada en seis cuotas de $113.000
+tiene un total de $678.000. La compra conserva sus $600.000 y su vínculo con el plan. Este flujo
+no calcula una tasa ni deduce un cronograma a partir de una sola cuota; requiere evidencia del
+total y de los importes que se corrigen.
+
+Solo se modifican el total del plan y los importes de sus cuotas pendientes. Se conservan IDs,
+moneda, cuenta, categoría, fechas de facturación, estado del plan y compra original. Las cuotas
+con movimiento registrado o marcadas como pagadas fuera de la app deben enviarse con su mismo
+importe; intentar cambiarlo rechaza la operación completa. Para un plan con una primera cuota
+de $100.000 ya registrada y cinco pendientes de $113.000, el total corregido es $665.000 y el
+pendiente $565.000. No se crean movimientos ni se registran pagos al corregir el cronograma.
+Las nuevas cuotas facturadas se saldan aparte con `pagar_cuota`, según su línea de factura.
+
+El preview devuelve `cardCorrections` con importes antes/después y saldo pendiente. La diferencia
+financiada actualiza el comprometido de las cuotas pendientes; **no se descuenta del cupo ni de
+la caja**. La conciliación sigue exigiendo todos los saldos bancarios al corte y su tratamiento
+habitual de movimientos posteriores: el cronograma no sustituye esos saldos.
+
+Al aplicar se conserva el flujo de token, auditoría y recibo idempotente. Plan, cuotas y recibo se
+guardan en la misma transacción que el resto de la conciliación; un cambio concurrente en los
+datos del preview obliga a previsualizar de nuevo. Repetir una aplicación completada devuelve
+su recibo, sin duplicar cambios. `editar_cuota` sigue redistribuyendo el total existente: para
+incorporar intereses al total confirmado se usa `cardCorrections`. La edición individual de
+una cuota comprueba el plan leído bajo el bloqueo del plan antes de guardar: si cambió el total
+o el cronograma mientras se calculaba el reparto, rechaza la edición y pide leerlo de nuevo.
+
+La cuenta demo incluye **Compra demo con intereses** (seis cuotas pendientes de $100.000) y
+**Compra demo parcialmente facturada** (primera cuota de $100.000 registrada, cinco pendientes
+de $100.000), ambas con compra original de $600.000. Sus correcciones esperadas son $678.000
+y $665.000, respectivamente. La prueba de persistencia corre con
+`node scripts/verify-card-reconciliation.ts` contra la base local desechable
+`card_correction_test`, indicada en `INSTALLMENT_TEST_DATABASE_URL` y con las migraciones
+aplicadas. CI también ejecuta el seed demo y verifica ambos escenarios con
+`VERIFY_CARD_DEMO_SEED=1`.

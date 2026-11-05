@@ -539,8 +539,8 @@ export async function updateInstallmentItem(
     { itemId: item.id, dueDate: input.dueDate, amount },
   ]
 
-  // En `card` el total es el capital de la compra y no se negocia: cambiar el monto de una cuota
-  // redistribuye la diferencia entre las PENDIENTES restantes (partes iguales, resto en la
+  // En `card` esta edición conserva el total registrado del plan, incluida la financiación ya
+  // conciliada: redistribuye la diferencia entre las PENDIENTES restantes (partes iguales, resto en la
   // última, como al crear). Las ya saldadas no se tocan: su movimiento ya vivió su mes.
   // ponytail: el reparto uniforme pisa montos personalizados de las pendientes; si alguien
   // configura cuota a cuota y le molesta, el paso siguiente es repartir proporcional.
@@ -567,7 +567,7 @@ export async function updateInstallmentItem(
     }
   }
 
-  await deps.installments.updateItems(updates)
+  await deps.installments.updateItems(updates, plan)
   return (await deps.installments.findById(plan.id)) ?? plan
 }
 

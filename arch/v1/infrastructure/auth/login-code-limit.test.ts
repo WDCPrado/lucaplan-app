@@ -6,7 +6,7 @@ import { betterAuth } from "better-auth"
 import { memoryAdapter } from "better-auth/adapters/memory"
 import { createLoginCodePlugin, isSignupOpen } from "./login-code.ts"
 
-test("un mismo correo recibe a lo más 5 códigos por hora; el sexto pedido responde igual pero no envía", async () => {
+test("un mismo correo recibe a lo más 5 códigos por hora; el sexto pedido responde igual, no envía ni rota: el 5.º código sigue sirviendo", async () => {
   const now = new Date()
   const sent: string[] = []
   const auth = betterAuth({
@@ -19,7 +19,7 @@ test("un mismo correo recibe a lo más 5 códigos por hora; el sexto pedido resp
       verification: [],
     }),
     emailAndPassword: { enabled: false },
-    plugins: [createLoginCodePlugin({ async send(email) { sent.push(email) } }, { NODE_ENV: "production" })],
+    plugins: [createLoginCodePlugin({ async send(_email, code) { sent.push(code) } }, { NODE_ENV: "production" })],
     rateLimit: { enabled: false },
     logger: { disabled: true },
   })
@@ -42,6 +42,15 @@ test("un mismo correo recibe a lo más 5 códigos por hora; el sexto pedido resp
   }
   assert.equal(sent.length, 5)
   assert.deepEqual(bodies[5], bodies[0])
+  // El 6.º no generó ni guardó un código nuevo: el último que llegó al correo sigue válido.
+  const verify = await auth.handler(
+    new Request("http://localhost:3181/api/auth/sign-in/email-otp", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "http://localhost:3181" },
+      body: JSON.stringify({ email: "persona@example.com", otp: sent[4] }),
+    })
+  )
+  assert.equal(verify.status, 200)
 })
 
 test("registro abierto: SIGNUP_OPEN=true exacto, o development fuera de Railway", () => {

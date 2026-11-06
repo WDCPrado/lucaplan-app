@@ -1,5 +1,5 @@
 import { emailOTP } from "better-auth/plugins"
-import { APIError } from "better-auth/api"
+import { APIError, createAuthMiddleware } from "better-auth/api"
 import { createRateWindow } from "../../../shared/rate-window.ts"
 import { DEMO_EMAIL, isPrEnvironment } from "../../../../lib/pr-demo.ts"
 import {
@@ -64,7 +64,9 @@ export function isSignupOpen(
 }
 
 // Códigos por destinatario: el rate limit de better-auth es por IP, así que alguien podría llenar
-// el buzón de otra persona desde varias IPs. Pasado el tope no se envía, con la misma respuesta.
+// el buzón de otra persona desde varias IPs. El tope se mira ANTES de que better-auth genere y
+// guarde el código (rota el anterior): pasado el tope se responde como un envío exitoso sin rotar
+// nada, así el último código que recibió la persona sigue sirviendo.
 const CODES_PER_HOUR = 5
 
 export function createLoginCodePlugin(
@@ -76,7 +78,7 @@ export function createLoginCodePlugin(
   const demoEmail = (isPrEnvironment(env.RAILWAY_ENVIRONMENT_NAME) && process.env.SEED_PR_EMAIL) || DEMO_EMAIL
   const isFixed = (email: string) => fixed !== null && email === demoEmail.toLowerCase()
   const perRecipient = createRateWindow(CODES_PER_HOUR, 60 * 60 * 1000)
-  return emailOTP({
+  const plugin = emailOTP({
     // `undefined` hace que better-auth use su generador aleatorio (`generateOTP(...) || default`).
     generateOTP: ({ email }) => (isFixed(email) ? fixed! : undefined),
     disableSignUp: !isSignupOpen(env),
@@ -88,7 +90,6 @@ export function createLoginCodePlugin(
     rateLimit: { window: 60, max: 3 },
     sendVerificationOTP: async ({ email, otp, type }) => {
       if (type !== "sign-in" || isFixed(email)) return
-      if (!perRecipient.take(email)) return
       // Servidor Node persistente: enviar fuera de la respuesta evita revelar cuentas por latencia.
       // La respuesta es igual si el correo no existe. Solo se registra un fallo genérico.
       void mailer.send(email, otp).catch(() => {
@@ -96,4 +97,17 @@ export function createLoginCodePlugin(
       })
     },
   })
+  const limitPerRecipient = {
+    matcher: (ctx: { path?: string }) => ctx.path === "/email-otp/send-verification-otp",
+    handler: createAuthMiddleware(async (ctx) => {
+      const email = String((ctx.body as { email?: unknown } | undefined)?.email ?? "").toLowerCase()
+      if (!email || isFixed(email)) return
+      if (!perRecipient.take(email)) return ctx.json({ success: true })
+    }),
+  }
+  return {
+    ...plugin,
+    // emailOTP solo trae hooks `after`; el `before` es nuestro.
+    hooks: { ...plugin.hooks, before: [limitPerRecipient] },
+  }
 }

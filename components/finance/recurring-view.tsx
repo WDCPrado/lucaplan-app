@@ -241,7 +241,7 @@ function RecurringRow({
     t.periodicity === "monthly"
       ? null
       : (PERIODICITY_LABEL[t.periodicity] ?? t.periodicity)
-  // Cobrado del mes = el cargo real ya llegó; manda sobre el "Cobra el …". Pausada: nada.
+  // Pagado del mes = el cargo real ya llegó; manda sobre el "Cobra el …". Pausada: nada.
   const status = t.hasEnded
     ? `Terminó el ${shortDate(t.endDate!)}`
     : t.isActive && !t.currentPeriodPaid
@@ -295,7 +295,7 @@ function RecurringRow({
           {t.currentPeriodPaid && !t.hasEnded && t.isActive ? (
             <span className="flex items-center justify-end gap-1 text-footnote whitespace-nowrap text-primary">
               <Check className="size-3.5" />
-              Cobrado
+              Pagado
             </span>
           ) : (
             status && (

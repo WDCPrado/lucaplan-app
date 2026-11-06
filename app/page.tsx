@@ -354,7 +354,7 @@ const demoRecurring = [
     icon: "Dumbbell",
     color: "#10b981",
     amount: 26800,
-    note: "Cobrado",
+    note: "Pagado",
     paid: true,
   },
 ] as const

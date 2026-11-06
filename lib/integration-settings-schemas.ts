@@ -44,11 +44,31 @@ export const integrationValue = z
   .trim()
   .min(1, "No puede quedar vacío; usa Quitar para borrarla")
   .max(500, "Máximo 500 caracteres")
-  .refine((v) => !/\s/.test(v), "No puede tener espacios")
 
-export const updateIntegrationsInput = z.object({
-  values: z.partialRecord(integrationKey, integrationValue.nullable()),
-})
+// Solo RESEND_FROM admite espacios («Luca Plan <codigos@tu-dominio.cl>»); las claves, ids, modelo y
+// tenant no los llevan nunca.
+export const KEYS_WITH_SPACES: readonly IntegrationKey[] = ["RESEND_FROM"]
+export const valueFor = (key: IntegrationKey) =>
+  KEYS_WITH_SPACES.includes(key)
+    ? integrationValue
+    : integrationValue.refine((v) => !/\s/.test(v), "No puede tener espacios")
+
+export const updateIntegrationsInput = z
+  .object({
+    values: z.partialRecord(integrationKey, integrationValue.nullable()),
+  })
+  .superRefine(({ values }, ctx) => {
+    for (const [key, value] of Object.entries(values)) {
+      if (value == null) continue
+      const result = valueFor(key as IntegrationKey).safeParse(value)
+      if (!result.success)
+        ctx.addIssue({
+          code: "custom",
+          path: ["values", key],
+          message: result.error.issues[0]?.message ?? "Valor inválido",
+        })
+    }
+  })
 export type UpdateIntegrationsInput = z.infer<typeof updateIntegrationsInput>
 
 export const integrationEntry = z.object({

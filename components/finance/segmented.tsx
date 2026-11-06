@@ -42,7 +42,6 @@ export function Segmented<T extends string>({
         aria-hidden
         // Vidrio con refracción en móvil (components/finance/liquid-glass.ts).
         data-lg-control
-        data-nuevo
         className={cn(
           "pointer-events-none absolute inset-y-0.5 left-0.5 rounded-full bg-(--glass-control-active) shadow-(--knob-shadow) transition-transform duration-500 ease-(--ease-spring) motion-reduce:transition-none",
           activeIndex < 0 && "opacity-0"

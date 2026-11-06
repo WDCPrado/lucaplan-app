@@ -339,7 +339,6 @@ function SearchCircle({ onSearch }: { onSearch: () => void }) {
       aria-label="Buscar movimientos"
       data-squish
       data-lg-control
-      data-nuevo
       className="press liquid-glass liquid-squish pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full"
     >
       <Search className="size-6" />
@@ -676,7 +675,6 @@ function BottomNav({
           barra queda quieta encima del contenido que se desliza. */}
       <nav
         ref={navRef}
-        data-nuevo
         aria-label="Navegación principal"
         style={{ viewTransitionName: "app-tabbar" }}
         className={cn(

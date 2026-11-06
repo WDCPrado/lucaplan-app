@@ -266,7 +266,6 @@ function startSession(o: Options): () => void {
     const p = document.createElement("div")
     p.className = "liquid-glass"
     p.setAttribute("aria-hidden", "true")
-    p.setAttribute("data-nuevo", "")
     p.dataset.lgProxy = String(++proxySeq)
     if (o.popup) p.dataset.lgPopup = ""
     p.style.cssText =

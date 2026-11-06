@@ -13,6 +13,10 @@
 // inclusive. Reúsa los 10 días que ya usa `listRecurringCandidates` (finance-read.ts) para elegir
 // el cobro de un período.
 //
+// Regla vigente (Willy, 2026-11-06): el cargo se identifica por el texto de la recurrente; el monto
+// solo valida. La conciliación por monto con otro texto (rec-01 a rec-09 en su versión de WDC-171)
+// se retiró: vinculaba cargos ajenos (Uber Eats pagando ENTEL HOGAR).
+//
 // TZ: los tests de borde de mes y de «hoy» corren dos veces, con TZ=America/Santiago y TZ=UTC,
 // cambiando `process.env.TZ` en caliente (helper `enCadaZona`).
 import { test } from "node:test"
@@ -20,6 +24,7 @@ import assert from "node:assert/strict"
 import { Money } from "../../domain/finance/money.ts"
 import {
   executionDateFor,
+  matchesTemplateText,
   type MovementForMatch,
   type RecurringTemplate,
   type RecurringTemplateRepository,
@@ -65,10 +70,12 @@ type Row = {
   periodKey: string
   status: "pending" | "confirmed"
   externalId: string | null // null = comprometido o marca manual «Ya lo pagué»
+  description: string // el comprometido muestra el nombre; el cargo del banco, su texto
 }
 
 function makeRepo(templates: RecurringTemplate[]) {
   const rows: Row[] = []
+  const sueltos: string[] = [] // cargos ajenos que el vínculo soltó al triage
   let seq = 0
   const find = (templateId: string, periodKey: string) =>
     rows.find((r) => r.templateId === templateId && r.periodKey === periodKey)
@@ -94,6 +101,7 @@ function makeRepo(templates: RecurringTemplate[]) {
         periodKey,
         status: "pending",
         externalId: null,
+        description: template.label,
       }
       rows.push(row)
       return { transactionId: row.id, created: true }
@@ -116,6 +124,7 @@ function makeRepo(templates: RecurringTemplate[]) {
             status: row.status,
             isManual: row.externalId === null,
             date: executionDateFor(template, periodKey),
+            description: row.description,
           }
         : null
     },
@@ -128,16 +137,19 @@ function makeRepo(templates: RecurringTemplate[]) {
     },
     attachImportedMovement: async (transactionId, template, periodKey) => {
       const committed = find(template.id, periodKey)
-      if (committed?.status === "confirmed" && committed.externalId !== null)
-        return false
+      const bank = committed?.status === "confirmed" && committed.externalId !== null
+      // Lo que cerró el banco con el texto de la recurrente no se pisa; un cargo ajeno se suelta.
+      if (bank && matchesTemplateText(committed.description, template)) return false
       if (rows.some((r) => r.id === transactionId)) return false // ya es de otra plantilla
       if (committed) rows.splice(rows.indexOf(committed), 1)
+      if (bank) sueltos.push(committed!.id)
       rows.push({
         id: transactionId,
         templateId: template.id,
         periodKey,
         status: "confirmed",
         externalId: `ext-${transactionId}`,
+        description: template.description,
       })
       return true
     },
@@ -153,7 +165,7 @@ function makeRepo(templates: RecurringTemplate[]) {
     if (row.status === "pending") return "comprometido"
     return row.externalId === null ? "marcado a mano" : row.id
   }
-  return { repo, rows, abrir, estado }
+  return { repo, rows, sueltos, abrir, estado }
 }
 
 // --- Datos ---
@@ -210,9 +222,9 @@ async function conciliaOctubre(fecha: string, monto: number, accountId?: string)
   return { claimed: claimed.get("c1")?.id ?? null, octubre: estado("arriendo", "2026-10") }
 }
 
-// --- Regla 1: conciliar aunque el texto difiera, si es el único candidato ---
+// --- Regla 1: el texto identifica, el monto valida ---
 
-test("rec-01 · Dado el arriendo de octubre comprometido, cuando llega un cargo con otro texto pero misma cuenta y monto en tolerancia, entonces salda octubre y el gasto cuenta una sola vez", async () => {
+test("rec-01 · Dado el arriendo de octubre comprometido, cuando llega un cargo con otro texto aunque la cuenta, el monto y la fecha calcen, entonces no lo concilia: sigue comprometido y el cargo va a triage", async () => {
   const { repo, rows, abrir, estado } = makeRepo([arriendo])
   await abrir(arriendo, "2026-10")
 
@@ -220,34 +232,33 @@ test("rec-01 · Dado el arriendo de octubre comprometido, cuando llega un cargo 
     cargo("c1", "2026-10-06", 352_000),
   ])
 
-  assert.equal(claimed.get("c1")?.id, "arriendo")
-  assert.equal(estado("arriendo", "2026-10"), "c1", "el cargo es el cobro de octubre")
-  assert.equal(rows.length, 1, "no queda el comprometido además del cargo")
+  assert.equal(claimed.size, 0)
+  assert.equal(estado("arriendo", "2026-10"), "comprometido")
+  assert.equal(rows.length, 1)
 })
 
-test("rec-02 · La ventana es de 10 días alrededor del vencimiento: vence el 5-oct, concilia del 25-sep al 15-oct y no fuera", async () => {
-  for (const [fecha, esperado] of [
-    ["2026-10-15", "arriendo"], // +10: en el borde
-    ["2026-10-16", null], // +11: fuera
-    ["2026-09-25", "arriendo"], // −10: cargo adelantado, en el borde
-    ["2026-09-24", null], // −11: fuera
-  ] as const) {
+test("rec-02 · Un cargo con otro texto no concilia en ningún punto de la ventana de 10 días (vence el 5-oct)", async () => {
+  for (const fecha of ["2026-10-15", "2026-10-16", "2026-09-25", "2026-09-24", "2026-10-05"]) {
     const r = await conciliaOctubre(fecha, 350_000)
-    assert.equal(r.claimed, esperado, fecha)
-    assert.equal(r.octubre, esperado ? "c1" : "comprometido", fecha)
+    assert.equal(r.claimed, null, fecha)
+    assert.equal(r.octubre, "comprometido", fecha)
   }
 })
 
-test("rec-03 · Un cargo con otro texto y monto fuera de la tolerancia no concilia: el arriendo sigue comprometido", async () => {
+test("rec-03 · Con el texto de la recurrente, el monto valida: dentro de la tolerancia concilia, fuera no", async () => {
   for (const [monto, esperado] of [
     [385_000, "arriendo"], // +10%: borde
     [385_001, null],
     [315_000, "arriendo"], // −10%: borde
     [314_999, null],
   ] as const) {
-    const r = await conciliaOctubre("2026-10-06", monto)
-    assert.equal(r.claimed, esperado, String(monto))
-    assert.equal(r.octubre, esperado ? "c1" : "comprometido", String(monto))
+    const { repo, abrir, estado } = makeRepo([arriendo])
+    await abrir(arriendo, "2026-10")
+    const claimed = await confirmFromMovements({ recurring: repo }, [arriendo], [
+      cargo("c1", "2026-10-06", monto, "ARRIENDO DEPTO"),
+    ])
+    assert.equal(claimed.get("c1")?.id ?? null, esperado, String(monto))
+    assert.equal(estado("arriendo", "2026-10"), esperado ? "c1" : "comprometido", String(monto))
   }
 })
 
@@ -257,7 +268,7 @@ test("rec-04 · Un cargo con otro texto en otra cuenta no concilia aunque el mon
   assert.equal(r.octubre, "comprometido")
 })
 
-test("rec-05 · Dos recurrentes pendientes calzan con el mismo cargo (arriendo y gasto común): no concilia ninguna y queda para resolver a mano", async () => {
+test("rec-05 · Un cargo con otro texto cuyo monto calza con una sola de dos recurrentes pendientes no concilia ninguna", async () => {
   // Gasto común 340.000 ±10% → 306.000 a 374.000, misma cuenta, mismo vencimiento.
   const gastoComun: RecurringTemplate = {
     ...arriendo,
@@ -267,45 +278,27 @@ test("rec-05 · Dos recurrentes pendientes calzan con el mismo cargo (arriendo y
     baseAmount: Money.of(340_000, "CLP"),
   }
   const ambas = [arriendo, gastoComun]
-
-  const a = makeRepo(ambas)
-  for (const t of ambas) await a.abrir(t, "2026-10")
-  const ninguno = await confirmFromMovements({ recurring: a.repo }, ambas, [
-    cargo("c1", "2026-10-06", 345_000),
-  ])
-  assert.equal(ninguno.size, 0)
-  assert.equal(a.estado("arriendo", "2026-10"), "comprometido")
-  assert.equal(a.estado("gasto-comun", "2026-10"), "comprometido")
-
-  // Borde: 380.000 solo cabe en el arriendo (el gasto común llega a 374.000) → único, concilia.
-  const b = makeRepo(ambas)
-  for (const t of ambas) await b.abrir(t, "2026-10")
-  const uno = await confirmFromMovements({ recurring: b.repo }, ambas, [
-    cargo("c1", "2026-10-06", 380_000),
-  ])
-  assert.equal(uno.get("c1")?.id, "arriendo")
-  assert.equal(b.estado("gasto-comun", "2026-10"), "comprometido")
+  for (const monto of [345_000, 380_000]) {
+    const a = makeRepo(ambas)
+    for (const t of ambas) await a.abrir(t, "2026-10")
+    const claimed = await confirmFromMovements({ recurring: a.repo }, ambas, [
+      cargo("c1", "2026-10-06", monto),
+    ])
+    assert.equal(claimed.size, 0, String(monto))
+    assert.equal(a.estado("arriendo", "2026-10"), "comprometido", String(monto))
+    assert.equal(a.estado("gasto-comun", "2026-10"), "comprometido", String(monto))
+  }
 })
 
-test("rec-06 · Dos cargos del lote calzan con el arriendo pendiente: no concilia ninguno; si solo uno calza, ese concilia", async () => {
-  const a = makeRepo([arriendo])
-  await a.abrir(arriendo, "2026-10")
-  const ninguno = await confirmFromMovements({ recurring: a.repo }, [arriendo], [
-    cargo("c1", "2026-10-06", 352_000),
-    cargo("c2", "2026-10-07", 349_000, "TEF A CORREDORA"),
-  ])
-  assert.equal(ninguno.size, 0)
-  assert.equal(a.estado("arriendo", "2026-10"), "comprometido")
-
-  // Borde: el segundo cargo se sale de la tolerancia → el primero es el único candidato.
-  const b = makeRepo([arriendo])
-  await b.abrir(arriendo, "2026-10")
-  const uno = await confirmFromMovements({ recurring: b.repo }, [arriendo], [
+test("rec-06 · Un cargo único del lote con otro texto tampoco concilia el arriendo pendiente", async () => {
+  const { repo, abrir, estado } = makeRepo([arriendo])
+  await abrir(arriendo, "2026-10")
+  const claimed = await confirmFromMovements({ recurring: repo }, [arriendo], [
     cargo("c1", "2026-10-06", 352_000),
     cargo("c2", "2026-10-07", 500_000, "TEF A CORREDORA"),
   ])
-  assert.equal(uno.get("c1")?.id, "arriendo")
-  assert.equal(uno.has("c2"), false)
+  assert.equal(claimed.size, 0)
+  assert.equal(estado("arriendo", "2026-10"), "comprometido")
 })
 
 test("rec-07 · El texto idéntico concilia como siempre: gana sobre otro candidato del lote, aunque llegue 15 días tarde y aunque sea de otra cuenta", async () => {
@@ -339,12 +332,17 @@ test("rec-07 · El texto idéntico concilia como siempre: gana sobre otro candid
   assert.equal(otraCuenta.get("c1")?.id, "arriendo")
 })
 
-test("rec-08 · Un cargo con otro texto reemplaza la marca «Ya lo pagué» de octubre, pero no pisa un cobro que ya vino del banco", async () => {
+test("rec-08 · El cargo con el texto de la recurrente reemplaza la marca «Ya lo pagué» de octubre, pero no pisa un cobro que ya vino del banco", async () => {
   const a = makeRepo([arriendo])
   await a.abrir(arriendo, "2026-10")
   await a.repo.setPeriodPaid("arriendo", "2026-10", true)
+  const otro = await confirmFromMovements({ recurring: a.repo }, [arriendo], [
+    cargo("c0", "2026-10-06", 352_000),
+  ])
+  assert.equal(otro.size, 0, "un cargo con otro texto no toca la marca")
+  assert.equal(a.estado("arriendo", "2026-10"), "marcado a mano")
   const reemplaza = await confirmFromMovements({ recurring: a.repo }, [arriendo], [
-    cargo("c1", "2026-10-06", 352_000),
+    cargo("c1", "2026-10-06", 352_000, "ARRIENDO DEPTO"),
   ])
   assert.equal(reemplaza.get("c1")?.id, "arriendo")
   assert.equal(a.estado("arriendo", "2026-10"), "c1", "el cargo real toma el lugar de la marca")
@@ -353,21 +351,21 @@ test("rec-08 · Un cargo con otro texto reemplaza la marca «Ya lo pagué» de o
   await b.abrir(arriendo, "2026-10")
   await b.repo.attachImportedMovement("banco-1", arriendo, "2026-10")
   const noPisa = await confirmFromMovements({ recurring: b.repo }, [arriendo], [
-    cargo("c2", "2026-10-07", 352_000),
+    cargo("c2", "2026-10-07", 352_000, "ARRIENDO DEPTO"),
   ])
   assert.equal(noPisa.size, 0)
   assert.equal(b.estado("arriendo", "2026-10"), "banco-1")
 })
 
-test("rec-09 · Una recurrente planificada (sin texto del banco todavía) concilia su primer cargo si es el único candidato", async () => {
+test("rec-09 · Una recurrente planificada (sin texto del banco todavía) no concilia sola ningún cargo: su primer cobro se vincula a mano", async () => {
   const planificada: RecurringTemplate = { ...arriendo, id: "plan", description: "" }
   const { repo, abrir, estado } = makeRepo([planificada])
   await abrir(planificada, "2026-10")
   const claimed = await confirmFromMovements({ recurring: repo }, [planificada], [
     cargo("c1", "2026-10-05", 350_000, "TRANSF A JUAN PEREZ"),
   ])
-  assert.equal(claimed.get("c1")?.id, "plan")
-  assert.equal(estado("plan", "2026-10"), "c1")
+  assert.equal(claimed.size, 0)
+  assert.equal(estado("plan", "2026-10"), "comprometido")
 })
 
 test("rec-10 · Un cargo adelantado salda el período que viene: octubre ya lo cobró el banco y el 30-oct llega el arriendo de noviembre (vence 5-nov)", async () => {
@@ -387,9 +385,9 @@ test("rec-10 · Un cargo adelantado salda el período que viene: octubre ya lo c
 
 // --- Regla 2: el borde de mes salda el pendiente más antiguo dentro de la ventana ---
 
-test("rec-11 · Un arriendo que vence el 31-oct y se cobra el 1-nov salda octubre, no noviembre (texto idéntico o distinto, en Chile y en UTC)", async () => {
+test("rec-11 · Un arriendo que vence el 31-oct y se cobra el 1-nov salda octubre, no noviembre (en Chile y en UTC)", async () => {
   await enCadaZona(async (tz) => {
-    for (const texto of ["ARRIENDO DEPTO", "TRANSF PAGO ARR 4471"]) {
+    for (const texto of ["ARRIENDO DEPTO"]) {
       const { repo, abrir, estado } = makeRepo([arriendo31])
       await abrir(arriendo31, "2026-10") // vence 31-oct
       await abrir(arriendo31, "2026-11") // vence 30-nov
@@ -440,14 +438,14 @@ test("rec-13 · Con dos quincenas pendientes dentro de la ventana, el cargo sald
     await abrir(nana, "2026-Q01")
     await abrir(nana, "2026-Q02")
     const primero = await confirmFromMovements({ recurring: repo }, [nana], [
-      cargo("c1", "2026-10-30", 120_000, "TEF MARIA SOTO"),
+      cargo("c1", "2026-10-30", 120_000, "PAGO NANA"),
     ])
     assert.equal(primero.get("c1")?.id, "nana", tz)
     assert.equal(estado("nana", "2026-Q01"), "c1", `${tz}: la más antigua primero`)
     assert.equal(estado("nana", "2026-Q02"), "comprometido", tz)
 
     const segundo = await confirmFromMovements({ recurring: repo }, [nana], [
-      cargo("c2", "2026-11-05", 120_000, "TEF MARIA SOTO"),
+      cargo("c2", "2026-11-05", 120_000, "PAGO NANA"),
     ])
     assert.equal(segundo.get("c2")?.id, "nana", tz)
     assert.equal(estado("nana", "2026-Q02"), "c2", tz)
@@ -525,4 +523,55 @@ test("rec-16 · Un segundo NETFLIX.COM cuando octubre ya lo cobró el banco no c
   assert.equal(claimed.size, 0)
   assert.equal(estado("smartfit", "2026-10"), "comprometido")
   assert.equal(estado("netflix", "2026-10"), "banco-netflix")
+})
+
+// --- Casos de producción (noviembre 2026): cargos ajenos que el match por monto vinculaba ---
+
+const servicio = (id: string, description: string, monto: number, tolerancePct: number): RecurringTemplate => ({
+  ...arriendo,
+  id,
+  label: id,
+  description,
+  baseAmount: Money.of(monto, "CLP"),
+  tolerancePct,
+})
+const entelHogar = servicio("entel-hogar", "ENTEL ONECLICK ESA PAG", 24_000, 10)
+const enel = servicio("enel", "ENEL DISTRIBUCION", 20_000, 50)
+const aguasAndinas = servicio("aguas-andinas", "AGUAS ANDINAS", 5_000, 50)
+const servicios = [entelHogar, enel, aguasAndinas]
+
+test("rec-17 · Uber Eats no paga ENTEL HOGAR, Infragantí no paga ENEL y Uber no paga AGUAS ANDINAS aunque el monto calce; el cargo con su texto sí paga", async () => {
+  const { repo, abrir, estado } = makeRepo(servicios)
+  for (const t of servicios) await abrir(t, "2026-11")
+  const ajenos = await confirmFromMovements({ recurring: repo }, servicios, [
+    cargo("uber-eats", "2026-11-04", 24_692, "PAYU *UBER EATS"),
+    cargo("infraganti", "2026-11-04", 16_060, "TUU*INFRAGANTI"),
+    cargo("uber", "2026-11-04", 3_990, "UBER"),
+  ])
+  assert.equal(ajenos.size, 0, "siguen el flujo normal de IA/triage")
+  for (const t of servicios) assert.equal(estado(t.id, "2026-11"), "comprometido", t.id)
+
+  const propio = await confirmFromMovements({ recurring: repo }, servicios, [
+    cargo("entel-nov", "2026-11-05", 24_100, "Entel OneClick ESA Pag 11/26"),
+  ])
+  assert.equal(propio.get("entel-nov")?.id, "entel-hogar")
+  assert.equal(estado("entel-hogar", "2026-11"), "entel-nov")
+})
+
+test("rec-18 · Si noviembre de ENTEL HOGAR quedó con Uber Eats (dato viejo), el cargo real de ENTEL lo reemplaza y Uber Eats vuelve al triage", async () => {
+  const { repo, rows, sueltos, estado } = makeRepo([entelHogar])
+  rows.push({
+    id: "uber-eats",
+    templateId: "entel-hogar",
+    periodKey: "2026-11",
+    status: "confirmed",
+    externalId: "bch-uber-eats",
+    description: "PAYU *UBER EATS",
+  })
+  const claimed = await confirmFromMovements({ recurring: repo }, [entelHogar], [
+    cargo("entel-nov", "2026-11-05", 24_100, "ENTEL ONECLICK ESA PAG"),
+  ])
+  assert.equal(claimed.get("entel-nov")?.id, "entel-hogar")
+  assert.equal(estado("entel-hogar", "2026-11"), "entel-nov")
+  assert.deepEqual(sueltos, ["uber-eats"])
 })

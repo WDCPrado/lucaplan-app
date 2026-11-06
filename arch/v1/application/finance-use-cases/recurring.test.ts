@@ -36,6 +36,7 @@ type Row = {
   categoryId: string
   reviewed: boolean
   externalId: string | null // id del banco; null = manual (marca del usuario o alta a mano)
+  description: string // el comprometido muestra el nombre; el cargo del banco, su texto
 }
 
 function makeRepo(templates: RecurringTemplate[]) {
@@ -84,6 +85,7 @@ function makeRepo(templates: RecurringTemplate[]) {
         categoryId: template.categoryId,
         reviewed: false,
         externalId: null,
+        description: template.label,
       }
       rows.push(row)
       return { transactionId: row.id, created: true }
@@ -101,7 +103,13 @@ function makeRepo(templates: RecurringTemplate[]) {
         (r) => r.templateId === templateId && r.periodKey === periodKey
       )
       return row
-        ? { id: row.id, status: row.status, isManual: row.externalId === null, date: row.date }
+        ? {
+            id: row.id,
+            status: row.status,
+            isManual: row.externalId === null,
+            date: row.date,
+            description: row.description,
+          }
         : null
     },
     setPeriodPaid: async (templateId, periodKey, paid) => {
@@ -137,6 +145,7 @@ function makeRepo(templates: RecurringTemplate[]) {
         categoryId: template.categoryId,
         reviewed: true,
         externalId: `ext-${transactionId}`,
+        description: template.description, // el vínculo exige su texto (o lo fija, si es planificada)
       })
       return true
     },
@@ -150,6 +159,7 @@ function makeRepo(templates: RecurringTemplate[]) {
     row.date = date
     row.reviewed = true
     row.externalId = `ext-${row.id}` // vino del banco: eso es lo que lo hace irreversible
+    row.description = templates.find((t) => t.id === row.templateId)!.description
     return true
   }
   return { repo, rows, confirm }
@@ -1072,7 +1082,7 @@ test("una recurrente de ingreso se paga con un abono y pide abonos como candidat
     direction: "credit",
   }
   const { repo, rows } = makeRepo([sueldo])
-  const abono = movimiento({ id: "abono-julio", direction: "credit" })
+  const abono = movimiento({ id: "abono-julio", direction: "credit", description: "SUELDO" })
   const conSueldo = (tx: Transaction) =>
     payRecurringPeriodWith(
       { recurring: repo, transactions: txRepo([tx]) },
@@ -1239,6 +1249,7 @@ test("WDC-179: el cargo del 4-oct guardado en noviembre no deja noviembre «Paga
     categoryId: "vivienda",
     reviewed: true,
     externalId: `bch-${templateId}`,
+    description: "ARRIENDO DEPTO",
   })
   // Dato viejo: el cobro de octubre quedó en noviembre. El arriendo trae su cargo real del 5-nov.
   rows.push(cargo("entel", "2026-10-04"), cargo("arriendo-nov", "2026-11-05"))
@@ -1264,6 +1275,56 @@ test("WDC-179: el cargo del 4-oct guardado en noviembre no deja noviembre «Paga
     2
   )
   assert.deepEqual(due.map((i) => i.description), [entel.description])
+})
+
+test("Pagado = un cargo con el texto de la recurrente: Uber Eats no paga ENTEL HOGAR, Infragantí no paga ENEL, Uber no paga AGUAS ANDINAS; el cargo con su texto sí", async () => {
+  // Datos de producción (noviembre): el match por monto vinculó cargos ajenos. Sin tocar los datos,
+  // la lectura deja de verlos pagados; la marca manual sigue valiendo.
+  const servicio = (id: string, description: string, monto: number, tolerancePct: number): RecurringTemplate => ({
+    ...arriendo,
+    id,
+    label: id,
+    description,
+    baseAmount: Money.of(monto, "CLP"),
+    tolerancePct,
+    startDate: new Date("2026-01-05T00:00:00Z"),
+  })
+  const entel = servicio("entel", "ENTEL ONECLICK ESA PAG", 24_000, 10)
+  const enel = servicio("enel", "ENEL DISTRIBUCION", 20_000, 50)
+  const aguas = servicio("aguas", "AGUAS ANDINAS", 5_000, 50)
+  const bueno = servicio("bueno", "ENTEL ONECLICK ESA PAG", 24_000, 10)
+  const manual = servicio("manual", "ENEL DISTRIBUCION", 20_000, 50)
+  const { repo, rows } = makeRepo([entel, enel, aguas, bueno, manual])
+  const cargo = (templateId: string, description: string, monto: number, externalId: string | null = `bch-${templateId}`): (typeof rows)[number] => ({
+    id: `cargo-${templateId}`,
+    templateId,
+    periodKey: "2026-11",
+    amount: Money.of(monto, "CLP"),
+    date: new Date("2026-11-05T00:00:00Z"),
+    status: "confirmed",
+    categoryId: "vivienda",
+    reviewed: true,
+    externalId,
+    description,
+  })
+  rows.push(
+    cargo("entel", "PAYU *UBER EATS", 24_692),
+    cargo("enel", "TUU*INFRAGANTI", 16_060),
+    cargo("aguas", "UBER", 3_990),
+    cargo("bueno", "Entel OneClick ESA Pag 11/26", 24_100),
+    cargo("manual", "manual", 20_000, null) // «Ya lo pagué»
+  )
+  const deps = {
+    recurring: repo,
+    accounts: { listByUser: async () => [{ id: "acc1", name: "Cuenta", currency: "CLP" }] },
+    categories: { listByUser: async () => [{ id: "vivienda", name: "Vivienda", icon: null, color: null }] },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any
+  const view = await listRecurringView(deps, "u1", new Date("2026-11-06T15:00:00Z"))
+  assert.deepEqual(
+    Object.fromEntries(view.map((v) => [v.id, v.currentPeriodPaid])),
+    { entel: false, enel: false, aguas: false, bueno: true, manual: true }
+  )
 })
 
 test("WDC-179: sin pagar, el próximo cobro no muestra un vencimiento antes del inicio ni de hace meses", async () => {

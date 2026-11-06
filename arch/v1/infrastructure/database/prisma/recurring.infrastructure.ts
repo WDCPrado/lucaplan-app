@@ -8,6 +8,7 @@ import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import type { Direction } from "../../../domain/finance/finance.domain.ts"
 import {
   canPayPeriod,
+  matchesTemplateText,
   periodsAround,
   type Periodicity,
   type RecurringTemplate,
@@ -191,7 +192,7 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
   async findPeriodTransaction(templateId, periodKey) {
     const row = await prisma.transaction.findFirst({
       where: { recurringTemplateId: templateId, periodKey },
-      select: { id: true, status: true, externalId: true, transactionDate: true },
+      select: { id: true, status: true, externalId: true, transactionDate: true, description: true },
     })
     // Sin `externalId` no vino del banco: es la marca manual del usuario (o el movimiento de
     // origen de la plantilla, que es la misma afirmación suya).
@@ -201,6 +202,7 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
           status: row.status,
           isManual: row.externalId === null,
           date: row.transactionDate,
+          description: row.description,
         }
       : null
   },
@@ -239,17 +241,24 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
         const committed = await db.transaction.findFirst({
           where: { recurringTemplateId: template.id, periodKey },
         })
-        // El período ya lo cerró el BANCO: dos cargos reales no se pisan, este sigue el flujo normal.
-        if (
-          committed &&
-          committed.status !== "pending" &&
-          committed.externalId !== null
-        )
-          return false
-        // Queda el comprometido, o una ejecución confirmada A MANO por el usuario: el correo es el
-        // hecho y la reemplaza. Conservar las dos contaría dos veces el mismo gasto.
-        if (committed && committed.id !== transactionId)
-          await db.transaction.delete({ where: { id: committed.id } })
+        const bankCharge =
+          committed !== null && committed.status !== "pending" && committed.externalId !== null
+        // El período ya lo cerró el BANCO con el texto de la recurrente: dos cargos reales no se
+        // pisan, este sigue el flujo normal.
+        if (bankCharge && matchesTemplateText(committed.description, template)) return false
+        if (committed && committed.id !== transactionId) {
+          // Un cargo del banco con otro texto no es de esta recurrente (lo vinculó el match por
+          // monto, ya retirado): se suelta y vuelve al triage, sin borrarlo. Conserva la categoría
+          // que le puso el vínculo; el triage es donde la persona la corrige.
+          if (bankCharge)
+            await db.transaction.update({
+              where: { id: committed.id },
+              data: { recurringTemplateId: null, periodKey: null, reviewed: false },
+            })
+          // Queda el comprometido, o una ejecución confirmada A MANO por el usuario: el correo es el
+          // hecho y la reemplaza. Conservar las dos contaría dos veces el mismo gasto.
+          else await db.transaction.delete({ where: { id: committed.id } })
+        }
         const { count } = await db.transaction.updateMany({
           // El importado conserva su monto, fecha y externalId reales: solo adopta el vínculo. Uno ya
           // vinculado a OTRA plantilla no se roba (dejaría ese período sin su cobro), ni uno ya

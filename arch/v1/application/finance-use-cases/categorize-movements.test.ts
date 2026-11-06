@@ -189,3 +189,29 @@ test("categorizeMovements: no re-categoriza los que ya tienen categoría", async
   assert.equal(applied.length, 0)
   assert.equal(called, false) // ni siquiera llama al provider si no hay pendientes
 })
+
+test("categorizeMovements: la IA no crea reglas aprendidas (solo las lee como contexto)", async () => {
+  // Hallazgo de prod (4-nov): la regla «TUU INFRAGANTI → Compras» no la creó la IA; solo la
+  // escribe categorizeTransaction (asignación explícita del usuario o de su agente por MCP).
+  const provider: CategorizationProvider = {
+    async categorize({ movements }) {
+      return Object.fromEntries(movements.map((m) => [m.id, "compras"]))
+    },
+  }
+  const { deps, applied } = makeDeps(provider, [cat("compras", "expense")])
+  const noEscribe = async (): Promise<never> => {
+    throw new Error("la IA no escribe reglas")
+  }
+  deps.corrections = {
+    upsertByText: noEscribe,
+    setNote: noEscribe,
+    findByText: async () => null,
+    listByUserDirection: async () => [],
+    countSameText: async () => 0,
+  } as unknown as NonNullable<CategorizeDeps["corrections"]>
+  const assigned = await categorizeMovements(deps, "u1", [
+    { ...mov("infraganti", "debit"), description: "TUU*INFRAGANTI" },
+  ])
+  assert.equal(assigned, 1)
+  assert.deepEqual(applied, [{ id: "infraganti", categoryId: "compras" }])
+})

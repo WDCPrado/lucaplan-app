@@ -211,12 +211,17 @@ export function matchesTemplate(
   // Planificada sin cobro real todavía: no tiene clave de match y no reclama nada por texto (un
   // texto vacío calzaría con cualquier descripción que normalice a vacío).
   if (!normalizeMovementText(template.description)) return false
-  if (
-    normalizeMovementText(movement.description) !==
-    normalizeMovementText(template.description)
-  )
-    return false
-  return matchesAmount(movement, template)
+  return matchesTemplateText(movement.description, template) && matchesAmount(movement, template)
+}
+
+/**
+ * ¿El texto del movimiento es el de la recurrente? Es lo que identifica el cobro: el monto solo lo
+ * valida (Willy, 2026-11-06). Una planificada (sin texto todavía) acepta cualquiera: su primer cobro
+ * vinculado a mano le fija el texto (`attachImportedMovement`).
+ */
+export function matchesTemplateText(description: string, template: RecurringTemplate): boolean {
+  const key = normalizeMovementText(template.description)
+  return !key || normalizeMovementText(description) === key
 }
 
 /** Lo que pide el match sin mirar el texto: activa, misma dirección y moneda, monto en tolerancia. */
@@ -303,8 +308,9 @@ export function requiresDayOfMonth(periodicity: Periodicity): boolean {
 
 /**
  * ¿Puede `tx` usarse como el cobro del período `periodKey` de `template`? null si sí; si no, el
- * motivo en palabras del usuario (→ 422). El monto, como en el match automático, dentro de la
- * tolerancia. Sin tope por atraso: el cargo real puede llegar tarde (Willy, WDC-179). De la fecha
+ * motivo en palabras del usuario (→ 422). El texto, el de la recurrente (`matchesTemplateText`;
+ * cualquiera en una planificada): uno ajeno no se leería como pagado (`periodTransactionPaying`). El
+ * monto, como en el match automático, dentro de la tolerancia. Sin tope por atraso: el cargo real puede llegar tarde (Willy, WDC-179). De la fecha
  * solo se exige que no sea anterior a
  * `RECURRING_MATCH_WINDOW_DAYS` días del vencimiento: un cargo de octubre elegido en noviembre no
  * es el cobro de noviembre, y vincularlo borraba el pendiente del mes. El filtro
@@ -333,6 +339,8 @@ export function paymentCandidateRejection(
   if (tx.installmentItemId) return "El movimiento ya es la cuota de un plan"
   if (tx.amount.currency !== template.currency)
     return "El movimiento está en otra moneda que la recurrente"
+  if (!matchesTemplateText(tx.description, template))
+    return "El texto del movimiento no es el de la recurrente"
   if (!canPayPeriod(template, periodKey, tx.date))
     return `Ese cargo es del ${civilDayLabel(tx.date)}, antes del cobro de este período (vence el ${civilDayLabel(executionDateFor(template, periodKey))})`
   if (!matchesAmount(tx, template))
@@ -356,14 +364,18 @@ export function canPayPeriod(
 /**
  * El movimiento guardado en el período, solo si de verdad lo paga. Un cargo del banco anterior al
  * piso de `canPayPeriod` quedó ahí por el vínculo viejo (el cargo del 4-oct guardado en noviembre):
- * es de otro período, así que se lee como si el período no tuviera movimiento. La marca manual y el
- * comprometido valen siempre. La usan todas las lecturas de «pagado».
+ * es de otro período. Uno con otro texto (`matchesTemplateText`) no es de esta recurrente: lo vinculó
+ * el match por monto que ya no existe (Uber Eats en ENTEL HOGAR). Los dos se leen como si el período
+ * no tuviera movimiento. La marca manual y el comprometido valen siempre. La usan todas las lecturas
+ * de «pagado».
  */
 export function periodTransactionPaying<
-  T extends { status: string; isManual: boolean; date: Date },
+  T extends { status: string; isManual: boolean; date: Date; description: string },
 >(template: RecurringTemplate, periodKey: string, tx: T | null): T | null {
   if (!tx || tx.status !== "confirmed" || tx.isManual) return tx
-  return canPayPeriod(template, periodKey, tx.date) ? tx : null
+  return canPayPeriod(template, periodKey, tx.date) && matchesTemplateText(tx.description, template)
+    ? tx
+    : null
 }
 
 // "4 de octubre": el día civil tal cual está guardado (medianoche UTC).
@@ -413,7 +425,7 @@ export interface RecurringTemplateRepository {
   findPeriodTransaction(
     templateId: string,
     periodKey: string
-  ): Promise<{ id: string; status: string; isManual: boolean; date: Date } | null>
+  ): Promise<{ id: string; status: string; isManual: boolean; date: Date; description: string } | null>
   /**
    * Períodos de la plantilla que el banco todavía no cobró: los comprometidos (`pending`) y los
    * confirmados a mano (sin `externalId`, `isManual`). En cualquier orden.
@@ -438,8 +450,10 @@ export interface RecurringTemplateRepository {
    * El cargo real ya se importó (trae su `externalId` y ya movió los buckets), así que
    * es ÉL quien queda como ejecución del período — toma la categoría de la plantilla, el vínculo y
    * el `periodKey`, queda `confirmed` + `reviewed`, y el comprometido `pending` del período se
-   * consume (se borra). Atómico. `false` si el período ya tenía una ejecución confirmada del banco,
-   * o si el movimiento no existe o ya es de otra plantilla (entonces no se toca nada).
+   * consume (se borra). Atómico. `false` si el período ya tenía una ejecución confirmada del banco
+   * con el texto de la recurrente, o si el movimiento no existe o ya es de otra plantilla (entonces
+   * no se toca nada). Un cargo del banco con otro texto (lo vinculó el match por monto que ya no
+   * existe) no cierra el período: se desvincula y vuelve al triage (`reviewed: false`).
    */
   attachImportedMovement(
     transactionId: string,

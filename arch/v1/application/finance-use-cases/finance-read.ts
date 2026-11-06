@@ -28,6 +28,7 @@ import {
   hasEnded,
   periodKeyFor,
   periodsAround,
+  matchesTemplateText,
   periodTransactionPaying,
   toleranceRange,
   RECURRING_MATCH_WINDOW_DAYS,
@@ -1228,7 +1229,7 @@ export async function listRecurringView(
 // (ver `payRecurringPeriodWith`): movimientos del banco confirmados y sin vínculo, de su misma
 // dirección, moneda y categoría, de los últimos `days` días (hoy en Chile, sin tope futuro), más
 // nuevos primero. Con las mismas reglas que el vínculo (`paymentCandidateRejection`), para no ofrecer
-// lo que se rechazaría: monto en tolerancia y nada anterior a RECURRING_MATCH_WINDOW_DAYS días del
+// lo que se rechazaría: el texto de la recurrente, monto en tolerancia y nada anterior a RECURRING_MATCH_WINDOW_DAYS días del
 // vencimiento del período en curso.
 export async function listRecurringCandidates(
   deps: ReadDeps & { recurring: RecurringTemplateRepository },
@@ -1262,7 +1263,8 @@ export async function listRecurringCandidates(
     recurringCandidates: true,
     limit: 50,
   })
-  return { items }
+  // El texto, el de la recurrente (cualquiera en una planificada), como pide el vínculo.
+  return { items: items.filter((tx) => matchesTemplateText(tx.description, template)) }
 }
 
 // Un día dentro del período siguiente al que contiene a `from` (basta para derivar su clave).

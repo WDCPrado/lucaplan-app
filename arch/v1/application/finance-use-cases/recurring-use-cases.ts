@@ -24,7 +24,7 @@ import {
   executionDateFor,
   hasEnded,
   isValidTolerance,
-  matchesAmount,
+  matchesTemplateText,
   paymentCandidateRejection,
   periodIsWithinValidity,
   periodKeyFor,
@@ -33,7 +33,6 @@ import {
   requiresDayOfMonth,
 } from "../../domain/finance/recurring.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
-import { normalizeMovementText } from "../../domain/finance/categorization-learning.domain.ts"
 import { todayKey } from "../../../shared/today.ts"
 
 // "Hoy" del usuario: su día civil en Chile, como fecha a medianoche UTC (lo que esperan las reglas
@@ -352,7 +351,12 @@ export async function payRecurringPeriodWith(
     template.id,
     periodKey
   )
-  if (periodTx?.status === "confirmed" && !periodTx.isManual)
+  // Un cargo del banco con otro texto no lo cierra: `attachImportedMovement` lo desvincula.
+  if (
+    periodTx?.status === "confirmed" &&
+    !periodTx.isManual &&
+    matchesTemplateText(periodTx.description, template)
+  )
     throw new RecurringPeriodBankPaidError()
   if (
     !(await deps.recurring.attachImportedMovement(tx.id, template, periodKey))
@@ -405,27 +409,26 @@ async function openCurrentPeriod(
 }
 
 // Período que salda el cargo. Primero el suyo: el de la ventana de su vencimiento (`periodsAround`)
-// que siga abierto (comprometido, marca manual «Ya lo pagué» o sin materializar). Con octubre y noviembre
+// que siga abierto (comprometido, marca manual «Ya lo pagué», sin materializar o con un cargo ajeno
+// que no lo paga). Con octubre y noviembre
 // pendientes, el cargo del 4-nov paga noviembre y octubre sigue por cobrar: si pagara el más antiguo,
 // un mes saltado desfasaría todos los cargos siguientes. Solo si el suyo ya lo cobró el banco o el
 // cargo no cae en ninguna ventana, paga el comprometido más antiguo que el cargo puede pagar (`canPayPeriod`): el atrasado.
 // Una marca manual fuera de la ventana no se persigue: el usuario ya afirmó ese pago.
-// `late: false` (el match por monto, sin el texto de la recurrente) se queda en lo abierto de la ventana:
-// sin el texto, un monto parecido lejos del vencimiento no es evidencia suficiente.
 async function periodToPay(
   deps: { recurring: RecurringTemplateRepository },
   template: RecurringTemplate,
-  date: Date,
-  late: boolean
+  date: Date
 ): Promise<string | null> {
   const open = await deps.recurring.listOpenPeriods(template.id)
   const isOpen = (key: string) => open.some((o) => o.periodKey === key)
-  const nearby = periodsAround(template, date).map((p) => p.periodKey)
-  if (!late) return nearby.find(isOpen) ?? null
-  // Sin materializar (el cron no lo abrió) también es el suyo: `attachImportedMovement` lo abre.
-  for (const key of nearby)
-    if (isOpen(key) || !(await deps.recurring.findPeriodTransaction(template.id, key)))
-      return key
+  // Sin materializar (el cron no lo abrió) también es el suyo: `attachImportedMovement` lo abre. Un
+  // cargo del banco con otro texto tampoco lo cierra: `attachImportedMovement` lo desvincula.
+  for (const key of periodsAround(template, date).map((p) => p.periodKey)) {
+    if (isOpen(key)) return key
+    const tx = await deps.recurring.findPeriodTransaction(template.id, key)
+    if (!tx || !matchesTemplateText(tx.description, template)) return key
+  }
   const overdue = open
     .filter(({ periodKey, isManual }) => !isManual && canPayPeriod(template, periodKey, date))
     .map(({ periodKey }) => ({ periodKey, due: executionDateFor(template, periodKey) }))
@@ -457,7 +460,7 @@ export async function confirmFromMovement(
   // PRIMERA cuyo período aún no esté consumido (`attach` rebota si ya está confirmado). Así dos
   // (o N) plantillas equivalentes reparten un cargo a cada una en vez de dejar el segundo huérfano.
   for (const template of rankTemplatesFor(movement, vigentes)) {
-    const periodKey = await periodToPay(deps, template, movement.date, true)
+    const periodKey = await periodToPay(deps, template, movement.date)
     if (!periodKey) continue
     const attached = await deps.recurring.attachImportedMovement(
       movement.id,
@@ -470,56 +473,22 @@ export async function confirmFromMovement(
 }
 
 /**
- * Concilia el LOTE de cargos recién importados con las recurrentes. Primero el texto idéntico, cargo
- * por cargo (`confirmFromMovement`, que no mira la cuenta). Después, lo que quedó libre concilia por
- * otro texto —o sin texto, una planificada— si es de la misma cuenta, el monto está en tolerancia y
- * cae en la ventana de un período pendiente, y solo si el par es único en los dos sentidos: una sola
- * recurrente calza con ese cargo y ese cargo es el único del lote que calza con ella. Ante la duda no
- * se vincula: queda para resolver a mano. Devuelve los vinculados (id del movimiento → plantilla).
+ * Concilia el LOTE de cargos recién importados con las recurrentes, cargo por cargo y solo por
+ * texto (`confirmFromMovement`). El monto valida, no identifica (Willy, 2026-11-06): un cargo con
+ * otro texto no se vincula aunque calce el monto, la cuenta y la fecha (Uber Eats no paga ENTEL
+ * HOGAR); sigue el flujo normal de IA/triage sin que se le toque la categoría. Una planificada (sin
+ * texto) no reclama nada: su primer cobro se vincula a mano. Devuelve los vinculados (id del
+ * movimiento → plantilla).
  */
 export async function confirmFromMovements(
   deps: { recurring: RecurringTemplateRepository },
   templates: RecurringTemplate[],
-  movements: (MovementForMatch & { id: string; date: Date; accountId: string })[]
+  movements: (MovementForMatch & { id: string; date: Date })[]
 ): Promise<Map<string, RecurringTemplate>> {
   const claimed = new Map<string, RecurringTemplate>()
   for (const movement of movements) {
     const template = await confirmFromMovement(deps, templates, movement)
     if (template) claimed.set(movement.id, template)
-  }
-
-  // Candidatos por monto, cuenta y ventana, con el período que saldarían (leído tras el texto).
-  const pairs: { movement: (typeof movements)[number]; template: RecurringTemplate; periodKey: string }[] = []
-  // Un cargo con el texto de una recurrente es de esa recurrente, aunque la fase 1 no lo vinculara
-  // (su período ya lo cobró el banco): no se lo presta a otra por monto.
-  const templateTexts = new Set(
-    templates.map((t) => normalizeMovementText(t.description)).filter(Boolean)
-  )
-  for (const movement of movements) {
-    if (claimed.has(movement.id)) continue
-    if (templateTexts.has(normalizeMovementText(movement.description))) continue
-    for (const template of templates) {
-      if (
-        template.accountId !== movement.accountId ||
-        hasEnded(template, movement.date) ||
-        !matchesAmount(movement, template)
-      )
-        continue
-      const periodKey = await periodToPay(deps, template, movement.date, false)
-      if (periodKey) pairs.push({ movement, template, periodKey })
-    }
-  }
-  const count = (key: (p: (typeof pairs)[number]) => string) => {
-    const n = new Map<string, number>()
-    for (const p of pairs) n.set(key(p), (n.get(key(p)) ?? 0) + 1)
-    return n
-  }
-  const perMovement = count((p) => p.movement.id)
-  const perTemplate = count((p) => p.template.id)
-  for (const { movement, template, periodKey } of pairs) {
-    if (perMovement.get(movement.id) !== 1 || perTemplate.get(template.id) !== 1) continue
-    if (await deps.recurring.attachImportedMovement(movement.id, template, periodKey))
-      claimed.set(movement.id, template)
   }
   return claimed
 }

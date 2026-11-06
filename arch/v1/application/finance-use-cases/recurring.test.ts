@@ -698,24 +698,48 @@ test("WDC-179: el correo paga el período pendiente aunque el cargo llegue atras
   assert.equal(rows[0].periodKey, "2026-08", "salda el agosto atrasado")
 })
 
-test("WDC-179: con octubre y noviembre pendientes, el cargo del 4-nov paga octubre y el siguiente noviembre", async () => {
+test("WDC-179: con octubre y noviembre pendientes, el cargo del 4-nov paga noviembre y octubre sigue pendiente", async () => {
   const { repo, rows } = makeRepo([arriendo])
   await materializePeriod({ recurring: repo }, arriendo, new Date("2026-10-01T00:00:00Z"))
   await materializePeriod({ recurring: repo }, arriendo, new Date("2026-11-01T00:00:00Z"))
   const periodo = (key: string) => rows.find((r) => r.periodKey === key)
 
+  // El 4-nov cae en la ventana de noviembre (vence el 5): es su cobro, no el de octubre saltado.
   await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-1", "2026-11-04"))
-  assert.equal(periodo("2026-10")?.id, "tx-1", "el más antiguo")
-  assert.equal(periodo("2026-11")?.status, "pending", "noviembre sigue por cobrar")
+  assert.equal(periodo("2026-11")?.id, "tx-1", "el período propio del cargo")
+  assert.equal(periodo("2026-10")?.status, "pending", "octubre sigue por cobrar")
 
-  // Volver a procesar el mismo cargo no lo mueve de período ni toca noviembre.
+  // Volver a procesar el mismo cargo no lo mueve al octubre atrasado.
   assert.equal(await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-1", "2026-11-04")), null)
-  assert.equal(periodo("2026-10")?.id, "tx-1")
-  assert.equal(periodo("2026-11")?.status, "pending")
+  assert.equal(periodo("2026-11")?.id, "tx-1")
+  assert.equal(periodo("2026-10")?.status, "pending")
 
+  // Con noviembre ya cobrado por el banco, un segundo cargo salda el octubre atrasado.
   await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-2", "2026-11-06"))
-  assert.equal(periodo("2026-11")?.id, "tx-2")
+  assert.equal(periodo("2026-10")?.id, "tx-2")
   assert.equal(rows.length, 2, "un cobro por período")
+})
+
+test("WDC-179: con el período propio ya cobrado por el banco, el cargo paga el pendiente atrasado", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-08-12T00:00:00Z"))
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-09-01T00:00:00Z"))
+  await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-sep", "2026-09-05"))
+  assert.equal(rows.find((r) => r.periodKey === "2026-09")?.id, "tx-sep")
+
+  // El 10-sep cae en la ventana de septiembre (26-ago..15-sep), pero septiembre ya lo cobró el banco.
+  await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-ago", "2026-09-10"))
+  assert.equal(rows.find((r) => r.periodKey === "2026-08")?.id, "tx-ago", "salda el agosto atrasado")
+  assert.equal(rows.length, 2)
+})
+
+test("WDC-179: con agosto pendiente y septiembre sin abrir, el cargo del 5-sep abre y paga septiembre", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-08-12T00:00:00Z"))
+
+  await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-sep", "2026-09-05"))
+  assert.equal(rows.find((r) => r.periodKey === "2026-09")?.id, "tx-sep", "el período propio, aunque el cron no lo abrió")
+  assert.equal(rows.find((r) => r.periodKey === "2026-08")?.status, "pending", "agosto sigue por cobrar")
 })
 
 test("WDC-179: un período pendiente no lo paga un cargo anterior a 10 días de su vencimiento", async () => {

@@ -202,6 +202,9 @@ export type EmailConnectionDeps = {
   // Notificación push de lo que entró SOLO por correo (best-effort, después de categorizar para
   // que el usuario abra la app con el movimiento ya clasificado).
   notify?: (userId: string, movements: NotifiableMovement[]) => Promise<void>
+  // El tope global igualado al ingreso sigue a lo importado (abonos, gastos del período anterior,
+  // vínculos a recurrentes o cuotas): envuelve la importación y sus matches. Best-effort.
+  followIncome?: <T>(userId: string, work: () => Promise<T>) => Promise<T>
   notifyConnectionError?: (userId: string, message: PushMessage) => Promise<void>
 }
 
@@ -1059,60 +1062,68 @@ export async function syncMailbox(
   let skipped = 0
   const created: string[] = []
   const notifiable: NotifiableMovement[] = []
-  for (const link of links) {
-    const own = byLink.get(link.id)
-    if (!own || own.length === 0) continue
-    const run = () => importIntoLink(deps, link, own, now)
-    const res = deps.withBankLock ? await deps.withBankLock(link.userId, run) : await run()
-    imported += res.imported
-    skipped += res.skipped
-    created.push(...res.created)
-    notifiable.push(...res.notifiable)
-    await deps.links.update(link.id, {
-      skippedCount: link.skippedCount + res.skipped,
-    })
-  }
+  const importAll = async () => {
+    for (const link of links) {
+      const own = byLink.get(link.id)
+      if (!own || own.length === 0) continue
+      const run = () => importIntoLink(deps, link, own, now)
+      const res = deps.withBankLock ? await deps.withBankLock(link.userId, run) : await run()
+      imported += res.imported
+      skipped += res.skipped
+      created.push(...res.created)
+      notifiable.push(...res.notifiable)
+      await deps.links.update(link.id, {
+        skippedCount: link.skippedCount + res.skipped,
+      })
+    }
 
-  // La importación ya terminada se conserva aunque falle la renovación del webhook.
-  let subscriptionId = mailbox.subscriptionId
-  let subscriptionExpiresAt = mailbox.subscriptionExpiresAt
-  let renewalError: unknown = null
-  const needsRenewal =
-    !mailbox.subscriptionExpiresAt ||
-    mailbox.subscriptionExpiresAt.getTime() - now.getTime() <
-      SUBSCRIPTION_RENEW_WINDOW_MS
-  if (needsRenewal) {
-    try {
-      const sub = await deps.mail.ensureSubscription(mailbox.id)
-      if (sub) {
-        subscriptionId = sub.subscriptionId
-        subscriptionExpiresAt = sub.expiresAt
+    // La importación ya terminada se conserva aunque falle la renovación del webhook.
+    let subscriptionId = mailbox.subscriptionId
+    let subscriptionExpiresAt = mailbox.subscriptionExpiresAt
+    let renewalError: unknown = null
+    const needsRenewal =
+      !mailbox.subscriptionExpiresAt ||
+      mailbox.subscriptionExpiresAt.getTime() - now.getTime() <
+        SUBSCRIPTION_RENEW_WINDOW_MS
+    if (needsRenewal) {
+      try {
+        const sub = await deps.mail.ensureSubscription(mailbox.id)
+        if (sub) {
+          subscriptionId = sub.subscriptionId
+          subscriptionExpiresAt = sub.expiresAt
+        }
+      } catch (e) {
+        renewalError = e
       }
-    } catch (e) {
-      renewalError = e
+    }
+
+    await deps.mailboxes.update(mailbox.id, {
+      deltaLink,
+      subscriptionId,
+      subscriptionExpiresAt,
+      lastSyncedAt: now,
+      // Un reproceso vuelve a ver los mismos correos ajenos: sumarlos otra vez falsearía el contador.
+      discardedCount:
+        mailbox.discardedCount + (opts.reprocessSince ? 0 : discarded),
+    })
+    if (renewalError) await markSyncError(deps, mailbox, renewalError)
+    else await deps.mailboxes.updateIfState(mailbox.id, mailbox, { status: "active", lastError: null })
+
+    if (created.length > 0) {
+      // Plantilla > IA: el match corre primero y deja categorizado y revisado lo que reclama.
+      // Cuotas antes que recurrentes: un pago de crédito ya enganchado a su plan no debe
+      // conciliar además una recurrente del mismo monto y cuenta.
+      if (deps.runInstallments)
+        await deps.runInstallments(mailbox.userId, created).catch(() => {})
+      if (deps.matchRecurring)
+        await deps.matchRecurring(mailbox.userId, created).catch(() => {})
     }
   }
-
-  await deps.mailboxes.update(mailbox.id, {
-    deltaLink,
-    subscriptionId,
-    subscriptionExpiresAt,
-    lastSyncedAt: now,
-    // Un reproceso vuelve a ver los mismos correos ajenos: sumarlos otra vez falsearía el contador.
-    discardedCount:
-      mailbox.discardedCount + (opts.reprocessSince ? 0 : discarded),
-  })
-  if (renewalError) await markSyncError(deps, mailbox, renewalError)
-  else await deps.mailboxes.updateIfState(mailbox.id, mailbox, { status: "active", lastError: null })
+  // Sin mensajes para ningún banco no hay nada que seguir: no se lee el plan.
+  if (deps.followIncome && byLink.size > 0) await deps.followIncome(mailbox.userId, importAll)
+  else await importAll()
 
   if (created.length > 0) {
-    // Plantilla > IA: el match corre primero y deja categorizado y revisado lo que reclama.
-    // Cuotas antes que recurrentes: un pago de crédito ya enganchado a su plan no debe
-    // conciliar además una recurrente del mismo monto y cuenta.
-    if (deps.runInstallments)
-      await deps.runInstallments(mailbox.userId, created).catch(() => {})
-    if (deps.matchRecurring)
-      await deps.matchRecurring(mailbox.userId, created).catch(() => {})
     if (deps.categorize) await deps.categorize(mailbox.userId).catch(() => {})
     // Solo lo que el usuario NO registró a mano y no es un traspaso interno merece notificación.
     if (deps.notify && notifiable.length > 0)

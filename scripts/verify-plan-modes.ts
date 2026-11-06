@@ -60,7 +60,7 @@ try {
   const { incomeRepository } = await import("../arch/v1/infrastructure/database/prisma/income.infrastructure.ts")
   const { accountRepository, bankRepository, categoryRepository, monthlyBudgetRepository, transactionRepository } = await import("../arch/v1/infrastructure/database/prisma/finance.infrastructure.ts")
   const { getBudgetView, getPreviousMonthDebt, listIncomesView } = await import("../arch/v1/application/finance-use-cases/finance-read.ts")
-  const { createIncome, updateIncome, deleteIncome, generateMonthlyIncome, seedGlobalLimitFromIncomes } = await import("../arch/v1/application/finance-use-cases/income-use-cases.ts")
+  const { createIncome, updateIncome, deleteIncome, generateMonthlyIncome } = await import("../arch/v1/application/finance-use-cases/income-use-cases.ts")
   const { setMonthlyBudget } = await import("../arch/v1/application/finance-use-cases/set-monthly-budget-use-case.ts")
   const { setCategoryLimit } = await import("../arch/v1/application/finance-use-cases/upsert-category-use-case.ts")
   const { scopeBudgetPeriod } = await import("../arch/v1/application/finance-use-cases/budget-period-use-cases.ts")
@@ -122,7 +122,6 @@ try {
   ])
   assert.equal(newCredit.filter(result => result.created).length, 1)
   assert.equal(newCredit[0].transactionId, newCredit[1].transactionId)
-  assert.equal((await seedGlobalLimitFromIncomes(credit, "user", { year: 2026, month: 12 })).seeded, false)
 
   await prisma.transaction.create({ data: { userId: "user", accountId: "account", categoryId: "expense", transactionDate: new Date("2026-10-23"), description: "Después del cierre", amount: 1500, currency: "CLP", direction: "debit" } })
   assert.equal(await getPreviousMonthDebt(credit, "user", 2026, 11), 0)

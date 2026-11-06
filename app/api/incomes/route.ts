@@ -8,8 +8,8 @@ import {
   createIncome,
   listIncomesForMonth,
   listAvailableIncomeSources,
-  seedGlobalLimitFromIncomes,
 } from "@/arch/v1/application/finance-use-cases/income-use-cases"
+import { followIncome } from "@/arch/v1/application/finance-use-cases/follow-income"
 
 // Fuentes de ingreso del usuario, con la marca de si su ingreso del mes ya fue generado.
 export async function GET(req: Request) {
@@ -22,8 +22,8 @@ export async function GET(req: Request) {
   })
 }
 
-// Crea una fuente de ingreso y, si el mes aún no tiene límite global, lo siembra con la suma de
-// ingresos activos. Devuelve la fuente y el resultado de la siembra (para sugerir al usuario).
+// Crea una fuente de ingreso; si el tope del período en curso estaba igualado al ingreso (o sin
+// definir), lo sigue. Devuelve la fuente y si el tope cambió (para el aviso).
 export async function POST(req: Request) {
   const body = await req.json()
 
@@ -40,15 +40,9 @@ export async function POST(req: Request) {
         dayOfMonth: Number(body.dayOfMonth),
       })
       const { year, month } = await periodOf(req, scopedDeps)
-      const income = await createIncome(scopedDeps, userId, {
-        ...parsed,
-        year,
-        month,
-      })
-      const seed = await seedGlobalLimitFromIncomes(scopedDeps, userId, {
-        year,
-        month,
-      })
+      const { result: income, seed } = await followIncome(scopedDeps, userId, () =>
+        createIncome(scopedDeps, userId, { ...parsed, year, month })
+      )
       return { income, seed }
     },
     201

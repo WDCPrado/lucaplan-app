@@ -1,5 +1,5 @@
-// Ingresos: validación (cuenta destino no-crédito, categoría income, día, monto), generación mensual
-// idempotente y siembra del límite global (solo si no está definido; no pisa lo existente).
+// Ingresos: validación (cuenta destino no-crédito, categoría income, día, monto) y generación mensual
+// idempotente. El tope que sigue al ingreso se prueba en follow-income.test.ts.
 // Corre con: node --test arch/v1/application/finance-use-cases/income.test.ts
 import { test } from "node:test"
 import assert from "node:assert/strict"
@@ -9,8 +9,6 @@ import type {
   AccountRepository,
   Category,
   CategoryRepository,
-  MonthlyBudget,
-  MonthlyBudgetRepository,
 } from "../../domain/finance/finance.domain.ts"
 import {
   isIncomeEndedAt,
@@ -22,9 +20,7 @@ import {
   createIncome,
   generateMonthlyIncome,
   ungenerateMonthlyIncome,
-  seedGlobalLimitFromIncomes,
   effectiveIncomeAmount,
-  sumActiveIncomesCLP,
   updateIncome,
   deleteIncome,
 } from "./income-use-cases.ts"
@@ -166,31 +162,6 @@ function incomesRepo(
         amount: entry.amount,
         accountId: store.get(id)?.accountId,
       }
-    },
-  }
-}
-
-function budgetsRepo(seed: MonthlyBudget[] = []): MonthlyBudgetRepository {
-  const store = [...seed]
-  return {
-    listByUser: async (userId) => store.filter((b) => b.userId === userId),
-    set: async (input) => {
-      const row: MonthlyBudget = {
-        id: `mb${store.length + 1}`,
-        userId: input.userId,
-        year: input.year,
-        month: input.month,
-        globalLimit: input.globalLimit,
-      }
-      const idx = store.findIndex(
-        (b) =>
-          b.userId === input.userId &&
-          b.year === input.year &&
-          b.month === input.month
-      )
-      if (idx >= 0) store[idx] = row
-      else store.push(row)
-      return row
     },
   }
 }
@@ -429,49 +400,6 @@ test("ungenerateMonthlyIncome revierte la proyección: la caja baja y conserva l
   assert.deepEqual(balances, [0])
 })
 
-// --- siembra del límite global ---
-
-test("seed siembra el límite global cuando no está definido", async () => {
-  const deps = baseDeps()
-  await createIncome(deps, "u1", validInput) // 900.000
-  await createIncome(deps, "u1", { ...validInput, name: "Arriendo", amount: 300000 })
-
-  const budgets = budgetsRepo()
-  const res = await seedGlobalLimitFromIncomes(
-    { incomes: deps.incomes, monthlyBudgets: budgets },
-    "u1",
-    { year: 2026, month: 7 }
-  )
-  assert.equal(res.seeded, true)
-  assert.equal(res.total, 1200000)
-  const stored = await budgets.listByUser("u1", "calendar")
-  assert.equal(stored[0].globalLimit.toMajor(), 1200000)
-})
-
-test("seed NO pisa un límite global ya definido", async () => {
-  const deps = baseDeps()
-  await createIncome(deps, "u1", validInput) // 900.000
-  const budgets = budgetsRepo([
-    {
-      id: "mb0",
-      userId: "u1",
-      year: 2026,
-      month: 7,
-      globalLimit: Money.of(700000, "CLP"),
-    },
-  ])
-  const res = await seedGlobalLimitFromIncomes(
-    { incomes: deps.incomes, monthlyBudgets: budgets },
-    "u1",
-    { year: 2026, month: 7 }
-  )
-  assert.equal(res.seeded, false)
-  assert.equal(res.alreadyDefined, true)
-  assert.equal(res.total, 900000) // total sugerido para la UI
-  const stored = await budgets.listByUser("u1", "calendar")
-  assert.equal(stored[0].globalLimit.toMajor(), 700000) // intacto
-})
-
 // --- monto por mes con carry-forward (WDC-30) ---
 // El monto de una fuente vive por mes, igual que el límite de una categoría: editar agosto no
 // reescribe julio, y una fuente creada en agosto no existe en julio.
@@ -517,7 +445,7 @@ test("antes del primer registro la fuente no existía", async () => {
   assert.equal(effectiveIncomeAmount(amounts, income.id, 2026, 6), null)
 })
 
-test("la siembra del presupuesto usa el monto vigente de ese mes", async () => {
+test("cada mes usa el monto vigente de ese mes", async () => {
   const deps = baseDeps()
   const income = await createIncome(deps, "u1", { ...validInput, year: 2026, month: 7 })
   await updateIncome(deps, "u1", {
@@ -529,9 +457,10 @@ test("la siembra del presupuesto usa el monto vigente de ese mes", async () => {
     month: 8,
   })
 
-  assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 7)).toMajor(), 900_000)
-  assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 8)).toMajor(), 1_200_000)
-  assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 6)).toMajor(), 0)
+  const amounts = await deps.incomes.listAmountsByUser("u1", "calendar")
+  assert.equal(effectiveIncomeAmount(amounts, income.id, 2026, 7)?.toMajor(), 900_000)
+  assert.equal(effectiveIncomeAmount(amounts, income.id, 2026, 8)?.toMajor(), 1_200_000)
+  assert.equal(effectiveIncomeAmount(amounts, income.id, 2026, 6), null)
 })
 
 // --- eliminar conserva la historia (WDC-30) ---
@@ -570,7 +499,8 @@ test("una fuente terminada deja de sumar en el presupuesto desde su mes de fin",
   const income = await createIncome(deps, "u1", { ...validInput, year: 2026, month: 7 })
   await deleteIncome(deps, "u1", income.id, { year: 2026, month: 9 })
 
-  assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 8)).toMajor(), 900_000)
-  assert.equal((await sumActiveIncomesCLP(deps, "u1", 2026, 9)).toMajor(), 0)
+  const ended = (await deps.incomes.findById(income.id, "calendar"))!
+  assert.equal(isIncomeEndedAt(ended, 2026, 8), false)
+  assert.equal(isIncomeEndedAt(ended, 2026, 9), true)
 })
 

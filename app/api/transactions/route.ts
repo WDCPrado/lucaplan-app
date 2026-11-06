@@ -6,6 +6,7 @@ import {
 } from "@/arch/v1/presentation/finance/finance-http"
 import { listTransactions } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { createTransaction } from "@/arch/v1/application/finance-use-cases/create-transaction-use-case"
+import { followIncome } from "@/arch/v1/application/finance-use-cases/follow-income"
 import {
   DIRECTIONS,
   type Direction,
@@ -48,10 +49,14 @@ export async function POST(req: Request) {
         description: body.description ?? "",
         date: body.date || new Date().toISOString(),
       })
-      const t = await createTransaction(financeDeps, userId, {
-        ...parsed,
-        date: new Date(parsed.date),
-      })
+      const create = () =>
+        createTransaction(financeDeps, userId, { ...parsed, date: new Date(parsed.date) })
+      // Un abono mueve el ingreso del plan: el tope igualado lo sigue.
+      // ponytail: un gasto con fecha del período anterior también mueve el total (vía déficit) y
+      // no se sigue, para no leer el plan en cada gasto; «Igualar al ingreso» lo vuelve a alinear.
+      const t = parsed.direction === "credit"
+        ? (await followIncome(financeDeps, userId, create, { allModes: true })).result
+        : await create()
       return { id: t.id }
     },
     201

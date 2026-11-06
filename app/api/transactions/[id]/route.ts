@@ -7,6 +7,7 @@ import {
   updateTransaction,
   deleteTransaction,
 } from "@/arch/v1/application/finance-use-cases/update-transaction-use-case"
+import { followIncome } from "@/arch/v1/application/finance-use-cases/follow-income"
 
 // Editar un movimiento manual (los de cuentas conectadas son de solo lectura → 422).
 export async function PATCH(
@@ -24,11 +25,10 @@ export async function PATCH(
       categoryId: body.categoryId ?? null,
       date: body.date || new Date().toISOString(),
     })
-    const t = await updateTransaction(financeDeps, userId, {
-      transactionId: id,
-      ...parsed,
-      date: new Date(parsed.date),
-    })
+    const { result: t } = await followIncome(financeDeps, userId, () =>
+      updateTransaction(financeDeps, userId, { transactionId: id, ...parsed, date: new Date(parsed.date) }),
+      { allModes: true }
+    )
     return { id: t.id }
   })
 }
@@ -40,7 +40,7 @@ export async function DELETE(
 ) {
   const { id } = await ctx.params
   return withUser(req, async (userId) => {
-    await deleteTransaction(financeDeps, userId, id)
+    await followIncome(financeDeps, userId, () => deleteTransaction(financeDeps, userId, id), { allModes: true })
     return { ok: true }
   })
 }

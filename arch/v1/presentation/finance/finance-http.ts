@@ -62,8 +62,8 @@ const requestStore = cache((): MemoStore => new Map())
 // La separación es a propósito y es el invariante que sostiene todo esto: **lo que escribe nunca
 // lee de la memoria**. Antes eso dependía de que `cache` no tuviera ámbito fuera de un render, o
 // sea de un detalle de React y de dónde acabara corriendo el código; ahora lo garantiza qué objeto
-// importa cada archivo. Un camino que escriba y después lea —`updateIncome` seguido de
-// `seedGlobalLimitFromIncomes`, por ejemplo— no puede leer un ingreso previo a su propia escritura
+// importa cada archivo. Un camino que escriba y después lea —`updateIncome` dentro de
+// `followIncome`, por ejemplo— no puede leer un ingreso previo a su propia escritura
 // aunque alguien lo mueva a una Server Action, porque no tiene de dónde.
 export const financePageDeps = memoizeReads(financeDeps, requestStore)
 

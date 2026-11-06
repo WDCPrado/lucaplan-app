@@ -46,6 +46,7 @@ import {
   setCategoryLimit,
 } from "../../application/finance-use-cases/upsert-category-use-case.ts"
 import { setMonthlyBudget } from "../../application/finance-use-cases/set-monthly-budget-use-case.ts"
+import { followIncome } from "../../application/finance-use-cases/follow-income.ts"
 import {
   createIncome,
   listAvailableIncomeSources,
@@ -135,6 +136,11 @@ const deps = {
   paceFrequency: paceFrequencyRepository,
   bankReconciliation: bankReconciliationStore,
 }
+
+// Escritura que mueve el ingreso del plan: el tope igualado al ingreso la sigue (ver follow-income).
+// Movimientos en los dos modos; una fuente de ingreso solo en el suyo (`allModes: false`).
+const follow = async <T>(userId: string, mutate: () => Promise<T>, allModes = true) =>
+  (await followIncome(deps, userId, mutate, { allModes })).result
 
 // Un movimiento registrado como clave de `isSameBankMovement` (día civil UTC).
 const bankKey = (t: Transaction) => ({ date: t.date.toISOString().slice(0, 10),
@@ -346,8 +352,10 @@ const handlers: Handlers = {
   },
   lucaplan_buscar_movimientos: (userId, input) =>
     searchPluginTransactions(userId, input),
-  lucaplan_crear_movimiento: (userId, input) =>
-    createTransaction(deps, userId, { ...input, date: new Date(input.date) }),
+  lucaplan_crear_movimiento: (userId, input) => {
+    const create = () => createTransaction(deps, userId, { ...input, date: new Date(input.date) })
+    return input.direction === "credit" ? follow(userId, create) : create()
+  },
   lucaplan_previsualizar_conciliacion: (userId, input) => reconcileBankAccount(deps, userId, input),
   lucaplan_aplicar_conciliacion: (userId, { previewToken, ...input }) => reconcileBankAccount(deps, userId, input, previewToken),
   lucaplan_conciliar_cartola: async (userId, input) => {
@@ -407,7 +415,7 @@ const handlers: Handlers = {
       isSameBankMovement(bankKey(t), {date:input.date,direction:"credit",amount:input.amount,
         currency:input.currency,description:input.description}, {days:1,match:"amount"})))
       throw new PluginRejection("Ya existe un abono del mismo monto en fecha cercana; no se creó ingreso")
-    const tx = await createTransaction(deps,userId,{...input, direction:"credit",date})
+    const tx = await follow(userId, () => createTransaction(deps,userId,{...input, direction:"credit",date}))
     return {transactionId:tx.id,created:true}
   },
   lucaplan_registrar_cargo_bancario: async (userId, input) => {
@@ -475,9 +483,9 @@ const handlers: Handlers = {
       date: input.date, description: input.description.trim(), affectsBalance: false }
   },
   lucaplan_corregir_movimiento: (userId, input) =>
-    updateTransaction(deps, userId, { ...input, date: new Date(input.date) }),
+    follow(userId, () => updateTransaction(deps, userId, { ...input, date: new Date(input.date) })),
   lucaplan_eliminar_movimiento: async (userId, input) => {
-    await deleteTransaction(deps, userId, input.transactionId)
+    await follow(userId, () => deleteTransaction(deps, userId, input.transactionId))
     return { ok: true }
   },
   lucaplan_vincular_reembolso: linkReimbursement,
@@ -503,10 +511,11 @@ const handlers: Handlers = {
         transactionDate: { gte: from, lt: to }, id: { not: credit.id } },
     })
     if (existingIncomeMatch) throw new PluginRejection("Ya hay un abono de esta fuente en ese mes")
-    const updated = await prisma.transaction.updateMany({
+    // Vinculado deja de ser abono adicional: el total del plan baja y el tope igualado lo sigue.
+    const updated = await follow(userId, () => prisma.transaction.updateMany({
       where: { id: credit.id, userId, OR: [{ incomeId: null }, { incomeId: income.id }] },
       data: { incomeId: income.id },
-    })
+    }))
     if (!updated.count) throw new PluginRejection("El abono está vinculado a otra fuente")
     return { incomeId: income.id, transactionId: credit.id, linked: true, createdTransaction: false }
   },
@@ -604,14 +613,16 @@ const handlers: Handlers = {
     setCategoryLimit(deps, userId, input),
   lucaplan_listar_ingresos: (userId, input) =>
     input.available ? listAvailableIncomeSources(deps, userId) : listIncomesView(deps, userId, input.year, input.month),
-  lucaplan_crear_ingreso: (userId, input) => createIncome(deps, userId, input),
-  lucaplan_editar_ingreso: (userId, input) => updateIncome(deps, userId, input),
+  lucaplan_crear_ingreso: (userId, input) =>
+    follow(userId, () => createIncome(deps, userId, input), false),
+  lucaplan_editar_ingreso: (userId, input) =>
+    follow(userId, () => updateIncome(deps, userId, input), false),
   lucaplan_eliminar_ingreso: (userId, input) =>
-    deleteIncome(deps, userId, input.id, input),
+    follow(userId, () => deleteIncome(deps, userId, input.id, input), false),
   lucaplan_registrar_ingreso_mes: (userId, input) =>
-    generateMonthlyIncome(deps, userId, input),
+    follow(userId, () => generateMonthlyIncome(deps, userId, input)),
   lucaplan_deshacer_ingreso_mes: (userId, input) =>
-    ungenerateMonthlyIncome(deps, userId, input),
+    follow(userId, () => ungenerateMonthlyIncome(deps, userId, input)),
   lucaplan_listar_recurrentes: (userId) => listRecurringView(deps, userId),
   lucaplan_crear_recurrente: (userId, input) =>
     createRecurringTemplate(deps, userId, {

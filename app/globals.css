@@ -870,7 +870,25 @@ html:has(main[data-landing]) body {
 :root[data-glass="3"] { --glass-clear: 0%; --glass-tint: 35%; --scroll-edge-amount: 34%; }
 :root[data-glass="4"] { --glass-clear: 0%; --glass-tint: 90%; --scroll-edge-amount: 42%; }
 
-/* Refracción activa en la barra inferior móvil (WDC-179, components/finance/liquid-glass-bar.tsx).
+/* Control con refracción por proxy (WDC-179, components/finance/liquid-glass.ts): el vidrio lo
+   lleva un div detrás, hijo directo del root de la librería, y el control queda solo con su
+   contenido (íconos, texto). Lo pone el JS solo mientras el proxy está visible. */
+[data-lg-proxy] {
+  position: absolute;
+  &[data-lg-pinned] {
+    position: fixed;
+  }
+}
+[data-lg-proxied] {
+  background: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  &::before {
+    display: none;
+  }
+}
+/* Refracción activa (WDC-179, components/finance/liquid-glass.ts): la barra inferior y los proxies.
    El canvas de la librería (z-index: -1 dentro de la barra) reemplaza al desenfoque: la barra suelta
    su fondo y su backdrop-filter, y el relleno del nivel (--glass-fill, el sheen y los bordes
    interiores) pasa a un ::after también en z-index: -1, que por orden de árbol queda sobre el canvas

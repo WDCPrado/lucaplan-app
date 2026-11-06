@@ -44,7 +44,7 @@ import { TransactionSearch } from "./transaction-search"
 import { TransactionModal } from "./transaction-modal"
 import { MonthNav } from "./month-nav"
 import { ProfileSheet } from "./profile-sheet"
-import { useLiquidGlassBar } from "./liquid-glass-bar"
+import { useLiquidGlass } from "./liquid-glass"
 import type {
   AccountDTO,
   AmountBoundsDTO,
@@ -338,6 +338,8 @@ function SearchCircle({ onSearch }: { onSearch: () => void }) {
       onClick={onSearch}
       aria-label="Buscar movimientos"
       data-squish
+      data-lg-control
+      data-nuevo
       className="press liquid-glass liquid-squish pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full"
     >
       <Search className="size-6" />
@@ -439,7 +441,7 @@ function Chrome({
           </SidebarFooter>
         </Sidebar>
 
-        {/* select-text: la refracción de la barra pone user-select: none en el wrapper (liquid-glass-bar.tsx). */}
+        {/* select-text: la refracción de la barra pone user-select: none en el wrapper (liquid-glass.ts). */}
         <SidebarInset className="min-w-0 select-text">
           {/* Marca de "arriba del todo": deja de verse con el primer píxel de scroll. */}
           <div ref={topRef} aria-hidden className="-mb-px h-px" />
@@ -636,7 +638,7 @@ function NavMenu({
 // ningún ancho cambia al cambiar de pestaña.
 // La pastilla se desliza con la misma duración y curva que el contenido al cambiar de pantalla
 // (`.tab-pill`, --nav-duration/--nav-ease en globals.css). La cápsula es el vidrio CSS y, donde se
-// puede, suma la refracción de liquid-glass-bar.tsx encima.
+// puede, suma la refracción de liquid-glass.ts encima.
 function BottomNav({
   active,
   onNavigate,
@@ -663,19 +665,18 @@ function BottomNav({
   )
 
   const navRef = React.useRef<HTMLElement>(null)
-  const glassConfig = useLiquidGlassBar(navRef)
+  useLiquidGlass(navRef)
 
   return (
     <>
       {/* La cápsula va fija por su cuenta (y no dentro de un contenedor con la búsqueda) porque la
-          refracción exige que sea hija directa del wrapper del sidebar: ver liquid-glass-bar.tsx.
+          refracción exige que sea hija directa del wrapper del sidebar: ver liquid-glass.ts.
           `fixed!` porque `liquid-glass` fija position: relative. A la derecha deja el círculo de
           búsqueda (4rem) y su separación (0.75rem). Nombre propio en el cambio de pantalla: la
           barra queda quieta encima del contenido que se desliza. */}
       <nav
         ref={navRef}
         data-nuevo
-        data-config={glassConfig}
         aria-label="Navegación principal"
         style={{ viewTransitionName: "app-tabbar" }}
         className={cn(

@@ -21,7 +21,9 @@ import { z } from "zod"
 // 1. Ver     GET /api/integrations   ADMIN   salida: integrationsStatus   401 · 403
 // 2. Cambiar PUT /api/integrations   ADMIN   entrada: updateIntegrationsInput (solo las claves que
 //    cambian; null borra) salida: integrationsStatus   401 · 403 · 409 si la clave viene del
-//    entorno · 422 entrada inválida
+//    entorno o si se guarda un secreto fuera de local sin BANCOCHILE_ENC_KEY (32+) en el entorno
+//    (sin ella la llave vive en un archivo del contenedor y el secreto se pierde en el próximo
+//    deploy) · 422 entrada inválida
 // El cambio rige en el siguiente uso, sin reiniciar el servidor.
 
 export const INTEGRATION_KEYS = {
@@ -89,16 +91,19 @@ export type IntegrationsStatus = z.infer<typeof integrationsStatus>
 // instalación nueva: antes del login, porque sin cuenta no hay ADMIN que entre a Ajustes.
 //
 // Protección: al arrancar sin cuentas, el servidor genera un código de instalación aleatorio y lo
-// imprime en su consola («[setup] Código de instalación: XXXX-XXXX»). Solo quien opera el servidor
-// lo ve. Verificarlo deja una cookie httpOnly con un token aleatorio en memoria del servidor (vence
-// a la hora) que habilita los pasos del asistente.
+// imprime en su consola («[setup] Código de instalación: ABCD-EFGH-JKLM», 12 caracteres de un
+// alfabeto de 32, sin 0/O ni 1/I). Solo quien opera el servidor lo ve. Verificarlo deja una cookie
+// httpOnly con un token aleatorio en memoria del servidor (vence a la hora) que habilita los pasos
+// del asistente.
 // En cuanto existe una cuenta, /setup y sus rutas responden 404 y el código deja de servir.
 //
 // 1. Estado    GET  /api/setup                  público  salida: setupStatus
 // 2. Verificar POST /api/setup/verify           público  entrada: setupVerifyInput  204 · 401 código
-//    inválido · 404 ya instalado · 429 más de 5 intentos por hora por IP o 30 en total en 10 min
+//    inválido · 404 ya instalado · 429 más de 5 intentos por hora por IP (sin tope global: con
+//    32^12 códigos no hace falta, y uno dejaría a un atacante bloquear la instalación)
 // 3. Claves    PUT  /api/setup/integrations     cookie de setup  entrada: updateIntegrationsInput
-//    salida: integrationsStatus  mismas reglas que PUT /api/integrations (409 si viene del entorno)
+//    salida: integrationsStatus  mismas reglas que PUT /api/integrations (409 si viene del entorno
+//    o falta BANCOCHILE_ENC_KEY para un secreto)
 //    401 sin cookie · 404 ya instalado
 // 4. La cuenta se crea con el login de siempre (código por correo). Con la base vacía, pedir el
 //    código o registrarse EXIGE la cookie de setup verificada (sin ella: misma respuesta que con
@@ -128,5 +133,5 @@ export const setupVerifyInput = z.object({
     .string()
     .trim()
     .toUpperCase()
-    .regex(/^[A-Z0-9]{4}-?[A-Z0-9]{4}$/, "El código tiene 8 caracteres, como ABCD-1234"),
+    .regex(/^[A-Z0-9]{4}-?[A-Z0-9]{4}-?[A-Z0-9]{4}$/, "El código tiene 12 caracteres, como ABCD-EFGH-JKLM"),
 })

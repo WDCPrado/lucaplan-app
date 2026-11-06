@@ -6,25 +6,21 @@ import { createRateWindow } from "../../../shared/rate-window.ts"
 
 export const SETUP_COOKIE = "lucaplan_setup"
 export const SETUP_SESSION_MS = 60 * 60 * 1000 // la cookie del asistente vence a la hora
-export const SETUP_MAX_FAILURES = 5 // códigos incorrectos por IP en una hora
-// Códigos incorrectos en total, de cualquier IP, en 10 minutos: al llegar, todos reciben 429 hasta
-// que la ventana se libera sola. Cierra la fuerza bruta repartida entre IPs (30 cada 10 min contra
-// 36^8 códigos) sin cambiar el código que el operador ya leyó en la consola.
-export const SETUP_MAX_TOTAL_FAILURES = 30
-const TOTAL_WINDOW_MS = 10 * 60 * 1000
+// Códigos incorrectos por IP en una hora. Sin tope global: el código tiene 12 caracteres de un
+// alfabeto de 32 (32^12 ≈ 1e18), así que repartir intentos entre IPs no alcanza a adivinarlo, y un
+// tope global dejaría a un atacante bloquear la instalación.
+export const SETUP_MAX_FAILURES = 5
 
 export type SetupState = {
-  code: string | null // «ABCD-1234»; null = aún no se generó
+  code: string | null // «ABCD-EFGH-JKLM»; null = aún no se generó
   sessions: Map<string, number> // token de la cookie → vence (ms)
   failures: ReturnType<typeof createRateWindow>
-  failedTotal: ReturnType<typeof createRateWindow> // incorrectos de todas las IPs, clave «all»
 }
 
 export const createSetupState = (): SetupState => ({
   code: null,
   sessions: new Map(),
   failures: createRateWindow(SETUP_MAX_FAILURES, 60 * 60 * 1000),
-  failedTotal: createRateWindow(SETUP_MAX_TOTAL_FAILURES, TOTAL_WINDOW_MS),
 })
 
 export interface InstallationAccounts {
@@ -65,10 +61,10 @@ export class SetupUnauthorizedError extends Error {
   }
 }
 
-// Demasiados códigos incorrectos desde esta IP en la última hora, o de todas en 10 minutos. 429.
+// Demasiados códigos incorrectos desde esta IP en la última hora. 429.
 export class SetupRateLimitedError extends Error {
   constructor() {
-    super("Demasiados intentos. Espera un rato y vuelve a probar")
+    super("Demasiados intentos. Espera una hora y vuelve a probar")
     this.name = "SetupRateLimitedError"
   }
 }

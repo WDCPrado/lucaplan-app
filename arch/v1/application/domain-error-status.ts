@@ -64,7 +64,10 @@ import {
   ForbiddenError,
   UnauthenticatedError,
 } from "../domain/authorization/authorization.domain.ts"
-import { IntegrationFromEnvError } from "../domain/integrations/integrations.domain.ts"
+import {
+  IntegrationEncKeyMissingError,
+  IntegrationFromEnvError,
+} from "../domain/integrations/integrations.domain.ts"
 import {
   SetupDoneError,
   SetupRateLimitedError,
@@ -103,7 +106,8 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof BankAlreadyLinkedError || // ese banco ya está en este correo
     e instanceof OnboardingCompletedError || // el onboarding ya terminó
     e instanceof ConcurrentCategorySaveError || // otro guardado del set entró primero
-    e instanceof IntegrationFromEnvError // la clave la fija el entorno del servidor
+    e instanceof IntegrationFromEnvError || // la clave la fija el entorno del servidor
+    e instanceof IntegrationEncKeyMissingError // secreto sin llave de cifrado estable
   )
     return 409
   if (

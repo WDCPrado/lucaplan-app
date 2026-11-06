@@ -17,8 +17,10 @@ y el túnel se conecta a `http://app:3005` dentro de la red privada de este Comp
    secreto hexadecimal aleatorio y `APP_ENV_FILE` con la ruta de ese mismo archivo.
 2. Conserva de producción `BETTER_AUTH_SECRET`, **`BANCOCHILE_ENC_KEY`**,
    `OUTLOOK_RENEW_SECRET` y las claves VAPID, Outlook y OpenAI que utilices. Cambiar la llave
-   de cifrado impide leer las conexiones importadas. No copies `RAILWAY_*`, `SEED_PR_*`
-   ni configuración de pruebas. Para entrar por código, configura también `RESEND_API_KEY`
+   de cifrado impide leer las conexiones importadas. `BANCOCHILE_ENC_KEY` (32+ caracteres) es
+   **obligatoria si usas Ajustes → Integraciones o `/setup`**: sin ella la llave se genera en un
+   archivo del contenedor que se pierde en el próximo deploy, y la app rechaza guardar secretos.
+   No copies `RAILWAY_*`, `SEED_PR_*` ni configuración de pruebas. Para entrar por código, configura también `RESEND_API_KEY`
    y, opcionalmente, `RESEND_FROM` en ese archivo externo (ver [acceso por correo](login-code.md)).
 3. Conserva **`NEXT_PUBLIC_LANDING_ONLY=true`**, como en Railway. El registro no depende de esa
    variable: lo controla `SIGNUP_OPEN` (solo `true` exacto lo abre; ver [acceso por correo](login-code.md)).
@@ -79,6 +81,13 @@ UPDATE "user" SET role='ADMIN' WHERE email='tu@correo.com';
 ```
 
 El rol se lee en cada petición: basta con recargar la app.
+
+## Hay cuentas pero no llega el código de login
+
+Si la instancia ya tiene cuentas y en producción no hay Resend configurado, nadie recibe el código
+de login, ni siquiera un ADMIN que pudiera arreglarlo desde Ajustes. La salida es poner
+`RESEND_API_KEY` y `RESEND_FROM` en el entorno del servidor y reiniciar. `/setup` no sirve aquí:
+solo existe mientras la base no tiene ninguna cuenta.
 
 ## Cron y Outlook
 

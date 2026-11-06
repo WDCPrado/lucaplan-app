@@ -59,6 +59,9 @@ function deps(
   s: ReturnType<typeof store>,
   env: Record<string, string | undefined> = {}
 ): IntegrationDeps {
+  // Con la llave de cifrado en el entorno, como debe estar fuera de local para guardar secretos.
+  // Mismo objeto (no copia): hay tests que cambian el entorno después.
+  if (!("BANCOCHILE_ENC_KEY" in env)) env.BANCOCHILE_ENC_KEY = MASTER
   return { settings: s.settings, cipher: integrationCipher, env, cache: new Map() }
 }
 
@@ -334,4 +337,61 @@ test("si un secreto guardado no se puede descifrar (cambió la llave maestra), q
   } finally {
     process.env.BANCOCHILE_ENC_KEY = MASTER
   }
+})
+
+test("fuera de local, sin BANCOCHILE_ENC_KEY (32+) en el entorno, guardar un secreto responde 409 y no escribe nada del envío; en local sí se guarda", async () => {
+  for (const env of [
+    { NODE_ENV: "production", BANCOCHILE_ENC_KEY: "" },
+    { NODE_ENV: "production", BANCOCHILE_ENC_KEY: "corta" },
+    { NODE_ENV: "development", RAILWAY_ENVIRONMENT_NAME: "lucaplan-pr-12", BANCOCHILE_ENC_KEY: undefined },
+  ]) {
+    const s = store()
+    await assert.rejects(
+      updateIntegrations(deps(s, env), admin, { values: { OPENAI_MODEL: "gpt-x", OPENAI_API_KEY: SECRET } }),
+      (e) => domainErrorStatus(e) === 409 && /BANCOCHILE_ENC_KEY/.test((e as Error).message),
+      JSON.stringify(env)
+    )
+    assert.deepEqual(s.writes, [], JSON.stringify(env))
+    // Borde: sin secretos en el envío, o borrando uno, no hace falta la llave.
+    await updateIntegrations(deps(s, env), admin, { values: { OPENAI_MODEL: "gpt-x", OPENAI_API_KEY: null } })
+    assert.deepEqual(s.writes, ["save:OPENAI_MODEL", "remove:OPENAI_API_KEY"])
+  }
+  // Local (development fuera de Railway): la llave sale del archivo de desarrollo y se guarda.
+  const s = store()
+  await updateIntegrations(deps(s, { NODE_ENV: "development", BANCOCHILE_ENC_KEY: undefined }), admin, { values: { OPENAI_API_KEY: SECRET } })
+  assert.deepEqual(s.writes, ["save:OPENAI_API_KEY"])
+})
+
+test("un guardado que llega mientras otra lectura de Ajustes está en curso no queda pisado: la siguiente lectura ve el valor nuevo", async () => {
+  const s = store([{ key: "OPENAI_MODEL", value: "gpt-viejo", updatedAt: new Date() }])
+  // La primera lectura toma lo viejo y se queda esperando; las siguientes responden al tiro.
+  let release!: () => void
+  const gate = new Promise<void>((r) => (release = r))
+  let calls = 0
+  const list = s.settings.list.bind(s.settings)
+  s.settings.list = async () => {
+    const rows = await list()
+    if (++calls === 1) await gate
+    return rows
+  }
+  const d = deps(s)
+  const slow = resolveIntegration(d, "OPENAI_MODEL")
+  await updateIntegrations(d, admin, { values: { OPENAI_MODEL: "gpt-nuevo" } })
+  release()
+  assert.equal(await slow, "gpt-viejo", "la lectura en curso devuelve lo que leyó")
+  assert.equal(await resolveIntegration(d, "OPENAI_MODEL"), "gpt-nuevo")
+})
+
+test("si leer Ajustes falla, el error no queda en la caché: la siguiente lectura vuelve a la base", async () => {
+  const s = store([{ key: "OPENAI_MODEL", value: "gpt-x", updatedAt: new Date() }])
+  const list = s.settings.list.bind(s.settings)
+  let fail = true
+  s.settings.list = async () => {
+    if (fail) throw new Error("base caída")
+    return list()
+  }
+  const d = deps(s)
+  await assert.rejects(resolveIntegration(d, "OPENAI_MODEL"), /base caída/)
+  fail = false
+  assert.equal(await resolveIntegration(d, "OPENAI_MODEL"), "gpt-x")
 })

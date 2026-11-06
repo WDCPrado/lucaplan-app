@@ -36,7 +36,7 @@ async function assertNotInstalled(deps: SetupDeps) {
 
 function newCode(deps: SetupDeps): string {
   const part = () => Array.from({ length: 4 }, () => ALPHABET[randomInt(ALPHABET.length)]).join("")
-  deps.state.code = `${part()}-${part()}`
+  deps.state.code = `${part()}-${part()}-${part()}`
   return deps.state.code
 }
 
@@ -74,19 +74,17 @@ export async function getSetupStatus(deps: SetupDeps, token: string | null): Pro
 /**
  * Verifica el código de instalación y devuelve el token de la cookie del asistente. Un código mal
  * formado es 422 y no cuenta; cada incorrecto cuenta para el tope por IP, que bloquea también al
- * correcto (429), y para el tope total de todas las IPs, que da 429 a todos hasta liberarse solo.
+ * correcto (429).
  */
 export async function verifySetupCode(deps: SetupDeps, input: unknown, ip: string): Promise<string> {
   await assertNotInstalled(deps)
-  const code = setupVerifyInput.parse(input).code.replace("-", "")
+  const code = setupVerifyInput.parse(input).code.replaceAll("-", "")
   const now = deps.now().getTime()
-  if (deps.state.failures.full(ip, now) || deps.state.failedTotal.full("all", now))
-    throw new SetupRateLimitedError()
-  const expected = Buffer.from((deps.state.code ?? "").replace("-", ""))
+  if (deps.state.failures.full(ip, now)) throw new SetupRateLimitedError()
+  const expected = Buffer.from((deps.state.code ?? "").replaceAll("-", ""))
   const given = Buffer.from(code)
   if (!deps.state.code || expected.length !== given.length || !timingSafeEqual(expected, given)) {
     deps.state.failures.take(ip, now)
-    deps.state.failedTotal.take("all", now)
     throw new SetupUnauthorizedError()
   }
   for (const [t, expires] of deps.state.sessions) if (expires <= now) deps.state.sessions.delete(t)

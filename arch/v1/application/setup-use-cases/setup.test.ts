@@ -17,9 +17,11 @@ import { domainErrorStatus } from "../domain-error-status.ts"
 import { setupStatus } from "../../../../lib/integration-settings-schemas.ts"
 import type { StoredIntegration } from "../../domain/integrations/integrations.domain.ts"
 
-process.env.BANCOCHILE_ENC_KEY = "wdc181-llave-maestra-de-prueba-0123456789abcdef"
+const MASTER = "wdc181-llave-maestra-de-prueba-0123456789abcdef"
+process.env.BANCOCHILE_ENC_KEY = MASTER
 
-const PROD = { NODE_ENV: "production" }
+// Producción con su llave de cifrado: sin ella no se guardan secretos (ver integrations.test.ts).
+const PROD = { NODE_ENV: "production", BANCOCHILE_ENC_KEY: MASTER }
 const LOCAL = { NODE_ENV: "development" }
 const SECRET = "re_SetupSecretValue1234"
 const IP = "203.0.113.7"
@@ -88,11 +90,11 @@ test("al arrancar sin cuentas se genera un código de instalación y se imprime 
   const s = install(PROD)
   const { printed, result } = await silenced(t, async () => [await ensureSetupCode(s.deps), await ensureSetupCode(s.deps)])
   const [first, second] = result
-  assert.match(first!, /^[A-Z0-9]{4}-[A-Z0-9]{4}$/)
+  assert.match(first!, /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/)
   assert.equal(second, first, "el segundo arranque del mismo proceso no cambia el código")
   const lines = printed.filter((l) => l.includes(first!))
   assert.equal(lines.length, 1, "se imprime una sola vez")
-  assert.match(lines[0], /\[setup\] Código de instalación: [A-Z0-9]{4}-[A-Z0-9]{4}/)
+  assert.match(lines[0], /\[setup\] Código de instalación: [A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}/)
   // Reiniciar el servidor (estado nuevo) da otro código.
   const restarted = install(PROD)
   const { result: other } = await silenced(t, () => ensureSetupCode(restarted.deps))
@@ -116,7 +118,7 @@ test("verificar el código correcto habilita el asistente; uno incorrecto respon
   assert.equal((await getSetupStatus(s.deps, "otra-cookie-cualquiera")).verified, false)
 
   // Incorrecto: 401. Mal formado: 422 (no cuenta como intento: lo rechaza el esquema).
-  const wrong = code!.startsWith("AAAA") ? "BBBB-BBBB" : "AAAA-AAAA"
+  const wrong = code!.startsWith("AAAA") ? "BBBB-BBBB-BBBB" : "AAAA-AAAA-AAAA"
   await assert.rejects(verifySetupCode(s.deps, { code: "abc" }, IP), (e) => domainErrorStatus(e) === 422)
   for (let i = 1; i <= 5; i++)
     await assert.rejects(verifySetupCode(s.deps, { code: wrong }, IP), (e) => domainErrorStatus(e) === 401, `intento ${i}`)
@@ -174,22 +176,13 @@ test("en cuanto existe una cuenta, todo /api/setup responde 404 y el código ya 
   assert.deepEqual(s.writes, [])
 })
 
-test("30 códigos incorrectos en 10 minutos, aunque vengan de IPs distintas, frenan a todos con 429 sin cambiar el código; la ventana se libera sola", async (t) => {
+test("el código de instalación tiene 12 caracteres sin 0/O ni 1/I, como ABCD-EFGH-JKLM, y se acepta sin guiones; uno de 8 es 422", async (t) => {
   const s = install(PROD)
   const { result: code } = await silenced(t, () => ensureSetupCode(s.deps))
-  const wrong = code!.startsWith("AAAA") ? "BBBB-BBBB" : "AAAA-AAAA"
-  // Una IP distinta por intento: el tope por IP no frena a nadie.
-  for (let i = 1; i <= 30; i++)
-    await assert.rejects(verifySetupCode(s.deps, { code: wrong }, `198.51.100.${i}`), (e) => domainErrorStatus(e) === 401, `intento ${i}`)
-  // Lleno: ni el código correcto pasa, desde ninguna IP.
-  await assert.rejects(verifySetupCode(s.deps, { code: code! }, "198.51.100.200"), (e) => domainErrorStatus(e) === 429)
-  // A los 10 minutos se libera y el mismo código de la consola sigue sirviendo.
-  s.clock.now = new Date(s.clock.now.getTime() + 10 * 60 * 1000)
-  assert.equal(typeof (await verifySetupCode(s.deps, { code: code! }, "198.51.100.201")), "string")
-  // Borde: 29 incorrectos no frenan.
-  const s29 = install(PROD)
-  const { result: c29 } = await silenced(t, () => ensureSetupCode(s29.deps))
-  const w29 = c29!.startsWith("AAAA") ? "BBBB-BBBB" : "AAAA-AAAA"
-  for (let i = 1; i <= 29; i++) await verifySetupCode(s29.deps, { code: w29 }, `203.0.113.${i}`).catch(() => {})
-  assert.equal(typeof (await verifySetupCode(s29.deps, { code: c29! }, "203.0.113.50")), "string")
+  assert.match(code!, /^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/)
+  assert.equal(code!.replaceAll("-", "").length, 12)
+  // Borde: el formato viejo de 8 lo rechaza el esquema, con el mensaje del formato nuevo.
+  await assert.rejects(verifySetupCode(s.deps, { code: code!.slice(0, 9) }, IP), (e) => domainErrorStatus(e) === 422 && /12 caracteres/.test(JSON.stringify(e)))
+  // Sin ningún guion, en minúsculas: entra.
+  assert.equal(typeof (await verifySetupCode(s.deps, { code: code!.replaceAll("-", "").toLowerCase() }, IP)), "string")
 })

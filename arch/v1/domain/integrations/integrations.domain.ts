@@ -25,8 +25,10 @@ export type IntegrationDeps = {
   settings: IntegrationSettingsRepository
   cipher: IntegrationCipher
   env: Record<string, string | undefined>
-  // Caché de lo guardado, por proceso: vacía = no leída. Guardar la vacía.
-  cache: Map<IntegrationKey, ResolvedSetting>
+  // Caché de lo guardado, por proceso: la promesa de la lectura, bajo "stored"; vacía = no leída.
+  // Guardar la vacía. Es la promesa y no su resultado para que una lectura que estaba en curso no
+  // reescriba la caché después de que un guardado la vació.
+  cache: Map<"stored", Promise<Map<IntegrationKey, ResolvedSetting>>>
 }
 
 // La clave viene de una variable de entorno: manda ella y no se edita desde Ajustes. 409.
@@ -34,5 +36,16 @@ export class IntegrationFromEnvError extends Error {
   constructor(key: IntegrationKey) {
     super(`${key} viene de una variable de entorno del servidor; cámbiala ahí`)
     this.name = "IntegrationFromEnvError"
+  }
+}
+
+// Fuera de local, sin BANCOCHILE_ENC_KEY la llave de cifrado vive en un archivo del contenedor y se
+// pierde en el próximo deploy: un secreto guardado con ella deja de descifrarse. 409.
+export class IntegrationEncKeyMissingError extends Error {
+  constructor() {
+    super(
+      "Define BANCOCHILE_ENC_KEY (32+ caracteres) en el entorno antes de guardar claves secretas: sin ella se pierden en el próximo deploy"
+    )
+    this.name = "IntegrationEncKeyMissingError"
   }
 }

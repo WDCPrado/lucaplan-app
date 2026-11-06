@@ -112,7 +112,7 @@
     --home-peek: 7rem;
     /* Navegación entre pantallas (WDC-170): una sola duración y curva para el deslizamiento del
        contenido (view transition) y el de la pastilla activa de la barra y del sidebar. */
-    --nav-duration: 280ms;
+    --nav-duration: 380ms;
     --nav-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
     --background: oklch(0.963 0.007 286.3);          /* #F2F2F7 systemGroupedBackground */
@@ -160,20 +160,22 @@
        sin color propio. Lo grande (sidebar) un poco más opaco que lo chico (barra, botones).
        Ajustes → Apariencia (`data-glass` en <html>; por usuario, en la base: lib/appearance.ts) lo mueve: 2 (sin atributo)
        es el vidrio por defecto; 0–1 lo aclaran más (`--glass-clear`) y 3–4 lo tiñen hacia la celda
-       sólida (`--glass-tint`). El desenfoque se conserva en los cinco niveles: transparencia no
-       significa dejar que las letras del fondo compitan con los controles. Los menús no se aclaran. */
+       sólida (`--glass-tint`). Como en iOS 26, el transparente (0–1) también baja el desenfoque
+       para que el contenido se lea a través, con el canto de luz intacto. Los menús no se aclaran. */
     --glass-tint: 0%;
     --glass-clear: 20%;
     --scroll-edge-amount: 22%; /* velo del scroll edge, suave: baja con el nivel de vidrio */
     --glass-fill: color-mix(in oklch, color-mix(in oklch, oklch(1 0 0 / 0.72), transparent var(--glass-clear)), var(--card) var(--glass-tint));
     --glass-fill-large: color-mix(in oklch, color-mix(in oklch, oklch(0.985 0 0 / 0.86), transparent var(--glass-clear)), var(--card) var(--glass-tint));
-    --glass-blur: 16px;
-    --glass-saturate: 120%;
-    --glass-highlight: oklch(1 0 0 / 0.9);           /* reflejo localizado, no un aro uniforme */
+    --glass-blur: 22px;
+    --glass-saturate: 165%;                          /* el color de atrás asoma vivo, como en iOS 26 */
+    --glass-highlight: oklch(1 0 0 / 0.95);          /* reflejo localizado, no un aro uniforme */
     --glass-edge: oklch(0.359 0 0 / 0.08);
-    --glass-rim: oklch(1 0 0 / 0.2);
-    --glass-reflection-opacity: 0.8;
-    --glass-shadow: 0 1px 2px oklch(0.2 0.01 286 / 0.06), 0 8px 24px -6px oklch(0.2 0.01 286 / 0.16);
+    --glass-rim: oklch(1 0 0 / 0.38);
+    --glass-reflection-opacity: 0.9;
+    /* Brillo interior: la luz entra por arriba-izquierda y se apaga hacia el centro; no es una línea. */
+    --glass-sheen: radial-gradient(130% 110% at 0% 0%, oklch(1 0 0 / 0.32), transparent 62%);
+    --glass-shadow: 0 1px 2px oklch(0.2 0.01 286 / 0.07), 0 10px 30px -8px oklch(0.2 0.01 286 / 0.2);
     --glass-tab-active: color-mix(in oklch, var(--foreground) 9%, transparent); /* pastilla neutra; el acento va en ícono y etiqueta */
     --tab-active: var(--primary);                    /* ícono y etiqueta de la pestaña activa: 4.8:1 sobre la pastilla */
     --glass-active-shadow: inset 0 0 0 0.5px var(--glass-edge), 0 1px 3px oklch(0 0 0 / 0.12);
@@ -262,7 +264,7 @@ html:has(main[data-landing]) body {
 /* === Dark: fondo carbón suave con celdas elevadas #1C1C1E/#2C2C2E y
    colores de sistema en su variante oscura. === */
 .dark {
-    --background: #121214;
+    --background: #000000;
     --foreground: oklch(0.971 0.003 286.4);          /* #F5F5F7 */
     --card: oklch(0.227 0.004 286.1);                /* #1C1C1E */
     --card-foreground: oklch(0.971 0.003 286.4);
@@ -305,11 +307,12 @@ html:has(main[data-landing]) body {
     /* Materiales */
     --glass-fill: color-mix(in oklch, color-mix(in oklch, oklch(0.32 0 0 / 0.64), transparent var(--glass-clear)), var(--card) var(--glass-tint));
     --glass-fill-large: color-mix(in oklch, color-mix(in oklch, oklch(0.3 0 0 / 0.8), transparent var(--glass-clear)), var(--card) var(--glass-tint));
-    --glass-highlight: oklch(1 0 0 / 0.34);
-    --glass-edge: oklch(1 0 0 / 0.05);
-    --glass-rim: oklch(1 0 0 / 0.045);
-    --glass-reflection-opacity: 0.8;
-    --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 8px 24px -6px oklch(0 0 0 / 0.55);
+    --glass-highlight: oklch(1 0 0 / 0.5);
+    --glass-edge: oklch(1 0 0 / 0.06);
+    --glass-rim: oklch(1 0 0 / 0.07);
+    --glass-reflection-opacity: 0.9;
+    --glass-sheen: radial-gradient(130% 110% at 0% 0%, oklch(1 0 0 / 0.07), transparent 62%);
+    --glass-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 10px 30px -8px oklch(0 0 0 / 0.6);
     --glass-tab-active: color-mix(in oklch, var(--foreground) 14%, transparent);
     /* #0A84FF sobre la pastilla da ~2.7:1; este azul más claro llega a 5.1:1 (≥4.5 de la etiqueta). */
     --tab-active: oklch(0.8 0.12 255.5);             /* #89C1FF */
@@ -403,8 +406,9 @@ html:has(main[data-landing]) body {
 
 /* === Liquid Glass (iOS 26) ===
    Una sola receta para toda la capa de controles, igual en Safari, Firefox y Chrome: desenfoque con
-   saturación moderada, relleno neutro, brillo especular localizado, rim interior (la luz que el canto
-   devuelve hacia adentro, solo en el borde: no toca el texto), contorno fino y sombra difusa. El
+   saturación viva, relleno neutro, brillo interior radial desde arriba-izquierda (`--glass-sheen`,
+   aclara detrás del texto, nunca lo oscurece), brillo especular localizado, rim interior (la luz que
+   el canto devuelve hacia adentro, solo en el borde: no toca el texto), contorno fino y sombra difusa. El
    ::before dibuja el reflejo del canto en un anillo de 1px con una luz fija arriba-izquierda (cónico:
    máximo en el canto de arriba-izquierda, un eco débil abajo-derecha).
    Son utilidades (no componentes) para poder usarlas con variantes: `max-md:liquid-glass`.
@@ -412,11 +416,12 @@ html:has(main[data-landing]) body {
 @utility liquid-glass {
   position: relative;
   background-color: var(--glass-fill);
+  background-image: var(--glass-sheen);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   box-shadow:
     inset 0 0 0 0.5px var(--glass-edge),
-    inset 0 0 8px 0 var(--glass-rim),
+    inset 0 0 10px 0 var(--glass-rim),
     var(--glass-shadow);
   &::before {
     content: "";
@@ -426,11 +431,11 @@ html:has(main[data-landing]) body {
     padding: 1px;
     background: conic-gradient(
       from 225deg,
-      transparent 35deg,
+      transparent 25deg,
       var(--glass-highlight) 90deg,
-      transparent 145deg 215deg,
-      color-mix(in oklch, var(--glass-highlight) 35%, transparent) 270deg,
-      transparent 325deg
+      transparent 155deg 210deg,
+      color-mix(in oklch, var(--glass-highlight) 45%, transparent) 270deg,
+      transparent 330deg
     );
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
@@ -640,12 +645,12 @@ html:has(main[data-landing]) body {
   transition:
     left var(--nav-duration) var(--nav-ease),
     right var(--nav-duration) var(--nav-ease),
-    opacity 240ms ease-out;
+    opacity 300ms ease-out;
 }
 .nav-pill {
   transition:
     transform var(--nav-duration) var(--nav-ease),
-    opacity 240ms ease-out;
+    opacity 300ms ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
   .tab-pill,
@@ -695,12 +700,12 @@ html:has(main[data-landing]) body {
 ::view-transition-old(.nav) {
   animation:
     nav-out var(--nav-duration) var(--nav-ease) both,
-    nav-fade-out 140ms ease-out both;
+    nav-fade-out 190ms ease-out both;
 }
 ::view-transition-new(.nav) {
   animation:
     nav-in var(--nav-duration) var(--nav-ease) both,
-    nav-fade-in 200ms ease-out both;
+    nav-fade-in 270ms ease-out both;
 }
 :root:not([data-nav-dir])::view-transition-old(.nav),
 :root:not([data-nav-dir])::view-transition-new(.nav) {
@@ -766,8 +771,8 @@ html:has(main[data-landing]) body {
 }
 
 /* Scrollbar minimalista para toda la app (página y contenedores), estilo macOS: fino, sin flechas
-   y con la pista transparente. En iOS el scroll es overlay nativo y esto no lo cambia. Los navegadores
-   con `scrollbar-color` (Chrome 121+, Firefox) usan las dos primeras; Safari, las ::-webkit-. En la capa base para que `scrollbar-none` (utilidad) les gane. */
+   y con la pista transparente. En iOS el scroll es overlay nativo y esto no lo cambia. Chromium y Safari
+   usan las ::-webkit-; Firefox, `scrollbar-width`/`scrollbar-color`. En la capa base para que `scrollbar-none` (utilidad) les gane. */
 @layer base {
   /* Solo Firefox: en Chromium, scrollbar-width/color ganan a ::-webkit-scrollbar y vuelven a
      dibujar las flechas y el carril. */
@@ -854,12 +859,13 @@ html:has(main[data-landing]) body {
 }
 
 /* Nivel del vidrio elegido en Ajustes (0 = más transparente; 4 = teñido, casi sólido).
-   Solo cambia el relleno y el velo: el desenfoque de 16px protege la lectura en los cinco pasos.
-   Más contraste y menos transparencia del sistema, abajo, siguen ganando. */
-:root[data-glass="0"] { --glass-clear: 65%; --scroll-edge-amount: 0%; }
-:root[data-glass="1"] { --glass-clear: 40%; --scroll-edge-amount: 10%; }
-:root[data-glass="3"] { --glass-clear: 0%; --glass-tint: 30%; --scroll-edge-amount: 34%; }
-:root[data-glass="4"] { --glass-clear: 0%; --glass-tint: 75%; --scroll-edge-amount: 42%; }
+   Como «Transparente / Teñido» de iOS 26: en 0 el contenido de atrás se lee con un desenfoque leve
+   y el canto de luz; en 4 la celda es casi opaca. Más contraste y menos transparencia del sistema,
+   abajo, siguen ganando. */
+:root[data-glass="0"] { --glass-clear: 75%; --glass-blur: 4px; --scroll-edge-amount: 0%; }
+:root[data-glass="1"] { --glass-clear: 45%; --glass-blur: 12px; --scroll-edge-amount: 10%; }
+:root[data-glass="3"] { --glass-clear: 0%; --glass-tint: 35%; --scroll-edge-amount: 34%; }
+:root[data-glass="4"] { --glass-clear: 0%; --glass-tint: 90%; --scroll-edge-amount: 42%; }
 
 /* Accesibilidad (apple-hig/foundations/materials): con MÁS CONTRASTE el vidrio gana relleno y
    contorno; con MENOS TRANSPARENCIA todo material cae a sólido, y va después para ganarle a
@@ -872,6 +878,7 @@ html:has(main[data-landing]) body {
     --glass-edge: oklch(0.359 0.012 285.8 / 0.45);
     --glass-active-shadow: inset 0 0 0 1px var(--glass-edge);
     --glass-reflection-opacity: 0;
+    --glass-sheen: none;
     --border: oklch(0.359 0.012 285.8 / 0.45);
   }
   .dark {
@@ -881,11 +888,13 @@ html:has(main[data-landing]) body {
     --glass-edge: oklch(1 0 0 / 0.4);
     --glass-active-shadow: inset 0 0 0 1px var(--glass-edge);
     --glass-reflection-opacity: 0;
+    --glass-sheen: none;
     --border: oklch(1 0 0 / 0.4);
   }
 }
 @media (prefers-reduced-transparency: reduce) {
-  :root, .dark {
+  /* :root[data-glass] iguala la especificidad de los niveles, que también mueven el desenfoque. */
+  :root, .dark, :root[data-glass] {
     --glass-fill: var(--card);
     --glass-fill-large: var(--card);
     --material: var(--card);
@@ -894,6 +903,7 @@ html:has(main[data-landing]) body {
     --material-blur: 0px;
     --scroll-edge-blur: 0px;
     --glass-reflection-opacity: 0;
+    --glass-sheen: none;
   }
 }
 /* Respaldo legible si el motor no puede desenfocar el fondo. */
@@ -903,6 +913,7 @@ html:has(main[data-landing]) body {
     --glass-fill-large: var(--card);
     --material: var(--card);
     --glass-reflection-opacity: 0;
+    --glass-sheen: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {

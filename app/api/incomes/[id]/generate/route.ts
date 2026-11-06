@@ -7,6 +7,7 @@ import {
   generateMonthlyIncome,
   ungenerateMonthlyIncome,
 } from "@/arch/v1/application/finance-use-cases/income-use-cases"
+import { followIncome } from "@/arch/v1/application/finance-use-cases/follow-income"
 
 // Genera el movimiento de ingreso del mes (por query ?year&month; default mes actual) desde la fuente.
 // Idempotente: si ya se generó ese mes, devuelve el existente sin duplicar.
@@ -18,7 +19,10 @@ export async function POST(
   return withUser(req, async (userId) => {
       const scopedDeps = await financeForRequest(req)
     const { year, month } = await periodOf(req, scopedDeps)
-    return generateMonthlyIncome(scopedDeps, userId, { incomeId: id, year, month })
+    // El movimiento generado puede ser un abono adicional para el otro modo: sigue en los dos.
+    const { result } = await followIncome(scopedDeps, userId, () =>
+      generateMonthlyIncome(scopedDeps, userId, { incomeId: id, year, month }), { allModes: true })
+    return result
   })
 }
 
@@ -31,6 +35,8 @@ export async function DELETE(
   return withUser(req, async (userId) => {
       const scopedDeps = await financeForRequest(req)
     const { year, month } = await periodOf(req, scopedDeps)
-    return ungenerateMonthlyIncome(scopedDeps, userId, { incomeId: id, year, month })
+    const { result } = await followIncome(scopedDeps, userId, () =>
+      ungenerateMonthlyIncome(scopedDeps, userId, { incomeId: id, year, month }), { allModes: true })
+    return result
   })
 }

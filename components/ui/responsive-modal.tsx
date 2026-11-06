@@ -110,6 +110,11 @@ export type ModalAction = {
    * como el círculo azul. La HIG reserva el estilo prominente para Listo/Guardar.
    */
   plain?: boolean
+  /**
+   * Ícono de la acción `plain` en la hoja móvil: con él va un círculo de vidrio como la X, y el
+   * texto queda como nombre accesible. Para las que se leen de un vistazo (editar, sincronizar).
+   */
+  icon?: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>
   form?: string
   onClick?: () => void
   disabled?: boolean
@@ -192,6 +197,7 @@ export function ModalActions({
           createPortal(
             <button
               {...actionProps(cancel)}
+              data-modal-cancel
               data-squish
               className={cn(
                 sheetCircleClass,
@@ -206,7 +212,23 @@ export function ModalActions({
         {primary &&
           slots?.end &&
           createPortal(
-            primary.plain ? (
+            primary.plain && primary.icon ? (
+              <button
+                {...actionProps(primary)}
+                data-squish
+                className={cn(
+                  sheetCircleClass,
+                  "liquid-glass liquid-squish text-foreground disabled:text-muted-foreground"
+                )}
+              >
+                {primary.busy ? (
+                  busySpinner("size-5")
+                ) : (
+                  <primary.icon aria-hidden className="size-5" />
+                )}
+                <span className="sr-only">{primary.label}</span>
+              </button>
+            ) : primary.plain ? (
               <button
                 {...actionProps(primary)}
                 data-squish
@@ -402,11 +424,15 @@ export function ResponsiveModal({
             onClick={isolateModalEvent}
             onSubmit={isolateModalEvent}
             className={cn(
-              // Los paneles cortos usan su contenido; los largos desplazan el cuerpo sin alcanzar
-              // el notch. El teclado se superpone sin redimensionar ni elevar el panel.
-              // Hoja de iOS 26: flota despegada de los bordes, con las cuatro esquinas redondeadas y
-              // casi concéntrica con las del teléfono (el mismo `--tab-bar-inset` de la barra).
-              "h-auto rounded-(--radius-sheet) bg-sheet p-0 text-body outline-none before:hidden after:hidden [--initial-transform:calc(100%+var(--tab-bar-inset))] data-[vaul-drawer-direction=bottom]:inset-x-2 data-[vaul-drawer-direction=bottom]:bottom-(--tab-bar-inset) data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top)-var(--tab-bar-inset))]",
+              // Hoja de iOS pegada abajo y a los lados (inset-x-0 bottom-0 del drawer base), con las
+              // esquinas de arriba redondeadas. Los paneles cortos usan su contenido; los largos
+              // desplazan el cuerpo sin alcanzar el notch. El teclado se superpone sin redimensionar
+              // ni elevar el panel.
+              // No ocultar el `::after` de vaul: además de rellenar bajo la hoja al tirarla hacia
+              // arriba, es lo que hace que `shouldDrag` reconozca la hoja (role=dialog con overflow)
+              // y deje de subir hasta <html>; con la página desplazada, sin él no se arrastraba.
+              // Con «reducir movimiento» la hoja aparece y se va sin deslizarse; el dedo la sigue igual.
+              "h-auto rounded-t-(--radius-sheet) bg-sheet p-0 text-body outline-none before:hidden data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))] motion-reduce:transition-none! motion-reduce:[animation-duration:1ms]",
               className
             )}
           >
@@ -419,10 +445,27 @@ export function ResponsiveModal({
                 headerClassName
               )}
             >
-              <div
-                ref={setSlotStart}
-                className="flex min-w-fit flex-1 basis-0 justify-start"
-              />
+              {/* Toda hoja se puede cerrar con la X, como en iOS: si el modal no declara su
+                  «Cancelar», va esta, que solo cierra. Cuando lo declara (llega por el portal con
+                  `data-modal-cancel`), CSS esconde la de respaldo: sin estado ni efectos. */}
+              <div className="flex min-w-fit flex-1 basis-0 justify-start [&:has([data-modal-cancel])>[data-default-close]]:hidden">
+                {dismissible && (
+                  <button
+                    type="button"
+                    data-default-close
+                    data-squish
+                    onClick={() => handleOpenChange(false)}
+                    className={cn(
+                      sheetCircleClass,
+                      "liquid-glass liquid-squish text-foreground"
+                    )}
+                  >
+                    <X aria-hidden className="size-5" strokeWidth={2.5} />
+                    <span className="sr-only">Cerrar</span>
+                  </button>
+                )}
+                <div ref={setSlotStart} className="contents" />
+              </div>
               <DrawerTitle className="min-w-0 shrink text-headline font-semibold text-balance break-words">
                 {title}
               </DrawerTitle>
@@ -432,9 +475,8 @@ export function ResponsiveModal({
               />
             </DrawerHeader>
             {/* El contenido se desplaza dentro del drawer, sin pie: el final deja aire y el espacio
-              seguro para el gesto inferior del teléfono. El modal legal de la landing (app/page.tsx)
-              descuenta este pb-6 de su espacio seguro: si cambia, ajústalo allá. */}
-            <div className="flex min-h-0 min-w-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] flex-col overflow-x-hidden overflow-y-auto pb-6 [&>*]:min-w-0 [&>*]:shrink-0">
+              seguro del home indicator, porque la hoja llega al borde del teléfono. */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pb-[calc(1.5rem+env(safe-area-inset-bottom))] [&>*]:min-w-0 [&>*]:shrink-0">
               <HeaderSlotsContext.Provider value={slots}>
                 {children}
                 {(cancel || primary) && (
@@ -465,7 +507,7 @@ export function ResponsiveModal({
             dismissible ? undefined : (e) => e.preventDefault()
           }
           className={cn(
-            "max-h-[90dvh] rounded-(--radius-sheet) bg-sheet [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] gap-0 overflow-x-hidden overflow-y-auto p-0 text-body sm:max-w-2xl [&>*]:min-w-0 [&>[data-slot=dialog-close]]:size-11 [&>[data-slot=modal-footer]]:mx-0",
+            "max-h-[90dvh] rounded-(--radius-sheet) bg-sheet gap-0 overflow-x-hidden overflow-y-auto p-0 text-body sm:max-w-2xl [&>*]:min-w-0 [&>[data-slot=dialog-close]]:size-11 [&>[data-slot=modal-footer]]:mx-0",
             className
           )}
         >

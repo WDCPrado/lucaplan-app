@@ -205,6 +205,8 @@ export type MonthlyBudget = {
   year: number
   month: number
   globalLimit: Money
+  // Lo puso «Igualar al ingreso»: sigue solo al total del plan. Uno escrito a mano, false. Ausente = false.
+  followsIncome?: boolean
 }
 
 export type Transaction = {
@@ -291,6 +293,7 @@ export type MonthlyBudgetInput = {
   year: number
   month: number
   globalLimit: Money
+  followsIncome?: boolean
 }
 
 // Filtros de búsqueda de movimientos (todos opcionales, se combinan con AND). `query` es texto libre
@@ -375,6 +378,10 @@ export interface MonthlyBudgetRepository {
   listByUser(userId: string, mode: PeriodMode): Promise<MonthlyBudget[]>
   // Upsert por (userId, year, month).
   set(input: MonthlyBudgetInput): Promise<MonthlyBudget>
+  // Escribe el tope del mes con la marca puesta SOLO si ese mes no tiene fila o la suya sigue al
+  // ingreso: nunca pisa un tope manual, aunque llegue entre la lectura y esta escritura.
+  // `true` = escribió.
+  setFollowingIncome(input: Omit<MonthlyBudgetInput, "followsIncome">): Promise<boolean>
 }
 
 export interface TransactionRepository {

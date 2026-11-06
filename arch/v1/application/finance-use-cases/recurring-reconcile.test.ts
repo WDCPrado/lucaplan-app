@@ -159,6 +159,7 @@ const arriendo: RecurringTemplate = {
   startDate: d("2026-01-05"),
   endDate: null,
   isActive: true,
+  url: null,
 }
 
 // Vence el último día: 31 en octubre, 30 en noviembre, 28/29 en febrero.

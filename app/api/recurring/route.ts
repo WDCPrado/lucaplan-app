@@ -6,7 +6,11 @@ import {
   createRecurringTemplate,
   listRecurringTemplates,
 } from "@/arch/v1/application/finance-use-cases/recurring-use-cases"
-import type { Periodicity } from "@/arch/v1/domain/finance/recurring.domain"
+import { recurringUrlSchema } from "@/lib/schemas/recurring-url"
+import {
+  InvalidRecurringUrlError,
+  type Periodicity,
+} from "@/arch/v1/domain/finance/recurring.domain"
 
 // Plantillas recurrentes del usuario.
 export async function GET(req: Request) {
@@ -19,8 +23,11 @@ export async function POST(req: Request) {
   const body = await req.json()
   return withUser(
     req,
-    (userId) =>
-      createRecurringTemplate(financeDeps, userId, {
+    (userId) => {
+      // Dentro de withUser: sin sesión es 401 antes de tocar el texto.
+      const url = recurringUrlSchema.safeParse(body.url)
+      if (!url.success) throw new InvalidRecurringUrlError(url.error.issues[0]?.message ?? "")
+      return createRecurringTemplate(financeDeps, userId, {
         accountId: String(body.accountId),
         categoryId: String(body.categoryId),
         label: String(body.label ?? ""),
@@ -37,7 +44,9 @@ export async function POST(req: Request) {
         sourceTransactionId: body.sourceTransactionId
           ? String(body.sourceTransactionId)
           : null,
-      }),
+        url: url.data,
+      })
+    },
     201
   )
 }

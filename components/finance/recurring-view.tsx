@@ -1,18 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Check, ChevronRight } from "lucide-react"
-import { toast } from "sonner"
 
-import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 import { currentPeriod, formatCLP } from "@/lib/finance-format"
 import { AppShell } from "./app-shell"
 import { CategoryIcon } from "./category-icons"
 import { RecurringModal } from "./recurring-modal"
 import { InstallmentsSection } from "./installments-view"
-import { Button } from "@/components/ui/button"
 import type {
   AccountDTO,
   CategoryDTO,
@@ -78,7 +74,6 @@ export function RecurringView({
   accounts: AccountDTO[]
   categories: CategoryDTO[]
 }) {
-  const router = useRouter()
   const [editing, setEditing] = useState<RecurringDTO | null>(null)
   const [open, setOpen] = useState(false)
 
@@ -94,24 +89,6 @@ export function RecurringView({
   function edit(t: RecurringDTO) {
     setEditing(t)
     setOpen(true)
-  }
-
-  // "Ya lo pagué": confirma el comprometido del período sin esperar el aviso del banco. Cuando el
-  // cargo real llegue por correo, reemplaza esta marca con su monto y su fecha.
-  // Deshacer vive en el modal: la fila solo ofrece la acción que avanza.
-  async function markPaid(t: RecurringDTO) {
-    haptic("light")
-    const res = await fetch(`/api/recurring/${t.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ periodPaid: true }),
-    })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      return toast.error(data.error ?? "No se pudo marcar el cobro")
-    }
-    toast.success("Cobro marcado como pagado")
-    router.refresh()
   }
 
   return (
@@ -159,7 +136,6 @@ export function RecurringView({
                         key={t.id}
                         template={t}
                         onEdit={() => edit(t)}
-                        onMarkPaid={() => markPaid(t)}
                       />
                     ))}
                   </ul>
@@ -228,20 +204,16 @@ function RecurringGroup({
 function RecurringRow({
   template: t,
   onEdit,
-  onMarkPaid,
 }: {
   template: RecurringDTO
   onEdit: () => void
-  onMarkPaid?: () => void
 }) {
   const inactive = !t.isActive || t.hasEnded
-  // Marcar el cobro solo tiene sentido con un período abierto y todavía sin cobro.
-  const canMarkPaid = !!onMarkPaid && t.isActive && !t.hasEnded && !t.currentPeriodPaid
   const periodicity =
     t.periodicity === "monthly"
       ? null
       : (PERIODICITY_LABEL[t.periodicity] ?? t.periodicity)
-  // Cobrado del mes = el cargo real ya llegó; manda sobre el "Cobra el …". Pausada: nada.
+  // Pagado del mes = el cargo real ya llegó; manda sobre el "Cobra el …". Pausada: nada.
   const status = t.hasEnded
     ? `Terminó el ${shortDate(t.endDate!)}`
     : t.isActive && !t.currentPeriodPaid
@@ -253,8 +225,7 @@ function RecurringRow({
         type="button"
         onClick={onEdit}
         className={cn(
-          "press flex min-h-11 min-w-0 flex-1 items-center gap-3 py-2.5 pl-4 text-left hover:bg-accent/60",
-          canMarkPaid ? "pr-2" : "pr-4"
+          "press flex min-h-11 min-w-0 flex-1 items-center gap-3 py-2.5 pr-4 pl-4 text-left hover:bg-accent/60"
         )}
       >
         <span
@@ -295,7 +266,7 @@ function RecurringRow({
           {t.currentPeriodPaid && !t.hasEnded && t.isActive ? (
             <span className="flex items-center justify-end gap-1 text-footnote whitespace-nowrap text-primary">
               <Check className="size-3.5" />
-              Cobrado
+              Pagado
             </span>
           ) : (
             status && (
@@ -308,20 +279,6 @@ function RecurringRow({
         {/* La fila abre el detalle: chevron de lista de iOS. */}
         <ChevronRight aria-hidden className="disclosure" />
       </button>
-      {/* El banco a veces avisa días después: hasta entonces el gasto sigue como comprometido.
-          Esto lo cierra sin salir de la lista. Solo aparece cuando hay algo que marcar. */}
-      {canMarkPaid && (
-        <Button
-          variant="ghost"
-          onClick={onMarkPaid}
-          aria-label={`Ya lo pagué: ${t.label}`}
-          // Escritorio: la acción con su nombre; en móvil solo el icono, que el ancho es del nombre.
-          className="mr-1 h-11 shrink-0 text-subheadline text-primary max-md:size-11 max-md:p-0"
-        >
-          <Check className="size-4" />
-          <span className="max-md:sr-only">Ya lo pagué</span>
-        </Button>
-      )}
     </li>
   )
 }

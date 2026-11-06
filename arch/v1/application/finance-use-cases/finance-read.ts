@@ -55,7 +55,7 @@ import {
   computeCapsOverspend,
   computeMonthOverspend,
   effectiveLimit,
-  effectiveGlobalLimit,
+  effectiveGlobalBudget,
   paceStatus,
   pacePeriod,
   remainingToAllocate,
@@ -207,6 +207,8 @@ export type BudgetViewDTO = {
   // Hay movimientos en USD sin dólar observado: quedaron fuera de los totales (no se inventa tasa).
   exchangeRateUnavailable: boolean
   globalLimit: number | null // límite global efectivo del mes (carry); null = no definido
+  // El tope efectivo lo puso «Igualar al ingreso» y sigue solo al total del plan (heredado con él).
+  globalLimitFollowsIncome: boolean
   allocated: number // Σ límites efectivos de las categorías de GASTO
   remainingToAllocate: number | null // globalLimit − allocated; null sin límite global
   // Los dos excedentes del mes, que NO son lo mismo y pueden convivir (la UI no los suma):
@@ -955,7 +957,8 @@ export async function getBudgetView(
   const allocated = withLimit
     .filter((x) => x.category.type === "expense")
     .reduce((s, x) => s.add(x.limit), Money.zero(CLP))
-  const globalLimit = effectiveGlobalLimit(budgets, year, month)
+  const globalBudget = effectiveGlobalBudget(budgets, year, month)
+  const globalLimit = globalBudget?.globalLimit ?? null
   const remaining = remainingToAllocate(globalLimit, allocated)
   // Gastado y comprometido del plan: todo gasto real del período, con o sin categoría o tope
   // (WDC-171). Los topes solo miden categorías y ritmo; no deciden qué plata salió.
@@ -1018,6 +1021,7 @@ export async function getBudgetView(
     spent: spent.toMajor(),
     committed: committed.toMajor(),
     globalLimit: globalLimit === null ? null : globalLimit.toMajor(),
+    globalLimitFollowsIncome: globalBudget?.followsIncome === true,
     allocated: allocated.toMajor(),
     remainingToAllocate: remaining === null ? null : remaining.toMajor(),
     capsOverspend: computeCapsOverspend(
@@ -1145,6 +1149,7 @@ export type RecurringDTO = {
   currentPeriodPaid: boolean // el cobro del período en curso ya llegó (transacción confirmed)
   // Ese cobro lo marcó el usuario a mano, no el banco: es lo único que puede deshacerse.
   currentPeriodPaidManually: boolean
+  url: string | null // portal de pago opcional (solo http/https)
 }
 
 // Plantillas recurrentes del usuario con nombres resueltos y el rango de tolerancia ya derivado,
@@ -1177,7 +1182,7 @@ export async function listRecurringView(
       thisPeriod >= today
         ? thisPeriod
         : executionDateFor(t, periodKeyFor(t, nextPeriodDate(t, today)))
-    // Cobrado = el período en curso ya tiene su cargo real (confirmed); el comprometido pending no.
+    // Pagado = el período en curso ya tiene su cargo real (confirmed); el comprometido pending no.
     const periodTx = await deps.recurring.findPeriodTransaction(
       t.id,
       periodKeyFor(t, today)
@@ -1207,6 +1212,7 @@ export async function listRecurringView(
       currentPeriodPaid: periodTx?.status === "confirmed",
       currentPeriodPaidManually:
         periodTx?.status === "confirmed" && periodTx.isManual,
+      url: t.url,
     }
   }))
 }
@@ -1376,7 +1382,9 @@ export async function listInstallmentsView(
     transactions: TransactionRepository
   },
   userId: string,
-  today = new Date()
+  // «Hoy» es el día civil de Chile, como en las recurrentes: a las 21:00 ya es mañana en UTC y una
+  // cuota que vence hoy saldría «vencida».
+  today = new Date(`${todayKey()}T00:00:00.000Z`)
 ): Promise<InstallmentPlanDTO[]> {
   const [plans, accounts, categories] = await Promise.all([
     deps.installments.listByUser(userId),

@@ -33,6 +33,12 @@ function ThemeProvider({
       enableSystem
       disableTransitionOnChange
       forcedTheme={forcedTheme}
+      // El script anti-parpadeo solo sirve en el HTML del servidor (corre antes de pintar). En el
+      // cliente React 19 avisa «Encountered a script tag…» al renderizarlo: con type text/plain
+      // ya no es un script ejecutable y el aviso no sale. El del servidor sigue intacto.
+      scriptProps={{
+        type: typeof window === "undefined" ? "text/javascript" : "text/plain",
+      }}
       {...props}
     >
       <ThemeColor />
@@ -54,7 +60,7 @@ function ThemeColor() {
 
   React.useEffect(() => {
     if (!theme) return
-    const color = theme === "dark" ? "#121214" : "#f2f2f7"
+    const color = theme === "dark" ? "#000000" : "#f2f2f7"
     // Las dos metas de layout.tsx (una por prefers-color-scheme) pasan a decir el mismo color.
     document
       .querySelectorAll('meta[name="theme-color"]')

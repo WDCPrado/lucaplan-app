@@ -56,10 +56,8 @@ self.addEventListener("push", (event) => {
   );
 });
 
-// Tap en la notificación: reusa la ventana de la PWA si ya está abierta; si no, abre una.
-// SIEMPRE navega a la URL del aviso (no basta con enfocar): los avisos enlazan a destinos concretos
-// —`/dashboard?tx=<id>` abre ese movimiento— y una ventana ya parada en /dashboard no mostraría
-// nada. `navigate` puede fallar (ventana de otro contexto): ahí se abre una nueva.
+// Tap en la notificación: lleva a la URL del aviso (`/dashboard?tx=<id>` abre ese movimiento), en
+// la ventana de la PWA si ya está abierta o en una nueva si no.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = event.notification.data?.url || "/dashboard";
@@ -69,20 +67,31 @@ self.addEventListener("notificationclick", (event) => {
     resolved.origin === self.location.origin
       ? resolved.href
       : new URL("/dashboard", self.location.origin).href;
-  event.waitUntil(
-    self.clients
-      .matchAll({ type: "window", includeUncontrolled: true })
-      .then((clients) => {
-        const open = clients[0];
-        if (!open) return self.clients.openWindow(target);
-        if (open.url === target) return open.focus(); // ya está exactamente ahí
-        return open
-          .navigate(target)
-          .then((c) => (c || open).focus())
-          .catch(() => self.clients.openWindow(target));
-      })
-  );
+  event.waitUntil(openTarget(target));
 });
+
+async function openTarget(target) {
+  const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  const open =
+    windows.find((c) => c.focused) ||
+    windows.find((c) => c.visibilityState === "visible") ||
+    windows[0];
+  if (!open) {
+    const opened = await self.clients.openWindow(target);
+    // iOS a veces abre la PWA en su start_url y no en la URL pedida: se corrige si se puede.
+    if (opened && opened.url !== target) await opened.navigate(target).catch(() => opened.postMessage({ type: "navigate", url: target }));
+    return;
+  }
+  // Enfocar ANTES de navegar: el permiso para traer una ventana al frente dura poco después del
+  // toque, y esperar al navigate (el render del Inicio) lo agotaba: la ventana navegaba de fondo
+  // sin aparecer y el openWindow de respaldo también se rechazaba.
+  const win = (await open.focus().catch(() => null)) || open;
+  if (win.url === target) return; // ya está exactamente ahí
+  // `navigate` falla en iOS con la PWA abierta (WebKit 263687) y con ventanas que este SW no
+  // controla; ahí navega la propia página (ServiceWorkerRegistration escucha el mensaje). No se
+  // abre otra ventana: en iOS openWindow solo enfoca la PWA, sin moverla de pantalla.
+  await win.navigate(target).catch(() => win.postMessage({ type: "navigate", url: target }));
+}
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;

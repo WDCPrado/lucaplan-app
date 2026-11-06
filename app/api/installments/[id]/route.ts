@@ -10,6 +10,7 @@ import {
   unlinkTransactionFromItem,
   updateInstallmentItem,
 } from "@/arch/v1/application/finance-use-cases/installment-use-cases"
+import { followIncome } from "@/arch/v1/application/finance-use-cases/follow-income"
 
 // Acciones sobre el plan o una de sus cuotas, según lo que traiga el cuerpo:
 //  · `categoryId` (sin itemId) → recategorizar el plan COMPLETO (plan + todos sus movimientos);
@@ -35,17 +36,19 @@ export async function PATCH(
   const itemId = String(body.itemId)
 
   if (body.unlink === true)
-    return withUser(req, (userId) =>
-      unlinkTransactionFromItem(financeDeps, userId, { planId: id, itemId })
+    return withUser(req, async (userId) =>
+      (await followIncome(financeDeps, userId, () =>
+        unlinkTransactionFromItem(financeDeps, userId, { planId: id, itemId }),
+        { allModes: true }
+      )).result
     )
 
   if (body.transactionId)
-    return withUser(req, (userId) =>
-      linkTransactionToItem(financeDeps, userId, {
-        planId: id,
-        itemId,
-        transactionId: String(body.transactionId),
-      })
+    return withUser(req, async (userId) =>
+      (await followIncome(financeDeps, userId, () =>
+        linkTransactionToItem(financeDeps, userId, { planId: id, itemId, transactionId: String(body.transactionId) }),
+        { allModes: true }
+      )).result
     )
 
   if (body.paid === true)

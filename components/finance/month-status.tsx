@@ -237,9 +237,11 @@ export function PeriodModeControl({ mode: savedMode }: { mode: PeriodMode }) {
 export function ClosingPicker({
   period,
   closing,
+  disabled = false,
 }: {
   period: { year: number; month: number }
   closing: { date: string; estimated: boolean }
+  disabled?: boolean
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -272,8 +274,9 @@ export function ClosingPicker({
           <PopoverTrigger asChild>
             <button
               type="button"
-              aria-label={`Cierre de la tarjeta en ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}. Cambiar`}
-              className="press flex min-h-11 w-full items-center gap-2 py-2.5 text-left"
+              disabled={disabled}
+              aria-label={`Cierre de la tarjeta en ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}${disabled ? ". Solo se usa en modo ciclo de tarjeta" : ". Cambiar"}`}
+              className="press flex min-h-11 w-full items-center gap-2 py-2.5 text-left disabled:opacity-50"
             >
               <span className="min-w-0 flex-1 text-body">Cierre de la tarjeta</span>
               <span className="text-body text-muted-foreground tabular-nums">
@@ -313,7 +316,7 @@ export function ClosingPicker({
         {!closing.estimated && (
           <button
             type="button"
-            disabled={saving}
+            disabled={saving || disabled}
             onClick={() => void save(null)}
             className="press flex min-h-11 w-full items-center py-2.5 text-left text-body text-primary disabled:opacity-50"
           >

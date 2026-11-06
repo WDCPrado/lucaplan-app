@@ -7,10 +7,10 @@ import {
 import {
   updateIncome,
   deleteIncome,
-  seedGlobalLimitFromIncomes,
 } from "@/arch/v1/application/finance-use-cases/income-use-cases"
+import { followIncome } from "@/arch/v1/application/finance-use-cases/follow-income"
 
-// Edita una fuente de ingreso. Re-siembra el límite global del mes solo si aún no está definido.
+// Edita una fuente de ingreso; el tope del período en curso la sigue si estaba igualado al ingreso.
 export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
@@ -29,16 +29,9 @@ export async function PATCH(
       isActive: body.isActive ?? true,
     })
     const { year, month } = await periodOf(req, scopedDeps)
-    const income = await updateIncome(scopedDeps, userId, {
-      id,
-      ...parsed,
-      year,
-      month,
-    })
-    const seed = await seedGlobalLimitFromIncomes(scopedDeps, userId, {
-      year,
-      month,
-    })
+    const { result: income, seed } = await followIncome(scopedDeps, userId, () =>
+      updateIncome(scopedDeps, userId, { id, ...parsed, year, month })
+    )
     return { income, seed }
   })
 }
@@ -51,6 +44,9 @@ export async function DELETE(
   return withUser(req, async (userId) => {
       const scopedDeps = await financeForRequest(req)
     const { year, month } = await periodOf(req, scopedDeps)
-    return deleteIncome(scopedDeps, userId, id, { year, month })
+    const { result, seed } = await followIncome(scopedDeps, userId, () =>
+      deleteIncome(scopedDeps, userId, id, { year, month })
+    )
+    return { ...result, seed }
   })
 }

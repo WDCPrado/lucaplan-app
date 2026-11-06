@@ -42,6 +42,7 @@ const template = (over: Partial<RecurringTemplate>): RecurringTemplate => ({
   startDate: d("2026-01-31"),
   endDate: null,
   isActive: true,
+  url: null,
   ...over,
 })
 

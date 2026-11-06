@@ -437,6 +437,8 @@ model MonthlyBudget {
   year        Int
   month       Int
   globalLimit Decimal  @db.Decimal(18, 2)
+  // El tope lo puso «Igualar al ingreso» y sigue solo al total del plan; uno escrito a mano, false.
+  followsIncome Boolean @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -469,6 +471,7 @@ model RecurringTemplate {
   // en esta fecha o antes; después la plantilla queda finalizada y no puede reactivarse sin correrla.
   endDate      DateTime?        @db.Date
   isActive     Boolean          @default(true)
+  url          String? // enlace opcional para abrir el portal de pago; solo http/https
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   transactions Transaction[]
@@ -555,6 +558,9 @@ model Transaction {
   // de cuotas — reprocesar un correo no puede producir un segundo movimiento para el mismo ítem.
   installmentItemId       String?            @unique
   installmentItem         InstallmentItem?   @relation(fields: [installmentItemId], references: [id], onDelete: SetNull)
+  // Lo creó la app con «Generar cuota» (`registerItemTransaction`): un sustituto que el correo del
+  // banco de ese pago reemplaza. Un movimiento que la persona escribió y asignó queda en false.
+  generatedFromInstallment Boolean           @default(false)
   installmentPlanAsSource InstallmentPlan?   @relation("InstallmentSource")
   transactionDate         DateTime           @db.Date
   description             String

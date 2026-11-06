@@ -92,8 +92,9 @@ type Props = {
   previousMonthDebt: number
   outlookResult: string | null
   outlookReason: string | null
-  // `?tx=<id>` de la notificación de movimiento: abre ese modal al entrar.
-  openTxId: string | null
+  // `?tx=<id>` de la notificación de movimiento, ya resuelto en el servidor (aunque sea de otro
+  // período): abre ese modal al entrar.
+  openTx: TransactionDTO | null
 }
 
 // Inicio: AppShell (sidebar + topbar + barra inferior) con el mes convertido en una decisión
@@ -113,22 +114,21 @@ export function Dashboard({
   previousMonthDebt,
   outlookResult,
   outlookReason,
-  openTxId,
+  openTx,
 }: Props) {
   const router = useRouter()
   // Primera conexión de correo (callback OAuth ?outlook=setup, aún sin banco): onboarding fullscreen.
   const [onboarding, setOnboarding] = useState(outlookResult === "setup")
   const [liquidityOpen, setLiquidityOpen] = useState(false)
   const [detail, setDetail] = useState<CategoryDTO | null>(null)
-  const [detailTx, setDetailTx] = useState<TransactionDTO | null>(
-    () => transactions.find((t) => t.id === openTxId) ?? null
-  )
+  const [detailTx, setDetailTx] = useState<TransactionDTO | null>(openTx)
   // Tocar otra notificación con la app ya abierta navega a `?tx=<otro>` sin remontar: se ajusta el
   // estado en render (patrón de React para props que cambian) en vez de un useEffect.
+  const openTxId = openTx?.id ?? null
   const [linkedTxId, setLinkedTxId] = useState(openTxId)
   if (openTxId !== linkedTxId) {
     setLinkedTxId(openTxId)
-    setDetailTx(transactions.find((t) => t.id === openTxId) ?? null)
+    setDetailTx(openTx)
   }
   const [editCat, setEditCat] = useState<CategoryDTO | null | undefined>(
     undefined
@@ -798,9 +798,10 @@ export function Dashboard({
         period={period}
         cycleRange={cycle.mode === "card_cycle" ? cycle.range : undefined}
         mode={cycle.mode}
-        closing={cycle.mode === "card_cycle" ? cycle.closing : undefined}
+        closing={cycle.closing}
         isCurrentMonth={isCurrentMonth}
         globalLimit={budget.globalLimit}
+        globalLimitFollowsIncome={budget.globalLimitFollowsIncome}
         allocated={budget.allocated}
         expenseCategories={budget.categories.filter(
           (c) => c.type === "expense"

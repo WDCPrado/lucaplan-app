@@ -10,7 +10,7 @@ uso están en [Lenguaje visual](../development.md#lenguaje-visual-ios-y-liquid-g
 
 ## Contrato de estabilidad de Liquid Glass
 
-**Los efectos son parte del diseño, no un detalle del layout.** Una tarea de reordenar secciones, cambiar tamaños, añadir gráficos o modificar navegación **no autoriza** modificar el material de vidrio. Preservar en móvil y escritorio: `liquid-glass`, los cinco niveles de `data-glass` en Apariencia, `--glass-fill`, `--glass-clear`, `--glass-tint`, `--glass-blur`, `--glass-saturate`, `--glass-shadow`, `--glass-rim`, `--glass-reflection-opacity` y el reflejo `::before`. Desde WDC-174 el acabado es CSS, sin Glisse, filtros SVG ni seguimiento continuo del contenido.
+**Los efectos son parte del diseño, no un detalle del layout.** Una tarea de reordenar secciones, cambiar tamaños, añadir gráficos o modificar navegación **no autoriza** modificar el material de vidrio. Preservar en móvil y escritorio: `liquid-glass`, los cinco niveles de `data-glass` en Apariencia, `--glass-fill`, `--glass-clear`, `--glass-tint`, `--glass-blur`, `--glass-saturate`, `--glass-shadow`, `--glass-rim`, `--glass-sheen`, `--glass-reflection-opacity` y el reflejo `::before`. Desde WDC-174 el acabado es CSS, sin Glisse, filtros SVG ni seguimiento continuo del contenido.
 
 - Para cambios de UI, modificar únicamente distribución, jerarquía y espaciado; no anular tokens de vidrio en contenedores como `.top-bar` para solucionar problemas de layout.
 - «Hoy» del selector de ciclo y «Hoy» del selector de movimientos deben heredar el mismo `liquid-glass` en móvil y el mismo material de control en escritorio, respetando Apariencia y accesibilidad. Si cambia el material compartido, revisar ambos controles.
@@ -58,10 +58,14 @@ Tres superficies, todas desde tokens de `globals.css`:
 | Material regular | `material` (`--material`) y `[data-slot]` de menús, select, popover, tooltip, toasts y alertas | lectura sobre contenido y aviso de refresco PWA |
 | Sólido | `card`, `--sheet`, `--sheet-cell` | contenido, listas, hojas y diálogos |
 
-El vidrio usa un relleno neutro, desenfoque de 16 px y saturación de 120 %. El sidebar reutiliza el
+El vidrio usa un relleno neutro, desenfoque de 22 px (nivel por defecto), saturación de 165 % y un brillo interior radial
+desde arriba-izquierda (`--glass-sheen`, que se apaga con reducir transparencia, más contraste o sin
+desenfoque). El sidebar reutiliza el
 acabado de `liquid-glass` con más relleno. El borde combina un contorno tenue de 0.5 px con un
 reflejo localizado arriba-izquierda y un eco más débil abajo-derecha; no ilumina todo el perímetro.
-Los cinco niveles de Apariencia cambian la transparencia, conservando el desenfoque.
+Los cinco niveles de Apariencia van de transparente a teñido como en iOS 26: 0–1 aclaran el relleno
+y bajan el desenfoque (4 y 12 px) para que el contenido se lea a través; 3–4 lo tiñen hacia la celda
+sólida (4 casi opaco).
 
 `liquid-glass-active` usa `--glass-tab-active`, un velo neutro de `foreground`, con
 `--glass-active-shadow`: es la pastilla de la pestaña móvil activa y la del link activo del
@@ -98,7 +102,7 @@ Conmuta con la clase `.dark` (vía `next-themes`). Todos los tokens —incluido 
 ambiental y el glass— tienen su variante. Diseña y prueba ambos modos juntos, no infieras
 uno del otro.
 
-El fondo oscuro es carbón suave `#121214`; las tarjetas conservan `#1C1C1E` y las superficies
+El fondo oscuro es negro `#000000`, como el fondo agrupado de iOS 26; las tarjetas conservan `#1C1C1E` y las superficies
 secundarias `#2C2C2E`. El `theme-color` inicial y dinámico y el manifest usan ese mismo fondo
 para acompañar la app instalada. El tema claro y la landing conservan sus colores.
 

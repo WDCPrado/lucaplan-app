@@ -131,10 +131,12 @@ un barrido aparte.
   con sus botones. Las acciones se declaran con `ModalActions` (`primary`, `cancel`): en móvil
   van en el encabezado de la hoja como en iOS 26, en círculos de 44 px: a la izquierda uno de
   vidrio con ✕ (`X`, cancela) y a la derecha uno azul con ✓ (`Check`, la primaria). Solo
-  confirmar (Listo, Guardar) es prominente: una acción que no confirma, como «Editar», lleva
-  `plain` y va en texto sobre una cápsula de vidrio (HIG: editar se dice con texto, no con símbolo):
-  así van también Reintentar, Importar, Sincronizar, Conectar y Activar, con el verbo corto para
-  que quepa junto al título. El ✓ queda para Guardar, Crear, Agregar, Listo y Aplicar. La primaria
+  confirmar (Listo, Guardar) es prominente: una acción que no confirma lleva `plain` y va en texto
+  sobre una cápsula de vidrio (Importar, Conectar, Activar, con el verbo corto para que quepa junto
+  al título); con `icon` va como círculo de vidrio con ícono y su texto queda como nombre accesible
+  (Editar con lápiz, Sincronizar y Reintentar con flechas). Toda hoja móvil `dismissible` trae una ✕
+  de respaldo a la izquierda que se oculta cuando la hoja declara su `cancel`; una hoja que no
+  guarda nada (Plan, Filtros) no lleva ✓ y se cierra con esa ✕. El ✓ queda para Guardar, Crear, Agregar, Listo y Aplicar. La primaria
   queda gris y deshabilitada sin cambios; mientras guarda lleva `busy`, que la deshabilita y pone
   un spinner (quieto con reducir movimiento) en el círculo, en la cápsula o junto al texto en
   escritorio. El ✕ deshabilitado queda en gris. El texto de cada acción es su nombre accesible. En escritorio van en el pie (Cancelar o Cerrar en
@@ -185,9 +187,10 @@ agrupaciones, la tipografía y los controles.
     en el contenido (tarjetas, listas, hojas), que va sólido en `card` sobre el fondo agrupado.
     Variante regular (desenfoque + luminosidad), sin «clear». Lo grande (sidebar) un poco más opaco
     que lo chico, pero reutiliza `liquid-glass` para el mismo acabado. La base es CSS compatible con
-    Safari, Firefox y Chrome: desenfoque de 16 px, saturación moderada (120 %), relleno neutro,
-    reflejo localizado arriba-izquierda y un eco menor abajo-derecha (`::before` cónico), rim
-    interior (`--glass-rim`), contorno de 0.5 px y sombra. No hay una línea brillante continua.
+    Safari, Firefox y Chrome: desenfoque de 22 px, saturación viva (165 %), relleno neutro, brillo
+    interior radial desde arriba-izquierda (`--glass-sheen`), reflejo localizado arriba-izquierda y
+    un eco menor abajo-derecha (`::before` cónico), rim interior (`--glass-rim`), contorno de 0.5 px
+    y sombra. No hay una línea brillante continua.
   - **Sin motor de refracción (WDC-174).** El acabado usa sólo CSS: no hay filtros SVG sobre el
     contenido, clones ni seguimiento continuo. Se retiraron Glisse y el motor anterior para
     recuperar la composición estable en Safari móvil. Tabs y búsquedas usan enlaces/botones/
@@ -213,7 +216,7 @@ agrupaciones, la tipografía y los controles.
     reducido solo queda el fundido y las pastillas saltan.
   - **Material regular (`--material`)** para lo que lleva texto encima del contenido:
     menús, select, popover, tooltip, toasts, alertas y el aviso de refresco de la PWA. Más opaco que
-    el vidrio de las barras, con la misma saturación moderada; la utilidad `material` concentra la
+    el vidrio de las barras, con la misma saturación; la utilidad `material` concentra la
     receta. Los toasts de estado conservan su color semántico y salen arriba, como el banner de iOS. En las alertas, el destructivo es texto rojo sobre la misma cápsula gris de Cancelar. Las hojas van sólidas (`--sheet`).
   - **Color con moderación**: el vidrio no tiene color propio; textos e íconos encima van en
     `foreground`, salvo la selección. La pestaña móvil activa y el link activo del sidebar llevan
@@ -277,7 +280,7 @@ agrupaciones, la tipografía y los controles.
   movimiento, la descripción va en body regular y el monto en body semibold `.tabular` (ingreso en
   `text-success`). Los filtros (Movimientos, buscador) son filas de un solo grupo con botón
   emergente: el nombre a la izquierda, el valor en gris y `ChevronsUpDown`; el botón «Filtros»
-  queda teñido de azul con su conteo cuando hay filtros puestos, y su hoja cierra con ✓ Listo.
+  queda teñido de azul con su conteo cuando hay filtros puestos; se aplican al tocarlos y su hoja cierra con la ✕.
 - **Tipografía de la escala de iOS**, nunca tamaños sueltos: `text-large-title`, `text-hero` (la
   cifra protagonista), `text-title-1`, `text-title-3`, `text-headline`, `text-body`,
   `text-subheadline`, `text-footnote`, `text-caption`. Un tamaño nuevo se registra también en
@@ -294,9 +297,11 @@ agrupaciones, la tipografía y los controles.
   **segmentado** es `Segmented`, cápsula gris con una pastilla clara que se desliza al elegido y
   texto `text-subheadline` (semibold el elegido). Todo selector exclusivo de pocas opciones usa
   `Segmented`, también Gasto/Ingreso del movimiento, sin colorear la selección.
-- **Hoja móvil flotante (iOS 26)**: el drawer de `ResponsiveModal` se despega de los bordes
-  (`inset-x-2`, abajo `--tab-bar-inset`) con las cuatro esquinas en `--radius-sheet`; el alto sigue
-  siendo el del contenido.
+- **Hoja móvil (iOS)**: el drawer de `ResponsiveModal` va pegado abajo y a los lados, con las
+  esquinas de arriba en `--radius-sheet` y el cuerpo dejando `env(safe-area-inset-bottom)`; el alto
+  es el del contenido. Se cierra arrastrando hacia abajo desde cualquier parte (el cuerpo solo con
+  su scroll arriba); hacia arriba cede con resistencia y vuelve. No se oculta el `::after` de vaul:
+  sin él `shouldDrag` no reconoce la hoja y, con la página desplazada, no arrastra.
 - **Íconos: `lucide-react` leído como SF Symbols.** Los SF Symbols y SF Pro no se licencian para
   web: se elige el glifo lucide más cercano al símbolo que usaría iOS (`house`, `repeat`,
   `list.bullet` → `List`, `gearshape`, `magnifyingglass`, `xmark.circle.fill` → `CircleX` relleno, el

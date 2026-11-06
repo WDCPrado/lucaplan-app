@@ -202,6 +202,9 @@ export type EmailConnectionDeps = {
   // Notificación push de lo que entró SOLO por correo (best-effort, después de categorizar para
   // que el usuario abra la app con el movimiento ya clasificado).
   notify?: (userId: string, movements: NotifiableMovement[]) => Promise<void>
+  // El tope global que sigue al ingreso se alinea con lo importado (abonos, gastos del período
+  // anterior, vínculos a recurrentes o cuotas). Best-effort: no falla la sincronización.
+  followIncome?: (userId: string) => Promise<void>
   notifyConnectionError?: (userId: string, message: PushMessage) => Promise<void>
 }
 
@@ -1113,6 +1116,8 @@ export async function syncMailbox(
       await deps.runInstallments(mailbox.userId, created).catch(() => {})
     if (deps.matchRecurring)
       await deps.matchRecurring(mailbox.userId, created).catch(() => {})
+    // Después de los matches: un abono que reclama una recurrente o cuota ya no es adicional.
+    if (deps.followIncome) await deps.followIncome(mailbox.userId).catch(() => {})
     if (deps.categorize) await deps.categorize(mailbox.userId).catch(() => {})
     // Solo lo que el usuario NO registró a mano y no es un traspaso interno merece notificación.
     if (deps.notify && notifiable.length > 0)

@@ -55,6 +55,7 @@ export function PlanSheet({
   closing,
   isCurrentMonth,
   globalLimit,
+  globalLimitFollowsIncome,
   allocated,
   incomes,
   previousCycleIncomes,
@@ -74,9 +75,10 @@ export function PlanSheet({
   period: { year: number; month: number; mode: PeriodMode }
   cycleRange?: { start: string; end: string }
   mode: PeriodMode // modo guardado del período: mes calendario o ciclo de la tarjeta
-  closing?: { date: string; estimated: boolean } // cierre del mes en pantalla, solo en modo tarjeta
+  closing?: { date: string; estimated: boolean } // cierre del mes en pantalla; en modo calendario se muestra deshabilitado
   isCurrentMonth: boolean
   globalLimit: number | null
+  globalLimitFollowsIncome: boolean // el tope lo puso «Igualar al ingreso» y sigue solo
   allocated: number
   incomes: IncomeDTO[]
   previousCycleIncomes: IncomeDTO[]
@@ -110,9 +112,11 @@ export function PlanSheet({
   // (Con `globalLimit === null` la deuda es 0 por construcción: el límite global hereda por
   // carry-forward, así que un mes sin límite implica que tampoco lo hubo antes.)
   const toAllocate = planTotal(activeIncomeTotal, previousMonthDebt)
-  // Los ingresos cambiaron y ya no calzan con el presupuesto: se ofrece igualarlos, nunca se
-  // hace solo (el presupuesto es una decisión, no un cálculo).
-  const suggest = shouldSuggest(toAllocate, globalLimit)
+  // Los ingresos cambiaron y ya no calzan con el presupuesto: se ofrece igualarlos. Igualar deja
+  // el tope siguiendo solo al total del plan (`followIncome`); uno escrito a mano no lo sigue.
+  const suggest = shouldSuggest(toAllocate, globalLimit, globalLimitFollowsIncome)
+  // Mismo número pero sin la marca: igualar no cambia el tope, solo lo deja siguiendo al ingreso.
+  const onlyFollow = suggest && globalLimit === toAllocate
   const previousPeriod = mode === "card_cycle" ? "el ciclo anterior" : previousMonthLabel(period.year, period.month)
   const periodNoun = mode === "card_cycle" ? "ciclo" : "mes"
 
@@ -123,7 +127,7 @@ export function PlanSheet({
       const res = await fetch(`/api/budgets?mode=${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...period, globalLimit: toAllocate }),
+        body: JSON.stringify({ ...period, globalLimit: toAllocate, followIncome: true }),
       })
       if (!res.ok)
         throw new Error(
@@ -147,6 +151,13 @@ export function PlanSheet({
     }
   }
 
+  // El rango del período va junto a «Período», no en el título: el título queda corto como en
+  // los demás modales y el rango se lee donde se decide.
+  const shortDay = (iso: string) =>
+    `${iso.slice(8, 10)} ${monthName(Number(iso.slice(5, 7))).slice(0, 3).toLowerCase()}`
+  const rangeLabel = cycleRange
+    ? `${shortDay(cycleRange.start)} – ${shortDay(cycleRange.end)}`
+    : monthName(period.month)
   return (
     <ResponsiveModal
       open={open}
@@ -154,16 +165,26 @@ export function PlanSheet({
         if (!next) setDrafts({})
         onOpenChange(next)
       }}
-      title={cycleRange ? `Plan del ciclo · ${cycleRange.start.slice(8, 10)} ${monthName(Number(cycleRange.start.slice(5, 7))).slice(0, 3).toLowerCase()} – ${cycleRange.end.slice(8, 10)} ${monthName(Number(cycleRange.end.slice(5, 7))).slice(0, 3).toLowerCase()}` : `Plan de ${monthName(period.month).toLowerCase()}`}
+      title="Plan"
     >
       <div className="flex min-w-0 flex-col gap-8 px-5">
         {/* Período del plan: decide el rango de todo lo de abajo, por eso va primero. */}
         <section>
-          <h3 className="mb-2 px-4 text-headline font-semibold">Período</h3>
+          <div className="mb-2 flex items-baseline justify-between gap-3 px-4">
+            <h3 className="text-headline font-semibold">Período</h3>
+            <span className="tabular text-subheadline text-muted-foreground">
+              {rangeLabel}
+            </span>
+          </div>
           <PeriodModeControl mode={mode} />
-          {mode === "card_cycle" && closing && (
+          {/* También en modo calendario, deshabilitado: así la hoja no salta al cambiar de modo. */}
+          {closing && (
             <div className="mt-6">
-              <ClosingPicker period={period} closing={closing} />
+              <ClosingPicker
+                period={period}
+                closing={closing}
+                disabled={mode !== "card_cycle"}
+              />
             </div>
           )}
         </section>
@@ -285,8 +306,8 @@ export function PlanSheet({
                 Tus ingresos suman{" "}
                 <span className="tabular font-semibold">
                   {formatMoney(activeIncomeTotal, "CLP")}
-                </span>{" "}
-                · presupuesto en {formatMoney(globalLimit ?? 0, "CLP")}
+                </span>
+                {!onlyFollow && <> · presupuesto en {formatMoney(globalLimit ?? 0, "CLP")}</>}
               </p>
               <Button
                 type="button"
@@ -297,9 +318,11 @@ export function PlanSheet({
               >
                 {applying
                   ? "Actualizando…"
-                  : previousMonthDebt > 0
-                    ? `Ajustar a ${formatMoney(toAllocate, "CLP")}`
-                    : "Igualar al ingreso"}
+                  : onlyFollow
+                    ? "Que el tope siga a tus ingresos"
+                    : previousMonthDebt > 0
+                      ? `Ajustar a ${formatMoney(toAllocate, "CLP")}`
+                      : "Igualar al ingreso"}
               </Button>
             </div>
           )}

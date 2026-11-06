@@ -2,6 +2,9 @@
 // Handlers (finance-http) y el plugin MCP, que con ella distingue un rechazo de regla (el caso de
 // uso validó y no escribió) de una falla inesperada. `null` = error desconocido.
 import { ZodError } from "zod"
+import { InvalidPushEndpointError } from "../domain/notifications/push.domain.ts"
+import { SelfTargetError, UserNotFoundError } from "../domain/user/user.domain.ts"
+import { UnknownBankError } from "./finance-use-cases/bank-email-registry.ts"
 import {
   NotOwnerError,
   AccountNotFoundError,
@@ -15,6 +18,8 @@ import {
   WebhookSignatureError,
 } from "../domain/finance/finance.domain.ts"
 import {
+  BankAlreadyLinkedError,
+  BankLabelRequiredError,
   ConnectionMethodConflictError,
   EmailConnectionNotFoundError,
   EmailReauthRequiredError,
@@ -30,6 +35,7 @@ import { InvalidBudgetPeriodError } from "../domain/finance/budget-period.domain
 import { BalanceScanError } from "../domain/finance/balance-scan.domain.ts"
 import {
   InvalidRecurringTemplateError,
+  InvalidRecurringUrlError,
   RecurringCategoryRequiredError,
   RecurringPeriodBankPaidError,
   RecurringPeriodNotManualError,
@@ -61,11 +67,18 @@ export function domainErrorStatus(e: unknown): number | null {
   if (e instanceof WebhookSignatureError || e instanceof OAuthStateError)
     return 401
   if (
+    e instanceof InvalidPushEndpointError || // el cliente propuso un endpoint ajeno
+    e instanceof UnknownBankError || // clave de banco que no existe en el catálogo
+    e instanceof InvalidRecurringUrlError // enlace del portal mal escrito
+  )
+    return 400
+  if (
     e instanceof LockBusyError || // sync ya en curso
     e instanceof ConnectionMethodConflictError || // otro método de conexión activo
     e instanceof DuplicateBudgetAlertError || // ya existe una alerta a ese %
     e instanceof RecurringPeriodBankPaidError || // el período ya lo cobró el banco
-    e instanceof StaleAccountDeletionError // la cuenta cambió desde la previsualización
+    e instanceof StaleAccountDeletionError || // la cuenta cambió desde la previsualización
+    e instanceof BankAlreadyLinkedError // ese banco ya está en este correo
   )
     return 409
   if (
@@ -93,7 +106,9 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof InvalidManualAccountError ||
     e instanceof EmailReauthRequiredError ||
     e instanceof EmailSetupStateError ||
-    e instanceof BalanceScanError
+    e instanceof BalanceScanError ||
+    e instanceof BankLabelRequiredError ||
+    e instanceof SelfTargetError
   )
     return 422
   if (
@@ -103,7 +118,8 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof IncomeNotFoundError ||
     e instanceof RecurringTemplateNotFoundError ||
     e instanceof InstallmentPlanNotFoundError ||
-    e instanceof EmailConnectionNotFoundError
+    e instanceof EmailConnectionNotFoundError ||
+    e instanceof UserNotFoundError
   )
     return 404
   return null

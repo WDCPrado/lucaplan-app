@@ -37,6 +37,12 @@ test("shouldSuggest: no se ofrece si el presupuesto ya es el total", () => {
   assert.equal(shouldSuggest(1250000, 1250000), false)
 })
 
+test("shouldSuggest: un tope igual al total pero sin la marca se ofrece, para que pase a seguir", () => {
+  assert.equal(shouldSuggest(1250000, 1250000, false), true)
+  assert.equal(shouldSuggest(1250000, 1250000, true), false)
+  assert.equal(shouldSuggest(0, 0, false), false) // total en 0: sigue sin ofrecerse
+})
+
 test("shouldSuggest: sin presupuesto definido no se ofrece igualar nada", () => {
   assert.equal(shouldSuggest(1250000, null), false)
 })

@@ -9,7 +9,12 @@ import {
   setRecurringPeriodPaid,
   updateRecurringTemplate,
 } from "@/arch/v1/application/finance-use-cases/recurring-use-cases"
-import type { Periodicity } from "@/arch/v1/domain/finance/recurring.domain"
+import { followIncome } from "@/arch/v1/application/finance-use-cases/follow-income"
+import { recurringUrlSchema } from "@/lib/schemas/recurring-url"
+import {
+  InvalidRecurringUrlError,
+  type Periodicity,
+} from "@/arch/v1/domain/finance/recurring.domain"
 
 export async function PATCH(
   req: Request,
@@ -32,14 +37,19 @@ export async function PATCH(
     Object.keys(body).length === 1 &&
     typeof body.paidWithTransactionId === "string"
   )
-    return withUser(req, (userId) =>
-      payRecurringPeriodWith(financeDeps, userId, {
-        id,
-        transactionId: body.paidWithTransactionId,
-      })
+    // Un abono que pasa a ser el cobro de una recurrente deja de ser ingreso adicional.
+    return withUser(req, async (userId) =>
+      (await followIncome(financeDeps, userId, () =>
+        payRecurringPeriodWith(financeDeps, userId, { id, transactionId: body.paidWithTransactionId }),
+        { allModes: true }
+      )).result
     )
-  return withUser(req, (userId) =>
-    updateRecurringTemplate(financeDeps, userId, {
+  return withUser(req, (userId) => {
+    // Dentro de withUser: sin sesión es 401 antes de tocar el texto. `url` ausente no toca el
+    // enlace guardado; null o "" lo borra.
+    const url = recurringUrlSchema.safeParse(body.url)
+    if (!url.success) throw new InvalidRecurringUrlError(url.error.issues[0]?.message ?? "")
+    return updateRecurringTemplate(financeDeps, userId, {
       id,
       accountId: String(body.accountId),
       categoryId: String(body.categoryId),
@@ -55,8 +65,9 @@ export async function PATCH(
       startDate: body.startDate ? new Date(body.startDate) : new Date(),
       endDate: body.endDate ? new Date(body.endDate) : null,
       isActive: body.isActive ?? true,
+      url: body.url === undefined ? undefined : url.data,
     })
-  )
+  })
 }
 
 export async function DELETE(

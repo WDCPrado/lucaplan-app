@@ -13,6 +13,8 @@ import {
   InvalidInstallmentPlanError,
 } from "../../../domain/finance/installment.domain.ts"
 
+class NotAdopted extends Error {}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toPlan(row: any): InstallmentPlan {
   const currency = row.currency as CurrencyCode
@@ -39,6 +41,8 @@ function toPlan(row: any): InstallmentPlan {
       amount: Money.of(i.amount.toString(), currency),
       transactionId: i.transaction?.id ?? null,
       paidOutsideApp: i.paidOutsideApp,
+      manualTransaction:
+        i.transaction?.generatedFromInstallment === true && i.transaction.externalId === null,
     })),
   }
 }
@@ -46,7 +50,9 @@ function toPlan(row: any): InstallmentPlan {
 const withItems = {
   items: {
     orderBy: { index: "asc" },
-    include: { transaction: { select: { id: true } } },
+    include: {
+      transaction: { select: { id: true, externalId: true, generatedFromInstallment: true } },
+    },
   },
 } as const
 
@@ -96,6 +102,26 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
     return (
       await prisma.installmentPlan.findMany({
         where: { accountId, kind, completedAt: null },
+        include: withItems,
+        orderBy: { createdAt: "asc" },
+      })
+    ).map(toPlan)
+  },
+  async listLoanPlansForPayment(accountId) {
+    return (
+      await prisma.installmentPlan.findMany({
+        where: {
+          accountId,
+          kind: "loan",
+          OR: [
+            { completedAt: null },
+            {
+              items: {
+                some: { transaction: { is: { externalId: null, generatedFromInstallment: true } } },
+              },
+            },
+          ],
+        },
         include: withItems,
         orderBy: { createdAt: "asc" },
       })
@@ -197,6 +223,7 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
           direction: "debit",
           status: "confirmed",
           reviewed: true, // ya tiene la categoría del plan: fuera del triage y de la IA
+          generatedFromInstallment: true, // sustituto: el correo de este pago lo reemplaza
         },
       })
       return true
@@ -206,24 +233,62 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
     }
   },
   async adoptTransaction(plan, itemId, transactionId) {
-    return prisma.$transaction(async (db) => {
-      const item = await db.installmentItem.findUnique({
-        where: { id: itemId },
-        include: { transaction: { select: { id: true } } },
+    return prisma
+      .$transaction(async (db) => {
+        const item = await db.installmentItem.findUnique({
+          where: { id: itemId },
+          include: {
+            transaction: { select: { id: true, externalId: true, generatedFromInstallment: true } },
+          },
+        })
+        if (!item || item.paidOutsideApp) return false
+        if (item.transaction) {
+          // Saldada por el banco: dos cargos reales no se pisan. Saldada con «Generar cuota»: solo la
+          // reemplaza un movimiento que trae el banco, y el generado se borra —conservar los dos
+          // contaría dos veces el gasto—. Se borra directo, sin tocar el saldo:
+          // `registerItemTransaction` tampoco lo movió. Un movimiento que la persona escribió y
+          // asignó con «Asignar» no lleva la marca y nunca se borra aquí.
+          if (item.transaction.externalId !== null || !item.transaction.generatedFromInstallment)
+            return false
+          const incoming = await db.transaction.findUnique({
+            where: { id: transactionId },
+            select: { externalId: true, installmentItemId: true },
+          })
+          if (!incoming || incoming.externalId === null || incoming.installmentItemId !== null)
+            return false
+          // deleteMany: si otro correo ya lo reemplazó en paralelo, no hay fila y este no adopta.
+          // Solo se borra el generado intacto: con reembolsos (se irían en cascada) o vinculado a una
+          // recurrente, la persona lo trabajó y no se toca; el correo queda suelto.
+          const removed = await db.transaction.deleteMany({
+            where: {
+              id: item.transaction.id,
+              externalId: null,
+              generatedFromInstallment: true,
+              reimbursementsPaid: { none: {} },
+              reimbursementsReceived: { none: {} },
+              recurringTemplateId: null,
+            },
+          })
+          if (removed.count === 0) throw new NotAdopted()
+        }
+        // El movimiento conserva su monto, fecha y externalId reales —el correo es el hecho— y solo
+        // adopta el vínculo y la categoría del plan.
+        const { count } = await db.transaction.updateMany({
+          where: { id: transactionId, installmentItemId: null },
+          data: {
+            categoryId: plan.categoryId,
+            installmentItemId: itemId,
+            reviewed: true,
+          },
+        })
+        // Sin adoptar, el borrado del manual se revierte con la transacción.
+        if (count === 0) throw new NotAdopted()
+        return true
       })
-      if (!item || item.transaction || item.paidOutsideApp) return false
-      // El movimiento conserva su monto, fecha y externalId reales —el correo es el hecho— y solo
-      // adopta el vínculo y la categoría del plan.
-      const { count } = await db.transaction.updateMany({
-        where: { id: transactionId, installmentItemId: null },
-        data: {
-          categoryId: plan.categoryId,
-          installmentItemId: itemId,
-          reviewed: true,
-        },
+      .catch((e) => {
+        if (e instanceof NotAdopted) return false
+        throw e
       })
-      return count > 0
-    })
   },
   async markPaidOutsideApp(itemIds) {
     await prisma.installmentItem.updateMany({
@@ -382,7 +447,8 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
     // Solo se suelta el vínculo: el movimiento es un gasto real y se conserva tal cual.
     await prisma.transaction.update({
       where: { id: transactionId },
-      data: { installmentItemId: null },
+      // Suelto ya no es la cuota generada: si después se asigna a mano, el correo no lo borra.
+      data: { installmentItemId: null, generatedFromInstallment: false },
     })
   },
   async moveItemTransaction(transactionId, to, from) {

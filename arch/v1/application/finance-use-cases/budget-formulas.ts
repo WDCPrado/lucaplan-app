@@ -298,7 +298,16 @@ export function effectiveGlobalLimit(
   year: number,
   month: number
 ): Money | null {
-  return latestUpTo(budgets, year, month)?.globalLimit ?? null
+  return effectiveGlobalBudget(budgets, year, month)?.globalLimit ?? null
+}
+
+/** El registro del que (year, month) hereda su límite global, con su marca `followsIncome`. */
+export function effectiveGlobalBudget(
+  budgets: MonthlyBudget[],
+  year: number,
+  month: number
+): MonthlyBudget | null {
+  return latestUpTo(budgets, year, month) ?? null
 }
 
 /**

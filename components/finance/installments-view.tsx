@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Plus } from "lucide-react"
+import { Check, ChevronRight, Plus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { currentPeriod, formatCLP } from "@/lib/finance-format"
@@ -168,6 +168,7 @@ function PlanRow({
   const completed = p.completedAt !== null
   const item = currentItem(p)
   const monthPaid = !completed && thisMonthSettled(p)
+  const overdue = completed ? 0 : p.items.filter((i) => i.status === "overdue").length
 
   // Dos líneas: nombre y cuota del mes; debajo, en qué cuota va y cuándo vence la próxima.
   return (
@@ -205,12 +206,18 @@ function PlanRow({
                 cuota {p.settledCount} de {p.installmentsCount}
                 {p.nextDueDate && ` · vence ${shortDate(p.nextDueDate)}`}
               </span>
-              {/* La cuota de este mes ya está saldada. */}
-              {monthPaid && (
-                <span className="flex shrink-0 items-center gap-0.5 text-primary">
-                  <Check className="size-3.5" />
-                  Pagada
+              {/* Atrasada manda sobre pagada: es lo que hay que resolver. */}
+              {overdue > 0 ? (
+                <span className="shrink-0 font-medium text-destructive">
+                  {overdue === 1 ? "Atrasada" : `${overdue} atrasadas`}
                 </span>
+              ) : (
+                monthPaid && (
+                  <span className="flex shrink-0 items-center gap-0.5 text-primary">
+                    <Check className="size-3.5" />
+                    Pagado
+                  </span>
+                )
               )}
             </span>
           )}
@@ -229,6 +236,8 @@ function PlanRow({
             </span>
           )}
         </span>
+        {/* La fila abre el detalle: chevron de lista de iOS. */}
+        <ChevronRight aria-hidden className="disclosure" />
       </button>
     </li>
   )

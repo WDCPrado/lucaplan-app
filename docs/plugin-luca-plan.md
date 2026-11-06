@@ -74,7 +74,7 @@ argumento con `.describe()`. Hoy son 51, agrupadas así:
 | Movimientos | `buscar_movimientos`, `ver_movimiento` | `crear_movimiento`, `corregir_movimiento`, `eliminar_movimiento` |
 | Presupuesto | `resumen_mes`, `ver_presupuesto` | `fijar_presupuesto_global`, `fijar_presupuesto_categoria` |
 | Ingresos | `listar_ingresos` | `crear_ingreso`, `editar_ingreso`, `eliminar_ingreso` (finaliza desde un mes), `registrar_ingreso_mes`, `deshacer_ingreso_mes` |
-| Recurrentes | `listar_recurrentes`, `candidatos_pago_recurrente` | `crear_recurrente` (desde un movimiento), `planificar_recurrente` (sin cobro previo), `editar_recurrente`, `activar_recurrente`, `eliminar_recurrente`, `marcar_pago_recurrente`, `vincular_pago_recurrente` |
+| Recurrentes | `listar_recurrentes`, `candidatos_pago_recurrente` | `crear_recurrente` (desde un movimiento), `planificar_recurrente` (sin cobro previo), `editar_recurrente`, `activar_recurrente`, `eliminar_recurrente`, `marcar_pago_recurrente`, `vincular_pago_recurrente`; `crear_recurrente`, `planificar_recurrente` y `editar_recurrente` aceptan `url` opcional (enlace de pago) |
 | Cuotas | `listar_planes_cuotas`, `ver_plan_cuotas`, `candidatos_pago_cuota` | `crear_plan_cuotas`, `editar_cuota`, `categorizar_plan_cuotas`, `eliminar_plan_cuotas`, `pagar_cuota`, `vincular_pago_cuota`, `desvincular_pago_cuota`, `mover_pago_cuota` |
 | Planificación | `planificar_periodo` | — |
 | Configuración | `ver_configuracion` | — |
@@ -100,6 +100,15 @@ Todas llevan el prefijo `lucaplan_`. Cómo se navega: **buscar o listar → ver 
 - `planificar_recurrente` crea un compromiso sin cobro real previo: sin movimientos y sin texto
   bancario inventado, así que no reclama cargos por texto. El primer cargo del banco vinculado con
   `vincular_pago_recurrente` le fija su texto para reconocer los siguientes.
+- `url` de una recurrente es el enlace donde se paga. Se normaliza con el mismo esquema que la app
+  (`lib/schemas/recurring-url.ts`: sin esquema se asume `https`, solo `http`/`https`); `null` la
+  quita y, en `editar_recurrente`, omitirla la conserva. La app dice «Pagado» (no «Cobrado») cuando
+  la recurrente o la cuota del período está al día.
+- `pagar_cuota` es lo mismo que «Generar cuota» en la app: crea el movimiento y lo marca como
+  generado (`generatedFromInstallment`). En un `loan`, si después llega por correo el pago real
+  (a lo más `REPLACE_WINDOW_DAYS` = 10 días del vencimiento, o 31 si trae el N° de cuota), el
+  generado se borra y queda el del banco. Corregir o desvincular el movimiento le quita la marca:
+  ya no es un sustituto.
 - `ver_configuracion` muestra la misma fuente que usan la app, los cálculos y las notificaciones
   (modo del período, cierres, ritmo, alertas, días de aviso). Es **solo lectura** desde el chat: hoy
   esa configuración es común a toda la instalación (`app_setting`, `budget_alert`) y cambiarla desde
@@ -119,7 +128,7 @@ Todas llevan el prefijo `lucaplan_`. Cómo se navega: **buscar o listar → ver 
 
 ## Ingresos para el ajuste del plan
 
-El importe que se ofrece con **Ajustar plan** es la suma de las fuentes de ingreso
+El importe que se ofrece con **Igualar al ingreso** (en «Ajustar plan») es la suma de las fuentes de ingreso
 vigentes del período **más** las transacciones `credit` confirmadas del mismo
 período que no estén vinculadas a una fuente (`incomeId = null`). Un abono
 vinculado a una fuente ya está representado por ella y **no se vuelve a sumar**.
@@ -128,6 +137,20 @@ cuotas y recurrentes que el plan contabiliza por separado. La selección tempora
 respeta modo calendario o ciclo de tarjeta. Esta regla también aplica a
 `lucaplan_planificar_periodo`, sin crear ingresos ficticios ni modificar saldos.
 No confundas el ingreso planificado con la acreditación bancaria confirmada.
+
+**El tope sigue al ingreso.** Al total anterior se le resta el déficit del período anterior (gasto
+por encima de su ingreso). Un presupuesto global lleva una marca, `followsIncome`, que se hereda
+igual que el tope: la pone «Igualar al ingreso» (o `fijar_presupuesto_global` con
+`followIncome: true`) y la quita cualquier tope escrito a mano. Después de cada escritura que puede
+mover ese total, el tope del período **en curso** con la marca, o sin tope definido, queda igual al
+total nuevo (también en 0, si la marca ya estaba). Lo hacen las altas, ediciones y bajas de fuentes
+de ingreso, registrar o deshacer el ingreso del mes, crear, corregir o eliminar movimientos
+(también el cargo bancario y la corrección de fecha), aplicar una conciliación, vincular un abono a
+su fuente o un movimiento a una recurrente o cuota, y la sincronización por correo cuando crea
+movimientos. Un tope sin la marca nunca se toca, ni aunque llegue en medio: la escritura es
+condicional en la base. Los períodos pasados nunca cambian. Los movimientos valen para los dos
+modos: el que no es el de la vista solo sigue si ya tenía tope. Los topes que existían antes de la
+marca quedan como fijados a mano hasta que se vuelva a igualar.
 
 ## Reglas de escritura
 

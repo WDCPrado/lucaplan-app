@@ -16,6 +16,7 @@ import {
   payRecurringPeriodWith,
   setRecurringActive,
   setRecurringPeriodPaid,
+  updateRecurringTemplate,
 } from "./recurring-use-cases.ts"
 import { listRecurringCandidates, listRecurringView } from "./finance-read.ts"
 import { collectDueItems } from "../notification-use-cases/notify-due-use-case.ts"
@@ -159,6 +160,7 @@ const arriendo: RecurringTemplate = {
   startDate: new Date(2026, 0, 5),
   endDate: null,
   isActive: true,
+  url: null,
 }
 
 test("materializar el período crea un pending y no duplica al repetir", async () => {
@@ -377,6 +379,39 @@ test("crear desde un movimiento lo vincula como ejecución de su período", asyn
   assert.equal(rows[0].id, "tx-origen")
   assert.equal(rows[0].templateId, "nueva")
   assert.equal(rows[0].periodKey, "2026-07")
+})
+
+test("editar guarda el enlace, lo conserva si no viene y lo borra con null", async () => {
+  const { repo } = makeRepo([{ ...arriendo, url: "https://www.enel.cl" }])
+  const saved: (string | null)[] = []
+  repo.update = async (input) => {
+    saved.push(input.url)
+    return { ...arriendo, ...input, currency: "CLP" }
+  }
+  const deps = {
+    recurring: repo,
+    accounts: { findById: async () => ({ id: "acc1", userId: "u1", currency: "CLP" }) },
+    categories: { findById: async () => ({ id: "c1", userId: "u1", type: "expense" }) },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any
+  const base = {
+    id: arriendo.id,
+    accountId: "acc1",
+    categoryId: "c1",
+    label: "Arriendo",
+    direction: "debit" as const,
+    baseAmount: 350_000,
+    tolerancePct: 10,
+    periodicity: "monthly" as const,
+    dayOfMonth: 5,
+    startDate: arriendo.startDate,
+    endDate: null,
+    isActive: true,
+  }
+  await updateRecurringTemplate(deps, "u1", base)
+  await updateRecurringTemplate(deps, "u1", { ...base, url: "https://portal.aguas.cl" })
+  await updateRecurringTemplate(deps, "u1", { ...base, url: null })
+  assert.deepEqual(saved, ["https://www.enel.cl", "https://portal.aguas.cl", null])
 })
 
 // El comprometido no puede depender solo del cron: la vista lo materializa al abrirse (idempotente).

@@ -351,6 +351,86 @@ test("si el banco nombra una cuota ya saldada, no se mete en otra", () => {
   assert.equal(item, null)
 })
 
+// WDC-178: cuándo el correo reemplaza una cuota generada a mano («Generar cuota»).
+
+// Crédito de 4 cuotas de $100.000 (vencen 5/8, 5/9, 5/10, 5/11): 1 y 2 del banco, 3 generada a
+// mano, 4 pendiente.
+function withGenerated3(over: Partial<InstallmentPlan> = {}) {
+  const plan = makePlan({ installmentsCount: 4, totalAmount: clp(400_000), ...over })
+  plan.items[0].transactionId = "banco-1"
+  plan.items[1].transactionId = "banco-2"
+  plan.items[2].transactionId = "gen-3"
+  plan.items[2].manualTransaction = true
+  return plan
+}
+
+test("Dado la cuota 3 generada a mano y la 4 pendiente, cuando llega sin N° un pago adelantado de la 4 (2 días antes de su vencimiento), entonces no reemplaza la 3", () => {
+  const plan = withGenerated3()
+  assert.equal(itemForPayment(plan, payment({ date: day(2026, 11, 3) })), null)
+})
+
+test("Dado la cuota 3 generada a mano, cuando llega sin N° un pago a 3 días de su vencimiento, entonces la reemplaza", () => {
+  const plan = withGenerated3()
+  assert.equal(itemForPayment(plan, payment({ date: day(2026, 10, 8) }))?.index, 3)
+})
+
+test("Dado la cuota 3 generada a mano, cuando llega sin N° un pago a más de 10 días de cualquier vencimiento, entonces no reemplaza nada", () => {
+  const plan = withGenerated3()
+  assert.equal(itemForPayment(plan, payment({ date: day(2026, 10, 20) })), null)
+})
+
+test("Dado la cuota 2 generada a mano y la 3 pendiente, cuando llega sin N° un pago cerca del vencimiento de la 3, entonces salda la 3 como siempre", () => {
+  const plan = makePlan()
+  plan.items[0].transactionId = "banco-1"
+  plan.items[1].transactionId = "gen-2"
+  plan.items[1].manualTransaction = true
+  assert.equal(itemForPayment(plan, payment({ date: day(2026, 10, 6) }))?.index, 3)
+})
+
+// Crédito cerrado: todas saldadas, la última (vence 5/11) generada a mano.
+function closedWithGeneratedLast() {
+  const plan = withGenerated3({ id: "cerrado", completedAt: day(2026, 11, 5) })
+  plan.items[2].manualTransaction = false
+  plan.items[2].transactionId = "banco-3"
+  plan.items[3].transactionId = "gen-4"
+  plan.items[3].manualTransaction = true
+  return plan
+}
+
+test("Dado un crédito cerrado con su última cuota generada a mano, cuando llega sin N° el primer correo de otro crédito con otro monto, entonces no lo toma", () => {
+  const plan = closedWithGeneratedLast()
+  assert.equal(
+    pickLoanPlanFor(payment({ amount: clp(254_000), date: day(2026, 11, 6) }), [plan]),
+    null
+  )
+})
+
+test("Dado un crédito cerrado con su última cuota generada a mano, cuando llega sin N° un pago de ese monto cerca del vencimiento, entonces lo toma", () => {
+  const plan = closedWithGeneratedLast()
+  assert.equal(
+    pickLoanPlanFor(payment({ amount: clp(103_000), date: day(2026, 11, 6) }), [plan])?.id,
+    "cerrado"
+  )
+})
+
+test("Dado un crédito cerrado con su última cuota generada a mano, cuando llega un pago un año después, con o sin N°, entonces no lo toma", () => {
+  const plan = closedWithGeneratedLast()
+  const late = day(2027, 11, 5)
+  assert.equal(pickLoanPlanFor(payment({ date: late }), [plan]), null)
+  assert.equal(pickLoanPlanFor(payment({ date: late, installmentNumber: 4 }), [plan]), null)
+})
+
+test("Dado un crédito cerrado con su última cuota generada a mano, cuando llega el correo «cuota 4» dentro del período, entonces lo toma aunque el monto difiera", () => {
+  const plan = closedWithGeneratedLast()
+  assert.equal(
+    pickLoanPlanFor(
+      payment({ amount: clp(140_000), date: day(2026, 11, 20), installmentNumber: 4 }),
+      [plan]
+    )?.id,
+    "cerrado"
+  )
+})
+
 // --- Estado, avance y saldo ---
 
 test("el estado de una cuota distingue registrada, fuera de la app, vencida y por venir", () => {

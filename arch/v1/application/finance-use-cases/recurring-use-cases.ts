@@ -56,6 +56,9 @@ export type RecurringInput = {
   dayOfMonth: number | null
   startDate: Date
   endDate: Date | null // null = indefinida
+  // Portal de pago, ya normalizado en el borde (recurringUrlSchema). En el update, `undefined`
+  // conserva el guardado y `null` lo borra.
+  url?: string | null
 }
 
 // Valida cuenta (si viene: existe, del usuario), categoría (existe, del usuario, del mismo lado que
@@ -154,6 +157,7 @@ export async function createRecurringTemplate(
     dayOfMonth: input.dayOfMonth,
     startDate: input.startDate,
     endDate: input.endDate,
+    url: input.url ?? null,
   })
 
   await deps.recurring.attachImportedMovement(
@@ -190,6 +194,7 @@ export async function createPlannedRecurringTemplate(
     dayOfMonth: input.dayOfMonth,
     startDate: input.startDate,
     endDate: input.endDate,
+    url: input.url ?? null,
   })
 }
 
@@ -216,6 +221,7 @@ export async function updateRecurringTemplate(
     startDate: input.startDate,
     endDate: input.endDate,
     isActive: input.isActive,
+    url: input.url === undefined ? existing.url : input.url,
   })
   // Acortar la vigencia deja comprometidos de períodos que ya no existen: se retiran aquí, o
   // seguirían apareciendo como "Por cobrar" y sumando al comprometido del mes.

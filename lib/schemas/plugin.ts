@@ -3,6 +3,7 @@ import { z } from "zod"
 import type { PluginScope } from "../../arch/v1/domain/plugin/plugin.domain.ts"
 import { PERIODICITIES } from "../../arch/v1/domain/finance/recurring.domain.ts"
 import { MOVEMENT_STATUSES } from "../../arch/v1/domain/finance/finance.domain.ts"
+import { recurringUrlSchema } from "./recurring-url.ts"
 import {
   accountSchema,
   categorySchema,
@@ -116,6 +117,11 @@ const recurring = {
   endDate: date
     .nullable()
     .describe("Último día de vigencia YYYY-MM-DD; null = indefinida"),
+  url: recurringUrlSchema
+    .optional()
+    .describe(
+      "Enlace donde se paga, p. ej. https://www.enel.cl (sin https se asume); null lo quita; omitido al editar lo conserva"
+    ),
 }
 const snapshotBucket = (money: z.ZodNumber) =>
   z
@@ -564,7 +570,7 @@ export const pluginTools = {
   ),
   lucaplan_registrar_ingreso_extraordinario: write(
     { title: "Registrar ingreso extraordinario", destructive: true },
-    "Registra un abono real único en cuenta corriente y categoría de ingreso, sin generar una fuente mensual recurrente. No registrar transferencias entre cuentas propias como ingresos. Los abonos confirmados sin fuente de ingreso vinculada sí cuentan para ajustar el presupuesto del ciclo; si ya están vinculados a una fuente, no vuelvas a sumarlos. Verifica antes que no exista el abono. Idempotente por operationId.",
+    "Registra un abono real único en cuenta corriente y categoría de ingreso, sin generar una fuente mensual recurrente. No registrar transferencias entre cuentas propias como ingresos. Los abonos confirmados sin fuente de ingreso vinculada sí cuentan para ajustar el presupuesto del ciclo; si ya están vinculados a una fuente, no vuelvas a sumarlos. Verifica antes que no exista el abono. Idempotente por operationId. El presupuesto global del período en curso que sigue al total del plan (marcado con «Igualar al ingreso», o sin definir) se ajusta solo; uno fijado a mano no se toca.",
     z.strictObject({
       accountId: ref("Cuenta corriente"),
       categoryId: ref("Categoría de ingreso"),
@@ -646,13 +652,19 @@ export const pluginTools = {
   ),
   lucaplan_fijar_presupuesto_global: write(
     { title: "Fijar presupuesto global", destructive: true },
-    "Fija el límite global del mes en CLP (entero ≥ 0), para el mes actual o uno futuro; los meses siguientes lo heredan hasta que se cambie. Es un tope: no crea gastos ni mueve dinero.",
+    "Fija el límite global del mes en CLP (entero ≥ 0), para el mes actual o uno futuro; los meses siguientes lo heredan hasta que se cambie. Es un tope: no crea gastos ni mueve dinero. Con followIncome=true (lo mismo que «Igualar al ingreso» en la app) el tope queda marcado y sigue solo al total del plan (ingreso − déficit del período anterior) cada vez que cambian los ingresos; sin él el tope queda fijado a mano y no se ajusta.",
     monthlyBudgetSchema
       .extend({
         ...period,
         globalLimit: monthlyBudgetSchema.shape.globalLimit.describe(
           "Límite global en pesos enteros, p. ej. 1500000"
         ),
+        followIncome: z
+          .boolean()
+          .optional()
+          .describe(
+            "true = el tope sigue solo al total del plan; usa como globalLimit ese total (ver_presupuesto). Omitido o false = fijado a mano"
+          ),
         ...operation,
       })
       .strict()
@@ -676,12 +688,12 @@ export const pluginTools = {
   ),
   lucaplan_crear_ingreso: write(
     { title: "Crear fuente de ingreso" },
-    "Planifica un ingreso desde el mes indicado en el modo activo. sourceId opcional incorpora una fuente devuelta por listar_ingresos available=true: usa su identidad, cuenta, categoría y día existentes, y solo fija el monto del nuevo plan. No crea movimientos ni cambia caja.",
+    "Planifica un ingreso desde el mes indicado en el modo activo. sourceId opcional incorpora una fuente devuelta por listar_ingresos available=true: usa su identidad, cuenta, categoría y día existentes, y solo fija el monto del nuevo plan. No crea movimientos ni cambia caja. El presupuesto global del período en curso que sigue al total del plan (marcado con «Igualar al ingreso», o sin definir) se ajusta solo; uno fijado a mano no se toca.",
     incomeSchema.extend({ ...incomeFields, ...period, ...operation }).strict()
   ),
   lucaplan_editar_ingreso: write(
     { title: "Editar fuente de ingreso", destructive: true },
-    "Cambia una fuente de ingreso desde el mes indicado; los meses anteriores conservan su monto. Reemplaza todos los campos. Para terminarla usa lucaplan_eliminar_ingreso.",
+    "Cambia una fuente de ingreso desde el mes indicado; los meses anteriores conservan su monto. Reemplaza todos los campos. Para terminarla usa lucaplan_eliminar_ingreso. El presupuesto global del período en curso que sigue al total del plan (marcado con «Igualar al ingreso», o sin definir) se ajusta solo; uno fijado a mano no se toca.",
     incomeSchema
       .extend({
         ...incomeFields,
@@ -699,7 +711,7 @@ export const pluginTools = {
   ),
   lucaplan_registrar_ingreso_mes: write(
     { title: "Registrar cobro de ingreso" },
-    "Úsala cuando el ingreso del mes ya llegó: crea una sola vez el movimiento (abono) en su cuenta con el monto de la fuente y sube la caja. Repetirlo no abona dos veces. Si el monto real fue otro, corrígelo después con lucaplan_corregir_movimiento (cuentas manuales).",
+    "Úsala cuando el ingreso del mes ya llegó: crea una sola vez el movimiento (abono) en su cuenta con el monto de la fuente y sube la caja. Repetirlo no abona dos veces. Si el monto real fue otro, corrígelo después con lucaplan_corregir_movimiento (cuentas manuales). El presupuesto global del período en curso que sigue al total del plan (marcado con «Igualar al ingreso», o sin definir) se ajusta solo; uno fijado a mano no se toca.",
     z.strictObject({
       incomeId: ref("Fuente de ingreso"),
       ...period,
@@ -719,7 +731,7 @@ export const pluginTools = {
   // --- Recurrentes ---
   lucaplan_listar_recurrentes: read(
     "Listar recurrentes",
-    "Úsala para ver gastos e ingresos recurrentes: monto base y rango aceptado, próximo cobro, si el período en curso ya se pagó y si se marcó a mano.",
+    "Úsala para ver gastos e ingresos recurrentes: monto base y rango aceptado, próximo cobro, si el período en curso ya está pagado y si se marcó a mano, y su enlace de pago (url).",
     empty
   ),
   lucaplan_crear_recurrente: write(
@@ -738,7 +750,7 @@ export const pluginTools = {
   ),
   lucaplan_editar_recurrente: write(
     { title: "Editar recurrente", destructive: true },
-    "Cambia cuenta, categoría, nombre, monto, tolerancia, periodicidad o vigencia de una recurrente; no cambia el texto bancario que la reconoce. Reemplaza todos los campos. Acortar la vigencia retira los por cobrar que quedan fuera.",
+    "Cambia cuenta, categoría, nombre, monto, tolerancia, periodicidad, vigencia o enlace de pago de una recurrente; no cambia el texto bancario que la reconoce. Reemplaza todos los campos salvo url, que omitida se conserva. Acortar la vigencia retira los por cobrar que quedan fuera.",
     z.strictObject({
       id: ref("Recurrente"),
       ...recurring,
@@ -903,7 +915,7 @@ export const pluginTools = {
   ),
   lucaplan_pagar_cuota: write(
     { title: "Registrar pago de cuota" },
-    "CREA el movimiento de pago de una cuota vencida cuando el pago no dejó rastro en la app (se pagó desde otro banco o no llegó el aviso). Las cuotas de tarjeta no se cobran solas con el pago de la tarjeta: se saldan al conciliar la factura (cuotasPendientes de lucaplan_previsualizar_conciliacion), con la fecha de facturación (día del corte) y el monto de la línea de cuota, no la fecha de vencimiento del pago; esas líneas no van como additions de la conciliación. Si el cargo ya existe, usa lucaplan_vincular_pago_cuota para no contarlo dos veces. No admite cuotas ni fechas futuras.",
+    "CREA el movimiento de pago de una cuota vencida cuando el pago no dejó rastro en la app (se pagó desde otro banco o no llegó el aviso). Las cuotas de tarjeta no se cobran solas con el pago de la tarjeta: se saldan al conciliar la factura (cuotasPendientes de lucaplan_previsualizar_conciliacion), con la fecha de facturación (día del corte) y el monto de la línea de cuota, no la fecha de vencimiento del pago; esas líneas no van como additions de la conciliación. Si el cargo ya existe, usa lucaplan_vincular_pago_cuota para no contarlo dos veces. No admite cuotas ni fechas futuras. Es lo mismo que «Generar cuota» en la app: en un loan el movimiento queda como sustituto, y si después llega por correo su pago real (a lo más 10 días del vencimiento, o 31 si trae el N° de cuota) se borra y queda el del banco. Corregirlo o desvincularlo le quita esa marca.",
     z.strictObject({
       planId: ref("Plan"),
       itemId: ref("Cuota vencida"),

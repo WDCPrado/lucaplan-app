@@ -30,6 +30,7 @@ const template = (over: Partial<RecurringTemplate> = {}): RecurringTemplate => (
   startDate: new Date(2026, 6, 5),
   endDate: null,
   isActive: true,
+  url: null,
   ...over,
 })
 

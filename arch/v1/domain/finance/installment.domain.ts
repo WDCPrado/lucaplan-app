@@ -44,6 +44,10 @@ export type InstallmentItem = {
   amount: Money // card: definitivo; loan: estimación (el correo manda)
   transactionId: string | null // movimiento creado o adoptado; null = sin registrar
   paidOutsideApp: boolean // cuota anterior a la conexión de correo: cuenta, pero no generó gasto
+  // El movimiento lo generó la app con «Generar cuota» (`Transaction.generatedFromInstallment`):
+  // es un sustituto y el correo de ese pago lo reemplaza. Uno que la persona escribió y asignó no
+  // cuenta. Ausente = false.
+  manualTransaction?: boolean
 }
 
 // --- Inputs de escritura ---
@@ -154,14 +158,68 @@ export function nextDueItem(
   )
 }
 
+/** ¿La cuota la saldó un movimiento generado a mano que el correo del banco puede reemplazar? */
+export function isReplaceableByEmail(item: InstallmentItem): boolean {
+  return item.transactionId !== null && item.manualTransaction === true
+}
+
+// Un pago SIN N° de cuota reemplaza una generada a mano solo si cae a lo más a 10 días de su
+// vencimiento: un pago atrasado o adelantado unos días es normal; más lejos ya es otro período
+// (cuotas mensuales) y borrar el sustituto sería adivinar.
+export const REPLACE_WINDOW_DAYS = 10
+// Con N° de cuota el banco dice cuál pagó, pero un pago a más de un período de su vencimiento
+// (p. ej. un año después) es otro crédito que reusa la numeración, no ese pago que llegó tarde.
+export const REPLACE_WITH_NUMBER_WINDOW_DAYS = 31
+
+/** Días calendario entre dos fechas, leídas en UTC como `isAfterDay`. */
+function daysApart(a: Date, b: Date): number {
+  const dayOf = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  return Math.abs(dayOf(a) - dayOf(b)) / 86_400_000
+}
+
+/**
+ * Cuota de un crédito que corresponde a un pago SIN N° de cuota. La cuota cuyo vencimiento está
+ * más cerca de la fecha del pago: si quedó generada a mano y el pago cae dentro de
+ * `REPLACE_WINDOW_DAYS`, el correo es ese mismo pago que llegó tarde y la reemplaza. Si no, como
+ * siempre, la pendiente más antigua ya vencida (`nextDueItem`). Así un pago adelantado de la cuota
+ * 4 no borra la generada de la 3.
+ */
+function loanItemFor(plan: InstallmentPlan, date: Date): InstallmentItem | null {
+  const nearest = [...plan.items]
+    .sort((a, b) => a.index - b.index)
+    .reduce<InstallmentItem | null>(
+      (best, i) =>
+        best === null || daysApart(i.dueDate, date) < daysApart(best.dueDate, date) ? i : best,
+      null
+    )
+  if (
+    nearest &&
+    isReplaceableByEmail(nearest) &&
+    daysApart(nearest.dueDate, date) <= REPLACE_WINDOW_DAYS
+  )
+    return nearest
+  return nextDueItem(plan, date)
+}
+
+/** Cuota generada a mano que nombra el correo, si el pago cae dentro del período de esa cuota. */
+function namedReplaceable(plan: InstallmentPlan, payment: LoanPayment): InstallmentItem | null {
+  const named = plan.items.find((i) => i.index === payment.installmentNumber)
+  return named &&
+    isReplaceableByEmail(named) &&
+    daysApart(named.dueDate, payment.date) <= REPLACE_WITH_NUMBER_WINDOW_DAYS
+    ? named
+    : null
+}
+
 /**
  * Ítem que salda un pago de crédito. El N° de cuota del correo manda cuando viene: es el propio
  * banco diciendo cuál cuota pagó, más fiable que deducirla del orden.
  *
- * Si el banco nombra una cuota YA saldada, no se cae a otra: ese pago es un duplicado o algo que
- * el modelo no previó, y meterlo en la cuota siguiente reportaría como cuota 2 lo que el banco
- * llamó cuota 1. Devuelve null y el movimiento queda suelto para que lo resuelva el usuario.
- * Solo cuando el correo no trae número se recurre a la pendiente más antigua vencida.
+ * Si el banco nombra una cuota generada a mano, es esa (dentro de un período): el correo reemplaza
+ * al movimiento generado. Si el banco nombra una cuota YA saldada de otra forma, no se cae a otra:
+ * ese pago es un duplicado o algo que el modelo no previó, y meterlo en la cuota siguiente
+ * reportaría como cuota 2 lo que el banco llamó cuota 1. Devuelve null y el movimiento queda suelto
+ * para que lo resuelva el usuario. Solo cuando el correo no trae número se recurre a `loanItemFor`.
  */
 export function itemForPayment(
   plan: InstallmentPlan,
@@ -169,9 +227,9 @@ export function itemForPayment(
 ): InstallmentItem | null {
   if (payment.installmentNumber !== null) {
     const named = plan.items.find((i) => i.index === payment.installmentNumber)
-    if (named) return isSettled(named) ? null : named
+    if (named) return isSettled(named) ? namedReplaceable(plan, payment) : named
   }
-  return nextDueItem(plan, payment.date)
+  return loanItemFor(plan, payment.date)
 }
 
 /** Rango [monto·(1−tol), monto·(1+tol)]: si un pago ya importado calza con una cuota al crear el plan. */
@@ -201,9 +259,27 @@ export function amountDistance(payment: Money, expected: Money): bigint {
 }
 
 /**
+ * Un plan cerrado solo toma un pago que reemplaza una cuota generada a mano, y aun así solo con
+ * evidencia: el correo nombra esa cuota (la ventana de un período ya la exige `namedReplaceable`)
+ * o, sin número, el monto cae en la tolerancia del plan (la ventana de días ya la exige
+ * `loanItemFor`). Sin esto, siendo el único candidato ganaría sin comparar nada, y el primer correo
+ * de OTRO crédito sin plan en la app borraría su última cuota.
+ */
+function closedPlanTakes(
+  plan: InstallmentPlan,
+  item: InstallmentItem,
+  payment: LoanPayment
+): boolean {
+  if (!isReplaceableByEmail(item)) return false
+  if (payment.installmentNumber !== null) return payment.installmentNumber === item.index
+  const { min, max } = toleranceRange(item.amount, plan.tolerancePct)
+  return payment.amount.compare(min) >= 0 && payment.amount.compare(max) <= 0
+}
+
+/**
  * Plan `loan` y cuota que salda un pago:
  *
- *   1. planes activos de esa cuenta de origen — con uno solo, se acabó, y la cuota la elige
+ *   1. planes de esa cuenta de origen (activos, o cerrados según `closedPlanTakes`) — con uno solo, se acabó, y la cuota la elige
  *      `itemForPayment` (manda el N° del correo);
  *   2. con varios, el monto: gana el plan cuya cuota pendiente está más cerca del cargo, calce o no
  *      la tolerancia (la última cuota de un crédito suele desviarse del cronograma);
@@ -223,11 +299,11 @@ export function pickLoanItemFor(
   const candidates = plans.flatMap((p) => {
     const item =
       p.kind === "loan" &&
-      p.completedAt === null &&
       p.accountId === payment.accountId &&
       p.currency === payment.amount.currency
-        ? nextDueItem(p, payment.date)
+        ? (namedReplaceable(p, payment) ?? loanItemFor(p, payment.date))
         : null
+    if (item && p.completedAt !== null && !closedPlanTakes(p, item, payment)) return []
     return item ? [{ plan: p, item, distance: amountDistance(payment.amount, item.amount) }] : []
   })
   if (candidates.length === 0) return null
@@ -358,6 +434,11 @@ export interface InstallmentPlanRepository {
     accountId: string,
     kind: InstallmentKind
   ): Promise<InstallmentPlan[]>
+  /**
+   * Planes `loan` de una cuenta que un correo de pago puede tocar: los activos y los cerrados con
+   * alguna cuota saldada por un movimiento manual (el correo de esa cuota la reemplaza).
+   */
+  listLoanPlansForPayment(accountId: string): Promise<InstallmentPlan[]>
   findById(id: string): Promise<InstallmentPlan | null>
   /** Plan al que pertenece un movimiento: la cuota que lo salda o la compra origen neutralizada. */
   findByTransaction(transactionId: string): Promise<InstallmentPlan | null>
@@ -384,7 +465,9 @@ export interface InstallmentPlanRepository {
   ): Promise<boolean>
   /**
    * Vincula al ítem un movimiento YA IMPORTADO (`loan`) y le aplica la categoría del plan,
-   * dejándolo revisado para que la IA no lo toque. `false` si el ítem ya estaba registrado.
+   * dejándolo revisado para que la IA no lo toque. `false` si el ítem ya estaba registrado, salvo
+   * que lo saldara un movimiento manual y el que llega venga del banco: entonces borra el manual y
+   * adopta el del banco en la misma transacción (ver `isReplaceableByEmail`).
    */
   adoptTransaction(
     plan: InstallmentPlan,

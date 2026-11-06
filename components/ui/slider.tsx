@@ -58,10 +58,11 @@ function Slider({
       </SliderPrimitive.Track>
       {ticks > 0 && (
         // Radix mantiene la perilla dentro de la pista: su centro va de media perilla a
-        // (ancho − media perilla). Las marcas usan el mismo recorrido para caer bajo ella.
+        // (ancho − media perilla). Las marcas usan el mismo recorrido para caer bajo ella, y van
+        // debajo de la pista como en iOS 26 (la perilla tapa la del paso actual).
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-x-[1.1875rem] top-1/2 h-1 -translate-y-1/2"
+          className="pointer-events-none absolute inset-x-[1.1875rem] top-[calc(50%+0.4375rem)] h-1"
         >
           {Array.from({ length: ticks }, (_, i) => (
             <span

@@ -6,6 +6,7 @@ import {
 } from "@/arch/v1/presentation/finance/finance-http"
 import { listTransactions } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { createTransaction } from "@/arch/v1/application/finance-use-cases/create-transaction-use-case"
+import { followIncome } from "@/arch/v1/application/finance-use-cases/follow-income"
 import {
   DIRECTIONS,
   type Direction,
@@ -48,10 +49,12 @@ export async function POST(req: Request) {
         description: body.description ?? "",
         date: body.date || new Date().toISOString(),
       })
-      const t = await createTransaction(financeDeps, userId, {
-        ...parsed,
-        date: new Date(parsed.date),
-      })
+      // Un abono mueve el ingreso; un gasto del período anterior, el déficit: el tope que sigue
+      // al ingreso se alinea en los dos casos.
+      const { result: t } = await followIncome(financeDeps, userId, () =>
+        createTransaction(financeDeps, userId, { ...parsed, date: new Date(parsed.date) }),
+        { allModes: true }
+      )
       return { id: t.id }
     },
     201

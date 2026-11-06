@@ -35,6 +35,7 @@ export type RecurringTemplate = {
   startDate: Date // ancla de los períodos
   endDate: Date | null // null = indefinida; el último cobro es el que cae en esta fecha o antes
   isActive: boolean
+  url: string | null // portal de pago opcional; ya normalizado (http/https) en el borde
 }
 
 // --- Inputs de escritura ---
@@ -52,6 +53,7 @@ export type NewRecurringTemplate = {
   dayOfMonth: number | null
   startDate: Date
   endDate: Date | null
+  url: string | null
 }
 
 // `description` (clave de match) NO se edita: se omite del update para que ni siquiera pueda
@@ -402,6 +404,14 @@ export class InvalidRecurringTemplateError extends Error {
   constructor(message = "Plantilla recurrente inválida") {
     super(message)
     this.name = "InvalidRecurringTemplateError"
+  }
+}
+
+/** El enlace del portal de pago no es un enlace web válido (→ 400). Lleva el mensaje del esquema. */
+export class InvalidRecurringUrlError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "InvalidRecurringUrlError"
   }
 }
 

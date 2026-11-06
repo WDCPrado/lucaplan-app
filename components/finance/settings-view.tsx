@@ -256,7 +256,11 @@ function AppearanceSection() {
       title="Apariencia"
       footer={
         <>
-          <p>Cuánto se ve el contenido a través de las barras y los menús.</p>
+          <p>
+            El aspecto transparente es más visible mientras que el teñido aumenta
+            la opacidad y genera mayor contraste entre el contenido y los
+            controles.
+          </p>
           {/* Con «Reducir transparencia» del sistema todo material es sólido, sea cual sea el nivel. */}
           <p className="mt-1 hidden [@media(prefers-reduced-transparency:reduce)]:block">
             Tu dispositivo tiene activado «Reducir transparencia»: el vidrio se
@@ -265,7 +269,10 @@ function AppearanceSection() {
         </>
       }
     >
-      <div className="rounded-xl bg-card px-4 pt-2 pb-3">
+      {/* Como Pantalla y brillo → Liquid Glass de iOS 26: los íconos de los extremos reemplazan
+          las etiquetas; el nombre de cada paso lo lee el lector de pantalla (aria-valuetext). */}
+      <div className="flex items-center gap-3 rounded-xl bg-card px-4 py-1.5">
+        <GlassIcon />
         <Slider
           value={[level]}
           onValueChange={([v]) => {
@@ -279,17 +286,30 @@ function AppearanceSection() {
           step={1}
           aria-label="Efecto vidrio"
           aria-valuetext={GLASS_NAMES[level]}
-          className="h-11"
+          className="h-11 flex-1"
         />
-        <div
-          aria-hidden
-          className="flex justify-between px-[1.1875rem] text-footnote text-muted-foreground"
-        >
-          <span>Transparente</span>
-          <span>Teñido</span>
-        </div>
+        <GlassIcon tinted />
       </div>
     </SettingsSection>
+  )
+}
+
+// Dos paneles redondeados superpuestos: solo el contorno (transparente) o rellenos (teñido). No hay
+// uno así en lucide; Copy recorta el de atrás y relleno no se lee como vidrio.
+function GlassIcon({ tinted = false }: { tinted?: boolean }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      fill={tinted ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinejoin="round"
+      className="size-6 shrink-0 text-muted-foreground"
+    >
+      <rect x="2.5" y="2.5" width="13" height="13" rx="3.5" fillOpacity={0.45} />
+      <rect x="8.5" y="8.5" width="13" height="13" rx="3.5" />
+    </svg>
   )
 }
 

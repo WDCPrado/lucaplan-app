@@ -1,12 +1,11 @@
-// Casos de uso de fuentes de ingreso: CRUD, generación manual del ingreso del mes y siembra del
-// límite global del presupuesto. Depende solo de domain (+ ports). Sin IO directo.
+// Casos de uso de fuentes de ingreso: CRUD y generación manual del ingreso del mes. El tope global
+// que sigue al ingreso vive en `follow-income.ts`. Depende solo de domain (+ ports). Sin IO directo.
 import {
   type Account,
   type AccountRepository,
   type BalanceBucketRepository,
   type Category,
   type CategoryRepository,
-  type MonthlyBudgetRepository,
   AccountNotFoundError,
   CategoryNotFoundError,
   NotOwnerError,
@@ -23,12 +22,10 @@ import {
   isValidDayOfMonth,
 } from "../../domain/finance/income.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
-import { effectiveGlobalLimit, latestUpTo } from "./budget-formulas.ts"
+import { latestUpTo } from "./budget-formulas.ts"
 import { projectCashEvent } from "./bucket-projection.ts"
 import { rangeOf, getBudgetPeriod, scopeBudgetPeriod, type BudgetPeriodDeps } from "./budget-period-use-cases.ts"
 import type { BudgetPeriodRepository } from "../../domain/finance/budget-period.domain.ts"
-
-const CLP = "CLP" as const
 
 type IncomeDeps = BudgetPeriodDeps & {
   incomes: IncomeRepository
@@ -282,57 +279,3 @@ export async function ungenerateMonthlyIncome(
     )
   return { deleted: res.deleted }
 }
-
-// Suma (CLP) de las fuentes de ingreso activas del usuario. El límite global es CLP; solo los ingresos
-// CLP lo alimentan (la conversión multi-moneda se resolverá cuando exista).
-export async function sumActiveIncomesCLP(
-  deps: { incomes: IncomeRepository } & BudgetPeriodDeps,
-  userId: string,
-  year: number,
-  month: number
-): Promise<Money> {
-  deps = await scopeBudgetPeriod(deps)
-  const [incomes, amounts] = await Promise.all([
-    deps.incomes.listByUser(userId, (await getBudgetPeriod(deps)).mode),
-    deps.incomes.listAmountsByUser(userId, (await getBudgetPeriod(deps)).mode),
-  ])
-  return incomes
-    .filter(
-      (i) => i.isActive && i.currency === CLP && !isIncomeEndedAt(i, year, month)
-    )
-    .reduce((acc, i) => {
-      const amount = effectiveIncomeAmount(amounts, i.id, year, month)
-      return amount ? acc.add(amount) : acc
-    }, Money.zero(CLP))
-}
-
-// Siembra el límite global del mes con la suma de ingresos activos SOLO si aún no está definido (ni
-// propio ni heredado por carry). Si ya existe, no lo pisa; devuelve el total sugerido para que la UI
-// ofrezca actualizarlo con acción explícita.
-export async function seedGlobalLimitFromIncomes(
-  deps: { incomes: IncomeRepository; monthlyBudgets: MonthlyBudgetRepository } & BudgetPeriodDeps,
-  userId: string,
-  input: { year: number; month: number }
-): Promise<{ seeded: boolean; total: number; alreadyDefined: boolean }> {
-  deps = await scopeBudgetPeriod(deps)
-  validatePeriod(input.year, input.month)
-  const total = await sumActiveIncomesCLP(deps, userId, input.year, input.month)
-  const budgets = await deps.monthlyBudgets.listByUser(userId, (await getBudgetPeriod(deps)).mode)
-  const defined =
-    effectiveGlobalLimit(budgets, input.year, input.month) !== null
-  if (defined || total.isZero)
-    return {
-      seeded: false,
-      total: total.toMajor(),
-      alreadyDefined: defined,
-    }
-  await deps.monthlyBudgets.set({
-    mode: (await getBudgetPeriod(deps)).mode,
-    userId,
-    year: input.year,
-    month: input.month,
-    globalLimit: total,
-  })
-  return { seeded: true, total: total.toMajor(), alreadyDefined: false }
-}
-

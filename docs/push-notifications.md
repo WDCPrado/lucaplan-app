@@ -207,13 +207,20 @@ de Android: Android usa solo el canal alfa del badge, así que es la "L" blanca 
 
 El `notificationclick` del service worker **navega** la ventana existente a esa URL en vez de solo
 enfocarla: con la PWA ya abierta en `/dashboard`, un simple `focus()` dejaba el enlace sin efecto.
-Si `navigate` falla (ventana de otro contexto), abre una nueva.
+Usa la ventana que se está viendo y la **enfoca antes de navegar**: el permiso para traer una
+ventana al frente dura poco tras el toque, y esperar al render del destino lo agotaba. Si `navigate`
+falla (iOS con la PWA abierta, WebKit 263687, o una ventana que el SW no controla) le manda
+`{ type: "navigate", url }` a la página y ella hace la carga
+([service-worker-registration.tsx](../components/pwa/service-worker-registration.tsx)); no abre
+otra ventana, porque en iOS `openWindow` solo enfoca la PWA sin moverla. Sin ventana abierta usa
+`openWindow`. Lo cubre `scripts/sw-notification-click.test.ts`.
 
 El deep link lo resuelve el dashboard sin `useEffect`: `?tx=` llega como prop desde el server
 component y el estado se ajusta en render (patrón de React para props que cambian), así tocar otra
 notificación con la app abierta cambia de movimiento. Al cerrar el modal se limpia el query para que
-recargar no lo reabra. Un movimiento fuera del mes en curso no está en la lista cargada: el aviso
-abre el dashboard sin modal en vez de fallar.
+recargar no lo reabra. Un movimiento fuera del período que se muestra (un cargo que el banco informó
+días después) lo busca la página por id (`getLinkedTransactionDTO`, solo si es del usuario); un id
+ajeno o inexistente abre el dashboard sin modal.
 | UI                             | [push-toggle.tsx](../components/pwa/push-toggle.tsx) (botón), [push-prompt.tsx](../components/pwa/push-prompt.tsx) (modal de entrada), [settings-view.tsx](../components/finance/settings-view.tsx) (pestaña Configuración) |
 | Alta/baja en el navegador      | [lib/push.ts](../lib/push.ts) — permiso, suscripción y baja; lo comparten el botón y el modal |
 

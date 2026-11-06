@@ -7,13 +7,13 @@ import { CATEGORY_TYPES } from "../arch/v1/domain/finance/finance.domain.ts"
 // Casos de uso
 // 1. Proponer categorías   POST /api/onboarding/categories/propose   sesión
 //    entrada: proposeCategoriesInput  salida: proposeCategoriesOutput  no escribe
-//    errores: 400 entrada inválida · 401 sin sesión · 429 más de 5 propuestas por hora
+//    errores: 422 entrada inválida · 401 sin sesión · 429 más de 5 propuestas por hora (en memoria, en la ruta)
 //    sin OPENAI_API_KEY o si OpenAI falla: 200 con source "default" y el set precreado.
 // 2. Guardar categorías    PUT  /api/onboarding/categories           sesión
 //    entrada: applyCategoriesInput    salida: { categories: OnboardingCategory[] }
 //    upsert por nombre; las categorías del usuario que no vienen en el set se eliminan solo si
 //    no tienen movimientos, presupuestos ni recurrentes (si tienen, se conservan).
-//    errores: 400 entrada inválida (nombres repetidos, icono o color fuera de catálogo) · 401
+//    errores: 422 entrada inválida (nombres repetidos, icono o color fuera de catálogo) · 401
 // 3. Estado del onboarding GET  /api/onboarding                      sesión
 //    salida: onboardingStatus
 // 4. Terminar u omitir     POST /api/onboarding/complete             sesión

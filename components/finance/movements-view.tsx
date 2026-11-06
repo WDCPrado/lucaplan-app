@@ -8,7 +8,7 @@ import { SlidersHorizontal } from "lucide-react"
 import { formatDateHeader, fromYmd, monthName } from "@/lib/finance-format"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { ModalActions, ResponsiveModal } from "@/components/ui/responsive-modal"
+import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { AppShell } from "./app-shell"
 import { MonthNav } from "./month-nav"
 import { MovementRow } from "./movement-row"
@@ -290,11 +290,7 @@ export function MovementsView({
         <div className="flex flex-col gap-6 px-5 pb-6">
           <FilterControls {...filterProps} />
         </div>
-        {/* Los filtros se aplican al tocarlos; Listo solo cierra la hoja (HIG: toda hoja tiene una
-            salida visible, no solo el arrastre). */}
-        <ModalActions
-          primary={{ label: "Listo", onClick: () => setFiltersOpen(false) }}
-        />
+        {/* Los filtros se aplican al tocarlos: sin check. La salida visible es la X de la hoja. */}
       </ResponsiveModal>
 
       <TransactionModal

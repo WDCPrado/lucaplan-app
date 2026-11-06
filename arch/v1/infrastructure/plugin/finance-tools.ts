@@ -84,7 +84,7 @@ import {
   listInstallmentsView,
   listRecurringCandidates,
 } from "../../application/finance-use-cases/finance-read.ts"
-import { applyAccountBalance } from "../../application/finance-use-cases/balance-scan-use-cases.ts"
+import { applyAccountBalance } from "../../application/finance-use-cases/account-balance-use-cases.ts"
 import { rangeOf } from "../../application/finance-use-cases/budget-period-use-cases.ts"
 import { reconcileEmailBalances } from "../../application/finance-use-cases/email-connection-use-cases.ts"
 import { withLock } from "../../../shared/mutex.ts"

@@ -41,7 +41,7 @@ Dos mecanismos que un producto vecino no podría copiar diciendo lo mismo:
   BICE y MACHBANK —solo débito— vía Outlook / Microsoft Graph). Un mismo correo puede alimentar
   varios bancos.
 - Lo que el correo no avisa (saldos, cupos y cargos que el banco no notificó) se corrige desde el
-  plugin MCP (WDC-148); los saldos ya no entran por captura.
+  plugin MCP (WDC-148).
 - El ciclo es mensual: límite global y por categoría, lo no asignado queda "por presupuestar",
   los límites se heredan mes a mes y un selector de mes navega el historial.
 - Dos monedas conviven en el mismo instrumento: cupo nacional en CLP y cupo internacional en

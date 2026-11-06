@@ -32,7 +32,7 @@ import {
 } from "../domain/finance/income.domain.ts"
 import { InvalidPaceFrequencyError } from "../domain/finance/pace.domain.ts"
 import { InvalidBudgetPeriodError } from "../domain/finance/budget-period.domain.ts"
-import { BalanceScanError } from "../domain/finance/balance-scan.domain.ts"
+import { AccountBalanceError } from "../domain/finance/account-balance.domain.ts"
 import {
   InvalidRecurringTemplateError,
   InvalidRecurringUrlError,
@@ -135,7 +135,7 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof InvalidManualAccountError ||
     e instanceof EmailReauthRequiredError ||
     e instanceof EmailSetupStateError ||
-    e instanceof BalanceScanError ||
+    e instanceof AccountBalanceError ||
     e instanceof BankLabelRequiredError ||
     e instanceof SelfTargetError ||
     e instanceof AmbiguousCategoryNameError

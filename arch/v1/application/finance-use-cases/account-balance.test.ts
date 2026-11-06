@@ -1,5 +1,5 @@
-// Aplicar a la cuenta los saldos confirmados de una captura, con fakes en memoria de los ports.
-// Corre con: node --test arch/v1/application/finance-use-cases/balance-scan.test.ts
+// Aplicar a la cuenta los saldos confirmados, con fakes en memoria de los ports.
+// Corre con: node --test arch/v1/application/finance-use-cases/account-balance.test.ts
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { Money } from "../../domain/finance/money.ts"
@@ -11,11 +11,10 @@ import type {
   BucketKind,
 } from "../../domain/finance/finance.domain.ts"
 import {
-  BalanceScanError,
+  AccountBalanceError,
   type BalanceReading,
-  type BalanceScanReader,
-} from "../../domain/finance/balance-scan.domain.ts"
-import { applyAccountBalance, emptyReading } from "./balance-scan-use-cases.ts"
+} from "../../domain/finance/account-balance.domain.ts"
+import { applyAccountBalance, emptyReading } from "./account-balance-use-cases.ts"
 import { currencyPositions } from "./financial-position.ts"
 
 const clp = (n: number) => Money.of(n, "CLP")
@@ -98,13 +97,10 @@ class FakeBuckets implements BalanceBucketRepository {
   }
 }
 
-// La lectura por IA no participa de este paso: aplicar recibe los montos ya confirmados.
-const reader: BalanceScanReader = { read: async () => null }
-
 const deps = (account: Account, buckets: BalanceBucket[]) => {
   const accounts = new FakeAccounts(account)
   const balanceBuckets = new FakeBuckets(buckets)
-  return { accounts, balanceBuckets, balanceScan: reader }
+  return { accounts, balanceBuckets }
 }
 
 const reading = (over: Partial<BalanceReading>): BalanceReading => ({
@@ -232,7 +228,7 @@ test("sin montos suficientes no se escribe nada", async () => {
   const d = deps(acc(), [bucket("cash", 0, 0)])
   await assert.rejects(
     () => applyAccountBalance(d, "u1", "a1", emptyReading()),
-    BalanceScanError
+    AccountBalanceError
   )
   assert.equal(d.balanceBuckets.written.size, 0)
 })
@@ -248,7 +244,7 @@ test("un tipo de cuenta sin saldos en pantalla se rechaza", async () => {
   const d = deps(acc({ accountType: "investment" }), [])
   await assert.rejects(
     () => applyAccountBalance(d, "u1", "a1", reading({ cash: 1000 })),
-    BalanceScanError
+    AccountBalanceError
   )
 })
 

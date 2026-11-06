@@ -26,7 +26,6 @@ import { bankReconciliationStore } from "../../infrastructure/database/prisma/ba
 import { currentBudgetPeriod } from "../../application/finance-use-cases/budget-period-use-cases.ts"
 import { todayKey } from "../../../shared/today.ts"
 import { openaiCategorizationProvider } from "../../infrastructure/http/ai/openai-categorization.provider.ts"
-import { openaiBalanceScanReader } from "../../infrastructure/http/ai/openai-balance-scan.provider.ts"
 import { exchangeRateProvider } from "../../infrastructure/http/exchange/usd-clp.ts"
 import { memoizeReads, type MemoStore } from "./request-memo.ts"
 
@@ -45,7 +44,6 @@ export const financeDeps = {
   installments: installmentPlanRepository,
   budgetPeriod: budgetPeriodRepository,
   categorization: openaiCategorizationProvider,
-  balanceScan: openaiBalanceScanReader,
   corrections: correctionRepository,
   exchangeRates: exchangeRateProvider,
   bankReconciliation: bankReconciliationStore,

@@ -173,7 +173,8 @@ lectura de cartolas por foto, así nada se cuenta dos veces cuando el correo lle
 - Solo se procesan los remitentes oficiales del banco; el resto de tu correo no se lee
   ni se guarda. De cada aviso se conserva únicamente el movimiento (monto, comercio, fecha).
 - Detección automática de cuentas y tarjetas desde los propios avisos: confirmas,
-  registras tus saldos iniciales y listo.
+  registras tus saldos iniciales y listo. La carga inicial trae los avisos de los últimos
+  **3 meses** (desde el día 1 del mes de hace tres meses) y la IA los categoriza.
 - Saldos proyectados en tiempo real desde tu último saldo confirmado; "Actualizar
   saldos" los reconcilia en un paso cuando algo no generó correo.
 - Sincronización automática por webhook (tiempo real) y recuperación manual; desconexión en un clic que borra
@@ -264,8 +265,9 @@ cp .env.example .env
 | `BETTER_AUTH_SECRET`       | ✅        | Génerala con `npx @better-auth/cli secret`                                  |
 | `RESEND_API_KEY` | ✅ para login | Clave privada de envío; solo servidor. |
 | `RESEND_FROM` | opcional | Remitente verificado; default `Luca Plan <no-reply@lucaplan.cl>`. |
+| `SIGNUP_OPEN` | opcional | `true` (exacto) abre el registro: un correo nuevo entra con su código y la cuenta se crea con el set de categorías precreado. Cualquier otro valor lo deja cerrado. En `NODE_ENV=development` siempre está abierto. |
 | `BETTER_AUTH_URL`          | ✅        | URL base de la app: `http://localhost:3005` en desarrollo                   |
-| `OPENAI_API_KEY`           | opcional  | Habilita la categorización con IA y la lectura de saldos por captura ([crear key](https://platform.openai.com/api-keys)). Sin ella, la app funciona igual: los movimientos quedan sin categorizar y los saldos se escriben a mano. |
+| `OPENAI_API_KEY`           | opcional  | Habilita la categorización con IA, la propuesta de categorías del onboarding y la lectura de saldos por captura ([crear key](https://platform.openai.com/api-keys)). Sin ella, la app funciona igual: los movimientos quedan sin categorizar y los saldos se escriben a mano. |
 | `OPENAI_MODEL`             | opcional  | Modelo a usar (default `gpt-4o-mini`)                                        |
 | `OUTLOOK_CLIENT_ID`        | opcional  | Conexión por correo — ver [guía paso a paso](#-conectar-outlook-banco-de-chile-paso-a-paso) |
 | `OUTLOOK_CLIENT_SECRET`    | opcional  | Ídem                                                                         |
@@ -313,18 +315,16 @@ pnpm dev
 Abre **http://localhost:3005** y entra a `/login` con el código que llega al correo. En local
 (`pnpm dev`, `NODE_ENV=development`) la cuenta demo que siembra `setup:db` entra con
 `demo@lucaplan.cl` y el código fijo **`000000`**, sin correo.
-El registro público está cerrado: crea la cuenta con `pnpm create:account --db-prod "postgresql://..." --email persona@example.com`.
+En local el registro está abierto: un correo nuevo entra con su código, y sin `RESEND_API_KEY` el
+código se imprime en la consola del servidor (`[login-code] Código de acceso para …`). En
+producción el registro se abre con `SIGNUP_OPEN=true`; cerrado, crea la cuenta con
+`pnpm create:account --db-prod "postgresql://..." --email persona@example.com`.
 Configura `RESEND_API_KEY` en el servidor; [acceso por correo](docs/login-code.md) explica el remitente, la transición y las pruebas locales.
 
-### 5. (Opcional) Siembra un set de categorías con contexto para la IA
-
-```bash
-pnpm seed:categories --email=tu@correo.com
-```
-
-Crea/actualiza un set completo de categorías (Sueldo, Supermercado, Transporte,
-Suscripciones…) con iconos, colores y **descripciones ricas** que la IA usa como
-contexto. Es idempotente: puedes correrlo las veces que quieras.
+Una cuenta nueva parte con el set de categorías precreado y pasa por el **onboarding**: cuenta su
+día a día y la IA (si hay `OPENAI_API_KEY`) ajusta ese set con comercios chilenos reconocibles en
+la glosa; después conecta el correo o lo omite. Las cuentas que ya existían quedan con el
+onboarding terminado (`user.onboardingCompletedAt`), igual que la demo.
 
 ---
 
@@ -452,7 +452,6 @@ los tokens ya cifrados dejan de poder descifrarse y habrá que reconectar el cor
 | `pnpm deploy:init`     | Migraciones contra una DB por argumento (primer deploy)                    |
 | `pnpm migrate:db`      | `migrate deploy` a una DB elegida por consola, con confirmación            |
 | `pnpm seed`            | Siembra la cuenta demo `demo@lucaplan.cl` en la base local (solo localhost) |
-| `pnpm seed:categories` | Set completo de categorías con contexto para la IA (idempotente)           |
 | `pnpm create:account`  | Crea una cuenta en la base que se le indique por `--db-prod`               |
 | `pnpm sync:email`      | Corre una sincronización manual del correo                                |
 | `pnpm notify:due`      | Notifica los pagos por vencer (recurrentes y cuotas); una corrida diaria    |

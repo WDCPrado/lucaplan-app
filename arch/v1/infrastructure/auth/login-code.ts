@@ -48,9 +48,18 @@ export function devLoginCode(
   return local || isPrEnvironment(env.RAILWAY_ENVIRONMENT_NAME) ? "000000" : null
 }
 
+/**
+ * Registro abierto: un correo nuevo entra con el mismo código y su cuenta se crea al verificarlo.
+ * Solo con `SIGNUP_OPEN=true` exacto, o siempre en `NODE_ENV=development`. Cerrado, un correo
+ * nuevo recibe la misma respuesta que uno existente, sin código ni cuenta.
+ */
+export function isSignupOpen(env: { NODE_ENV?: string; SIGNUP_OPEN?: string } = process.env) {
+  return env.SIGNUP_OPEN === "true" || env.NODE_ENV === "development"
+}
+
 export function createLoginCodePlugin(
   mailer: LoginCodeMailer,
-  env: Parameters<typeof devLoginCode>[0] = process.env
+  env: Parameters<typeof devLoginCode>[0] & { SIGNUP_OPEN?: string } = process.env
 ) {
   const fixed = devLoginCode(env)
   // El email llega en minúsculas (better-auth lo normaliza antes de llamar a `generateOTP`).
@@ -59,7 +68,7 @@ export function createLoginCodePlugin(
   return emailOTP({
     // `undefined` hace que better-auth use su generador aleatorio (`generateOTP(...) || default`).
     generateOTP: ({ email }) => (isFixed(email) ? fixed! : undefined),
-    disableSignUp: true,
+    disableSignUp: !isSignupOpen(env),
     otpLength: 6,
     expiresIn: LOGIN_CODE_MINUTES * 60,
     allowedAttempts: 3,

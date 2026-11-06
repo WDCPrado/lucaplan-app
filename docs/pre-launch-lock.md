@@ -1,5 +1,7 @@
 # Bloqueo pre-lanzamiento (referencia histórica)
 
+> Desde WDC-181 el registro lo controla `SIGNUP_OPEN` (ver [Acceso por correo](login-code.md)).
+
 > Desde WDC-154 el acceso usa códigos y el registro público está siempre cerrado.
 > `NEXT_PUBLIC_LANDING_ONLY=false` no abre altas. La configuración vigente está en
 > [Acceso por correo](login-code.md); los pasos siguientes describen el login anterior.

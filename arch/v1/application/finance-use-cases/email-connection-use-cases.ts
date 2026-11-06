@@ -14,6 +14,7 @@ import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
 import { LockBusyError } from "../../../shared/mutex.ts"
 import type { PushMessage } from "../../domain/notifications/push.domain.ts"
 import { todayKey } from "../../../shared/today.ts"
+import { SCAN_LOOKBACK_MONTHS } from "../../../../lib/onboarding-schemas.ts"
 import type {
   BucketKind,
   CardType,
@@ -469,30 +470,15 @@ export type ScanResult = EmailScanSummary & {
   since: string
 }
 
-// Cuántos meses hacia atrás se busca actividad del banco al conectarlo. Un banco que no notificó
-// nada en medio año no tiene nada que importar, y el tope mantiene la búsqueda acotada.
-const SCAN_LOOKBACK_MONTHS = 6
-
 function monthsBefore(date: Date, months: number): Date {
   return new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth() - months, 1)
   )
 }
 
-// Último instante del mes de `date`, para que la descarga se quede en ese mes.
-function endOfMonth(date: Date): Date {
-  return new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1) - 1
-  )
-}
-
-// Ventana del escaneo inicial: el mes de la última notificación del banco que PRODUZCA movimientos,
-// hasta el instante del vínculo.
-//
-// El mes calendario no sirve: si el usuario no movió ese banco este mes, el escaneo vendría vacío y
-// no habría instrumentos que confirmar. Y la última notificación tampoco basta por sí sola —un
-// remitente puede mandar marketing, y los avisos de dinero entrante se descartan a propósito—, así
-// que se retrocede mes a mes CON actividad hasta dar con uno que traiga movimientos.
+// Ventana del escaneo inicial: desde el día 1 (UTC) del mes de hace SCAN_LOOKBACK_MONTHS meses
+// hasta el instante del vínculo. Conectar el 14 de julio trae desde el 1 de abril: la persona parte
+// con tres meses de historia y no solo con el mes en curso.
 //
 // Ambos use-cases del setup la comparten: si cada uno la calculara por su lado, la confirmación
 // podría importar un rango distinto del que el usuario revisó.
@@ -502,33 +488,8 @@ async function resolveScanWindow(
   bank: BankEmailDefinition,
   scanUntil: Date
 ): Promise<{ since: Date; parsed: ParsedEmail[] }> {
-  const floor = monthsBefore(scanUntil, SCAN_LOOKBACK_MONTHS)
-  let until = scanUntil
-  // La ventana más reciente con correos suyos, aunque ninguno haya producido movimiento: sus
-  // motivos de omisión son lo que se le muestra al usuario si no hay nada más.
-  let mostRecent: { since: Date; parsed: ParsedEmail[] } | null = null
-  for (let attempt = 0; attempt <= SCAN_LOOKBACK_MONTHS; attempt++) {
-    const last = await deps.mail.lastMessageDate(
-      mailboxId,
-      bank.senders,
-      floor,
-      until
-    )
-    if (!last) break
-    const since = firstDayOfMonth(last)
-    const monthEnd = endOfMonth(since)
-    const parsed = await parseBankMonth(
-      deps,
-      mailboxId,
-      bank,
-      since,
-      monthEnd.getTime() < scanUntil.getTime() ? monthEnd : scanUntil
-    )
-    mostRecent ??= { since, parsed }
-    if (parsed.some((p) => p.ok)) return { since, parsed }
-    until = new Date(since.getTime() - 1) // sigue buscando antes de este mes
-  }
-  return mostRecent ?? { since: firstDayOfMonth(scanUntil), parsed: [] }
+  const since = monthsBefore(scanUntil, SCAN_LOOKBACK_MONTHS)
+  return { since, parsed: await parseBankMonth(deps, mailboxId, bank, since, scanUntil) }
 }
 
 // Correos de ESTE banco en la ventana, ya parseados. Los de otro banco del mismo buzón no son

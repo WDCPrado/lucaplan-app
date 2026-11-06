@@ -22,6 +22,8 @@ model User {
   banned                   Boolean?            @default(false)
   banReason                String?
   banExpires               DateTime?
+  // Onboarding terminado u omitido (WDC-181). Null = cuenta nueva que aún no lo hace.
+  onboardingCompletedAt    DateTime?
   sessions                 Session[]
   accounts                 Account[]
   oauthClient_userId       OAuthClient[]       @relation("oauthClient_userId")

@@ -64,7 +64,8 @@ async function resolveUser(email: string, nombre: string) {
   const existing = await prisma.user.findUnique({ where: { email } })
   if (!existing) {
     const user = await prisma.user.create({
-      data: { id: randomUUID(), name: nombre, email, role: "USER" },
+      // La demo ya hizo el onboarding: entra directo al dashboard.
+      data: { id: randomUUID(), name: nombre, email, role: "USER", onboardingCompletedAt: new Date() },
     })
     return { id: user.id, fresh: true }
   }

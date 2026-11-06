@@ -6,15 +6,24 @@ export function createResendLoginCodeMailer({
   apiKey,
   from,
   transport = fetch,
+  env = process.env,
 }: {
   apiKey?: string
   from?: string
   transport?: typeof fetch
+  env?: { NODE_ENV?: string; RAILWAY_ENVIRONMENT_NAME?: string }
 }): LoginCodeMailer {
+  // Solo en local (development exacto, fuera de Railway): sin Resend, el código va a la consola
+  // del servidor para poder registrarse. Producción sin Resend nunca lo imprime: el envío falla.
+  const printLocally = !apiKey && env.NODE_ENV === "development" && !env.RAILWAY_ENVIRONMENT_NAME
   return {
     async send(email, code) {
-      if (!apiKey) throw new Error("Resend no está configurado.")
       if (!/^\d{6}$/.test(code)) throw new Error("Código de acceso inválido.")
+      if (printLocally) {
+        console.info(`[login-code] Código de acceso para ${email}: ${code} (sin RESEND_API_KEY, solo en desarrollo)`)
+        return
+      }
+      if (!apiKey) throw new Error("Resend no está configurado.")
       try {
         const response = await transport("https://api.resend.com/emails", {
           method: "POST",

@@ -153,7 +153,19 @@ export function RecurringModal({
     template?.baseAmount ?? preset?.baseAmount ?? 0
   )
   const needsDay = periodicity !== "biweekly"
+  // Editar sin cambios no guarda nada: el check queda gris, como en los movimientos.
+  const dirty =
+    !template ||
+    label.trim() !== template.label ||
+    accountId !== template.accountId ||
+    money.value !== template.baseAmount ||
+    tolerancePct !== template.tolerancePct ||
+    periodicity !== template.periodicity ||
+    (needsDay && day !== template.dayOfMonth) ||
+    (endDate || null) !== (template.endDate ? template.endDate.slice(0, 10) : null) ||
+    url.trim() !== (template.url ?? "")
   const canSave =
+    dirty &&
     !!label.trim() &&
     !!account &&
     !!categoryId &&

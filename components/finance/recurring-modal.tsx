@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, ChevronRight, Loader } from "lucide-react"
+import { ArrowUpRight, Check, ChevronRight, Loader } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -25,6 +25,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { haptic } from "@/lib/haptics"
+import { RECURRING_URL_MAX, recurringUrlSchema } from "@/lib/schemas/recurring-url"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
 import { DatePicker } from "./transaction-modal"
@@ -53,6 +54,15 @@ function readableEnd(iso: string): string | null {
   })
 }
 
+// Lo que se muestra del enlace guardado: el dominio sin «www.», que es como se reconoce el portal.
+function linkHost(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "")
+  } catch {
+    return url
+  }
+}
+
 const PERIODICITIES = [
   { value: "monthly", label: "Mensual" },
   { value: "biweekly", label: "Quincenal" },
@@ -60,7 +70,7 @@ const PERIODICITIES = [
 ]
 
 // Qué escritura está en curso: la acción tocada muestra su spinner y todas quedan deshabilitadas.
-type Busy = "save" | "pick" | "toggle" | "undo" | "delete" | null
+type Busy = "save" | "paid" | "pick" | "toggle" | "undo" | "delete" | null
 
 // Modal de plantilla recurrente (crear/editar). El monto base no es el monto exacto del cargo: es
 // el centro del rango ± tolerancia con el que se reconoce el cobro cuando llega por correo.
@@ -117,6 +127,9 @@ export function RecurringModal({
     template?.endDate ? template.endDate.slice(0, 10) : ""
   )
   const [withEnd, setWithEnd] = useState(!!template?.endDate)
+  // Enlace al portal donde se paga (opcional): se escribe libre y se normaliza al guardar.
+  const [url, setUrl] = useState(template?.url ?? "")
+  const [urlError, setUrlError] = useState<string | null>(null)
   const [busy, setBusy] = useState<Busy>(null)
   const saving = busy !== null
   // Selector de un movimiento existente como cobro del período. null = cargando.
@@ -152,8 +165,24 @@ export function RecurringModal({
   const max = Math.round(money.value * (1 + tolerancePct / 100))
   const fmt = (n: number) => n.toLocaleString("es-CL")
 
+  // Valida el enlace con el esquema compartido; devuelve el valor normalizado o undefined si falla.
+  function parseUrl(): string | null | undefined {
+    const parsed = recurringUrlSchema.safeParse(url)
+    if (parsed.success) return parsed.data
+    setUrlError(parsed.error.issues[0]?.message ?? "Enlace no válido")
+    return undefined
+  }
+
   async function save() {
     if (!canSave || !account || !categoryId) return
+    const nextUrl = parseUrl()
+    if (nextUrl === undefined) {
+      haptic("error")
+      document.getElementById("recurring-url")?.focus()
+      return
+    }
+    // El enlace va solo si cambió (al crear, solo si se escribió).
+    const urlChanged = nextUrl !== (template?.url ?? null)
     setBusy("save")
     try {
       const res = await fetch(
@@ -176,6 +205,7 @@ export function RecurringModal({
             sourceTransactionId: template
               ? undefined
               : preset?.sourceTransactionId,
+            url: urlChanged ? nextUrl : undefined,
           }),
         }
       )
@@ -233,7 +263,18 @@ export function RecurringModal({
     }
   }
 
-  // Deshace el "Ya lo pagué" de la fila. Solo lo marcado a mano: un cargo del banco es un hecho.
+  // "Ya lo pagué": confirma el comprometido del período sin esperar el aviso del banco. Cuando el
+  // cargo real llegue por correo, reemplaza esta marca con su monto y su fecha.
+  function markPaid() {
+    patch(
+      "paid",
+      { periodPaid: true },
+      "Cobro marcado como pagado",
+      "No se pudo marcar el cobro"
+    )
+  }
+
+  // Deshace el "Ya lo pagué". Solo lo marcado a mano: un cargo del banco es un hecho.
   function undoPaid() {
     patch(
       "undo",
@@ -366,6 +407,19 @@ export function RecurringModal({
                   ? "El cobro de este período ya está registrado."
                   : "El cobro de este período todavía no llega."}
               </p>
+              {!template.currentPeriodPaid && (
+                <button
+                  type="button"
+                  onClick={markPaid}
+                  disabled={saving}
+                  aria-busy={busy === "paid" || undefined}
+                  className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary disabled:opacity-50"
+                >
+                  <Check aria-hidden className="size-4 shrink-0" />
+                  <span className="min-w-0 flex-1">Ya lo pagué</span>
+                  {busy === "paid" && <BusySpinner />}
+                </button>
+              )}
               {(!template.currentPeriodPaid ||
                 template.currentPeriodPaidManually) && (
                 // Abre otra hoja: fila con chevron, como las de Ajustes.
@@ -387,8 +441,30 @@ export function RecurringModal({
             </ModalSection>
           )}
 
+          {/* El enlace guardado, para ir a pagar: fila de acción como un enlace de Contactos. Usa
+              el valor guardado, no el que se está escribiendo abajo. */}
+          {template?.url && (
+            <ModalSection>
+              <a
+                data-nuevo
+                href={template.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+              >
+                <span className="min-w-0 flex-1 truncate">
+                  Abrir {linkHost(template.url)}
+                </span>
+                <ArrowUpRight aria-hidden className="size-5 shrink-0" />
+                <span className="sr-only">(se abre en otra pestaña)</span>
+              </a>
+            </ModalSection>
+          )}
+
           <form
             id={formId}
+            // Sin validación nativa: type="url" rechazaría «www.enel.cl», que el esquema completa.
+            noValidate
             onSubmit={(e) => {
               e.preventDefault()
               save()
@@ -578,6 +654,53 @@ export function RecurringModal({
                   </button>
                 )
               })}
+            </ModalSection>
+
+            {/* Enlace opcional al portal de pago: se abre después desde la recurrente. */}
+            <ModalSection
+              title="Enlace"
+              className="[--inset:1rem]"
+              footer={
+                urlError ? (
+                  <p
+                    id="recurring-url-error"
+                    role="alert"
+                    className="text-destructive"
+                  >
+                    {urlError}
+                  </p>
+                ) : (
+                  "Opcional. El portal donde pagas esta cuenta, para abrirlo desde aquí."
+                )
+              }
+            >
+              <Input
+                data-nuevo
+                id="recurring-url"
+                type="url"
+                inputMode="url"
+                autoComplete="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                maxLength={RECURRING_URL_MAX}
+                placeholder="www.enel.cl"
+                value={url}
+                onChange={(e) => {
+                  setUrl(e.target.value)
+                  if (urlError) setUrlError(null)
+                }}
+                // Al salir queda a la vista el enlace detectado («Paga en enel.cl» → https://enel.cl).
+                onBlur={() => {
+                  if (!url.trim()) return
+                  const next = parseUrl()
+                  if (next) setUrl(next)
+                }}
+                aria-label="Enlace"
+                aria-invalid={!!urlError || undefined}
+                aria-describedby={urlError ? "recurring-url-error" : undefined}
+                className="h-11 rounded-none border-0 bg-transparent px-4 text-body shadow-none focus-visible:ring-0 aria-invalid:ring-0 md:text-body"
+              />
             </ModalSection>
           </form>
 

@@ -469,6 +469,7 @@ model RecurringTemplate {
   // en esta fecha o antes; después la plantilla queda finalizada y no puede reactivarse sin correrla.
   endDate      DateTime?        @db.Date
   isActive     Boolean          @default(true)
+  url          String? // enlace opcional para abrir el portal de pago; solo http/https
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   transactions Transaction[]

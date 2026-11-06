@@ -9,6 +9,7 @@ import {
   setRecurringPeriodPaid,
   updateRecurringTemplate,
 } from "@/arch/v1/application/finance-use-cases/recurring-use-cases"
+import { recurringUrlSchema } from "@/lib/schemas/recurring-url"
 import type { Periodicity } from "@/arch/v1/domain/finance/recurring.domain"
 
 export async function PATCH(
@@ -38,6 +39,10 @@ export async function PATCH(
         transactionId: body.paidWithTransactionId,
       })
     )
+  // `url` ausente no toca el enlace guardado; null o "" lo borra.
+  const url = recurringUrlSchema.safeParse(body.url)
+  if (!url.success)
+    return Response.json({ error: url.error.issues[0]?.message }, { status: 400 })
   return withUser(req, (userId) =>
     updateRecurringTemplate(financeDeps, userId, {
       id,
@@ -55,6 +60,7 @@ export async function PATCH(
       startDate: body.startDate ? new Date(body.startDate) : new Date(),
       endDate: body.endDate ? new Date(body.endDate) : null,
       isActive: body.isActive ?? true,
+      url: body.url === undefined ? undefined : url.data,
     })
   )
 }

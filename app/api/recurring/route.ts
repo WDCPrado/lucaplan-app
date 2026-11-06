@@ -6,6 +6,7 @@ import {
   createRecurringTemplate,
   listRecurringTemplates,
 } from "@/arch/v1/application/finance-use-cases/recurring-use-cases"
+import { recurringUrlSchema } from "@/lib/schemas/recurring-url"
 import type { Periodicity } from "@/arch/v1/domain/finance/recurring.domain"
 
 // Plantillas recurrentes del usuario.
@@ -17,6 +18,9 @@ export async function GET(req: Request) {
 // sale la clave de match; el `label` lo elige el usuario. Los campos van ya revisados por él.
 export async function POST(req: Request) {
   const body = await req.json()
+  const url = recurringUrlSchema.safeParse(body.url)
+  if (!url.success)
+    return Response.json({ error: url.error.issues[0]?.message }, { status: 400 })
   return withUser(
     req,
     (userId) =>
@@ -37,6 +41,7 @@ export async function POST(req: Request) {
         sourceTransactionId: body.sourceTransactionId
           ? String(body.sourceTransactionId)
           : null,
+        url: url.data,
       }),
     201
   )

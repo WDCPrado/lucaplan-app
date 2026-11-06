@@ -1145,6 +1145,7 @@ export type RecurringDTO = {
   currentPeriodPaid: boolean // el cobro del período en curso ya llegó (transacción confirmed)
   // Ese cobro lo marcó el usuario a mano, no el banco: es lo único que puede deshacerse.
   currentPeriodPaidManually: boolean
+  url: string | null // portal de pago opcional (solo http/https)
 }
 
 // Plantillas recurrentes del usuario con nombres resueltos y el rango de tolerancia ya derivado,
@@ -1207,6 +1208,7 @@ export async function listRecurringView(
       currentPeriodPaid: periodTx?.status === "confirmed",
       currentPeriodPaidManually:
         periodTx?.status === "confirmed" && periodTx.isManual,
+      url: t.url,
     }
   }))
 }

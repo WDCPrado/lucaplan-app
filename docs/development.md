@@ -295,9 +295,11 @@ agrupaciones, la tipografía y los controles.
   **segmentado** es `Segmented`, cápsula gris con una pastilla clara que se desliza al elegido y
   texto `text-subheadline` (semibold el elegido). Todo selector exclusivo de pocas opciones usa
   `Segmented`, también Gasto/Ingreso del movimiento, sin colorear la selección.
-- **Hoja móvil flotante (iOS 26)**: el drawer de `ResponsiveModal` se despega de los bordes
-  (`inset-x-2`, abajo `--tab-bar-inset`) con las cuatro esquinas en `--radius-sheet`; el alto sigue
-  siendo el del contenido.
+- **Hoja móvil (iOS)**: el drawer de `ResponsiveModal` va pegado abajo y a los lados, con las
+  esquinas de arriba en `--radius-sheet` y el cuerpo dejando `env(safe-area-inset-bottom)`; el alto
+  es el del contenido. Se cierra arrastrando hacia abajo desde cualquier parte (el cuerpo solo con
+  su scroll arriba); hacia arriba cede con resistencia y vuelve. No se oculta el `::after` de vaul:
+  sin él `shouldDrag` no reconoce la hoja y, con la página desplazada, no arrastra.
 - **Íconos: `lucide-react` leído como SF Symbols.** Los SF Symbols y SF Pro no se licencian para
   web: se elige el glifo lucide más cercano al símbolo que usaría iOS (`house`, `repeat`,
   `list.bullet` → `List`, `gearshape`, `magnifyingglass`, `xmark.circle.fill` → `CircleX` relleno, el

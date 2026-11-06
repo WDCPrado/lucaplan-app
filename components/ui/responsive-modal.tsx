@@ -402,11 +402,15 @@ export function ResponsiveModal({
             onClick={isolateModalEvent}
             onSubmit={isolateModalEvent}
             className={cn(
-              // Los paneles cortos usan su contenido; los largos desplazan el cuerpo sin alcanzar
-              // el notch. El teclado se superpone sin redimensionar ni elevar el panel.
-              // Hoja de iOS 26: flota despegada de los bordes, con las cuatro esquinas redondeadas y
-              // casi concéntrica con las del teléfono (el mismo `--tab-bar-inset` de la barra).
-              "h-auto rounded-(--radius-sheet) bg-sheet p-0 text-body outline-none before:hidden after:hidden [--initial-transform:calc(100%+var(--tab-bar-inset))] data-[vaul-drawer-direction=bottom]:inset-x-2 data-[vaul-drawer-direction=bottom]:bottom-(--tab-bar-inset) data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top)-var(--tab-bar-inset))]",
+              // Hoja de iOS pegada abajo y a los lados (inset-x-0 bottom-0 del drawer base), con las
+              // esquinas de arriba redondeadas. Los paneles cortos usan su contenido; los largos
+              // desplazan el cuerpo sin alcanzar el notch. El teclado se superpone sin redimensionar
+              // ni elevar el panel.
+              // No ocultar el `::after` de vaul: además de rellenar bajo la hoja al tirarla hacia
+              // arriba, es lo que hace que `shouldDrag` reconozca la hoja (role=dialog con overflow)
+              // y deje de subir hasta <html>; con la página desplazada, sin él no se arrastraba.
+              // Con «reducir movimiento» la hoja aparece y se va sin deslizarse; el dedo la sigue igual.
+              "h-auto rounded-t-(--radius-sheet) bg-sheet p-0 text-body outline-none before:hidden data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))] motion-reduce:transition-none! motion-reduce:[animation-duration:1ms]",
               className
             )}
           >
@@ -432,9 +436,8 @@ export function ResponsiveModal({
               />
             </DrawerHeader>
             {/* El contenido se desplaza dentro del drawer, sin pie: el final deja aire y el espacio
-              seguro para el gesto inferior del teléfono. El modal legal de la landing (app/page.tsx)
-              descuenta este pb-6 de su espacio seguro: si cambia, ajústalo allá. */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pb-6 [&>*]:min-w-0 [&>*]:shrink-0">
+              seguro del home indicator, porque la hoja llega al borde del teléfono. */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pb-[calc(1.5rem+env(safe-area-inset-bottom))] [&>*]:min-w-0 [&>*]:shrink-0">
               <HeaderSlotsContext.Provider value={slots}>
                 {children}
                 {(cancel || primary) && (

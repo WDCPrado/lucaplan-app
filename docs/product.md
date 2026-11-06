@@ -40,8 +40,8 @@ Dos mecanismos que un producto vecino no podría copiar diciendo lo mismo:
 - Los datos entran solos desde las notificaciones de correo del banco (Banco de Chile, Banco
   BICE y MACHBANK —solo débito— vía Outlook / Microsoft Graph). Un mismo correo puede alimentar
   varios bancos.
-- Lo que el correo no avisa entra por captura de pantalla de la app del banco (saldos y cupos);
-  los cargos que el banco no avisó, a mano o desde el plugin MCP.
+- Lo que el correo no avisa (saldos, cupos y cargos que el banco no notificó) se corrige desde el
+  plugin MCP (WDC-148); los saldos ya no entran por captura.
 - El ciclo es mensual: límite global y por categoría, lo no asignado queda "por presupuestar",
   los límites se heredan mes a mes y un selector de mes navega el historial.
 - Dos monedas conviven en el mismo instrumento: cupo nacional en CLP y cupo internacional en
@@ -73,7 +73,6 @@ Constraints del sistema:
   repetidos.
 - Ningún dato leído por IA se guarda sin confirmación de la persona: una lectura puede errar un
   dígito y producir un monto perfectamente válido que ninguna validación detecta.
-- Las capturas se procesan y se descartan; no se persisten en ninguna parte.
 - Los cuerpos de correo se procesan en memoria y nunca se persisten. De cada aviso se conserva
   solo el movimiento (monto, comercio, fecha). El refresh token se guarda cifrado (AES-256-GCM).
 - La IA es opcional con degradación segura: sin `OPENAI_API_KEY` la app funciona igual, solo que

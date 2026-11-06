@@ -61,6 +61,10 @@ import {
 } from "../domain/notifications/budget-alert.domain.ts"
 import { InvalidDueDaysError } from "../domain/notifications/due-reminder.domain.ts"
 import { LockBusyError } from "../../shared/mutex.ts"
+import {
+  AmbiguousCategoryNameError,
+  OnboardingCompletedError,
+} from "../domain/onboarding/onboarding.domain.ts"
 
 export function domainErrorStatus(e: unknown): number | null {
   if (e instanceof ZodError) return 422
@@ -78,7 +82,8 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof DuplicateBudgetAlertError || // ya existe una alerta a ese %
     e instanceof RecurringPeriodBankPaidError || // el período ya lo cobró el banco
     e instanceof StaleAccountDeletionError || // la cuenta cambió desde la previsualización
-    e instanceof BankAlreadyLinkedError // ese banco ya está en este correo
+    e instanceof BankAlreadyLinkedError || // ese banco ya está en este correo
+    e instanceof OnboardingCompletedError // el onboarding ya terminó
   )
     return 409
   if (
@@ -108,7 +113,8 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof EmailSetupStateError ||
     e instanceof BalanceScanError ||
     e instanceof BankLabelRequiredError ||
-    e instanceof SelfTargetError
+    e instanceof SelfTargetError ||
+    e instanceof AmbiguousCategoryNameError
   )
     return 422
   if (

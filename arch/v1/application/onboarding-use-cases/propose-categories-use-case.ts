@@ -6,11 +6,13 @@ import {
   proposeCategoriesOutput,
   type ProposeCategoriesOutput,
 } from "../../../../lib/onboarding-schemas.ts"
+import { assertOnboardingOpen } from "./get-onboarding-status-use-case.ts"
 import { DEFAULT_CATEGORIES } from "../finance-use-cases/seed-default-categories-use-case.ts"
 import {
   CATEGORY_COLOR_VALUES,
   CATEGORY_ICON_NAMES,
   type CategoryProposer,
+  type OnboardingRepository,
 } from "../../domain/onboarding/onboarding.domain.ts"
 
 const MAX_CATEGORIES = 30 // el mismo tope que acepta guardar
@@ -39,10 +41,15 @@ function toCatalog(raw: unknown, index: number): unknown {
 }
 
 export async function proposeCategories(
-  deps: { proposer: CategoryProposer | null },
-  input: unknown
+  deps: {
+    proposer: CategoryProposer | null
+    onboarding?: Pick<OnboardingRepository, "completedAt">
+  },
+  input: unknown,
+  userId?: string
 ): Promise<ProposeCategoriesOutput> {
   const { description } = proposeCategoriesInput.parse(input)
+  await assertOnboardingOpen(deps, userId)
   if (!deps.proposer) return fallback()
   let raw: unknown
   try {

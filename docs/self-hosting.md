@@ -20,7 +20,8 @@ y el túnel se conecta a `http://app:3005` dentro de la red privada de este Comp
    de cifrado impide leer las conexiones importadas. No copies `RAILWAY_*`, `SEED_PR_*`
    ni configuración de pruebas. Para entrar por código, configura también `RESEND_API_KEY`
    y, opcionalmente, `RESEND_FROM` en ese archivo externo (ver [acceso por correo](login-code.md)).
-3. Conserva **`NEXT_PUBLIC_LANDING_ONLY=true`**, como en Railway: el registro sigue cerrado.
+3. Conserva **`NEXT_PUBLIC_LANDING_ONLY=true`**, como en Railway. El registro no depende de esa
+   variable: lo controla `SIGNUP_OPEN` (solo `true` exacto lo abre; ver [acceso por correo](login-code.md)).
    Compose pasa el mismo valor al build del frontend y al backend en ejecución. Después de
    cambiarlo debes reconstruir la imagen; reiniciar solo el contenedor no actualiza el frontend.
 4. Crea un túnel Cloudflare para Luca Plan, independiente del de Pomodoro. Configura su

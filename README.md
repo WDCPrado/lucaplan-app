@@ -131,8 +131,9 @@ El paquete MCP de Luca Plan permite que un host compatible consulte y administre
 usuario que autorizó la conexión. La conciliación bancaria permite previsualizar y aplicar
 correcciones de moneda, importe, fecha y categoría por ID, junto con saldos al corte y auditoría,
 sin duplicar cargos ni perder vínculos. La identidad y los permisos se resuelven en el servidor mediante
-OAuth; el modelo no elige el usuario. Alcance, instalación y límites en la
-[guía del plugin](docs/plugin-luca-plan.md).
+OAuth; el modelo no elige el usuario. Alcance y límites en la [guía del plugin](docs/plugin-luca-plan.md);
+cómo conectarlo desde Claude, ChatGPT o Claude Code, en
+[Conectar tu asistente](docs/plugin-luca-plan.md#conectar-tu-asistente).
 
 ### 🧾 Los movimientos vienen del banco
 
@@ -506,7 +507,7 @@ plugin. Cómo agregarle datos, en
 | Notificaciones push         | [docs/push-notifications.md](docs/push-notifications.md) — Web Push (VAPID) en Android, iOS 16.4+ y Windows: configuración, eventos y cron. |
 | Outlook / Microsoft Graph   | [docs/email-connection-outlook.md](docs/email-connection-outlook.md) — referencia de la conexión de correo con Banco de Chile. El paso a paso está [más arriba](#-conectar-outlook-banco-de-chile-paso-a-paso). |
 | Correos bancarios           | [docs/bank-email-contract.md](docs/bank-email-contract.md) — catálogo de correos soportados y qué debe aportar un banco nuevo. |
-| Plugin Luca Plan            | [docs/plugin-luca-plan.md](docs/plugin-luca-plan.md) — paquete MCP, autorización por usuario, catálogo de operaciones y conexión con ChatGPT o Codex. |
+| Plugin Luca Plan            | [docs/plugin-luca-plan.md](docs/plugin-luca-plan.md) — paquete MCP, autorización por usuario, catálogo de operaciones y conexión con Claude, ChatGPT o Claude Code. |
 | Acceso por correo          | [Código de acceso y Resend](docs/login-code.md). |
 | Operación y despliegue      | [Scripts](#scripts) y [Deploy](#deploy) en este README; [Coolify y migración](docs/coolify.md); [Docker local y recuperación del origen](docs/self-hosting.md). |
 | Specs y cambios             | [openspec/README.md](openspec/README.md) — capacidades canónicas, cambios en curso y archivo histórico. |

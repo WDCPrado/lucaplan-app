@@ -198,8 +198,9 @@ export type EmailConnectionDeps = {
   // su plan `loan` (las `card` se saldan al conciliar la factura, no aquí). Corre ANTES de la
   // IA por lo mismo que el match: lo que un plan reclama ya queda categorizado y revisado.
   runInstallments?: (userId: string, externalIds: string[]) => Promise<number>
-  // Categorización IA best-effort de lo importado no interno (una falla no revierte nada).
-  categorize?: (userId: string) => Promise<number>
+  // Categorización IA best-effort de lo importado no interno (una falla no revierte nada), en hasta
+  // `maxPages` páginas de pendientes.
+  categorize?: (userId: string, maxPages: number) => Promise<number>
   // Notificación push de lo que entró SOLO por correo (best-effort, después de categorizar para
   // que el usuario abra la app con el movimiento ya clasificado).
   notify?: (userId: string, movements: NotifiableMovement[]) => Promise<void>
@@ -480,16 +481,36 @@ function monthsBefore(date: Date, months: number): Date {
 // hasta el instante del vínculo. Conectar el 14 de julio trae desde el 1 de abril: la persona parte
 // con tres meses de historia y no solo con el mes en curso.
 //
+// Respaldo para un banco poco usado: si esos meses no traen ningún movimiento, se busca el último
+// aviso anterior (hasta FALLBACK_MONTHS antes del vínculo) y la ventana arranca en su mes, mes a mes
+// hacia atrás mientras lo encontrado no produzca movimientos (un remitente también manda
+// marketing). Sin eso el escaneo vendría vacío y no habría instrumentos que confirmar.
+//
 // Ambos use-cases del setup la comparten: si cada uno la calculara por su lado, la confirmación
 // podría importar un rango distinto del que el usuario revisó.
+const FALLBACK_MONTHS = 6
+
 async function resolveScanWindow(
   deps: Pick<EmailConnectionDeps, "mail" | "registry">,
   mailboxId: string,
   bank: BankEmailDefinition,
   scanUntil: Date
 ): Promise<{ since: Date; parsed: ParsedEmail[] }> {
-  const since = monthsBefore(scanUntil, SCAN_LOOKBACK_MONTHS)
-  return { since, parsed: await parseBankMonth(deps, mailboxId, bank, since, scanUntil) }
+  const window = {
+    since: monthsBefore(scanUntil, SCAN_LOOKBACK_MONTHS),
+    parsed: await parseBankMonth(deps, mailboxId, bank, monthsBefore(scanUntil, SCAN_LOOKBACK_MONTHS), scanUntil),
+  }
+  const floor = monthsBefore(scanUntil, FALLBACK_MONTHS)
+  let { since, parsed } = window
+  while (!parsed.some((p) => p.ok)) {
+    const until = new Date(since.getTime() - 1)
+    const last = await deps.mail.lastMessageDate(mailboxId, bank.senders, floor, until)
+    // Nada que produzca movimientos ni siquiera más atrás: la ventana de 3 meses, tal cual.
+    if (!last) return window
+    since = firstDayOfMonth(last)
+    parsed = [...(await parseBankMonth(deps, mailboxId, bank, since, until)), ...parsed]
+  }
+  return { since, parsed }
 }
 
 // Correos de ESTE banco en la ventana, ya parseados. Los de otro banco del mismo buzón no son
@@ -814,7 +835,9 @@ export async function confirmEmailSetup(
   })
 
   // Categorización IA best-effort (solo no internos; una falla no revierte la importación).
-  if (deps.categorize) await deps.categorize(userId).catch(() => {})
+  // ponytail: tope de 10 páginas de 500 (5.000 movimientos) para la carga inicial de 3 meses; lo que
+  // sobre queda pendiente para «Categorizar» o la próxima sincronización.
+  if (deps.categorize) await deps.categorize(userId, 10).catch(() => {})
 
   return { ...result, skipped }
 }
@@ -1079,7 +1102,8 @@ export async function syncMailbox(
       await deps.matchRecurring(mailbox.userId, created).catch(() => {})
     // Después de los matches: un abono que reclama una recurrente o cuota ya no es adicional.
     if (deps.followIncome) await deps.followIncome(mailbox.userId).catch(() => {})
-    if (deps.categorize) await deps.categorize(mailbox.userId).catch(() => {})
+    // Una sincronización trae pocos movimientos: una página alcanza.
+    if (deps.categorize) await deps.categorize(mailbox.userId, 1).catch(() => {})
     // Solo lo que el usuario NO registró a mano y no es un traspaso interno merece notificación.
     if (deps.notify && notifiable.length > 0)
       await deps.notify(mailbox.userId, notifiable).catch(() => {})

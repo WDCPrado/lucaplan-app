@@ -16,16 +16,18 @@ import { openaiCategorizationProvider } from "../../http/ai/openai-categorizatio
 import { correctionRepository } from "./categorization-correction.infrastructure.ts"
 import { pendingCategorizationFilter } from "./categorize-pending-filter.ts"
 
-// Por páginas de 500 hasta vaciar: la carga inicial del correo trae 3 meses y puede pasar de 500.
-// Avanza por id, así lo que la IA deja sin categoría no se vuelve a pedir en la misma pasada.
+// Por páginas de 500, hasta `maxPages` o hasta vaciar: la carga inicial del correo trae 3 meses y
+// puede pasar de 500. Avanza por id, así lo que la IA deja sin categoría no se vuelve a pedir en la
+// misma pasada.
 const PAGE = 500
 
 export async function categorizePendingMovements(
-  userId: string
+  userId: string,
+  maxPages = 1
 ): Promise<number> {
   let assigned = 0
   let afterId: string | undefined
-  for (;;) {
+  for (let page = 0; page < maxPages; page++) {
     const rows = await prisma.transaction.findMany({
       where: {
         ...pendingCategorizationFilter(userId),
@@ -60,4 +62,5 @@ export async function categorizePendingMovements(
     )
     if (rows.length < PAGE) return assigned
   }
+  return assigned
 }

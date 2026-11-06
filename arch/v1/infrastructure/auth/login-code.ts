@@ -1,5 +1,6 @@
 import { emailOTP } from "better-auth/plugins"
 import { APIError } from "better-auth/api"
+import { createRateWindow } from "../../../shared/rate-window.ts"
 import { DEMO_EMAIL, isPrEnvironment } from "../../../../lib/pr-demo.ts"
 import {
   LOGIN_CODE_MINUTES,
@@ -53,9 +54,18 @@ export function devLoginCode(
  * Solo con `SIGNUP_OPEN=true` exacto, o siempre en `NODE_ENV=development`. Cerrado, un correo
  * nuevo recibe la misma respuesta que uno existente, sin código ni cuenta.
  */
-export function isSignupOpen(env: { NODE_ENV?: string; SIGNUP_OPEN?: string } = process.env) {
-  return env.SIGNUP_OPEN === "true" || env.NODE_ENV === "development"
+export function isSignupOpen(
+  env: { NODE_ENV?: string; SIGNUP_OPEN?: string; RAILWAY_ENVIRONMENT_NAME?: string } = process.env
+) {
+  return (
+    env.SIGNUP_OPEN === "true" ||
+    (env.NODE_ENV === "development" && !env.RAILWAY_ENVIRONMENT_NAME)
+  )
 }
+
+// Códigos por destinatario: el rate limit de better-auth es por IP, así que alguien podría llenar
+// el buzón de otra persona desde varias IPs. Pasado el tope no se envía, con la misma respuesta.
+const CODES_PER_HOUR = 5
 
 export function createLoginCodePlugin(
   mailer: LoginCodeMailer,
@@ -65,6 +75,7 @@ export function createLoginCodePlugin(
   // El email llega en minúsculas (better-auth lo normaliza antes de llamar a `generateOTP`).
   const demoEmail = (isPrEnvironment(env.RAILWAY_ENVIRONMENT_NAME) && process.env.SEED_PR_EMAIL) || DEMO_EMAIL
   const isFixed = (email: string) => fixed !== null && email === demoEmail.toLowerCase()
+  const perRecipient = createRateWindow(CODES_PER_HOUR, 60 * 60 * 1000)
   return emailOTP({
     // `undefined` hace que better-auth use su generador aleatorio (`generateOTP(...) || default`).
     generateOTP: ({ email }) => (isFixed(email) ? fixed! : undefined),
@@ -77,6 +88,7 @@ export function createLoginCodePlugin(
     rateLimit: { window: 60, max: 3 },
     sendVerificationOTP: async ({ email, otp, type }) => {
       if (type !== "sign-in" || isFixed(email)) return
+      if (!perRecipient.take(email)) return
       // Servidor Node persistente: enviar fuera de la respuesta evita revelar cuentas por latencia.
       // La respuesta es igual si el correo no existe. Solo se registra un fallo genérico.
       void mailer.send(email, otp).catch(() => {

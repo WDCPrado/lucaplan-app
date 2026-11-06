@@ -13,7 +13,8 @@ export async function POST(req: Request) {
     if (!openaiConfigured()) return { configured: false, assigned: 0 }
     return {
       configured: true,
-      assigned: await categorizePendingMovements(userId),
+      // ponytail: hasta 10 páginas de 500 por pedido; si quedan más, se vuelve a pedir.
+      assigned: await categorizePendingMovements(userId, 10),
     }
   })
 }

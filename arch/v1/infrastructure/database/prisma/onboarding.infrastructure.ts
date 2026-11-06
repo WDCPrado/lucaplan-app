@@ -12,9 +12,12 @@ import type {
   CategoryType,
 } from "../../../domain/finance/finance.domain.ts"
 
-export const onboardingRepository: OnboardingRepository = {
+// Sobre `prisma` o sobre el cliente de una transacción (el guardado del set lee la marca adentro).
+export const onboardingRepositoryIn = (
+  db: Prisma.TransactionClient | typeof prisma
+): OnboardingRepository => ({
   async completedAt(userId) {
-    const row = await prisma.user.findUnique({
+    const row = await db.user.findUnique({
       where: { id: userId },
       select: { onboardingCompletedAt: true },
     })
@@ -22,15 +25,18 @@ export const onboardingRepository: OnboardingRepository = {
   },
   async markCompleted(userId, at) {
     // Solo si sigue sin marcar: dos clics simultáneos no pisan la primera fecha.
-    await prisma.user.updateMany({
+    await db.user.updateMany({
       where: { id: userId, onboardingCompletedAt: null },
       data: { onboardingCompletedAt: at },
     })
   },
-}
+})
 
-// En uso = algo la referencia: movimientos, límites, recurrentes, planes de cuotas, ingresos
-// (se irían en cascada) o efectos de reembolso (FK Restrict). Esas no se borran.
+export const onboardingRepository = onboardingRepositoryIn(prisma)
+
+// En uso = algo la referencia. Son todas las FK hacia `category` del schema: movimientos (SetNull),
+// límites, correcciones de la IA, recurrentes, planes de cuotas e ingresos (Cascade) y efectos de
+// reembolso (Restrict). Esas no se borran.
 export const categoryUsageIn = (db: Prisma.TransactionClient): CategoryUsage => ({
   async usedCategoryIds(userId) {
     const rows = await db.category.findMany({
@@ -39,6 +45,7 @@ export const categoryUsageIn = (db: Prisma.TransactionClient): CategoryUsage => 
         OR: [
           { transactions: { some: {} } },
           { limits: { some: {} } },
+          { corrections: { some: {} } },
           { recurring: { some: {} } },
           { installments: { some: {} } },
           { incomes: { some: {} } },

@@ -104,7 +104,17 @@ test("la primera importación al conectar un banco trae los avisos de los últim
   assert.equal(result.totalMessages, 3)
   assert.ok(s.requested.every((d) => d.getTime() >= Date.parse("2026-04-01T00:00:00Z")))
 
-  // Borde: si lo único que hay es de antes de los 3 meses, no se importa nada.
-  const old = await scan([message("marzo", "2026-03-15T12:00:00Z")]).run()
-  assert.equal(old.totalMessages, 0)
+})
+
+test("un banco poco usado: si los 3 meses no traen movimientos, la ventana baja al mes del último aviso, hasta 6 meses antes de conectar", async () => {
+  // Último cargo hace 4 meses (15 de marzo, conectando el 14 de julio): igual ofrece qué confirmar.
+  const marzo = await scan([message("marzo", "2026-03-15T12:00:00Z")]).run()
+  assert.equal(marzo.since, "2026-03-01T00:00:00.000Z")
+  assert.equal(marzo.totalMessages, 1)
+  assert.equal(marzo.candidates.length, 1)
+
+  // Borde: más viejo que 6 meses (antes del 1 de enero) no se va a buscar; queda la ventana de 3 meses, vacía.
+  const viejo = await scan([message("diciembre", "2025-12-20T12:00:00Z")]).run()
+  assert.equal(viejo.since, "2026-04-01T00:00:00.000Z")
+  assert.equal(viejo.totalMessages, 0)
 })

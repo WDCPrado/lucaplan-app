@@ -1,6 +1,16 @@
 import type { LoginCodeMailer } from "../../../domain/login-code.ts"
 import { LOGIN_CODE_MINUTES } from "../../../domain/login-code.ts"
 
+/**
+ * ¿El código va a la consola del servidor en vez de al correo? Solo en local (development exacto,
+ * fuera de Railway) y sin RESEND_API_KEY. Lo usa también el login para mostrar la pista.
+ */
+export function printsLoginCodeLocally(
+  env: { NODE_ENV?: string; RAILWAY_ENVIRONMENT_NAME?: string; RESEND_API_KEY?: string } = process.env
+): boolean {
+  return !env.RESEND_API_KEY && env.NODE_ENV === "development" && !env.RAILWAY_ENVIRONMENT_NAME
+}
+
 /** HTML local: no requiere crear una plantilla en la cuenta de Resend. */
 export function createResendLoginCodeMailer({
   apiKey,
@@ -13,9 +23,8 @@ export function createResendLoginCodeMailer({
   transport?: typeof fetch
   env?: { NODE_ENV?: string; RAILWAY_ENVIRONMENT_NAME?: string }
 }): LoginCodeMailer {
-  // Solo en local (development exacto, fuera de Railway): sin Resend, el código va a la consola
-  // del servidor para poder registrarse. Producción sin Resend nunca lo imprime: el envío falla.
-  const printLocally = !apiKey && env.NODE_ENV === "development" && !env.RAILWAY_ENVIRONMENT_NAME
+  // Producción sin Resend nunca imprime el código: el envío falla.
+  const printLocally = printsLoginCodeLocally({ ...env, RESEND_API_KEY: apiKey })
   return {
     async send(email, code) {
       if (!/^\d{6}$/.test(code)) throw new Error("Código de acceso inválido.")

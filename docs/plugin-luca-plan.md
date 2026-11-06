@@ -1,7 +1,7 @@
 # Plugin Luca Plan
 
 El plugin expone las operaciones financieras de Luca Plan como herramientas MCP. Un host como
-ChatGPT o Codex interpreta lo que pide la persona y llama al servidor; Luca Plan autentica,
+Claude, ChatGPT o Codex interpreta lo que pide la persona y llama al servidor; Luca Plan autentica,
 autoriza y ejecuta cada operación sobre el usuario de la conexión.
 
 La primera versión cubre el acceso por plugin. No agrega un chat dentro de Luca Plan, sesiones de
@@ -40,7 +40,7 @@ acepta que el encabezado `Host` de una solicitud cambie esas identidades.
 
 ## Identidad y permisos
 
-Desde Luca Plan se inicia sesión con correo y contraseña, pero la autoridad es el identificador
+Desde Luca Plan se inicia sesión con un código por correo, pero la autoridad es el identificador
 interno del usuario que entrega OAuth. Las herramientas no reciben `email`, `userId` ni `scopes`:
 los esquemas rechazan esas claves y cada caso de uso comprueba que los recursos pedidos pertenecen
 al usuario autenticado.
@@ -179,36 +179,53 @@ ChatGPT guarda la lista de herramientas al conectar. Después de cambiar nombres
 esquemas o `instructions`: desplegar, y en ChatGPT abrir el plugin → **Refresh** (o reconectar) para
 que tome la nueva lista. Sin eso sigue usando la anterior.
 
-## Conectar ChatGPT o Codex
+## Conectar tu asistente
 
-Para usarlo desde ChatGPT web o móvil hace falta desplegar `/api/mcp` en HTTPS y registrar esa URL
-con **Add custom MCP server** en una cuenta o workspace donde la función esté habilitada. El
-registro no se completa instalando esta carpeta: la persona debe iniciar sesión en Luca Plan,
-elegir la cuenta y aceptar los scopes. Las políticas de la cuenta o del workspace pueden impedir
-agregar servidores personalizados.
+El servidor MCP vive en `https://<tu-dominio>/api/mcp` y usa **OAuth con registro dinámico del
+cliente**: no hay claves que copiar. Al conectar, la persona inicia sesión en Luca Plan con su
+código por correo, elige la cuenta y acepta los scopes. Verifica antes que `BETTER_AUTH_URL` sea el
+origen público correcto. La conexión se revisa o revoca desde `https://<tu-dominio>/plugin`.
 
-Con el servidor desplegado:
+> Claude y ChatGPT web exigen una URL **HTTPS pública**: `localhost` no sirve para ellos. Para
+> probar contra el entorno local, usa Claude Code.
 
-1. Verifica que `BETTER_AUTH_URL` sea el origen HTTPS público correcto.
-2. En ChatGPT Plugins, pulsa **+ → Add custom MCP server**. Usa nombre **Luca Plan**, URL
-   `https://lucaplan.cl/api/mcp` y autenticación **OAuth** con registro dinámico del cliente.
-3. Crea el plugin personal, inicia sesión con el usuario de Luca Plan y acepta sus permisos.
-4. Instala el plugin creado, abre un chat nuevo y selecciónalo con `@`.
-5. Comprueba primero una consulta. Una escritura reversible requiere una instrucción explícita
-   del usuario y un `operationId` nuevo; no cambies datos reales solo para probar la conexión.
-6. Revisa o revoca la conexión desde `https://lucaplan.cl/plugin` en Luca Plan.
+### Claude web y Desktop (sin probar todavía)
+
+1. En **Ajustes → Conectores**, pulsa **Agregar conector personalizado**.
+2. Nombre **Luca Plan**, URL `https://<tu-dominio>/api/mcp`. Claude descubre OAuth y registra el
+   cliente solo.
+3. Inicia sesión en Luca Plan cuando se abra la ventana y acepta los permisos.
+
+### ChatGPT
+
+Hace falta el **modo desarrollador** en una cuenta o workspace donde la función esté habilitada;
+las políticas del workspace pueden impedir agregar servidores personalizados. El registro no se
+completa instalando esta carpeta.
+
+1. En ChatGPT Plugins, pulsa **+ → Add custom MCP server**. Usa nombre **Luca Plan**, URL
+   `https://<tu-dominio>/api/mcp` y autenticación **OAuth** con registro dinámico del cliente.
+2. Crea el plugin personal, inicia sesión con el usuario de Luca Plan y acepta sus permisos.
+3. Instala el plugin creado, abre un chat nuevo y selecciónalo con `@`.
 
 Si se necesita conectar el paquete local con ese plugin personal, conserva su identificador
 `plugin_asdk_app...` generado por ChatGPT para registrar el vínculo OpenAI. No se inventa ni se
 obtiene de `client_id` OAuth. La creación e instalación del plugin y el consentimiento se hacen
 con la cuenta de la persona; este repositorio no guarda sus credenciales.
 
-El entorno local de WDC-117 usa la app en `http://localhost:3117` y una base aislada en el puerto
-`5117`. Los datos son demo; no se conecta a producción. El usuario base es `demo@lucaplan.cl` con
-contraseña `lucaplan1234`, además de los usuarios sembrados por escenas.
+### Claude Code
 
-La escena `wdc-117@lucaplan.cl`, con la misma contraseña, incluye una conexión de demostración
-sin tokens para revisar sus permisos y revocarla desde Ajustes → Gestionar conexiones.
+```bash
+claude mcp add --transport http luca-plan https://<tu-dominio>/api/mcp
+```
+
+Sirve también con el entorno local (`http://localhost:<puerto>/api/mcp`). Al primer uso, `/mcp`
+abre el login de Luca Plan; en local la cuenta demo `demo@lucaplan.cl` entra con el código
+`000000`.
+
+### Después de conectar
+
+Comprueba primero una consulta. Una escritura reversible requiere una instrucción explícita del
+usuario y un `operationId` nuevo; no cambies datos reales solo para probar la conexión.
 
 La estructura portable y el flujo para registrar un MCP personalizado están documentados en
 [Package your plugin](https://developers.openai.com/plugins/build/plugins) y

@@ -87,3 +87,23 @@ export interface OnboardingRepository {
   completedAt(userId: string): Promise<Date | null>
   markCompleted(userId: string, at: Date): Promise<void>
 }
+
+// El onboarding ya se terminó u omitió: proponer o reemplazar el set de categorías ya no aplica
+// (las categorías se editan desde Ajustes). 409.
+export class OnboardingCompletedError extends Error {
+  constructor() {
+    super("El onboarding ya terminó")
+    this.name = "OnboardingCompletedError"
+  }
+}
+
+// Hay dos categorías del usuario que solo difieren en mayúsculas o espacios y ninguna se llama
+// exactamente como la enviada: no se sabe cuál actualizar. 422.
+export class AmbiguousCategoryNameError extends Error {
+  constructor(name: string) {
+    super(
+      `Tienes más de una categoría llamada «${name}» con distintas mayúsculas; escríbela igual que una de ellas`
+    )
+    this.name = "AmbiguousCategoryNameError"
+  }
+}

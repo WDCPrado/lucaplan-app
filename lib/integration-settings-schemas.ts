@@ -96,7 +96,7 @@ export type IntegrationsStatus = z.infer<typeof integrationsStatus>
 //
 // 1. Estado    GET  /api/setup                  público  salida: setupStatus
 // 2. Verificar POST /api/setup/verify           público  entrada: setupVerifyInput  204 · 401 código
-//    inválido · 404 ya instalado · 429 más de 5 intentos por hora por IP
+//    inválido · 404 ya instalado · 429 más de 5 intentos por hora por IP o 30 en total en 10 min
 // 3. Claves    PUT  /api/setup/integrations     cookie de setup  entrada: updateIntegrationsInput
 //    salida: integrationsStatus  mismas reglas que PUT /api/integrations (409 si viene del entorno)
 //    401 sin cookie · 404 ya instalado

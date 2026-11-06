@@ -10,7 +10,6 @@ import {
   type SetupStatus,
 } from "../../../../lib/integration-settings-schemas.ts"
 import {
-  SETUP_MAX_TOTAL_FAILURES,
   SETUP_SESSION_MS,
   SetupDoneError,
   SetupRateLimitedError,
@@ -38,7 +37,6 @@ async function assertNotInstalled(deps: SetupDeps) {
 function newCode(deps: SetupDeps): string {
   const part = () => Array.from({ length: 4 }, () => ALPHABET[randomInt(ALPHABET.length)]).join("")
   deps.state.code = `${part()}-${part()}`
-  deps.state.failedTotal = 0
   return deps.state.code
 }
 
@@ -76,19 +74,19 @@ export async function getSetupStatus(deps: SetupDeps, token: string | null): Pro
 /**
  * Verifica el código de instalación y devuelve el token de la cookie del asistente. Un código mal
  * formado es 422 y no cuenta; cada incorrecto cuenta para el tope por IP, que bloquea también al
- * correcto (429), y para el tope total: al 10.º incorrecto, de cualquier IP, el código se rota.
+ * correcto (429), y para el tope total de todas las IPs, que da 429 a todos hasta liberarse solo.
  */
 export async function verifySetupCode(deps: SetupDeps, input: unknown, ip: string): Promise<string> {
   await assertNotInstalled(deps)
   const code = setupVerifyInput.parse(input).code.replace("-", "")
   const now = deps.now().getTime()
-  if (deps.state.failures.full(ip, now)) throw new SetupRateLimitedError()
+  if (deps.state.failures.full(ip, now) || deps.state.failedTotal.full("all", now))
+    throw new SetupRateLimitedError()
   const expected = Buffer.from((deps.state.code ?? "").replace("-", ""))
   const given = Buffer.from(code)
   if (!deps.state.code || expected.length !== given.length || !timingSafeEqual(expected, given)) {
     deps.state.failures.take(ip, now)
-    if (++deps.state.failedTotal >= SETUP_MAX_TOTAL_FAILURES)
-      console.log(`[setup] Demasiados intentos: nuevo código de instalación: ${newCode(deps)}`)
+    deps.state.failedTotal.take("all", now)
     throw new SetupUnauthorizedError()
   }
   for (const [t, expires] of deps.state.sessions) if (expires <= now) deps.state.sessions.delete(t)

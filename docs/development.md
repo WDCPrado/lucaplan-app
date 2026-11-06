@@ -174,8 +174,8 @@ agrupaciones, la tipografía y los controles.
 - **Skills de referencia, obligatorias al tocar UI de la app:** `apple-hig` (las Human Interface
   Guidelines completas, por componente) y `apple-design` (revisión de diseño contra la HIG), las
   dos declaradas en `skills-lock.json`; se restauran con `npx skills experimental_install`. Para
-  anti-slop y escaneabilidad manda `impeccable`. La landing no sigue estas reglas: su modal legal
-  deshace la hoja flotante desde su `className` (`app/page.tsx`) y el peso de íconos no la alcanza.
+  anti-slop y escaneabilidad manda `impeccable`. La landing (`components/landing/`) sigue estas mismas
+  reglas y tokens: sus vistas de ejemplo son los componentes reales de la app (WDC-181).
 - **Cada elemento tiene un propósito.** Todo botón, texto, ícono, color, borde, badge o sección
   responde a qué decisión o acción de la persona sirve. Si no sirve ninguna o repite algo que ya
   está, se quita o se funde; si sirve, su peso visual corresponde a su importancia. Quitar va antes

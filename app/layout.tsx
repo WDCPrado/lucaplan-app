@@ -8,19 +8,12 @@ import { PwaRefresh } from "@/components/pwa/pwa-refresh"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 
-// Tipografía: la app usa la fuente del sistema (SF en Apple) y cae a Geist en el resto; Space
-// Grotesk queda solo para los titulares de la landing y Geist Mono para código. Las pilas viven en
-// globals.css. Ver docs/design/design-system.md.
+// Tipografía: la app y la landing usan la fuente del sistema (SF en Apple) y caen a Geist en el
+// resto; Geist Mono para código. Las pilas viven en globals.css. Ver docs/design/design-system.md.
 const fontSans = localFont({
   src: "./fonts/Geist.woff2",
   weight: "100 900",
   variable: "--font-geist",
-})
-
-const fontHeading = localFont({
-  src: "./fonts/SpaceGrotesk.woff2",
-  weight: "500 700",
-  variable: "--font-grotesk",
 })
 
 const fontMono = localFont({
@@ -94,7 +87,6 @@ export default function RootLayout({
       className={cn(
         "font-sans antialiased",
         fontSans.variable,
-        fontHeading.variable,
         fontMono.variable
       )}
     >

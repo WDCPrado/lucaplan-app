@@ -94,7 +94,7 @@ de desenfoque, los materiales caen a sólido. `prefers-reduced-motion` sigue sie
   `--radius-sheet` para hojas y alertas.
 - Tipografía del sistema: SF en Apple, Geist en el resto (`--font-sans`), con la escala de iOS
   (`text-large-title` … `text-caption`). Cifras con `.tabular` (cifras tabulares de la fuente del
-  sistema). La landing conserva Geist, Space Grotesk y cifras mono.
+  sistema). La landing usa la misma tipografía y los mismos tokens que la app (WDC-181).
 
 ## Dark mode
 
@@ -104,7 +104,7 @@ uno del otro.
 
 El fondo oscuro es negro `#000000`, como el fondo agrupado de iOS 26; las tarjetas conservan `#1C1C1E` y las superficies
 secundarias `#2C2C2E`. El `theme-color` inicial y dinámico y el manifest usan ese mismo fondo
-para acompañar la app instalada. El tema claro y la landing conservan sus colores.
+para acompañar la app instalada. El tema claro conserva sus colores; la landing sigue el tema de la persona.
 
 ## Cómo extender
 

@@ -209,58 +209,6 @@
     --card-art-danger: oklch(0.808 0.114 19.57);
 }
 
-/* === Landing pública: SIEMPRE light, sin depender del tema del usuario.
-   Redefine los tokens semánticos a sus valores light dentro de su subárbol,
-   ganándole al `.dark` heredado del <html>. `.force-light` es para superficies
-   que se montan en portales (modales de la landing) fuera de [data-landing]. === */
-[data-landing],
-.force-light {
-    color-scheme: light;
-    /* La landing conserva su tipografía: Geist en el cuerpo y Space Grotesk en titulares. */
-    --font-sans: var(--font-geist), sans-serif;
-    --font-heading: var(--font-grotesk), var(--font-geist), sans-serif;
-    font-family: var(--font-sans);
-    --background: oklch(0.985 0.003 250);
-    --foreground: oklch(0.21 0.03 260);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.21 0.03 260);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.21 0.03 260);
-    --primary: oklch(0.54 0.19 262);
-    --primary-foreground: oklch(0.99 0.005 258);
-    --secondary: oklch(0.965 0.006 255);
-    --secondary-foreground: oklch(0.28 0.03 260);
-    --muted: oklch(0.965 0.005 255);
-    --muted-foreground: oklch(0.52 0.025 258);
-    --accent: oklch(0.94 0.03 255);
-    --accent-foreground: oklch(0.34 0.09 258);
-    --success: oklch(0.55 0.14 152);
-    --success-foreground: oklch(0.99 0.01 152);
-    --committed: oklch(0.62 0.2 350); /* comprometido: fuera del semáforo de uso */
-    --warning: oklch(0.76 0.15 78);
-    --warning-foreground: oklch(0.27 0.05 78);
-    --destructive: oklch(0.58 0.22 25);
-    --destructive-foreground: oklch(0.99 0.01 25);
-    --border: oklch(0.905 0.008 255);
-    --input: oklch(0.905 0.008 255);
-    --ring: oklch(0.54 0.19 262);
-    --chart-1: oklch(0.54 0.19 262);
-    --chart-2: oklch(0.68 0.12 205);
-    --chart-3: oklch(0.66 0.15 150);
-    --chart-4: oklch(0.62 0.17 300);
-    --chart-5: oklch(0.70 0.15 55);
-}
-
-/* La landing es light-only: el lienzo raíz (html/body) también, aunque el tema del usuario
-   sea dark — evita la franja oscura en el borde superior y el overscroll. */
-html:has(main[data-landing]) {
-    color-scheme: light;
-    background: oklch(0.985 0.003 250);
-}
-html:has(main[data-landing]) body {
-    background: oklch(0.985 0.003 250);
-}
-
 /* === Dark: fondo carbón suave con celdas elevadas #1C1C1E/#2C2C2E y
    colores de sistema en su variante oscura. === */
 .dark {
@@ -386,10 +334,9 @@ html:has(main[data-landing]) body {
    texto regular, más grueso con texto semibold/bold. El tamaño lo sigue poniendo `size-*` según la
    escala tipográfica (`size-4` junto a subheadline/body, `size-5` en barras, `size-6` sueltos). */
 /* En @layer base para que `disclosure` y las utilidades `stroke-*` le ganen; solo toca el trazo
-   `stroke-width="2"` (el de lucide por defecto); un `strokeWidth` distinto de 2 se respeta. La landing no
-   sigue el lenguaje iOS. */
+   `stroke-width="2"` (el de lucide por defecto); un `strokeWidth` distinto de 2 se respeta. */
 @layer base {
-  :is(.font-semibold, .font-bold):not([data-landing] *) > svg.lucide[stroke-width="2"] {
+  :is(.font-semibold, .font-bold) > svg.lucide[stroke-width="2"] {
     stroke-width: 2.5;
   }
 }
@@ -568,24 +515,6 @@ html:has(main[data-landing]) body {
 [data-reveal].is-visible {
   opacity: 1;
   transform: none;
-}
-
-/* Halo ambiental del hero: mesh de varios puntos degradados con blur real (sin bordes
-   perceptibles). Tokens del sistema, nunca hardcode. El elemento que lleva la clase debe
-   estar posicionado (el ::before ancla a él). */
-.landing-glow::before {
-  content: "";
-  position: absolute;
-  inset: -8rem;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(46rem 36rem at 78% 14%, color-mix(in oklch, var(--primary), transparent 58%), transparent 68%),
-    radial-gradient(38rem 30rem at 58% 2%, color-mix(in oklch, var(--chart-2), transparent 62%), transparent 68%),
-    radial-gradient(34rem 30rem at 97% 48%, color-mix(in oklch, var(--chart-4), transparent 74%), transparent 68%),
-    radial-gradient(40rem 34rem at 4% 30%, color-mix(in oklch, var(--accent), transparent 25%), transparent 68%);
-  filter: blur(72px);
-  opacity: 0.55;
 }
 
 /* Barra de presupuesto: se llena al entrar en viewport */
@@ -815,39 +744,6 @@ html:has(main[data-landing]) body {
 .tabular {
   font-variant-numeric: tabular-nums;
 }
-/* La landing conserva la sombra de las tarjetas de cuenta (en la app van planas sobre el fondo
-   grouped). */
-:is([data-landing], .force-light) .account-card {
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 8px 20px -10px rgb(0 0 0 / 0.25);
-}
-/* La landing no sigue el lenguaje iOS de la app (WDC-176). Su hoja vuelve a ir pegada abajo desde
-   el `className` del modal (app/page.tsx); aquí solo la X de escritorio, que no tiene prop: un botón
-   fantasma de 44 px en vez del círculo gris. */
-.force-light [data-slot="dialog-close"] {
-  top: 1rem;
-  right: 1rem;
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: var(--radius-lg);
-  background-color: transparent;
-  color: var(--foreground);
-}
-.force-light [data-slot="dialog-close"]:hover {
-  background-color: var(--muted);
-}
-.force-light [data-slot="dialog-close"] svg {
-  stroke-width: 2;
-}
-/* El modal legal de la landing conserva su título de antes: grande y a la izquierda. */
-.force-light :is([data-slot="drawer-title"], [data-slot="dialog-title"]) {
-  font-size: 1.25rem;
-  line-height: 1.375;
-}
-/* La landing conserva sus cifras mono. */
-:is([data-landing], .force-light) .tabular {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums slashed-zero;
-}
 
 /* Sidebar de escritorio flotante (macOS 26): el mismo Liquid Glass de los controles móviles, con
    el radio de superficie. Fuera de @layer para ganarle a bg-sidebar/rounded-lg/ring/shadow que
@@ -1022,17 +918,6 @@ html:has(main[data-landing]) body {
     --scrim: oklch(0 0 0 / 0.55);
     --grabber: oklch(0.682 0.01 286 / 0.45);
 }
-/* La landing es siempre clara: sus hojas resuelven los tokens con su propia paleta, no con la del
-   tema del usuario (una variable con var() se resuelve donde se declara y se hereda ya resuelta). */
-[data-landing],
-.force-light {
-    --sheet: var(--background);
-    --sheet-cell: var(--card);
-    --material: oklch(0.985 0.002 286 / 0.86);
-    --scrim: oklch(0 0 0 / 0.3);
-    --grabber: oklch(0.359 0.012 285.8 / 0.3);
-}
-
 /* Fondo atenuado sin desenfoque: iOS oscurece lo de atrás, no lo difumina. */
 [data-slot="dialog-overlay"],
 [data-slot="drawer-overlay"],

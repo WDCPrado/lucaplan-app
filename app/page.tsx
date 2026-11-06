@@ -20,8 +20,9 @@ import { Steps } from "@/components/landing/steps"
 export default async function Home() {
   // SIGNUP_OPEN se lee en cada pedido, no queda congelado en el build.
   await connection()
-  // Sin ninguna cuenta, lo primero es la instalación inicial.
-  if (await isInstallationEmpty()) redirect("/setup")
+  // Sin ninguna cuenta, lo primero es la instalación inicial. Si la base no responde, se trata como
+  // «no vacía»: la landing no cae por esta consulta.
+  if (await isInstallationEmpty().catch(() => false)) redirect("/setup")
   const signupOpen = isSignupOpen()
   return (
     <main className="relative overflow-x-clip bg-background text-foreground">

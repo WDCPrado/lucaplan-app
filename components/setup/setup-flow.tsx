@@ -31,8 +31,12 @@ import {
 } from "../finance/onboarding/step-layout"
 import { ApiError } from "../finance/onboarding/http"
 import {
+  catchLoad,
   IntegrationsList,
+  isLoadFailure,
+  LoadError,
   type IntegrationGroup,
+  type LoadFailure,
 } from "../finance/integrations/integrations-groups"
 import { KEY_LABEL } from "../finance/integrations/integration-modal"
 import { getSetupStatus, saveSetupIntegrations, verifySetupCode } from "./http"
@@ -61,14 +65,19 @@ export function SetupFlow({
     () => false
   )
   // La promesa vive aquí, que sí se monta (si la creara el hijo que suspende, se repetiría).
-  const [request] = useState(() =>
-    typeof window === "undefined" ? null : getSetupStatus()
+  // Un GET que falla vuelve como valor; Reintentar la reemplaza por una nueva.
+  const [request, setRequest] = useState(() =>
+    typeof window === "undefined" ? null : catchLoad(getSetupStatus())
   )
   return (
     <main className="flex min-h-dvh flex-col bg-background p-[env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)]">
       {hydrated && request ? (
         <Suspense fallback={<FlowSkeleton />}>
-          <Flow request={request} redirectUri={outlookRedirectUri} />
+          <Resolve
+            request={request}
+            redirectUri={outlookRedirectUri}
+            onRetry={() => setRequest(catchLoad(getSetupStatus()))}
+          />
         </Suspense>
       ) : (
         <FlowSkeleton />
@@ -90,14 +99,33 @@ function FlowSkeleton() {
   )
 }
 
-function Flow({
+function Resolve({
   request,
   redirectUri,
+  onRetry,
 }: {
-  request: Promise<SetupStatus>
+  request: Promise<SetupStatus | LoadFailure>
+  redirectUri: string
+  onRetry: () => void
+}) {
+  const result = use(request)
+  if (isLoadFailure(result))
+    return (
+      <div className="mx-auto flex w-full max-w-5xl flex-col px-5 pt-8 lg:px-10">
+        <LoadError message={result.loadError} onRetry={onRetry} />
+      </div>
+    )
+  return <Flow initial={result} redirectUri={redirectUri} />
+}
+
+function Flow({
+  initial,
+  redirectUri,
+}: {
+  initial: SetupStatus
   redirectUri: string
 }) {
-  const [setup, setSetup] = useState(use(request))
+  const [setup, setSetup] = useState(initial)
   // null hasta validar el código (contrato); después, lo último que respondió el servidor.
   const [integrations, setIntegrations] = useState<IntegrationsStatus>(
     setup.integrations ?? { entries: [] }
@@ -263,13 +291,13 @@ function OptionalStep({
   )
 }
 
-// ABCD-1234 mientras se escribe: solo letras y números, en mayúscula, con el guion después de 4.
+// ABCD-EFGH-JKLM mientras se escribe: solo letras y números, en mayúscula, con un guion cada 4.
 function maskCode(raw: string) {
   const chars = raw
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "")
-    .slice(0, 8)
-  return chars.length > 4 ? `${chars.slice(0, 4)}-${chars.slice(4)}` : chars
+    .slice(0, 12)
+  return chars.match(/.{1,4}/g)?.join("-") ?? ""
 }
 
 function CodeStep({
@@ -346,12 +374,12 @@ function CodeStep({
               },
             })}
             inputMode="text"
-            maxLength={9}
+            maxLength={14}
             autoComplete="off"
             autoCapitalize="characters"
             autoCorrect="off"
             spellCheck={false}
-            placeholder="ABCD-1234"
+            placeholder="ABCD-EFGH-JKLM"
             disabled={isSubmitting}
             aria-invalid={!!errors.code}
             aria-describedby={errors.code ? `${fieldId}-error` : undefined}

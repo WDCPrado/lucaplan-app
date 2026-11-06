@@ -21,7 +21,7 @@ import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { getIntegrations, updateIntegrations } from "./http"
+import { ApiError, getIntegrations, updateIntegrations } from "./http"
 import {
   IntegrationModal,
   KEY_LABEL,
@@ -74,6 +74,47 @@ const dateFmt = new Intl.DateTimeFormat("es-CL", {
 
 const noop = () => () => {}
 
+// Un GET que falla no lanza: vuelve como valor, así la pantalla muestra el aviso en línea con
+// Reintentar en vez de caer entera a la pantalla de error de Next. La usa también /setup.
+export type LoadFailure = { loadError: string }
+
+export function catchLoad<T>(request: Promise<T>): Promise<T | LoadFailure> {
+  return request.catch((error: unknown) => ({
+    loadError:
+      error instanceof ApiError
+        ? error.message
+        : "No se pudo cargar. Revisa tu conexión",
+  }))
+}
+
+export function isLoadFailure(value: unknown): value is LoadFailure {
+  return typeof value === "object" && value !== null && "loadError" in value
+}
+
+export function LoadError({
+  message,
+  onRetry,
+}: {
+  message: string
+  onRetry: () => void
+}) {
+  return (
+    <div className="flex flex-col items-start gap-3">
+      <p role="alert" className="text-subheadline text-destructive">
+        {message}
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        className="h-11"
+        onClick={onRetry}
+      >
+        Reintentar
+      </Button>
+    </div>
+  )
+}
+
 // Los datos se piden en el cliente (GET /api/integrations); en el servidor no hay sesión que
 // reenviar, así que hasta hidratar se ve el esqueleto.
 export function IntegrationsGroups({ redirectUri }: { redirectUri: string }) {
@@ -83,14 +124,18 @@ export function IntegrationsGroups({ redirectUri }: { redirectUri: string }) {
     () => false
   )
   // La promesa vive aquí, que sí se monta: si la creara el hijo que suspende, React la volvería a
-  // crear en cada reintento y nunca saldría del esqueleto.
-  const [request] = useState(() =>
-    typeof window === "undefined" ? null : getIntegrations()
+  // crear en cada reintento y nunca saldría del esqueleto. Reintentar la reemplaza por una nueva.
+  const [request, setRequest] = useState(() =>
+    typeof window === "undefined" ? null : catchLoad(getIntegrations())
   )
   if (!hydrated || !request) return <GroupsSkeleton />
   return (
     <Suspense fallback={<GroupsSkeleton />}>
-      <Loaded request={request} redirectUri={redirectUri} />
+      <Loaded
+        request={request}
+        redirectUri={redirectUri}
+        onRetry={() => setRequest(catchLoad(getIntegrations()))}
+      />
     </Suspense>
   )
 }
@@ -108,11 +153,26 @@ function GroupsSkeleton() {
 function Loaded({
   request,
   redirectUri,
+  onRetry,
 }: {
-  request: Promise<IntegrationsStatus>
+  request: Promise<IntegrationsStatus | LoadFailure>
+  redirectUri: string
+  onRetry: () => void
+}) {
+  const result = use(request)
+  if (isLoadFailure(result))
+    return <LoadError message={result.loadError} onRetry={onRetry} />
+  return <LoadedList initial={result} redirectUri={redirectUri} />
+}
+
+function LoadedList({
+  initial,
+  redirectUri,
+}: {
+  initial: IntegrationsStatus
   redirectUri: string
 }) {
-  const [status, setStatus] = useState<IntegrationsStatus>(use(request))
+  const [status, setStatus] = useState(initial)
   return (
     <IntegrationsList
       status={status}

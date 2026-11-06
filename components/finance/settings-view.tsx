@@ -165,7 +165,7 @@ export function SettingsView({
           {isAdmin && (
             <SettingsSection
               title="Integraciones"
-              footer="Se guardan cifradas en tu servidor. Nadie, ni tú, puede volver a verlas completas."
+              footer="Las claves secretas se guardan cifradas y no se vuelven a mostrar completas."
             >
               <IntegrationsGroups redirectUri={outlookRedirectUri} />
             </SettingsSection>

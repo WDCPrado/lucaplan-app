@@ -35,6 +35,12 @@ export default async function SettingsPage() {
       dueDays={dueDays}
       paceFrequency={paceFrequency}
       vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? ""}
+      isAdmin={session.user.role === "ADMIN"}
+      // La misma que arma outlook-oauth.ts: la que hay que registrar en Microsoft Entra.
+      outlookRedirectUri={
+        process.env.OUTLOOK_REDIRECT_URI ||
+        `${process.env.BETTER_AUTH_URL ?? "http://localhost:3000"}/api/email-connection/callback`
+      }
     />
   )
 }

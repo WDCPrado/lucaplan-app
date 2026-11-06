@@ -15,6 +15,8 @@ import { PushToggle } from "@/components/pwa/push-toggle"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
 import { AppShell, useOpenProfile } from "./app-shell"
 import { Segmented } from "./segmented"
+import { IntegrationsGroups } from "./integrations/integrations-groups"
+import { USING_EXAMPLE } from "./integrations/http"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,6 +64,8 @@ export function SettingsView({
   dueDays,
   paceFrequency,
   vapidPublicKey,
+  isAdmin,
+  outlookRedirectUri,
 }: {
   user: { name: string; email: string; initial: string }
   alerts: BudgetAlert[]
@@ -69,6 +73,9 @@ export function SettingsView({
   paceFrequency: PaceFrequency
   // Vacío = sin claves VAPID en el servidor: no hay push posible, la sección ni se ofrece.
   vapidPublicKey: string
+  // Integraciones son de la instalación: solo ADMIN las ve (GET/PUT /api/integrations).
+  isAdmin: boolean
+  outlookRedirectUri: string
 }) {
   const { toggleTheme } = useAppearance()
   const openProfile = useOpenProfile()
@@ -156,6 +163,16 @@ export function SettingsView({
               <ChevronRight aria-hidden className="disclosure" />
             </Link>
           </div>
+          {/* ponytail: con example.ts se ve para cualquiera (la cuenta demo es USER); al pasar
+              http.ts al fetch real queda solo detrás del rol. */}
+          {(isAdmin || USING_EXAMPLE) && (
+            <SettingsSection
+              title="Integraciones"
+              footer="Se guardan cifradas en tu servidor. Nadie, ni tú, puede volver a verlas completas."
+            >
+              <IntegrationsGroups redirectUri={outlookRedirectUri} />
+            </SettingsSection>
+          )}
           <SignOutRow />
         </div>
       </div>

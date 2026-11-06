@@ -9,7 +9,6 @@ import {
   useState,
   useSyncExternalStore,
   ViewTransition,
-  type ReactNode,
 } from "react"
 import { useRouter } from "next/navigation"
 import {
@@ -26,7 +25,6 @@ import {
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { formatMoney } from "@/lib/finance-format"
-import { cn } from "@/lib/utils"
 import {
   SCAN_LOOKBACK_MONTHS,
   type OnboardingStatus,
@@ -48,6 +46,7 @@ import type {
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { CategoriesStep } from "./categories-step"
 import { completeOnboarding } from "./http"
+import { focusOnMount, Progress, Split, TITLE_ID } from "./step-layout"
 
 const STEPS = [
   "welcome",
@@ -64,11 +63,6 @@ const STORAGE_KEY = "lucaplan:onboarding-step"
 const README_OUTLOOK =
   "https://github.com/WDCPrado/lucaplan-app#-conectar-outlook-banco-de-chile-paso-a-paso"
 
-const TITLE_ID = "onboarding-title"
-
-// Cada paso enfoca su título al montarse (va con key={step}). Función estable: no se repite en cada render.
-const focusOnMount = (el: HTMLElement | null) =>
-  el?.focus({ preventScroll: true })
 
 // El onboarding se monta dentro del shell (SidebarInset): mientras dura, todo lo que no es él queda
 // inert, hermano por hermano hasta la raíz del shell. Función estable: corre al montar y limpia al salir.
@@ -166,7 +160,7 @@ export function OnboardingFlow({
       className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background p-[env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)]"
     >
       <header className="mx-auto flex w-full max-w-5xl items-center gap-4 px-5 pt-4 pb-3 lg:px-10 lg:pt-8">
-        <Progress index={index} />
+        <Progress index={index} total={STEPS.length} />
         {!locked && step !== "done" && (
           <button
             type="button"
@@ -294,85 +288,6 @@ export function OnboardingFlow({
           remainingToAllocate={remainingToAllocate}
         />
       </IncomeModal>
-    </div>
-  )
-}
-
-function Progress({ index }: { index: number }) {
-  return (
-    <div
-      role="progressbar"
-      aria-valuemin={1}
-      aria-valuemax={STEPS.length}
-      aria-valuenow={index + 1}
-      aria-valuetext={`Paso ${index + 1} de ${STEPS.length}`}
-      aria-label="Progreso del inicio"
-      className="flex flex-1 gap-1.5"
-    >
-      {STEPS.map((s, i) => (
-        <span
-          key={s}
-          aria-hidden
-          className="h-1 flex-1 overflow-hidden rounded-full bg-border"
-        >
-          <span
-            className={cn(
-              "block h-full origin-left rounded-full bg-primary transition-transform duration-500 ease-out motion-reduce:transition-none",
-              i <= index ? "scale-x-100" : "scale-x-0"
-            )}
-          />
-        </span>
-      ))}
-    </div>
-  )
-}
-
-// Escritorio: la explicación a un lado y la acción al otro. Móvil: una columna.
-function Split({
-  eyebrow,
-  title,
-  body,
-  points,
-  children,
-}: {
-  eyebrow: string
-  title: string
-  body: string
-  points?: { icon: typeof Mail; text: string }[]
-  children: ReactNode
-}) {
-  return (
-    <div className="grid flex-1 content-start gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-16">
-      <div className="lg:sticky lg:top-10 lg:self-start">
-        <p className="text-footnote font-semibold tracking-wide text-primary uppercase">
-          {eyebrow}
-        </p>
-        <h1
-          id={TITLE_ID}
-          ref={focusOnMount}
-          tabIndex={-1}
-          className="mt-2 text-title-1 font-bold text-balance outline-none lg:text-large-title"
-        >
-          {title}
-        </h1>
-        <p className="mt-3 text-body text-pretty text-muted-foreground">
-          {body}
-        </p>
-        {points && (
-          <ul className="mt-6 flex flex-col gap-3">
-            {points.map(({ icon: Icon, text }) => (
-              <li key={text} className="flex items-start gap-3">
-                <Icon
-                  aria-hidden
-                  className="mt-0.5 size-5 shrink-0 text-primary"
-                />
-                <span className="text-subheadline text-pretty">{text}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <div className="min-w-0">{children}</div>
     </div>
   )
 }

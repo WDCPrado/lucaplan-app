@@ -1219,9 +1219,10 @@ export async function listRecurringView(
 
 // Movimientos que el usuario puede elegir como el cobro del período en curso de la plantilla `id`
 // (ver `payRecurringPeriodWith`): movimientos del banco confirmados y sin vínculo, de su misma
-// dirección, moneda y categoría, de los últimos `days` días (hoy en Chile), más nuevos primero.
-// Con la misma regla que el vínculo (`paymentCandidateRejection`): fecha a ±RECURRING_MATCH_WINDOW_DAYS
-// del vencimiento del período en curso y monto en tolerancia, para no ofrecer lo que se rechazaría.
+// dirección, moneda y categoría, de los últimos `days` días (hoy en Chile, sin tope futuro), más
+// nuevos primero. Con las mismas reglas que el vínculo (`paymentCandidateRejection`), para no ofrecer
+// lo que se rechazaría: monto en tolerancia y nada anterior a RECURRING_MATCH_WINDOW_DAYS días del
+// vencimiento del período en curso.
 export async function listRecurringCandidates(
   deps: ReadDeps & { recurring: RecurringTemplateRepository },
   userId: string,
@@ -1241,19 +1242,14 @@ export async function listRecurringCandidates(
   const today = new Date(`${todayKey(now)}T00:00:00Z`)
   const from = new Date(today)
   from.setUTCDate(from.getUTCDate() - days)
-  const due = executionDateFor(template, periodKeyFor(template, today))
-  const windowFrom = new Date(due)
-  windowFrom.setUTCDate(windowFrom.getUTCDate() - RECURRING_MATCH_WINDOW_DAYS)
-  const to = new Date(due)
-  to.setUTCDate(to.getUTCDate() + RECURRING_MATCH_WINDOW_DAYS)
-  const { min, max } = toleranceRange(template)
+  const floor = executionDateFor(template, periodKeyFor(template, today))
+  floor.setUTCDate(floor.getUTCDate() - RECURRING_MATCH_WINDOW_DAYS)
   const items = await searchTransactions(deps, userId, {
     direction: template.direction,
     currency: template.currency,
-    from: from > windowFrom ? from : windowFrom,
-    to,
-    amountMin: min.toMajor(),
-    amountMax: max.toMajor(),
+    from: from > floor ? from : floor,
+    amountMin: toleranceRange(template).min.toMajor(),
+    amountMax: toleranceRange(template).max.toMajor(),
     query: filters.query,
     categoryId: template.categoryId,
     recurringCandidates: true,

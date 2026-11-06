@@ -303,11 +303,13 @@ export function requiresDayOfMonth(periodicity: Periodicity): boolean {
 
 /**
  * ¿Puede `tx` usarse como el cobro del período `periodKey` de `template`? null si sí; si no, el
- * motivo en palabras del usuario (→ 422). La fecha puede caer fuera del período (el cargo llegó
- * antes o después), pero solo dentro de la ventana de match de su vencimiento: un cargo de octubre
- * elegido en noviembre no es el cobro de noviembre, y vincularlo borraba el pendiente del mes. El
- * monto, como en el match automático, dentro de la tolerancia. El filtro `recurringCandidates` del
- * buscador aplica las reglas del movimiento; `listRecurringCandidates`, la fecha y el monto.
+ * motivo en palabras del usuario (→ 422). El monto, como en el match automático, dentro de la
+ * tolerancia. Sin tope por atraso: el cargo real puede llegar tarde (Willy, WDC-179). De la fecha
+ * solo se exige que no sea anterior a
+ * `RECURRING_MATCH_WINDOW_DAYS` días del vencimiento: un cargo de octubre elegido en noviembre no
+ * es el cobro de noviembre, y vincularlo borraba el pendiente del mes. El filtro
+ * `recurringCandidates` del buscador aplica las reglas del movimiento; `listRecurringCandidates`, el
+ * piso de fecha y el monto.
  */
 export function paymentCandidateRejection(
   tx: Transaction,
@@ -331,8 +333,10 @@ export function paymentCandidateRejection(
   if (tx.installmentItemId) return "El movimiento ya es la cuota de un plan"
   if (tx.amount.currency !== template.currency)
     return "El movimiento está en otra moneda que la recurrente"
-  if (!periodsAround(template, tx.date).some((p) => p.periodKey === periodKey))
-    return `Ese cargo es del ${civilDayLabel(tx.date)} y no corresponde al cobro de este período`
+  // Solo el piso: atrasado vale siempre; adelantado, hasta la ventana antes del vencimiento.
+  const due = executionDateFor(template, periodKey)
+  if (daysBetween(due, tx.date) < -RECURRING_MATCH_WINDOW_DAYS)
+    return `Ese cargo es del ${civilDayLabel(tx.date)}, antes del cobro de este período (vence el ${civilDayLabel(due)})`
   if (!matchesAmount(tx, template))
     return "El monto no está dentro de la tolerancia de la recurrente"
   return null

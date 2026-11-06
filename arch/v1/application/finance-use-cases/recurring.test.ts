@@ -799,11 +799,13 @@ test("WDC-179: un cargo del mes anterior no salda el período en curso ni borra 
 
   await assert.rejects(pagarEntel(cargo("2026-10-04")), {
     name: "InvalidRecurringTemplateError",
-    message: "Ese cargo es del 4 de octubre y no corresponde al cobro de este período",
+    message: "Ese cargo es del 4 de octubre, antes del cobro de este período (vence el 5 de noviembre)",
   })
   assert.equal(rows.length, 1, "el pendiente de noviembre sigue")
   assert.equal(rows[0].periodKey, "2026-11")
   assert.equal(rows[0].status, "pending")
+  // Bordes: 10 días antes del vencimiento todavía vale; 11, no.
+  await assert.rejects(pagarEntel(cargo("2026-10-25")), { name: "InvalidRecurringTemplateError" })
 
   await assert.rejects(pagarEntel(cargo("2026-11-04", 40_000)), {
     name: "InvalidRecurringTemplateError",
@@ -811,11 +813,35 @@ test("WDC-179: un cargo del mes anterior no salda el período en curso ni borra 
   })
   assert.equal(rows[0].status, "pending", "monto fuera de tolerancia: tampoco toca el período")
 
-  await pagarEntel(cargo("2026-11-04"))
+  await pagarEntel(cargo("2026-10-26", 27_500))
   assert.equal(rows.length, 1)
-  assert.equal(rows[0].id, "entel-2026-11-04", "el cargo del 4/11 es el cobro de noviembre")
+  assert.equal(rows[0].id, "entel-2026-10-26", "el cargo del 26/10 es el cobro de noviembre")
   assert.equal(rows[0].periodKey, "2026-11")
   assert.equal(rows[0].status, "confirmed")
+})
+
+test("WDC-179: un cargo atrasado reemplaza la marca manual («Ya lo pagué») sin duplicar", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  const hoy = new Date("2026-08-29T15:00:00Z") // vence el 5/08: 24 días de atraso
+  await setRecurringPeriodPaid({ recurring: repo }, "u1", { id: "arriendo", paid: true }, hoy)
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].externalId, null, "la marca manual")
+
+  await payRecurringPeriodWith(
+    {
+      recurring: repo,
+      transactions: txRepo([
+        movimiento({ id: "tx-atrasado", amount: Money.of(380_000, "CLP"), date: new Date("2026-08-28T00:00:00Z") }),
+      ]),
+    },
+    "u1",
+    { id: "arriendo", transactionId: "tx-atrasado" },
+    hoy
+  )
+  assert.equal(rows.length, 1, "un solo pago en el período")
+  assert.equal(rows[0].id, "tx-atrasado", "el cargo real, no la marca manual")
+  assert.equal(rows[0].periodKey, "2026-08")
+  assert.notEqual(rows[0].externalId, null)
 })
 
 test("el movimiento de otro usuario o inexistente se rechaza como no encontrado", async () => {
@@ -864,18 +890,17 @@ test("los candidatos: del banco, sin vínculo, en su moneda, últimos N días en
   assert.equal(pedido?.amountMax, 385_000, "monto en tolerancia (350.000 ± 10 %)")
   assert.equal(pedido?.query, undefined)
   assert.equal(pedido?.categoryId, "vivienda", "siempre la categoría de la plantilla")
-  // Vence el 5/08: hasta 10 días después entran, aunque sean futuros.
-  assert.equal(pedido?.to?.toISOString(), "2026-08-15T00:00:00.000Z", "hasta 10 días después del vencimiento")
+  assert.equal(pedido?.to, undefined, "sin tope: atrasados y futuros entran")
   assert.equal(pedido?.from?.toISOString(), "2026-08-02T00:00:00.000Z", "10 días por defecto")
 
   // Más días no ofrecen lo que el vínculo rechazaría: nunca antes de 10 días del vencimiento.
   await listRecurringCandidates(deps, "u1", "arriendo", { days: 30 }, ahora)
   assert.equal(pedido?.from?.toISOString(), "2026-07-26T00:00:00.000Z")
 
-  // Pasadas las 20:00 en Chile ya es otro día en UTC: manda el día de Chile (31/08 sigue en agosto).
-  await listRecurringCandidates(deps, "u1", "arriendo", { days: 1 }, new Date("2026-09-01T02:00:00Z"))
-  assert.equal(pedido?.from?.toISOString(), "2026-08-30T00:00:00.000Z")
-  assert.equal(pedido?.to?.toISOString(), "2026-08-15T00:00:00.000Z", "el período sigue siendo agosto")
+  // Pasadas las 20:00 en Chile ya es otro día en UTC: manda el día de Chile (31/08 sigue en
+  // agosto: piso 26/07, así que 30 días atrás no alcanzan a pasarlo).
+  await listRecurringCandidates(deps, "u1", "arriendo", { days: 30 }, new Date("2026-09-01T02:00:00Z"))
+  assert.equal(pedido?.from?.toISOString(), "2026-08-01T00:00:00.000Z")
 
   await listRecurringCandidates(
     deps,

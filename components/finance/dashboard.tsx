@@ -798,7 +798,7 @@ export function Dashboard({
         period={period}
         cycleRange={cycle.mode === "card_cycle" ? cycle.range : undefined}
         mode={cycle.mode}
-        closing={cycle.mode === "card_cycle" ? cycle.closing : undefined}
+        closing={cycle.closing}
         isCurrentMonth={isCurrentMonth}
         globalLimit={budget.globalLimit}
         allocated={budget.allocated}

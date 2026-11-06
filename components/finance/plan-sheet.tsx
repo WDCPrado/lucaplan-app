@@ -74,7 +74,7 @@ export function PlanSheet({
   period: { year: number; month: number; mode: PeriodMode }
   cycleRange?: { start: string; end: string }
   mode: PeriodMode // modo guardado del período: mes calendario o ciclo de la tarjeta
-  closing?: { date: string; estimated: boolean } // cierre del mes en pantalla, solo en modo tarjeta
+  closing?: { date: string; estimated: boolean } // cierre del mes en pantalla; en modo calendario se muestra deshabilitado
   isCurrentMonth: boolean
   globalLimit: number | null
   allocated: number
@@ -181,9 +181,14 @@ export function PlanSheet({
             </span>
           </div>
           <PeriodModeControl mode={mode} />
-          {mode === "card_cycle" && closing && (
+          {/* También en modo calendario, deshabilitado: así la hoja no salta al cambiar de modo. */}
+          {closing && (
             <div className="mt-6">
-              <ClosingPicker period={period} closing={closing} />
+              <ClosingPicker
+                period={period}
+                closing={closing}
+                disabled={mode !== "card_cycle"}
+              />
             </div>
           )}
         </section>

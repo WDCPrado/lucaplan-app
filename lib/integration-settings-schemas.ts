@@ -83,3 +83,41 @@ export const integrationsStatus = z.object({
   entries: z.array(integrationEntry),
 })
 export type IntegrationsStatus = z.infer<typeof integrationsStatus>
+
+// --- Instalación inicial (/setup) --------------------------------------------------------------
+// Corre SOLO mientras la base no tiene ninguna cuenta. Lo primero que ve quien levanta una
+// instalación nueva: antes del login, porque sin cuenta no hay ADMIN que entre a Ajustes.
+//
+// Protección: al arrancar sin cuentas, el servidor genera un código de instalación aleatorio y lo
+// imprime en su consola («[setup] Código de instalación: XXXX-XXXX»). Solo quien opera el servidor
+// lo ve. Verificarlo deja una cookie httpOnly firmada que habilita los pasos del asistente. En
+// cuanto existe una cuenta, /setup y sus rutas responden 404 y el código deja de servir.
+//
+// 1. Estado    GET  /api/setup                  público  salida: setupStatus
+// 2. Verificar POST /api/setup/verify           público  entrada: setupVerifyInput  204 · 401 código
+//    inválido · 404 ya instalado · 429 más de 5 intentos por hora por IP
+// 3. Claves    PUT  /api/setup/integrations     cookie de setup  entrada: updateIntegrationsInput
+//    salida: integrationsStatus  mismas reglas que PUT /api/integrations (409 si viene del entorno)
+//    401 sin cookie · 404 ya instalado
+// 4. La cuenta se crea con el login de siempre (código por correo): con la base vacía el registro
+//    queda abierto aunque SIGNUP_OPEN no esté, y esa primera cuenta queda ADMIN. Después sigue el
+//    onboarding.
+//
+// Mínimo para entrar: en producción RESEND_API_KEY y RESEND_FROM (sin ellos el código no llega);
+// en local nada, porque el código sale en la consola. OpenAI y Outlook son opcionales.
+
+export const setupStatus = z.object({
+  needed: z.boolean(), // la base no tiene cuentas
+  verified: z.boolean(), // esta sesión ya validó el código de instalación
+  local: z.boolean(), // el código de acceso se imprime en consola (no hace falta Resend)
+  missingRequired: z.array(integrationKey), // claves mínimas que faltan para poder entrar
+})
+export type SetupStatus = z.infer<typeof setupStatus>
+
+export const setupVerifyInput = z.object({
+  code: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9]{4}-?[A-Z0-9]{4}$/, "El código tiene 8 caracteres, como ABCD-1234"),
+})

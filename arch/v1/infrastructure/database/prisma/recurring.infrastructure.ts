@@ -2,6 +2,7 @@
 // no ve Prisma. El comprometido del período es una Transaction `pending`: NO ajusta el saldo de la
 // cuenta (no se ha cobrado). La idempotencia por (plantilla, período) la impone el índice único
 // (recurringTemplateId, periodKey), no una comprobación previa sujeta a carrera.
+import { Prisma } from "./generated/client.ts"
 import { prisma } from "./client.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import type { Direction } from "../../../domain/finance/finance.domain.ts"
@@ -278,6 +279,9 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
       })
       .catch((e) => {
         if (e instanceof NotAttached) return false
+        // Carrera con `materializePeriod`: abrió el mismo período entre la lectura y el vínculo
+        // (único plantilla+período). No se vincula ahora; el próximo procesamiento lo resuelve.
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return false
         throw e
       })
   },

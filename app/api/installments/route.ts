@@ -5,6 +5,7 @@ import {
 import { createInstallmentPlan } from "@/arch/v1/application/finance-use-cases/installment-use-cases"
 import { listInstallmentsView } from "@/arch/v1/application/finance-use-cases/finance-read"
 import type { InstallmentKind } from "@/arch/v1/domain/finance/installment.domain"
+import { todayKey } from "@/arch/shared/today"
 
 // Planes de cuotas del usuario (compras con tarjeta y créditos de consumo), ya en DTO: es lo que
 // consume el modal de movimiento para ofrecer a qué cuota asignarlo.
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
         totalAmount: Number(body.totalAmount),
         installmentsCount: Number(body.installmentsCount),
         startIndex: body.startIndex ? Number(body.startIndex) : 1,
-        startDate: body.startDate ? new Date(body.startDate) : new Date(),
+        startDate: new Date(body.startDate || `${todayKey()}T00:00:00.000Z`),
         dayOfMonth: Number(body.dayOfMonth),
         tolerancePct: Number(body.tolerancePct ?? 10),
         amounts: Array.isArray(body.amounts)

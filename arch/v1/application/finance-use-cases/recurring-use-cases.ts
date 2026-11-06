@@ -430,14 +430,19 @@ async function periodToPay(
     .filter(({ periodKey, isManual }) => !isManual && canPayPeriod(template, periodKey, date))
     .map(({ periodKey }) => ({ periodKey, due: executionDateFor(template, periodKey) }))
     .sort((a, b) => a.due.getTime() - b.due.getTime())
-  return overdue[0]?.periodKey ?? null
+  if (overdue[0]) return overdue[0].periodKey
+  // Sin nada abierto que pagar: el período de la fecha del cargo (atrasado y sin materializar), con
+  // el mismo piso de fecha. Una marca manual fuera de la ventana no se pisa. Si no, va a triage.
+  const key = periodKeyFor(template, date)
+  const manual = open.some((o) => o.periodKey === key && o.isManual)
+  return !manual && canPayPeriod(template, key, date) ? key : null
 }
 
 /**
  * ¿Este movimiento recién importado es la ejecución de alguna plantilla POR TEXTO? Si lo es, pasa a
  * ser la ejecución del período (categoría de la plantilla, vínculo, revisado) y consume el
  * comprometido `pending`. El período es el suyo si sigue abierto y, si no, el atrasado más antiguo
- * (`periodToPay`); si no hay ninguno, el de la fecha del cargo. Devuelve la
+ * (`periodToPay`); si no hay ninguno que el cargo pueda pagar, no se vincula. Devuelve la
  * plantilla que lo reclamó; null si ninguna matchea o si el período ya tenía ejecución confirmada
  * (entonces el movimiento sigue el flujo normal de IA/triage).
  */
@@ -452,9 +457,8 @@ export async function confirmFromMovement(
   // PRIMERA cuyo período aún no esté consumido (`attach` rebota si ya está confirmado). Así dos
   // (o N) plantillas equivalentes reparten un cargo a cada una en vez de dejar el segundo huérfano.
   for (const template of rankTemplatesFor(movement, vigentes)) {
-    const periodKey =
-      (await periodToPay(deps, template, movement.date, true)) ??
-      periodKeyFor(template, movement.date)
+    const periodKey = await periodToPay(deps, template, movement.date, true)
+    if (!periodKey) continue
     const attached = await deps.recurring.attachImportedMovement(
       movement.id,
       template,

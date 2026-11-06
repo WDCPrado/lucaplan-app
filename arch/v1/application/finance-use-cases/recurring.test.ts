@@ -742,6 +742,31 @@ test("WDC-179: con agosto pendiente y septiembre sin abrir, el cargo del 5-sep a
   assert.equal(rows.find((r) => r.periodKey === "2026-08")?.status, "pending", "agosto sigue por cobrar")
 })
 
+// ENTEL vence el 25: la ventana de septiembre (15-sep..5-oct) ya está cobrada y el 2-oct no cae en
+// la de octubre (15-oct..4-nov). El respaldo «período de la fecha» tiene el mismo piso de fecha.
+const entel: RecurringTemplate = { ...arriendo, id: "entel", description: "ENTEL HOGAR", dayOfMonth: 25, baseAmount: Money.of(30_000, "CLP") }
+const cargoEntel = (id: string, day: string) => ({ id, description: "ENTEL HOGAR", amount: Money.of(30_000, "CLP"), direction: "debit" as const, date: new Date(`${day}T00:00:00Z`) })
+
+test("WDC-179: con septiembre cobrado, un cargo del 2-oct no paga octubre 23 días antes de su vencimiento", async () => {
+  const { repo, rows } = makeRepo([entel])
+  await materializePeriod({ recurring: repo }, entel, new Date("2026-09-01T00:00:00Z"))
+  await materializePeriod({ recurring: repo }, entel, new Date("2026-10-01T00:00:00Z"))
+  await confirmFromMovement({ recurring: repo }, [entel], cargoEntel("tx-sep", "2026-09-25"))
+
+  assert.equal(await confirmFromMovement({ recurring: repo }, [entel], cargoEntel("tx-dup", "2026-10-02")), null, "va a triage")
+  assert.equal(rows.find((r) => r.periodKey === "2026-10")?.status, "pending")
+})
+
+test("WDC-179: con septiembre cobrado, un cargo del 2-oct no pisa la marca manual de octubre", async () => {
+  const { repo, rows } = makeRepo([entel])
+  await materializePeriod({ recurring: repo }, entel, new Date("2026-09-01T00:00:00Z"))
+  await confirmFromMovement({ recurring: repo }, [entel], cargoEntel("tx-sep", "2026-09-25"))
+  await setRecurringPeriodPaid({ recurring: repo }, "u1", { id: "entel", paid: true }, new Date("2026-10-01T12:00:00Z"))
+
+  assert.equal(await confirmFromMovement({ recurring: repo }, [entel], cargoEntel("tx-dup", "2026-10-02")), null)
+  assert.equal(rows.find((r) => r.periodKey === "2026-10")?.externalId, null, "la marca se conserva")
+})
+
 test("WDC-179: un período pendiente no lo paga un cargo anterior a 10 días de su vencimiento", async () => {
   const { repo, rows } = makeRepo([arriendo])
   await materializePeriod({ recurring: repo }, arriendo, new Date("2026-11-01T00:00:00Z"))

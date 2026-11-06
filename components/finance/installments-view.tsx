@@ -1,8 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Plus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Check, ChevronRight, Plus } from "lucide-react"
+import { toast } from "sonner"
 
+import { todayKey } from "@/arch/shared/today"
+import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 import { currentPeriod, formatCLP } from "@/lib/finance-format"
 import { CategoryIcon } from "./category-icons"
@@ -45,6 +49,19 @@ function thisMonthSettled(p: InstallmentPlanDTO): boolean {
   return !!item && (item.status === "paid" || item.status === "outside_app")
 }
 
+type Item = InstallmentPlanDTO["items"][number]
+
+const settled = (i: Item) => i.status === "paid" || i.status === "outside_app"
+
+// La cuota que ya se puede generar desde la fila: la pendiente más antigua que venció o vence hoy
+// (misma regla que «Generar cuota» del detalle). Las futuras no: serían un botón muerto.
+function generableItem(p: InstallmentPlanDTO): Item | undefined {
+  const today = todayKey()
+  return p.items
+    .filter((i) => !settled(i) && i.dueDate.slice(0, 10) <= today)
+    .sort((a, b) => a.index - b.index)[0]
+}
+
 // Sección "Cuotas" de la pantalla Recurrentes: una columna con el resumen del mes arriba y la
 // lista debajo, porque comparte el ancho con la sección de recurrentes. El AppShell y la sesión
 // son de la página que la contiene.
@@ -57,7 +74,9 @@ export function InstallmentsSection({
   accounts: AccountDTO[]
   categories: CategoryDTO[]
 }) {
+  const router = useRouter()
   const [creating, setCreating] = useState(false)
+  const [generating, setGenerating] = useState<string | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
   // Derivado de las props frescas (no un snapshot en estado): tras una mutación del modal +
   // router.refresh(), el detalle muestra el plan actualizado, no el de cuando se abrió.
@@ -79,9 +98,39 @@ export function InstallmentsSection({
     0
   )
 
+  // Igual que «Generar cuota» del detalle: crea el movimiento con el monto y la fecha del
+  // cronograma, que conserva el mes/ciclo de la cuota.
+  async function generate(p: InstallmentPlanDTO, item: Item) {
+    if (generating) return
+    haptic("light")
+    setGenerating(p.id)
+    const res = await fetch(`/api/installments/${p.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        itemId: item.id,
+        paid: true,
+        amount: item.amount,
+        date: item.dueDate,
+      }),
+    })
+    setGenerating(null)
+    if (!res.ok) {
+      haptic("error")
+      const data = await res.json().catch(() => ({}))
+      return toast.error(data.error ?? "No se pudo generar la cuota")
+    }
+    toast.success("Movimiento generado y cuota pagada")
+    router.refresh()
+  }
+
   return (
     // scroll-mt: los enlaces a /recurring#cuotas no quedan bajo el header fijo.
-    <section id="cuotas" aria-labelledby="cuotas-title" className="min-w-0 scroll-mt-24">
+    <section
+      id="cuotas"
+      aria-labelledby="cuotas-title"
+      className="min-w-0 scroll-mt-24"
+    >
       {/* min-h-11: la fila mide lo mismo con o sin la acción, así los títulos de las dos
           secciones quedan alineados cuando van lado a lado. */}
       <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
@@ -107,10 +156,16 @@ export function InstallmentsSection({
         <div className="flex flex-col gap-6">
           {/* El resumen del mes va primero: lo que cargan las cuotas este mes, y lo que falta. */}
           <div className="glass rounded-xl p-4">
-            <p className="text-subheadline text-muted-foreground">Pagas en cuotas este mes</p>
-            <p className="tabular text-hero font-bold">{formatCLP(monthTotal)}</p>
+            <p className="text-subheadline text-muted-foreground">
+              Pagas en cuotas este mes
+            </p>
+            <p className="tabular text-hero font-bold">
+              {formatCLP(monthTotal)}
+            </p>
             <p className="mt-2 flex justify-between gap-2 text-subheadline">
-              <span className="text-muted-foreground">Deuda total restante</span>
+              <span className="text-muted-foreground">
+                Deuda total restante
+              </span>
               <span className="tabular font-semibold">{formatCLP(debt)}</span>
             </p>
           </div>
@@ -118,7 +173,13 @@ export function InstallmentsSection({
           {active.length > 0 && (
             <ul className="glass inset-list overflow-hidden rounded-xl [--inset:4.25rem]">
               {active.map((p) => (
-                <PlanRow key={p.id} plan={p} onOpen={() => setDetailId(p.id)} />
+                <PlanRow
+                  key={p.id}
+                  plan={p}
+                  onOpen={() => setDetailId(p.id)}
+                  onGenerate={(item) => generate(p, item)}
+                  generating={generating === p.id}
+                />
               ))}
             </ul>
           )}
@@ -129,7 +190,11 @@ export function InstallmentsSection({
               </h3>
               <ul className="glass inset-list overflow-hidden rounded-xl [--inset:4.25rem]">
                 {done.map((p) => (
-                  <PlanRow key={p.id} plan={p} onOpen={() => setDetailId(p.id)} />
+                  <PlanRow
+                    key={p.id}
+                    plan={p}
+                    onOpen={() => setDetailId(p.id)}
+                  />
                 ))}
               </ul>
             </section>
@@ -161,26 +226,39 @@ export function InstallmentsSection({
 function PlanRow({
   plan: p,
   onOpen,
+  onGenerate,
+  generating = false,
 }: {
   plan: InstallmentPlanDTO
   onOpen: () => void
+  onGenerate?: (item: Item) => void
+  generating?: boolean
 }) {
   const completed = p.completedAt !== null
   const item = currentItem(p)
   const monthPaid = !completed && thisMonthSettled(p)
+  const overdue = completed
+    ? 0
+    : p.items.filter((i) => i.status === "overdue").length
+  const toGenerate = !completed && onGenerate ? generableItem(p) : undefined
 
   // Dos líneas: nombre y cuota del mes; debajo, en qué cuota va y cuándo vence la próxima.
   return (
-    <li className={cn(completed && "opacity-60")}>
+    <li className={cn("flex items-center", completed && "opacity-60")}>
       <button
         type="button"
         onClick={onOpen}
-        className="press flex min-h-11 w-full items-center gap-3 py-2.5 pr-4 pl-4 text-left hover:bg-accent/60"
+        className={cn(
+          "press flex min-h-11 min-w-0 flex-1 items-center gap-3 py-2.5 pl-4 text-left hover:bg-accent/60",
+          toGenerate ? "pr-2" : "pr-4"
+        )}
       >
         <span
           className="grid size-10 shrink-0 place-items-center rounded-full"
           style={{
-            background: p.categoryColor ? `${p.categoryColor}1f` : "var(--muted)",
+            background: p.categoryColor
+              ? `${p.categoryColor}1f`
+              : "var(--muted)",
           }}
           aria-hidden
         >
@@ -196,7 +274,9 @@ function PlanRow({
             {/* La cuota del mes manda: el total del plan se paga en meses que no son este. Pagada,
                 el total del plan. */}
             <span className="tabular shrink-0 text-body font-semibold">
-              {formatCLP(completed ? p.totalAmount : item ? item.amount : p.outstanding)}
+              {formatCLP(
+                completed ? p.totalAmount : item ? item.amount : p.outstanding
+              )}
             </span>
           </span>
           {!completed && (
@@ -205,12 +285,18 @@ function PlanRow({
                 cuota {p.settledCount} de {p.installmentsCount}
                 {p.nextDueDate && ` · vence ${shortDate(p.nextDueDate)}`}
               </span>
-              {/* La cuota de este mes ya está saldada. */}
-              {monthPaid && (
-                <span className="flex shrink-0 items-center gap-0.5 text-primary">
-                  <Check className="size-3.5" />
-                  Pagada
+              {/* Atrasada manda sobre pagada: es lo que hay que resolver. */}
+              {overdue > 0 ? (
+                <span className="shrink-0 font-medium text-destructive">
+                  {overdue === 1 ? "Atrasada" : `${overdue} atrasadas`}
                 </span>
+              ) : (
+                monthPaid && (
+                  <span className="flex shrink-0 items-center gap-0.5 text-primary">
+                    <Check className="size-3.5" />
+                    Pagada
+                  </span>
+                )
               )}
             </span>
           )}
@@ -229,7 +315,24 @@ function PlanRow({
             </span>
           )}
         </span>
+        {/* La fila abre el detalle: chevron de lista de iOS. */}
+        <ChevronRight aria-hidden className="disclosure" />
       </button>
+      {/* Como «Ya lo pagué» de recurrentes: genera la cuota vencida sin abrir el detalle. Solo
+          aparece cuando hay una que generar. */}
+      {toGenerate && (
+        <Button
+          variant="ghost"
+          onClick={() => onGenerate?.(toGenerate)}
+          disabled={generating}
+          aria-label={`Generar cuota ${toGenerate.index} de ${p.installmentsCount}: ${p.description}`}
+          // Escritorio: la acción con su nombre; en móvil solo el icono, que el ancho es del nombre.
+          className="mr-1 h-11 shrink-0 text-subheadline text-primary max-md:size-11 max-md:p-0"
+        >
+          <Check className="size-4" />
+          <span className="max-md:sr-only">Generar</span>
+        </Button>
+      )}
     </li>
   )
 }
@@ -240,7 +343,8 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
     <div className="glass rounded-xl px-6 py-10 text-center">
       <h3 className="text-headline">Reparte una deuda en los meses que dura</h3>
       <p className="mx-auto mt-1 max-w-sm text-subheadline text-balance text-muted-foreground">
-        Una compra en cuotas convertida en plan hace que cada mes cargue solo su cuota, y te dice cuánto falta de verdad.
+        Una compra en cuotas convertida en plan hace que cada mes cargue solo su
+        cuota, y te dice cuánto falta de verdad.
       </p>
       <Button onClick={onCreate} className="mt-5 h-11 text-body">
         <Plus className="size-4" />

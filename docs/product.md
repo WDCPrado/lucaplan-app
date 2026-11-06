@@ -8,8 +8,8 @@ web
 
 ## Users
 
-Hoy: Willy y un círculo cercano de dos o tres personas, en uso real y diario. El registro está
-abierto desde 2026-07-11, pero no hay público más allá de ese círculo.
+Hoy: Willy y un círculo cercano de dos o tres personas, en uso real y diario. El repo es público:
+cualquiera puede levantar su propia instancia, y en cada una el registro se abre con `SIGNUP_OPEN`.
 
 El usuario que el producto persigue es una persona en Chile que administra sus finanzas
 personales sobre todo desde el teléfono, recibe las notificaciones de compra de su banco por
@@ -69,8 +69,7 @@ Reglas de dominio — no son detalles de UI; romper una rompe los números:
 Constraints del sistema:
 
 - En una cuenta conectada los cargos manuales se rechazan: se contarían dos veces cuando llegue
-  el correo. Esa vía es la pestaña "Del banco", que compara contra lo registrado y destilda los
-  repetidos.
+  el correo.
 - Ningún dato leído por IA se guarda sin confirmación de la persona: una lectura puede errar un
   dígito y producir un monto perfectamente válido que ninguna validación detecta.
 - Los cuerpos de correo se procesan en memoria y nunca se persisten. De cada aviso se conserva

@@ -4,6 +4,10 @@ La producción migrada usa recursos nativos separados y la [guía de Coolify](co
 Este documento conserva la instalación de Docker Desktop y su recuperación. El workflow actual
 ya no llama a `deploy-local.mjs`: no reactives su runner durante la operación de Coolify.
 
+> Esta guía describe la instancia personal del autor (rutas de Windows, dominio `lucaplan.cl`,
+> runner propio). Para levantar tu propia copia parte por el [README](../README.md); aquí sirve de
+> modelo para Compose, cron y Cloudflare Tunnel.
+
 `compose.production.yml` ejecuta una instancia separada del Compose de desarrollo:
 PostgreSQL 18, app en modo producción, cron y un túnel propio de Cloudflare. Cada servicio
 reinicia con Docker (`unless-stopped`). PostgreSQL no publica puertos; la app publica solo

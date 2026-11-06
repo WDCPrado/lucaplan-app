@@ -1,6 +1,7 @@
 "use client"
 
-import { useId, useState } from "react"
+import { useId, useRef, useState } from "react"
+import { flushSync } from "react-dom"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Loader, Pencil, Plus, Sparkles, X } from "lucide-react"
@@ -18,13 +19,33 @@ import {
   type OnboardingCategory,
   type ProposeCategoriesOutput,
 } from "@/lib/onboarding-schemas"
-import { CATEGORY_COLORS, CATEGORY_ICONS, CategoryIcon } from "../category-icons"
+import { CATEGORY_COLORS, CategoryIcon } from "../category-icons"
+import { CategoryAppearancePicker } from "../category-appearance-picker"
 import { FinanceField } from "../finance-form-field"
 import { Segmented } from "../segmented"
 import { DEFAULT_CATEGORIES } from "@/arch/v1/application/finance-use-cases/seed-default-categories-use-case"
 import { ApiError, proposeCategories, saveCategories } from "./http"
 
-type Proposed = ProposeCategoriesOutput["categories"][number]
+// `id` es solo local (clave estable de la lista): el esquema del PUT lo descarta.
+type Proposed = ProposeCategoriesOutput["categories"][number] & { id: string }
+
+const withIds = (list: ProposeCategoriesOutput["categories"]): Proposed[] =>
+  list.map((c) => ({ ...c, id: crypto.randomUUID() }))
+
+const editorValues = (c: OnboardingCategory | null) => ({
+  name: c?.name ?? "",
+  type: c?.type ?? "expense",
+  icon: c?.icon ?? "Tag",
+  color: c?.color ?? CATEGORY_COLORS[0],
+  description: c?.description ?? null,
+})
+
+function useEditorForm() {
+  return useForm({
+    resolver: zodResolver(onboardingCategory),
+    defaultValues: editorValues(null),
+  })
+}
 
 const EXAMPLES = [
   "Voy al súper en Líder",
@@ -54,13 +75,20 @@ export function CategoriesStep({
   const [proposal, setProposal] = useState<Proposed[] | null>(() =>
     aiAvailable
       ? null
-      : DEFAULT_CATEGORIES.map((c) => ({ ...c, change: "kept", reason: null }))
+      : withIds(
+          DEFAULT_CATEGORIES.map((c) => ({ ...c, change: "kept", reason: null }))
+        )
   )
   const [source, setSource] = useState<ProposeCategoriesOutput["source"]>(
     aiAvailable ? "ai" : "default"
   )
   const [saving, setSaving] = useState(false)
-  const [editing, setEditing] = useState<number | "new" | null>(null)
+  // `editing` se conserva al cerrar: el contenido no cambia durante la animación de salida.
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [editing, setEditing] = useState<string | "new" | null>(null)
+  const editorForm = useEditorForm()
+  const listRef = useRef<HTMLUListElement>(null)
+  const addRef = useRef<HTMLButtonElement>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const form = useForm({
@@ -75,7 +103,9 @@ export function CategoriesStep({
     try {
       const out = await proposeCategories(values.description)
       setSource(out.source)
-      setProposal(out.categories)
+      flushSync(() => setProposal(withIds(out.categories)))
+      // Recién llegada la propuesta, el foco cae en la lista (no al montar con el set precreado).
+      document.getElementById(`${formId}-list`)?.focus()
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "No se pudieron proponer categorías"
@@ -86,6 +116,24 @@ export function CategoriesStep({
     }
   }
 
+  function openEditor(target: Proposed | "new") {
+    editorForm.reset(editorValues(target === "new" ? null : target))
+    setEditing(target === "new" ? "new" : target.id)
+    setEditorOpen(true)
+  }
+
+  // Al quitar, el foco pasa al «Quitar» que queda en su lugar, o a «Agregar categoría» si era el último.
+  function remove(id: string) {
+    const index = proposal?.findIndex((c) => c.id === id) ?? -1
+    flushSync(() =>
+      setProposal((list) => list?.filter((c) => c.id !== id) ?? null)
+    )
+    const next =
+      listRef.current?.querySelectorAll<HTMLButtonElement>("[data-remove]")[
+        index
+      ]
+    ;(next ?? addRef.current)?.focus()
+  }
 
   function addExample(text: string) {
     const current = description.trim()
@@ -121,7 +169,9 @@ export function CategoriesStep({
   }
 
   const editingValue =
-    editing === null || editing === "new" ? null : (proposal?.[editing] ?? null)
+    editing === null || editing === "new"
+      ? null
+      : (proposal?.find((c) => c.id === editing) ?? null)
 
   if (!proposal)
     return (
@@ -214,12 +264,15 @@ export function CategoriesStep({
         </p>
       )}
       <ul
+        ref={listRef}
+        id={`${formId}-list`}
+        tabIndex={-1}
         aria-label="Categorías propuestas"
-        className="sheet-group inset-list overflow-hidden rounded-xl"
+        className="sheet-group inset-list overflow-hidden rounded-xl outline-none"
       >
         {proposal.map((c, i) => (
           <li
-            key={`${c.name}-${i}`}
+            key={c.id}
             style={{ animationDelay: `${Math.min(i, 12) * 60}ms` }}
             className="flex animate-in items-start gap-3 px-4 py-3 duration-300 fill-mode-both fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none"
           >
@@ -265,7 +318,7 @@ export function CategoriesStep({
             <div className="-my-1 -mr-2 flex shrink-0">
               <button
                 type="button"
-                onClick={() => setEditing(i)}
+                onClick={() => openEditor(c)}
                 className="press grid size-11 place-items-center rounded-full text-muted-foreground hover:text-foreground"
               >
                 <Pencil aria-hidden className="size-4" />
@@ -273,9 +326,8 @@ export function CategoriesStep({
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  setProposal((list) => list?.filter((_, j) => j !== i) ?? null)
-                }
+                data-remove
+                onClick={() => remove(c.id)}
                 className="press grid size-11 place-items-center rounded-full text-muted-foreground hover:text-destructive"
               >
                 <X aria-hidden className="size-4" />
@@ -286,8 +338,9 @@ export function CategoriesStep({
         ))}
       </ul>
       <button
+        ref={addRef}
         type="button"
-        onClick={() => setEditing("new")}
+        onClick={() => openEditor("new")}
         className="press inline-flex min-h-11 items-center gap-1.5 self-start px-1 text-body text-primary"
       >
         <Plus aria-hidden className="size-4" />
@@ -315,21 +368,35 @@ export function CategoriesStep({
       </Button>
 
       <CategoryEditor
-        open={editing !== null}
+        form={editorForm}
+        open={editorOpen}
         category={editingValue}
-        onOpenChange={(o) => !o && setEditing(null)}
+        onOpenChange={setEditorOpen}
         onSubmit={(value) => {
           setProposal((list) => {
             if (!list) return list
             if (editing === "new")
-              return [...list, { ...value, change: "added", reason: null }]
-            return list.map((c, j) =>
-              j === editing
-                ? { ...value, change: c.change === "added" ? "added" : "edited", reason: c.reason }
+              return [
+                ...list,
+                {
+                  ...value,
+                  id: crypto.randomUUID(),
+                  change: "added",
+                  reason: null,
+                },
+              ]
+            return list.map((c) =>
+              c.id === editing
+                ? {
+                    ...value,
+                    id: c.id,
+                    change: c.change === "added" ? "added" : "edited",
+                    reason: c.reason,
+                  }
                 : c
             )
           })
-          setEditing(null)
+          setEditorOpen(false)
         }}
       />
     </div>
@@ -363,35 +430,24 @@ function ProposalSkeleton() {
 // Editor local de una categoría propuesta: no escribe en la API (eso pasa al «Guardar categorías»).
 // CategoryModal no calza: crea en /api/categories y fija topes del mes.
 function CategoryEditor({
+  form,
   open,
   category,
   onOpenChange,
   onSubmit,
 }: {
+  form: ReturnType<typeof useEditorForm>
   open: boolean
   category: OnboardingCategory | null
   onOpenChange: (open: boolean) => void
   onSubmit: (value: OnboardingCategory) => void
 }) {
   const formId = `onb-category-${useId()}`
-  const form = useForm({
-    resolver: zodResolver(onboardingCategory),
-    values: {
-      name: category?.name ?? "",
-      type: category?.type ?? "expense",
-      icon: category?.icon ?? "Tag",
-      color: category?.color ?? CATEGORY_COLORS[0],
-      description: category?.description ?? null,
-    },
-  })
   const [type, icon, color] = useWatch({
     control: form.control,
     name: ["type", "icon", "color"],
   })
   const { errors, isDirty } = form.formState
-  const palette = CATEGORY_COLORS.includes(color)
-    ? CATEGORY_COLORS
-    : [...CATEGORY_COLORS, color]
 
   return (
     <ResponsiveModal
@@ -436,50 +492,16 @@ function CategoryEditor({
           ]}
           onChange={(v) => form.setValue("type", v, { shouldDirty: true })}
         />
-        <fieldset className="space-y-3">
-          <legend className="text-subheadline font-medium">Icono</legend>
-          <div className="flex flex-wrap gap-2">
-            {CATEGORY_ICONS.map(({ name, Icon }) => (
-              <Button
-                key={name}
-                type="button"
-                variant="outline"
-                className={cn(
-                  "size-11",
-                  icon === name && "border-primary bg-primary/10 text-primary"
-                )}
-                aria-label={name}
-                aria-pressed={icon === name}
-                onClick={() => form.setValue("icon", name, { shouldDirty: true })}
-              >
-                <Icon size={18} />
-              </Button>
-            ))}
-          </div>
-        </fieldset>
-        <fieldset className="space-y-3">
-          <legend className="text-subheadline font-medium">Color</legend>
-          <div className="flex flex-wrap gap-2">
-            {palette.map((value) => (
-              <button
-                type="button"
-                key={value}
-                aria-label={`Color ${value}`}
-                aria-pressed={color === value}
-                onClick={() => form.setValue("color", value, { shouldDirty: true })}
-                className={cn(
-                  "grid size-11 place-items-center rounded-lg border",
-                  color === value && "border-foreground"
-                )}
-              >
-                <span
-                  className="size-6 rounded-full"
-                  style={{ backgroundColor: value }}
-                />
-              </button>
-            ))}
-          </div>
-        </fieldset>
+        <CategoryAppearancePicker
+          icon={icon}
+          color={color}
+          onIconChange={(name) =>
+            form.setValue("icon", name, { shouldDirty: true })
+          }
+          onColorChange={(value) =>
+            form.setValue("color", value, { shouldDirty: true })
+          }
+        />
         <FinanceField
           id={`${formId}-description`}
           label="Descripción para la IA"

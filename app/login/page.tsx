@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 
 import { auth } from "@/arch/v1/infrastructure/auth/auth"
 import { isSignupOpen } from "@/arch/v1/infrastructure/auth/login-code"
+import { printsLoginCodeLocally } from "@/arch/v1/infrastructure/email/resend/login-code.mailer"
 import { LoginForm } from "./login-form"
 
 export default async function LoginPage({
@@ -18,5 +19,10 @@ export default async function LoginPage({
   const session = await auth.api.getSession({ headers: await headers() })
   if (session && !continuingOAuth) redirect("/dashboard")
 
-  return <LoginForm signupOpen={isSignupOpen()} />
+  return (
+    <LoginForm
+      signupOpen={isSignupOpen()}
+      codeInConsole={printsLoginCodeLocally()}
+    />
+  )
 }

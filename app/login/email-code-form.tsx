@@ -25,13 +25,21 @@ const STEP_CLASS =
   "flex flex-col gap-5 animate-in fade-in-0 slide-in-from-right-4 duration-200 motion-reduce:animate-none"
 
 // Con el registro cerrado, un correo nuevo no recibe código: el texto no lo promete.
-export function EmailCodeForm({ signupOpen }: { signupOpen: boolean }) {
+// `codeInConsole`: el servidor imprime el código en vez de enviarlo (printsLoginCodeLocally).
+export function EmailCodeForm({
+  signupOpen,
+  codeInConsole,
+}: {
+  signupOpen: boolean
+  codeInConsole: boolean
+}) {
   const [email, setEmail] = useState("")
   const [sent, setSent] = useState(false)
   return sent ? (
     <CodeStep
       email={email}
       signupOpen={signupOpen}
+      codeInConsole={codeInConsole}
       onChangeEmail={() => setSent(false)}
     />
   ) : (
@@ -149,10 +157,12 @@ function EmailStep({
 function CodeStep({
   email,
   signupOpen,
+  codeInConsole,
   onChangeEmail,
 }: {
   email: string
   signupOpen: boolean
+  codeInConsole: boolean
   onChangeEmail: () => void
 }) {
   const [code, setCode] = useState("")
@@ -266,7 +276,7 @@ function CodeStep({
         <span className="font-medium text-foreground">{maskEmail(email)}</span>.
         Vale 10 minutos.
       </p>
-      {process.env.NODE_ENV === "development" && (
+      {codeInConsole && (
         <p className="text-footnote text-muted-foreground">
           En local, el código aparece en la consola del servidor.
         </p>

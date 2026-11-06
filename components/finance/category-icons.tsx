@@ -84,14 +84,70 @@ const ICONS: Record<CategoryIconName, LucideIcon> = {
   Flame,
 }
 
-export const CATEGORY_ICONS: { name: string; Icon: LucideIcon }[] =
+// Nombre legible de cada icono, para lectores de pantalla (el identificador no cambia).
+const ICON_LABELS: Record<CategoryIconName, string> = {
+  ShoppingBag: "Bolsa de compras",
+  ShoppingCart: "Carrito",
+  Utensils: "Cubiertos",
+  UtensilsCrossed: "Restaurante",
+  Coffee: "Café",
+  Car: "Auto",
+  Bus: "Bus",
+  Fuel: "Bencina",
+  Plane: "Avión",
+  House: "Casa",
+  Zap: "Electricidad",
+  Wifi: "Internet",
+  Smartphone: "Celular",
+  Shirt: "Ropa",
+  Gift: "Regalo",
+  Heart: "Corazón",
+  HeartPulse: "Salud",
+  Stethoscope: "Médico",
+  GraduationCap: "Educación",
+  BookOpen: "Libro",
+  Dumbbell: "Gimnasio",
+  Film: "Cine",
+  Popcorn: "Cabritas",
+  Music: "Música",
+  Gamepad2: "Videojuegos",
+  PiggyBank: "Ahorro",
+  CreditCard: "Tarjeta",
+  Wallet: "Billetera",
+  Receipt: "Boleta",
+  TrendingUp: "Inversiones",
+  Baby: "Bebé",
+  PawPrint: "Mascota",
+  Wrench: "Herramientas",
+  Droplet: "Agua",
+  Flame: "Gas",
+}
+
+export const CATEGORY_ICONS: { name: string; label: string; Icon: LucideIcon }[] =
   CATEGORY_ICON_NAMES.map((name) => ({
     name,
+    label: ICON_LABELS[name as CategoryIconName],
     Icon: ICONS[name as CategoryIconName],
   }))
 
 // Paleta curada de colores de categoría (ver CATEGORY_COLOR_VALUES en el dominio).
 export const CATEGORY_COLORS = CATEGORY_COLOR_VALUES
+
+// Nombre legible de cada color de la paleta. Un color fuera de ella (dato viejo) no tiene nombre.
+export const CATEGORY_COLOR_LABELS: Record<string, string> = {
+  "#6366f1": "Índigo",
+  "#3b82f6": "Azul",
+  "#06b6d4": "Cian",
+  "#10b981": "Esmeralda",
+  "#84cc16": "Lima",
+  "#eab308": "Amarillo",
+  "#f97316": "Naranja",
+  "#ef4444": "Rojo",
+  "#ec4899": "Rosa",
+  "#a855f7": "Púrpura",
+  "#14b8a6": "Turquesa",
+  "#64748b": "Gris azulado",
+}
 
 const MAP: Record<string, LucideIcon> = Object.fromEntries(
   CATEGORY_ICONS.map((i) => [i.name, i.Icon])

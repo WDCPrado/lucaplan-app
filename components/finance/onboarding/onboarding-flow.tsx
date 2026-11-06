@@ -64,6 +64,27 @@ const STORAGE_KEY = "lucaplan:onboarding-step"
 const README_OUTLOOK =
   "https://github.com/WDCPrado/lucaplan-app#-conectar-outlook-banco-de-chile-paso-a-paso"
 
+const TITLE_ID = "onboarding-title"
+
+// Cada paso enfoca su título al montarse (va con key={step}). Función estable: no se repite en cada render.
+const focusOnMount = (el: HTMLElement | null) =>
+  el?.focus({ preventScroll: true })
+
+// El onboarding se monta dentro del shell (SidebarInset): mientras dura, todo lo que no es él queda
+// inert, hermano por hermano hasta la raíz del shell. Función estable: corre al montar y limpia al salir.
+function isolate(el: HTMLElement | null) {
+  if (!el) return
+  const root = el.closest('[data-slot="sidebar-wrapper"]') ?? document.body
+  const inerted: Element[] = []
+  for (let node: Element = el; node !== root && node.parentElement; node = node.parentElement)
+    for (const sibling of node.parentElement.children)
+      if (sibling !== node && !sibling.hasAttribute("inert")) {
+        sibling.setAttribute("inert", "")
+        inerted.push(sibling)
+      }
+  return () => inerted.forEach((s) => s.removeAttribute("inert"))
+}
+
 const noopSubscribe = () => () => {}
 function readStoredStep(): Step | null {
   const v = sessionStorage.getItem(STORAGE_KEY)
@@ -138,6 +159,10 @@ export function OnboardingFlow({
 
   return (
     <div
+      ref={isolate}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={TITLE_ID}
       className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background p-[env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)]"
     >
       <header className="mx-auto flex w-full max-w-5xl items-center gap-4 px-5 pt-4 pb-3 lg:px-10 lg:pt-8">
@@ -155,7 +180,7 @@ export function OnboardingFlow({
       </header>
 
       <ViewTransition key={step} enter="nav" exit="nav" default="none">
-        <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-5 pt-4 pb-8 lg:px-10 lg:pt-10">
+        <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-5 pt-4 pb-8 lg:px-10 lg:pt-10">
           {step === "welcome" && <Welcome onStart={() => go("categories")} />}
 
           {step === "categories" && (
@@ -214,7 +239,7 @@ export function OnboardingFlow({
             <Split
               eyebrow="Así se ve"
               title="Tus movimientos ya llegaron ordenados"
-              body="Cada movimiento cae en su categoría. Si alguno queda mal, lo corriges con un toque y Luca Plan aprende."
+              body="Cada movimiento cae en su categoría. Si alguno queda mal, lo corriges después desde Movimientos."
             >
               <Preview
                 transactions={transactions}
@@ -245,7 +270,7 @@ export function OnboardingFlow({
               onFinish={finish}
             />
           )}
-        </main>
+        </div>
       </ViewTransition>
 
       <IncomeModal
@@ -322,7 +347,12 @@ function Split({
         <p className="text-footnote font-semibold tracking-wide text-primary uppercase">
           {eyebrow}
         </p>
-        <h1 className="mt-2 text-title-1 font-bold text-balance lg:text-large-title">
+        <h1
+          id={TITLE_ID}
+          ref={focusOnMount}
+          tabIndex={-1}
+          className="mt-2 text-title-1 font-bold text-balance outline-none lg:text-large-title"
+        >
           {title}
         </h1>
         <p className="mt-3 text-body text-pretty text-muted-foreground">
@@ -369,7 +399,12 @@ function Welcome({ onStart }: { onStart: () => void }) {
   return (
     <div className="grid flex-1 content-center gap-10 lg:grid-cols-2 lg:gap-16">
       <div className="lg:self-center">
-        <h1 className="text-large-title font-bold text-balance">
+        <h1
+          id={TITLE_ID}
+          ref={focusOnMount}
+          tabIndex={-1}
+          className="text-large-title font-bold text-balance outline-none"
+        >
           Tu plata en orden, sin anotar nada
         </h1>
         <p className="mt-3 text-body text-pretty text-muted-foreground">
@@ -447,7 +482,11 @@ function ConnectStep({
       toast.error(
         `No se pudo conectar Outlook${outlookReason ? ` (${outlookReason})` : ""}`
       )
-    if (outlookResult) router.replace("/dashboard", { scroll: false })
+    // Sin el paso guardado (otra pestaña, sesión nueva), limpiar la URL dejaría la bienvenida.
+    if (outlookResult) {
+      sessionStorage.setItem(STORAGE_KEY, "connect")
+      router.replace("/dashboard", { scroll: false })
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- evento único al entrar al paso
   }, [])
 
@@ -504,7 +543,8 @@ function Preview({
   return (
     <div className="flex flex-col gap-6">
       {sample.length > 0 ? (
-        <ul className="sheet-group inset-list overflow-hidden rounded-xl">
+        // Solo muestra: las filas no abren nada, así que el grupo no recibe foco ni clics.
+        <ul inert className="sheet-group inset-list overflow-hidden rounded-xl">
           {sample.map((tx, i) => (
             <li
               key={tx.id}
@@ -600,7 +640,14 @@ function Done({
           <Check aria-hidden className="size-8" />
         </span>
         <div>
-          <h1 className="text-title-1 font-bold">Todo listo</h1>
+          <h1
+            id={TITLE_ID}
+            ref={focusOnMount}
+            tabIndex={-1}
+            className="text-title-1 font-bold outline-none"
+          >
+            Todo listo
+          </h1>
           {globalLimit !== null ? (
             <p className="mt-2 text-subheadline text-pretty text-muted-foreground">
               Tu presupuesto del mes es de{" "}

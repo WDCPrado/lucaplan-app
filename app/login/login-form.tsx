@@ -99,7 +99,13 @@ function OpenSourceNotice() {
   )
 }
 
-export function LoginForm({ signupOpen }: { signupOpen: boolean }) {
+export function LoginForm({
+  signupOpen,
+  codeInConsole,
+}: {
+  signupOpen: boolean
+  codeInConsole: boolean
+}) {
   const [legal, setLegal] = useState<LegalKey | null>(null)
   return (
     <main className="relative grid min-h-dvh grid-cols-1 lg:grid-cols-2">
@@ -193,7 +199,10 @@ export function LoginForm({ signupOpen }: { signupOpen: boolean }) {
           </div>
 
           <div className="mt-0 lg:mt-8">
-            <EmailCodeForm signupOpen={signupOpen} />
+            <EmailCodeForm
+              signupOpen={signupOpen}
+              codeInConsole={codeInConsole}
+            />
             {LANDING_ONLY && <OpenSourceNotice />}
 
             <p

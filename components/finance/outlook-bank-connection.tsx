@@ -87,7 +87,7 @@ type Scan = {
   // candidato, pero sí se importan si el usuario confirma UNA cuenta corriente.
   primaryCheckingCount: number
   skippedCount: number
-  since: string // primer día del mes escaneado (ISO)
+  since: string // primer día del mes desde el que se escanea (ISO)
   bankName: string
 }
 export type CheckingForm = {
@@ -138,7 +138,7 @@ const formOf = (
   })),
 })
 
-// Mes de la ventana escaneada, en la voz de la app: "julio de 2026". Vacío si el escaneo no lo trae.
+// Mes en que parte la ventana escaneada, en la voz de la app: "julio de 2026". Vacío si el escaneo no lo trae.
 function scanMonthLabel(sinceIso: string): string {
   const since = new Date(sinceIso)
   if (Number.isNaN(since.getTime())) return ""
@@ -1657,7 +1657,7 @@ export function ScanSummary({
       ? `Sin correos de ${bankName}`
       : `${plural(scan.totalMessages, "correo revisado", "correos revisados")} de ${bankName}`
   return (
-    <ModalSection footer={`${leidos}${mes ? ` · ${mes}` : ""}`}>
+    <ModalSection footer={`${leidos}${mes ? ` · desde ${mes}` : ""}`}>
       <div className="flex min-h-11 flex-col justify-center px-4 py-2.5">
         <p className="text-body font-medium">
           {plural(scan.expenseCount, "gasto detectado", "gastos detectados")}

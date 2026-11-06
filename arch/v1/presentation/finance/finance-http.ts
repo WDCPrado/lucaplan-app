@@ -94,6 +94,13 @@ export async function withUser(
   try {
     return jsonResponse(await fn(actor.userId), okStatus)
   } catch (e) {
+    const status = errorStatus(e)
+    // Un error que no es de dominio (Prisma, red, un bug) no llega a la pantalla: su mensaje trae
+    // la consulta y los datos. Va al log del servidor y la persona ve uno genérico.
+    if (status === 500 && !(e instanceof ZodError)) {
+      console.error(e)
+      return jsonResponse({ error: "Algo salió mal. Intenta de nuevo." }, 500)
+    }
     return jsonResponse(
       {
         error:
@@ -101,7 +108,7 @@ export async function withUser(
             ? (e.issues[0]?.message ?? "Datos inválidos")
             : (e as Error).message,
       },
-      errorStatus(e)
+      status
     )
   }
 }

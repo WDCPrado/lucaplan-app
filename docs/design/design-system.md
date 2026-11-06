@@ -10,7 +10,7 @@ uso están en [Lenguaje visual](../development.md#lenguaje-visual-ios-y-liquid-g
 
 ## Contrato de estabilidad de Liquid Glass
 
-**Los efectos son parte del diseño, no un detalle del layout.** Una tarea de reordenar secciones, cambiar tamaños, añadir gráficos o modificar navegación **no autoriza** modificar el material de vidrio. Preservar en móvil y escritorio: `liquid-glass`, los cinco niveles de `data-glass` en Apariencia, `--glass-fill`, `--glass-clear`, `--glass-tint`, `--glass-blur`, `--glass-saturate`, `--glass-shadow`, `--glass-rim`, `--glass-reflection-opacity` y el reflejo `::before`. Desde WDC-174 el acabado es CSS, sin Glisse, filtros SVG ni seguimiento continuo del contenido.
+**Los efectos son parte del diseño, no un detalle del layout.** Una tarea de reordenar secciones, cambiar tamaños, añadir gráficos o modificar navegación **no autoriza** modificar el material de vidrio. Preservar en móvil y escritorio: `liquid-glass`, los cinco niveles de `data-glass` en Apariencia, `--glass-fill`, `--glass-clear`, `--glass-tint`, `--glass-blur`, `--glass-saturate`, `--glass-shadow`, `--glass-rim`, `--glass-sheen`, `--glass-reflection-opacity` y el reflejo `::before`. Desde WDC-174 el acabado es CSS, sin Glisse, filtros SVG ni seguimiento continuo del contenido.
 
 - Para cambios de UI, modificar únicamente distribución, jerarquía y espaciado; no anular tokens de vidrio en contenedores como `.top-bar` para solucionar problemas de layout.
 - «Hoy» del selector de ciclo y «Hoy» del selector de movimientos deben heredar el mismo `liquid-glass` en móvil y el mismo material de control en escritorio, respetando Apariencia y accesibilidad. Si cambia el material compartido, revisar ambos controles.
@@ -58,7 +58,9 @@ Tres superficies, todas desde tokens de `globals.css`:
 | Material regular | `material` (`--material`) y `[data-slot]` de menús, select, popover, tooltip, toasts y alertas | lectura sobre contenido y aviso de refresco PWA |
 | Sólido | `card`, `--sheet`, `--sheet-cell` | contenido, listas, hojas y diálogos |
 
-El vidrio usa un relleno neutro, desenfoque de 16 px y saturación de 120 %. El sidebar reutiliza el
+El vidrio usa un relleno neutro, desenfoque de 22 px, saturación de 165 % y un brillo interior radial
+desde arriba-izquierda (`--glass-sheen`, que se apaga con reducir transparencia, más contraste o sin
+desenfoque). El sidebar reutiliza el
 acabado de `liquid-glass` con más relleno. El borde combina un contorno tenue de 0.5 px con un
 reflejo localizado arriba-izquierda y un eco más débil abajo-derecha; no ilumina todo el perímetro.
 Los cinco niveles de Apariencia cambian la transparencia, conservando el desenfoque.

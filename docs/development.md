@@ -185,9 +185,10 @@ agrupaciones, la tipografía y los controles.
     en el contenido (tarjetas, listas, hojas), que va sólido en `card` sobre el fondo agrupado.
     Variante regular (desenfoque + luminosidad), sin «clear». Lo grande (sidebar) un poco más opaco
     que lo chico, pero reutiliza `liquid-glass` para el mismo acabado. La base es CSS compatible con
-    Safari, Firefox y Chrome: desenfoque de 16 px, saturación moderada (120 %), relleno neutro,
-    reflejo localizado arriba-izquierda y un eco menor abajo-derecha (`::before` cónico), rim
-    interior (`--glass-rim`), contorno de 0.5 px y sombra. No hay una línea brillante continua.
+    Safari, Firefox y Chrome: desenfoque de 22 px, saturación viva (165 %), relleno neutro, brillo
+    interior radial desde arriba-izquierda (`--glass-sheen`), reflejo localizado arriba-izquierda y
+    un eco menor abajo-derecha (`::before` cónico), rim interior (`--glass-rim`), contorno de 0.5 px
+    y sombra. No hay una línea brillante continua.
   - **Sin motor de refracción (WDC-174).** El acabado usa sólo CSS: no hay filtros SVG sobre el
     contenido, clones ni seguimiento continuo. Se retiraron Glisse y el motor anterior para
     recuperar la composición estable en Safari móvil. Tabs y búsquedas usan enlaces/botones/
@@ -213,7 +214,7 @@ agrupaciones, la tipografía y los controles.
     reducido solo queda el fundido y las pastillas saltan.
   - **Material regular (`--material`)** para lo que lleva texto encima del contenido:
     menús, select, popover, tooltip, toasts, alertas y el aviso de refresco de la PWA. Más opaco que
-    el vidrio de las barras, con la misma saturación moderada; la utilidad `material` concentra la
+    el vidrio de las barras, con la misma saturación; la utilidad `material` concentra la
     receta. Los toasts de estado conservan su color semántico y salen arriba, como el banner de iOS. En las alertas, el destructivo es texto rojo sobre la misma cápsula gris de Cancelar. Las hojas van sólidas (`--sheet`).
   - **Color con moderación**: el vidrio no tiene color propio; textos e íconos encima van en
     `foreground`, salvo la selección. La pestaña móvil activa y el link activo del sidebar llevan

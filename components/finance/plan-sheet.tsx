@@ -147,6 +147,19 @@ export function PlanSheet({
     }
   }
 
+  // El rango del período va junto a «Período», no en el título: el título queda corto como en
+  // los demás modales y el rango se lee donde se decide.
+  const shortDay = (iso: string) =>
+    `${iso.slice(8, 10)} ${monthName(Number(iso.slice(5, 7))).slice(0, 3).toLowerCase()}`
+  const rangeLabel = cycleRange
+    ? `${shortDay(cycleRange.start)} – ${shortDay(cycleRange.end)}`
+    : monthName(period.month)
+  // Lo que se cambia acá se guarda al momento: la X y el check solo cierran, como en los demás.
+  const close = () => {
+    setDrafts({})
+    onOpenChange(false)
+  }
+
   return (
     <ResponsiveModal
       open={open}
@@ -154,12 +167,19 @@ export function PlanSheet({
         if (!next) setDrafts({})
         onOpenChange(next)
       }}
-      title={cycleRange ? `Plan del ciclo · ${cycleRange.start.slice(8, 10)} ${monthName(Number(cycleRange.start.slice(5, 7))).slice(0, 3).toLowerCase()} – ${cycleRange.end.slice(8, 10)} ${monthName(Number(cycleRange.end.slice(5, 7))).slice(0, 3).toLowerCase()}` : `Plan de ${monthName(period.month).toLowerCase()}`}
+      title="Plan"
+      cancel={{ label: "Cerrar", onClick: close }}
+      primary={{ label: "Listo", onClick: close }}
     >
       <div className="flex min-w-0 flex-col gap-8 px-5">
         {/* Período del plan: decide el rango de todo lo de abajo, por eso va primero. */}
         <section>
-          <h3 className="mb-2 px-4 text-headline font-semibold">Período</h3>
+          <div className="mb-2 flex items-baseline justify-between gap-3 px-4">
+            <h3 className="text-headline font-semibold">Período</h3>
+            <span className="tabular text-subheadline text-muted-foreground">
+              {rangeLabel}
+            </span>
+          </div>
           <PeriodModeControl mode={mode} />
           {mode === "card_cycle" && closing && (
             <div className="mt-6">

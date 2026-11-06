@@ -40,6 +40,7 @@ import { formatMoney, monthName } from "@/lib/finance-format"
 import { importStep } from "@/lib/import-progress"
 import { cn } from "@/lib/utils"
 import { ImportProgressTimeline } from "./import-progress-timeline"
+import { COMING_SOON_BANKS } from "@/lib/coming-soon-banks"
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 // Estado de la conexión en DOS niveles: los correos autorizados y, dentro de cada uno, los bancos
@@ -86,7 +87,7 @@ type Scan = {
   // candidato, pero sí se importan si el usuario confirma UNA cuenta corriente.
   primaryCheckingCount: number
   skippedCount: number
-  since: string // primer día del mes escaneado (ISO)
+  since: string // primer día del mes desde el que se escanea (ISO)
   bankName: string
 }
 export type CheckingForm = {
@@ -137,7 +138,7 @@ const formOf = (
   })),
 })
 
-// Mes de la ventana escaneada, en la voz de la app: "julio de 2026". Vacío si el escaneo no lo trae.
+// Mes en que parte la ventana escaneada, en la voz de la app: "julio de 2026". Vacío si el escaneo no lo trae.
 function scanMonthLabel(sinceIso: string): string {
   const since = new Date(sinceIso)
   if (Number.isNaN(since.getTime())) return ""
@@ -662,14 +663,7 @@ const INLINE_ACTIONS_CLASS =
 // la persona busca el suyo.
 const COMING_SOON = `Próximamente: ${new Intl.ListFormat("es", {
   type: "conjunction",
-}).format([
-  "Santander",
-  "BCI",
-  "Banco Estado",
-  "Itaú",
-  "Banco Falabella",
-  "Scotiabank",
-])}.`
+}).format(COMING_SOON_BANKS)}.`
 
 function BlockingHint({ children }: { children: React.ReactNode }) {
   return (
@@ -1663,7 +1657,7 @@ export function ScanSummary({
       ? `Sin correos de ${bankName}`
       : `${plural(scan.totalMessages, "correo revisado", "correos revisados")} de ${bankName}`
   return (
-    <ModalSection footer={`${leidos}${mes ? ` · ${mes}` : ""}`}>
+    <ModalSection footer={`${leidos}${mes ? ` · desde ${mes}` : ""}`}>
       <div className="flex min-h-11 flex-col justify-center px-4 py-2.5">
         <p className="text-body font-medium">
           {plural(scan.expenseCount, "gasto detectado", "gastos detectados")}

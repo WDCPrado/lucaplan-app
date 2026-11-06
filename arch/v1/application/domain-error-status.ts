@@ -32,7 +32,7 @@ import {
 } from "../domain/finance/income.domain.ts"
 import { InvalidPaceFrequencyError } from "../domain/finance/pace.domain.ts"
 import { InvalidBudgetPeriodError } from "../domain/finance/budget-period.domain.ts"
-import { BalanceScanError } from "../domain/finance/balance-scan.domain.ts"
+import { AccountBalanceError } from "../domain/finance/account-balance.domain.ts"
 import {
   InvalidRecurringTemplateError,
   InvalidRecurringUrlError,
@@ -60,12 +60,37 @@ import {
   InvalidBudgetAlertError,
 } from "../domain/notifications/budget-alert.domain.ts"
 import { InvalidDueDaysError } from "../domain/notifications/due-reminder.domain.ts"
+import {
+  ForbiddenError,
+  UnauthenticatedError,
+} from "../domain/authorization/authorization.domain.ts"
+import {
+  IntegrationEncKeyMissingError,
+  IntegrationFromEnvError,
+} from "../domain/integrations/integrations.domain.ts"
+import {
+  SetupDoneError,
+  SetupRateLimitedError,
+  SetupUnauthorizedError,
+} from "../domain/setup/setup.domain.ts"
 import { LockBusyError } from "../../shared/mutex.ts"
+import {
+  AmbiguousCategoryNameError,
+  OnboardingCompletedError,
+  ConcurrentCategorySaveError,
+} from "../domain/onboarding/onboarding.domain.ts"
 
 export function domainErrorStatus(e: unknown): number | null {
   if (e instanceof ZodError) return 422
-  if (e instanceof WebhookSignatureError || e instanceof OAuthStateError)
+  if (
+    e instanceof UnauthenticatedError ||
+    e instanceof SetupUnauthorizedError ||
+    e instanceof WebhookSignatureError ||
+    e instanceof OAuthStateError
+  )
     return 401
+  if (e instanceof ForbiddenError) return 403
+  if (e instanceof SetupRateLimitedError) return 429
   if (
     e instanceof InvalidPushEndpointError || // el cliente propuso un endpoint ajeno
     e instanceof UnknownBankError || // clave de banco que no existe en el catálogo
@@ -78,7 +103,11 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof DuplicateBudgetAlertError || // ya existe una alerta a ese %
     e instanceof RecurringPeriodBankPaidError || // el período ya lo cobró el banco
     e instanceof StaleAccountDeletionError || // la cuenta cambió desde la previsualización
-    e instanceof BankAlreadyLinkedError // ese banco ya está en este correo
+    e instanceof BankAlreadyLinkedError || // ese banco ya está en este correo
+    e instanceof OnboardingCompletedError || // el onboarding ya terminó
+    e instanceof ConcurrentCategorySaveError || // otro guardado del set entró primero
+    e instanceof IntegrationFromEnvError || // la clave la fija el entorno del servidor
+    e instanceof IntegrationEncKeyMissingError // secreto sin llave de cifrado estable
   )
     return 409
   if (
@@ -106,9 +135,10 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof InvalidManualAccountError ||
     e instanceof EmailReauthRequiredError ||
     e instanceof EmailSetupStateError ||
-    e instanceof BalanceScanError ||
+    e instanceof AccountBalanceError ||
     e instanceof BankLabelRequiredError ||
-    e instanceof SelfTargetError
+    e instanceof SelfTargetError ||
+    e instanceof AmbiguousCategoryNameError
   )
     return 422
   if (
@@ -119,7 +149,8 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof RecurringTemplateNotFoundError ||
     e instanceof InstallmentPlanNotFoundError ||
     e instanceof EmailConnectionNotFoundError ||
-    e instanceof UserNotFoundError
+    e instanceof UserNotFoundError ||
+    e instanceof SetupDoneError // ya hay cuentas: el asistente no existe
   )
     return 404
   return null

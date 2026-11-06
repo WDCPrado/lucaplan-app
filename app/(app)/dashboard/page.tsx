@@ -29,6 +29,7 @@ import { paceDeps } from "@/arch/v1/infrastructure/database/prisma/pace.infrastr
 import { Dashboard } from "@/components/finance/dashboard"
 import { PushPrompt } from "@/components/pwa/push-prompt"
 import { prDemoAccount } from "@/lib/pr-demo"
+import { getOnboardingStatusFor } from "@/arch/v1/infrastructure/database/prisma/onboarding-deps"
 
 export default async function DashboardPage({
   searchParams,
@@ -87,6 +88,7 @@ export default async function DashboardPage({
     availableIncomeSources,
     previousMonthDebt,
     previousCycleIncomes,
+    onboardingStatus,
   ] = await Promise.all([
     getMonthlySummary(financePageDeps, userId, year, month),
     listAccounts(financePageDeps, userId),
@@ -118,6 +120,7 @@ export default async function DashboardPage({
           return []
         })
       : Promise.resolve([]),
+    getOnboardingStatusFor(userId),
   ])
 
   // El movimiento del aviso puede no estar en el período que se muestra (un cargo que el banco
@@ -149,6 +152,7 @@ export default async function DashboardPage({
         outlookResult={sp.outlook ?? null}
         outlookReason={sp.reason ?? null}
         openTx={openTx}
+        onboardingStatus={onboardingStatus}
       />
     </>
   )

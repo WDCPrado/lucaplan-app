@@ -5,15 +5,17 @@
 import { withUser } from "@/arch/v1/presentation/finance/finance-http"
 import { categorizePendingMovements } from "@/arch/v1/infrastructure/database/prisma/categorize-pending.infrastructure"
 import { openaiConfigured } from "@/arch/v1/infrastructure/http/ai/openai-config"
+import { integrationDeps } from "@/arch/v1/infrastructure/database/prisma/integration-deps"
 
 export async function POST(req: Request) {
   return withUser(req, async (userId) => {
     // Sin API key el proveedor devuelve vacío en silencio, que se ve igual que "no encontró
     // categoría para ninguno". Se distingue acá para que la UI pueda decir lo que pasa.
-    if (!openaiConfigured()) return { configured: false, assigned: 0 }
+    if (!(await openaiConfigured(integrationDeps))) return { configured: false, assigned: 0 }
     return {
       configured: true,
-      assigned: await categorizePendingMovements(userId),
+      // ponytail: hasta 10 páginas de 500 por pedido; si quedan más, se vuelve a pedir.
+      assigned: await categorizePendingMovements(userId, 10),
     }
   })
 }

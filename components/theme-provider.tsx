@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { usePathname } from "next/navigation"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
 // Quién atiende la tecla D: este provider (rutas públicas, solo local) o, dentro de la app,
@@ -22,8 +21,6 @@ function ThemeProvider({
   children,
   ...props
 }: React.ComponentProps<typeof NextThemesProvider>) {
-  // La landing es marketing: siempre light, sin importar la preferencia guardada.
-  const forcedTheme = usePathname() === "/" ? "light" : undefined
   const [hotkeyOwned, setHotkeyOwned] = React.useState(false)
 
   return (
@@ -32,7 +29,6 @@ function ThemeProvider({
       defaultTheme="dark"
       enableSystem
       disableTransitionOnChange
-      forcedTheme={forcedTheme}
       // El script anti-parpadeo solo sirve en el HTML del servidor (corre antes de pintar). En el
       // cliente React 19 avisa «Encountered a script tag…» al renderizarlo: con type text/plain
       // ya no es un script ejecutable y el aviso no sale. El del servidor sigue intacto.
@@ -42,7 +38,7 @@ function ThemeProvider({
       {...props}
     >
       <ThemeColor />
-      {!forcedTheme && !hotkeyOwned && <ThemeHotkey />}
+      {!hotkeyOwned && <ThemeHotkey />}
       <HotkeyOwnerContext.Provider value={setHotkeyOwned}>
         {children}
       </HotkeyOwnerContext.Provider>
@@ -52,7 +48,7 @@ function ThemeProvider({
 
 // Barra de estado de la PWA en iOS (`theme-color`): sigue el tema de la APP, no solo el del sistema.
 // Un solo lugar para todos los que alternan el tema (Ajustes, menú del sidebar, login, la tecla D),
-// la landing forzada en claro y la carga inicial con un tema guardado distinto del sistema. Es un
+// y la carga inicial con un tema guardado distinto del sistema. Es un
 // efecto porque sincroniza el DOM fuera de React; los colores son el --background de cada tema.
 function ThemeColor() {
   const { resolvedTheme, forcedTheme } = useTheme()

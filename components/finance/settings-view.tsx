@@ -15,6 +15,7 @@ import { PushToggle } from "@/components/pwa/push-toggle"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
 import { AppShell, useOpenProfile } from "./app-shell"
 import { Segmented } from "./segmented"
+import { IntegrationsGroups } from "./integrations/integrations-groups"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,6 +63,8 @@ export function SettingsView({
   dueDays,
   paceFrequency,
   vapidPublicKey,
+  isAdmin,
+  outlookRedirectUri,
 }: {
   user: { name: string; email: string; initial: string }
   alerts: BudgetAlert[]
@@ -69,6 +72,9 @@ export function SettingsView({
   paceFrequency: PaceFrequency
   // Vacío = sin claves VAPID en el servidor: no hay push posible, la sección ni se ofrece.
   vapidPublicKey: string
+  // Integraciones son de la instalación: solo ADMIN las ve (GET/PUT /api/integrations).
+  isAdmin: boolean
+  outlookRedirectUri: string
 }) {
   const { toggleTheme } = useAppearance()
   const openProfile = useOpenProfile()
@@ -156,6 +162,14 @@ export function SettingsView({
               <ChevronRight aria-hidden className="disclosure" />
             </Link>
           </div>
+          {isAdmin && (
+            <SettingsSection
+              title="Integraciones"
+              footer="Las claves secretas se guardan cifradas y no se vuelven a mostrar completas."
+            >
+              <IntegrationsGroups redirectUri={outlookRedirectUri} />
+            </SettingsSection>
+          )}
           <SignOutRow />
         </div>
       </div>

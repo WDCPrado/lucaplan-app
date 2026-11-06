@@ -22,7 +22,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
@@ -33,9 +32,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { cn } from "@/lib/utils"
 import { formatCLP, monthName } from "@/lib/finance-format"
-import { CATEGORY_COLORS, CATEGORY_ICONS } from "./category-icons"
+import { CATEGORY_COLORS } from "./category-icons"
+import { CategoryAppearancePicker } from "./category-appearance-picker"
 import {
   FinanceField,
   MoneyFormInput,
@@ -87,10 +86,6 @@ export function CategoryModal({
   const icon = useWatch({ control: form.control, name: "icon" })
   const { errors, isSubmitting, isDirty } = form.formState
   const busy = isSubmitting || deleting
-  const palette =
-    color && !CATEGORY_COLORS.includes(color)
-      ? [...CATEGORY_COLORS, color]
-      : CATEGORY_COLORS
   const left =
     remainingToAllocate == null || type !== "expense"
       ? null
@@ -333,54 +328,16 @@ export function CategoryModal({
               </FinanceField>
             </section>
           )}
-          <fieldset className="space-y-3">
-            <legend className="text-subheadline font-medium">Icono</legend>
-            <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
-              {CATEGORY_ICONS.map(({ name, Icon }) => (
-                <Button
-                  key={name}
-                  type="button"
-                  variant="outline"
-                  className={cn(
-                    "size-11",
-                    icon === name && "border-primary bg-primary/10 text-primary"
-                  )}
-                  aria-label={name}
-                  aria-pressed={icon === name}
-                  onClick={() =>
-                    form.setValue("icon", name, { shouldDirty: true })
-                  }
-                >
-                  <Icon size={18} />
-                </Button>
-              ))}
-            </div>
-          </fieldset>
-          <fieldset className="space-y-3">
-            <legend className="text-subheadline font-medium">Color</legend>
-            <div className="flex flex-wrap gap-2">
-              {palette.map((value) => (
-                <button
-                  type="button"
-                  key={value}
-                  aria-label={`Color ${value}`}
-                  aria-pressed={color === value}
-                  onClick={() =>
-                    form.setValue("color", value, { shouldDirty: true })
-                  }
-                  className={cn(
-                    "grid size-11 place-items-center rounded-lg border",
-                    color === value && "border-foreground"
-                  )}
-                >
-                  <span
-                    className="size-6 rounded-full"
-                    style={{ backgroundColor: value }}
-                  />
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          <CategoryAppearancePicker
+            icon={icon}
+            color={color}
+            onIconChange={(name) =>
+              form.setValue("icon", name, { shouldDirty: true })
+            }
+            onColorChange={(value) =>
+              form.setValue("color", value, { shouldDirty: true })
+            }
+          />
           <FinanceField
             id={`${formId}-description`}
             label="Descripción para la IA (opcional)"

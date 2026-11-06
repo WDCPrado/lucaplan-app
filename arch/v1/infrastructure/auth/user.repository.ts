@@ -2,6 +2,7 @@
 // probamos con el mock in-memory. Intercambiable.
 import { type Role } from "../../domain/authorization/authorization.domain.ts"
 import {
+  type FirstAdminRepository,
   type User,
   type UserRepository,
 } from "../../domain/user/user.domain.ts"
@@ -44,5 +45,16 @@ export const userRepository: UserRepository = {
     // Banear debe cerrar las sesiones activas; si no, el usuario sigue logueado hasta expirar.
     if (banned) await prisma.session.deleteMany({ where: { userId: id } })
     return toDomain(u)
+  },
+}
+
+// Una sola sentencia: el conteo y la promoción no pueden separarse. Dos altas a la vez ya están las
+// dos insertadas cuando corre, así que ninguna queda ADMIN.
+export const firstAdminRepository: FirstAdminRepository = {
+  async promoteIfOnlyUser(id) {
+    const updated = await prisma.$executeRaw`
+      UPDATE "user" SET role = 'ADMIN'
+      WHERE id = ${id} AND (SELECT count(*) FROM "user") = 1`
+    return updated === 1
   },
 }

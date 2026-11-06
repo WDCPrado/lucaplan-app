@@ -5,8 +5,11 @@ El reenvío genera otro código e invalida el anterior. El formulario espera 60 
 reenviar y el servidor limita las solicitudes aunque no se use la pantalla. Los códigos se
 guardan hasheados en `verification`; no hay migración de esquema.
 
-El registro público está cerrado también en el endpoint OTP. Un correo desconocido recibe
-la misma respuesta de envío que una cuenta existente, pero no se envía ni crea una cuenta.
+El registro lo controla `SIGNUP_OPEN` (desde WDC-181): con `SIGNUP_OPEN=true` exacto, o siempre
+en `NODE_ENV=development`, un correo nuevo recibe su código y la cuenta se crea al verificarlo,
+con el set de categorías precreado. Cerrado (cualquier otro valor), un correo desconocido recibe
+la misma respuesta de envío que una cuenta existente, pero no se envía ni crea una cuenta. El
+código fijo `000000` sigue siendo solo de la cuenta demo en local y en los entornos de PR.
 Las cuentas bloqueadas siguen sin poder entrar. Los endpoints de contraseña, alta pública,
 recuperación y cambio de contraseña están deshabilitados; `/reset-password` lleva al login.
 `NEXT_PUBLIC_LANDING_ONLY` solo controla el aviso open source; ponerlo en `false` no abre altas.
@@ -18,6 +21,10 @@ no hace falta publicar una plantilla en Resend ni instalar su SDK. El remitente 
 es `Luca Plan <no-reply@lucaplan.cl>`, con `RESEND_FROM` opcional para otras instalaciones.
 Si la variable está vacía o solo contiene espacios, también se usa ese remitente predeterminado.
 El dominio elegido debe estar verificado en la misma cuenta de Resend.
+
+En local (`NODE_ENV=development`, fuera de Railway) sin `RESEND_API_KEY` el código no se envía: se
+imprime en la consola del servidor con el correo. En producción sin Resend nunca se imprime y el
+envío falla.
 
 El envío corre fuera de la respuesta HTTP para no distinguir cuentas por latencia. Una
 respuesta de envío correcta no garantiza entrega: si falla Resend, el servidor registra

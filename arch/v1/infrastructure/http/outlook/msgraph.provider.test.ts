@@ -10,7 +10,14 @@ test("Graph distingue cursor expirado y rechaza listados truncados sin exponer r
   const previousClient = process.env.OUTLOOK_CLIENT_ID
   process.env.BANCOCHILE_ENC_KEY = "test-only-master-key-at-least-32-characters"
   process.env.OUTLOOK_CLIENT_ID = "test-client"
+  // Las tres claves de la app de Entra en el entorno: así la config no lee Ajustes (sin base).
+  const previousOutlook = { secret: process.env.OUTLOOK_CLIENT_SECRET, tenant: process.env.OUTLOOK_TENANT }
+  process.env.OUTLOOK_CLIENT_SECRET = "test-secret"
+  process.env.OUTLOOK_TENANT = "consumers"
   t.after(() => {
+    for (const [k, v] of [["OUTLOOK_CLIENT_SECRET", previousOutlook.secret], ["OUTLOOK_TENANT", previousOutlook.tenant]] as const)
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
     if (previousKey === undefined) delete process.env.BANCOCHILE_ENC_KEY
     else process.env.BANCOCHILE_ENC_KEY = previousKey
     if (previousClient === undefined) delete process.env.OUTLOOK_CLIENT_ID

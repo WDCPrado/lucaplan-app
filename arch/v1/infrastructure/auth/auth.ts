@@ -20,6 +20,12 @@ import {
   PASSWORD_DISABLED_PATHS,
 } from "./login-code.ts"
 import { createResendLoginCodeMailer } from "../email/resend/login-code.mailer.ts"
+import { integrationDeps } from "../database/prisma/integration-deps.ts"
+import { resolveIntegration } from "../../application/integration-use-cases/resolve-integration-use-case.ts"
+import { isSetupVerified, promoteFirstAccount } from "../../application/setup-use-cases/setup-use-cases.ts"
+import { setupTokenFrom } from "../../domain/setup/setup.domain.ts"
+import { setupDeps } from "../database/prisma/setup-deps.ts"
+import { firstAdminRepository } from "./user.repository.ts"
 
 // Build sin secretos: se comprueba otra vez en cada petición OAuth, nunca al importar.
 const canonical = (() => {
@@ -115,10 +121,19 @@ export const auth = betterAuth({
   emailAndPassword: { enabled: false },
   plugins: [
     createLoginCodePlugin(
+      // El plugin se arma al importar; la clave se resuelve en cada envío (entorno o Ajustes).
       createResendLoginCodeMailer({
-        apiKey: process.env.RESEND_API_KEY,
-        from: process.env.RESEND_FROM,
-      })
+        credentials: async () => ({
+          apiKey: await resolveIntegration(integrationDeps, "RESEND_API_KEY"),
+          from: await resolveIntegration(integrationDeps, "RESEND_FROM"),
+        }),
+      }),
+      process.env,
+      // Base vacía: la primera cuenta solo nace con la cookie del asistente de /setup.
+      {
+        hasAccounts: () => setupDeps.accounts.hasAccounts(),
+        isVerified: (headers) => isSetupVerified(setupDeps, setupTokenFrom(headers)),
+      }
     ),
     admin({ defaultRole: "USER", adminRoles: ["ADMIN"] }),
     jwt({ jwt: { issuer: canonical?.issuer } }),
@@ -206,7 +221,17 @@ export const auth = betterAuth({
     },
     user: {
       create: {
-        after: async (user) => {
+        after: async (user, ctx) => {
+          // La primera cuenta de una base vacía, creada con la cookie del asistente de /setup,
+          // queda ADMIN para que alguien pueda configurar las integraciones. Un fallo deja la
+          // cuenta como USER (se loguea, no tumba el alta).
+          try {
+            const token = setupTokenFrom(ctx?.headers ?? null)
+            if (await promoteFirstAccount(setupDeps, firstAdminRepository, user.id, token))
+              console.info(`[first-admin] ${user.id} es la primera cuenta: queda ADMIN`)
+          } catch (e) {
+            console.error("[first-admin]", (e as Error).message)
+          }
           try {
             await seedDefaultCategories(
               { categories: categoryRepository },

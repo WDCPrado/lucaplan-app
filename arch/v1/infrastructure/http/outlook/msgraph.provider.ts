@@ -47,7 +47,7 @@ async function accessTokenFor(mailboxId: string): Promise<string> {
     row.refreshTokenIv,
     EMAIL_PURPOSE
   )
-  const tokens = await refreshTokens(outlookConfig(), refreshToken) // EmailReauthRequiredError si fue revocado
+  const tokens = await refreshTokens(await outlookConfig(), refreshToken) // EmailReauthRequiredError si fue revocado
   if (tokens.refreshToken && tokens.refreshToken !== refreshToken) {
     const { enc, iv } = encryptSecret(tokens.refreshToken, EMAIL_PURPOSE)
     await prisma.emailMailbox.update({
@@ -278,7 +278,7 @@ export const msgraphMailProvider: BankMailProvider = {
   },
 
   async ensureSubscription(mailboxId) {
-    const cfg = outlookConfig()
+    const cfg = await outlookConfig()
     if (!cfg.webhookUrl) return null // sin URL HTTPS pública no hay webhook (OAuth/delta siguen operando)
     const expiresAt = new Date(Date.now() + SUBSCRIPTION_LIFETIME_MS)
     const row = await prisma.emailMailbox.findUnique({

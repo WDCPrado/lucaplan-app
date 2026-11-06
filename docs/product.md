@@ -8,8 +8,8 @@ web
 
 ## Users
 
-Hoy: Willy y un círculo cercano de dos o tres personas, en uso real y diario. El registro está
-abierto desde 2026-07-11, pero no hay público más allá de ese círculo.
+Hoy: Willy y un círculo cercano de dos o tres personas, en uso real y diario. El repo es público:
+cualquiera puede levantar su propia instancia, y en cada una el registro se abre con `SIGNUP_OPEN`.
 
 El usuario que el producto persigue es una persona en Chile que administra sus finanzas
 personales sobre todo desde el teléfono, recibe las notificaciones de compra de su banco por
@@ -40,8 +40,8 @@ Dos mecanismos que un producto vecino no podría copiar diciendo lo mismo:
 - Los datos entran solos desde las notificaciones de correo del banco (Banco de Chile, Banco
   BICE y MACHBANK —solo débito— vía Outlook / Microsoft Graph). Un mismo correo puede alimentar
   varios bancos.
-- Lo que el correo no avisa entra por captura de pantalla de la app del banco (saldos y cupos);
-  los cargos que el banco no avisó, a mano o desde el plugin MCP.
+- Lo que el correo no avisa (saldos, cupos y cargos que el banco no notificó) se corrige desde el
+  plugin MCP (WDC-148).
 - El ciclo es mensual: límite global y por categoría, lo no asignado queda "por presupuestar",
   los límites se heredan mes a mes y un selector de mes navega el historial.
 - Dos monedas conviven en el mismo instrumento: cupo nacional en CLP y cupo internacional en
@@ -69,11 +69,9 @@ Reglas de dominio — no son detalles de UI; romper una rompe los números:
 Constraints del sistema:
 
 - En una cuenta conectada los cargos manuales se rechazan: se contarían dos veces cuando llegue
-  el correo. Esa vía es la pestaña "Del banco", que compara contra lo registrado y destilda los
-  repetidos.
+  el correo.
 - Ningún dato leído por IA se guarda sin confirmación de la persona: una lectura puede errar un
   dígito y producir un monto perfectamente válido que ninguna validación detecta.
-- Las capturas se procesan y se descartan; no se persisten en ninguna parte.
 - Los cuerpos de correo se procesan en memoria y nunca se persisten. De cada aviso se conserva
   solo el movimiento (monto, comercio, fecha). El refresh token se guarda cifrado (AES-256-GCM).
 - La IA es opcional con degradación segura: sin `OPENAI_API_KEY` la app funciona igual, solo que

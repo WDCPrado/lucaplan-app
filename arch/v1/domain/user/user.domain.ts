@@ -22,6 +22,12 @@ export interface UserRepository {
   setBanned(id: string, banned: boolean): Promise<User>
 }
 
+// Port del primer ADMIN de una instalación: sube a ADMIN la cuenta `id` solo si es la ÚNICA de la
+// base, en una sola escritura atómica. true = la promovió.
+export interface FirstAdminRepository {
+  promoteIfOnlyUser(id: string): Promise<boolean>
+}
+
 export class UserNotFoundError extends Error {
   constructor(id: string) {
     super(`Usuario no encontrado: ${id}`)

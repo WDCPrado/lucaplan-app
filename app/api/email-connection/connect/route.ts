@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     )
     if (!provider)
       return { ok: false, error: "Proveedor de correo no soportado" }
-    if (!provider.oauth.isConfigured())
+    if (!(await provider.oauth.isConfigured()))
       return { ok: false, error: provider.notConfiguredError }
     // Falla acá si el banco no existe, antes de mandar al usuario al proveedor.
     const bank = bankByKey(body.bankProvider ?? "bancochile")
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
       label: body.label?.trim() || null,
     })
     const { url, pkceVerifier, secureCookie } =
-      provider.oauth.authorization(state)
+      await provider.oauth.authorization(state)
     const cookieStore = await cookies()
     cookieStore.set(PKCE_COOKIE, pkceVerifier, {
       httpOnly: true,

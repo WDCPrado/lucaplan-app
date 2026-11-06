@@ -777,7 +777,7 @@ test("mapeo ambiguo por last4 se omite", () => {
   assert.equal(resolveEventTarget(parsed.event, accounts, buckets), null)
 })
 
-test("carga inicial usa el mes e instante del OAuth y no persiste candidatos", async () => {
+test("carga inicial usa los 3 meses previos al instante del OAuth y no persiste candidatos", async () => {
   const connectedAt = new Date("2026-06-30T23:00:00Z")
   const requestedSince: { value?: Date } = {}
   const messages = [
@@ -807,8 +807,8 @@ test("carga inicial usa el mes e instante del OAuth y no persiste candidatos", a
     "link-1",
     { now: new Date("2026-07-14T12:00:00Z") }
   )
-  // Carga inicial: arranca el 1° del mes de la conexión (junio).
-  assert.equal(requestedSince.value?.toISOString(), "2026-06-01T00:00:00.000Z")
+  // Carga inicial: arranca el 1° del mes de hace 3 meses (conexión en junio → marzo).
+  assert.equal(requestedSince.value?.toISOString(), "2026-03-01T00:00:00.000Z")
   assert.equal(result.totalMessages, 1)
 })
 
@@ -1600,20 +1600,19 @@ const scanWith = (messages: BankEmailMessage[]) =>
     { now: CONNECTED_AT }
   )
 
-test("sin movimientos este mes, el escaneo baja al mes de la última notificación", async () => {
+test("sin movimientos este mes, el escaneo trae los de los 3 meses previos", async () => {
   const result = await scanWith([cargo("jun", "2026-06-20T10:00:00Z")])
-  assert.equal(result.since, "2026-06-01T00:00:00.000Z")
+  assert.equal(result.since, "2026-05-01T00:00:00.000Z")
   assert.equal(result.totalMessages, 1)
   assert.equal(result.candidates.length, 1)
 })
 
-test("el mes de la última notificación sin movimientos no detiene la búsqueda", async () => {
-  // Lo último del banco es marketing: si la ventana se fijara ahí, el escaneo vendría vacío igual.
+test("un correo de marketing reciente no acota la ventana de 3 meses", async () => {
   const result = await scanWith([
     cargo("jun", "2026-06-20T10:00:00Z"),
     promo("ago", "2026-08-10T10:00:00Z"),
   ])
-  assert.equal(result.since, "2026-06-01T00:00:00.000Z")
+  assert.equal(result.since, "2026-05-01T00:00:00.000Z")
   assert.equal(result.expenseCount, 1)
   assert.equal(result.candidates.length, 1)
 })
@@ -1631,17 +1630,17 @@ test("un correo posterior al instante del vínculo no mueve la ventana", async (
     "link-1",
     { now: new Date("2026-08-25T12:00:00Z") }
   )
-  assert.equal(result.since, "2026-06-01T00:00:00.000Z")
+  assert.equal(result.since, "2026-05-01T00:00:00.000Z")
   assert.equal(result.totalMessages, 1)
 })
 
-test("sin correos del banco en el plazo, la ventana vuelve al mes en curso", async () => {
+test("sin correos del banco en los 3 meses, la ventana es la misma y viene vacía", async () => {
   const vacio = await scanWith([])
-  assert.equal(vacio.since, "2026-08-01T00:00:00.000Z")
+  assert.equal(vacio.since, "2026-05-01T00:00:00.000Z")
   assert.equal(vacio.candidates.length, 0)
-  // Más viejo que el tope de búsqueda: tampoco se va a buscarlo hasta el fondo del buzón.
+  // Más viejo que la ventana: no se va a buscarlo hasta el fondo del buzón.
   const viejo = await scanWith([cargo("2025", "2025-11-20T10:00:00Z")])
-  assert.equal(viejo.since, "2026-08-01T00:00:00.000Z")
+  assert.equal(viejo.since, "2026-05-01T00:00:00.000Z")
   assert.equal(viejo.candidates.length, 0)
 })
 

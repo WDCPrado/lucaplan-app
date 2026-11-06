@@ -14,4 +14,4 @@ cierra sin cerrar el padre; el foco vuelve al control que lo abrió. La creació
 cuentas, el plan, ingresos, categorías y la búsqueda conservan esa composición.
 
 Se mantienen los tokens de tema claro/oscuro, las fuentes del sistema y la
-separación entre CLP y USD. La landing conserva su dirección independiente.
+separación entre CLP y USD. La landing usa el mismo lenguaje que la app (WDC-181): sus vistas de ejemplo son los componentes reales, en claro y oscuro.

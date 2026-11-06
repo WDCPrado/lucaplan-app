@@ -4,6 +4,10 @@ La producción migrada usa recursos nativos separados y la [guía de Coolify](co
 Este documento conserva la instalación de Docker Desktop y su recuperación. El workflow actual
 ya no llama a `deploy-local.mjs`: no reactives su runner durante la operación de Coolify.
 
+> Esta guía describe la instancia personal del autor (rutas de Windows, dominio `lucaplan.cl`,
+> runner propio). Para levantar tu propia copia parte por el [README](../README.md); aquí sirve de
+> modelo para Compose, cron y Cloudflare Tunnel.
+
 `compose.production.yml` ejecuta una instancia separada del Compose de desarrollo:
 PostgreSQL 18, app en modo producción, cron y un túnel propio de Cloudflare. Cada servicio
 reinicia con Docker (`unless-stopped`). PostgreSQL no publica puertos; la app publica solo
@@ -17,10 +21,13 @@ y el túnel se conecta a `http://app:3005` dentro de la red privada de este Comp
    secreto hexadecimal aleatorio y `APP_ENV_FILE` con la ruta de ese mismo archivo.
 2. Conserva de producción `BETTER_AUTH_SECRET`, **`BANCOCHILE_ENC_KEY`**,
    `OUTLOOK_RENEW_SECRET` y las claves VAPID, Outlook y OpenAI que utilices. Cambiar la llave
-   de cifrado impide leer las conexiones importadas. No copies `RAILWAY_*`, `SEED_PR_*`
-   ni configuración de pruebas. Para entrar por código, configura también `RESEND_API_KEY`
+   de cifrado impide leer las conexiones importadas. `BANCOCHILE_ENC_KEY` (32+ caracteres) es
+   **obligatoria si usas Ajustes → Integraciones o `/setup`**: sin ella la llave se genera en un
+   archivo del contenedor que se pierde en el próximo deploy, y la app rechaza guardar secretos.
+   No copies `RAILWAY_*`, `SEED_PR_*` ni configuración de pruebas. Para entrar por código, configura también `RESEND_API_KEY`
    y, opcionalmente, `RESEND_FROM` en ese archivo externo (ver [acceso por correo](login-code.md)).
-3. Conserva **`NEXT_PUBLIC_LANDING_ONLY=true`**, como en Railway: el registro sigue cerrado.
+3. Conserva **`NEXT_PUBLIC_LANDING_ONLY=true`**, como en Railway. El registro no depende de esa
+   variable: lo controla `SIGNUP_OPEN` (solo `true` exacto lo abre; ver [acceso por correo](login-code.md)).
    Compose pasa el mismo valor al build del frontend y al backend en ejecución. Después de
    cambiarlo debes reconstruir la imagen; reiniciar solo el contenedor no actualiza el frontend.
 4. Crea un túnel Cloudflare para Luca Plan, independiente del de Pomodoro. Configura su
@@ -66,6 +73,32 @@ La app aplica migraciones incrementales antes de servir. El seed de PR se omite 
 las variables de Railway. Valida login, cuentas, movimientos y conexión de correo en
 `https://lucaplan.cl` antes de retirar definitivamente Railway. Mantén respaldos externos del
 dump y de los secretos; el volumen persistente no es un backup.
+
+## Hacerse ADMIN
+
+Las claves de Ajustes → Integraciones solo las edita una cuenta ADMIN. En una instalación nueva,
+la primera cuenta (creada desde `/setup`) ya queda ADMIN. En una que ya tenía cuentas, nadie lo es
+hasta que lo asignas a mano en la base:
+
+```sql
+UPDATE "user" SET role='ADMIN' WHERE email='tu@correo.com';
+```
+
+El rol se lee en cada petición: basta con recargar la app.
+
+## /setup sin proxy
+
+El tope de 5 códigos incorrectos por hora cuenta por IP, y la IP sale de lo que agrega el proxy
+(Railway, Cloudflare). Sin proxy todos comparten la misma cubeta: si alguien prueba 5 códigos
+malos, nadie más puede verificar durante una hora. Expón /setup detrás del proxy o reinicia el
+servidor (el contador vive en memoria).
+
+## Hay cuentas pero no llega el código de login
+
+Si la instancia ya tiene cuentas y en producción no hay Resend configurado, nadie recibe el código
+de login, ni siquiera un ADMIN que pudiera arreglarlo desde Ajustes. La salida es poner
+`RESEND_API_KEY` y `RESEND_FROM` en el entorno del servidor y reiniciar. `/setup` no sirve aquí:
+solo existe mientras la base no tiene ninguna cuenta.
 
 ## Cron y Outlook
 

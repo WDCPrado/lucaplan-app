@@ -51,8 +51,8 @@ function spyMail(tag: string, calls: string[]): BankMailProvider {
 }
 
 const oauth = (configured: boolean) => ({
-  isConfigured: () => configured,
-  authorization: () => ({
+  isConfigured: async () => configured,
+  authorization: async () => ({
     url: "https://example.test/authorize",
     pkceVerifier: "verifier",
     secureCookie: true,
@@ -155,8 +155,8 @@ test("emailProviderByKey devuelve el del catálogo y lanza con una clave descono
 
 // /status entrega el catálogo COMPLETO con su bandera: la UI ofrece solo los configurados, pero
 // necesita el nombre de los demás para rotular un buzón ya conectado.
-test("availableEmailProviders marca cuáles tiene configurados el servidor", () => {
-  assert.deepEqual(availableEmailProviders(registryOf([])), [
+test("availableEmailProviders marca cuáles tiene configurados el servidor", async () => {
+  assert.deepEqual(await availableEmailProviders(registryOf([])), [
     { key: "outlook", name: "Outlook", configured: true },
     { key: "gmailish", name: "Proveedor sin webhook", configured: false },
   ])

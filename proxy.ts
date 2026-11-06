@@ -7,6 +7,7 @@ import { getSessionCookie } from "better-auth/cookies"
 const PUBLIC_ROUTES = [
   "/",
   "/login",
+  "/setup",
   "/reset-password",
   "/.well-known",
   "/plugin/consent",

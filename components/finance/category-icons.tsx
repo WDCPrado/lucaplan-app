@@ -37,63 +37,117 @@ import {
   Tag,
   type LucideIcon,
 } from "lucide-react"
+import {
+  CATEGORY_COLOR_VALUES,
+  CATEGORY_ICON_NAMES,
+  type CategoryIconName,
+} from "@/arch/v1/domain/onboarding/onboarding.domain"
 
 // Catálogo predefinido de iconos de categoría (lucide-react). El campo `icon` guarda el NOMBRE
-// (ej. "ShoppingBag") o, alternativamente, un emoji de teclado. Un solo lugar para el set.
-export const CATEGORY_ICONS: { name: string; Icon: LucideIcon }[] = [
-  { name: "ShoppingBag", Icon: ShoppingBag },
-  { name: "ShoppingCart", Icon: ShoppingCart },
-  { name: "Utensils", Icon: Utensils },
-  { name: "UtensilsCrossed", Icon: UtensilsCrossed },
-  { name: "Coffee", Icon: Coffee },
-  { name: "Car", Icon: Car },
-  { name: "Bus", Icon: Bus },
-  { name: "Fuel", Icon: Fuel },
-  { name: "Plane", Icon: Plane },
-  { name: "House", Icon: House },
-  { name: "Zap", Icon: Zap },
-  { name: "Wifi", Icon: Wifi },
-  { name: "Smartphone", Icon: Smartphone },
-  { name: "Shirt", Icon: Shirt },
-  { name: "Gift", Icon: Gift },
-  { name: "Heart", Icon: Heart },
-  { name: "HeartPulse", Icon: HeartPulse },
-  { name: "Stethoscope", Icon: Stethoscope },
-  { name: "GraduationCap", Icon: GraduationCap },
-  { name: "BookOpen", Icon: BookOpen },
-  { name: "Dumbbell", Icon: Dumbbell },
-  { name: "Film", Icon: Film },
-  { name: "Popcorn", Icon: Popcorn },
-  { name: "Music", Icon: Music },
-  { name: "Gamepad2", Icon: Gamepad2 },
-  { name: "PiggyBank", Icon: PiggyBank },
-  { name: "CreditCard", Icon: CreditCard },
-  { name: "Wallet", Icon: Wallet },
-  { name: "Receipt", Icon: Receipt },
-  { name: "TrendingUp", Icon: TrendingUp },
-  { name: "Baby", Icon: Baby },
-  { name: "PawPrint", Icon: PawPrint },
-  { name: "Wrench", Icon: Wrench },
-  { name: "Droplet", Icon: Droplet },
-  { name: "Flame", Icon: Flame },
-]
+// (ej. "ShoppingBag") o, alternativamente, un emoji de teclado. Los nombres y la paleta viven en el
+// dominio (onboarding.domain.ts), que la API usa para validar; este Record los cubre todos por tipo.
+const ICONS: Record<CategoryIconName, LucideIcon> = {
+  ShoppingBag,
+  ShoppingCart,
+  Utensils,
+  UtensilsCrossed,
+  Coffee,
+  Car,
+  Bus,
+  Fuel,
+  Plane,
+  House,
+  Zap,
+  Wifi,
+  Smartphone,
+  Shirt,
+  Gift,
+  Heart,
+  HeartPulse,
+  Stethoscope,
+  GraduationCap,
+  BookOpen,
+  Dumbbell,
+  Film,
+  Popcorn,
+  Music,
+  Gamepad2,
+  PiggyBank,
+  CreditCard,
+  Wallet,
+  Receipt,
+  TrendingUp,
+  Baby,
+  PawPrint,
+  Wrench,
+  Droplet,
+  Flame,
+}
 
-// Paleta curada de colores de categoría. El color se persiste como hex (dato, no token CSS);
-// tonos medios legibles sobre fondo claro y oscuro. Un solo lugar para el set.
-export const CATEGORY_COLORS = [
-  "#6366f1", // índigo
-  "#3b82f6", // azul
-  "#06b6d4", // cian
-  "#10b981", // esmeralda
-  "#84cc16", // lima
-  "#eab308", // amarillo
-  "#f97316", // naranja
-  "#ef4444", // rojo
-  "#ec4899", // rosa
-  "#a855f7", // púrpura
-  "#14b8a6", // teal
-  "#64748b", // slate
-]
+// Nombre legible de cada icono, para lectores de pantalla (el identificador no cambia).
+const ICON_LABELS: Record<CategoryIconName, string> = {
+  ShoppingBag: "Bolsa de compras",
+  ShoppingCart: "Carrito",
+  Utensils: "Cubiertos",
+  UtensilsCrossed: "Restaurante",
+  Coffee: "Café",
+  Car: "Auto",
+  Bus: "Bus",
+  Fuel: "Bencina",
+  Plane: "Avión",
+  House: "Casa",
+  Zap: "Electricidad",
+  Wifi: "Internet",
+  Smartphone: "Celular",
+  Shirt: "Ropa",
+  Gift: "Regalo",
+  Heart: "Corazón",
+  HeartPulse: "Salud",
+  Stethoscope: "Médico",
+  GraduationCap: "Educación",
+  BookOpen: "Libro",
+  Dumbbell: "Gimnasio",
+  Film: "Cine",
+  Popcorn: "Cabritas",
+  Music: "Música",
+  Gamepad2: "Videojuegos",
+  PiggyBank: "Ahorro",
+  CreditCard: "Tarjeta",
+  Wallet: "Billetera",
+  Receipt: "Boleta",
+  TrendingUp: "Inversiones",
+  Baby: "Bebé",
+  PawPrint: "Mascota",
+  Wrench: "Herramientas",
+  Droplet: "Agua",
+  Flame: "Gas",
+}
+
+export const CATEGORY_ICONS: { name: string; label: string; Icon: LucideIcon }[] =
+  CATEGORY_ICON_NAMES.map((name) => ({
+    name,
+    label: ICON_LABELS[name as CategoryIconName],
+    Icon: ICONS[name as CategoryIconName],
+  }))
+
+// Paleta curada de colores de categoría (ver CATEGORY_COLOR_VALUES en el dominio).
+export const CATEGORY_COLORS = CATEGORY_COLOR_VALUES
+
+// Nombre legible de cada color de la paleta. Un color fuera de ella (dato viejo) no tiene nombre.
+export const CATEGORY_COLOR_LABELS: Record<string, string> = {
+  "#6366f1": "Índigo",
+  "#3b82f6": "Azul",
+  "#06b6d4": "Cian",
+  "#10b981": "Esmeralda",
+  "#84cc16": "Lima",
+  "#eab308": "Amarillo",
+  "#f97316": "Naranja",
+  "#ef4444": "Rojo",
+  "#ec4899": "Rosa",
+  "#a855f7": "Púrpura",
+  "#14b8a6": "Turquesa",
+  "#64748b": "Gris azulado",
+}
 
 const MAP: Record<string, LucideIcon> = Object.fromEntries(
   CATEGORY_ICONS.map((i) => [i.name, i.Icon])

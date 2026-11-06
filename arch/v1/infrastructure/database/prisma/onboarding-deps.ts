@@ -7,6 +7,7 @@ import {
   categoryUsageIn,
 } from "./onboarding.infrastructure.ts"
 import { prisma } from "./client.ts"
+import { ConcurrentCategorySaveError } from "../../../domain/onboarding/onboarding.domain.ts"
 import { openaiConfigured } from "../../http/ai/openai-config.ts"
 import { openaiCategoryProposer } from "../../http/ai/openai-category-proposer.provider.ts"
 import { getOnboardingStatus } from "../../../application/onboarding-use-cases/get-onboarding-status-use-case.ts"
@@ -27,7 +28,7 @@ export const getOnboardingStatusFor = (userId: string) =>
 /**
  * Guarda el set de categorías en una sola transacción serializable, con la marca de terminado
  * leída adentro. Reintenta solo los conflictos de serialización (P2034): un nombre único repetido
- * (P2002) no se arregla reintentando y sube como error.
+ * (P2002) solo aparece con dos guardados a la vez y responde 409.
  */
 export async function applyOnboardingCategoriesFor(userId: string, input: unknown) {
   for (let attempt = 0; ; attempt++) {
@@ -42,7 +43,9 @@ export async function applyOnboardingCategoriesFor(userId: string, input: unknow
         { isolationLevel: "Serializable" }
       )
     } catch (error) {
-      if (attempt >= 4 || (error as { code?: string }).code !== "P2034") throw error
+      const code = (error as { code?: string }).code
+      if (code === "P2002") throw new ConcurrentCategorySaveError()
+      if (attempt >= 4 || code !== "P2034") throw error
     }
   }
 }

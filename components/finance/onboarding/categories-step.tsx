@@ -19,7 +19,7 @@ import {
   type OnboardingCategory,
   type ProposeCategoriesOutput,
 } from "@/lib/onboarding-schemas"
-import { CATEGORY_COLORS, CategoryIcon } from "../category-icons"
+import { CATEGORY_COLORS, CATEGORY_ICONS, CategoryIcon } from "../category-icons"
 import { CategoryAppearancePicker } from "../category-appearance-picker"
 import { FinanceField } from "../finance-form-field"
 import { Segmented } from "../segmented"
@@ -35,7 +35,7 @@ const withIds = (list: ProposeCategoriesOutput["categories"]): Proposed[] =>
 const editorValues = (c: OnboardingCategory | null) => ({
   name: c?.name ?? "",
   type: c?.type ?? "expense",
-  icon: c?.icon ?? "Tag",
+  icon: c?.icon ?? CATEGORY_ICONS[0].name,
   color: c?.color ?? CATEGORY_COLORS[0],
   description: c?.description ?? null,
 })

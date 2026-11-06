@@ -97,6 +97,15 @@ export class OnboardingCompletedError extends Error {
   }
 }
 
+// Otro guardado del mismo set entró primero (doble envío, dos pestañas) y chocó con un nombre
+// único. 409: reintentar desde la pantalla resuelve.
+export class ConcurrentCategorySaveError extends Error {
+  constructor() {
+    super("Otro guardado de tus categorías está en curso; vuelve a intentarlo")
+    this.name = "ConcurrentCategorySaveError"
+  }
+}
+
 // Hay dos categorías del usuario que solo difieren en mayúsculas o espacios y ninguna se llama
 // exactamente como la enviada: no se sabe cuál actualizar. 422.
 export class AmbiguousCategoryNameError extends Error {

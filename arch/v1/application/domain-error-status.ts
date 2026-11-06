@@ -64,6 +64,7 @@ import { LockBusyError } from "../../shared/mutex.ts"
 import {
   AmbiguousCategoryNameError,
   OnboardingCompletedError,
+  ConcurrentCategorySaveError,
 } from "../domain/onboarding/onboarding.domain.ts"
 
 export function domainErrorStatus(e: unknown): number | null {
@@ -83,7 +84,8 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof RecurringPeriodBankPaidError || // el período ya lo cobró el banco
     e instanceof StaleAccountDeletionError || // la cuenta cambió desde la previsualización
     e instanceof BankAlreadyLinkedError || // ese banco ya está en este correo
-    e instanceof OnboardingCompletedError // el onboarding ya terminó
+    e instanceof OnboardingCompletedError || // el onboarding ya terminó
+    e instanceof ConcurrentCategorySaveError // otro guardado del set entró primero
   )
     return 409
   if (

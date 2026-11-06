@@ -835,9 +835,9 @@ export async function confirmEmailSetup(
   })
 
   // Categorización IA best-effort (solo no internos; una falla no revierte la importación).
-  // ponytail: tope de 10 páginas de 500 (5.000 movimientos) para la carga inicial de 3 meses; lo que
-  // sobre queda pendiente para «Categorizar» o la próxima sincronización.
-  if (deps.categorize) await deps.categorize(userId, 10).catch(() => {})
+  // ponytail: tope de 3 páginas de 500 (1.500 movimientos, ~2 min si OpenAI se cuelga) para la carga
+  // inicial de 3 meses; lo que sobre queda pendiente para «Categorizar» o la próxima sincronización.
+  if (deps.categorize) await deps.categorize(userId, 3).catch(() => {})
 
   return { ...result, skipped }
 }

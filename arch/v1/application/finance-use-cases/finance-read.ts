@@ -55,7 +55,7 @@ import {
   computeCapsOverspend,
   computeMonthOverspend,
   effectiveLimit,
-  effectiveGlobalLimit,
+  effectiveGlobalBudget,
   paceStatus,
   pacePeriod,
   remainingToAllocate,
@@ -207,6 +207,8 @@ export type BudgetViewDTO = {
   // Hay movimientos en USD sin dólar observado: quedaron fuera de los totales (no se inventa tasa).
   exchangeRateUnavailable: boolean
   globalLimit: number | null // límite global efectivo del mes (carry); null = no definido
+  // El tope efectivo lo puso «Igualar al ingreso» y sigue solo al total del plan (heredado con él).
+  globalLimitFollowsIncome: boolean
   allocated: number // Σ límites efectivos de las categorías de GASTO
   remainingToAllocate: number | null // globalLimit − allocated; null sin límite global
   // Los dos excedentes del mes, que NO son lo mismo y pueden convivir (la UI no los suma):
@@ -955,7 +957,8 @@ export async function getBudgetView(
   const allocated = withLimit
     .filter((x) => x.category.type === "expense")
     .reduce((s, x) => s.add(x.limit), Money.zero(CLP))
-  const globalLimit = effectiveGlobalLimit(budgets, year, month)
+  const globalBudget = effectiveGlobalBudget(budgets, year, month)
+  const globalLimit = globalBudget?.globalLimit ?? null
   const remaining = remainingToAllocate(globalLimit, allocated)
   // Gastado y comprometido del plan: todo gasto real del período, con o sin categoría o tope
   // (WDC-171). Los topes solo miden categorías y ritmo; no deciden qué plata salió.
@@ -1018,6 +1021,7 @@ export async function getBudgetView(
     spent: spent.toMajor(),
     committed: committed.toMajor(),
     globalLimit: globalLimit === null ? null : globalLimit.toMajor(),
+    globalLimitFollowsIncome: globalBudget?.followsIncome === true,
     allocated: allocated.toMajor(),
     remainingToAllocate: remaining === null ? null : remaining.toMajor(),
     capsOverspend: computeCapsOverspend(

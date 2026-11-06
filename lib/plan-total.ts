@@ -26,7 +26,8 @@ export function planTotal(
 
 /**
  * ¿Se ofrece igualar el presupuesto del mes a ese total? Solo si el mes tiene presupuesto definido
- * y el total difiere del vigente — igual que antes de que existiera el descuento.
+ * y el total difiere del vigente, o es igual pero el tope todavía no sigue al ingreso (sin la marca
+ * `followsIncome`): igualar es lo que lo deja siguiendo.
  *
  * Con el total en 0 NO se ofrece, y esa es la parte que no es cosmética: significa que la deuda se
  * comió el ingreso entero, y dejar el presupuesto del mes en cero de un clic es una decisión del
@@ -37,9 +38,12 @@ export function planTotal(
  */
 export function shouldSuggest(
   total: number,
-  globalLimit: number | null
+  globalLimit: number | null,
+  // El tope ya sigue solo al ingreso. Sin la marca, un tope igual al total también ofrece
+  // igualar: apretarlo es lo que lo deja siguiendo (los topes previos a la marca están así).
+  followsIncome = true
 ): boolean {
-  return globalLimit !== null && total > 0 && total !== globalLimit
+  return globalLimit !== null && total > 0 && (total !== globalLimit || !followsIncome)
 }
 
 /**

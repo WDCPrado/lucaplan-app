@@ -352,12 +352,11 @@ const handlers: Handlers = {
   },
   lucaplan_buscar_movimientos: (userId, input) =>
     searchPluginTransactions(userId, input),
-  lucaplan_crear_movimiento: (userId, input) => {
-    const create = () => createTransaction(deps, userId, { ...input, date: new Date(input.date) })
-    return input.direction === "credit" ? follow(userId, create) : create()
-  },
+  lucaplan_crear_movimiento: (userId, input) =>
+    follow(userId, () => createTransaction(deps, userId, { ...input, date: new Date(input.date) })),
   lucaplan_previsualizar_conciliacion: (userId, input) => reconcileBankAccount(deps, userId, input),
-  lucaplan_aplicar_conciliacion: (userId, { previewToken, ...input }) => reconcileBankAccount(deps, userId, input, previewToken),
+  lucaplan_aplicar_conciliacion: (userId, { previewToken, ...input }) =>
+    follow(userId, () => reconcileBankAccount(deps, userId, input, previewToken)),
   lucaplan_conciliar_cartola: async (userId, input) => {
     const account = await deps.accounts.findById(input.accountId)
     if (!account || account.userId !== userId) throw new PluginReferenceError("accountId")
@@ -381,6 +380,7 @@ const handlers: Handlers = {
     for (const [index, row] of input.movements.entries()) {
       try {
         // La operación por fila reutiliza las validaciones del alta individual.
+        // ponytail: cada fila alinea el tope por su cuenta (hasta 20); seguir una vez al final si pesa.
         const created = await handlers.lucaplan_registrar_cargo_bancario(userId, {
           ...row, accountId:input.accountId, currency:input.currency,
         }) as { transactionId: string; created: boolean }
@@ -450,11 +450,11 @@ const handlers: Handlers = {
       if (!category || category.userId !== userId) throw new PluginReferenceError("categoryId")
       if (category.type !== "expense") throw new PluginRejection("La categoría debe ser de tipo gasto")
     }
-    const tx = await createTransaction(deps, userId, {
+    const tx = await follow(userId, () => createTransaction(deps, userId, {
       accountId: input.accountId, categoryId: input.categoryId ?? null, date: day,
       description, amount: input.amount, currency: input.currency,
       direction: "debit", source: "bank-scan",
-    })
+    }))
     return { transactionId: tx.id, created: true, categoryId: input.categoryId ?? null,
       notice: "Cargo registrado. Revisa la proyección del saldo y su impacto en el presupuesto; si llega el correo del banco, comprueba que no se duplique." }
   },
@@ -471,12 +471,13 @@ const handlers: Handlers = {
       throw new PluginRejection("Es un ingreso generado desde una fuente mensual: la fecha debe corregirse desde el flujo de ingresos para conservar su ciclo de origen; no se modificó nada")
     // Otra fecha ya no es la que conciliaba la cartola: se borra la conciliación (WDC-123).
     const dateChanged = tx.date.toISOString().slice(0, 10) !== input.date
-    const updated = await prisma.transaction.updateMany({
+    // Otra fecha puede llevarlo a otro período: el tope que sigue al ingreso se alinea.
+    const updated = await follow(userId, () => prisma.transaction.updateMany({
       where: { id: tx.id, userId, externalId: null,
         installmentItemId: null, recurringTemplateId: null, incomeId: null },
       data: { transactionDate: changedDate, description: input.description.trim(),
         ...(dateChanged ? { reconciliation: Prisma.DbNull } : {}) },
-    })
+    }))
     if (updated.count !== 1)
       throw new PluginRejection("Movimiento cambiado por otra operación; vuelve a consultarlo")
     return { transactionId: tx.id, updated: true,
@@ -643,7 +644,7 @@ const handlers: Handlers = {
   lucaplan_marcar_pago_recurrente: (userId, input) =>
     setRecurringPeriodPaid(deps, userId, input),
   lucaplan_vincular_pago_recurrente: (userId, input) =>
-    payRecurringPeriodWith(deps, userId, input),
+    follow(userId, () => payRecurringPeriodWith(deps, userId, input)),
   lucaplan_planificar_recurrente: (userId, input) =>
     createPlannedRecurringTemplate(deps, userId, {
       ...input,
@@ -721,7 +722,7 @@ const handlers: Handlers = {
       date: new Date(input.date),
     }),
   lucaplan_vincular_pago_cuota: (userId, input) =>
-    linkTransactionToItem(deps, userId, input),
+    follow(userId, () => linkTransactionToItem(deps, userId, input)),
   lucaplan_desvincular_pago_cuota: (userId, input) =>
     unlinkTransactionFromItem(deps, userId, input),
   lucaplan_mover_pago_cuota: (userId, input) =>

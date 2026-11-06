@@ -39,7 +39,7 @@ import { matchRecurringForImported } from "./match-recurring.ts"
 import { runInstallmentsForImported } from "./run-installments.ts"
 import { notifyImportedForSync, pushDeps } from "./push-deps.ts"
 import { sendPushToUser } from "../../../application/notification-use-cases/push-use-cases.ts"
-import { followIncome } from "../../../application/finance-use-cases/follow-income.ts"
+import { alignGlobalLimit } from "../../../application/finance-use-cases/follow-income.ts"
 import {
   accountRepository,
   bankRepository,
@@ -580,8 +580,9 @@ export function makeEmailConnectionDeps(): EmailConnectionDeps {
     runInstallments: runInstallmentsForImported,
     categorize: categorizePendingMovements,
     notify: notifyImportedForSync,
-    followIncome: async (userId, work) =>
-      (await followIncome(planDeps, userId, work, { allModes: true })).result,
+    followIncome: async (userId) => {
+      await alignGlobalLimit(planDeps, userId, { allModes: true })
+    },
     notifyConnectionError: async (userId, message) => { await sendPushToUser(pushDeps, userId, message) },
   }
 }

@@ -24,6 +24,7 @@ test("el modo de la vista y su rango permanecen juntos aunque otra pestaña camb
   const monthlyBudgets = {
     set: async (input) => { savedMode = input.mode; return { id: "budget", ...input } },
     listByUser: async () => [],
+    setFollowingIncome: async () => false,
   } satisfies MonthlyBudgetRepository
   await deps.budgetPeriod.setMode("card_cycle")
   const calendarView = await scopeBudgetPeriod({ ...deps, monthlyBudgets }, "calendar")

@@ -437,6 +437,8 @@ model MonthlyBudget {
   year        Int
   month       Int
   globalLimit Decimal  @db.Decimal(18, 2)
+  // El tope lo puso «Igualar al ingreso» y sigue solo al total del plan; uno escrito a mano, false.
+  followsIncome Boolean @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

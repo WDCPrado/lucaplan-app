@@ -49,14 +49,12 @@ export async function POST(req: Request) {
         description: body.description ?? "",
         date: body.date || new Date().toISOString(),
       })
-      const create = () =>
-        createTransaction(financeDeps, userId, { ...parsed, date: new Date(parsed.date) })
-      // Un abono mueve el ingreso del plan: el tope igualado lo sigue.
-      // ponytail: un gasto con fecha del período anterior también mueve el total (vía déficit) y
-      // no se sigue, para no leer el plan en cada gasto; «Igualar al ingreso» lo vuelve a alinear.
-      const t = parsed.direction === "credit"
-        ? (await followIncome(financeDeps, userId, create, { allModes: true })).result
-        : await create()
+      // Un abono mueve el ingreso; un gasto del período anterior, el déficit: el tope que sigue
+      // al ingreso se alinea en los dos casos.
+      const { result: t } = await followIncome(financeDeps, userId, () =>
+        createTransaction(financeDeps, userId, { ...parsed, date: new Date(parsed.date) }),
+        { allModes: true }
+      )
       return { id: t.id }
     },
     201

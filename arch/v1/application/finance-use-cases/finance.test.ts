@@ -351,6 +351,9 @@ function fakeMonthlyBudgetRepo(): MonthlyBudgetRepository & {
       rows.push(row)
       return row
     },
+    async setFollowingIncome() {
+      return false
+    },
   }
 }
 

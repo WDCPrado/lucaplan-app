@@ -55,6 +55,7 @@ export function PlanSheet({
   closing,
   isCurrentMonth,
   globalLimit,
+  globalLimitFollowsIncome,
   allocated,
   incomes,
   previousCycleIncomes,
@@ -77,6 +78,7 @@ export function PlanSheet({
   closing?: { date: string; estimated: boolean } // cierre del mes en pantalla; en modo calendario se muestra deshabilitado
   isCurrentMonth: boolean
   globalLimit: number | null
+  globalLimitFollowsIncome: boolean // el tope lo puso «Igualar al ingreso» y sigue solo
   allocated: number
   incomes: IncomeDTO[]
   previousCycleIncomes: IncomeDTO[]
@@ -110,9 +112,9 @@ export function PlanSheet({
   // (Con `globalLimit === null` la deuda es 0 por construcción: el límite global hereda por
   // carry-forward, así que un mes sin límite implica que tampoco lo hubo antes.)
   const toAllocate = planTotal(activeIncomeTotal, previousMonthDebt)
-  // Los ingresos cambiaron y ya no calzan con el presupuesto: se ofrece igualarlos, nunca se
-  // hace solo (el presupuesto es una decisión, no un cálculo).
-  const suggest = shouldSuggest(toAllocate, globalLimit)
+  // Los ingresos cambiaron y ya no calzan con el presupuesto: se ofrece igualarlos. Igualar deja
+  // el tope siguiendo solo al total del plan (`followIncome`); uno escrito a mano no lo sigue.
+  const suggest = shouldSuggest(toAllocate, globalLimit, globalLimitFollowsIncome)
   const previousPeriod = mode === "card_cycle" ? "el ciclo anterior" : previousMonthLabel(period.year, period.month)
   const periodNoun = mode === "card_cycle" ? "ciclo" : "mes"
 
@@ -123,7 +125,7 @@ export function PlanSheet({
       const res = await fetch(`/api/budgets?mode=${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...period, globalLimit: toAllocate }),
+        body: JSON.stringify({ ...period, globalLimit: toAllocate, followIncome: true }),
       })
       if (!res.ok)
         throw new Error(

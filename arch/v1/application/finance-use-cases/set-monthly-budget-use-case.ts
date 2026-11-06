@@ -13,7 +13,8 @@ const CLP = "CLP" as const
 export async function setMonthlyBudget(
   deps: { monthlyBudgets: MonthlyBudgetRepository } & BudgetPeriodDeps,
   userId: string,
-  input: { year: number; month: number; globalLimit: number }
+  // followIncome: lo pone «Igualar al ingreso»; sin él (o false) el tope queda fijado a mano.
+  input: { year: number; month: number; globalLimit: number; followIncome?: boolean }
 ): Promise<MonthlyBudget> {
   const { year, month, globalLimit } = input
   if (!Number.isInteger(globalLimit) || globalLimit < 0)
@@ -30,5 +31,6 @@ export async function setMonthlyBudget(
     year,
     month,
     globalLimit: Money.of(globalLimit, CLP),
+    followsIncome: input.followIncome === true,
   })
 }

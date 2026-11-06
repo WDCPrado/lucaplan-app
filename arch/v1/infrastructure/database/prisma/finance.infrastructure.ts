@@ -319,6 +319,7 @@ function toMonthlyBudget(row: any): MonthlyBudget {
     year: row.year,
     month: row.month,
     globalLimit: Money.of(row.globalLimit.toString(), BUDGET_CURRENCY),
+    followsIncome: row.followsIncome,
   }
 }
 
@@ -344,10 +345,30 @@ export const monthlyBudgetRepository: MonthlyBudgetRepository = {
         year: input.year,
         month: input.month,
         globalLimit: input.globalLimit.toDecimalString(),
+        followsIncome: input.followsIncome ?? false,
       },
-      update: { globalLimit: input.globalLimit.toDecimalString() },
+      update: {
+        globalLimit: input.globalLimit.toDecimalString(),
+        followsIncome: input.followsIncome ?? false,
+      },
     })
     return toMonthlyBudget(row)
+  },
+  async setFollowingIncome(input) {
+    const key = { userId: input.userId, mode: input.mode, year: input.year, month: input.month }
+    const globalLimit = input.globalLimit.toDecimalString()
+    // Condicional en la base: si en medio llegó un tope manual (marca false), no se toca.
+    const { count } = await prisma.monthlyBudget.updateMany({
+      where: { ...key, followsIncome: true },
+      data: { globalLimit },
+    })
+    if (count > 0) return true
+    // Sin fila del mes: se crea; si otra escritura la creó en medio, skipDuplicates no la pisa.
+    const created = await prisma.monthlyBudget.createMany({
+      data: [{ ...key, globalLimit, followsIncome: true }],
+      skipDuplicates: true,
+    })
+    return created.count > 0
   },
 }
 

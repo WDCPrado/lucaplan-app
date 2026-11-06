@@ -5,6 +5,7 @@ import {
   financeDeps,
 } from "@/arch/v1/presentation/finance/finance-http"
 import { reconcileBankAccount } from "@/arch/v1/application/finance-use-cases/bank-reconciliation"
+import { followIncome } from "@/arch/v1/application/finance-use-cases/follow-income"
 
 const schema = bankReconciliationSchema
   .omit({ accountId: true })
@@ -18,11 +19,11 @@ export async function POST(
     const { previewToken, ...input } = schema.parse(
       await req.json().catch(() => ({}))
     )
-    return reconcileBankAccount(
-      financeDeps,
-      userId,
-      { ...input, accountId: id },
-      previewToken
-    )
+    const run = () =>
+      reconcileBankAccount(financeDeps, userId, { ...input, accountId: id }, previewToken)
+    // Sin previewToken es solo la previsualización: no escribe, no hay nada que seguir.
+    return previewToken
+      ? (await followIncome(financeDeps, userId, run, { allModes: true })).result
+      : run()
   })
 }

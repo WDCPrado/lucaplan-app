@@ -570,7 +570,7 @@ export const pluginTools = {
   ),
   lucaplan_registrar_ingreso_extraordinario: write(
     { title: "Registrar ingreso extraordinario", destructive: true },
-    "Registra un abono real único en cuenta corriente y categoría de ingreso, sin generar una fuente mensual recurrente. No registrar transferencias entre cuentas propias como ingresos. Los abonos confirmados sin fuente de ingreso vinculada sí cuentan para ajustar el presupuesto del ciclo; si ya están vinculados a una fuente, no vuelvas a sumarlos. Verifica antes que no exista el abono. Idempotente por operationId. Si el presupuesto global del período en curso estaba igualado al ingreso (o sin definir), se ajusta solo al nuevo total; uno fijado a mano no se toca.",
+    "Registra un abono real único en cuenta corriente y categoría de ingreso, sin generar una fuente mensual recurrente. No registrar transferencias entre cuentas propias como ingresos. Los abonos confirmados sin fuente de ingreso vinculada sí cuentan para ajustar el presupuesto del ciclo; si ya están vinculados a una fuente, no vuelvas a sumarlos. Verifica antes que no exista el abono. Idempotente por operationId. El presupuesto global del período en curso que sigue al total del plan (marcado con «Igualar al ingreso», o sin definir) se ajusta solo; uno fijado a mano no se toca.",
     z.strictObject({
       accountId: ref("Cuenta corriente"),
       categoryId: ref("Categoría de ingreso"),
@@ -652,13 +652,19 @@ export const pluginTools = {
   ),
   lucaplan_fijar_presupuesto_global: write(
     { title: "Fijar presupuesto global", destructive: true },
-    "Fija el límite global del mes en CLP (entero ≥ 0), para el mes actual o uno futuro; los meses siguientes lo heredan hasta que se cambie. Es un tope: no crea gastos ni mueve dinero. Un tope igual al ingreso del plan (ingreso − déficit del período anterior) sigue solo a los ingresos nuevos; uno distinto se considera fijado a mano y no se ajusta.",
+    "Fija el límite global del mes en CLP (entero ≥ 0), para el mes actual o uno futuro; los meses siguientes lo heredan hasta que se cambie. Es un tope: no crea gastos ni mueve dinero. Con followIncome=true (lo mismo que «Igualar al ingreso» en la app) el tope queda marcado y sigue solo al total del plan (ingreso − déficit del período anterior) cada vez que cambian los ingresos; sin él el tope queda fijado a mano y no se ajusta.",
     monthlyBudgetSchema
       .extend({
         ...period,
         globalLimit: monthlyBudgetSchema.shape.globalLimit.describe(
           "Límite global en pesos enteros, p. ej. 1500000"
         ),
+        followIncome: z
+          .boolean()
+          .optional()
+          .describe(
+            "true = el tope sigue solo al total del plan; usa como globalLimit ese total (ver_presupuesto). Omitido o false = fijado a mano"
+          ),
         ...operation,
       })
       .strict()
@@ -682,12 +688,12 @@ export const pluginTools = {
   ),
   lucaplan_crear_ingreso: write(
     { title: "Crear fuente de ingreso" },
-    "Planifica un ingreso desde el mes indicado en el modo activo. sourceId opcional incorpora una fuente devuelta por listar_ingresos available=true: usa su identidad, cuenta, categoría y día existentes, y solo fija el monto del nuevo plan. No crea movimientos ni cambia caja. Si el presupuesto global del período en curso estaba igualado al ingreso (o sin definir), se ajusta solo al nuevo total; uno fijado a mano no se toca.",
+    "Planifica un ingreso desde el mes indicado en el modo activo. sourceId opcional incorpora una fuente devuelta por listar_ingresos available=true: usa su identidad, cuenta, categoría y día existentes, y solo fija el monto del nuevo plan. No crea movimientos ni cambia caja. El presupuesto global del período en curso que sigue al total del plan (marcado con «Igualar al ingreso», o sin definir) se ajusta solo; uno fijado a mano no se toca.",
     incomeSchema.extend({ ...incomeFields, ...period, ...operation }).strict()
   ),
   lucaplan_editar_ingreso: write(
     { title: "Editar fuente de ingreso", destructive: true },
-    "Cambia una fuente de ingreso desde el mes indicado; los meses anteriores conservan su monto. Reemplaza todos los campos. Para terminarla usa lucaplan_eliminar_ingreso. Si el presupuesto global del período en curso estaba igualado al ingreso (o sin definir), se ajusta solo al nuevo total; uno fijado a mano no se toca.",
+    "Cambia una fuente de ingreso desde el mes indicado; los meses anteriores conservan su monto. Reemplaza todos los campos. Para terminarla usa lucaplan_eliminar_ingreso. El presupuesto global del período en curso que sigue al total del plan (marcado con «Igualar al ingreso», o sin definir) se ajusta solo; uno fijado a mano no se toca.",
     incomeSchema
       .extend({
         ...incomeFields,
@@ -705,7 +711,7 @@ export const pluginTools = {
   ),
   lucaplan_registrar_ingreso_mes: write(
     { title: "Registrar cobro de ingreso" },
-    "Úsala cuando el ingreso del mes ya llegó: crea una sola vez el movimiento (abono) en su cuenta con el monto de la fuente y sube la caja. Repetirlo no abona dos veces. Si el monto real fue otro, corrígelo después con lucaplan_corregir_movimiento (cuentas manuales). Si el presupuesto global del período en curso estaba igualado al ingreso (o sin definir), se ajusta solo al nuevo total; uno fijado a mano no se toca.",
+    "Úsala cuando el ingreso del mes ya llegó: crea una sola vez el movimiento (abono) en su cuenta con el monto de la fuente y sube la caja. Repetirlo no abona dos veces. Si el monto real fue otro, corrígelo después con lucaplan_corregir_movimiento (cuentas manuales). El presupuesto global del período en curso que sigue al total del plan (marcado con «Igualar al ingreso», o sin definir) se ajusta solo; uno fijado a mano no se toca.",
     z.strictObject({
       incomeId: ref("Fuente de ingreso"),
       ...period,

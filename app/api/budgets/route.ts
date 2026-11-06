@@ -19,6 +19,8 @@ export async function GET(req: Request) {
 
 // Define el límite global del presupuesto de un mes (upsert por usuario+año+mes). El use-case
 // valida (entero ≥ 0, mes 1–12, año en rango) y responde 422 si el input es inválido.
+// `followIncome: true` lo manda «Igualar al ingreso»: el tope seguirá solo al total del plan.
+// Sin él, el tope queda fijado a mano.
 export async function POST(req: Request) {
   const body = await req.json()
   return withUser(req, async (userId) => {
@@ -28,6 +30,6 @@ export async function POST(req: Request) {
       month: Number(body.month),
       globalLimit: Number(body.globalLimit),
     })
-    return setMonthlyBudget(scopedDeps, userId, parsed)
+    return setMonthlyBudget(scopedDeps, userId, { ...parsed, followIncome: body.followIncome === true })
   })
 }

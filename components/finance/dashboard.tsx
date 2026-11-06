@@ -801,6 +801,7 @@ export function Dashboard({
         closing={cycle.closing}
         isCurrentMonth={isCurrentMonth}
         globalLimit={budget.globalLimit}
+        globalLimitFollowsIncome={budget.globalLimitFollowsIncome}
         allocated={budget.allocated}
         expenseCategories={budget.categories.filter(
           (c) => c.type === "expense"

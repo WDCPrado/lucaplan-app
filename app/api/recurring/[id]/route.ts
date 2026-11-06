@@ -9,6 +9,7 @@ import {
   setRecurringPeriodPaid,
   updateRecurringTemplate,
 } from "@/arch/v1/application/finance-use-cases/recurring-use-cases"
+import { followIncome } from "@/arch/v1/application/finance-use-cases/follow-income"
 import { recurringUrlSchema } from "@/lib/schemas/recurring-url"
 import {
   InvalidRecurringUrlError,
@@ -36,11 +37,12 @@ export async function PATCH(
     Object.keys(body).length === 1 &&
     typeof body.paidWithTransactionId === "string"
   )
-    return withUser(req, (userId) =>
-      payRecurringPeriodWith(financeDeps, userId, {
-        id,
-        transactionId: body.paidWithTransactionId,
-      })
+    // Un abono que pasa a ser el cobro de una recurrente deja de ser ingreso adicional.
+    return withUser(req, async (userId) =>
+      (await followIncome(financeDeps, userId, () =>
+        payRecurringPeriodWith(financeDeps, userId, { id, transactionId: body.paidWithTransactionId }),
+        { allModes: true }
+      )).result
     )
   return withUser(req, (userId) => {
     // Dentro de withUser: sin sesión es 401 antes de tocar el texto. `url` ausente no toca el

@@ -74,7 +74,7 @@ argumento con `.describe()`. Hoy son 51, agrupadas así:
 | Movimientos | `buscar_movimientos`, `ver_movimiento` | `crear_movimiento`, `corregir_movimiento`, `eliminar_movimiento` |
 | Presupuesto | `resumen_mes`, `ver_presupuesto` | `fijar_presupuesto_global`, `fijar_presupuesto_categoria` |
 | Ingresos | `listar_ingresos` | `crear_ingreso`, `editar_ingreso`, `eliminar_ingreso` (finaliza desde un mes), `registrar_ingreso_mes`, `deshacer_ingreso_mes` |
-| Recurrentes | `listar_recurrentes`, `candidatos_pago_recurrente` | `crear_recurrente` (desde un movimiento), `planificar_recurrente` (sin cobro previo), `editar_recurrente`, `activar_recurrente`, `eliminar_recurrente`, `marcar_pago_recurrente`, `vincular_pago_recurrente`; todas con `url` opcional (enlace de pago) |
+| Recurrentes | `listar_recurrentes`, `candidatos_pago_recurrente` | `crear_recurrente` (desde un movimiento), `planificar_recurrente` (sin cobro previo), `editar_recurrente`, `activar_recurrente`, `eliminar_recurrente`, `marcar_pago_recurrente`, `vincular_pago_recurrente`; `crear_recurrente`, `planificar_recurrente` y `editar_recurrente` aceptan `url` opcional (enlace de pago) |
 | Cuotas | `listar_planes_cuotas`, `ver_plan_cuotas`, `candidatos_pago_cuota` | `crear_plan_cuotas`, `editar_cuota`, `categorizar_plan_cuotas`, `eliminar_plan_cuotas`, `pagar_cuota`, `vincular_pago_cuota`, `desvincular_pago_cuota`, `mover_pago_cuota` |
 | Planificación | `planificar_periodo` | — |
 | Configuración | `ver_configuracion` | — |
@@ -139,13 +139,18 @@ respeta modo calendario o ciclo de tarjeta. Esta regla también aplica a
 No confundas el ingreso planificado con la acreditación bancaria confirmada.
 
 **El tope sigue al ingreso.** Al total anterior se le resta el déficit del período anterior (gasto
-por encima de su ingreso). Si el presupuesto global del período **en curso** era igual a ese total
-(o no estaba definido), una escritura que lo cambia lo deja igualado al nuevo, como si se hubiera
-apretado «Igualar al ingreso». Lo hacen crear, editar y finalizar una fuente, registrar o deshacer
-el ingreso del mes, crear un abono, corregir o eliminar un movimiento, vincular un abono a su
-fuente y la sincronización por correo. Un tope distinto del total se considera fijado a mano y no
-se toca; los períodos pasados nunca cambian. Los movimientos valen para los dos modos: el que no es
-el de la vista solo sigue si ya tenía tope.
+por encima de su ingreso). Un presupuesto global lleva una marca, `followsIncome`, que se hereda
+igual que el tope: la pone «Igualar al ingreso» (o `fijar_presupuesto_global` con
+`followIncome: true`) y la quita cualquier tope escrito a mano. Después de cada escritura que puede
+mover ese total, el tope del período **en curso** con la marca, o sin tope definido, queda igual al
+total nuevo (también en 0, si la marca ya estaba). Lo hacen las altas, ediciones y bajas de fuentes
+de ingreso, registrar o deshacer el ingreso del mes, crear, corregir o eliminar movimientos
+(también el cargo bancario y la corrección de fecha), aplicar una conciliación, vincular un abono a
+su fuente o un movimiento a una recurrente o cuota, y la sincronización por correo cuando crea
+movimientos. Un tope sin la marca nunca se toca, ni aunque llegue en medio: la escritura es
+condicional en la base. Los períodos pasados nunca cambian. Los movimientos valen para los dos
+modos: el que no es el de la vista solo sigue si ya tenía tope. Los topes que existían antes de la
+marca quedan como fijados a mano hasta que se vuelva a igualar.
 
 ## Reglas de escritura
 

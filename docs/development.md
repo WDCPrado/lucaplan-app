@@ -131,10 +131,12 @@ un barrido aparte.
   con sus botones. Las acciones se declaran con `ModalActions` (`primary`, `cancel`): en móvil
   van en el encabezado de la hoja como en iOS 26, en círculos de 44 px: a la izquierda uno de
   vidrio con ✕ (`X`, cancela) y a la derecha uno azul con ✓ (`Check`, la primaria). Solo
-  confirmar (Listo, Guardar) es prominente: una acción que no confirma, como «Editar», lleva
-  `plain` y va en texto sobre una cápsula de vidrio (HIG: editar se dice con texto, no con símbolo):
-  así van también Reintentar, Importar, Sincronizar, Conectar y Activar, con el verbo corto para
-  que quepa junto al título. El ✓ queda para Guardar, Crear, Agregar, Listo y Aplicar. La primaria
+  confirmar (Listo, Guardar) es prominente: una acción que no confirma lleva `plain` y va en texto
+  sobre una cápsula de vidrio (Importar, Conectar, Activar, con el verbo corto para que quepa junto
+  al título); con `icon` va como círculo de vidrio con ícono y su texto queda como nombre accesible
+  (Editar con lápiz, Sincronizar y Reintentar con flechas). Toda hoja móvil `dismissible` trae una ✕
+  de respaldo a la izquierda que se oculta cuando la hoja declara su `cancel`; una hoja que no
+  guarda nada (Plan, Filtros) no lleva ✓ y se cierra con esa ✕. El ✓ queda para Guardar, Crear, Agregar, Listo y Aplicar. La primaria
   queda gris y deshabilitada sin cambios; mientras guarda lleva `busy`, que la deshabilita y pone
   un spinner (quieto con reducir movimiento) en el círculo, en la cápsula o junto al texto en
   escritorio. El ✕ deshabilitado queda en gris. El texto de cada acción es su nombre accesible. En escritorio van en el pie (Cancelar o Cerrar en
@@ -278,7 +280,7 @@ agrupaciones, la tipografía y los controles.
   movimiento, la descripción va en body regular y el monto en body semibold `.tabular` (ingreso en
   `text-success`). Los filtros (Movimientos, buscador) son filas de un solo grupo con botón
   emergente: el nombre a la izquierda, el valor en gris y `ChevronsUpDown`; el botón «Filtros»
-  queda teñido de azul con su conteo cuando hay filtros puestos, y su hoja cierra con ✓ Listo.
+  queda teñido de azul con su conteo cuando hay filtros puestos; se aplican al tocarlos y su hoja cierra con la ✕.
 - **Tipografía de la escala de iOS**, nunca tamaños sueltos: `text-large-title`, `text-hero` (la
   cifra protagonista), `text-title-1`, `text-title-3`, `text-headline`, `text-body`,
   `text-subheadline`, `text-footnote`, `text-caption`. Un tamaño nuevo se registra también en

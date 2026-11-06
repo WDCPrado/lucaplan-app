@@ -161,7 +161,7 @@ export function RecurringModal({
     money.value !== template.baseAmount ||
     tolerancePct !== template.tolerancePct ||
     periodicity !== template.periodicity ||
-    (needsDay && day !== template.dayOfMonth) ||
+    (needsDay && day !== (template.dayOfMonth ?? 1)) ||
     (endDate || null) !== (template.endDate ? template.endDate.slice(0, 10) : null) ||
     url.trim() !== (template.url ?? "")
   const canSave =

@@ -79,7 +79,7 @@ async function openTarget(target) {
   if (!open) {
     const opened = await self.clients.openWindow(target);
     // iOS a veces abre la PWA en su start_url y no en la URL pedida: se corrige si se puede.
-    if (opened && opened.url !== target) await opened.navigate(target).catch(() => {});
+    if (opened && opened.url !== target) await opened.navigate(target).catch(() => opened.postMessage({ type: "navigate", url: target }));
     return;
   }
   // Enfocar ANTES de navegar: el permiso para traer una ventana al frente dura poco después del

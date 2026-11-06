@@ -877,9 +877,10 @@ html:has(main[data-landing]) body {
   &[data-lg-pinned] {
     position: fixed;
   }
-  /* Menús y popovers: material de lectura, con más relleno que las barras. */
+  /* Menús y popovers: el material de lectura de su CSS (--material), que no se aclara con el
+     nivel de vidrio; con --glass-fill-large, en 0–1 el texto no llegaba a AA sobre una lista. */
   &[data-lg-popup] {
-    --glass-fill: var(--glass-fill-large);
+    --glass-fill: var(--material);
   }
 }
 /* Control con refracción por proxy (WDC-179, components/finance/liquid-glass.ts): el vidrio lo
@@ -887,12 +888,15 @@ html:has(main[data-landing]) body {
    contenido (íconos, texto). !important: gana a los materiales fuera de @layer (menús, tabs). */
 [data-lg-proxied] {
   background: none !important;
-  box-shadow: none !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
   &::before {
     display: none !important;
   }
+}
+/* La sombra es del proxy, salvo el anillo de foco y el de inválido, que siguen en el control. */
+[data-lg-proxied]:not(:focus-visible, [aria-invalid="true"]) {
+  box-shadow: none !important;
 }
 /* Sin contexto de apilamiento propio, el proxy va en z 1 y el control sube encima. */
 [data-lg-lift] {

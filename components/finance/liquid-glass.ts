@@ -8,6 +8,7 @@ import {
   getGlass,
   subscribeGlass,
 } from "@/lib/glass-level"
+import { untransformedOrigin } from "@/lib/liquid-glass-box"
 
 // Refracción de Liquid Glass (WDC-179) con @ybouane/liquidglass: un shader WebGL sobre una foto
 // (html-to-image) de lo que hay detrás. El vidrio CSS es siempre el respaldo.
@@ -32,6 +33,11 @@ import {
 // fijada exacta en package.json: el fondo blanco de su escena (se pinta con el del tema) y el
 // contexto WebGL, que su destroy no libera. (5) Un control dentro de un contexto de apilamiento
 // sin z-index (transform, opacidad) no lleva proxy: el vidrio no puede quedar entre él y su fondo.
+// (6) Un control dentro de un scroll interno (el cuerpo de una hoja, una fila que se desliza) no
+// lleva proxy: no lo seguiría ni quedaría recortado. (7) Cada popup que se abre vuelve a capturar
+// lo de atrás; las fuentes embebidas ya se comparten entre instancias (módulo de la librería), los
+// estilos de la foto no se pueden cachear desde afuera. (8) Si init se cuelga, su contexto WebGL
+// queda vivo (no hay instancia que destruir) y no se reintenta hasta recargar (`hung`).
 // La mejora es capturar solo la franja detrás de cada vidrio (PR #6 de ybouane/liquidglass): al
 // subir de versión, revisar (4) y quitar (1).
 
@@ -96,6 +102,14 @@ const allowed = (mql: MediaQueryList) => !mql.matches && getGlass() < GLASS_MAX
 const navigating = () => document.documentElement.hasAttribute("data-nav-dir")
 
 let proxySeq = 0
+let hung = false // un init colgado: no se reintenta en esta carga (ponytail 8)
+
+// La librería pone user-select: none en su root para arrastrar vidrios «floating», que aquí no
+// hay; sin esto no se selecciona texto en la app, en una hoja ni con un menú abierto (root body).
+const freeSelect = (root: HTMLElement) => {
+  root.style.removeProperty("user-select")
+  root.style.removeProperty("-webkit-user-select")
+}
 
 // Crea un contexto de apilamiento (resumen de la regla de CSS).
 function stacks(s: CSSStyleDeclaration) {
@@ -108,7 +122,14 @@ function stacks(s: CSSStyleDeclaration) {
     s.filter !== "none" ||
     s.isolation === "isolate" ||
     /transform|opacity/.test(s.willChange) ||
-    /paint|strict|content/.test(s.contain)
+    /paint|strict|content/.test(s.contain) ||
+    s.containerType !== "normal" ||
+    s.mixBlendMode !== "normal" ||
+    s.clipPath !== "none" ||
+    s.backdropFilter !== "none" ||
+    (s.getPropertyValue("-webkit-backdrop-filter") || "none") !== "none" ||
+    s.maskImage !== "none" ||
+    (s.getPropertyValue("-webkit-mask-image") || "none") !== "none"
   )
 }
 
@@ -212,11 +233,26 @@ function startSession(o: Options): () => void {
   // - con uno, el más externo (la fila superior, el contenedor de la búsqueda, el de un menú, la
   //   perilla): su mismo z, justo antes en el árbol. Sirve si es hijo del root o si tiene z propio;
   //   si no, no hay lugar (null) y queda el vidrio CSS.
+  // - dentro de un scroll interno, o recortado por un overflow hidden, tampoco (ponytail 6).
   const layer = (c: HTMLElement) => {
     let pinned = getComputedStyle(c).position === "fixed"
     let outer: HTMLElement | null = null
+    let box: DOMRect | null = null
     for (let e = c.parentElement; e && e !== root; e = e.parentElement) {
       const s = getComputedStyle(e)
+      const overflow = `${s.overflowX} ${s.overflowY}`
+      if (/auto|scroll/.test(overflow)) return null
+      if (/hidden|clip/.test(overflow)) {
+        box ??= c.getBoundingClientRect()
+        const r = e.getBoundingClientRect()
+        if (
+          box.left < r.left - 0.5 ||
+          box.top < r.top - 0.5 ||
+          box.right > r.right + 0.5 ||
+          box.bottom > r.bottom + 0.5
+        )
+          return null
+      }
       if (s.position === "fixed" || s.position === "sticky") pinned = true
       if (stacks(s)) outer = e
     }
@@ -276,10 +312,15 @@ function startSession(o: Options): () => void {
     c.setAttribute("data-lg-proxied", "")
     if (where.lift && !c.hasAttribute("data-lg-lift"))
       c.setAttribute("data-lg-lift", s.position === "static" ? "static" : "")
-    const r = c.getBoundingClientRect()
-    // Centro de la caja visible menos media caja sin transform: el transform se copia aparte.
-    let x = r.left + r.width / 2 - w / 2
-    let y = r.top + r.height / 2 - h / 2
+    // La caja sin transform: el transform se copia aparte (lib/liquid-glass-box.ts).
+    const [ox, oy] = s.transformOrigin.split(" ").map(parseFloat)
+    let { x, y } = untransformedOrigin(
+      c.getBoundingClientRect(),
+      w,
+      h,
+      s.transform === "none" ? undefined : new DOMMatrix(s.transform),
+      { x: ox, y: oy }
+    )
     if (!where.pinned) {
       const rr = root.getBoundingClientRect()
       x -= rr.left + root.clientLeft
@@ -326,10 +367,14 @@ function startSession(o: Options): () => void {
     const controls = o.controls().filter((c) => c.isConnected)
     if (controls.length > proxies.length && proxies.length) scheduleRestart()
     let changed = false
+    // Primero se sueltan todos, después se ubican: soltar después podría quitarle el proxied a un
+    // control que otro proxy acaba de tomar (queda su vidrio CSS encima del proxy).
+    proxies.forEach((p, i) => {
+      const prev = assigned.get(p)
+      if (prev && prev !== controls[i]) release(prev)
+    })
     proxies.forEach((p, i) => {
       const c = controls[i]
-      const prev = assigned.get(p)
-      if (prev && prev !== c) release(prev)
       if (c) assigned.set(p, c)
       else assigned.delete(p)
       changed = place(p, c) || changed
@@ -387,7 +432,7 @@ function startSession(o: Options): () => void {
   }
 
   const start = () => {
-    if (inst || starting || failed || !alive || !fits()) return
+    if (inst || starting || failed || hung || !alive || !fits()) return
     starting = true
     const need = o.controls().length + 1 // uno de holgura: «Hoy» aparece y desaparece
     while (proxies.length < need) proxies.push(makeProxy())
@@ -404,12 +449,17 @@ function startSession(o: Options): () => void {
     }
     const timer = window.setTimeout(() => {
       timedOut = true
+      hung = true
+      freeSelect(root)
       fail()
     }, INIT_TIMEOUT_MS)
     import("@ybouane/liquidglass")
-      .then(({ LiquidGlass }) =>
-        LiquidGlass.init({ root, glassElements: all(), defaults: BASE })
-      )
+      .then(({ LiquidGlass }) => {
+        // init pone el user-select antes de su primer await: se quita al tiro.
+        const ready = LiquidGlass.init({ root, glassElements: all(), defaults: BASE })
+        freeSelect(root)
+        return ready
+      })
       .then(
         (i) => {
           window.clearTimeout(timer)
@@ -658,6 +708,15 @@ export function useLiquidGlass(navRef: React.RefObject<HTMLElement | null>) {
       )
         return
       const thumbs = () => query(slider, '[data-slot="slider-thumb"]')
+      // Al soltar se desmonta (contexto WebGL y captura fuera); el próximo toque la vuelve a montar.
+      const end = () => {
+        window.removeEventListener("pointerup", end)
+        window.removeEventListener("pointercancel", end)
+        mounted.get(slider)?.()
+        mounted.delete(slider)
+      }
+      window.addEventListener("pointerup", end)
+      window.addEventListener("pointercancel", end)
       mounted.set(
         slider,
         mountSurface({
@@ -679,6 +738,7 @@ export function useLiquidGlass(navRef: React.RefObject<HTMLElement | null>) {
       bodyObserver.disconnect()
       for (const t of pending.values()) window.clearTimeout(t)
       for (const unmount of mounted.values()) unmount()
+      mounted.clear()
     }
   }, [navRef])
 }

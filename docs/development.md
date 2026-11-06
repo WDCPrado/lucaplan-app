@@ -376,11 +376,34 @@ El pedido de implementar autoriza preparar dependencias y configuración demo de
 Publica según las reglas globales de Git; pedir el enlace de revisión cuenta como OK para abrir
 el PR. Las operaciones destructivas y los cambios de secretos reales requieren autorización.
 
+### Entornos de PR en Railway con datos falsos
+
+Al arrancar, la imagen aplica las migraciones y corre `scripts/seed.ts`. La cuenta demo
+(`demo@lucaplan.cl`) solo se siembra en un entorno de PR de Railway (`RAILWAY_ENVIRONMENT_NAME`
+termina en `pr-<número>`; Railway inyecta esa variable sola y nombra así los entornos efímeros, o
+`lucaplan-app-pr-<n>` cuando el proyecto tiene varios servicios) o en local con
+`NODE_ENV=development` contra una base en `localhost` (`pnpm seed`, `pnpm setup:db`). En producción
+y en Docker Compose se salta sin tocar la base. No hay nada que configurar.
+
+| Variable          | Default            | Para qué                                                    |
+| ----------------- | ------------------ | ----------------------------------------------------------- |
+| `SEED_PR_EMAIL`   | `demo@lucaplan.cl` | Correo de la cuenta demo en el entorno del PR               |
+| `SEED_DEMO_FORCE` | —                  | `1` borra los datos de la cuenta demo y la vuelve a sembrar |
+
+Es idempotente: si la cuenta demo ya tiene datos, los redeploys del PR no la tocan (lo que
+probaste sigue ahí). Hay **una sola cuenta demo** con toda la data, no una por PR: 2 cuentas con
+cupos separados por moneda y la corriente usando su sobregiro, categorías con y sin tope,
+presupuesto distinto por modo (calendario y ciclo de tarjeta), sueldo, movimientos del mes en curso
+y del anterior (que cerró por sobre el tope), recurrentes en sus tres estados más un arriendo por
+cobrar, planes de cuotas (tarjeta con una cuota vencida sin saldar y crédito de consumo), un
+reembolso, cargos para conciliar la tarjeta, el banco conectado por correo y una conexión del
+plugin.
+
 ### Sembrar los datos de la feature
 
 Hay **una sola cuenta demo**, `demo@lucaplan.cl`, con toda la data: la siembra `scripts/seed.ts` en
 la base vacía de cada entorno de PR y en la local (`pnpm setup:db` o `pnpm seed`)
-([detalle en el README](../README.md#railway-entornos-de-pr-con-datos-falsos)). Una feature que
+([cómo se siembra en Railway](#entornos-de-pr-en-railway-con-datos-falsos)). Una feature que
 necesite datos que ahí no existen no se puede revisar: hay que agregarlos a esa cuenta.
 
 El seed se separa en dos, y el orden lo declaran las listas de `scripts/seed/orden.ts` (el seed

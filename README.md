@@ -34,36 +34,34 @@ presupuestos que reinician contigo cada mes.
 lee solo esos avisos (permiso de solo lectura, revocable) y convierte cada uno en un movimiento
 categorizado. Nunca conoce tus claves bancarias ni puede mover tu plata.
 
-## Qué hace
+## Cómo funciona
 
 ![Plan del mes: movimientos, presupuestos y tarjetas](docs/images/app-components.png)
 
-- **Cuentas y tarjetas.** Corrientes, de ahorro, tarjetas de crédito, líneas de crédito,
-  billeteras e inversiones. Las tarjetas llevan cupo nacional (CLP) y cupo internacional (USD) por
-  separado: las monedas nunca se mezclan. El dólar referencial sale de
-  [mindicador.cl](https://mindicador.cl).
-- **Presupuesto mensual.** Límite global y por categoría, con progreso por categoría y lo que te
-  queda por gastar. Funciona en **modo débito** (mes calendario) o **modo crédito** (ciclo de la
-  tarjeta), cada uno con su plan. Las reglas completas están en [docs/product.md](docs/product.md).
-- **Recurrentes y cuotas.** Lo que todavía no se cobra cuenta como comprometido y se descuenta de
-  lo que puedes gastar. Las compras en cuotas muestran la cuota del mes y cuánto falta.
-- **Categorización con IA.** Entiende la glosa cruda del banco (`Pago:payu *uber eats` es Comida)
-  y usa la descripción que tú le pones a cada categoría. Cuando recategorizas un movimiento,
-  ofrece aplicarlo a los parecidos. Sin clave de OpenAI la app funciona igual, pero los
-  movimientos quedan sin categorizar.
-- **Notificaciones push.** Android, Windows e iOS 16.4+ con la app en la pantalla de inicio, sin
-  servicios de terceros. Avisan de movimientos nuevos, umbrales de presupuesto y pagos por vencer.
-  Configuración en [docs/push-notifications.md](docs/push-notifications.md).
-- **Asistente por MCP.** Un asistente (Claude, ChatGPT, Claude Code) puede consultar y cuadrar tus
-  datos, incluida la conciliación con la cartola. Ver [Conectar un asistente](#conectar-un-asistente).
+Así llega la plata al plan:
 
-### Los movimientos vienen del banco
+```
+aviso del banco → Outlook → adaptador del banco → movimiento → IA categoriza → plan del mes
+```
+
+1. **El banco avisa.** Cada compra o transferencia llega por correo a tu buzón de Outlook.
+2. **Luca Plan se entera.** Microsoft Graph le avisa por webhook (si tu servidor tiene HTTPS
+   público) o traes lo nuevo con el botón **Sincronizar**. Solo lee, con el permiso `Mail.Read`.
+3. **Un adaptador por banco lee el aviso.** Se enruta por remitente y de cada correo se extrae
+   cuánto, cuándo, a qué cuenta o tarjeta y qué efecto tiene. Si falta algo, el correo se omite:
+   nunca se adivina. Del correo salen **gastos** y ajustes internos (pagos de tarjeta); la plata
+   que entra la declaras tú en **Ingresos**.
+4. **Se crea el movimiento.** Se guarda solo monto, comercio y fecha. El cuerpo del correo se
+   procesa en memoria y se descarta.
+5. **La IA lo categoriza.** Lo que una recurrente o una cuota de préstamo ya reclama queda
+   categorizado sin IA. El resto lo clasifica OpenAI con la descripción de tus categorías y tus correcciones
+   anteriores.
+6. **Cae en el plan del mes.** Descuenta del tope de su categoría y de lo que te queda por
+   gastar, y te llega un aviso push si lo activaste.
+
+### Bancos y buzones
 
 ![Conexión de correo y bancos disponibles](docs/images/email-connection.png)
-
-Los movimientos entran desde los avisos del banco por correo, así nada se cuenta dos veces. La app
-no tiene alta manual de movimientos en pantalla. Lo que el correo no avisa (saldos, cupos, cargos
-sin aviso) se corrige desde el asistente MCP.
 
 | Banco | Estado |
 | --- | --- |
@@ -77,14 +75,50 @@ Un mismo buzón puede alimentar varios bancos. Los pendientes están en
 
 - **Permiso mínimo.** OAuth 2.0 con PKCE y solo `Mail.Read`: no puede enviar, mover ni borrar
   correos.
-- **Solo el banco.** Se procesan únicamente los remitentes oficiales del banco. De cada aviso se
-  guarda el movimiento (monto, comercio, fecha); el cuerpo del correo se procesa en memoria.
-- **Cuentas detectadas solas.** Desde los propios avisos propone tus cuentas y tarjetas. La carga
-  inicial trae los últimos **3 meses** y la IA los categoriza.
-- **Sincronización.** Automática por webhook si tu servidor es público ([ver Outlook](#conectar-outlook)),
-  o a mano con el botón **Sincronizar**.
+- **Solo el banco.** Se procesan únicamente los remitentes oficiales del banco.
+- **Cuentas detectadas solas.** Al conectar, propone tus cuentas y tarjetas desde los propios
+  avisos. La carga inicial trae los **últimos 3 meses** (si el banco casi no se usa, retrocede
+  hasta 6 para encontrar algo) y la IA los categoriza.
 - **Desconexión en un clic.** Borra la conexión, los movimientos importados y el token. El refresh
   token se guarda cifrado con AES-256-GCM.
+
+La app no tiene alta manual de movimientos en pantalla. Lo que el correo no avisa (saldos, cupos,
+cargos sin aviso) se corrige desde el [asistente MCP](#asistente-mcp).
+
+## Las piezas
+
+Cada pieza, en corto y con su documentación.
+
+- **Onboarding.** Una cuenta nueva cuenta su día a día y OpenAI propone categorías sobre un set
+  predefinido; después conecta el banco por Outlook (se puede omitir), importa los últimos 3 meses
+  y define sus ingresos. Ver [Onboarding](#onboarding-con-ia).
+- **Plan del mes.** Límite global y por categoría, con lo que queda por gastar. Funciona en **modo
+  débito** (mes calendario) o **modo crédito** (ciclo de la tarjeta), cada uno con su plan. Lo
+  disponible sale de los ingresos, lo gastado y lo comprometido. «Ajustar plan» sugiere el tope
+  desde tus ingresos. Reglas en [docs/product.md](docs/product.md).
+- **Cuentas y tarjetas.** Corrientes, de ahorro, tarjetas de crédito, líneas de crédito,
+  billeteras e inversiones. Las tarjetas llevan cupo nacional (CLP) y cupo internacional (USD) por
+  separado y las monedas nunca se mezclan; el dólar referencial sale de
+  [mindicador.cl](https://mindicador.cl). El sobregiro y los cupos son deuda, no caja. Los saldos
+  se proyectan desde el último que confirmaste.
+- **Recurrentes.** Pagos mensuales, quincenales o anuales. Lo que aún no se cobra cuenta como
+  comprometido, y cuando el cargo llega por correo se concilia en vez de contarse dos veces.
+  Pantalla **Recurrentes**.
+- **Cuotas.** Planes de compras con tarjeta o de préstamos: ves la cuota del mes y cuánto falta.
+  Viven dentro de Recurrentes (`/recurring#cuotas`).
+- **Reembolsos.** Vincular un abono a una compra sube el tope de esa categoría solo en el período
+  de la compra, sin tocar el gasto. Ver [docs/reimbursement-budgets.md](docs/reimbursement-budgets.md).
+- **Categorización con IA.** Entiende la glosa cruda (`Pago:payu *uber eats` es Comida), usa la
+  descripción de cada categoría y aprende de tus recategorizaciones: ofrece aplicarlas a los
+  movimientos parecidos. Sin clave de OpenAI la app funciona igual, pero los movimientos quedan
+  sin categorizar.
+- **Notificaciones push.** Web Push estándar en Android, Windows e iOS 16.4+ (con la app en la
+  pantalla de inicio), sin servicios de terceros. Avisan de movimientos nuevos, umbrales de
+  presupuesto que tú defines y pagos por vencer. Ver [docs/push-notifications.md](docs/push-notifications.md).
+- **Asistente MCP.** Ver [Asistente MCP](#asistente-mcp).
+- **Integraciones.** Las claves de OpenAI, Outlook y Resend se cargan desde la app. Ver
+  [Integraciones](#integraciones-desde-la-app).
+- **/setup.** El asistente de la primera instalación. Ver [Instalación nueva](#instalación-nueva-setup).
 
 ## Primer uso
 
@@ -95,7 +129,7 @@ Hay dos caminos, según si la base tiene cuentas o no.
 Con la base **vacía**, `/` y `/login` redirigen a `/setup`. Solo existe mientras no haya ninguna
 cuenta; en cuanto se crea la primera, `/setup` deja de existir.
 
-<!-- captura: docs/images/setup.png — /setup con la base vacía, ya verificado el código de instalación, en el paso "Ordena tus gastos con OpenAI" (campo de clave y guía a la vista) -->
+![Asistente de instalación en /setup, paso de OpenAI](docs/images/setup.png)
 
 1. Al arrancar, el servidor imprime en su consola un código de instalación de 12 caracteres:
    `[setup] Código de instalación: ABCD-EFGH-JKLM`. Solo lo ve quien opera el servidor.
@@ -135,7 +169,7 @@ Toda cuenta nueva pasa por un onboarding corto:
 Las claves de OpenAI, Outlook y Resend se pueden cargar en **Ajustes → Integraciones**, sin
 reiniciar el servidor. Solo las ve y las cambia un **ADMIN**.
 
-<!-- captura: docs/images/integraciones.png — /settings con sesión ADMIN, sección Integraciones: una clave del entorno (bloqueada), una guardada (••••abcd) y una sin configurar, con la guía de un proveedor abierta si cabe -->
+![Ajustes → Integraciones, solo para ADMIN](docs/images/integraciones.png)
 
 | Proveedor | Claves |
 | --- | --- |
@@ -151,6 +185,23 @@ reiniciar el servidor. Solo las ve y las cambia un **ADMIN**.
 - Cada proveedor trae su **guía paso a paso** dentro de la app.
 - Una instalación que ya tenía cuentas antes de esta función no tiene ADMIN: ver
   [cómo hacerse ADMIN](docs/self-hosting.md#hacerse-admin).
+
+## Asistente MCP
+
+Un asistente (Claude, ChatGPT, Claude Code) puede consultar y cuadrar tus datos: movimientos,
+presupuesto, saldos y la conciliación con la cartola. La identidad se resuelve en el servidor con
+OAuth; el modelo no elige el usuario. Alcance y catálogo de herramientas en
+[docs/plugin-luca-plan.md](docs/plugin-luca-plan.md).
+
+El conector **no se publica en ninguna tienda**: se agrega por URL, `https://<tu-dominio>/api/mcp`,
+e inicias sesión en Luca Plan para aceptar los permisos.
+
+- **Claude (web y Desktop):** Ajustes → Conectores → conector personalizado.
+- **ChatGPT:** modo desarrollador → servidor MCP personalizado.
+- **Claude Code:** `claude mcp add --transport http luca-plan https://<tu-dominio>/api/mcp`.
+
+Claude y ChatGPT web exigen una URL **HTTPS pública**: `localhost` no les sirve. Para probar contra
+tu entorno local usa Claude Code. Las conexiones se revisan y revocan en `/plugin`.
 
 ## Puesta en marcha (desarrollo)
 
@@ -239,30 +290,82 @@ Conectar el buzón y la primera importación funcionan con `localhost`.
 
 **Avisos automáticos.** Para que los correos nuevos entren solos, Microsoft exige una URL HTTPS
 pública. Define `OUTLOOK_WEBHOOK_URL=https://<tu-dominio>/api/email-connection/webhook` y
-`OUTLOOK_RENEW_SECRET` (un secreto aleatorio). Las suscripciones expiran, así que un scheduler debe
-renovarlas cada 12 horas:
+`OUTLOOK_RENEW_SECRET` (un secreto aleatorio), y [renueva las suscripciones cada 12
+horas](#tareas-programadas). Sin `OUTLOOK_WEBHOOK_URL` (p. ej. en local) los correos nuevos se
+traen a mano con el botón **Sincronizar** o con `pnpm sync:email`. Detalle y recuperación de
+fallos en [docs/email-connection-outlook.md](docs/email-connection-outlook.md).
+
+## Deploy
+
+Luca Plan corre en cualquier host que ejecute Node o un contenedor. Esto es lo que necesita:
+
+- **La app:** Node 24, o la imagen del [`Dockerfile`](Dockerfile) del repo (expone el puerto `3005`
+  y revisa `/login` como healthcheck).
+- **PostgreSQL** (17 o superior) y su `DATABASE_URL`.
+- **Variables mínimas:** `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (el origen público
+  con `https://`) y `BANCOCHILE_ENC_KEY` (32+ caracteres, respaldada: sin ella la llave de cifrado se
+  pierde en cada deploy y, si cambia, no se pueden leer los secretos ya guardados). Para que llegue el código de acceso,
+  Resend (en el entorno o desde [`/setup`](#instalación-nueva-setup)). No dejes
+  `NODE_ENV=development`: activaría el código fijo de la cuenta demo.
+- **HTTPS público**, necesario para el webhook de Outlook y para que Claude y ChatGPT web alcancen
+  el MCP. Detrás de un proxy, `/setup` limita los intentos por IP usando la que agrega el proxy.
+
+**Con la imagen:**
 
 ```bash
-curl -X POST -H "Authorization: Bearer $OUTLOOK_RENEW_SECRET" \
-  https://<tu-dominio>/api/email-connection/renew
+docker build -t lucaplan .
+docker run -d -p 3005:3005 --env-file .env lucaplan
 ```
 
-Sin `OUTLOOK_WEBHOOK_URL` (p. ej. en local) los correos nuevos se traen a mano con el botón
-**Sincronizar** o con `pnpm sync:email`. Detalle y recuperación de fallos en
-[docs/email-connection-outlook.md](docs/email-connection-outlook.md).
+La `DATABASE_URL` tiene que ser alcanzable desde el contenedor: `localhost` apunta al propio
+contenedor, no a tu máquina.
 
-## Conectar un asistente
+Al arrancar, la imagen aplica las migraciones pendientes (`prisma migrate deploy`, que nunca borra
+datos), corre el seed (que en producción no hace nada) y levanta la app.
 
-El conector MCP **no se publica en ninguna tienda**: se agrega por URL, `https://<tu-dominio>/api/mcp`,
-con OAuth (inicias sesión en Luca Plan y aceptas los permisos).
+**Sin Docker:**
 
-- **Claude (web y Desktop):** Ajustes → Conectores → conector personalizado.
-- **ChatGPT:** modo desarrollador → servidor MCP personalizado.
-- **Claude Code:** `claude mcp add --transport http luca-plan https://<tu-dominio>/api/mcp`.
+```bash
+pnpm install --frozen-lockfile
+DATABASE_URL="postgresql://..." pnpm build
+pnpm exec prisma migrate deploy
+pnpm start -p 3005
+```
 
-Claude y ChatGPT web exigen una URL **HTTPS pública**: `localhost` no les sirve. Para probar contra
-tu entorno local usa Claude Code. Pasos, alcance y catálogo de herramientas en
-[docs/plugin-luca-plan.md](docs/plugin-luca-plan.md).
+Con la base vacía, el primer arranque imprime el código de instalación en los logs y `/setup`
+guía el resto. Nunca uses `setup:db` ni `prisma migrate reset` en una base con datos.
+
+### Tareas programadas
+
+Dos endpoints se llaman por HTTP con un secreto Bearer; el host debe agendarlos (cron del sistema,
+el scheduler de tu plataforma, etc.):
+
+| Cuándo | Llamada | Para qué |
+| --- | --- | --- |
+| Una vez al día | `POST /api/cron/notify-due` con `CRON_SECRET` | Avisa los pagos por vencer. |
+| Cada 12 horas | `POST /api/email-connection/renew` con `OUTLOOK_RENEW_SECRET` | Renueva las suscripciones de Outlook; solo si usas el webhook. |
+
+```bash
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://<tu-dominio>/api/cron/notify-due
+curl -X POST -H "Authorization: Bearer $OUTLOOK_RENEW_SECRET" https://<tu-dominio>/api/email-connection/renew
+```
+
+### Dónde se puede desplegar
+
+Ejemplos; nada del resto de este README supone alguno.
+
+- **Un VPS con Docker:** `docker compose` con la imagen y un Postgres, y un proxy con HTTPS
+  (Caddy, nginx o un túnel). Parte del [`docker-compose.yml`](docker-compose.yml) del repo
+  (app en `3005`, Postgres en `5433`; crea antes el volumen con `docker volume create
+  lucaplan-postgres-data`). Un ejemplo real, con túnel y cron, en [docs/self-hosting.md](docs/self-hosting.md).
+- **Railway:** servicio desde el Dockerfile, Postgres de Railway y un servicio cron aparte que
+  llame a los endpoints ([ejemplo](docs/push-notifications.md#agendarlo-en-railway)). Railway
+  define `RAILWAY_ENVIRONMENT_NAME`, que la app lee; en los entornos de PR siembra la cuenta demo
+  ([cómo](docs/development.md#entornos-de-pr-en-railway-con-datos-falsos)).
+- **Coolify:** aplicación con el build pack Dockerfile (puerto `3005`), Postgres nativo y
+  *Scheduled Tasks* para las llamadas programadas. Guía en [docs/coolify.md](docs/coolify.md).
+- **Fly.io, Render y similares:** el repo no trae guía ni prueba para ellos. Sirve cualquiera que
+  ejecute el Dockerfile con un Postgres administrado, el puerto `3005` y un job programado.
 
 ## Stack
 
@@ -316,28 +419,6 @@ ports, así los casos de uso se prueban con `node --test` sin framework ni base 
 | `pnpm sync:email` | Sincroniza el correo a mano. |
 | `pnpm notify:due` | Notifica pagos por vencer (recurrentes y cuotas). |
 
-## Despliegue
-
-- **Docker Compose:** `docker volume create lucaplan-postgres-data` una vez, y luego
-  `docker compose up -d --build`. La app queda en el puerto `3005` y Postgres en `5433`; los
-  secretos salen del `.env`. Con la base vacía, el código de instalación aparece en
-  `docker compose logs app`.
-- **Instancia propia con Cloudflare Tunnel o Coolify:** [docs/self-hosting.md](docs/self-hosting.md)
-  y [docs/coolify.md](docs/coolify.md) describen la instancia del autor, con sus rutas y
-  decisiones; sirven de modelo, no de receta.
-- **Cron:** el recordatorio diario llama `POST /api/cron/notify-due` con `CRON_SECRET`, y las
-  suscripciones de Outlook se renuevan con `POST /api/email-connection/renew`. Ver
-  [docs/push-notifications.md](docs/push-notifications.md#agendarlo-en-railway).
-
-### Railway: entornos de PR con datos falsos
-
-Al arrancar, la imagen aplica las migraciones y corre `scripts/seed.ts`. La cuenta demo
-(`demo@lucaplan.cl`) solo se siembra en un entorno de PR de Railway (`RAILWAY_ENVIRONMENT_NAME`
-termina en `pr-<número>`) o en local con `NODE_ENV=development` contra `localhost`. En producción y
-en Docker Compose se salta sin tocar la base. Es idempotente y hay una sola cuenta demo.
-`SEED_PR_EMAIL` cambia su correo y `SEED_DEMO_FORCE=1` la rehace de cero. Cómo agregarle datos, en
-[docs/development.md](docs/development.md#sembrar-los-datos-de-la-feature).
-
 ## Mapa documental
 
 Este README es la **fuente canónica** del proyecto: lo leen personas, agentes, OpenSpec y Linear
@@ -348,7 +429,7 @@ la fuente canónica primero y luego lo demás. `AGENTS.md` y `CLAUDE.md` solo ap
 | --- | --- |
 | Producto y reglas de dominio | [docs/product.md](docs/product.md): usuarios, propósito, reglas del plan, principios de diseño y accesibilidad. |
 | Arquitectura | [arch/clean-architecture.md](arch/clean-architecture.md): capas y regla de dependencias. |
-| Desarrollo y contribución | [docs/development.md](docs/development.md): flujo de trabajo, Next 16, reglas de UI, seeds y verificaciones. |
+| Desarrollo y contribución | [docs/development.md](docs/development.md): flujo de trabajo, Next 16, reglas de UI, seeds y entornos de PR. |
 | Design system | [docs/design/design-system.md](docs/design/design-system.md): tokens, vidrio, claro y oscuro. La fuente visual es [app/globals.css](app/globals.css). |
 | Acceso por correo | [docs/login-code.md](docs/login-code.md): código de acceso, Resend y registro. |
 | Outlook y Microsoft Graph | [docs/email-connection-outlook.md](docs/email-connection-outlook.md): webhook, renovación y recuperación. El paso a paso está [arriba](#conectar-outlook). |
@@ -356,7 +437,7 @@ la fuente canónica primero y luego lo demás. `AGENTS.md` y `CLAUDE.md` solo ap
 | Asistente MCP | [docs/plugin-luca-plan.md](docs/plugin-luca-plan.md): autorización, catálogo de operaciones y cómo conectarlo. |
 | Reembolsos y presupuesto | [docs/reimbursement-budgets.md](docs/reimbursement-budgets.md): cómo un reembolso ajusta el tope. |
 | Notificaciones push | [docs/push-notifications.md](docs/push-notifications.md): Web Push, eventos, umbrales y cron. |
-| Operación y despliegue | [Scripts](#scripts) y [Despliegue](#despliegue) aquí; [docs/self-hosting.md](docs/self-hosting.md) y [docs/coolify.md](docs/coolify.md) para la instancia del autor. |
+| Despliegue | [Deploy](#deploy) aquí. Ejemplos por plataforma: [docs/coolify.md](docs/coolify.md) y [docs/self-hosting.md](docs/self-hosting.md) (la instancia personal del autor). |
 | Specs y cambios | [openspec/README.md](openspec/README.md): capacidades, cambios en curso e historial. Es historia, no contrato, y solo se usa si el mantenedor lo pide. |
 
 ## Contribuir

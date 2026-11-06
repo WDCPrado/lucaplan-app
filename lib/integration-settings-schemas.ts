@@ -99,9 +99,12 @@ export type IntegrationsStatus = z.infer<typeof integrationsStatus>
 // 3. Claves    PUT  /api/setup/integrations     cookie de setup  entrada: updateIntegrationsInput
 //    salida: integrationsStatus  mismas reglas que PUT /api/integrations (409 si viene del entorno)
 //    401 sin cookie · 404 ya instalado
-// 4. La cuenta se crea con el login de siempre (código por correo): con la base vacía el registro
-//    queda abierto aunque SIGNUP_OPEN no esté, y esa primera cuenta queda ADMIN. Después sigue el
-//    onboarding.
+// 4. La cuenta se crea con el login de siempre (código por correo). Con la base vacía, pedir el
+//    código o registrarse EXIGE la cookie de setup verificada (sin ella: misma respuesta que con
+//    el registro cerrado, ni código ni cuenta), aunque SIGNUP_OPEN esté o sea local. La promoción a
+//    ADMIN también exige esa cookie en la petición que crea la cuenta, además del UPDATE atómico
+//    `count(*) = 1`. Así el código de consola es la única puerta a la primera cuenta. Después
+//    sigue el onboarding.
 //
 // Mínimo para entrar: en producción RESEND_API_KEY y RESEND_FROM (sin ellos el código no llega);
 // en local nada, porque el código sale en la consola. OpenAI y Outlook son opcionales.

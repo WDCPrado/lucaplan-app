@@ -195,11 +195,6 @@ agrupaciones, la tipografía y los controles.
     contenido, clones ni seguimiento continuo. Se retiraron Glisse y el motor anterior para
     recuperar la composición estable en Safari móvil. Tabs y búsquedas usan enlaces/botones/
     inputs nativos; Select, menús, sliders y modales conservan los contratos accesibles de Radix/Vaul.
-    Excepción (WDC-179): en móvil los controles de vidrio, los de las hojas (fuera de su scroll), los
-    menús y popovers abiertos y la perilla del slider al arrastrarla suman la refracción WebGL de
-    `@ybouane/liquidglass` ([liquid-glass.ts](../components/finance/liquid-glass.ts)), con el vidrio
-    CSS como respaldo; se apaga en escritorio, con reducir transparencia, más contraste, reducir
-    movimiento y en el nivel 4 (detalle en [design-system.md](design/design-system.md)).
   - **Patrones de controles (WDC-175).** `SearchInput` comparte búsqueda, limpiar y recuperación
     de foco en Inicio/Movimientos y los pickers de recurrentes/cuotas. `Segmented` usa selección
     exclusiva y flechas de Radix RadioGroup en modo, filtros y frecuencia de Ajustes. MonthPicker

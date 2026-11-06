@@ -5,6 +5,7 @@ import {
   executionDateFor,
   hasEnded,
   periodKeyFor,
+  periodTransactionPaying,
 } from "../../domain/finance/recurring.domain.ts"
 import { todayKey } from "../../../shared/today.ts"
 import { dueSoonMessage, type DueItem } from "./notification-rules.ts"
@@ -73,7 +74,11 @@ export async function collectDueItems(
     for (const key of [...new Set(keys)]) {
       const dueDate = executionDateFor(t, key)
       if (!inWindow(dueDate) || hasEnded(t, dueDate)) continue
-      const periodTx = await deps.recurring.findPeriodTransaction(t.id, key)
+      const periodTx = periodTransactionPaying(
+        t,
+        key,
+        await deps.recurring.findPeriodTransaction(t.id, key)
+      )
       if (periodTx?.status === "confirmed") continue
       items.push({
         description: t.description,

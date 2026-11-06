@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Copy,
   ExternalLink,
+  Info,
   Lock,
   Mail,
   Send,
@@ -22,6 +23,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError, getIntegrations, updateIntegrations } from "./http"
+import { IntegrationGuideModal } from "./integration-guide"
 import {
   IntegrationModal,
   KEY_LABEL,
@@ -53,6 +55,7 @@ const GROUPS: {
     keys: ["OPENAI_API_KEY", "OPENAI_MODEL"],
     links: [
       { label: "Crear una API key en OpenAI", href: "https://platform.openai.com/api-keys" },
+      { label: "Ver los modelos disponibles", href: "https://platform.openai.com/docs/models" },
     ],
   },
   {
@@ -215,6 +218,7 @@ export function IntegrationsList({
   groups?: IntegrationGroup[]
 }) {
   const [editing, setEditing] = useState<IntegrationKey | null>(null)
+  const [guide, setGuide] = useState<IntegrationGroup | null>(null)
   const byKey = new Map(status.entries.map((e) => [e.key, e]))
 
   return (
@@ -234,6 +238,18 @@ export function IntegrationsList({
                 {group.purpose}
               </span>
             </span>
+            <Button
+             
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-haspopup="dialog"
+              aria-label={`Cómo conseguir las claves de ${group.name}`}
+              onClick={() => setGuide(group.id)}
+              className="-mr-2 size-11 shrink-0 text-primary"
+            >
+              <Info aria-hidden className="size-5" />
+            </Button>
           </div>
           {group.keys.map((key) => {
             const entry = byKey.get(key)
@@ -265,6 +281,11 @@ export function IntegrationsList({
           ))}
         </div>
       ))}
+      <IntegrationGuideModal
+        group={GROUPS.find((g) => g.id === guide) ?? null}
+        onOpenChange={(open) => !open && setGuide(null)}
+        redirectUri={redirectUri}
+      />
       <IntegrationModal
         entry={editing ? (byKey.get(editing) ?? null) : null}
         onOpenChange={(open) => !open && setEditing(null)}

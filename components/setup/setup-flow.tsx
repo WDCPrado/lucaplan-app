@@ -275,14 +275,14 @@ function OptionalStep({
         <Button
           onClick={onNext}
           disabled={!done}
-          className="h-12 flex-1 text-body"
+          className="h-12 text-body sm:flex-1"
         >
           Continuar <ArrowRight aria-hidden className="size-4" />
         </Button>
         <Button
           variant="secondary"
           onClick={onNext}
-          className="h-12 flex-1 text-body"
+          className="h-12 text-body sm:flex-1"
         >
           Omitir
         </Button>

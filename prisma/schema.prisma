@@ -556,6 +556,9 @@ model Transaction {
   // de cuotas — reprocesar un correo no puede producir un segundo movimiento para el mismo ítem.
   installmentItemId       String?            @unique
   installmentItem         InstallmentItem?   @relation(fields: [installmentItemId], references: [id], onDelete: SetNull)
+  // Lo creó la app con «Generar cuota» (`registerItemTransaction`): un sustituto que el correo del
+  // banco de ese pago reemplaza. Un movimiento que la persona escribió y asignó queda en false.
+  generatedFromInstallment Boolean           @default(false)
   installmentPlanAsSource InstallmentPlan?   @relation("InstallmentSource")
   transactionDate         DateTime           @db.Date
   description             String

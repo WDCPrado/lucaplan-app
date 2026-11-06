@@ -676,7 +676,7 @@ test("Dado la cuota 1 generada a mano, cuando llega el correo «cuota 1», enton
   assert.equal((await repo.findById(plan.id))!.items[0].transactionId, "tx-tarde")
 })
 
-test("Dado las cuotas 1 y 2 generadas a mano, cuando llega un correo sin N° de cuota fechado en el período de la 1, entonces reemplaza la 1 y no la 2", async () => {
+test("Dado las cuotas 1 y 2 generadas a mano, cuando llega un correo sin N° de cuota cerca del vencimiento de la 1, entonces reemplaza la 1 y no la 2", async () => {
   const { repo, adopted, replaced, plan } = await loanWithManual([1, 2])
   const claimed = await adoptLoanInstallment(
     { installments: repo },
@@ -684,7 +684,9 @@ test("Dado las cuotas 1 y 2 generadas a mano, cuando llega un correo sin N° de 
       transactionId: "tx-correo",
       accountId: "acc1",
       amount: clp(100_000),
-      date: day(2026, 8, 20), // vence la 1 el 5/8, la 2 el 5/9
+      // Vence la 1 el 5/8, la 2 el 5/9. Antes era el 20/8 («período de la 1»); ahora sin N° manda
+      // el vencimiento más cercano dentro de 10 días, y el 20/8 queda a 15.
+      date: day(2026, 8, 12),
       installmentNumber: null,
     }
   )
@@ -769,9 +771,11 @@ test("Dado un crédito cerrado con la cuota 1 generada a mano, cuando llega tard
   await adoptLoanInstallment({ installments: made.repo }, pago("tx-2", day(2026, 9, 6), 2))
   const closedAt = (await made.repo.findById(plan.id))!.completedAt
   assert.deepEqual(closedAt, day(2026, 9, 6))
+  // El correo llega tarde, pero la fecha del pago es la del banco: cerca del vencimiento de la 1
+  // (5/8). Antes era el 10/9; ahora con N° se exige un período (31 días) y el 10/9 queda a 36.
   const claimed = await adoptLoanInstallment(
     { installments: made.repo },
-    pago("tx-1", day(2026, 9, 10), 1)
+    pago("tx-1", day(2026, 8, 8), 1)
   )
   assert.equal(claimed?.id, plan.id)
   assert.deepEqual(made.replaced, [`tx-${plan.items[0].id}`])

@@ -41,7 +41,8 @@ function toPlan(row: any): InstallmentPlan {
       amount: Money.of(i.amount.toString(), currency),
       transactionId: i.transaction?.id ?? null,
       paidOutsideApp: i.paidOutsideApp,
-      manualTransaction: i.transaction ? i.transaction.externalId === null : false,
+      manualTransaction:
+        i.transaction?.generatedFromInstallment === true && i.transaction.externalId === null,
     })),
   }
 }
@@ -49,7 +50,9 @@ function toPlan(row: any): InstallmentPlan {
 const withItems = {
   items: {
     orderBy: { index: "asc" },
-    include: { transaction: { select: { id: true, externalId: true } } },
+    include: {
+      transaction: { select: { id: true, externalId: true, generatedFromInstallment: true } },
+    },
   },
 } as const
 
@@ -112,7 +115,11 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
           kind: "loan",
           OR: [
             { completedAt: null },
-            { items: { some: { transaction: { is: { externalId: null } } } } },
+            {
+              items: {
+                some: { transaction: { is: { externalId: null, generatedFromInstallment: true } } },
+              },
+            },
           ],
         },
         include: withItems,
@@ -216,6 +223,7 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
           direction: "debit",
           status: "confirmed",
           reviewed: true, // ya tiene la categoría del plan: fuera del triage y de la IA
+          generatedFromInstallment: true, // sustituto: el correo de este pago lo reemplaza
         },
       })
       return true
@@ -229,17 +237,19 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
       .$transaction(async (db) => {
         const item = await db.installmentItem.findUnique({
           where: { id: itemId },
-          include: { transaction: { select: { id: true, externalId: true } } },
+          include: {
+            transaction: { select: { id: true, externalId: true, generatedFromInstallment: true } },
+          },
         })
         if (!item || item.paidOutsideApp) return false
         if (item.transaction) {
-          // Saldada por el banco: dos cargos reales no se pisan. Saldada A MANO: solo la reemplaza un
-          // movimiento que trae el banco, y el manual se borra —conservar los dos contaría dos veces
-          // el gasto—. Se borra directo, sin tocar el saldo: `registerItemTransaction` tampoco lo movió.
-          // ponytail: un manual creado por la API de movimientos y asignado con «Asignar» sí movió el
-          // saldo y aquí no se devuelve; se acepta porque solo pasa al llegar un correo, y en una cuenta
-          // conectada el saldo se rehace con el snapshot del banco.
-          if (item.transaction.externalId !== null) return false
+          // Saldada por el banco: dos cargos reales no se pisan. Saldada con «Generar cuota»: solo la
+          // reemplaza un movimiento que trae el banco, y el generado se borra —conservar los dos
+          // contaría dos veces el gasto—. Se borra directo, sin tocar el saldo:
+          // `registerItemTransaction` tampoco lo movió. Un movimiento que la persona escribió y
+          // asignó con «Asignar» no lleva la marca y nunca se borra aquí.
+          if (item.transaction.externalId !== null || !item.transaction.generatedFromInstallment)
+            return false
           const incoming = await db.transaction.findUnique({
             where: { id: transactionId },
             select: { externalId: true, installmentItemId: true },
@@ -247,8 +257,17 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
           if (!incoming || incoming.externalId === null || incoming.installmentItemId !== null)
             return false
           // deleteMany: si otro correo ya lo reemplazó en paralelo, no hay fila y este no adopta.
+          // Solo se borra el generado intacto: con reembolsos (se irían en cascada) o vinculado a una
+          // recurrente, la persona lo trabajó y no se toca; el correo queda suelto.
           const removed = await db.transaction.deleteMany({
-            where: { id: item.transaction.id, externalId: null },
+            where: {
+              id: item.transaction.id,
+              externalId: null,
+              generatedFromInstallment: true,
+              reimbursementsPaid: { none: {} },
+              reimbursementsReceived: { none: {} },
+              recurringTemplateId: null,
+            },
           })
           if (removed.count === 0) throw new NotAdopted()
         }

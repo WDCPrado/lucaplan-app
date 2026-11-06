@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { RECURRING_URL_MAX, recurringUrlSchema } from "./recurring-url.ts"
+import { RECURRING_INPUT_MAX, RECURRING_URL_MAX, recurringUrlSchema } from "./recurring-url.ts"
 
 const parse = (v: unknown) => recurringUrlSchema.safeParse(v)
 
@@ -45,4 +45,21 @@ test("Detecta el enlace como WhatsApp: dentro de un texto, sin https ni www, y s
 
 test("Sin terminación de dominio, o solo un correo, no es un enlace.", () => {
   for (const v of ["enel", "https://enel", "pagar@enel.cl", "123.45"]) assert.equal(parse(v).success, false, v)
+})
+
+test("Un texto enorme se rechaza al tiro, sin colgar el servidor con las expresiones regulares.", () => {
+  // Sin tope previo, `trailing` recorría el texto de forma cuadrática: 1 MB de puntos bloqueaba Node.
+  const enorme = `https://enel.cl/${".".repeat(1_000_000)}a`
+  const start = performance.now()
+  const r = parse(enorme)
+  assert.ok(performance.now() - start < 200, "responde en menos de 200 ms")
+  assert.equal(r.success, false)
+  assert.equal(r.error?.issues[0]?.message, "Escribe un enlace válido, como https://www.enel.cl")
+})
+
+test("La puntuación final se recorta en tiempo lineal aun dentro del tope de entrada.", () => {
+  const texto = `enel.cl/${".".repeat(RECURRING_INPUT_MAX - 20)}a.`
+  const start = performance.now()
+  parse(texto)
+  assert.ok(performance.now() - start < 50, "responde en menos de 50 ms")
 })

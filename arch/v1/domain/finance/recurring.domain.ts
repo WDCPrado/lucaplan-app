@@ -407,6 +407,14 @@ export class InvalidRecurringTemplateError extends Error {
   }
 }
 
+/** El enlace del portal de pago no es un enlace web válido (→ 400). Lleva el mensaje del esquema. */
+export class InvalidRecurringUrlError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "InvalidRecurringUrlError"
+  }
+}
+
 /**
  * Quitarle la categoría a un movimiento vinculado a una plantilla dejaría a la plantilla sin la
  * suya (es obligatoria) o con dos verdades distintas. Para dejarlo sin categoría, primero se

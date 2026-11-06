@@ -1,6 +1,6 @@
 import { scopeBudgetPeriod } from "../../application/finance-use-cases/budget-period-use-cases.ts"
 // Helpers HTTP para los Route Handlers financieros: resuelve el actor desde la sesión, inyecta los
-// adapters, y mapea errores de dominio a status (401 sin sesión, 404 ownership/no-encontrado, 422
+// adapters, y mapea errores de dominio a status (401 sin sesión, 400 dato mal formado, 404 ownership/no-encontrado, 422
 // regla de negocio; la lista vive en application/domain-error-status). Sin lógica de negocio.
 import { cache } from "react"
 import { ZodError } from "zod"

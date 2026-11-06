@@ -88,6 +88,14 @@ function makeRepo(templates: RecurringTemplate[]) {
       rows.push(row)
       return { transactionId: row.id, created: true }
     },
+    listOpenPeriods: async (templateId) =>
+      rows
+        .filter(
+          (r) =>
+            r.templateId === templateId &&
+            (r.status === "pending" || r.externalId === null)
+        )
+        .map((r) => ({ periodKey: r.periodKey, isManual: r.status === "confirmed" })),
     findPeriodTransaction: async (templateId, periodKey) => {
       const row = rows.find(
         (r) => r.templateId === templateId && r.periodKey === periodKey
@@ -113,6 +121,9 @@ function makeRepo(templates: RecurringTemplate[]) {
       )
       // Lo que cerró el BANCO no se pisa; una marca manual del usuario sí la reemplaza el correo.
       if (committed?.status === "confirmed" && committed.externalId !== null)
+        return false
+      // Un cobro ya vinculado a otro período no se mueve (igual que el where del adapter real).
+      if (rows.some((r) => r.id === transactionId && r.periodKey !== periodKey))
         return false
       // El importado toma el lugar de lo que hubiera: el comprometido o la marca manual.
       if (committed) rows.splice(rows.indexOf(committed), 1)
@@ -664,6 +675,69 @@ test("el cargo del correo reemplaza la marca manual del período", async () => {
   assert.equal(rows.length, 1, "el período queda con un único movimiento")
   assert.equal(rows[0].id, "tx-banco", "el del banco, no la marca manual")
   assert.notEqual(rows[0].externalId, null)
+})
+
+const correo = (id: string, day: string) => ({
+  id,
+  description: "ARRIENDO DEPTO",
+  amount: Money.of(355_000, "CLP"),
+  direction: "debit" as const,
+  date: new Date(`${day}T00:00:00Z`),
+})
+
+test("WDC-179: el correo paga el período pendiente aunque el cargo llegue atrasado y en el mes siguiente", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-08-12T00:00:00Z"))
+
+  // Agosto vence el 5; el cargo llega el 20 de septiembre (46 días tarde).
+  const claimed = await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-tarde", "2026-09-20"))
+
+  assert.equal(claimed?.id, "arriendo")
+  assert.equal(rows.length, 1, "no abre septiembre ni duplica")
+  assert.equal(rows[0].id, "tx-tarde")
+  assert.equal(rows[0].periodKey, "2026-08", "salda el agosto atrasado")
+})
+
+test("WDC-179: con octubre y noviembre pendientes, el cargo del 4-nov paga octubre y el siguiente noviembre", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-10-01T00:00:00Z"))
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-11-01T00:00:00Z"))
+  const periodo = (key: string) => rows.find((r) => r.periodKey === key)
+
+  await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-1", "2026-11-04"))
+  assert.equal(periodo("2026-10")?.id, "tx-1", "el más antiguo")
+  assert.equal(periodo("2026-11")?.status, "pending", "noviembre sigue por cobrar")
+
+  // Volver a procesar el mismo cargo no lo mueve de período ni toca noviembre.
+  assert.equal(await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-1", "2026-11-04")), null)
+  assert.equal(periodo("2026-10")?.id, "tx-1")
+  assert.equal(periodo("2026-11")?.status, "pending")
+
+  await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-2", "2026-11-06"))
+  assert.equal(periodo("2026-11")?.id, "tx-2")
+  assert.equal(rows.length, 2, "un cobro por período")
+})
+
+test("WDC-179: un período pendiente no lo paga un cargo anterior a 10 días de su vencimiento", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-11-01T00:00:00Z"))
+
+  // Noviembre vence el 5: un cargo del 25-oct (11 días antes) es de octubre, no de noviembre.
+  await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-oct", "2026-10-25"))
+  assert.equal(rows.find((r) => r.periodKey === "2026-11")?.status, "pending")
+  assert.equal(rows.find((r) => r.id === "tx-oct")?.periodKey, "2026-10")
+})
+
+test("WDC-179: una marca manual vieja no se persigue: el cargo paga el período en curso", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await setRecurringPeriodPaid({ recurring: repo }, "u1", { id: "arriendo", paid: true }, HOY) // agosto
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-09-01T00:00:00Z"))
+
+  await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-sep", "2026-09-06"))
+  assert.equal(rows.find((r) => r.periodKey === "2026-09")?.id, "tx-sep")
+  const agosto = rows.find((r) => r.periodKey === "2026-08")
+  assert.equal(agosto?.externalId, null, "la marca de agosto se conserva")
+  assert.equal(agosto?.status, "confirmed")
 })
 
 test("el cargo del correo no pisa un cobro que ya venía del banco", async () => {

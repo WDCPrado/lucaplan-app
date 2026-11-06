@@ -20,6 +20,7 @@ import {
   RecurringPeriodNotManualError,
   RecurringTemplateEndedError,
   RecurringTemplateNotFoundError,
+  canPayPeriod,
   executionDateFor,
   hasEnded,
   isValidTolerance,
@@ -403,26 +404,35 @@ async function openCurrentPeriod(
   return periodKeyFor(template, today)
 }
 
-// Período que salda el cargo: el pendiente más antiguo cuyo vencimiento cae en la ventana (borde de
-// mes: vence el 31, se cobra el 1). Pendiente = comprometido o marcado a mano («Ya lo pagué»: el
-// cargo real lo reemplaza); lo que ya cobró el banco no. Sin abrir no cuenta.
+// Período que salda el cargo: el abierto más antiguo que el cargo puede pagar. Un comprometido
+// (`pending`) lo paga un cargo posterior a su piso (`canPayPeriod`), aunque llegue atrasado o ya en
+// el mes siguiente: con octubre y noviembre pendientes, el cargo del 4-nov paga octubre y el
+// siguiente, noviembre. La marca manual («Ya lo pagué») solo la reemplaza un cargo de la ventana de
+// su vencimiento (`periodsAround`): el usuario ya afirmó ese pago, y sin tope cada cargo nuevo
+// perseguiría marcas viejas y dejaría el mes en curso sin pagar. Sin abrir no cuenta.
+// `late: false` (el match por monto, sin el texto de la recurrente) se queda en la ventana para
+// todo: sin el texto, un monto parecido muy lejos del vencimiento no es evidencia suficiente.
 async function oldestPendingPeriod(
   deps: { recurring: RecurringTemplateRepository },
   template: RecurringTemplate,
-  date: Date
+  date: Date,
+  late: boolean
 ): Promise<string | null> {
-  for (const { periodKey } of periodsAround(template, date)) {
-    const tx = await deps.recurring.findPeriodTransaction(template.id, periodKey)
-    if (tx && (tx.status === "pending" || tx.isManual)) return periodKey
-  }
-  return null
+  const nearby = new Set(periodsAround(template, date).map((p) => p.periodKey))
+  const payable = (await deps.recurring.listOpenPeriods(template.id))
+    .filter(({ periodKey, isManual }) =>
+      late && !isManual ? canPayPeriod(template, periodKey, date) : nearby.has(periodKey)
+    )
+    .map(({ periodKey }) => ({ periodKey, due: executionDateFor(template, periodKey) }))
+    .sort((a, b) => a.due.getTime() - b.due.getTime())
+  return payable[0]?.periodKey ?? null
 }
 
 /**
  * ¿Este movimiento recién importado es la ejecución de alguna plantilla POR TEXTO? Si lo es, pasa a
  * ser la ejecución del período (categoría de la plantilla, vínculo, revisado) y consume el
- * comprometido `pending`. El período es el pendiente más antiguo de la ventana y, si no hay, el de
- * la fecha del cargo (como siempre: un cargo tarde del mismo mes sigue saldándolo). Devuelve la
+ * comprometido `pending`. El período es el abierto más antiguo que el cargo puede pagar
+ * (`oldestPendingPeriod`, atrasados incluidos) y, si no hay, el de la fecha del cargo. Devuelve la
  * plantilla que lo reclamó; null si ninguna matchea o si el período ya tenía ejecución confirmada
  * (entonces el movimiento sigue el flujo normal de IA/triage).
  */
@@ -438,7 +448,7 @@ export async function confirmFromMovement(
   // (o N) plantillas equivalentes reparten un cargo a cada una en vez de dejar el segundo huérfano.
   for (const template of rankTemplatesFor(movement, vigentes)) {
     const periodKey =
-      (await oldestPendingPeriod(deps, template, movement.date)) ??
+      (await oldestPendingPeriod(deps, template, movement.date, true)) ??
       periodKeyFor(template, movement.date)
     const attached = await deps.recurring.attachImportedMovement(
       movement.id,
@@ -486,7 +496,7 @@ export async function confirmFromMovements(
         !matchesAmount(movement, template)
       )
         continue
-      const periodKey = await oldestPendingPeriod(deps, template, movement.date)
+      const periodKey = await oldestPendingPeriod(deps, template, movement.date, false)
       if (periodKey) pairs.push({ movement, template, periodKey })
     }
   }

@@ -195,6 +195,20 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
       ? { id: row.id, status: row.status, isManual: row.externalId === null }
       : null
   },
+  async listOpenPeriods(templateId) {
+    const rows = await prisma.transaction.findMany({
+      where: {
+        recurringTemplateId: templateId,
+        periodKey: { not: null },
+        OR: [{ status: "pending" }, { status: "confirmed", externalId: null }],
+      },
+      select: { periodKey: true, status: true },
+    })
+    // Confirmado y en este where = sin externalId: la marca manual.
+    return rows.flatMap((r) =>
+      r.periodKey ? [{ periodKey: r.periodKey, isManual: r.status === "confirmed" }] : []
+    )
+  },
   async setPeriodPaid(templateId, periodKey, paid) {
     const { count } = await prisma.transaction.updateMany({
       where: {
@@ -229,12 +243,13 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
           await db.transaction.delete({ where: { id: committed.id } })
         const { count } = await db.transaction.updateMany({
           // El importado conserva su monto, fecha y externalId reales: solo adopta el vínculo. Uno ya
-          // vinculado a OTRA plantilla no se roba (dejaría ese período sin su cobro).
+          // vinculado a OTRA plantilla no se roba (dejaría ese período sin su cobro), ni uno ya
+          // vinculado a otro período de esta se mueve (dejaría aquel sin cobro y borraría este).
           where: {
             id: transactionId,
             OR: [
               { recurringTemplateId: null },
-              { recurringTemplateId: template.id },
+              { recurringTemplateId: template.id, periodKey },
             ],
           },
           data: {

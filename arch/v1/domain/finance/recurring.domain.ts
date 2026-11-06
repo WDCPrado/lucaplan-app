@@ -333,13 +333,24 @@ export function paymentCandidateRejection(
   if (tx.installmentItemId) return "El movimiento ya es la cuota de un plan"
   if (tx.amount.currency !== template.currency)
     return "El movimiento está en otra moneda que la recurrente"
-  // Solo el piso: atrasado vale siempre; adelantado, hasta la ventana antes del vencimiento.
-  const due = executionDateFor(template, periodKey)
-  if (daysBetween(due, tx.date) < -RECURRING_MATCH_WINDOW_DAYS)
-    return `Ese cargo es del ${civilDayLabel(tx.date)}, antes del cobro de este período (vence el ${civilDayLabel(due)})`
+  if (!canPayPeriod(template, periodKey, tx.date))
+    return `Ese cargo es del ${civilDayLabel(tx.date)}, antes del cobro de este período (vence el ${civilDayLabel(executionDateFor(template, periodKey))})`
   if (!matchesAmount(tx, template))
     return "El monto no está dentro de la tolerancia de la recurrente"
   return null
+}
+
+/**
+ * ¿Un cargo del día `date` puede ser el cobro del período `periodKey`? Solo el piso: atrasado vale
+ * siempre (aunque llegue en el mes siguiente); adelantado, hasta `RECURRING_MATCH_WINDOW_DAYS` días
+ * antes del vencimiento. La comparten el vínculo a mano y el del correo.
+ */
+export function canPayPeriod(
+  template: RecurringTemplate,
+  periodKey: string,
+  date: Date
+): boolean {
+  return daysBetween(executionDateFor(template, periodKey), date) >= -RECURRING_MATCH_WINDOW_DAYS
 }
 
 // "4 de octubre": el día civil tal cual está guardado (medianoche UTC).
@@ -385,6 +396,13 @@ export interface RecurringTemplateRepository {
     templateId: string,
     periodKey: string
   ): Promise<{ id: string; status: string; isManual: boolean } | null>
+  /**
+   * Períodos de la plantilla que el banco todavía no cobró: los comprometidos (`pending`) y los
+   * confirmados a mano (sin `externalId`, `isManual`). En cualquier orden.
+   */
+  listOpenPeriods(
+    templateId: string
+  ): Promise<{ periodKey: string; isManual: boolean }[]>
   /**
    * Marca manual del cobro del período: confirma el comprometido (`paid`) o lo devuelve a
    * comprometido. Conserva monto y fecha — el monto y la fecha reales los fija el correo.

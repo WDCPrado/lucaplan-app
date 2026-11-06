@@ -98,6 +98,14 @@ function makeRepo(templates: RecurringTemplate[]) {
       rows.push(row)
       return { transactionId: row.id, created: true }
     },
+    listOpenPeriods: async (templateId) =>
+      rows
+        .filter(
+          (r) =>
+            r.templateId === templateId &&
+            (r.status === "pending" || r.externalId === null)
+        )
+        .map((r) => ({ periodKey: r.periodKey, isManual: r.status === "confirmed" })),
     findPeriodTransaction: async (templateId, periodKey) => {
       const row = find(templateId, periodKey)
       return row

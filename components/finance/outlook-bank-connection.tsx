@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useId, useRef, useState } from "react"
-import { Check, CircleAlert, Loader, Mail, Plus } from "lucide-react"
+import { Check, CircleAlert, Loader, Mail, Plus, RefreshCw, RotateCw } from "lucide-react"
 import { toast } from "sonner"
 import { haptic } from "@/lib/haptics"
 import {
@@ -510,6 +510,7 @@ export function OutlookBankConnection({
               primary={{
                 label: "Reintentar",
                 plain: true,
+                icon: RotateCw,
                 onClick: () => detect(pending.id),
                 disabled: busy,
               }}
@@ -633,6 +634,7 @@ export function OutlookBankConnection({
         primary={{
           label: "Sincronizar",
           plain: true,
+          icon: RefreshCw,
           onClick: refresh,
           disabled: busy,
         }}

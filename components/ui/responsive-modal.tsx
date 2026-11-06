@@ -110,6 +110,11 @@ export type ModalAction = {
    * como el círculo azul. La HIG reserva el estilo prominente para Listo/Guardar.
    */
   plain?: boolean
+  /**
+   * Ícono de la acción `plain` en la hoja móvil: con él va un círculo de vidrio como la X, y el
+   * texto queda como nombre accesible. Para las que se leen de un vistazo (editar, sincronizar).
+   */
+  icon?: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>
   form?: string
   onClick?: () => void
   disabled?: boolean
@@ -207,7 +212,23 @@ export function ModalActions({
         {primary &&
           slots?.end &&
           createPortal(
-            primary.plain ? (
+            primary.plain && primary.icon ? (
+              <button
+                {...actionProps(primary)}
+                data-squish
+                className={cn(
+                  sheetCircleClass,
+                  "liquid-glass liquid-squish text-foreground disabled:text-muted-foreground"
+                )}
+              >
+                {primary.busy ? (
+                  busySpinner("size-5")
+                ) : (
+                  <primary.icon aria-hidden className="size-5" />
+                )}
+                <span className="sr-only">{primary.label}</span>
+              </button>
+            ) : primary.plain ? (
               <button
                 {...actionProps(primary)}
                 data-squish

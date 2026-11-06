@@ -1,6 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
+import { Pencil } from "lucide-react"
 
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { MovementRow } from "./movement-row"
@@ -52,6 +53,7 @@ export function CategoryDetailSheet({
           ? {
               label: "Editar",
               plain: true,
+              icon: Pencil,
               onClick: () => onEdit(category),
             }
           : undefined

@@ -154,12 +154,6 @@ export function PlanSheet({
   const rangeLabel = cycleRange
     ? `${shortDay(cycleRange.start)} – ${shortDay(cycleRange.end)}`
     : monthName(period.month)
-  // Lo que se cambia acá se guarda al momento: la X y el check solo cierran, como en los demás.
-  const close = () => {
-    setDrafts({})
-    onOpenChange(false)
-  }
-
   return (
     <ResponsiveModal
       open={open}
@@ -168,8 +162,6 @@ export function PlanSheet({
         onOpenChange(next)
       }}
       title="Plan"
-      cancel={{ label: "Cerrar", onClick: close }}
-      primary={{ label: "Listo", onClick: close }}
     >
       <div className="flex min-w-0 flex-col gap-8 px-5">
         {/* Período del plan: decide el rango de todo lo de abajo, por eso va primero. */}

@@ -192,6 +192,7 @@ export function ModalActions({
           createPortal(
             <button
               {...actionProps(cancel)}
+              data-modal-cancel
               data-squish
               className={cn(
                 sheetCircleClass,
@@ -423,10 +424,27 @@ export function ResponsiveModal({
                 headerClassName
               )}
             >
-              <div
-                ref={setSlotStart}
-                className="flex min-w-fit flex-1 basis-0 justify-start"
-              />
+              {/* Toda hoja se puede cerrar con la X, como en iOS: si el modal no declara su
+                  «Cancelar», va esta, que solo cierra. Cuando lo declara (llega por el portal con
+                  `data-modal-cancel`), CSS esconde la de respaldo: sin estado ni efectos. */}
+              <div className="flex min-w-fit flex-1 basis-0 justify-start [&:has([data-modal-cancel])>[data-default-close]]:hidden">
+                {dismissible && (
+                  <button
+                    type="button"
+                    data-default-close
+                    data-squish
+                    onClick={() => handleOpenChange(false)}
+                    className={cn(
+                      sheetCircleClass,
+                      "liquid-glass liquid-squish text-foreground"
+                    )}
+                  >
+                    <X aria-hidden className="size-5" strokeWidth={2.5} />
+                    <span className="sr-only">Cerrar</span>
+                  </button>
+                )}
+                <div ref={setSlotStart} className="contents" />
+              </div>
               <DrawerTitle className="min-w-0 shrink text-headline font-semibold text-balance break-words">
                 {title}
               </DrawerTitle>

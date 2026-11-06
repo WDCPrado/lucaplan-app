@@ -12,26 +12,48 @@ const delay = (ms: number) =>
 
 const STEP_GAP = 220 // ms entre un paso y el siguiente: se leen en orden, como el onboarding
 
+// El código de 6 dígitos que llega al correo (ilustrativo).
+const codeVisual = (
+  <div aria-hidden className="flex gap-1.5">
+    {"482107".split("").map((d, i) => (
+      <span
+        key={i}
+        className="tabular grid h-11 w-9 place-items-center rounded-lg bg-card text-title-3 font-semibold"
+      >
+        {d}
+      </span>
+    ))}
+  </div>
+)
+
 // «Así empiezas»: los pasos reales del onboarding. Al entrar en pantalla la línea se llena y cada
 // paso aparece tras el anterior; con movimiento reducido todo queda visible y quieto.
-export function Steps() {
-  const steps = [
-    {
-      title: "Crea tu cuenta",
-      body: "Escribe tu correo y entra con el código de 6 dígitos que te llega. Sin contraseñas.",
-      visual: (
-        <div aria-hidden className="flex gap-1.5">
-          {"482107".split("").map((d, i) => (
-            <span
-              key={i}
-              className="tabular grid h-11 w-9 place-items-center rounded-lg bg-card text-title-3 font-semibold"
+export function Steps({ signupOpen }: { signupOpen: boolean }) {
+  // Con el registro cerrado no se promete una cuenta: se ofrece correr la propia instancia.
+  const first: { title: string; body: React.ReactNode; visual: React.ReactNode } = signupOpen
+    ? {
+        title: "Crea tu cuenta",
+        body: "Escribe tu correo y entra con el código de 6 dígitos que te llega. Sin contraseñas.",
+        visual: codeVisual,
+      }
+    : {
+        title: "Corre tu propia instancia",
+        body: (
+          <>
+            La instancia pública es de su dueño. Luca Plan es open source:{" "}
+            <a
+              href="#open-source"
+              className="text-primary underline-offset-2 hover:underline"
             >
-              {d}
-            </span>
-          ))}
-        </div>
-      ),
-    },
+              levanta la tuya
+            </a>{" "}
+            y entra con un código por correo.
+          </>
+        ),
+        visual: null,
+      }
+  const steps: { title: string; body: React.ReactNode; visual: React.ReactNode }[] = [
+    first,
     {
       title: "Cuéntale tu día a día",
       body: "Dónde compras, cómo te mueves, qué pagas cada mes. La IA arma tus categorías y tú las ajustas.",
@@ -82,8 +104,9 @@ export function Steps() {
       title: "Tus últimos meses, ya ordenados",
       body: `Se importan los avisos de los últimos ${SCAN_LOOKBACK_MONTHS} meses, categorizados, y tu plan parte con datos reales.`,
       visual: (
+        // inert: las filas de la app son botones; aquí son un ejemplo que no se enfoca.
         <div
-          aria-hidden
+          inert
           className="inset-list overflow-hidden rounded-lg bg-card [--inset:4rem]"
         >
           {importedMovements.map((tx) => (
@@ -106,7 +129,7 @@ export function Steps() {
       <div className="mx-auto max-w-6xl px-5 py-20 lg:px-8 lg:py-28">
         <h2
           data-reveal
-          className="max-w-xl text-[clamp(2rem,4.5vw,3rem)] leading-[1.05] font-bold tracking-[-0.03em] text-balance"
+          className="max-w-xl landing-title text-balance"
         >
           Así empiezas. Cuatro pasos y tu mes ya tiene datos.
         </h2>

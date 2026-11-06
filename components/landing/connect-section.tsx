@@ -4,7 +4,8 @@ import { GmailIcon, OutlookIcon } from "@/app/login/mail-app-icons"
 import { newMovementsMessage } from "@/arch/v1/application/notification-use-cases/notification-rules"
 import { BANK_EMAIL_REGISTRY } from "@/arch/v1/application/finance-use-cases/bank-email-registry"
 import { COMING_SOON_BANKS } from "@/lib/coming-soon-banks"
-import { homeMovements } from "./landing-data"
+import { CopyButton } from "./copy-button"
+import { GITHUB_URL, homeMovements } from "./landing-data"
 
 const delay = (ms: number) =>
   ({ "--reveal-delay": `${ms}ms` }) as React.CSSProperties
@@ -18,6 +19,27 @@ const connectedBanks = BANK_EMAIL_REGISTRY.map((b) => ({
   name: b.name,
   note: BANK_DETAIL[b.key] ?? "Cuentas y tarjetas",
 }))
+
+// Cómo se conecta cada asistente al servidor MCP de tu instancia (docs/plugin-luca-plan.md).
+const MCP_URL = "https://<tu-dominio>/api/mcp"
+const PLUGIN_DOCS_URL = `${GITHUB_URL}/blob/master/docs/plugin-luca-plan.md`
+const MCP_PATHS = [
+  {
+    name: "Claude (web y Desktop)",
+    step: "Ajustes → Conectores → Agregar conector personalizado, con esta URL.",
+    copy: MCP_URL,
+  },
+  {
+    name: "ChatGPT",
+    step: "En modo desarrollador, Add custom MCP server con esta URL y autenticación OAuth.",
+    copy: MCP_URL,
+  },
+  {
+    name: "Claude Code",
+    step: "Agrégalo desde la terminal.",
+    copy: `claude mcp add --transport http luca-plan ${MCP_URL}`,
+  },
+] as const
 
 const privacy = [
   [Lock, "Permiso de solo lectura (Mail.Read), revocable. No puede enviar, mover ni borrar correos."],
@@ -39,7 +61,7 @@ export function ConnectSection() {
       className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 lg:px-8 lg:py-28"
     >
       <div data-reveal className="max-w-2xl">
-        <h2 className="text-[clamp(2rem,4.5vw,3rem)] leading-[1.05] font-bold tracking-[-0.03em] text-balance">
+        <h2 className="landing-title text-balance">
           Tu banco ya te avisa. Luca Plan escucha.
         </h2>
         <p className="mt-5 text-title-3 font-normal text-pretty text-muted-foreground">
@@ -49,7 +71,7 @@ export function ConnectSection() {
       </div>
 
       <div className="mt-12 grid gap-4 lg:grid-cols-3">
-        <div data-reveal className="flex flex-col gap-6 rounded-xl bg-card p-5 lg:col-span-2 lg:row-span-2 lg:p-6">
+        <div data-reveal className="flex flex-col gap-6 rounded-xl bg-card p-5 lg:col-span-2 lg:p-6">
           <div>
             <h3 className="text-footnote tracking-wide text-muted-foreground uppercase">
               Conectados hoy
@@ -123,26 +145,42 @@ export function ConnectSection() {
           </div>
         </div>
 
-        <div data-reveal style={delay(200)} className="flex flex-col gap-4 rounded-xl bg-card p-5 lg:p-6">
-          <ul aria-hidden className="flex flex-wrap gap-1.5">
-            {["lucaplan_resumen_mes", "lucaplan_buscar_movimientos", "lucaplan_conciliar_cartola"].map(
-              (t) => (
-                <li key={t} className="rounded-md bg-secondary px-2 py-1 font-mono text-caption text-muted-foreground">
-                  {t}
-                </li>
-              )
-            )}
-          </ul>
+        <div data-reveal style={delay(200)} className="grid gap-6 rounded-xl bg-card p-5 lg:col-span-3 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:gap-10 lg:p-6">
           <div>
             <h3 className="flex items-center gap-2 text-headline font-semibold">
               <Bot aria-hidden className="size-4 text-primary" />
-              Desde tu asistente
+              Conecta tu asistente
             </h3>
             <p className="mt-1 text-subheadline text-pretty text-muted-foreground">
               El plugin MCP consulta y administra tu plan desde un asistente
-              compatible. Tú autorizas la conexión con OAuth.
+              compatible. Inicias sesión en Luca Plan y apruebas los permisos;
+              lo revocas cuando quieras.
             </p>
+            <a
+              href={PLUGIN_DOCS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex min-h-11 items-center text-subheadline text-primary underline-offset-2 hover:underline"
+            >
+              Guía del plugin
+            </a>
           </div>
+          <ul className="inset-list overflow-hidden rounded-xl bg-secondary">
+            {MCP_PATHS.map((p) => (
+              <li key={p.name} className="flex flex-col gap-2 px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-body font-semibold">{p.name}</p>
+                    <p className="text-footnote text-pretty text-muted-foreground">{p.step}</p>
+                  </div>
+                  <CopyButton text={p.copy} />
+                </div>
+                <code className="block overflow-x-auto rounded-md bg-card px-3 py-2 font-mono text-footnote whitespace-nowrap">
+                  {p.copy}
+                </code>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </section>

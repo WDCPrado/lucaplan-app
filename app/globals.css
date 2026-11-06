@@ -517,6 +517,21 @@
   transform: none;
 }
 
+/* Titulares de la landing: la escala de iOS se queda corta para marketing, así que crecen con el
+   ancho (fluidos) con el mismo peso y tracking ajustado. Uno para el h1 y otro para cada sección. */
+@utility landing-hero {
+  font-size: clamp(2.75rem, 7vw, 4.75rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 700;
+}
+@utility landing-title {
+  font-size: clamp(2rem, 4.5vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
 /* Barra de presupuesto: se llena al entrar en viewport */
 .landing-bar {
   width: 0%;

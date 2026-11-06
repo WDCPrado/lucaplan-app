@@ -1,7 +1,6 @@
-import Link from "next/link"
 import { ChevronRight } from "lucide-react"
 import { COMING_SOON_BANKS } from "@/lib/coming-soon-banks"
-import { cta } from "./landing-data"
+import { LandingCtas } from "./landing-ctas"
 
 const list = (items: readonly string[]) =>
   new Intl.ListFormat("es", { type: "conjunction" }).format(items)
@@ -39,7 +38,7 @@ const faqs = [
 
 // Preguntas como lista agrupada de la app: cada fila se despliega con <details> (teclado y lector
 // de pantalla nativos). Después, el cierre con los dos caminos: crear la cuenta o entrar.
-export function Faq() {
+export function Faq({ signupOpen }: { signupOpen: boolean }) {
   return (
     <>
       <section
@@ -48,7 +47,7 @@ export function Faq() {
       >
         <h2
           data-reveal
-          className="text-[clamp(2rem,4.5vw,3rem)] leading-[1.05] font-bold tracking-[-0.03em] text-balance"
+          className="landing-title text-balance"
         >
           Lo que siempre preguntan.
         </h2>
@@ -75,23 +74,10 @@ export function Faq() {
           data-reveal
           className="flex flex-col items-start gap-6 rounded-xl bg-card p-6 sm:p-10 lg:flex-row lg:items-center lg:justify-between"
         >
-          <h2 className="max-w-xl text-[clamp(1.75rem,3.5vw,2.5rem)] leading-[1.1] font-bold tracking-[-0.03em] text-balance">
+          <h2 className="max-w-xl landing-title text-balance">
             Un plan más claro para el mes que viene.
           </h2>
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={cta.create.href}
-              className="press flex min-h-12 items-center rounded-full bg-primary px-6 text-body font-semibold text-primary-foreground hover:bg-primary/90"
-            >
-              {cta.create.label}
-            </Link>
-            <Link
-              href={cta.enter.href}
-              className="press flex min-h-12 items-center rounded-full bg-(--glass-control) px-6 text-body font-medium hover:bg-foreground/10"
-            >
-              {cta.enter.label}
-            </Link>
-          </div>
+          <LandingCtas signupOpen={signupOpen} />
         </div>
       </section>
     </>

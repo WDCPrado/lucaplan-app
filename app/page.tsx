@@ -1,3 +1,5 @@
+import { connection } from "next/server"
+import { isSignupOpen } from "@/arch/v1/infrastructure/auth/login-code"
 import { AccountsSection } from "@/components/landing/accounts-section"
 import { AiSection } from "@/components/landing/ai-section"
 import { ConnectSection } from "@/components/landing/connect-section"
@@ -12,20 +14,23 @@ import { Steps } from "@/components/landing/steps"
 
 // La landing usa el lenguaje de la app (iOS 26): fondo agrupado, celdas sólidas y vidrio solo en
 // la barra que flota. Sigue el tema de la persona, claro u oscuro. Todo CTA apunta a /login: ahí se
-// entra o se crea la cuenta con el código por correo.
-export default function Home() {
+// entra o, con el registro abierto, se crea la cuenta con el código por correo.
+export default async function Home() {
+  // SIGNUP_OPEN se lee en cada pedido, no queda congelado en el build.
+  await connection()
+  const signupOpen = isSignupOpen()
   return (
     <main className="relative overflow-x-clip bg-background text-foreground">
       <RevealObserver />
-      <LandingNav />
-      <Hero />
-      <Steps />
+      <LandingNav signupOpen={signupOpen} />
+      <Hero signupOpen={signupOpen} />
+      <Steps signupOpen={signupOpen} />
       <PlanSection />
       <AccountsSection />
       <AiSection />
       <ConnectSection />
       <OpenSource />
-      <Faq />
+      <Faq signupOpen={signupOpen} />
       <LandingFooter />
     </main>
   )

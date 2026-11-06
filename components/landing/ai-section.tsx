@@ -46,7 +46,10 @@ export function AiSection() {
                 <ArrowRight aria-hidden className="hidden size-3.5 shrink-0 text-muted-foreground sm:block" />
                 <ArrowDown aria-hidden className="size-3.5 shrink-0 text-muted-foreground sm:hidden" />
               </span>
-              <MovementRow tx={tx} className="min-h-11 min-w-0 flex-1 rounded-none px-0" />
+              {/* inert: en la app la fila es un botón; aquí es un ejemplo. */}
+              <div inert className="min-w-0 flex-1">
+                <MovementRow tx={tx} className="min-h-11 rounded-none px-0" />
+              </div>
             </li>
           ))}
         </ol>
@@ -76,7 +79,7 @@ export function AiSection() {
       </div>
 
       <div data-reveal className="order-1 max-w-lg lg:order-2">
-        <h2 className="text-[clamp(2rem,4.5vw,3rem)] leading-[1.05] font-bold tracking-[-0.03em] text-balance">
+        <h2 className="landing-title text-balance">
           Se ordena solo. Y aprende de ti.
         </h2>
         <dl className="mt-8 grid gap-6">

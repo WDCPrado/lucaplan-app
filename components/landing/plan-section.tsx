@@ -99,7 +99,7 @@ export function PlanSection() {
         className="mx-auto grid max-w-6xl scroll-mt-24 gap-12 px-5 py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:items-center lg:gap-16 lg:px-8 lg:py-28"
       >
         <div data-reveal className="max-w-lg">
-          <h2 className="text-[clamp(2rem,4.5vw,3rem)] leading-[1.05] font-bold tracking-[-0.03em] text-balance">
+          <h2 className="landing-title text-balance">
             Cada mes parte limpio.
           </h2>
           <p className="mt-5 text-title-3 font-normal text-pretty text-muted-foreground">
@@ -144,7 +144,7 @@ export function PlanSection() {
         className="mx-auto max-w-6xl scroll-mt-24 px-5 pb-20 lg:px-8 lg:pb-28"
       >
         <div data-reveal className="max-w-2xl">
-          <h2 className="text-[clamp(2rem,4.5vw,3rem)] leading-[1.05] font-bold tracking-[-0.03em] text-balance">
+          <h2 className="landing-title text-balance">
             La plata que ya tiene dueño.
           </h2>
           <p className="mt-5 text-title-3 font-normal text-pretty text-muted-foreground">

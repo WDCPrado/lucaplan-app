@@ -1,8 +1,5 @@
-"use client"
-
-import { useState } from "react"
-import { Check, Copy } from "lucide-react"
 import { GitHubIcon } from "./brand-icons"
+import { CopyButton } from "./copy-button"
 import { GITHUB_URL } from "./landing-data"
 
 const COMMANDS = [
@@ -17,16 +14,6 @@ const COMMANDS = [
 // Open source: el repo y cómo correrlo en local, en un bloque que se copia entero. Los pasos son
 // los del README (Puesta en marcha); `setup:db` siembra la cuenta demo del entorno local.
 export function OpenSource() {
-  const [copied, setCopied] = useState<"ok" | "error" | null>(null)
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(COMMANDS.join("\n"))
-      setCopied("ok")
-    } catch {
-      setCopied("error")
-    }
-    setTimeout(() => setCopied(null), 2000)
-  }
   return (
     <section
       id="open-source"
@@ -34,7 +21,7 @@ export function OpenSource() {
     >
       <div className="mx-auto grid max-w-6xl gap-12 px-5 py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,32rem)] lg:items-center lg:gap-16 lg:px-8 lg:py-28">
         <div data-reveal className="max-w-lg">
-          <h2 className="text-[clamp(2rem,4.5vw,3rem)] leading-[1.05] font-bold tracking-[-0.03em] text-balance">
+          <h2 className="landing-title text-balance">
             Código abierto. Revisa cada línea.
           </h2>
           <p className="mt-5 text-title-3 font-normal text-pretty text-muted-foreground">
@@ -66,18 +53,7 @@ export function OpenSource() {
           <div className="overflow-hidden rounded-xl bg-card">
             <div className="flex min-h-11 items-center justify-between gap-3 border-b border-border pr-1.5 pl-4">
               <p className="text-subheadline font-semibold">Correrlo en local</p>
-              <button
-                type="button"
-                onClick={copy}
-                className="press flex min-h-11 items-center gap-1.5 rounded-full px-3 text-subheadline text-primary hover:bg-foreground/5"
-              >
-                {copied === "ok" ? (
-                  <Check aria-hidden className="size-4" />
-                ) : (
-                  <Copy aria-hidden className="size-4" />
-                )}
-                {copied === "ok" ? "Copiado" : copied === "error" ? "No se pudo copiar" : "Copiar"}
-              </button>
+              <CopyButton text={COMMANDS.join("\n")} />
             </div>
             <pre className="overflow-x-auto px-4 py-4 font-mono text-footnote leading-6">
               <code>
@@ -96,9 +72,6 @@ export function OpenSource() {
             con <span className="font-mono">demo@lucaplan.cl</span> y el código{" "}
             <span className="font-mono">000000</span>.
           </p>
-          <span aria-live="polite" className="sr-only">
-            {copied === "ok" ? "Comandos copiados" : copied === "error" ? "No se pudo copiar" : ""}
-          </span>
         </div>
       </div>
     </section>

@@ -20,7 +20,7 @@ const product = [
 ] as const
 
 const linkClass =
-  "inline-flex min-h-8 items-center transition-colors duration-150 hover:text-foreground"
+  "inline-flex min-h-11 items-center transition-colors duration-150 hover:text-foreground"
 
 export function LandingFooter() {
   const [legal, setLegal] = useState<LegalKey | null>(null)
@@ -41,7 +41,7 @@ export function LandingFooter() {
 
           <nav aria-label="Producto" className="text-subheadline">
             <p className="font-semibold">Producto</p>
-            <ul className="mt-3 space-y-1 text-muted-foreground">
+            <ul className="mt-3 text-muted-foreground">
               {product.map(([href, label]) => (
                 <li key={href}>
                   <a href={href} className={linkClass}>
@@ -59,7 +59,7 @@ export function LandingFooter() {
 
           <nav aria-label="Legal" className="text-subheadline">
             <p className="font-semibold">Legal</p>
-            <ul className="mt-3 space-y-1 text-muted-foreground">
+            <ul className="mt-3 text-muted-foreground">
               <li>
                 <button
                   type="button"

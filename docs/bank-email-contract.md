@@ -192,11 +192,11 @@ esperar a que exista uno real.
 - Un **buzón** es un correo autorizado: un token, un estado delta y una suscripción, sin importar
   cuántos bancos alimente. Su estado de autorización lo comparten todos sus bancos, y una sola
   reconexión los restablece.
-- Al conectar un banco se escanea **el mes de su última notificación con movimientos**, no el mes
-  calendario: una cuenta que no se movió este mes igual se detecta. Se busca hacia atrás hasta 6
-  meses, saltando los meses cuyos correos no producen movimientos (marketing, abonos), y sin
-  descargar cuerpos para ubicarlos. Sin nada en ese plazo, la ventana es el mes en curso y los
-  instrumentos los agrega el usuario.
+- Al conectar un banco se escanean **los últimos 3 meses** desde el día 1
+  (`SCAN_LOOKBACK_MONTHS`). Si esa ventana no trae movimientos, se retrocede hasta 6 meses hasta
+  el mes de la última notificación con movimientos, saltando los meses cuyos correos no producen
+  movimientos (marketing, abonos) y sin descargar cuerpos para ubicarlos. Sin nada en ese plazo,
+  la ventana es el mes en curso y los instrumentos los agrega el usuario.
 - Un **vínculo** es lo que ese buzón alimenta en un banco concreto: su snapshot, sus instrumentos y
   sus mensajes omitidos. Se agrega sin pasar de nuevo por OAuth.
 - Un banco puede venir de varios correos (personal y empresa) y se distinguen por una etiqueta, que

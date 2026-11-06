@@ -173,3 +173,31 @@ test("en cuanto existe una cuenta, todo /api/setup responde 404 y el código ya 
   await assert.rejects(updateSetupIntegrations(s.deps, null, { values: {} }), (e) => domainErrorStatus(e) === 404)
   assert.deepEqual(s.writes, [])
 })
+
+test("10 códigos incorrectos en total, aunque vengan de IPs distintas, rotan el código: el anterior deja de servir y el nuevo sale en la consola", async (t) => {
+  const s = install(PROD)
+  const { result: code } = await silenced(t, () => ensureSetupCode(s.deps))
+  const wrong = code!.startsWith("AAAA") ? "BBBB-BBBB" : "AAAA-AAAA"
+  // Una IP distinta por intento: el tope por IP no frena a nadie.
+  const { printed } = await silenced(t, async () => {
+    for (let i = 1; i <= 10; i++)
+      await assert.rejects(verifySetupCode(s.deps, { code: wrong }, `198.51.100.${i}`), (e) => domainErrorStatus(e) === 401, `intento ${i}`)
+  })
+  const rotated = printed.find((l) => l.includes("[setup] Demasiados intentos"))
+  assert.ok(rotated, "falta el aviso con el código nuevo")
+  const fresh = rotated!.match(/[A-Z0-9]{4}-[A-Z0-9]{4}/)?.[0]
+  assert.ok(fresh && fresh !== code, "el código no cambió")
+  // El 11.º intento, desde otra IP más, ya no puede usar el código anterior.
+  await assert.rejects(verifySetupCode(s.deps, { code: code! }, "198.51.100.11"), (e) => domainErrorStatus(e) === 401)
+  // El nuevo sí sirve.
+  assert.equal(typeof (await verifySetupCode(s.deps, { code: fresh! }, "198.51.100.12")), "string")
+  // Borde: 9 incorrectos no rotan.
+  const s9 = install(PROD)
+  const { result: c9 } = await silenced(t, () => ensureSetupCode(s9.deps))
+  const w9 = c9!.startsWith("AAAA") ? "BBBB-BBBB" : "AAAA-AAAA"
+  const { printed: p9 } = await silenced(t, async () => {
+    for (let i = 1; i <= 9; i++) await verifySetupCode(s9.deps, { code: w9 }, `203.0.113.${i}`).catch(() => {})
+  })
+  assert.ok(!p9.some((l) => l.includes("Demasiados intentos")))
+  assert.equal(typeof (await verifySetupCode(s9.deps, { code: c9! }, "203.0.113.50")), "string")
+})

@@ -10,6 +10,7 @@ import {
   type SetupStatus,
 } from "../../../../lib/integration-settings-schemas.ts"
 import {
+  SETUP_MAX_TOTAL_FAILURES,
   SETUP_SESSION_MS,
   SetupDoneError,
   SetupRateLimitedError,
@@ -34,14 +35,17 @@ async function assertNotInstalled(deps: SetupDeps) {
   if (await deps.accounts.hasAccounts()) throw new SetupDoneError()
 }
 
+function newCode(deps: SetupDeps): string {
+  const part = () => Array.from({ length: 4 }, () => ALPHABET[randomInt(ALPHABET.length)]).join("")
+  deps.state.code = `${part()}-${part()}`
+  deps.state.failedTotal = 0
+  return deps.state.code
+}
+
 /** Genera el código de instalación (una vez por proceso) y lo imprime. null si ya hay cuentas. */
 export async function ensureSetupCode(deps: SetupDeps): Promise<string | null> {
   if (await deps.accounts.hasAccounts()) return null
-  if (!deps.state.code) {
-    const part = () => Array.from({ length: 4 }, () => ALPHABET[randomInt(ALPHABET.length)]).join("")
-    deps.state.code = `${part()}-${part()}`
-    console.log(`[setup] Código de instalación: ${deps.state.code}`)
-  }
+  if (!deps.state.code) console.log(`[setup] Código de instalación: ${newCode(deps)}`)
   return deps.state.code
 }
 
@@ -72,7 +76,7 @@ export async function getSetupStatus(deps: SetupDeps, token: string | null): Pro
 /**
  * Verifica el código de instalación y devuelve el token de la cookie del asistente. Un código mal
  * formado es 422 y no cuenta; cada incorrecto cuenta para el tope por IP, que bloquea también al
- * correcto (429).
+ * correcto (429), y para el tope total: al 10.º incorrecto, de cualquier IP, el código se rota.
  */
 export async function verifySetupCode(deps: SetupDeps, input: unknown, ip: string): Promise<string> {
   await assertNotInstalled(deps)
@@ -83,6 +87,8 @@ export async function verifySetupCode(deps: SetupDeps, input: unknown, ip: strin
   const given = Buffer.from(code)
   if (!deps.state.code || expected.length !== given.length || !timingSafeEqual(expected, given)) {
     deps.state.failures.take(ip, now)
+    if (++deps.state.failedTotal >= SETUP_MAX_TOTAL_FAILURES)
+      console.log(`[setup] Demasiados intentos: nuevo código de instalación: ${newCode(deps)}`)
     throw new SetupUnauthorizedError()
   }
   for (const [t, expires] of deps.state.sessions) if (expires <= now) deps.state.sessions.delete(t)

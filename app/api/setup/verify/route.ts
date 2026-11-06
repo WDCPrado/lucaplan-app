@@ -6,9 +6,13 @@ import { verifySetupCode } from "@/arch/v1/application/setup-use-cases/setup-use
 import { SETUP_COOKIE, SETUP_SESSION_MS } from "@/arch/v1/domain/setup/setup.domain"
 import { setupDeps } from "@/arch/v1/infrastructure/database/prisma/setup-deps"
 
-// La IP que ve el proxy de delante (Railway); sin él, una sola cubeta para todos.
+// La IP que agregó el proxy de confianza (Railway, Cloudflare): la ÚLTIMA de x-forwarded-for, o
+// `x-real-ip`. La primera la elige el cliente. Sin proxy, una sola cubeta para todos; el tope
+// total del caso de uso frena la fuerza bruta igual.
 const ipOf = (req: Request) =>
-  req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "local"
+  req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ||
+  req.headers.get("x-real-ip")?.trim() ||
+  "local"
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null)

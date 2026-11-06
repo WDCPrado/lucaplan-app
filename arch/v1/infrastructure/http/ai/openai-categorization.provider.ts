@@ -13,6 +13,7 @@ import type {
   CategorizationProvider,
 } from "../../../domain/finance/categorization.port.ts"
 import { openaiConfig, openaiConfigured } from "./openai-config.ts"
+import { integrationDeps } from "../../database/prisma/integration-deps.ts"
 import {
   buildMerchantIndex,
   findMerchant,
@@ -111,12 +112,12 @@ function parseAssignments(content: unknown): Record<string, string | null> {
 export const openaiCategorizationProvider: CategorizationProvider = {
   async categorize({ movements, categories, corrections = [] }) {
     if (
-      !openaiConfigured() ||
       movements.length === 0 ||
-      categories.length === 0
+      categories.length === 0 ||
+      !(await openaiConfigured(integrationDeps))
     )
       return {}
-    const cfg = openaiConfig()
+    const cfg = await openaiConfig(integrationDeps)
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
     try {

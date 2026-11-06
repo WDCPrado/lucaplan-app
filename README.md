@@ -259,6 +259,21 @@ cp .env.example .env
 | `CRON_SECRET`              | opcional  | Solo producción: bearer de `POST /api/cron/notify-due` (recordatorio diario de vencimientos). Sin él, ese endpoint rechaza todo. |
 | `BANCOCHILE_ENC_KEY`       | opcional  | Llave maestra de cifrado de secretos. Si falta, se autogenera en `.bancochile-key` (gitignored). En producción defínela (≥32 chars de alta entropía) y **respáldala**. |
 
+### Claves desde Ajustes
+
+Las claves de OpenAI, Outlook y Resend de la tabla anterior (`OPENAI_API_KEY`, `OPENAI_MODEL`,
+`OUTLOOK_CLIENT_ID`, `OUTLOOK_CLIENT_SECRET`, `OUTLOOK_TENANT`, `RESEND_API_KEY`, `RESEND_FROM`)
+también se pueden cargar desde **Ajustes → Integraciones**, sin reiniciar el servidor:
+
+- **El entorno manda**: si la variable existe y no está vacía, se usa ella y en Ajustes queda
+  bloqueada.
+- **Solo ADMIN** las ve y las cambia. La primera cuenta de una instalación nueva queda ADMIN
+  (se crea desde `/setup` con el código que el servidor imprime en su consola); en una instalación
+  que ya existe, ver [cómo hacerse ADMIN](docs/self-hosting.md#hacerse-admin).
+- Los secretos se guardan **cifrados con `BANCOCHILE_ENC_KEY`** en `app_setting` y nunca vuelven
+  completos a la pantalla. **Respalda esa llave**: si cambia, las claves guardadas dejan de
+  descifrarse y hay que cargarlas de nuevo.
+
 ### 3. Levanta la base de datos
 
 **Opción A — con Docker (recomendada para empezar):**

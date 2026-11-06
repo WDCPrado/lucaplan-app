@@ -16,7 +16,6 @@ import { InstallAppItem } from "@/components/pwa/install-app-item"
 import { AppShell, useOpenProfile } from "./app-shell"
 import { Segmented } from "./segmented"
 import { IntegrationsGroups } from "./integrations/integrations-groups"
-import { USING_EXAMPLE } from "./integrations/http"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -163,9 +162,7 @@ export function SettingsView({
               <ChevronRight aria-hidden className="disclosure" />
             </Link>
           </div>
-          {/* ponytail: con example.ts se ve para cualquiera (la cuenta demo es USER); al pasar
-              http.ts al fetch real queda solo detrás del rol. */}
-          {(isAdmin || USING_EXAMPLE) && (
+          {isAdmin && (
             <SettingsSection
               title="Integraciones"
               footer="Se guardan cifradas en tu servidor. Nadie, ni tú, puede volver a verlas completas."

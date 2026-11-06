@@ -6,6 +6,7 @@ import { cache } from "react"
 import { ZodError } from "zod"
 
 import { sessionGateway } from "../../infrastructure/auth/session.gateway.ts"
+import type { Actor } from "../../domain/authorization/authorization.domain.ts"
 import { domainErrorStatus } from "../../application/domain-error-status.ts"
 import {
   accountRepository,
@@ -89,10 +90,24 @@ export async function withUser(
   fn: (userId: string) => Promise<unknown>,
   okStatus = 200
 ): Promise<Response> {
+  return withActor(req, (actor) => fn(actor.userId), okStatus)
+}
+
+// Igual que withUser, con el actor completo (su rol): para los casos de uso que lo autorizan.
+export async function withActor(
+  req: Request,
+  fn: (actor: Actor) => Promise<unknown>,
+  okStatus = 200
+): Promise<Response> {
   const actor = await sessionGateway.getActor(req.headers)
   if (!actor) return jsonResponse({ error: "unauthorized" }, 401)
+  return respond(() => fn(actor), okStatus)
+}
+
+// Serializa el resultado de `fn` y mapea sus errores de dominio a status.
+export async function respond(fn: () => Promise<unknown>, okStatus = 200): Promise<Response> {
   try {
-    return jsonResponse(await fn(actor.userId), okStatus)
+    return jsonResponse(await fn(), okStatus)
   } catch (e) {
     const status = errorStatus(e)
     // Un error que no es de dominio (Prisma, red, un bug) no llega a la pantalla: su mensaje trae

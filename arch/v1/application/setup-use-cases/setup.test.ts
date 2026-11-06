@@ -72,9 +72,9 @@ test("con la base vacía, el estado dice que falta instalar; en producción falt
   const prod = install(PROD)
   const status = await getSetupStatus(prod.deps, null)
   setupStatus.parse(status)
-  assert.deepEqual(status, { needed: true, verified: false, local: false, missingRequired: ["RESEND_API_KEY", "RESEND_FROM"] })
+  assert.deepEqual(status, { needed: true, verified: false, local: false, missingRequired: ["RESEND_API_KEY", "RESEND_FROM"], integrations: null })
   // Local: el código de acceso sale en la consola, no hace falta Resend.
-  assert.deepEqual(await getSetupStatus(install(LOCAL).deps, null), { needed: true, verified: false, local: true, missingRequired: [] })
+  assert.deepEqual(await getSetupStatus(install(LOCAL).deps, null), { needed: true, verified: false, local: true, missingRequired: [], integrations: null })
   // Borde: development dentro de Railway no es local.
   const railway = await getSetupStatus(install({ NODE_ENV: "development", RAILWAY_ENVIRONMENT_NAME: "lucaplan-pr-12" }).deps, null)
   assert.equal(railway.local, false)

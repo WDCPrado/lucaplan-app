@@ -17,7 +17,7 @@ export async function POST(req: Request) {
       limited = true
       return { error: "Ya pediste varias propuestas. Intenta de nuevo en una hora." }
     }
-    return proposeCategories(proposeDeps(), input, userId)
+    return proposeCategories(await proposeDeps(), input, userId)
   })
   return limited ? new Response(res.body, { status: 429, headers: res.headers }) : res
 }

@@ -9,6 +9,7 @@ import {
 } from "../../../domain/onboarding/onboarding.domain.ts"
 import { CATEGORY_TYPES } from "../../../domain/finance/finance.domain.ts"
 import { openaiConfig } from "./openai-config.ts"
+import { integrationDeps } from "../../database/prisma/integration-deps.ts"
 
 const TIMEOUT_MS = 30_000
 const MAX_TOKENS = 3_000
@@ -61,7 +62,7 @@ const SCHEMA = {
 
 export const openaiCategoryProposer: CategoryProposer = {
   async propose({ description, base }) {
-    const cfg = openaiConfig()
+    const cfg = await openaiConfig(integrationDeps)
     const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {

@@ -17,6 +17,10 @@ export function createRateWindow(limit: number, windowMs: number) {
       hits.set(key, [...mine, now])
       return true
     },
+    /** true = la clave ya llenó su ventana; no cuenta nada. */
+    full(key: string, now = Date.now()): boolean {
+      return (hits.get(key) ?? []).filter((t) => now - t < windowMs).length >= limit
+    },
     size: () => hits.size,
   }
 }

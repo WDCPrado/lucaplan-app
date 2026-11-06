@@ -1,48 +1,60 @@
 import type { LoginCodeMailer } from "../../../domain/login-code.ts"
 import { LOGIN_CODE_MINUTES } from "../../../domain/login-code.ts"
+import { integrationDeps } from "../../database/prisma/integration-deps.ts"
+import { resolveIntegration } from "../../../application/integration-use-cases/resolve-integration-use-case.ts"
+
+type LocalEnv = { NODE_ENV?: string; RAILWAY_ENVIRONMENT_NAME?: string }
+type ResendCredentials = { apiKey?: string | null; from?: string | null }
+
+// Solo en local (development exacto, fuera de Railway) y sin clave de Resend.
+const toConsole = (env: LocalEnv, apiKey?: string | null) =>
+  !apiKey && env.NODE_ENV === "development" && !env.RAILWAY_ENVIRONMENT_NAME
 
 /**
- * ¿El código va a la consola del servidor en vez de al correo? Solo en local (development exacto,
- * fuera de Railway) y sin RESEND_API_KEY. Lo usa también el login para mostrar la pista.
+ * ¿El código va a la consola del servidor en vez de al correo? Sin RESEND_API_KEY en el entorno ni
+ * en Ajustes, y solo en local. Lo usa el login para mostrar la pista.
  */
-export function printsLoginCodeLocally(
-  env: { NODE_ENV?: string; RAILWAY_ENVIRONMENT_NAME?: string; RESEND_API_KEY?: string } = process.env
-): boolean {
-  return !env.RESEND_API_KEY && env.NODE_ENV === "development" && !env.RAILWAY_ENVIRONMENT_NAME
+export async function printsLoginCodeLocally(env: LocalEnv = process.env): Promise<boolean> {
+  return toConsole(env) && toConsole(env, await resolveIntegration(integrationDeps, "RESEND_API_KEY"))
 }
 
-/** HTML local: no requiere crear una plantilla en la cuenta de Resend. */
+/**
+ * HTML local: no requiere crear una plantilla en la cuenta de Resend. `credentials` resuelve la
+ * clave y el remitente en cada envío (cambian desde Ajustes sin reiniciar); sin él, `apiKey`/`from`.
+ */
 export function createResendLoginCodeMailer({
   apiKey,
   from,
+  credentials,
   transport = fetch,
   env = process.env,
 }: {
   apiKey?: string
   from?: string
+  credentials?: () => Promise<ResendCredentials>
   transport?: typeof fetch
-  env?: { NODE_ENV?: string; RAILWAY_ENVIRONMENT_NAME?: string }
+  env?: LocalEnv
 }): LoginCodeMailer {
-  // Producción sin Resend nunca imprime el código: el envío falla.
-  const printLocally = printsLoginCodeLocally({ ...env, RESEND_API_KEY: apiKey })
   return {
     async send(email, code) {
       if (!/^\d{6}$/.test(code)) throw new Error("Código de acceso inválido.")
-      if (printLocally) {
+      const { apiKey: key, from: sender } = credentials ? await credentials() : { apiKey, from }
+      // Producción sin Resend nunca imprime el código: el envío falla.
+      if (toConsole(env, key)) {
         console.info(`[login-code] Código de acceso para ${email}: ${code} (sin RESEND_API_KEY, solo en desarrollo)`)
         return
       }
-      if (!apiKey) throw new Error("Resend no está configurado.")
+      if (!key) throw new Error("Resend no está configurado.")
       try {
         const response = await transport("https://api.resend.com/emails", {
           method: "POST",
           signal: AbortSignal.timeout(10_000),
           headers: {
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `Bearer ${key}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            from: from?.trim() || "Luca Plan <no-reply@lucaplan.cl>",
+            from: sender?.trim() || "Luca Plan <no-reply@lucaplan.cl>",
             to: email,
             subject: "Tu código de acceso a Luca Plan",
             text: `Tu código de acceso a Luca Plan es ${code}. Vale ${LOGIN_CODE_MINUTES} minutos y sirve una sola vez. Si no lo solicitaste, ignora este correo.`,

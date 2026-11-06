@@ -22,7 +22,7 @@ export default async function LoginPage({
   return (
     <LoginForm
       signupOpen={isSignupOpen()}
-      codeInConsole={printsLoginCodeLocally()}
+      codeInConsole={await printsLoginCodeLocally()}
     />
   )
 }

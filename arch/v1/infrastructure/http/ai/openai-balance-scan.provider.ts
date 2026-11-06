@@ -17,6 +17,7 @@ import type {
 } from "../../../domain/finance/balance-scan.domain.ts"
 import { EMPTY_BUCKET } from "../../../domain/finance/balance-scan.domain.ts"
 import { openaiConfig, openaiConfigured } from "./openai-config.ts"
+import { integrationDeps } from "../../database/prisma/integration-deps.ts"
 
 const TIMEOUT_MS = 45_000
 const MAX_TOKENS = 200
@@ -128,7 +129,7 @@ async function ask(
   accountType: "checking" | "credit_card",
   detail: "low" | "high"
 ): Promise<BalanceReading | null> {
-  const cfg = openaiConfig()
+  const cfg = await openaiConfig(integrationDeps)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
   try {
@@ -172,7 +173,7 @@ async function ask(
 
 export const openaiBalanceScanReader: BalanceScanReader = {
   async read({ imageDataUrls, accountType }) {
-    if (!openaiConfigured() || imageDataUrls.length === 0) return null
+    if (imageDataUrls.length === 0 || !(await openaiConfigured(integrationDeps))) return null
     const cheap = await ask(imageDataUrls, accountType, "low")
     if (cheap && hasAmounts(cheap)) return cheap
     // Las capturas no se leyeron en baja: recién ahí vale la pena pagar el detalle alto.

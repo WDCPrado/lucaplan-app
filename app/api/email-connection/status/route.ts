@@ -18,6 +18,6 @@ export async function GET(req: Request) {
       { mailboxes: emailMailboxRepository, links: emailBankLinkRepository },
       userId
     )
-    return { providers: emailProviders(), ...view }
+    return { providers: await emailProviders(), ...view }
   })
 }

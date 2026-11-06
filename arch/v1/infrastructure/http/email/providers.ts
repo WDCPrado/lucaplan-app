@@ -6,13 +6,13 @@ import type { BankMailProvider } from "../../../domain/finance/email-connection.
 // Lo que las rutas necesitan del OAuth de un proveedor, sin nombrar al proveedor.
 export type EmailOAuthModule = {
   // ¿El servidor tiene las credenciales de este proveedor? Si no, no se ofrece en la UI.
-  isConfigured: () => boolean
+  isConfigured: () => Promise<boolean>
   // URL de autorización + verifier PKCE que la ruta guarda en la cookie httpOnly.
-  authorization: (state: string) => {
+  authorization: (state: string) => Promise<{
     url: string
     pkceVerifier: string
     secureCookie: boolean
-  }
+  }>
   // Canje del código. Solo devuelve lo que el callback persiste; los access token no salen de acá.
   exchangeCode: (
     code: string,
@@ -47,12 +47,14 @@ export function emailProviderByKey(
 // tiene configurados. La UI ofrece solo los configurados, pero ve los demás para poder nombrarlos.
 export function availableEmailProviders(
   registry: EmailProviderRegistry
-): { key: string; name: string; configured: boolean }[] {
-  return registry.map((p) => ({
-    key: p.key,
-    name: p.name,
-    configured: p.oauth.isConfigured(),
-  }))
+): Promise<{ key: string; name: string; configured: boolean }[]> {
+  return Promise.all(
+    registry.map(async (p) => ({
+      key: p.key,
+      name: p.name,
+      configured: await p.oauth.isConfigured(),
+    }))
+  )
 }
 
 // Router del port `BankMailProvider`: lee de qué proveedor es el buzón y delega en su adapter. Es

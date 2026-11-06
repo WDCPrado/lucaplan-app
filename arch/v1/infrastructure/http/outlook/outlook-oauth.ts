@@ -8,6 +8,8 @@
 // estado firmado que viaja hasta el callback es común a todos y vive en `../email/oauth-state.ts`.
 import { createHash, randomBytes } from "node:crypto"
 import { EmailReauthRequiredError } from "../../../domain/finance/email-connection.domain.ts"
+import { integrationDeps } from "../../database/prisma/integration-deps.ts"
+import { resolveIntegration } from "../../../application/integration-use-cases/resolve-integration-use-case.ts"
 
 // Scopes: lectura de correo + identidad mínima para conocer la dirección + offline (refresh token).
 const SCOPES =
@@ -21,27 +23,28 @@ export type OutlookConfig = {
   webhookUrl: string | null // URL HTTPS pública para Graph; null = sin webhook (solo manual/delta)
 }
 
-// Configuración desde el entorno. Lanza si falta lo esencial (client id / redirect).
-export function outlookConfig(): OutlookConfig {
-  const clientId = process.env.OUTLOOK_CLIENT_ID
+// Configuración: la app de Entra sale del entorno o de Ajustes (resolveIntegration); las URLs, del
+// entorno. Lanza si falta lo esencial (client id).
+export async function outlookConfig(): Promise<OutlookConfig> {
+  const env = integrationDeps.env
+  const clientId = await resolveIntegration(integrationDeps, "OUTLOOK_CLIENT_ID")
   if (!clientId)
     throw new Error(
       "Falta OUTLOOK_CLIENT_ID (registro de app en Microsoft Entra)"
     )
-  const base = process.env.BETTER_AUTH_URL ?? "http://localhost:3000"
+  const base = env.BETTER_AUTH_URL ?? "http://localhost:3000"
   return {
     clientId,
-    clientSecret: process.env.OUTLOOK_CLIENT_SECRET || null,
-    tenant: process.env.OUTLOOK_TENANT || "consumers",
+    clientSecret: await resolveIntegration(integrationDeps, "OUTLOOK_CLIENT_SECRET"),
+    tenant: (await resolveIntegration(integrationDeps, "OUTLOOK_TENANT")) ?? "consumers",
     redirectUri:
-      process.env.OUTLOOK_REDIRECT_URI ||
-      `${base}/api/email-connection/callback`,
-    webhookUrl: process.env.OUTLOOK_WEBHOOK_URL || null,
+      env.OUTLOOK_REDIRECT_URI || `${base}/api/email-connection/callback`,
+    webhookUrl: env.OUTLOOK_WEBHOOK_URL || null,
   }
 }
 
-export function isOutlookConfigured(): boolean {
-  return Boolean(process.env.OUTLOOK_CLIENT_ID)
+export async function isOutlookConfigured(): Promise<boolean> {
+  return (await resolveIntegration(integrationDeps, "OUTLOOK_CLIENT_ID")) !== null
 }
 
 function b64url(buf: Buffer): string {
@@ -181,8 +184,8 @@ export const outlookOAuth = {
 
   // Arranca el flujo: URL a la que mandar al usuario + el verifier PKCE que la ruta guarda en la
   // cookie httpOnly hasta que vuelva el callback.
-  authorization(state: string) {
-    const cfg = outlookConfig()
+  async authorization(state: string) {
+    const cfg = await outlookConfig()
     const { verifier, challenge } = createPkcePair()
     return {
       url: buildAuthorizeUrl(cfg, state, challenge),
@@ -196,7 +199,7 @@ export const outlookOAuth = {
   // dirección del buzón. El access token se queda acá; nunca sale de la infraestructura.
   async exchangeCode(code: string, pkceVerifier: string) {
     const tokens = await exchangeCodeForTokens(
-      outlookConfig(),
+      await outlookConfig(),
       code,
       pkceVerifier
     )

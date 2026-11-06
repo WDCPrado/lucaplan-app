@@ -4,20 +4,24 @@ import {
   OnboardingCompletedError,
   type OnboardingRepository,
 } from "../../domain/onboarding/onboarding.domain.ts"
+import type { IntegrationDeps } from "../../domain/integrations/integrations.domain.ts"
+import { resolveIntegration } from "../integration-use-cases/resolve-integration-use-case.ts"
 
 export type OnboardingDeps = {
   onboarding: OnboardingRepository
-  env: Record<string, string | undefined>
+  integrations: IntegrationDeps
 }
 
 export async function getOnboardingStatus(
   deps: OnboardingDeps,
   userId: string
 ): Promise<OnboardingStatus> {
+  const has = async (key: Parameters<typeof resolveIntegration>[1]) =>
+    (await resolveIntegration(deps.integrations, key)) !== null
   return {
     completed: (await deps.onboarding.completedAt(userId)) !== null,
-    aiAvailable: !!deps.env.OPENAI_API_KEY,
-    outlookAvailable: !!(deps.env.OUTLOOK_CLIENT_ID && deps.env.OUTLOOK_CLIENT_SECRET),
+    aiAvailable: await has("OPENAI_API_KEY"),
+    outlookAvailable: (await has("OUTLOOK_CLIENT_ID")) && (await has("OUTLOOK_CLIENT_SECRET")),
   }
 }
 

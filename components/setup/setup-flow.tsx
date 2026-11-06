@@ -35,12 +35,7 @@ import {
   type IntegrationGroup,
 } from "../finance/integrations/integrations-groups"
 import { KEY_LABEL } from "../finance/integrations/integration-modal"
-import {
-  getSetupIntegrations,
-  getSetupStatus,
-  saveSetupIntegrations,
-  verifySetupCode,
-} from "./http"
+import { getSetupStatus, saveSetupIntegrations, verifySetupCode } from "./http"
 
 const STEPS = ["code", "email", "openai", "outlook", "done"] as const
 type Step = (typeof STEPS)[number]
@@ -67,9 +62,7 @@ export function SetupFlow({
   )
   // La promesa vive aquí, que sí se monta (si la creara el hijo que suspende, se repetiría).
   const [request] = useState(() =>
-    typeof window === "undefined"
-      ? null
-      : Promise.all([getSetupStatus(), getSetupIntegrations()])
+    typeof window === "undefined" ? null : getSetupStatus()
   )
   return (
     <main className="flex min-h-dvh flex-col bg-background p-[env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)]">
@@ -101,11 +94,14 @@ function Flow({
   request,
   redirectUri,
 }: {
-  request: Promise<[SetupStatus, IntegrationsStatus]>
+  request: Promise<SetupStatus>
   redirectUri: string
 }) {
-  const [setup, initialIntegrations] = use(request)
-  const [integrations, setIntegrations] = useState(initialIntegrations)
+  const [setup, setSetup] = useState(use(request))
+  // null hasta validar el código (contrato); después, lo último que respondió el servidor.
+  const [integrations, setIntegrations] = useState<IntegrationsStatus>(
+    setup.integrations ?? { entries: [] }
+  )
   const [step, setStep] = useState<Step>(setup.verified ? "email" : "code")
 
   // Ya hay cuentas: la instalación terminó y aquí no queda nada que hacer.
@@ -151,7 +147,13 @@ function Flow({
               title="Te damos la bienvenida a Luca Plan"
               body="Para proteger tu instalación, copia el código que aparece en la consola del servidor."
             >
-              <CodeStep onVerified={() => go("email")} />
+              <CodeStep
+                onVerified={(next) => {
+                  setSetup(next)
+                  if (next.integrations) setIntegrations(next.integrations)
+                  go("email")
+                }}
+              />
             </Split>
           )}
 
@@ -270,7 +272,11 @@ function maskCode(raw: string) {
   return chars.length > 4 ? `${chars.slice(0, 4)}-${chars.slice(4)}` : chars
 }
 
-function CodeStep({ onVerified }: { onVerified: () => void }) {
+function CodeStep({
+  onVerified,
+}: {
+  onVerified: (status: SetupStatus) => void
+}) {
   const formId = "setup-code-form"
   const fieldId = "setup-code"
   const form = useForm({
@@ -282,9 +288,9 @@ function CodeStep({ onVerified }: { onVerified: () => void }) {
   async function verify({ code }: { code: string }) {
     form.clearErrors()
     try {
-      await verifySetupCode(code)
+      const status = await verifySetupCode(code)
       haptic("success")
-      onVerified()
+      onVerified(status)
     } catch (error) {
       haptic("error")
       const message =

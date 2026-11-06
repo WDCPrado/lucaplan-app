@@ -10,6 +10,7 @@ export type Role = (typeof ROLES)[number]
 export const PERMISSIONS = {
   user: ["read", "update", "delete", "setRole", "ban"], // gestión de usuarios (solo ADMIN)
   premium: ["access"], // features premium
+  integrations: ["read", "update"], // claves de terceros de la instalación (solo ADMIN)
 } as const
 
 export type Resource = keyof typeof PERMISSIONS
@@ -21,7 +22,11 @@ export type Action<R extends Resource = Resource> =
 type Policy = { [R in Resource]?: readonly Action<R>[] }
 
 const POLICY: Record<Role, Policy> = {
-  ADMIN: { user: PERMISSIONS.user, premium: PERMISSIONS.premium },
+  ADMIN: {
+    user: PERMISSIONS.user,
+    premium: PERMISSIONS.premium,
+    integrations: PERMISSIONS.integrations,
+  },
   USER: {},
   PREMIUM: { premium: ["access"] },
 }

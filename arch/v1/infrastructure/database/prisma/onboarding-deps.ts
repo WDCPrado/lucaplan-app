@@ -7,17 +7,18 @@ import {
   categoryUsageIn,
 } from "./onboarding.infrastructure.ts"
 import { prisma } from "./client.ts"
+import { integrationDeps } from "./integration-deps.ts"
 import { ConcurrentCategorySaveError } from "../../../domain/onboarding/onboarding.domain.ts"
 import { openaiConfigured } from "../../http/ai/openai-config.ts"
 import { openaiCategoryProposer } from "../../http/ai/openai-category-proposer.provider.ts"
 import { getOnboardingStatus } from "../../../application/onboarding-use-cases/get-onboarding-status-use-case.ts"
 import { applyOnboardingCategories } from "../../../application/onboarding-use-cases/apply-onboarding-categories-use-case.ts"
 
-export const onboardingDeps = { onboarding: onboardingRepository, env: process.env }
+export const onboardingDeps = { onboarding: onboardingRepository, integrations: integrationDeps }
 
-// Sin OPENAI_API_KEY no hay proposer: la propuesta es el set precreado.
-export const proposeDeps = () => ({
-  proposer: openaiConfigured() ? openaiCategoryProposer : null,
+// Sin OPENAI_API_KEY (entorno ni Ajustes) no hay proposer: la propuesta es el set precreado.
+export const proposeDeps = async () => ({
+  proposer: (await openaiConfigured(integrationDeps)) ? openaiCategoryProposer : null,
   onboarding: onboardingRepository,
 })
 

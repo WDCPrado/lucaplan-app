@@ -60,6 +60,16 @@ import {
   InvalidBudgetAlertError,
 } from "../domain/notifications/budget-alert.domain.ts"
 import { InvalidDueDaysError } from "../domain/notifications/due-reminder.domain.ts"
+import {
+  ForbiddenError,
+  UnauthenticatedError,
+} from "../domain/authorization/authorization.domain.ts"
+import { IntegrationFromEnvError } from "../domain/integrations/integrations.domain.ts"
+import {
+  SetupDoneError,
+  SetupRateLimitedError,
+  SetupUnauthorizedError,
+} from "../domain/setup/setup.domain.ts"
 import { LockBusyError } from "../../shared/mutex.ts"
 import {
   AmbiguousCategoryNameError,
@@ -69,8 +79,15 @@ import {
 
 export function domainErrorStatus(e: unknown): number | null {
   if (e instanceof ZodError) return 422
-  if (e instanceof WebhookSignatureError || e instanceof OAuthStateError)
+  if (
+    e instanceof UnauthenticatedError ||
+    e instanceof SetupUnauthorizedError ||
+    e instanceof WebhookSignatureError ||
+    e instanceof OAuthStateError
+  )
     return 401
+  if (e instanceof ForbiddenError) return 403
+  if (e instanceof SetupRateLimitedError) return 429
   if (
     e instanceof InvalidPushEndpointError || // el cliente propuso un endpoint ajeno
     e instanceof UnknownBankError || // clave de banco que no existe en el catálogo
@@ -85,7 +102,8 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof StaleAccountDeletionError || // la cuenta cambió desde la previsualización
     e instanceof BankAlreadyLinkedError || // ese banco ya está en este correo
     e instanceof OnboardingCompletedError || // el onboarding ya terminó
-    e instanceof ConcurrentCategorySaveError // otro guardado del set entró primero
+    e instanceof ConcurrentCategorySaveError || // otro guardado del set entró primero
+    e instanceof IntegrationFromEnvError // la clave la fija el entorno del servidor
   )
     return 409
   if (
@@ -127,7 +145,8 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof RecurringTemplateNotFoundError ||
     e instanceof InstallmentPlanNotFoundError ||
     e instanceof EmailConnectionNotFoundError ||
-    e instanceof UserNotFoundError
+    e instanceof UserNotFoundError ||
+    e instanceof SetupDoneError // ya hay cuentas: el asistente no existe
   )
     return 404
   return null

@@ -68,6 +68,18 @@ las variables de Railway. Valida login, cuentas, movimientos y conexión de corr
 `https://lucaplan.cl` antes de retirar definitivamente Railway. Mantén respaldos externos del
 dump y de los secretos; el volumen persistente no es un backup.
 
+## Hacerse ADMIN
+
+Las claves de Ajustes → Integraciones solo las edita una cuenta ADMIN. En una instalación nueva,
+la primera cuenta (creada desde `/setup`) ya queda ADMIN. En una que ya tenía cuentas, nadie lo es
+hasta que lo asignas a mano en la base:
+
+```sql
+UPDATE "user" SET role='ADMIN' WHERE email='tu@correo.com';
+```
+
+El rol se lee en cada petición: basta con recargar la app.
+
 ## Cron y Outlook
 
 El cron reutiliza la imagen de la app:

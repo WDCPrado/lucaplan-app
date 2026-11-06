@@ -69,9 +69,17 @@ export function isSignupOpen(
 // nada, así el último código que recibió la persona sigue sirviendo.
 const CODES_PER_HOUR = 5
 
+// Puerta de la primera cuenta (/setup): con la base vacía, solo entra quien trae la cookie del
+// asistente verificada, aunque el registro esté abierto o sea local.
+export type FirstAccountGate = {
+  hasAccounts(): Promise<boolean>
+  isVerified(headers: Headers): boolean | Promise<boolean>
+}
+
 export function createLoginCodePlugin(
   mailer: LoginCodeMailer,
-  env: Parameters<typeof devLoginCode>[0] & { SIGNUP_OPEN?: string } = process.env
+  env: Parameters<typeof devLoginCode>[0] & { SIGNUP_OPEN?: string } = process.env,
+  setup?: FirstAccountGate
 ) {
   const fixed = devLoginCode(env)
   // El email llega en minúsculas (better-auth lo normaliza antes de llamar a `generateOTP`).
@@ -81,7 +89,9 @@ export function createLoginCodePlugin(
   const plugin = emailOTP({
     // `undefined` hace que better-auth use su generador aleatorio (`generateOTP(...) || default`).
     generateOTP: ({ email }) => (isFixed(email) ? fixed! : undefined),
-    disableSignUp: !isSignupOpen(env),
+    // Con `setup`, el registro se decide por petición en `gateSignUp` (abajo): better-auth solo
+    // admite un valor fijo.
+    disableSignUp: setup ? false : !isSignupOpen(env),
     otpLength: 6,
     expiresIn: LOGIN_CODE_MINUTES * 60,
     allowedAttempts: 3,
@@ -105,9 +115,27 @@ export function createLoginCodePlugin(
       if (!perRecipient.take(email)) return ctx.json({ success: true })
     }),
   }
+  // ¿Puede nacer una cuenta en esta petición? Base vacía: solo con la cookie del asistente.
+  // Con cuentas: la regla de siempre (SIGNUP_OPEN o local).
+  const signUpAllowed = async (headers: Headers) =>
+    (await setup!.hasAccounts()) ? isSignupOpen(env) : await setup!.isVerified(headers)
+  // Correo sin cuenta y registro cerrado: la misma respuesta que da better-auth con
+  // `disableSignUp` (éxito sin código al pedirlo, código inválido al usarlo), sin revelar nada.
+  const gateSignUp = {
+    matcher: (ctx: { path?: string }) =>
+      ctx.path === "/email-otp/send-verification-otp" || ctx.path === "/sign-in/email-otp",
+    handler: createAuthMiddleware(async (ctx) => {
+      const email = String((ctx.body as { email?: unknown } | undefined)?.email ?? "").toLowerCase()
+      if (!email || (await ctx.context.internalAdapter.findUserByEmail(email))) return
+      if (await signUpAllowed(ctx.headers ?? new Headers())) return
+      if (ctx.path === "/sign-in/email-otp")
+        throw new APIError("BAD_REQUEST", { message: "Invalid OTP", code: "INVALID_OTP" })
+      return ctx.json({ success: true })
+    }),
+  }
   return {
     ...plugin,
     // emailOTP solo trae hooks `after`; el `before` es nuestro.
-    hooks: { ...plugin.hooks, before: [limitPerRecipient] },
+    hooks: { ...plugin.hooks, before: setup ? [gateSignUp, limitPerRecipient] : [limitPerRecipient] },
   }
 }

@@ -90,8 +90,9 @@ export type IntegrationsStatus = z.infer<typeof integrationsStatus>
 //
 // Protección: al arrancar sin cuentas, el servidor genera un código de instalación aleatorio y lo
 // imprime en su consola («[setup] Código de instalación: XXXX-XXXX»). Solo quien opera el servidor
-// lo ve. Verificarlo deja una cookie httpOnly firmada que habilita los pasos del asistente. En
-// cuanto existe una cuenta, /setup y sus rutas responden 404 y el código deja de servir.
+// lo ve. Verificarlo deja una cookie httpOnly con un token aleatorio en memoria del servidor (vence
+// a la hora) que habilita los pasos del asistente.
+// En cuanto existe una cuenta, /setup y sus rutas responden 404 y el código deja de servir.
 //
 // 1. Estado    GET  /api/setup                  público  salida: setupStatus
 // 2. Verificar POST /api/setup/verify           público  entrada: setupVerifyInput  204 · 401 código

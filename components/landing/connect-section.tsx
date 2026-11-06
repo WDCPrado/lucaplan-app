@@ -2,16 +2,22 @@ import Image from "next/image"
 import { Bell, Bot, Lock, Mail, ShieldCheck } from "lucide-react"
 import { GmailIcon, OutlookIcon } from "@/app/login/mail-app-icons"
 import { newMovementsMessage } from "@/arch/v1/application/notification-use-cases/notification-rules"
+import { BANK_EMAIL_REGISTRY } from "@/arch/v1/application/finance-use-cases/bank-email-registry"
+import { COMING_SOON_BANKS } from "@/lib/coming-soon-banks"
 import { homeMovements } from "./landing-data"
 
 const delay = (ms: number) =>
   ({ "--reveal-delay": `${ms}ms` }) as React.CSSProperties
 
-const banks = [
-  { name: "Banco de Chile", note: "Cuentas y tarjetas" },
-  { name: "Banco BICE", note: "Cuentas y tarjetas" },
-  { name: "MACHBANK", note: "Solo débito" },
-] as const
+// Los bancos con adaptador salen del registro que usa la importación (componente de servidor: los
+// parsers no viajan al cliente); los que vienen después, de la misma lista que muestra la app.
+const BANK_DETAIL: Record<string, string> = {
+  machbank: "Solo débito",
+}
+const connectedBanks = BANK_EMAIL_REGISTRY.map((b) => ({
+  name: b.name,
+  note: BANK_DETAIL[b.key] ?? "Cuentas y tarjetas",
+}))
 
 const privacy = [
   [Lock, "Permiso de solo lectura (Mail.Read), revocable. No puede enviar, mover ni borrar correos."],
@@ -46,13 +52,26 @@ export function ConnectSection() {
         <div data-reveal className="flex flex-col gap-6 rounded-xl bg-card p-5 lg:col-span-2 lg:row-span-2 lg:p-6">
           <div>
             <h3 className="text-footnote tracking-wide text-muted-foreground uppercase">
-              Bancos disponibles
+              Conectados hoy
             </h3>
             <ul className="mt-3 grid gap-2 sm:grid-cols-3">
-              {banks.map((b) => (
+              {connectedBanks.map((b) => (
                 <li key={b.name} className="rounded-lg bg-secondary px-4 py-3">
                   <p className="text-headline font-semibold">{b.name}</p>
                   <p className="text-footnote text-muted-foreground">{b.note}</p>
+                </li>
+              ))}
+            </ul>
+            <h3 className="mt-6 text-footnote tracking-wide text-muted-foreground uppercase">
+              Próximamente
+            </h3>
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {COMING_SOON_BANKS.map((name) => (
+                <li
+                  key={name}
+                  className="rounded-lg border border-dashed border-border px-3 py-1.5 text-subheadline text-muted-foreground"
+                >
+                  {name}
                 </li>
               ))}
             </ul>

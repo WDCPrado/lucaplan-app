@@ -134,29 +134,6 @@ sin duplicar cargos ni perder vínculos. La identidad y los permisos se resuelve
 OAuth; el modelo no elige el usuario. Alcance, instalación y límites en la
 [guía del plugin](docs/plugin-luca-plan.md).
 
-### 📷 Actualizar saldo con una captura
-
-Abres la tarjeta, **Actualizar saldo**, subes una captura de la app de tu banco y la IA lee los
-montos. No hay que ordenar la captura ni recortarla: el navegador la reescala solo antes de subirla.
-
-- **Hasta 5 capturas de una vez.** El banco reparte los datos entre pantallas —el cupo
-  internacional suele estar aparte del nacional—, así que se juntan todas y se leen en una sola
-  llamada: un prompt, una respuesta ya combinada.
-
-- **Se adapta a lo que muestre la pantalla.** Casi ninguna app del banco muestra todas las
-  variables: si trae el cupo y el disponible, el usado sale de la resta; si trae solo el disponible,
-  se completa con el cupo que ya tienes guardado. El saldo de la cuenta corriente conserva su
-  signo y se guarda separado de la línea: puede ser negativo aunque la línea esté sin uso.
-  Un saldo negativo no permite deducir la deuda ni el cupo de la línea.
-  Cuando no alcanza para calcular nada, ese saldo se deja intacto en vez de inventarlo.
-- **Tú confirmas antes de guardar.** La lectura puede equivocarse en un dígito y dar un monto
-  perfectamente válido, que ninguna validación podría detectar: por eso los montos se muestran
-  editables y nada se guarda hasta que los apruebas. Los saldos derivados los calcula el servidor.
-- **Barata por diseño.** Se lee en detalle bajo (costo fijo por imagen, sin importar el tamaño) y
-  solo se reintenta en detalle alto si no se reconoció nada. La respuesta va con esquema estricto,
-  así que no hay reintentos por formato.
-- **La imagen no se guarda** en ninguna parte: se procesa y se descarta.
-
 ### 🧾 Los movimientos vienen del banco
 
 Los movimientos entran solo desde los avisos del banco por correo: la app no tiene alta manual ni
@@ -175,8 +152,8 @@ lectura de cartolas por foto, así nada se cuenta dos veces cuando el correo lle
 - Detección automática de cuentas y tarjetas desde los propios avisos: confirmas,
   registras tus saldos iniciales y listo. La carga inicial trae los avisos de los últimos
   **3 meses** (desde el día 1 del mes de hace tres meses) y la IA los categoriza.
-- Saldos proyectados en tiempo real desde tu último saldo confirmado; "Actualizar
-  saldos" los reconcilia en un paso cuando algo no generó correo.
+- Saldos proyectados en tiempo real desde tu último saldo confirmado; cuando algo no generó
+  correo, se cuadran desde el [plugin MCP](docs/plugin-luca-plan.md).
 - Sincronización automática por webhook (tiempo real) y recuperación manual; desconexión en un clic que borra
   la conexión, los movimientos importados y el token.
 - El refresh token se guarda **cifrado con AES-256-GCM**; los cuerpos de correo se
@@ -267,7 +244,7 @@ cp .env.example .env
 | `RESEND_FROM` | opcional | Remitente verificado; default `Luca Plan <no-reply@lucaplan.cl>`. |
 | `SIGNUP_OPEN` | opcional | `true` (exacto) abre el registro: un correo nuevo entra con su código y la cuenta se crea con el set de categorías precreado. Cualquier otro valor lo deja cerrado. En `NODE_ENV=development` siempre está abierto. |
 | `BETTER_AUTH_URL`          | ✅        | URL base de la app: `http://localhost:3005` en desarrollo                   |
-| `OPENAI_API_KEY`           | opcional  | Habilita la categorización con IA, la propuesta de categorías del onboarding y la lectura de saldos por captura ([crear key](https://platform.openai.com/api-keys)). Sin ella, la app funciona igual: los movimientos quedan sin categorizar y los saldos se escriben a mano. |
+| `OPENAI_API_KEY`           | opcional  | Habilita la categorización con IA y la propuesta de categorías del onboarding ([crear key](https://platform.openai.com/api-keys)). Sin ella, la app funciona igual: los movimientos quedan sin categorizar. |
 | `OPENAI_MODEL`             | opcional  | Modelo a usar (default `gpt-4o-mini`)                                        |
 | `OUTLOOK_CLIENT_ID`        | opcional  | Conexión por correo — ver [guía paso a paso](#-conectar-outlook-banco-de-chile-paso-a-paso) |
 | `OUTLOOK_CLIENT_SECRET`    | opcional  | Ídem                                                                         |

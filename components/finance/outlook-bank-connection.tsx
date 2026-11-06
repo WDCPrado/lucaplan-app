@@ -40,6 +40,7 @@ import { formatMoney, monthName } from "@/lib/finance-format"
 import { importStep } from "@/lib/import-progress"
 import { cn } from "@/lib/utils"
 import { ImportProgressTimeline } from "./import-progress-timeline"
+import { COMING_SOON_BANKS } from "@/lib/coming-soon-banks"
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 // Estado de la conexión en DOS niveles: los correos autorizados y, dentro de cada uno, los bancos
@@ -662,14 +663,7 @@ const INLINE_ACTIONS_CLASS =
 // la persona busca el suyo.
 const COMING_SOON = `Próximamente: ${new Intl.ListFormat("es", {
   type: "conjunction",
-}).format([
-  "Santander",
-  "BCI",
-  "Banco Estado",
-  "Itaú",
-  "Banco Falabella",
-  "Scotiabank",
-])}.`
+}).format(COMING_SOON_BANKS)}.`
 
 function BlockingHint({ children }: { children: React.ReactNode }) {
   return (

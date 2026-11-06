@@ -1,6 +1,10 @@
 import Link from "next/link"
 import { ChevronRight } from "lucide-react"
+import { COMING_SOON_BANKS } from "@/lib/coming-soon-banks"
 import { cta } from "./landing-data"
+
+const list = (items: readonly string[]) =>
+  new Intl.ListFormat("es", { type: "conjunction" }).format(items)
 
 const faqs = [
   {
@@ -9,7 +13,7 @@ const faqs = [
   },
   {
     q: "¿Qué bancos y correos funcionan?",
-    a: "Hoy, Banco de Chile, Banco BICE y MACHBANK (solo débito), con los avisos llegando a un buzón de Outlook. Un mismo correo puede alimentar varios bancos. Gmail viene próximamente.",
+    a: `Hoy, Banco de Chile, Banco BICE y MACHBANK (solo débito), con los avisos llegando a un buzón de Outlook. Un mismo correo puede alimentar varios bancos. Próximamente: ${list(COMING_SOON_BANKS)}, y Gmail.`,
   },
   {
     q: "¿Lee todo mi correo?",
@@ -21,7 +25,7 @@ const faqs = [
   },
   {
     q: "¿Los saldos son exactos?",
-    a: "Se proyectan desde el último saldo que confirmaste y cada aviso los actualiza. Si algo no generó correo, «Actualizar saldos» los cuadra en un paso, también con una captura de la app de tu banco.",
+    a: "Se proyectan desde el último saldo que confirmaste y cada aviso los mueve. Si algo no generó correo, los cuadras desde tu asistente con el plugin de Luca Plan.",
   },
   {
     q: "¿Puedo desconectarme cuando quiera?",

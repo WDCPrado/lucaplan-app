@@ -1178,7 +1178,7 @@ export async function listRecurringView(
       thisPeriod >= today
         ? thisPeriod
         : executionDateFor(t, periodKeyFor(t, nextPeriodDate(t, today)))
-    // Cobrado = el período en curso ya tiene su cargo real (confirmed); el comprometido pending no.
+    // Pagado = el período en curso ya tiene su cargo real (confirmed); el comprometido pending no.
     const periodTx = await deps.recurring.findPeriodTransaction(
       t.id,
       periodKeyFor(t, today)

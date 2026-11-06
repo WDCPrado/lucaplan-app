@@ -415,7 +415,6 @@ export function RecurringModal({
                   aria-busy={busy === "paid" || undefined}
                   className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary disabled:opacity-50"
                 >
-                  <Check aria-hidden className="size-4 shrink-0" />
                   <span className="min-w-0 flex-1">Ya lo pagué</span>
                   {busy === "paid" && <BusySpinner />}
                 </button>
@@ -446,11 +445,10 @@ export function RecurringModal({
           {template?.url && (
             <ModalSection>
               <a
-                data-nuevo
                 href={template.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary"
               >
                 <span className="min-w-0 flex-1 truncate">
                   Abrir {linkHost(template.url)}
@@ -670,12 +668,14 @@ export function RecurringModal({
                     {urlError}
                   </p>
                 ) : (
-                  "Opcional. El portal donde pagas esta cuenta, para abrirlo desde aquí."
+                  <span id="recurring-url-hint">
+                    Opcional. El portal donde pagas esta cuenta, para abrirlo
+                    desde aquí.
+                  </span>
                 )
               }
             >
               <Input
-                data-nuevo
                 id="recurring-url"
                 type="url"
                 inputMode="url"
@@ -698,7 +698,9 @@ export function RecurringModal({
                 }}
                 aria-label="Enlace"
                 aria-invalid={!!urlError || undefined}
-                aria-describedby={urlError ? "recurring-url-error" : undefined}
+                aria-describedby={
+                  urlError ? "recurring-url-error" : "recurring-url-hint"
+                }
                 className="h-11 rounded-none border-0 bg-transparent px-4 text-body shadow-none focus-visible:ring-0 aria-invalid:ring-0 md:text-body"
               />
             </ModalSection>

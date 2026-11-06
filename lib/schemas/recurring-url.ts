@@ -22,7 +22,8 @@ export const recurringUrlSchema = z
     if (!trimmed) return null
     // Un esquema explícito que no es web (javascript:, mailto:, ftp://) se rechaza, no se busca
     // un enlace adentro.
-    const explicit = hasScheme.test(trimmed) && !/^https?:\/\//i.test(trimmed)
+    const explicit =
+      !/\s/.test(trimmed) && hasScheme.test(trimmed) && !/^https?:\/\//i.test(trimmed)
     const found = explicit ? null : trimmed.match(linkInText)?.[0].replace(trailing, "")
     const url = !found ? "" : /^https?:\/\//i.test(found) ? found : `https://${found}`
     let protocol: string

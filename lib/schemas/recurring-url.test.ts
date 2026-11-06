@@ -39,6 +39,8 @@ test("Detecta el enlace como WhatsApp: dentro de un texto, sin https ni www, y s
   assert.equal(parse("entra a www.aguasandinas.cl.").data, "https://www.aguasandinas.cl")
   assert.equal(parse("ENEL.CL").data, "https://ENEL.CL")
   assert.equal(parse("(https://portal.entel.cl/mi-cuenta?x=1)").data, "https://portal.entel.cl/mi-cuenta?x=1")
+  assert.equal(parse("Portal: www.enel.cl").data, "https://www.enel.cl")
+  assert.equal(parse("Pago: https://enel.cl/x").data, "https://enel.cl/x")
 })
 
 test("Sin terminación de dominio, o solo un correo, no es un enlace.", () => {

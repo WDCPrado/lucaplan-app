@@ -18,6 +18,7 @@ import {
   listAccounts,
   getBudgetView,
   getPreviousMonthDebt,
+  getLinkedTransactionDTO,
   listTransactions,
   listIncomesView,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
@@ -119,6 +120,12 @@ export default async function DashboardPage({
       : Promise.resolve([]),
   ])
 
+  // El movimiento del aviso puede no estar en el período que se muestra (un cargo que el banco
+  // informó días después, ya en el ciclo siguiente): se busca por id, solo si es del usuario.
+  const openTx = sp.tx
+    ? (transactions.find((t) => t.id === sp.tx) ??
+      (await getLinkedTransactionDTO(financePageDeps, userId, sp.tx).catch(() => null)))
+    : null
 
   return (
     <>
@@ -141,7 +148,7 @@ export default async function DashboardPage({
         previousMonthDebt={previousMonthDebt}
         outlookResult={sp.outlook ?? null}
         outlookReason={sp.reason ?? null}
-        openTxId={sp.tx ?? null}
+        openTx={openTx}
       />
     </>
   )

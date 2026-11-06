@@ -115,6 +115,8 @@ export function PlanSheet({
   // Los ingresos cambiaron y ya no calzan con el presupuesto: se ofrece igualarlos. Igualar deja
   // el tope siguiendo solo al total del plan (`followIncome`); uno escrito a mano no lo sigue.
   const suggest = shouldSuggest(toAllocate, globalLimit, globalLimitFollowsIncome)
+  // Mismo número pero sin la marca: igualar no cambia el tope, solo lo deja siguiendo al ingreso.
+  const onlyFollow = suggest && globalLimit === toAllocate
   const previousPeriod = mode === "card_cycle" ? "el ciclo anterior" : previousMonthLabel(period.year, period.month)
   const periodNoun = mode === "card_cycle" ? "ciclo" : "mes"
 
@@ -304,8 +306,8 @@ export function PlanSheet({
                 Tus ingresos suman{" "}
                 <span className="tabular font-semibold">
                   {formatMoney(activeIncomeTotal, "CLP")}
-                </span>{" "}
-                · presupuesto en {formatMoney(globalLimit ?? 0, "CLP")}
+                </span>
+                {!onlyFollow && <> · presupuesto en {formatMoney(globalLimit ?? 0, "CLP")}</>}
               </p>
               <Button
                 type="button"
@@ -316,9 +318,11 @@ export function PlanSheet({
               >
                 {applying
                   ? "Actualizando…"
-                  : previousMonthDebt > 0
-                    ? `Ajustar a ${formatMoney(toAllocate, "CLP")}`
-                    : "Igualar al ingreso"}
+                  : onlyFollow
+                    ? "Que el tope siga a tus ingresos"
+                    : previousMonthDebt > 0
+                      ? `Ajustar a ${formatMoney(toAllocate, "CLP")}`
+                      : "Igualar al ingreso"}
               </Button>
             </div>
           )}

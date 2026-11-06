@@ -45,8 +45,7 @@ import {
   deleteCategory,
   setCategoryLimit,
 } from "../../application/finance-use-cases/upsert-category-use-case.ts"
-import { setMonthlyBudget } from "../../application/finance-use-cases/set-monthly-budget-use-case.ts"
-import { followIncome } from "../../application/finance-use-cases/follow-income.ts"
+import { followIncome, setMonthlyBudgetFollowing } from "../../application/finance-use-cases/follow-income.ts"
 import {
   createIncome,
   listAvailableIncomeSources,
@@ -489,7 +488,7 @@ const handlers: Handlers = {
     await follow(userId, () => deleteTransaction(deps, userId, input.transactionId))
     return { ok: true }
   },
-  lucaplan_vincular_reembolso: linkReimbursement,
+  lucaplan_vincular_reembolso: (userId, input) => follow(userId, () => linkReimbursement(userId, input)),
   lucaplan_vincular_abono_ingreso: async (userId, input) => {
     const [income, credit] = await Promise.all([
       prisma.income.findFirst({ where: { id: input.incomeId, userId } }),
@@ -609,7 +608,7 @@ const handlers: Handlers = {
     budget: await getBudgetView(deps, userId, input.year, input.month),
   }),
   lucaplan_fijar_presupuesto_global: (userId, input) =>
-    setMonthlyBudget(deps, userId, input),
+    setMonthlyBudgetFollowing(deps, userId, input),
   lucaplan_fijar_presupuesto_categoria: (userId, input) =>
     setCategoryLimit(deps, userId, input),
   lucaplan_listar_ingresos: (userId, input) =>
@@ -715,18 +714,15 @@ const handlers: Handlers = {
   lucaplan_categorizar_plan_cuotas: (userId, input) =>
     setInstallmentPlanCategory(deps, userId, input),
   lucaplan_eliminar_plan_cuotas: (userId, input) =>
-    deleteInstallmentPlan(deps, userId, input.planId),
+    follow(userId, () => deleteInstallmentPlan(deps, userId, input.planId)),
   lucaplan_pagar_cuota: (userId, input) =>
-    payInstallmentManually(deps, userId, {
-      ...input,
-      date: new Date(input.date),
-    }),
+    follow(userId, () => payInstallmentManually(deps, userId, { ...input, date: new Date(input.date) })),
   lucaplan_vincular_pago_cuota: (userId, input) =>
     follow(userId, () => linkTransactionToItem(deps, userId, input)),
   lucaplan_desvincular_pago_cuota: (userId, input) =>
-    unlinkTransactionFromItem(deps, userId, input),
+    follow(userId, () => unlinkTransactionFromItem(deps, userId, input)),
   lucaplan_mover_pago_cuota: (userId, input) =>
-    moveInstallmentPayment(deps, userId, input),
+    follow(userId, () => moveInstallmentPayment(deps, userId, input)),
   lucaplan_actualizar_saldos: (userId, input) =>
     withLock(`email:${userId}`, () =>
       applyAccountBalance(deps, userId, input.accountId, {

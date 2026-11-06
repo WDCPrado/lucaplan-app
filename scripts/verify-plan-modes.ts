@@ -67,7 +67,8 @@ try {
   const { setMonthlyBudget } = await import("../arch/v1/application/finance-use-cases/set-monthly-budget-use-case.ts")
   const { setCategoryLimit } = await import("../arch/v1/application/finance-use-cases/upsert-category-use-case.ts")
   const { scopeBudgetPeriod } = await import("../arch/v1/application/finance-use-cases/budget-period-use-cases.ts")
-  const { alignGlobalLimit } = await import("../arch/v1/application/finance-use-cases/follow-income.ts")
+  const { alignGlobalLimit, setMonthlyBudgetFollowing } = await import("../arch/v1/application/finance-use-cases/follow-income.ts")
+  const { planTotal } = await import("../lib/plan-total.ts")
   const base = { budgetPeriod: undefined, accounts: accountRepository, banks: bankRepository, categories: categoryRepository, monthlyBudgets: monthlyBudgetRepository, transactions: transactionRepository, incomes: incomeRepository, exchangeRates: { clpPerUsdAt: async () => 950 } }
   const debit = await scopeBudgetPeriod(base, "calendar")
   const credit = await scopeBudgetPeriod(base, "card_cycle")
@@ -129,6 +130,20 @@ try {
   // El tope de tarjeta se fijó a mano (1800, sin la marca): ni el ingreso nuevo ni el cobro lo resiembran.
   assert.equal((await alignGlobalLimit(credit, "user", { today: "2026-12-15" }))?.seeded, false)
   assert.equal((await getBudgetView(credit, "user", 2026, 12)).globalLimit, 1800)
+
+  // El tope sigue al ingreso contra la base real (calendario, diciembre en curso).
+  const dec = { today: "2026-12-15" }
+  const total = async () => planTotal((await getBudgetView(debit, "user", 2026, 12)).income, await getPreviousMonthDebt(debit, "user", 2026, 12))
+  const followed = await setMonthlyBudgetFollowing(debit, "user", { year: 2026, month: 12, globalLimit: 1, followIncome: true }, dec)
+  assert.equal(followed.globalLimit.toMajor(), await total(), "Igualar con un número viejo queda en el total real")
+  await prisma.transaction.create({ data: { userId: "user", accountId: "account", categoryId: "salary", transactionDate: new Date("2026-12-10"), description: "Abono extra", amount: 250, currency: "CLP", direction: "credit" } })
+  const seed = await alignGlobalLimit(debit, "user", dec)
+  assert.equal(seed?.seeded, true)
+  assert.equal((await getBudgetView(debit, "user", 2026, 12)).globalLimit, await total())
+  await setMonthlyBudget(debit, "user", { year: 2026, month: 12, globalLimit: 999 })
+  assert.equal((await prisma.monthlyBudget.findFirstOrThrow({ where: { userId: "user", mode: "calendar", year: 2026, month: 12 } })).followsIncome, false)
+  assert.equal((await alignGlobalLimit(debit, "user", dec))?.seeded, false)
+  assert.equal((await getBudgetView(debit, "user", 2026, 12)).globalLimit, 999)
 
   await prisma.transaction.create({ data: { userId: "user", accountId: "account", categoryId: "expense", transactionDate: new Date("2026-10-23"), description: "Después del cierre", amount: 1500, currency: "CLP", direction: "debit" } })
   assert.equal(await getPreviousMonthDebt(credit, "user", 2026, 11), 0)

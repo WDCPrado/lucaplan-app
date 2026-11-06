@@ -7,7 +7,7 @@ import { Money } from "../../domain/finance/money.ts"
 import type { MonthlyBudget, Transaction } from "../../domain/finance/finance.domain.ts"
 import type { Income, IncomeAmount } from "../../domain/finance/income.domain.ts"
 import type { PeriodMode } from "../../../shared/billing-cycle.ts"
-import { followIncome, type FollowIncomeDeps } from "./follow-income.ts"
+import { followIncome, setMonthlyBudgetFollowing, type FollowIncomeDeps } from "./follow-income.ts"
 
 const TODAY = "2026-10-15" // calendario: período en curso = octubre 2026
 
@@ -40,7 +40,14 @@ function fixture(budgets: Seed[], txs: Transaction[] = []) {
     async listByUser(_u: string, mode: PeriodMode): Promise<Row[]> {
       return stored.filter((b) => b.mode === mode).map((b) => ({ ...b }))
     },
-    async set() { throw new Error("el seguimiento no escribe con set") },
+    // Solo lo usa «Igualar al ingreso» (setMonthlyBudgetFollowing); el seguimiento escribe con setFollowingIncome.
+    async set(input: Omit<Row, "id">) {
+      const i = find(input.mode, input.year, input.month)
+      const row: Row = { id: `s${i}`, ...input }
+      if (i >= 0) stored[i] = row
+      else stored.push(row)
+      return { ...row }
+    },
     // Igual que el repo real: nunca pisa una fila sin la marca.
     async setFollowingIncome(input: { mode: PeriodMode; userId: string; year: number; month: number; globalLimit: Money }) {
       const i = find(input.mode, input.year, input.month)
@@ -74,7 +81,7 @@ function fixture(budgets: Seed[], txs: Transaction[] = []) {
   const add = (t: Transaction) => async () => { txs.push(t) }
   const abono = (date: string, amount: number) => add(tx(`abono-${date}-${amount}`, date, amount))
   const row = (year: number, month: number, mode: PeriodMode = "calendar") => stored[find(mode, year, month)]
-  return { writes, run, add, abono, row, stored, monthlyBudgets }
+  return { writes, run, add, abono, row, stored, monthlyBudgets, deps }
 }
 
 test("tope con la marca + abono nuevo → sigue al nuevo total", async () => {
@@ -107,14 +114,27 @@ test("sin tope → se fija con el total del plan y queda con la marca", async ()
   assert.equal(seed?.seeded, true)
 })
 
-test("el total baja a 0 con la marca → escribe 0, y después vuelve a seguir", async () => {
+test("el total baja a 0 con la marca → no escribe 0, y al volver el ingreso sí sigue", async () => {
   const f = fixture([{ year: 2026, month: 10, limit: 1_000_000, follows: true }])
   // Gasto de 2.500.000 en septiembre: el déficit de 1.500.000 se come el ingreso de octubre.
   await f.run(f.add(tx("gasto-sep", "2026-09-20", 2_500_000, { direction: "debit", categoryId: "gasto" })))
-  assert.equal(f.row(2026, 10).globalLimit.toMajor(), 0)
+  assert.equal(f.row(2026, 10).globalLimit.toMajor(), 1_000_000) // dejarlo en 0 es decisión del usuario
+  assert.equal(f.row(2026, 10).followsIncome, true)
   await f.run(f.abono("2026-10-12", 2_000_000))
   assert.equal(f.row(2026, 10).globalLimit.toMajor(), 1_500_000)
-  assert.deepEqual(f.writes.map((w) => w.limit), [0, 1_500_000])
+  assert.deepEqual(f.writes.map((w) => w.limit), [1_500_000])
+})
+
+test("Igualar con un número viejo: en el período en curso queda el total real; en otro, lo enviado", async () => {
+  const f = fixture([], [tx("extra", "2026-10-02", 150_000)])
+  const saved = await setMonthlyBudgetFollowing(f.deps, "u1",
+    { year: 2026, month: 10, globalLimit: 1_000_000, followIncome: true }, { today: TODAY })
+  assert.equal(saved.globalLimit.toMajor(), 1_150_000)
+  assert.equal(f.row(2026, 10).globalLimit.toMajor(), 1_150_000)
+  assert.equal(f.row(2026, 10).followsIncome, true)
+  await setMonthlyBudgetFollowing(f.deps, "u1",
+    { year: 2026, month: 11, globalLimit: 1_000_000, followIncome: true }, { today: TODAY })
+  assert.equal(f.row(2026, 11).globalLimit.toMajor(), 1_000_000)
 })
 
 test("un tope a mano que llega entre la lectura y la escritura no se pisa", async () => {

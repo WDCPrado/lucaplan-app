@@ -10,6 +10,8 @@ import { todayKey } from "../../../shared/today.ts"
 import { currentBudgetPeriod, getBudgetPeriod, scopeBudgetPeriod } from "./budget-period-use-cases.ts"
 import { effectiveGlobalBudget } from "./budget-formulas.ts"
 import { getBudgetView, getPreviousMonthDebt } from "./finance-read.ts"
+import { setMonthlyBudget } from "./set-monthly-budget-use-case.ts"
+import type { MonthlyBudget } from "../../domain/finance/finance.domain.ts"
 
 export type FollowIncomeDeps = Parameters<typeof getBudgetView>[0]
 
@@ -34,8 +36,9 @@ async function followMode(
     getPreviousMonthDebt(deps, userId, year, month),
   ])
   const total = planTotal(view.income, debt)
-  // Sin tope y sin ingreso no se crea un tope en 0; con la marca puesta, 0 sí se sigue.
-  if (total === limit || (limit === null && total === 0)) return { seeded: false, total: limit }
+  // Un total en 0 no se escribe (dejar el tope en cero es decisión del usuario, ver
+  // lib/plan-total.ts): la marca se conserva y el tope vuelve a seguir cuando entre ingreso.
+  if (total === limit || total === 0) return { seeded: false, total: limit }
   const seeded = await deps.monthlyBudgets.setFollowingIncome({
     mode, userId, year, month, globalLimit: Money.of(total, "CLP"),
   })
@@ -83,4 +86,24 @@ export async function alignGlobalLimit(
     console.error("followIncome: no se pudo leer el modo del plan", error)
   }
   return seed
+}
+
+/**
+ * «Igualar al ingreso» (la app o el agente): guarda el tope con la marca y, si es el período en
+ * curso, lo deja en el total que calcula el servidor; el número que mandó el cliente puede estar
+ * viejo. Otro período se guarda tal cual. Sin `followIncome` es un tope a mano, sin seguimiento.
+ */
+export async function setMonthlyBudgetFollowing(
+  deps: FollowIncomeDeps,
+  userId: string,
+  input: Parameters<typeof setMonthlyBudget>[2],
+  opts: { today?: string } = {}
+): Promise<MonthlyBudget> {
+  const saved = await setMonthlyBudget(deps, userId, input)
+  if (!input.followIncome) return saved
+  const today = opts.today ?? todayKey()
+  const { year, month } = await currentBudgetPeriod(deps, today)
+  if (saved.year !== year || saved.month !== month) return saved
+  const seed = await alignGlobalLimit(deps, userId, { today })
+  return seed?.seeded && seed.total !== null ? { ...saved, globalLimit: Money.of(seed.total, "CLP") } : saved
 }

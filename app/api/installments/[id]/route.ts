@@ -36,8 +36,11 @@ export async function PATCH(
   const itemId = String(body.itemId)
 
   if (body.unlink === true)
-    return withUser(req, (userId) =>
-      unlinkTransactionFromItem(financeDeps, userId, { planId: id, itemId })
+    return withUser(req, async (userId) =>
+      (await followIncome(financeDeps, userId, () =>
+        unlinkTransactionFromItem(financeDeps, userId, { planId: id, itemId }),
+        { allModes: true }
+      )).result
     )
 
   if (body.transactionId)

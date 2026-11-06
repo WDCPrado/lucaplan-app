@@ -2,7 +2,6 @@
 // Handlers (finance-http) y el plugin MCP, que con ella distingue un rechazo de regla (el caso de
 // uso validó y no escribió) de una falla inesperada. `null` = error desconocido.
 import { ZodError } from "zod"
-import { CurrencyMismatchError } from "../domain/finance/money.ts"
 import { InvalidPushEndpointError } from "../domain/notifications/push.domain.ts"
 import { SelfTargetError, UserNotFoundError } from "../domain/user/user.domain.ts"
 import { UnknownBankError } from "./finance-use-cases/bank-email-registry.ts"
@@ -109,7 +108,6 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof EmailSetupStateError ||
     e instanceof BalanceScanError ||
     e instanceof BankLabelRequiredError ||
-    e instanceof CurrencyMismatchError ||
     e instanceof SelfTargetError
   )
     return 422

@@ -447,7 +447,8 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
     // Solo se suelta el vínculo: el movimiento es un gasto real y se conserva tal cual.
     await prisma.transaction.update({
       where: { id: transactionId },
-      data: { installmentItemId: null },
+      // Suelto ya no es la cuota generada: si después se asigna a mano, el correo no lo borra.
+      data: { installmentItemId: null, generatedFromInstallment: false },
     })
   },
   async moveItemTransaction(transactionId, to, from) {

@@ -465,6 +465,9 @@ export const transactionRepository: TransactionRepository = {
       return db.transaction.update({
         where: { id: input.id },
         data: {
+          // Editado por la persona deja de ser «la cuota que generó la app»: el correo del banco
+          // ya no lo reemplaza (lo que ella escribió no se borra).
+          generatedFromInstallment: false,
           categoryId: input.categoryId,
           transactionDate: input.date,
           description: input.description,

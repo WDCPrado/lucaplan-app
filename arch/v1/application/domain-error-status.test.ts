@@ -21,11 +21,13 @@ test("Cada error de dominio que llega por withUser tiene su status y deja pasar 
     [new InvalidRecurringUrlError("Escribe un enlace válido"), 400],
     [new UserNotFoundError("u1"), 404],
     [new BankAlreadyLinkedError(), 409],
-    [new CurrencyMismatchError("CLP", "USD"), 422],
     [new SelfTargetError("banear"), 422],
     [new BankLabelRequiredError(), 422],
   ]
   for (const [error, status] of cases) assert.equal(domainErrorStatus(error), status, error.name)
+  // Sale de la aritmética de Money en cualquier punto, también después de escribir: no se mapea,
+  // así el plugin deja la operación incierta en vez de «rechazada sin cambios».
+  assert.equal(domainErrorStatus(new CurrencyMismatchError("CLP", "USD")), null)
 })
 
 test("Un error que no es de dominio no tiene status: withUser lo oculta como 500", () => {

@@ -46,6 +46,7 @@ export function CategoryDetailSheet({
       open={category !== null}
       onOpenChange={onOpenChange}
       title={category?.name ?? "Categoría"}
+      cancel={{ label: "Cerrar", onClick: () => onOpenChange(false) }}
       primary={
         category
           ? {

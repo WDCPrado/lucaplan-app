@@ -356,7 +356,7 @@ test("fuera de local, sin BANCOCHILE_ENC_KEY (32+) en el entorno, guardar un sec
     await updateIntegrations(deps(s, env), admin, { values: { OPENAI_MODEL: "gpt-x", OPENAI_API_KEY: null } })
     assert.deepEqual(s.writes, ["save:OPENAI_MODEL", "remove:OPENAI_API_KEY"])
   }
-  // Local (development fuera de Railway): la llave sale del archivo de desarrollo y se guarda.
+  // Local (development fuera de Railway): la guarda no exige la llave y se guarda.
   const s = store()
   await updateIntegrations(deps(s, { NODE_ENV: "development", BANCOCHILE_ENC_KEY: undefined }), admin, { values: { OPENAI_API_KEY: SECRET } })
   assert.deepEqual(s.writes, ["save:OPENAI_API_KEY"])

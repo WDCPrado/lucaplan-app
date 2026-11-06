@@ -12,6 +12,7 @@ import type { Actor } from "../../domain/authorization/authorization.domain.ts"
 import {
   IntegrationEncKeyMissingError,
   IntegrationFromEnvError,
+  isLocalInstall,
   type IntegrationDeps,
 } from "../../domain/integrations/integrations.domain.ts"
 import { authorize } from "../auth-use-cases/authorize-use-case.ts"
@@ -38,7 +39,7 @@ export async function applyIntegrationChanges(
     string | null,
   ][]
   for (const [key] of changes) if (envValue(deps, key)) throw new IntegrationFromEnvError(key)
-  const local = deps.env.NODE_ENV === "development" && !deps.env.RAILWAY_ENVIRONMENT_NAME
+  const local = isLocalInstall(deps.env)
   if (
     !local &&
     (deps.env.BANCOCHILE_ENC_KEY?.length ?? 0) < 32 &&

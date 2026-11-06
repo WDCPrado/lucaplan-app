@@ -7,6 +7,7 @@ import assert from "node:assert/strict"
 import {
   ensureSetupCode,
   getSetupStatus,
+  mustGoToSetup,
   verifySetupCode,
   updateSetupIntegrations,
 } from "./setup-use-cases.ts"
@@ -185,4 +186,17 @@ test("el código de instalación tiene 12 caracteres sin 0/O ni 1/I, como ABCD-E
   await assert.rejects(verifySetupCode(s.deps, { code: code!.slice(0, 9) }, IP), (e) => domainErrorStatus(e) === 422 && /12 caracteres/.test(JSON.stringify(e)))
   // Sin ningún guion, en minúsculas: entra.
   assert.equal(typeof (await verifySetupCode(s.deps, { code: code!.replaceAll("-", "").toLowerCase() }, IP)), "string")
+})
+
+test("/login manda a /setup con la base vacía, salvo a quien ya validó el código; con la cookie vencida vuelve a mandar", async (t) => {
+  const s = install(PROD)
+  assert.equal(mustGoToSetup(s.deps, true, null), true)
+  assert.equal(mustGoToSetup(s.deps, true, "token-inventado"), true)
+  const token = await verified(t, s)
+  assert.equal(mustGoToSetup(s.deps, true, token), false)
+  // Con cuentas nunca manda, haya o no cookie.
+  assert.equal(mustGoToSetup(s.deps, false, null), false)
+  // Vencida la cookie (1 hora), vuelve a mandar.
+  s.clock.now = new Date(s.clock.now.getTime() + 60 * 60 * 1000)
+  assert.equal(mustGoToSetup(s.deps, true, token), true)
 })

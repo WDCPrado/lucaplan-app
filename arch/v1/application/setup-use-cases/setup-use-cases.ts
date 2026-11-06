@@ -16,6 +16,7 @@ import {
   SetupUnauthorizedError,
   type SetupDeps,
 } from "../../domain/setup/setup.domain.ts"
+import { isLocalInstall } from "../../domain/integrations/integrations.domain.ts"
 import type { FirstAdminRepository } from "../../domain/user/user.domain.ts"
 import { resolveIntegration } from "../integration-use-cases/resolve-integration-use-case.ts"
 import { integrationsStatusOf } from "../integration-use-cases/get-integrations-use-case.ts"
@@ -27,8 +28,6 @@ const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 // Sin Resend el código de acceso no llega por correo (salvo en local, donde sale en la consola).
 const REQUIRED: readonly IntegrationKey[] = ["RESEND_API_KEY", "RESEND_FROM"]
 
-const isLocal = (env: SetupDeps["env"]) =>
-  env.NODE_ENV === "development" && !env.RAILWAY_ENVIRONMENT_NAME
 
 async function assertNotInstalled(deps: SetupDeps) {
   if (await deps.accounts.hasAccounts()) throw new SetupDoneError()
@@ -54,10 +53,16 @@ export function isSetupVerified(deps: SetupDeps, token: string | null): boolean 
   return expires !== undefined && expires > deps.now().getTime()
 }
 
+/** /login manda a /setup mientras no hay cuentas, salvo a quien ya validó el código y viene a
+ * crear la primera (si no, el último paso de /setup volvería a /setup). */
+export function mustGoToSetup(deps: SetupDeps, empty: boolean, token: string | null): boolean {
+  return empty && !isSetupVerified(deps, token)
+}
+
 export async function getSetupStatus(deps: SetupDeps, token: string | null): Promise<SetupStatus> {
   await assertNotInstalled(deps)
   const verified = isSetupVerified(deps, token)
-  const local = isLocal(deps.env)
+  const local = isLocalInstall(deps.env)
   const missingRequired: IntegrationKey[] = []
   if (!local)
     for (const key of REQUIRED)

@@ -1,7 +1,7 @@
 import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 
-import { isSetupVerified } from "@/arch/v1/application/setup-use-cases/setup-use-cases"
+import { mustGoToSetup } from "@/arch/v1/application/setup-use-cases/setup-use-cases"
 import { SETUP_COOKIE } from "@/arch/v1/domain/setup/setup.domain"
 import { auth } from "@/arch/v1/infrastructure/auth/auth"
 import { isSignupOpen } from "@/arch/v1/infrastructure/auth/login-code"
@@ -22,7 +22,7 @@ export default async function LoginPage({
   // no responde, se trata como «no vacía» y se muestra el login.
   const empty = await isInstallationEmpty().catch(() => false)
   const setupToken = (await cookies()).get(SETUP_COOKIE)?.value ?? null
-  if (empty && !isSetupVerified(setupDeps, setupToken)) redirect("/setup")
+  if (mustGoToSetup(setupDeps, empty, setupToken)) redirect("/setup")
   const query = await searchParams
   const continuingOAuth =
     typeof query.sig === "string" && query.ba_param !== undefined

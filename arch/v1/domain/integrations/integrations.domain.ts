@@ -3,6 +3,11 @@
 import type { IntegrationKey } from "../../../../lib/integration-settings-schemas.ts"
 
 // Una fila guardada: `value` tal cual quedó en la base (cifrado si la clave es secreta).
+// Instalación local: development fuera de Railway. Ahí el código de login sale en consola y los
+// secretos se cifran con la llave del archivo de desarrollo.
+export const isLocalInstall = (env: Record<string, string | undefined>) =>
+  env.NODE_ENV === "development" && !env.RAILWAY_ENVIRONMENT_NAME
+
 export type StoredIntegration = { key: IntegrationKey; value: string; updatedAt: Date }
 
 export interface IntegrationSettingsRepository {

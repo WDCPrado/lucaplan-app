@@ -82,6 +82,13 @@ UPDATE "user" SET role='ADMIN' WHERE email='tu@correo.com';
 
 El rol se lee en cada petición: basta con recargar la app.
 
+## /setup sin proxy
+
+El tope de 5 códigos incorrectos por hora cuenta por IP, y la IP sale de lo que agrega el proxy
+(Railway, Cloudflare). Sin proxy todos comparten la misma cubeta: si alguien prueba 5 códigos
+malos, nadie más puede verificar durante una hora. Expón /setup detrás del proxy o reinicia el
+servidor (el contador vive en memoria).
+
 ## Hay cuentas pero no llega el código de login
 
 Si la instancia ya tiene cuentas y en producción no hay Resend configurado, nadie recibe el código

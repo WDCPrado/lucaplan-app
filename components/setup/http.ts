@@ -28,7 +28,7 @@ export async function getSetupStatus(): Promise<SetupStatus> {
   const res = await fetch("/api/setup", { cache: "no-store" })
   if (res.status === 404) return INSTALLED
   if (!res.ok)
-    await fail(res, "No se pudo cargar la instalación. Recarga la página.")
+    await fail(res, "No se pudo cargar la instalación.")
   return setupStatus.parse(await res.json())
 }
 

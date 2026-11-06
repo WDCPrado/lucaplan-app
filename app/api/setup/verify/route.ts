@@ -7,8 +7,8 @@ import { SETUP_COOKIE, SETUP_SESSION_MS } from "@/arch/v1/domain/setup/setup.dom
 import { setupDeps } from "@/arch/v1/infrastructure/database/prisma/setup-deps"
 
 // La IP que agregó el proxy de confianza (Railway, Cloudflare): la ÚLTIMA de x-forwarded-for, o
-// `x-real-ip`. La primera la elige el cliente. Sin proxy, una sola cubeta para todos; el tope
-// total del caso de uso frena la fuerza bruta igual.
+// `x-real-ip`. La primera la elige el cliente. Sin proxy, una sola cubeta para todos: 5 códigos
+// incorrectos de cualquiera bloquean la verificación una hora (ver docs/self-hosting.md).
 const ipOf = (req: Request) =>
   req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ||
   req.headers.get("x-real-ip")?.trim() ||

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 
 import { auth } from "@/arch/v1/infrastructure/auth/auth"
 import { isSignupOpen } from "@/arch/v1/infrastructure/auth/login-code"
+import { isInstallationEmpty } from "@/arch/v1/infrastructure/database/prisma/setup-deps"
 import { printsLoginCodeLocally } from "@/arch/v1/infrastructure/email/resend/login-code.mailer"
 import { LoginForm } from "./login-form"
 
@@ -11,6 +12,8 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
+  // Sin ninguna cuenta, lo primero es la instalación inicial.
+  if (await isInstallationEmpty()) redirect("/setup")
   const query = await searchParams
   const continuingOAuth =
     typeof query.sig === "string" && query.ba_param !== undefined

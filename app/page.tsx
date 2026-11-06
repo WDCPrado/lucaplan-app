@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation"
 import { connection } from "next/server"
 import { isSignupOpen } from "@/arch/v1/infrastructure/auth/login-code"
+import { isInstallationEmpty } from "@/arch/v1/infrastructure/database/prisma/setup-deps"
 import { AccountsSection } from "@/components/landing/accounts-section"
 import { AiSection } from "@/components/landing/ai-section"
 import { ConnectSection } from "@/components/landing/connect-section"
@@ -18,6 +20,8 @@ import { Steps } from "@/components/landing/steps"
 export default async function Home() {
   // SIGNUP_OPEN se lee en cada pedido, no queda congelado en el build.
   await connection()
+  // Sin ninguna cuenta, lo primero es la instalación inicial.
+  if (await isInstallationEmpty()) redirect("/setup")
   const signupOpen = isSignupOpen()
   return (
     <main className="relative overflow-x-clip bg-background text-foreground">

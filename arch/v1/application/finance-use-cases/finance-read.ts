@@ -1376,7 +1376,9 @@ export async function listInstallmentsView(
     transactions: TransactionRepository
   },
   userId: string,
-  today = new Date()
+  // «Hoy» es el día civil de Chile, como en las recurrentes: a las 21:00 ya es mañana en UTC y una
+  // cuota que vence hoy saldría «vencida».
+  today = new Date(`${todayKey()}T00:00:00.000Z`)
 ): Promise<InstallmentPlanDTO[]> {
   const [plans, accounts, categories] = await Promise.all([
     deps.installments.listByUser(userId),

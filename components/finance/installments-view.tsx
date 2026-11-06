@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Check, ChevronRight, Plus } from "lucide-react"
 import { toast } from "sonner"
@@ -76,7 +76,11 @@ export function InstallmentsSection({
 }) {
   const router = useRouter()
   const [creating, setCreating] = useState(false)
+  // El plan que se está generando; sigue ocupado hasta que el refresh trae la cuota ya pagada,
+  // para que un segundo toque no mande otro PATCH sobre la misma cuota.
   const [generating, setGenerating] = useState<string | null>(null)
+  const [refreshing, startRefresh] = useTransition()
+  const busyId = generating ?? (refreshing ? "refresh" : null)
   const [detailId, setDetailId] = useState<string | null>(null)
   // Derivado de las props frescas (no un snapshot en estado): tras una mutación del modal +
   // router.refresh(), el detalle muestra el plan actualizado, no el de cuando se abrió.
@@ -101,36 +105,35 @@ export function InstallmentsSection({
   // Igual que «Generar cuota» del detalle: crea el movimiento con el monto y la fecha del
   // cronograma, que conserva el mes/ciclo de la cuota.
   async function generate(p: InstallmentPlanDTO, item: Item) {
-    if (generating) return
+    if (busyId) return
     haptic("light")
     setGenerating(p.id)
-    const res = await fetch(`/api/installments/${p.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        itemId: item.id,
-        paid: true,
-        amount: item.amount,
-        date: item.dueDate,
-      }),
-    })
-    setGenerating(null)
-    if (!res.ok) {
+    try {
+      const res = await fetch(`/api/installments/${p.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: item.id, paid: true, amount: item.amount, date: item.dueDate }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        haptic("error")
+        toast.error(data.error ?? "No se pudo generar la cuota")
+        return
+      }
+      haptic("success")
+      toast.success("Movimiento generado y cuota pagada")
+      startRefresh(() => router.refresh())
+    } catch {
       haptic("error")
-      const data = await res.json().catch(() => ({}))
-      return toast.error(data.error ?? "No se pudo generar la cuota")
+      toast.error("No se pudo generar la cuota")
+    } finally {
+      setGenerating(null)
     }
-    toast.success("Movimiento generado y cuota pagada")
-    router.refresh()
   }
 
   return (
     // scroll-mt: los enlaces a /recurring#cuotas no quedan bajo el header fijo.
-    <section
-      id="cuotas"
-      aria-labelledby="cuotas-title"
-      className="min-w-0 scroll-mt-24"
-    >
+    <section id="cuotas" aria-labelledby="cuotas-title" className="min-w-0 scroll-mt-24">
       {/* min-h-11: la fila mide lo mismo con o sin la acción, así los títulos de las dos
           secciones quedan alineados cuando van lado a lado. */}
       <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
@@ -156,16 +159,10 @@ export function InstallmentsSection({
         <div className="flex flex-col gap-6">
           {/* El resumen del mes va primero: lo que cargan las cuotas este mes, y lo que falta. */}
           <div className="glass rounded-xl p-4">
-            <p className="text-subheadline text-muted-foreground">
-              Pagas en cuotas este mes
-            </p>
-            <p className="tabular text-hero font-bold">
-              {formatCLP(monthTotal)}
-            </p>
+            <p className="text-subheadline text-muted-foreground">Pagas en cuotas este mes</p>
+            <p className="tabular text-hero font-bold">{formatCLP(monthTotal)}</p>
             <p className="mt-2 flex justify-between gap-2 text-subheadline">
-              <span className="text-muted-foreground">
-                Deuda total restante
-              </span>
+              <span className="text-muted-foreground">Deuda total restante</span>
               <span className="tabular font-semibold">{formatCLP(debt)}</span>
             </p>
           </div>
@@ -178,7 +175,7 @@ export function InstallmentsSection({
                   plan={p}
                   onOpen={() => setDetailId(p.id)}
                   onGenerate={(item) => generate(p, item)}
-                  generating={generating === p.id}
+                  generating={busyId !== null}
                 />
               ))}
             </ul>
@@ -190,11 +187,7 @@ export function InstallmentsSection({
               </h3>
               <ul className="glass inset-list overflow-hidden rounded-xl [--inset:4.25rem]">
                 {done.map((p) => (
-                  <PlanRow
-                    key={p.id}
-                    plan={p}
-                    onOpen={() => setDetailId(p.id)}
-                  />
+                  <PlanRow key={p.id} plan={p} onOpen={() => setDetailId(p.id)} />
                 ))}
               </ul>
             </section>
@@ -237,9 +230,7 @@ function PlanRow({
   const completed = p.completedAt !== null
   const item = currentItem(p)
   const monthPaid = !completed && thisMonthSettled(p)
-  const overdue = completed
-    ? 0
-    : p.items.filter((i) => i.status === "overdue").length
+  const overdue = completed ? 0 : p.items.filter((i) => i.status === "overdue").length
   const toGenerate = !completed && onGenerate ? generableItem(p) : undefined
 
   // Dos líneas: nombre y cuota del mes; debajo, en qué cuota va y cuándo vence la próxima.
@@ -256,9 +247,7 @@ function PlanRow({
         <span
           className="grid size-10 shrink-0 place-items-center rounded-full"
           style={{
-            background: p.categoryColor
-              ? `${p.categoryColor}1f`
-              : "var(--muted)",
+            background: p.categoryColor ? `${p.categoryColor}1f` : "var(--muted)",
           }}
           aria-hidden
         >
@@ -274,9 +263,7 @@ function PlanRow({
             {/* La cuota del mes manda: el total del plan se paga en meses que no son este. Pagada,
                 el total del plan. */}
             <span className="tabular shrink-0 text-body font-semibold">
-              {formatCLP(
-                completed ? p.totalAmount : item ? item.amount : p.outstanding
-              )}
+              {formatCLP(completed ? p.totalAmount : item ? item.amount : p.outstanding)}
             </span>
           </span>
           {!completed && (
@@ -343,8 +330,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
     <div className="glass rounded-xl px-6 py-10 text-center">
       <h3 className="text-headline">Reparte una deuda en los meses que dura</h3>
       <p className="mx-auto mt-1 max-w-sm text-subheadline text-balance text-muted-foreground">
-        Una compra en cuotas convertida en plan hace que cada mes cargue solo su
-        cuota, y te dice cuánto falta de verdad.
+        Una compra en cuotas convertida en plan hace que cada mes cargue solo su cuota, y te dice cuánto falta de verdad.
       </p>
       <Button onClick={onCreate} className="mt-5 h-11 text-body">
         <Plus className="size-4" />

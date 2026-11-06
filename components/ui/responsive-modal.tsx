@@ -210,7 +210,7 @@ export function ModalActions({
               <button
                 {...actionProps(primary)}
                 data-squish
-                className="press liquid-glass relative h-11 shrink-0 liquid-squish rounded-full px-4 text-body font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:text-muted-foreground"
+                className="press liquid-glass liquid-squish relative h-11 shrink-0 rounded-full px-4 text-body font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:text-muted-foreground"
               >
                 {/* Ocupado: el spinner ocupa el centro y el texto se queda (transparente) para que
                   la cápsula no cambie de ancho ni pierda su nombre accesible. */}
@@ -406,7 +406,7 @@ export function ResponsiveModal({
               // el notch. El teclado se superpone sin redimensionar ni elevar el panel.
               // Hoja de iOS 26: flota despegada de los bordes, con las cuatro esquinas redondeadas y
               // casi concéntrica con las del teléfono (el mismo `--tab-bar-inset` de la barra).
-              "h-auto rounded-(--radius-sheet) bg-sheet p-0 text-body outline-none [--initial-transform:calc(100%+var(--tab-bar-inset))] before:hidden after:hidden data-[vaul-drawer-direction=bottom]:inset-x-2 data-[vaul-drawer-direction=bottom]:bottom-(--tab-bar-inset) data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top)-var(--tab-bar-inset))]",
+              "h-auto rounded-(--radius-sheet) bg-sheet p-0 text-body outline-none before:hidden after:hidden [--initial-transform:calc(100%+var(--tab-bar-inset))] data-[vaul-drawer-direction=bottom]:inset-x-2 data-[vaul-drawer-direction=bottom]:bottom-(--tab-bar-inset) data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top)-var(--tab-bar-inset))]",
               className
             )}
           >
@@ -465,7 +465,7 @@ export function ResponsiveModal({
             dismissible ? undefined : (e) => e.preventDefault()
           }
           className={cn(
-            "max-h-[90dvh] gap-0 overflow-x-hidden overflow-y-auto rounded-(--radius-sheet) bg-sheet p-0 text-body sm:max-w-2xl [&>*]:min-w-0 [&>[data-slot=dialog-close]]:size-11 [&>[data-slot=modal-footer]]:mx-0",
+            "max-h-[90dvh] rounded-(--radius-sheet) bg-sheet gap-0 overflow-x-hidden overflow-y-auto p-0 text-body sm:max-w-2xl [&>*]:min-w-0 [&>[data-slot=dialog-close]]:size-11 [&>[data-slot=modal-footer]]:mx-0",
             className
           )}
         >
@@ -483,7 +483,7 @@ export function ResponsiveModal({
                   variant="secondary"
                   size="icon"
                   // `xmark` en círculo gris, como el cierre de una hoja de iOS 26 / macOS 26.
-                  className="absolute top-5 right-5 hidden size-9 rounded-full text-muted-foreground hover:text-foreground md:inline-flex pointer-coarse:size-11"
+                  className="absolute top-5 right-5 hidden size-9 rounded-full pointer-coarse:size-11 text-muted-foreground hover:text-foreground md:inline-flex"
                   aria-label={`Cerrar ${title}`}
                 >
                   <X aria-hidden="true" className="size-4" strokeWidth={2.5} />

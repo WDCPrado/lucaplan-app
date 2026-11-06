@@ -44,7 +44,6 @@ import { TransactionSearch } from "./transaction-search"
 import { TransactionModal } from "./transaction-modal"
 import { MonthNav } from "./month-nav"
 import { ProfileSheet } from "./profile-sheet"
-import { useLiquidGlass } from "./liquid-glass"
 import type {
   AccountDTO,
   AmountBoundsDTO,
@@ -316,7 +315,7 @@ function useNavDirection() {
   }, [])
 
   // Llegó la ruta nueva: la transición ya arrancó con la marca. Se borra al terminar el
-  // deslizamiento (--nav-duration 240 ms + margen); borrarla antes cortaría la animación, que lee
+  // deslizamiento (--nav-duration 280 ms + margen); borrarla antes cortaría la animación, que lee
   // `data-nav-dir` mientras corre. Si otra navegación marcó entretanto, se respeta la suya.
   React.useEffect(() => {
     const root = document.documentElement
@@ -338,7 +337,6 @@ function SearchCircle({ onSearch }: { onSearch: () => void }) {
       onClick={onSearch}
       aria-label="Buscar movimientos"
       data-squish
-      data-lg-control
       className="press liquid-glass liquid-squish pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full"
     >
       <Search className="size-6" />
@@ -440,8 +438,7 @@ function Chrome({
           </SidebarFooter>
         </Sidebar>
 
-        {/* select-text: la refracción de la barra pone user-select: none en el wrapper (liquid-glass.ts). */}
-        <SidebarInset className="min-w-0 select-text">
+        <SidebarInset className="min-w-0">
           {/* Marca de "arriba del todo": deja de verse con el primer píxel de scroll. */}
           <div ref={topRef} aria-hidden className="-mb-px h-px" />
           {/* Topbar solo en escritorio, de la familia del sidebar flotante: el mismo margen al borde
@@ -636,8 +633,8 @@ function NavMenu({
 // van en el color y el peso del texto; el activo se marca con el fondo azul de su pastilla, así
 // ningún ancho cambia al cambiar de pestaña.
 // La pastilla se desliza con la misma duración y curva que el contenido al cambiar de pantalla
-// (`.tab-pill`, --nav-duration/--nav-ease en globals.css). La cápsula es el vidrio CSS y, donde se
-// puede, suma la refracción de liquid-glass.ts encima.
+// (`.tab-pill`, --nav-duration/--nav-ease en globals.css). La cápsula conserva su acabado CSS,
+// sin filtrar el contenido ni seguir sus cambios desde JavaScript.
 function BottomNav({
   active,
   onNavigate,
@@ -663,26 +660,15 @@ function BottomNav({
     0
   )
 
-  const navRef = React.useRef<HTMLElement>(null)
-  useLiquidGlass(navRef)
-
   return (
-    <>
-      {/* La cápsula va fija por su cuenta (y no dentro de un contenedor con la búsqueda) porque la
-          refracción exige que sea hija directa del wrapper del sidebar: ver liquid-glass.ts.
-          `fixed!` porque `liquid-glass` fija position: relative. A la derecha deja el círculo de
-          búsqueda (4rem) y su separación (0.75rem). Nombre propio en el cambio de pantalla: la
-          barra queda quieta encima del contenido que se desliza. */}
+    <div
+      // Nombre propio en el cambio de pantalla: la barra queda quieta encima del contenido que se desliza.
+      style={{ viewTransitionName: "app-tabbar" }}
+      className="pointer-events-none fixed right-[env(safe-area-inset-right)] bottom-0 left-[env(safe-area-inset-left)] z-30 flex items-center gap-3 px-2 pt-3 pb-(--tab-bar-inset) md:hidden"
+    >
       <nav
-        ref={navRef}
         aria-label="Navegación principal"
-        style={{ viewTransitionName: "app-tabbar" }}
-        className={cn(
-          "liquid-glass liquid-squish fixed! bottom-(--tab-bar-inset) left-[calc(env(safe-area-inset-left)+0.5rem)] z-30 flex h-16 rounded-full p-1 md:hidden",
-          trailing
-            ? "right-[calc(env(safe-area-inset-right)+5.25rem)]"
-            : "right-[calc(env(safe-area-inset-right)+0.5rem)]"
-        )}
+        className="liquid-glass liquid-squish pointer-events-auto flex h-16 min-w-0 flex-1 rounded-full p-1"
       >
         <div className="relative flex min-w-0 flex-1">
           {/* Las pestañas no miden lo mismo: la pastilla se ubica con left/right en % de la fila
@@ -750,15 +736,8 @@ function BottomNav({
           })}
         </div>
       </nav>
-      {trailing && (
-        <div
-          style={{ viewTransitionName: "app-tabbar-search" }}
-          className="pointer-events-none fixed right-[calc(env(safe-area-inset-right)+0.5rem)] bottom-(--tab-bar-inset) z-30 flex md:hidden"
-        >
-          {trailing}
-        </div>
-      )}
-    </>
+      {trailing}
+    </div>
   )
 }
 

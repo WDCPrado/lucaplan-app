@@ -44,6 +44,7 @@ import { TransactionSearch } from "./transaction-search"
 import { TransactionModal } from "./transaction-modal"
 import { MonthNav } from "./month-nav"
 import { ProfileSheet } from "./profile-sheet"
+import { useLiquidGlassBar } from "./liquid-glass-bar"
 import type {
   AccountDTO,
   AmountBoundsDTO,
@@ -438,7 +439,8 @@ function Chrome({
           </SidebarFooter>
         </Sidebar>
 
-        <SidebarInset className="min-w-0">
+        {/* select-text: la refracción de la barra pone user-select: none en el wrapper (liquid-glass-bar.tsx). */}
+        <SidebarInset className="min-w-0 select-text">
           {/* Marca de "arriba del todo": deja de verse con el primer píxel de scroll. */}
           <div ref={topRef} aria-hidden className="-mb-px h-px" />
           {/* Topbar solo en escritorio, de la familia del sidebar flotante: el mismo margen al borde
@@ -633,8 +635,8 @@ function NavMenu({
 // van en el color y el peso del texto; el activo se marca con el fondo azul de su pastilla, así
 // ningún ancho cambia al cambiar de pestaña.
 // La pastilla se desliza con la misma duración y curva que el contenido al cambiar de pantalla
-// (`.tab-pill`, --nav-duration/--nav-ease en globals.css). La cápsula conserva su acabado CSS,
-// sin filtrar el contenido ni seguir sus cambios desde JavaScript.
+// (`.tab-pill`, --nav-duration/--nav-ease en globals.css). La cápsula es el vidrio CSS y, donde se
+// puede, suma la refracción de liquid-glass-bar.tsx encima.
 function BottomNav({
   active,
   onNavigate,
@@ -660,15 +662,28 @@ function BottomNav({
     0
   )
 
+  const navRef = React.useRef<HTMLElement>(null)
+  const glassConfig = useLiquidGlassBar(navRef)
+
   return (
-    <div
-      // Nombre propio en el cambio de pantalla: la barra queda quieta encima del contenido que se desliza.
-      style={{ viewTransitionName: "app-tabbar" }}
-      className="pointer-events-none fixed right-[env(safe-area-inset-right)] bottom-0 left-[env(safe-area-inset-left)] z-30 flex items-center gap-3 px-2 pt-3 pb-(--tab-bar-inset) md:hidden"
-    >
+    <>
+      {/* La cápsula va fija por su cuenta (y no dentro de un contenedor con la búsqueda) porque la
+          refracción exige que sea hija directa del wrapper del sidebar: ver liquid-glass-bar.tsx.
+          `fixed!` porque `liquid-glass` fija position: relative. A la derecha deja el círculo de
+          búsqueda (4rem) y su separación (0.75rem). Nombre propio en el cambio de pantalla: la
+          barra queda quieta encima del contenido que se desliza. */}
       <nav
+        ref={navRef}
+        data-nuevo
+        data-config={glassConfig}
         aria-label="Navegación principal"
-        className="liquid-glass liquid-squish pointer-events-auto flex h-16 min-w-0 flex-1 rounded-full p-1"
+        style={{ viewTransitionName: "app-tabbar" }}
+        className={cn(
+          "liquid-glass liquid-squish fixed! bottom-(--tab-bar-inset) left-[calc(env(safe-area-inset-left)+0.5rem)] z-30 flex h-16 rounded-full p-1 md:hidden",
+          trailing
+            ? "right-[calc(env(safe-area-inset-right)+5.25rem)]"
+            : "right-[calc(env(safe-area-inset-right)+0.5rem)]"
+        )}
       >
         <div className="relative flex min-w-0 flex-1">
           {/* Las pestañas no miden lo mismo: la pastilla se ubica con left/right en % de la fila
@@ -736,8 +751,15 @@ function BottomNav({
           })}
         </div>
       </nav>
-      {trailing}
-    </div>
+      {trailing && (
+        <div
+          style={{ viewTransitionName: "app-tabbar-search" }}
+          className="pointer-events-none fixed right-[calc(env(safe-area-inset-right)+0.5rem)] bottom-(--tab-bar-inset) z-30 flex md:hidden"
+        >
+          {trailing}
+        </div>
+      )}
+    </>
   )
 }
 

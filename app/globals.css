@@ -738,20 +738,23 @@ html:has(main[data-landing]) body {
 ::view-transition-group(app-sidebar),
 ::view-transition-group(app-topbar),
 ::view-transition-group(app-top-mobile),
-::view-transition-group(app-tabbar) {
+::view-transition-group(app-tabbar),
+::view-transition-group(app-tabbar-search) {
   animation: none;
   z-index: 1;
 }
 ::view-transition-old(app-sidebar),
 ::view-transition-old(app-topbar),
 ::view-transition-old(app-top-mobile),
-::view-transition-old(app-tabbar) {
+::view-transition-old(app-tabbar),
+::view-transition-old(app-tabbar-search) {
   display: none;
 }
 ::view-transition-new(app-sidebar),
 ::view-transition-new(app-topbar),
 ::view-transition-new(app-top-mobile),
-::view-transition-new(app-tabbar) {
+::view-transition-new(app-tabbar),
+::view-transition-new(app-tabbar-search) {
   animation: none;
 }
 
@@ -866,6 +869,32 @@ html:has(main[data-landing]) body {
 :root[data-glass="1"] { --glass-clear: 45%; --glass-blur: 12px; --scroll-edge-amount: 10%; }
 :root[data-glass="3"] { --glass-clear: 0%; --glass-tint: 35%; --scroll-edge-amount: 34%; }
 :root[data-glass="4"] { --glass-clear: 0%; --glass-tint: 90%; --scroll-edge-amount: 42%; }
+
+/* Refracción activa en la barra inferior móvil (WDC-179, components/finance/liquid-glass-bar.tsx).
+   El canvas de la librería (z-index: -1 dentro de la barra) reemplaza al desenfoque: la barra suelta
+   su fondo y su backdrop-filter, y el relleno del nivel (--glass-fill, el sheen y los bordes
+   interiores) pasa a un ::after también en z-index: -1, que por orden de árbol queda sobre el canvas
+   y bajo las pestañas. La sombra exterior y el reflejo ::before siguen iguales. Sin el atributo
+   (escritorio, accesibilidad, nivel 4, sin WebGL, error) no cambia nada. */
+.liquid-glass[data-lg-active] {
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: var(--glass-shadow);
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background-color: var(--glass-fill);
+    background-image: var(--glass-sheen);
+    box-shadow:
+      inset 0 0 0 0.5px var(--glass-edge),
+      inset 0 0 10px 0 var(--glass-rim);
+    pointer-events: none;
+  }
+}
 
 /* Accesibilidad (apple-hig/foundations/materials): con MÁS CONTRASTE el vidrio gana relleno y
    contorno; con MENOS TRANSPARENCIA todo material cae a sólido, y va después para ganarle a

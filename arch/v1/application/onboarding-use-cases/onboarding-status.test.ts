@@ -7,6 +7,16 @@ import { join } from "node:path"
 import { completeOnboarding } from "./complete-onboarding-use-case.ts"
 import { getOnboardingStatus } from "./get-onboarding-status-use-case.ts"
 import type { OnboardingRepository } from "../../domain/onboarding/onboarding.domain.ts"
+import type { IntegrationDeps } from "../../domain/integrations/integrations.domain.ts"
+import { integrationCipher } from "../../infrastructure/crypto/integration-cipher.ts"
+
+// Sin nada guardado en Ajustes: la disponibilidad sale solo del entorno.
+const integrations = (env: Record<string, string | undefined>): IntegrationDeps => ({
+  settings: { async list() { return [] }, async save() {}, async remove() {} },
+  cipher: integrationCipher,
+  env,
+  cache: new Map(),
+})
 
 function repo(initial: Record<string, Date | null> = {}) {
   const completed = new Map(Object.entries(initial))
@@ -25,7 +35,7 @@ const ENV = { OPENAI_API_KEY: "sk-test", OUTLOOK_CLIENT_ID: "id", OUTLOOK_CLIENT
 
 test("usuario nuevo: el onboarding no está terminado, y dice si hay IA y Outlook según la configuración del servidor", async () => {
   const { r } = repo()
-  assert.deepEqual(await getOnboardingStatus({ onboarding: r, env: ENV }, "u1"), {
+  assert.deepEqual(await getOnboardingStatus({ onboarding: r, integrations: integrations(ENV) }, "u1"), {
     completed: false,
     aiAvailable: true,
     outlookAvailable: true,
@@ -37,23 +47,23 @@ test("usuario nuevo: el onboarding no está terminado, y dice si hay IA y Outloo
     [{ OUTLOOK_CLIENT_ID: "id" }, { aiAvailable: false, outlookAvailable: false }],
     [{ OUTLOOK_CLIENT_SECRET: "secret" }, { aiAvailable: false, outlookAvailable: false }],
   ] as const) {
-    const s = await getOnboardingStatus({ onboarding: r, env }, "u1")
+    const s = await getOnboardingStatus({ onboarding: r, integrations: integrations(env) }, "u1")
     assert.deepEqual({ aiAvailable: s.aiAvailable, outlookAvailable: s.outlookAvailable }, expected, JSON.stringify(env))
   }
 })
 
 test("terminar u omitir el onboarding es idempotente: la segunda vez no cambia la fecha y no toca a otro usuario", async () => {
   const { r, completed } = repo({ u2: null })
-  const first = await completeOnboarding({ onboarding: r, env: ENV }, "u1")
+  const first = await completeOnboarding({ onboarding: r, integrations: integrations(ENV) }, "u1")
   assert.equal(first.completed, true)
   const at = completed.get("u1")
   assert.ok(at instanceof Date)
   await new Promise((done) => setTimeout(done, 5))
-  const second = await completeOnboarding({ onboarding: r, env: ENV }, "u1")
+  const second = await completeOnboarding({ onboarding: r, integrations: integrations(ENV) }, "u1")
   assert.deepEqual(second, first)
   assert.equal(completed.get("u1"), at)
   assert.equal(completed.get("u2"), null)
-  assert.equal((await getOnboardingStatus({ onboarding: r, env: ENV }, "u1")).completed, true)
+  assert.equal((await getOnboardingStatus({ onboarding: r, integrations: integrations(ENV) }, "u1")).completed, true)
 })
 
 test("migración: los usuarios que ya existían quedan con el onboarding terminado; los nuevos parten sin terminar", () => {

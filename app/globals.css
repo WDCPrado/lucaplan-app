@@ -112,7 +112,7 @@
     --home-peek: 7rem;
     /* Navegación entre pantallas (WDC-170): una sola duración y curva para el deslizamiento del
        contenido (view transition) y el de la pastilla activa de la barra y del sidebar. */
-    --nav-duration: 280ms;
+    --nav-duration: 380ms;
     --nav-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
     --background: oklch(0.963 0.007 286.3);          /* #F2F2F7 systemGroupedBackground */
@@ -640,12 +640,12 @@ html:has(main[data-landing]) body {
   transition:
     left var(--nav-duration) var(--nav-ease),
     right var(--nav-duration) var(--nav-ease),
-    opacity 240ms ease-out;
+    opacity 300ms ease-out;
 }
 .nav-pill {
   transition:
     transform var(--nav-duration) var(--nav-ease),
-    opacity 240ms ease-out;
+    opacity 300ms ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
   .tab-pill,
@@ -695,12 +695,12 @@ html:has(main[data-landing]) body {
 ::view-transition-old(.nav) {
   animation:
     nav-out var(--nav-duration) var(--nav-ease) both,
-    nav-fade-out 140ms ease-out both;
+    nav-fade-out 190ms ease-out both;
 }
 ::view-transition-new(.nav) {
   animation:
     nav-in var(--nav-duration) var(--nav-ease) both,
-    nav-fade-in 200ms ease-out both;
+    nav-fade-in 270ms ease-out both;
 }
 :root:not([data-nav-dir])::view-transition-old(.nav),
 :root:not([data-nav-dir])::view-transition-new(.nav) {

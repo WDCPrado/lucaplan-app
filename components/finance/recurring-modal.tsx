@@ -54,7 +54,6 @@ function readableEnd(iso: string): string | null {
   })
 }
 
-
 const PERIODICITIES = [
   { value: "monthly", label: "Mensual" },
   { value: "biweekly", label: "Quincenal" },

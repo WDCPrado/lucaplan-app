@@ -223,12 +223,14 @@ function RecurringRow({
   return (
     // El enlace no puede ir dentro del botón de la fila: el botón cubre la fila por debajo y el
     // enlace queda encima, así tocarlo abre el portal sin abrir el modal.
-    <li className="press relative flex min-h-11 items-center gap-3 py-2.5 pr-4 pl-4 has-[>button:hover]:bg-accent/60 has-[>button:active]:opacity-55">
+    <li className="relative flex min-h-11 items-center gap-3 py-2.5 pr-4 pl-4 transition-[opacity,background-color] duration-120 ease-out has-[>button:hover]:bg-accent/60 has-[>button:active]:opacity-55 motion-reduce:transition-none">
       <button
         type="button"
         onClick={onEdit}
-        aria-label={t.label}
-        className="absolute inset-0 rounded-[inherit]"
+        // El nombre accesible es el de antes (nombre, monto y estado); el contenido visible va
+        // aria-hidden para que el lector no lo lea dos veces.
+        aria-labelledby={`rec-${t.id}-name rec-${t.id}-amount rec-${t.id}-status`}
+        className="absolute inset-0 z-1 rounded-[inherit]"
       />
         <span
           className="grid size-10 shrink-0 place-items-center rounded-full data-inactive:opacity-50"
@@ -245,8 +247,8 @@ function RecurringRow({
             color={t.categoryColor ?? undefined}
           />
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-body">{t.label}</span>
+        <span aria-hidden className="min-w-20 flex-1">
+          <span id={`rec-${t.id}-name`} className="block truncate text-body">{t.label}</span>
           <span className="block truncate text-footnote text-muted-foreground">
             {t.categoryName}
             {periodicity && ` · ${periodicity}`}
@@ -260,18 +262,19 @@ function RecurringRow({
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Abrir ${linkHost(t.url)}`}
-            className="relative flex min-h-11 max-w-32 shrink items-center gap-1 rounded-full px-1 text-footnote text-primary"
+            className="press relative z-2 flex min-h-11 min-w-0 max-w-32 shrink items-center gap-1 rounded-full px-1 text-footnote text-primary"
           >
             <span className="flex h-7 min-w-0 items-center gap-1 rounded-full bg-(--glass-control) px-2.5">
-              <span className="truncate">{linkHost(t.url)}</span>
+              <span aria-hidden className="truncate max-sm:hidden">{linkHost(t.url)}</span>
               <ArrowUpRight aria-hidden className="size-3.5 shrink-0" />
             </span>
           </a>
         )}
-        <span className="shrink-0 text-right">
+        <span aria-hidden className="shrink-0 text-right">
           {/* Pausada o finalizada: el monto en gris secundario (ya no compromete el mes), sin
               atenuar toda la fila, que dejaba el texto secundario bajo 4.5:1. */}
           <span
+            id={`rec-${t.id}-amount`}
             className={cn(
               "tabular block text-body font-semibold",
               inactive && "text-muted-foreground"
@@ -280,13 +283,13 @@ function RecurringRow({
             {formatCLP(t.baseAmount)}
           </span>
           {t.currentPeriodPaid && !t.hasEnded && t.isActive ? (
-            <span className="flex items-center justify-end gap-1 text-footnote whitespace-nowrap text-primary">
+            <span id={`rec-${t.id}-status`} className="flex items-center justify-end gap-1 text-footnote whitespace-nowrap text-primary">
               <Check className="size-3.5" />
               Pagado
             </span>
           ) : (
             status && (
-              <span className="block text-footnote whitespace-nowrap text-muted-foreground">
+              <span id={`rec-${t.id}-status`} className="block text-footnote whitespace-nowrap text-muted-foreground">
                 {status}
               </span>
             )

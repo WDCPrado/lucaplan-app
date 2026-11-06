@@ -22,6 +22,7 @@ import {
   executionDateFor,
   periodIsWithinValidity,
   periodKeyFor,
+  periodTransactionPaying,
   type RecurringTemplateRepository,
 } from "../../domain/finance/recurring.domain.ts"
 import {
@@ -167,9 +168,10 @@ export async function getPeriodPlan(
         !periodIsWithinValidity(template, executes)
       )
         continue
-      const periodTx = await deps.recurring.findPeriodTransaction(
-        template.id,
-        key
+      const periodTx = periodTransactionPaying(
+        template,
+        key,
+        await deps.recurring.findPeriodTransaction(template.id, key)
       )
       const paid = periodTx?.status === "confirmed"
       const paidTx = paid ? txs.find((t) => t.id === periodTx!.id) : undefined

@@ -101,7 +101,7 @@ function makeRepo(templates: RecurringTemplate[]) {
         (r) => r.templateId === templateId && r.periodKey === periodKey
       )
       return row
-        ? { id: row.id, status: row.status, isManual: row.externalId === null }
+        ? { id: row.id, status: row.status, isManual: row.externalId === null, date: row.date }
         : null
     },
     setPeriodPaid: async (templateId, periodKey, paid) => {
@@ -1217,4 +1217,72 @@ test("createRecurringTemplate: rechaza un movimiento que ya es el cobro de otra 
     /ya es el cobro de una recurrente/
   )
   assert.equal(created, false)
+})
+
+test("WDC-179: el cargo del 4-oct guardado en noviembre no deja noviembre «Pagado»; el del 5-nov sí", async () => {
+  const servicio = (id: string): RecurringTemplate => ({
+    ...arriendo,
+    id,
+    label: id,
+    startDate: new Date("2026-01-05T00:00:00Z"),
+  })
+  const entel = servicio("entel")
+  const arriendoNov = servicio("arriendo-nov")
+  const { repo, rows } = makeRepo([entel, arriendoNov])
+  const cargo = (templateId: string, date: string): (typeof rows)[number] => ({
+    id: `cargo-${templateId}`,
+    templateId,
+    periodKey: "2026-11",
+    amount: Money.of(350_000, "CLP"),
+    date: new Date(`${date}T00:00:00Z`),
+    status: "confirmed",
+    categoryId: "vivienda",
+    reviewed: true,
+    externalId: `bch-${templateId}`,
+  })
+  // Dato viejo: el cobro de octubre quedó en noviembre. El arriendo trae su cargo real del 5-nov.
+  rows.push(cargo("entel", "2026-10-04"), cargo("arriendo-nov", "2026-11-05"))
+  const hoy = new Date("2026-11-06T15:00:00Z")
+  const deps = {
+    recurring: repo,
+    accounts: { listByUser: async () => [{ id: "acc1", name: "Cuenta", currency: "CLP" }] },
+    categories: { listByUser: async () => [{ id: "vivienda", name: "Vivienda", icon: null, color: null }] },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any
+  const [vEntel, vArriendo] = await listRecurringView(deps, "u1", hoy)
+  assert.equal(vEntel.currentPeriodPaid, false, "el 4-oct no paga el 5-nov")
+  assert.equal(vEntel.currentPeriodPaidManually, false)
+  assert.equal(vEntel.nextExecution, "2026-11-05T00:00:00.000Z", "vence el de noviembre, no el de diciembre")
+  assert.equal(vArriendo.currentPeriodPaid, true)
+  assert.equal(vArriendo.nextExecution, "2026-12-05T00:00:00.000Z")
+
+  // El recordatorio tampoco lo da por cobrado (4-nov: noviembre vence mañana).
+  const due = await collectDueItems(
+    { recurring: repo, installments: { listByUser: async () => [] } } as unknown as Parameters<typeof collectDueItems>[0],
+    "u1",
+    new Date("2026-11-04T15:00:00Z"),
+    2
+  )
+  assert.deepEqual(due.map((i) => i.description), [entel.description])
+})
+
+test("WDC-179: sin pagar, el próximo cobro no muestra un vencimiento antes del inicio ni de hace meses", async () => {
+  const futura: RecurringTemplate = { ...arriendo, id: "futura", startDate: new Date("2026-12-05T00:00:00Z") }
+  const anual: RecurringTemplate = {
+    ...arriendo,
+    id: "anual",
+    periodicity: "yearly",
+    dayOfMonth: 15,
+    startDate: new Date("2026-03-15T00:00:00Z"),
+  }
+  const { repo } = makeRepo([futura, anual])
+  const deps = {
+    recurring: repo,
+    accounts: { listByUser: async () => [] },
+    categories: { listByUser: async () => [] },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any
+  const [vFutura, vAnual] = await listRecurringView(deps, "u1", new Date("2026-11-06T15:00:00Z"))
+  assert.equal(vFutura.nextExecution, "2026-12-05T00:00:00.000Z", "arranca en diciembre")
+  assert.equal(vAnual.nextExecution, "2027-03-15T00:00:00.000Z", "marzo venció hace meses")
 })

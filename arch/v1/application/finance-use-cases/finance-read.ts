@@ -27,6 +27,8 @@ import {
   executionDateFor,
   hasEnded,
   periodKeyFor,
+  periodsAround,
+  periodTransactionPaying,
   toleranceRange,
   RECURRING_MATCH_WINDOW_DAYS,
   InvalidRecurringTemplateError,
@@ -1176,17 +1178,23 @@ export async function listRecurringView(
   return Promise.all(templates.map(async (t): Promise<RecurringDTO> => {
     const cat = catById.get(t.categoryId)
     const { min, max } = toleranceRange(t)
-    // Próximo cobro: la ejecución del período en curso si aún no pasó; si ya pasó, la del siguiente.
-    const thisPeriod = executionDateFor(t, periodKeyFor(t, today))
+    const periodKey = periodKeyFor(t, today)
+    // Pagado = el período en curso ya tiene su cargo real (confirmed); el comprometido pending no,
+    // ni un cargo de otro período guardado en este (`periodTransactionPaying`).
+    const periodTx = periodTransactionPaying(
+      t,
+      periodKey,
+      await deps.recurring.findPeriodTransaction(t.id, periodKey)
+    )
+    const paid = periodTx?.status === "confirmed"
+    // Próximo cobro: la ejecución del período en curso si aún no pasó, o si venció hace poco
+    // (ventana de `periodsAround`, dentro de vigencia) y sigue sin pagarse; si no, la del siguiente.
+    const thisPeriod = executionDateFor(t, periodKey)
+    const overdue = !paid && periodsAround(t, today).some((p) => p.periodKey === periodKey)
     const next =
-      thisPeriod >= today
+      thisPeriod >= today || overdue
         ? thisPeriod
         : executionDateFor(t, periodKeyFor(t, nextPeriodDate(t, today)))
-    // Pagado = el período en curso ya tiene su cargo real (confirmed); el comprometido pending no.
-    const periodTx = await deps.recurring.findPeriodTransaction(
-      t.id,
-      periodKeyFor(t, today)
-    )
     return {
       id: t.id,
       label: t.label,
@@ -1209,9 +1217,8 @@ export async function listRecurringView(
       hasEnded: hasEnded(t, today),
       isActive: t.isActive,
       nextExecution: next.toISOString(),
-      currentPeriodPaid: periodTx?.status === "confirmed",
-      currentPeriodPaidManually:
-        periodTx?.status === "confirmed" && periodTx.isManual,
+      currentPeriodPaid: paid,
+      currentPeriodPaidManually: paid && periodTx.isManual,
       url: t.url,
     }
   }))

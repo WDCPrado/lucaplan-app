@@ -353,6 +353,19 @@ export function canPayPeriod(
   return daysBetween(executionDateFor(template, periodKey), date) >= -RECURRING_MATCH_WINDOW_DAYS
 }
 
+/**
+ * El movimiento guardado en el período, solo si de verdad lo paga. Un cargo del banco anterior al
+ * piso de `canPayPeriod` quedó ahí por el vínculo viejo (el cargo del 4-oct guardado en noviembre):
+ * es de otro período, así que se lee como si el período no tuviera movimiento. La marca manual y el
+ * comprometido valen siempre. La usan todas las lecturas de «pagado».
+ */
+export function periodTransactionPaying<
+  T extends { status: string; isManual: boolean; date: Date },
+>(template: RecurringTemplate, periodKey: string, tx: T | null): T | null {
+  if (!tx || tx.status !== "confirmed" || tx.isManual) return tx
+  return canPayPeriod(template, periodKey, tx.date) ? tx : null
+}
+
 // "4 de octubre": el día civil tal cual está guardado (medianoche UTC).
 const civilDayLabel = (date: Date) =>
   date.toLocaleDateString("es-CL", { day: "numeric", month: "long", timeZone: "UTC" })
@@ -382,6 +395,10 @@ export interface RecurringTemplateRepository {
   /**
    * Materializa el movimiento `pending` del período. Idempotente por el único
    * (recurringTemplateId, periodKey) de la BD: si ya existe lo devuelve sin crear otro.
+   *
+   * Antes corrige el dato viejo: si el período guarda un cargo del banco que no puede pagarlo
+   * (`canPayPeriod`), lo devuelve al período de su fecha cuando ese está vacío o solo tiene su
+   * comprometido (que se borra); un cargo real o una marca manual no se pisan. No toca montos.
    */
   materializePeriod(
     template: RecurringTemplate,
@@ -391,11 +408,12 @@ export interface RecurringTemplateRepository {
   /**
    * Movimiento del período (pendiente o ya confirmado), si existe. `isManual` = no tiene
    * `externalId`: lo confirmó el usuario, no el banco. Es lo que distingue una marca de un cobro.
+   * `date` es la del movimiento: las lecturas de «pagado» la pasan por `periodTransactionPaying`.
    */
   findPeriodTransaction(
     templateId: string,
     periodKey: string
-  ): Promise<{ id: string; status: string; isManual: boolean } | null>
+  ): Promise<{ id: string; status: string; isManual: boolean; date: Date } | null>
   /**
    * Períodos de la plantilla que el banco todavía no cobró: los comprometidos (`pending`) y los
    * confirmados a mano (sin `externalId`, `isManual`). En cualquier orden.

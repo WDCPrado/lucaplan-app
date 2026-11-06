@@ -6,10 +6,12 @@ import { Prisma } from "./generated/client.ts"
 import { prisma } from "./client.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
 import type { Direction } from "../../../domain/finance/finance.domain.ts"
-import type {
-  Periodicity,
-  RecurringTemplate,
-  RecurringTemplateRepository,
+import {
+  canPayPeriod,
+  periodsAround,
+  type Periodicity,
+  type RecurringTemplate,
+  type RecurringTemplateRepository,
 } from "../../../domain/finance/recurring.domain.ts"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -155,6 +157,7 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
     })
   },
   async materializePeriod(template, periodKey, date) {
+    await returnMisplacedCharge(template, periodKey)
     const existing = await prisma.transaction.findFirst({
       where: { recurringTemplateId: template.id, periodKey },
     })
@@ -188,12 +191,17 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
   async findPeriodTransaction(templateId, periodKey) {
     const row = await prisma.transaction.findFirst({
       where: { recurringTemplateId: templateId, periodKey },
-      select: { id: true, status: true, externalId: true },
+      select: { id: true, status: true, externalId: true, transactionDate: true },
     })
     // Sin `externalId` no vino del banco: es la marca manual del usuario (o el movimiento de
     // origen de la plantilla, que es la misma afirmación suya).
     return row
-      ? { id: row.id, status: row.status, isManual: row.externalId === null }
+      ? {
+          id: row.id,
+          status: row.status,
+          isManual: row.externalId === null,
+          date: row.transactionDate,
+        }
       : null
   },
   async listOpenPeriods(templateId) {
@@ -285,4 +293,49 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
         throw e
       })
   },
+}
+
+// WDC-179: el vínculo viejo guardaba un cargo en el período siguiente (el del 4-oct en noviembre,
+// con vencimiento el 5). Si el período tiene un cargo del banco que no lo puede pagar, vuelve al
+// período que sí paga: el más antiguo de la ventana de su fecha (`periodsAround`, ya dentro de
+// vigencia). Sin ninguno, no se mueve. El destino debe estar vacío o tener solo su comprometido (se
+// borra: es el lugar que ocupa el cargo). Un cargo real ahí no se pisa, ni una fila confirmada a mano:
+// puede ser la marca «Ya lo pagué» o el movimiento manual de origen de la plantilla, y borrarla
+// perdería un movimiento real. Entonces el cargo se queda y solo la lectura
+// (`periodTransactionPaying`) lo trata como no pagado. Solo cambia `periodKey`: monto, fecha y saldos
+// quedan igual. Idempotente: corregido, ya no hay nada que mover.
+async function returnMisplacedCharge(template: RecurringTemplate, periodKey: string) {
+  const misplaced = (
+    row: { status: string; externalId: string | null; transactionDate: Date } | null
+  ) =>
+    row !== null &&
+    row.status === "confirmed" &&
+    row.externalId !== null &&
+    !canPayPeriod(template, periodKey, row.transactionDate)
+  const select = { id: true, status: true, externalId: true, transactionDate: true } as const
+  const where = { recurringTemplateId: template.id, periodKey }
+  // Lo normal es que no haya nada que mover: se lee fuera de la transacción y solo se abre si hace falta.
+  const first = await prisma.transaction.findFirst({ where, select })
+  if (!first || !misplaced(first)) return
+  const target = periodsAround(template, first.transactionDate)[0]?.periodKey
+  if (!target || target === periodKey) return
+  await prisma
+    .$transaction(async (db) => {
+      // Se vuelve a leer: otra corrida pudo corregirlo o el correo cambiar el período entretanto.
+      const row = await db.transaction.findFirst({ where, select })
+      if (!row || row.id !== first.id || !misplaced(row)) return
+      const occupant = await db.transaction.findFirst({
+        where: { recurringTemplateId: template.id, periodKey: target },
+        select: { id: true, status: true },
+      })
+      if (occupant && occupant.status !== "pending") return
+      if (occupant)
+        await db.transaction.deleteMany({ where: { id: occupant.id, status: "pending" } })
+      await db.transaction.update({ where: { id: row.id }, data: { periodKey: target } })
+    })
+    .catch((e) => {
+      // Carrera con otra corrida que abrió el período destino: se deja como estaba.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return
+      throw e
+    })
 }

@@ -108,8 +108,15 @@ function makeRepo(templates: RecurringTemplate[]) {
         .map((r) => ({ periodKey: r.periodKey, isManual: r.status === "confirmed" })),
     findPeriodTransaction: async (templateId, periodKey) => {
       const row = find(templateId, periodKey)
+      // Sin fecha en la fila: el cargo se lee como del vencimiento de su período.
+      const template = templates.find((t) => t.id === templateId)!
       return row
-        ? { id: row.id, status: row.status, isManual: row.externalId === null }
+        ? {
+            id: row.id,
+            status: row.status,
+            isManual: row.externalId === null,
+            date: executionDateFor(template, periodKey),
+          }
         : null
     },
     setPeriodPaid: async (templateId, periodKey, paid) => {

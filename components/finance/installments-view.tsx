@@ -1,12 +1,8 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useState } from "react"
 import { Check, ChevronRight, Plus } from "lucide-react"
-import { toast } from "sonner"
 
-import { todayKey } from "@/arch/shared/today"
-import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 import { currentPeriod, formatCLP } from "@/lib/finance-format"
 import { CategoryIcon } from "./category-icons"
@@ -49,19 +45,6 @@ function thisMonthSettled(p: InstallmentPlanDTO): boolean {
   return !!item && (item.status === "paid" || item.status === "outside_app")
 }
 
-type Item = InstallmentPlanDTO["items"][number]
-
-const settled = (i: Item) => i.status === "paid" || i.status === "outside_app"
-
-// La cuota que ya se puede generar desde la fila: la pendiente más antigua que venció o vence hoy
-// (misma regla que «Generar cuota» del detalle). Las futuras no: serían un botón muerto.
-function generableItem(p: InstallmentPlanDTO): Item | undefined {
-  const today = todayKey()
-  return p.items
-    .filter((i) => !settled(i) && i.dueDate.slice(0, 10) <= today)
-    .sort((a, b) => a.index - b.index)[0]
-}
-
 // Sección "Cuotas" de la pantalla Recurrentes: una columna con el resumen del mes arriba y la
 // lista debajo, porque comparte el ancho con la sección de recurrentes. El AppShell y la sesión
 // son de la página que la contiene.
@@ -74,13 +57,7 @@ export function InstallmentsSection({
   accounts: AccountDTO[]
   categories: CategoryDTO[]
 }) {
-  const router = useRouter()
   const [creating, setCreating] = useState(false)
-  // El plan que se está generando; sigue ocupado hasta que el refresh trae la cuota ya pagada,
-  // para que un segundo toque no mande otro PATCH sobre la misma cuota.
-  const [generating, setGenerating] = useState<string | null>(null)
-  const [refreshing, startRefresh] = useTransition()
-  const busyId = generating ?? (refreshing ? "refresh" : null)
   const [detailId, setDetailId] = useState<string | null>(null)
   // Derivado de las props frescas (no un snapshot en estado): tras una mutación del modal +
   // router.refresh(), el detalle muestra el plan actualizado, no el de cuando se abrió.
@@ -101,35 +78,6 @@ export function InstallmentsSection({
         .reduce((s, i) => s + (i.paidAmount ?? i.amount), 0),
     0
   )
-
-  // Igual que «Generar cuota» del detalle: crea el movimiento con el monto y la fecha del
-  // cronograma, que conserva el mes/ciclo de la cuota.
-  async function generate(p: InstallmentPlanDTO, item: Item) {
-    if (busyId) return
-    haptic("light")
-    setGenerating(p.id)
-    try {
-      const res = await fetch(`/api/installments/${p.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId: item.id, paid: true, amount: item.amount, date: item.dueDate }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        haptic("error")
-        toast.error(data.error ?? "No se pudo generar la cuota")
-        return
-      }
-      haptic("success")
-      toast.success("Movimiento generado y cuota pagada")
-      startRefresh(() => router.refresh())
-    } catch {
-      haptic("error")
-      toast.error("No se pudo generar la cuota")
-    } finally {
-      setGenerating(null)
-    }
-  }
 
   return (
     // scroll-mt: los enlaces a /recurring#cuotas no quedan bajo el header fijo.
@@ -170,13 +118,7 @@ export function InstallmentsSection({
           {active.length > 0 && (
             <ul className="glass inset-list overflow-hidden rounded-xl [--inset:4.25rem]">
               {active.map((p) => (
-                <PlanRow
-                  key={p.id}
-                  plan={p}
-                  onOpen={() => setDetailId(p.id)}
-                  onGenerate={(item) => generate(p, item)}
-                  generating={busyId !== null}
-                />
+                <PlanRow key={p.id} plan={p} onOpen={() => setDetailId(p.id)} />
               ))}
             </ul>
           )}
@@ -219,30 +161,22 @@ export function InstallmentsSection({
 function PlanRow({
   plan: p,
   onOpen,
-  onGenerate,
-  generating = false,
 }: {
   plan: InstallmentPlanDTO
   onOpen: () => void
-  onGenerate?: (item: Item) => void
-  generating?: boolean
 }) {
   const completed = p.completedAt !== null
   const item = currentItem(p)
   const monthPaid = !completed && thisMonthSettled(p)
   const overdue = completed ? 0 : p.items.filter((i) => i.status === "overdue").length
-  const toGenerate = !completed && onGenerate ? generableItem(p) : undefined
 
   // Dos líneas: nombre y cuota del mes; debajo, en qué cuota va y cuándo vence la próxima.
   return (
-    <li className={cn("flex items-center", completed && "opacity-60")}>
+    <li className={cn(completed && "opacity-60")}>
       <button
         type="button"
         onClick={onOpen}
-        className={cn(
-          "press flex min-h-11 min-w-0 flex-1 items-center gap-3 py-2.5 pl-4 text-left hover:bg-accent/60",
-          toGenerate ? "pr-2" : "pr-4"
-        )}
+        className="press flex min-h-11 w-full items-center gap-3 py-2.5 pr-4 pl-4 text-left hover:bg-accent/60"
       >
         <span
           className="grid size-10 shrink-0 place-items-center rounded-full"
@@ -281,7 +215,7 @@ function PlanRow({
                 monthPaid && (
                   <span className="flex shrink-0 items-center gap-0.5 text-primary">
                     <Check className="size-3.5" />
-                    Pagada
+                    Pagado
                   </span>
                 )
               )}
@@ -305,21 +239,6 @@ function PlanRow({
         {/* La fila abre el detalle: chevron de lista de iOS. */}
         <ChevronRight aria-hidden className="disclosure" />
       </button>
-      {/* Como «Ya lo pagué» de recurrentes: genera la cuota vencida sin abrir el detalle. Solo
-          aparece cuando hay una que generar. */}
-      {toGenerate && (
-        <Button
-          variant="ghost"
-          onClick={() => onGenerate?.(toGenerate)}
-          disabled={generating}
-          aria-label={`Generar cuota ${toGenerate.index} de ${p.installmentsCount}: ${p.description}`}
-          // Escritorio: la acción con su nombre; en móvil solo el icono, que el ancho es del nombre.
-          className="mr-1 h-11 shrink-0 text-subheadline text-primary max-md:size-11 max-md:p-0"
-        >
-          <Check className="size-4" />
-          <span className="max-md:sr-only">Generar</span>
-        </Button>
-      )}
     </li>
   )
 }

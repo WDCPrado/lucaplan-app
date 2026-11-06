@@ -25,7 +25,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { haptic } from "@/lib/haptics"
-import { RECURRING_URL_MAX, recurringUrlSchema } from "@/lib/schemas/recurring-url"
+import { RECURRING_URL_MAX, linkHost, recurringUrlSchema } from "@/lib/schemas/recurring-url"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
 import { DatePicker } from "./transaction-modal"
@@ -52,15 +52,6 @@ function readableEnd(iso: string): string | null {
     month: "long",
     year: "numeric",
   })
-}
-
-// Lo que se muestra del enlace guardado: el dominio sin «www.», que es como se reconoce el portal.
-function linkHost(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "")
-  } catch {
-    return url
-  }
 }
 
 const PERIODICITIES = [

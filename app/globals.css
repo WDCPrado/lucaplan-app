@@ -1155,3 +1155,12 @@ html:has(main[data-landing]) body {
 }
 
 /* La alerta de iOS vive en components/ui/alert-dialog.tsx (WDC-176). */
+
+/* vaul pone `user-select: none` y `touch-action: none` en toda la hoja: en Safari eso hereda a los
+   campos y no deja seleccionar, copiar ni mover el cursor dentro del texto. Los campos lo recuperan;
+   `data-vaul-no-drag` en Input y Textarea evita que arrastrar sobre ellos mueva la hoja. */
+[data-vaul-drawer] :is(input, textarea, [contenteditable="true"]) {
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: auto;
+}

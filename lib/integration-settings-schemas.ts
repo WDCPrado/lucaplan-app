@@ -114,7 +114,12 @@ export const setupStatus = z.object({
   verified: z.boolean(), // esta sesión ya validó el código de instalación
   local: z.boolean(), // el código de acceso se imprime en consola (no hace falta Resend)
   missingRequired: z.array(integrationKey), // claves mínimas que faltan para poder entrar
+  // Estado de cada clave (mismo formato que GET /api/integrations); null hasta verificar el código.
+  integrations: integrationsStatus.nullable(),
 })
+// Para redirigir / y /login a /setup desde el servidor: `isInstallationEmpty(): Promise<boolean>`,
+// exportada por arch/v1/infrastructure/database/prisma/setup-deps.ts. /setup y /api/setup/** son
+// públicas en proxy.ts.
 export type SetupStatus = z.infer<typeof setupStatus>
 
 export const setupVerifyInput = z.object({

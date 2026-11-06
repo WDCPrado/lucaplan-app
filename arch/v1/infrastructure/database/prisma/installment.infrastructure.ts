@@ -13,6 +13,8 @@ import {
   InvalidInstallmentPlanError,
 } from "../../../domain/finance/installment.domain.ts"
 
+class NotAdopted extends Error {}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toPlan(row: any): InstallmentPlan {
   const currency = row.currency as CurrencyCode
@@ -39,6 +41,7 @@ function toPlan(row: any): InstallmentPlan {
       amount: Money.of(i.amount.toString(), currency),
       transactionId: i.transaction?.id ?? null,
       paidOutsideApp: i.paidOutsideApp,
+      manualTransaction: i.transaction ? i.transaction.externalId === null : false,
     })),
   }
 }
@@ -46,7 +49,7 @@ function toPlan(row: any): InstallmentPlan {
 const withItems = {
   items: {
     orderBy: { index: "asc" },
-    include: { transaction: { select: { id: true } } },
+    include: { transaction: { select: { id: true, externalId: true } } },
   },
 } as const
 
@@ -96,6 +99,22 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
     return (
       await prisma.installmentPlan.findMany({
         where: { accountId, kind, completedAt: null },
+        include: withItems,
+        orderBy: { createdAt: "asc" },
+      })
+    ).map(toPlan)
+  },
+  async listLoanPlansForPayment(accountId) {
+    return (
+      await prisma.installmentPlan.findMany({
+        where: {
+          accountId,
+          kind: "loan",
+          OR: [
+            { completedAt: null },
+            { items: { some: { transaction: { is: { externalId: null } } } } },
+          ],
+        },
         include: withItems,
         orderBy: { createdAt: "asc" },
       })
@@ -206,24 +225,51 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
     }
   },
   async adoptTransaction(plan, itemId, transactionId) {
-    return prisma.$transaction(async (db) => {
-      const item = await db.installmentItem.findUnique({
-        where: { id: itemId },
-        include: { transaction: { select: { id: true } } },
+    return prisma
+      .$transaction(async (db) => {
+        const item = await db.installmentItem.findUnique({
+          where: { id: itemId },
+          include: { transaction: { select: { id: true, externalId: true } } },
+        })
+        if (!item || item.paidOutsideApp) return false
+        if (item.transaction) {
+          // Saldada por el banco: dos cargos reales no se pisan. Saldada A MANO: solo la reemplaza un
+          // movimiento que trae el banco, y el manual se borra —conservar los dos contaría dos veces
+          // el gasto—. Se borra directo, sin tocar el saldo: `registerItemTransaction` tampoco lo movió.
+          // ponytail: un manual creado por la API de movimientos y asignado con «Asignar» sí movió el
+          // saldo y aquí no se devuelve; se acepta porque solo pasa al llegar un correo, y en una cuenta
+          // conectada el saldo se rehace con el snapshot del banco.
+          if (item.transaction.externalId !== null) return false
+          const incoming = await db.transaction.findUnique({
+            where: { id: transactionId },
+            select: { externalId: true, installmentItemId: true },
+          })
+          if (!incoming || incoming.externalId === null || incoming.installmentItemId !== null)
+            return false
+          // deleteMany: si otro correo ya lo reemplazó en paralelo, no hay fila y este no adopta.
+          const removed = await db.transaction.deleteMany({
+            where: { id: item.transaction.id, externalId: null },
+          })
+          if (removed.count === 0) throw new NotAdopted()
+        }
+        // El movimiento conserva su monto, fecha y externalId reales —el correo es el hecho— y solo
+        // adopta el vínculo y la categoría del plan.
+        const { count } = await db.transaction.updateMany({
+          where: { id: transactionId, installmentItemId: null },
+          data: {
+            categoryId: plan.categoryId,
+            installmentItemId: itemId,
+            reviewed: true,
+          },
+        })
+        // Sin adoptar, el borrado del manual se revierte con la transacción.
+        if (count === 0) throw new NotAdopted()
+        return true
       })
-      if (!item || item.transaction || item.paidOutsideApp) return false
-      // El movimiento conserva su monto, fecha y externalId reales —el correo es el hecho— y solo
-      // adopta el vínculo y la categoría del plan.
-      const { count } = await db.transaction.updateMany({
-        where: { id: transactionId, installmentItemId: null },
-        data: {
-          categoryId: plan.categoryId,
-          installmentItemId: itemId,
-          reviewed: true,
-        },
+      .catch((e) => {
+        if (e instanceof NotAdopted) return false
+        throw e
       })
-      return count > 0
-    })
   },
   async markPaidOutsideApp(itemIds) {
     await prisma.installmentItem.updateMany({

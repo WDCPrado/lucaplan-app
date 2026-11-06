@@ -310,10 +310,7 @@ export async function adoptLoanInstallment(
   deps: { installments: InstallmentPlanRepository },
   payment: LoanPayment & { transactionId: string }
 ): Promise<InstallmentPlan | null> {
-  const plans = await deps.installments.listActiveByAccount(
-    payment.accountId,
-    "loan"
-  )
+  const plans = await deps.installments.listLoanPlansForPayment(payment.accountId)
   const picked = pickLoanItemFor(payment, plans)
   if (!picked?.item) return null
   const { plan, item } = picked
@@ -323,7 +320,11 @@ export async function adoptLoanInstallment(
     payment.transactionId
   )
   if (!adopted) return null
-  await closeIfComplete(deps, plan, item, payment.date)
+  // Plan ya cerrado (el correo reemplazó una cuota manual): sigue cerrado. Si la reemplazada es la
+  // última, el cierre pasa a la fecha del correo; si es una anterior, la fecha de cierre no cambia.
+  const last = Math.max(...plan.items.map((i) => i.index))
+  if (plan.completedAt === null || item.index === last)
+    await closeIfComplete(deps, plan, item, payment.date)
   return plan
 }
 

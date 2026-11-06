@@ -44,6 +44,9 @@ export type InstallmentItem = {
   amount: Money // card: definitivo; loan: estimación (el correo manda)
   transactionId: string | null // movimiento creado o adoptado; null = sin registrar
   paidOutsideApp: boolean // cuota anterior a la conexión de correo: cuenta, pero no generó gasto
+  // El movimiento no vino del banco (sin externalId): lo generó la app a mano. El correo de ese
+  // pago lo reemplaza. Ausente = false.
+  manualTransaction?: boolean
 }
 
 // --- Inputs de escritura ---
@@ -154,14 +157,35 @@ export function nextDueItem(
   )
 }
 
+/** ¿La cuota la saldó un movimiento manual que el correo del banco puede reemplazar? */
+export function isReplaceableByEmail(item: InstallmentItem): boolean {
+  return item.transactionId !== null && item.manualTransaction === true
+}
+
+/**
+ * Cuota de un crédito que corresponde a un pago SIN N° de cuota. Primero la cuota del período del
+ * pago (la última ya vencida a esa fecha) si quedó saldada a mano: el correo es ese mismo pago, que
+ * llegó tarde. Si no, la pendiente más antigua vencida (`nextDueItem`). Una cuota manual de un
+ * período anterior no se toca: un pago fechado en el período siguiente es el de ese período.
+ */
+function loanItemFor(plan: InstallmentPlan, date: Date): InstallmentItem | null {
+  const ofPeriod = [...plan.items]
+    .sort((a, b) => a.index - b.index)
+    .filter((i) => !isAfterDay(i.dueDate, date))
+    .at(-1)
+  if (ofPeriod && isReplaceableByEmail(ofPeriod)) return ofPeriod
+  return nextDueItem(plan, date)
+}
+
 /**
  * Ítem que salda un pago de crédito. El N° de cuota del correo manda cuando viene: es el propio
  * banco diciendo cuál cuota pagó, más fiable que deducirla del orden.
  *
- * Si el banco nombra una cuota YA saldada, no se cae a otra: ese pago es un duplicado o algo que
+ * Si el banco nombra una cuota saldada a mano, es esa: el correo reemplaza al movimiento manual.
+ * Si el banco nombra una cuota YA saldada por el banco (o fuera de la app), no se cae a otra: ese pago es un duplicado o algo que
  * el modelo no previó, y meterlo en la cuota siguiente reportaría como cuota 2 lo que el banco
  * llamó cuota 1. Devuelve null y el movimiento queda suelto para que lo resuelva el usuario.
- * Solo cuando el correo no trae número se recurre a la pendiente más antigua vencida.
+ * Solo cuando el correo no trae número se recurre a `loanItemFor`.
  */
 export function itemForPayment(
   plan: InstallmentPlan,
@@ -169,9 +193,9 @@ export function itemForPayment(
 ): InstallmentItem | null {
   if (payment.installmentNumber !== null) {
     const named = plan.items.find((i) => i.index === payment.installmentNumber)
-    if (named) return isSettled(named) ? null : named
+    if (named) return isSettled(named) && !isReplaceableByEmail(named) ? null : named
   }
-  return nextDueItem(plan, payment.date)
+  return loanItemFor(plan, payment.date)
 }
 
 /** Rango [monto·(1−tol), monto·(1+tol)]: si un pago ya importado calza con una cuota al crear el plan. */
@@ -203,7 +227,7 @@ export function amountDistance(payment: Money, expected: Money): bigint {
 /**
  * Plan `loan` y cuota que salda un pago:
  *
- *   1. planes activos de esa cuenta de origen — con uno solo, se acabó, y la cuota la elige
+ *   1. planes de esa cuenta de origen (activos, o cerrados con una cuota saldada a mano) — con uno solo, se acabó, y la cuota la elige
  *      `itemForPayment` (manda el N° del correo);
  *   2. con varios, el monto: gana el plan cuya cuota pendiente está más cerca del cargo, calce o no
  *      la tolerancia (la última cuota de un crédito suele desviarse del cronograma);
@@ -220,14 +244,16 @@ export function pickLoanItemFor(
   payment: LoanPayment,
   plans: InstallmentPlan[]
 ): { plan: InstallmentPlan; item: InstallmentItem | null } | null {
+  // Un plan cerrado entra solo por una cuota saldada a mano: el correo de esa cuota la reemplaza.
   const candidates = plans.flatMap((p) => {
+    const named = p.items.find((i) => i.index === payment.installmentNumber)
     const item =
       p.kind === "loan" &&
-      p.completedAt === null &&
       p.accountId === payment.accountId &&
       p.currency === payment.amount.currency
-        ? nextDueItem(p, payment.date)
+        ? (named && isReplaceableByEmail(named) ? named : loanItemFor(p, payment.date))
         : null
+    if (item && p.completedAt !== null && !isReplaceableByEmail(item)) return []
     return item ? [{ plan: p, item, distance: amountDistance(payment.amount, item.amount) }] : []
   })
   if (candidates.length === 0) return null
@@ -358,6 +384,11 @@ export interface InstallmentPlanRepository {
     accountId: string,
     kind: InstallmentKind
   ): Promise<InstallmentPlan[]>
+  /**
+   * Planes `loan` de una cuenta que un correo de pago puede tocar: los activos y los cerrados con
+   * alguna cuota saldada por un movimiento manual (el correo de esa cuota la reemplaza).
+   */
+  listLoanPlansForPayment(accountId: string): Promise<InstallmentPlan[]>
   findById(id: string): Promise<InstallmentPlan | null>
   /** Plan al que pertenece un movimiento: la cuota que lo salda o la compra origen neutralizada. */
   findByTransaction(transactionId: string): Promise<InstallmentPlan | null>
@@ -384,7 +415,9 @@ export interface InstallmentPlanRepository {
   ): Promise<boolean>
   /**
    * Vincula al ítem un movimiento YA IMPORTADO (`loan`) y le aplica la categoría del plan,
-   * dejándolo revisado para que la IA no lo toque. `false` si el ítem ya estaba registrado.
+   * dejándolo revisado para que la IA no lo toque. `false` si el ítem ya estaba registrado, salvo
+   * que lo saldara un movimiento manual y el que llega venga del banco: entonces borra el manual y
+   * adopta el del banco en la misma transacción (ver `isReplaceableByEmail`).
    */
   adoptTransaction(
     plan: InstallmentPlan,

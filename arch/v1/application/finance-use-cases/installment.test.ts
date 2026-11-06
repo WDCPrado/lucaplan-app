@@ -72,6 +72,7 @@ function makeRepo() {
   const plans = new Map<string, InstallmentPlan>()
   const registered: Registered[] = []
   const adopted: { itemId: string; transactionId: string }[] = []
+  const replaced: string[] = [] // movimientos manuales borrados al llegar el del correo
   const neutralized: string[] = []
   const restored: string[] = [] // compras origen des-neutralizadas al borrar el plan
   const recategorized: { planId: string; categoryId: string }[] = []
@@ -104,6 +105,13 @@ function makeRepo() {
         (p) =>
           p.accountId === accountId && p.kind === kind && p.completedAt === null
       ),
+    listLoanPlansForPayment: async (accountId) =>
+      [...plans.values()].filter(
+        (p) =>
+          p.accountId === accountId &&
+          p.kind === "loan" &&
+          (p.completedAt === null || p.items.some((i) => i.manualTransaction))
+      ),
     findById: async (id) => plans.get(id) ?? null,
     findByTransaction: async (transactionId) =>
       [...plans.values()].find(
@@ -134,10 +142,20 @@ function makeRepo() {
     },
     registerItemTransaction: async (plan, itemId, date, amount) => {
       const ok = settle(plan.id, itemId, `tx-${itemId}`)
-      if (ok) registered.push({ itemId, date, amount })
+      if (ok) {
+        registered.push({ itemId, date, amount })
+        plans.get(plan.id)!.items.find((i) => i.id === itemId)!.manualTransaction = true
+      }
       return ok
     },
     adoptTransaction: async (plan, itemId, transactionId) => {
+      // Como en BD: el movimiento que la app generó a mano cede su lugar al que trae el banco.
+      const item = plans.get(plan.id)!.items.find((i) => i.id === itemId)!
+      if (item.transactionId && item.manualTransaction) {
+        replaced.push(item.transactionId)
+        item.transactionId = null
+        item.manualTransaction = false
+      }
       const ok = settle(plan.id, itemId, transactionId)
       if (ok) {
         adopted.push({ itemId, transactionId })
@@ -201,6 +219,7 @@ function makeRepo() {
     repo,
     registered,
     adopted,
+    replaced,
     neutralized,
     restored,
     recategorized,
@@ -623,36 +642,157 @@ test("una cuota se puede registrar a mano cuando el pago no llega por correo", a
   assert.notEqual(after.items[0].transactionId, null)
 })
 
-test("si el correo llega después de la marca manual, el ítem no se registra dos veces", async () => {
-  const { repo, registered, adopted } = makeRepo()
-  const deps = {
-    installments: repo,
-    accounts: makeAccounts("checking"),
-    categories,
-  }
-  const plan = await createInstallmentPlan(deps, "u1", {
-    ...baseInput,
-    kind: "loan",
-  })
-  await payInstallmentManually({ installments: repo }, "u1", {
-    planId: plan.id,
-    itemId: plan.items[0].id,
-    date: day(2026, 8, 6),
-    amount: 100_000,
-  })
+// WDC-178: la cuota generada a mano es un sustituto; cuando el banco avisa ese pago, el correo
+// manda (monto y fecha reales) y el manual se borra. Conservar los dos contaría dos veces el gasto.
+async function loanWithManual(itemIndexes: number[]) {
+  const made = makeRepo()
+  const deps = { installments: made.repo, accounts: makeAccounts("checking"), categories }
+  const plan = await createInstallmentPlan(deps, "u1", { ...baseInput, kind: "loan" })
+  for (const i of itemIndexes)
+    await payInstallmentManually({ installments: made.repo }, "u1", {
+      planId: plan.id,
+      itemId: plan.items[i - 1].id,
+      date: plan.items[i - 1].dueDate,
+      amount: 100_000,
+    })
+  return { ...made, plan }
+}
+
+test("Dado la cuota 1 generada a mano, cuando llega el correo «cuota 1», entonces se borra el movimiento manual y la cuota queda con el del correo", async () => {
+  const { repo, adopted, replaced, plan } = await loanWithManual([1])
   const claimed = await adoptLoanInstallment(
     { installments: repo },
     {
       transactionId: "tx-tarde",
       accountId: "acc1",
-      amount: clp(100_000),
+      amount: clp(101_350),
       date: day(2026, 8, 7),
       installmentNumber: 1,
     }
   )
-  assert.equal(registered.length, 1)
-  assert.equal(adopted.length, 0, "no se engancha a ninguna cuota")
-  assert.equal(claimed, null, "el movimiento queda como gasto suelto")
+  assert.equal(claimed?.id, plan.id)
+  assert.deepEqual(replaced, [`tx-${plan.items[0].id}`], "el manual se borra")
+  assert.deepEqual(adopted, [{ itemId: plan.items[0].id, transactionId: "tx-tarde" }])
+  assert.equal((await repo.findById(plan.id))!.items[0].transactionId, "tx-tarde")
+})
+
+test("Dado las cuotas 1 y 2 generadas a mano, cuando llega un correo sin N° de cuota fechado en el período de la 1, entonces reemplaza la 1 y no la 2", async () => {
+  const { repo, adopted, replaced, plan } = await loanWithManual([1, 2])
+  const claimed = await adoptLoanInstallment(
+    { installments: repo },
+    {
+      transactionId: "tx-correo",
+      accountId: "acc1",
+      amount: clp(100_000),
+      date: day(2026, 8, 20), // vence la 1 el 5/8, la 2 el 5/9
+      installmentNumber: null,
+    }
+  )
+  assert.equal(claimed?.id, plan.id)
+  assert.deepEqual(replaced, [`tx-${plan.items[0].id}`])
+  assert.deepEqual(adopted, [{ itemId: plan.items[0].id, transactionId: "tx-correo" }])
+  assert.equal((await repo.findById(plan.id))!.items[1].transactionId, `tx-${plan.items[1].id}`)
+})
+
+test("Dado la cuota 1 generada a mano y la 2 pendiente, cuando llega un correo sin N° fechado en el período de la 2, entonces salda la 2 y el manual de la 1 se conserva", async () => {
+  const { repo, adopted, replaced, plan } = await loanWithManual([1])
+  await adoptLoanInstallment(
+    { installments: repo },
+    {
+      transactionId: "tx-correo",
+      accountId: "acc1",
+      amount: clp(100_000),
+      date: day(2026, 9, 6),
+      installmentNumber: null,
+    }
+  )
+  assert.deepEqual(replaced, [])
+  assert.deepEqual(adopted, [{ itemId: plan.items[1].id, transactionId: "tx-correo" }])
+})
+
+test("Dado un crédito cerrado porque su última cuota se generó a mano, cuando llega el correo de esa cuota, entonces el correo la reemplaza y el plan sigue cerrado con la fecha del correo", async () => {
+  const made = makeRepo()
+  const deps = { installments: made.repo, accounts: makeAccounts("checking"), categories }
+  const plan = await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    kind: "loan",
+    installmentsCount: 2,
+    totalAmount: 200_000,
+  })
+  for (const item of plan.items)
+    await payInstallmentManually({ installments: made.repo }, "u1", {
+      planId: plan.id,
+      itemId: item.id,
+      date: item.dueDate,
+      amount: 100_000,
+    })
+  assert.notEqual((await made.repo.findById(plan.id))!.completedAt, null, "cerrado por la marca manual")
+  const claimed = await adoptLoanInstallment(
+    { installments: made.repo },
+    {
+      transactionId: "tx-ultima",
+      accountId: "acc1",
+      amount: clp(99_870),
+      date: day(2026, 9, 8),
+      installmentNumber: 2,
+    }
+  )
+  assert.equal(claimed?.id, plan.id)
+  assert.deepEqual(made.replaced, [`tx-${plan.items[1].id}`])
+  const after = (await made.repo.findById(plan.id))!
+  assert.equal(after.items[1].transactionId, "tx-ultima")
+  assert.deepEqual(after.completedAt, day(2026, 9, 8), "cerrado con la fecha del correo")
+})
+
+test("Dado un crédito cerrado con la cuota 1 generada a mano, cuando llega tarde el correo «cuota 1», entonces la reemplaza sin mover la fecha de cierre", async () => {
+  const made = makeRepo()
+  const deps = { installments: made.repo, accounts: makeAccounts("checking"), categories }
+  const plan = await createInstallmentPlan(deps, "u1", {
+    ...baseInput,
+    kind: "loan",
+    installmentsCount: 2,
+    totalAmount: 200_000,
+  })
+  await payInstallmentManually({ installments: made.repo }, "u1", {
+    planId: plan.id,
+    itemId: plan.items[0].id,
+    date: plan.items[0].dueDate,
+    amount: 100_000,
+  })
+  const pago = (transactionId: string, date: Date, installmentNumber: number) => ({
+    transactionId,
+    accountId: "acc1",
+    amount: clp(100_000),
+    date,
+    installmentNumber,
+  })
+  await adoptLoanInstallment({ installments: made.repo }, pago("tx-2", day(2026, 9, 6), 2))
+  const closedAt = (await made.repo.findById(plan.id))!.completedAt
+  assert.deepEqual(closedAt, day(2026, 9, 6))
+  const claimed = await adoptLoanInstallment(
+    { installments: made.repo },
+    pago("tx-1", day(2026, 9, 10), 1)
+  )
+  assert.equal(claimed?.id, plan.id)
+  assert.deepEqual(made.replaced, [`tx-${plan.items[0].id}`])
+  assert.deepEqual((await made.repo.findById(plan.id))!.completedAt, closedAt)
+})
+
+test("Dado la cuota 1 ya saldada por un correo, cuando llega otro correo «cuota 1», entonces no pisa el del banco y queda como gasto suelto", async () => {
+  const { repo, adopted, replaced } = makeRepo()
+  const deps = { installments: repo, accounts: makeAccounts("checking"), categories }
+  await createInstallmentPlan(deps, "u1", { ...baseInput, kind: "loan" })
+  const pago = (transactionId: string) => ({
+    transactionId,
+    accountId: "acc1",
+    amount: clp(100_000),
+    date: day(2026, 8, 7),
+    installmentNumber: 1,
+  })
+  assert.ok(await adoptLoanInstallment({ installments: repo }, pago("tx-banco")))
+  assert.equal(await adoptLoanInstallment({ installments: repo }, pago("tx-otro")), null)
+  assert.deepEqual(replaced, [])
+  assert.equal(adopted.length, 1)
 })
 
 test("rechaza generar una cuota cuyo vencimiento aún es futuro", async () => {

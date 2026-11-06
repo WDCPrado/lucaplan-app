@@ -8,6 +8,7 @@ allowBuilds:
   prisma: true
   '@prisma/client': true
   esbuild: false
+  '@ybouane/liquidglass': false # su postinstall (patch-package) no hace falta: el parche ya va en dist
 
 minimumReleaseAgeExclude:
   - '@prisma/adapter-pg@7.10.1'

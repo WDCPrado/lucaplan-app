@@ -264,7 +264,7 @@ html:has(main[data-landing]) body {
 /* === Dark: fondo carbón suave con celdas elevadas #1C1C1E/#2C2C2E y
    colores de sistema en su variante oscura. === */
 .dark {
-    --background: #121214;
+    --background: #000000;
     --foreground: oklch(0.971 0.003 286.4);          /* #F5F5F7 */
     --card: oklch(0.227 0.004 286.1);                /* #1C1C1E */
     --card-foreground: oklch(0.971 0.003 286.4);

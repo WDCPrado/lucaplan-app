@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Check, ChevronRight } from "lucide-react"
+import { ArrowUpRight, Check, ChevronRight } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { linkHost } from "@/lib/schemas/recurring-url"
 import { currentPeriod, formatCLP } from "@/lib/finance-format"
 import { AppShell } from "./app-shell"
 import { CategoryIcon } from "./category-icons"
@@ -220,14 +221,15 @@ function RecurringRow({
       ? nextChargeLabel(t.nextExecution)
       : null
   return (
-    <li className="flex items-center">
+    // El enlace no puede ir dentro del botón de la fila: el botón cubre la fila por debajo y el
+    // enlace queda encima, así tocarlo abre el portal sin abrir el modal.
+    <li className="press relative flex min-h-11 items-center gap-3 py-2.5 pr-4 pl-4 has-[>button:hover]:bg-accent/60 has-[>button:active]:opacity-55">
       <button
         type="button"
         onClick={onEdit}
-        className={cn(
-          "press flex min-h-11 min-w-0 flex-1 items-center gap-3 py-2.5 pr-4 pl-4 text-left hover:bg-accent/60"
-        )}
-      >
+        aria-label={t.label}
+        className="absolute inset-0 rounded-[inherit]"
+      />
         <span
           className="grid size-10 shrink-0 place-items-center rounded-full data-inactive:opacity-50"
           style={{
@@ -252,6 +254,20 @@ function RecurringRow({
             {t.endDate && !t.hasEnded && ` · hasta ${shortDate(t.endDate)}`}
           </span>
         </span>
+        {t.url && (
+          <a
+            href={t.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Abrir ${linkHost(t.url)}`}
+            className="relative flex min-h-11 max-w-32 shrink items-center gap-1 rounded-full px-1 text-footnote text-primary"
+          >
+            <span className="flex h-7 min-w-0 items-center gap-1 rounded-full bg-(--glass-control) px-2.5">
+              <span className="truncate">{linkHost(t.url)}</span>
+              <ArrowUpRight aria-hidden className="size-3.5 shrink-0" />
+            </span>
+          </a>
+        )}
         <span className="shrink-0 text-right">
           {/* Pausada o finalizada: el monto en gris secundario (ya no compromete el mes), sin
               atenuar toda la fila, que dejaba el texto secundario bajo 4.5:1. */}
@@ -278,7 +294,6 @@ function RecurringRow({
         </span>
         {/* La fila abre el detalle: chevron de lista de iOS. */}
         <ChevronRight aria-hidden className="disclosure" />
-      </button>
     </li>
   )
 }

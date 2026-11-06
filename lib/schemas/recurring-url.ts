@@ -52,3 +52,12 @@ export const recurringUrlSchema = z
     }
     return url
   })
+
+// Lo que se muestra del enlace guardado: el dominio sin «www.», que es como se reconoce el portal.
+export function linkHost(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "")
+  } catch {
+    return url
+  }
+}

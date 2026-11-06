@@ -18,15 +18,16 @@ export async function PATCH(
   const body = await req.json()
 
   return withUser(req, async (userId) => {
-    const parsed = transactionUpdateSchema.parse({
+    // Sin fecha se conserva la del movimiento: un PATCH sin `date` no lo mueve a hoy.
+    const parsed = transactionUpdateSchema.partial({ date: true }).parse({
       description: String(body.description ?? "").trim() || "Movimiento",
       amount: Number(body.amount) || 0,
       direction: body.direction === "credit" ? "credit" : "debit",
       categoryId: body.categoryId ?? null,
-      date: body.date || new Date().toISOString(),
+      date: body.date || undefined,
     })
     const { result: t } = await followIncome(financeDeps, userId, () =>
-      updateTransaction(financeDeps, userId, { transactionId: id, ...parsed, date: new Date(parsed.date) }),
+      updateTransaction(financeDeps, userId, { transactionId: id, ...parsed, date: parsed.date ? new Date(parsed.date) : undefined }),
       { allModes: true }
     )
     return { id: t.id }

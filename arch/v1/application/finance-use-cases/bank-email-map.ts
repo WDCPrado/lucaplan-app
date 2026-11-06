@@ -5,6 +5,7 @@
 // Todo aquí es PURO: el cuerpo del correo se procesa en memoria y no se persiste ni se registra.
 import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
 import type { BankEmailMessage } from "../../domain/finance/email-connection.domain.ts"
+import { todayKey } from "../../../shared/today.ts"
 
 // --- Tipos del evento extraído ---
 
@@ -36,7 +37,7 @@ export type EmailEvent = {
   kind: EmailEventKind
   source: EmailEventSource
   amount: Money
-  date: Date // fecha del movimiento (del cuerpo si viene; si no, la de recepción, en UTC; granularidad día)
+  date: Date // fecha del movimiento (del cuerpo si viene; si no, el día de recepción en Chile; granularidad día)
   receivedAt: Date // instante de recepción del correo (para comparar contra el snapshot con precisión)
   description: string // sin RUT/cuentas/correos; comercio o destinatario si el correo lo informa
   instrument: EmailInstrumentRef | null // null = el correo no identifica el instrumento
@@ -250,14 +251,10 @@ export function parseDate(text: string, receivedAt: Date): Date {
   return dayOf(receivedAt)
 }
 
+// Día civil en Chile del instante, a medianoche UTC (`@db.Date`): un correo de las 22:00 del 4-oct
+// llega el 5-oct en UTC y su cargo es del 4.
 export function dayOf(instant: Date): Date {
-  return new Date(
-    Date.UTC(
-      instant.getUTCFullYear(),
-      instant.getUTCMonth(),
-      instant.getUTCDate()
-    )
-  )
+  return new Date(`${todayKey(instant)}T00:00:00.000Z`)
 }
 
 // Identidad idempotente del movimiento: Transacción > ID TEF > Message-ID > id inmutable de Graph.

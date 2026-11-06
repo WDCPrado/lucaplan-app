@@ -28,7 +28,7 @@ export type UpdateTransactionInput = {
   amount: number // unidad mayor, en la moneda del movimiento
   direction: Direction
   categoryId: string | null
-  date: Date
+  date?: Date // ausente = conserva la del movimiento
 }
 
 type Deps = BudgetPeriodDeps & {
@@ -101,15 +101,16 @@ export async function updateTransaction(
     if (amountChanged) throw new InstallmentAmountReadOnlyError()
   }
   const dayOf = (d: Date) => d.toISOString().slice(0, 10) // día civil (medianoche UTC)
+  const date = input.date ?? tx.date
   const updated = await deps.transactions.update({
     id: input.transactionId,
     description: input.description,
-    date: input.date,
+    date,
     amount,
     direction: input.direction,
     categoryId: input.categoryId,
     // Otro importe o día ya no es lo que concilió la cartola; categoría y descripción sí.
-    clearReconciliation: amountChanged || dayOf(input.date) !== dayOf(tx.date),
+    clearReconciliation: amountChanged || dayOf(date) !== dayOf(tx.date),
   })
   // Recategorizar una cuota recategoriza su plan completo, igual que desde el modal conectado.
   if (

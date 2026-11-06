@@ -101,3 +101,10 @@ test("editar el importe o la fecha de un movimiento conciliado le quita la conci
   )
   assert.notEqual(meta.row.reconciliation, null, "categoría y descripción")
 })
+
+test("WDC-179: editar sin fecha conserva la del movimiento (no la mueve a hoy) ni borra la conciliación", async () => {
+  const sinFecha = depsWith(conciliado())
+  await updateTransaction(sinFecha.deps, "u1", edit({ date: undefined, description: "Supermercado" }))
+  assert.equal(sinFecha.row.tx.date.toISOString(), "2026-10-06T00:00:00.000Z")
+  assert.notEqual(sinFecha.row.reconciliation, null)
+})

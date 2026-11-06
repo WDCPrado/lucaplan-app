@@ -773,6 +773,51 @@ test("rechaza lo que no puede ser el cobro: ingreso, manual, vinculado, cuota, i
   }
 })
 
+test("WDC-179: un cargo del mes anterior no salda el período en curso ni borra su pendiente (ENTEL HOGAR)", async () => {
+  const entel: RecurringTemplate = {
+    ...arriendo,
+    id: "entel",
+    label: "ENTEL HOGAR",
+    description: "ENTEL HOGAR",
+    baseAmount: Money.of(25_990, "CLP"),
+    tolerancePct: 10,
+    dayOfMonth: 5,
+    startDate: new Date("2026-01-05T00:00:00Z"),
+  }
+  const hoy = new Date("2026-11-03T15:00:00Z") // 3/11 en Chile; noviembre vence el 5
+  const { repo, rows } = makeRepo([entel])
+  await materializePeriod({ recurring: repo }, entel, new Date("2026-11-03T00:00:00Z"))
+  const pagarEntel = (tx: Transaction) =>
+    payRecurringPeriodWith(
+      { recurring: repo, transactions: txRepo([tx]) },
+      "u1",
+      { id: "entel", transactionId: tx.id },
+      hoy
+    )
+  const cargo = (date: string, monto = 25_990) =>
+    movimiento({ id: `entel-${date}`, description: "ENTEL HOGAR", amount: Money.of(monto, "CLP"), date: new Date(`${date}T00:00:00Z`) })
+
+  await assert.rejects(pagarEntel(cargo("2026-10-04")), {
+    name: "InvalidRecurringTemplateError",
+    message: "Ese cargo es del 4 de octubre y no corresponde al cobro de este período",
+  })
+  assert.equal(rows.length, 1, "el pendiente de noviembre sigue")
+  assert.equal(rows[0].periodKey, "2026-11")
+  assert.equal(rows[0].status, "pending")
+
+  await assert.rejects(pagarEntel(cargo("2026-11-04", 40_000)), {
+    name: "InvalidRecurringTemplateError",
+    message: "El monto no está dentro de la tolerancia de la recurrente",
+  })
+  assert.equal(rows[0].status, "pending", "monto fuera de tolerancia: tampoco toca el período")
+
+  await pagarEntel(cargo("2026-11-04"))
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].id, "entel-2026-11-04", "el cargo del 4/11 es el cobro de noviembre")
+  assert.equal(rows[0].periodKey, "2026-11")
+  assert.equal(rows[0].status, "confirmed")
+})
+
 test("el movimiento de otro usuario o inexistente se rechaza como no encontrado", async () => {
   const { repo } = makeRepo([arriendo])
   await assert.rejects(pagarCon(repo, movimiento({ userId: "u2" })), {
@@ -815,16 +860,22 @@ test("los candidatos: del banco, sin vínculo, en su moneda, últimos N días en
   assert.equal(pedido?.recurringCandidates, true)
   assert.equal(pedido?.settledOnly, true)
   assert.equal(pedido?.limit, 50)
-  assert.equal(pedido?.amountMin, undefined, "sin filtro de monto")
-  assert.equal(pedido?.amountMax, undefined, "sin filtro de monto")
+  assert.equal(pedido?.amountMin, 315_000, "monto en tolerancia (350.000 ± 10 %)")
+  assert.equal(pedido?.amountMax, 385_000, "monto en tolerancia (350.000 ± 10 %)")
   assert.equal(pedido?.query, undefined)
   assert.equal(pedido?.categoryId, "vivienda", "siempre la categoría de la plantilla")
-  assert.equal(pedido?.to, undefined, "los futuros también entran")
+  // Vence el 5/08: hasta 10 días después entran, aunque sean futuros.
+  assert.equal(pedido?.to?.toISOString(), "2026-08-15T00:00:00.000Z", "hasta 10 días después del vencimiento")
   assert.equal(pedido?.from?.toISOString(), "2026-08-02T00:00:00.000Z", "10 días por defecto")
 
-  // Pasadas las 20:00 en Chile ya es otro día en UTC: manda el día de Chile.
-  await listRecurringCandidates(deps, "u1", "arriendo", { days: 30 }, new Date("2026-08-13T02:00:00Z"))
-  assert.equal(pedido?.from?.toISOString(), "2026-07-13T00:00:00.000Z")
+  // Más días no ofrecen lo que el vínculo rechazaría: nunca antes de 10 días del vencimiento.
+  await listRecurringCandidates(deps, "u1", "arriendo", { days: 30 }, ahora)
+  assert.equal(pedido?.from?.toISOString(), "2026-07-26T00:00:00.000Z")
+
+  // Pasadas las 20:00 en Chile ya es otro día en UTC: manda el día de Chile (31/08 sigue en agosto).
+  await listRecurringCandidates(deps, "u1", "arriendo", { days: 1 }, new Date("2026-09-01T02:00:00Z"))
+  assert.equal(pedido?.from?.toISOString(), "2026-08-30T00:00:00.000Z")
+  assert.equal(pedido?.to?.toISOString(), "2026-08-15T00:00:00.000Z", "el período sigue siendo agosto")
 
   await listRecurringCandidates(
     deps,

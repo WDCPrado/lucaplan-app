@@ -1219,8 +1219,9 @@ export async function listRecurringView(
 
 // Movimientos que el usuario puede elegir como el cobro del período en curso de la plantilla `id`
 // (ver `payRecurringPeriodWith`): movimientos del banco confirmados y sin vínculo, de su misma
-// dirección, moneda y categoría, de los últimos `days` días (hoy en Chile, sin tope futuro), más
-// nuevos primero. Sin filtro de monto: a veces el cargo real se pasa de cualquier umbral.
+// dirección, moneda y categoría, de los últimos `days` días (hoy en Chile), más nuevos primero.
+// Con la misma regla que el vínculo (`paymentCandidateRejection`): fecha a ±RECURRING_MATCH_WINDOW_DAYS
+// del vencimiento del período en curso y monto en tolerancia, para no ofrecer lo que se rechazaría.
 export async function listRecurringCandidates(
   deps: ReadDeps & { recurring: RecurringTemplateRepository },
   userId: string,
@@ -1237,12 +1238,22 @@ export async function listRecurringCandidates(
       "Los días deben ser un número entero entre 1 y 365"
     )
   // Fechas de movimiento = día civil a medianoche UTC; "hoy" es el día civil de Chile.
-  const from = new Date(`${todayKey(now)}T00:00:00Z`)
+  const today = new Date(`${todayKey(now)}T00:00:00Z`)
+  const from = new Date(today)
   from.setUTCDate(from.getUTCDate() - days)
+  const due = executionDateFor(template, periodKeyFor(template, today))
+  const windowFrom = new Date(due)
+  windowFrom.setUTCDate(windowFrom.getUTCDate() - RECURRING_MATCH_WINDOW_DAYS)
+  const to = new Date(due)
+  to.setUTCDate(to.getUTCDate() + RECURRING_MATCH_WINDOW_DAYS)
+  const { min, max } = toleranceRange(template)
   const items = await searchTransactions(deps, userId, {
     direction: template.direction,
     currency: template.currency,
-    from,
+    from: from > windowFrom ? from : windowFrom,
+    to,
+    amountMin: min.toMajor(),
+    amountMax: max.toMajor(),
     query: filters.query,
     categoryId: template.categoryId,
     recurringCandidates: true,

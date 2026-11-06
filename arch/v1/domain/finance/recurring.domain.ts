@@ -302,13 +302,17 @@ export function requiresDayOfMonth(periodicity: Periodicity): boolean {
 // --- Cobro con un movimiento elegido ---
 
 /**
- * ¿Puede `tx` usarse como el cobro del período de `template`? null si sí; si no, el motivo en
- * palabras del usuario (→ 422). La fecha no importa: justamente se usa cuando el cargo cayó fuera
- * del período. El mismo criterio lo aplica el filtro `recurringCandidates` del buscador.
+ * ¿Puede `tx` usarse como el cobro del período `periodKey` de `template`? null si sí; si no, el
+ * motivo en palabras del usuario (→ 422). La fecha puede caer fuera del período (el cargo llegó
+ * antes o después), pero solo dentro de la ventana de match de su vencimiento: un cargo de octubre
+ * elegido en noviembre no es el cobro de noviembre, y vincularlo borraba el pendiente del mes. El
+ * monto, como en el match automático, dentro de la tolerancia. El filtro `recurringCandidates` del
+ * buscador aplica las reglas del movimiento; `listRecurringCandidates`, la fecha y el monto.
  */
 export function paymentCandidateRejection(
   tx: Transaction,
-  template: Pick<RecurringTemplate, "currency" | "direction">
+  template: RecurringTemplate,
+  periodKey: string
 ): string | null {
   if (tx.direction !== template.direction)
     return template.direction === "debit"
@@ -327,8 +331,16 @@ export function paymentCandidateRejection(
   if (tx.installmentItemId) return "El movimiento ya es la cuota de un plan"
   if (tx.amount.currency !== template.currency)
     return "El movimiento está en otra moneda que la recurrente"
+  if (!periodsAround(template, tx.date).some((p) => p.periodKey === periodKey))
+    return `Ese cargo es del ${civilDayLabel(tx.date)} y no corresponde al cobro de este período`
+  if (!matchesAmount(tx, template))
+    return "El monto no está dentro de la tolerancia de la recurrente"
   return null
 }
+
+// "4 de octubre": el día civil tal cual está guardado (medianoche UTC).
+const civilDayLabel = (date: Date) =>
+  date.toLocaleDateString("es-CL", { day: "numeric", month: "long", timeZone: "UTC" })
 
 // --- Port (lo implementa la infraestructura) ---
 

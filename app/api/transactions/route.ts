@@ -7,6 +7,7 @@ import {
 import { listTransactions } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { createTransaction } from "@/arch/v1/application/finance-use-cases/create-transaction-use-case"
 import { followIncome } from "@/arch/v1/application/finance-use-cases/follow-income"
+import { todayKey } from "@/arch/shared/today"
 import {
   DIRECTIONS,
   type Direction,
@@ -47,7 +48,8 @@ export async function POST(req: Request) {
         currency: body.currency,
         direction: body.direction as Direction,
         description: body.description ?? "",
-        date: body.date || new Date().toISOString(),
+        // Sin fecha, hoy en Chile: el instante UTC de las 22:00 ya es mañana y el @db.Date lo guardaba así.
+        date: body.date || todayKey(),
       })
       // Un abono mueve el ingreso; un gasto del período anterior, el déficit: el tope que sigue
       // al ingreso se alinea en los dos casos.

@@ -7,6 +7,7 @@ import {
   listRecurringTemplates,
 } from "@/arch/v1/application/finance-use-cases/recurring-use-cases"
 import { recurringUrlSchema } from "@/lib/schemas/recurring-url"
+import { todayKey } from "@/arch/shared/today"
 import {
   InvalidRecurringUrlError,
   type Periodicity,
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
           body.dayOfMonth === null || body.dayOfMonth === undefined
             ? null
             : Number(body.dayOfMonth),
-        startDate: body.startDate ? new Date(body.startDate) : new Date(),
+        startDate: new Date(body.startDate || `${todayKey()}T00:00:00.000Z`),
         endDate: body.endDate ? new Date(body.endDate) : null,
         sourceTransactionId: body.sourceTransactionId
           ? String(body.sourceTransactionId)

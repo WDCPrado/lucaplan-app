@@ -783,7 +783,7 @@ export const pluginTools = {
   ),
   lucaplan_candidatos_pago_recurrente: read(
     "Candidatos de cobro de recurrente",
-    "Úsala antes de lucaplan_vincular_pago_recurrente: lista movimientos del banco confirmados y sin vínculo, de la misma dirección, moneda y categoría, de los últimos días.",
+    "Úsala antes de lucaplan_vincular_pago_recurrente: lista movimientos del banco confirmados y sin vínculo, de la misma dirección, moneda y categoría, de los últimos días, con monto dentro de la tolerancia y fecha a 10 días o menos del vencimiento del período en curso (lo único que se puede vincular).",
     z.strictObject({
       id: ref("Recurrente"),
       days: z
@@ -798,7 +798,7 @@ export const pluginTools = {
   ),
   lucaplan_vincular_pago_recurrente: write(
     { title: "Vincular cobro de recurrente" },
-    "Usa un movimiento del banco que ya existe como el cobro del período en curso, aunque su fecha caiga fuera; no duplica el gasto. En una recurrente planificada, además le fija el texto bancario para reconocer los siguientes.",
+    "Usa un movimiento del banco que ya existe como el cobro del período en curso; no duplica el gasto. Su fecha puede caer fuera del período, pero solo hasta 10 días antes o después del vencimiento en curso, y su monto debe estar dentro de la tolerancia: un cargo de otro mes no salda este período (se rechaza). En una recurrente planificada, además le fija el texto bancario para reconocer los siguientes.",
     z.strictObject({
       id: ref("Recurrente"),
       transactionId: ref(

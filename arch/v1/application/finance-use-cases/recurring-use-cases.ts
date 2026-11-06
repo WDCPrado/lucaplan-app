@@ -319,6 +319,7 @@ export async function setRecurringPeriodPaid(
 /**
  * Usa un movimiento que ya existe como el cobro del período en curso, aunque su fecha caiga fuera
  * de él: el cargo real llegó con otra fecha y el match automático (que mira la fecha) no lo vinculó.
+ * Solo dentro de la ventana del vencimiento y con el monto en tolerancia (`paymentCandidateRejection`).
  * Reemplaza el comprometido o la marca manual del período, igual que un cargo del correo; un cargo
  * del banco no se pisa (→ 409). El movimiento conserva su fecha, monto y externalId.
  */
@@ -333,11 +334,13 @@ export async function payRecurringPeriodWith(
 ): Promise<{ ok: true }> {
   const today = civilToday(now)
   const template = await chargeableTemplate(deps, userId, input.id, today)
-  // Valida el movimiento: 404 si no está o no es suyo, 422 si no puede ser el cobro.
+  const currentPeriod = periodKeyFor(template, today)
+  // Valida el movimiento: 404 si no está o no es suyo, 422 si no puede ser el cobro. Antes de abrir
+  // el período: un rechazo no deja nada escrito.
   const assertCandidate = async () => {
     const tx = await deps.transactions.findById(input.transactionId)
     if (!tx || tx.userId !== userId) throw new NotOwnerError()
-    const rejection = paymentCandidateRejection(tx, template)
+    const rejection = paymentCandidateRejection(tx, template, currentPeriod)
     if (rejection) throw new InvalidRecurringTemplateError(rejection)
     return tx
   }

@@ -1,5 +1,4 @@
 import {
-  onboardingCategory,
   onboardingStatus,
   proposeCategoriesOutput,
   type OnboardingCategory,
@@ -43,11 +42,10 @@ export async function proposeCategories(
   )
 }
 
-export async function saveCategories(
-  categories: OnboardingCategory[]
-): Promise<{ categories: OnboardingCategory[] }> {
-  const data = await call("/api/onboarding/categories", "PUT", { categories })
-  return { categories: onboardingCategory.array().parse(data.categories) }
+// La respuesta trae también las categorías que se conservaron por estar en uso, que pueden no
+// tener icono ni color: la pantalla no la necesita, así que no se valida contra el esquema del set.
+export async function saveCategories(categories: OnboardingCategory[]): Promise<void> {
+  await call("/api/onboarding/categories", "PUT", { categories })
 }
 
 export async function completeOnboarding(): Promise<OnboardingStatus> {

@@ -108,7 +108,7 @@ export function CategoriesStep({
       document.getElementById(`${formId}-list`)?.focus()
     } catch (e) {
       const message =
-        e instanceof Error ? e.message : "No se pudieron proponer categorías"
+        e instanceof ApiError ? e.message : "No se pudieron proponer categorías"
       form.setError(
         e instanceof ApiError && e.status === 422 ? "description" : "root",
         { message }
@@ -161,7 +161,7 @@ export function CategoriesStep({
     } catch (e) {
       haptic("error")
       setSaveError(
-        e instanceof Error ? e.message : "No se pudieron guardar las categorías"
+        e instanceof ApiError ? e.message : "No se pudieron guardar las categorías"
       )
     } finally {
       setSaving(false)

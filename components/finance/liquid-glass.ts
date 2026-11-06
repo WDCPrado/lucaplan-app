@@ -2,37 +2,45 @@
 
 import * as React from "react"
 import type { GlassConfig, LiquidGlass } from "@ybouane/liquidglass"
-import { GLASS_DEFAULT, GLASS_MAX, getGlass, subscribeGlass } from "@/lib/glass-level"
+import {
+  GLASS_DEFAULT,
+  GLASS_MAX,
+  getGlass,
+  subscribeGlass,
+} from "@/lib/glass-level"
 
 // Refracción de Liquid Glass (WDC-179) con @ybouane/liquidglass: un shader WebGL sobre una foto
-// (html-to-image) de lo que hay detrás. El vidrio CSS (`liquid-glass`) es siempre el respaldo.
+// (html-to-image) de lo que hay detrás. El vidrio CSS es siempre el respaldo.
 //
 // La librería exige que cada vidrio sea hijo directo de su root y dibuja detrás solo a los otros
 // hijos del root. Cada superficie es un root con su propia instancia (un contexto WebGL):
-// - el marco de la app (wrapper del sidebar): la barra inferior, que ya es hija directa, y los
-//   controles flotantes (cápsula del mes, «Hoy», círculo de búsqueda);
-// - cada hoja abierta (vaul): los círculos de vidrio de su encabezado;
+// - el marco de la app (wrapper del sidebar): la barra inferior, que ya es hija directa, y todo
+//   control de vidrio de las páginas (GLASS_CONTROLS);
+// - cada hoja abierta (vaul): sus controles de vidrio;
+// - los menús, selects y popovers abiertos, juntos, con <body> como root;
 // - cada slider, desde el primer toque: la perilla mientras se arrastra, sobre su pista.
-// Los controles que no son hijos directos no se mueven: se les pone detrás un «proxy», un div
-// vacío hijo directo del root que copia su caja (posición, tamaño, transform, radio, opacidad) y
-// lleva el vidrio; el control queda transparente encima (`data-lg-proxied`, globals.css). Antes de
-// que la librería arranque, el proxy es vidrio CSS, igual al del control.
+// Los controles no se mueven: detrás de cada uno va un «proxy», un div vacío hijo directo del root
+// que copia su caja (posición, tamaño, transform, radio, opacidad) y lleva el vidrio; el control
+// queda sin fondo encima (`data-lg-proxied`, globals.css). Antes de que la librería arranque, y
+// mientras recaptura, el proxy es vidrio CSS.
 //
 // ponytail: techo conocido. (1) La foto es el contenido entero a devicePixelRatio: una página
 // larga pasa el tope de área de canvas de iOS (~16,7 MP) y ahí vuelve el vidrio CSS. (2) Cada
-// cambio del contenido recaptura todo (html-to-image en el hilo principal, con debounce): en el
-// iPhone puede costar cientos de ms y batería. (3) La librería no sigue el scroll ni los proxies:
-// se le avisa por frame. (4) Toca dos privados de la 1.0.3, fijada exacta en package.json: el
-// fondo blanco de su escena (se pinta con el del tema) y el contexto WebGL, que su destroy no
-// libera. La mejora es capturar solo la franja detrás de cada vidrio (PR #6 de
-// ybouane/liquidglass): al subir de versión, revisar (4) y quitar (1).
+// cambio del contenido recaptura todo (html-to-image en el hilo principal, con debounce y después
+// de la entrada de la página): en el iPhone puede costar cientos de ms y batería. (3) La librería
+// no sigue el scroll ni los proxies: se le avisa por frame. (4) Toca dos privados de la 1.0.3,
+// fijada exacta en package.json: el fondo blanco de su escena (se pinta con el del tema) y el
+// contexto WebGL, que su destroy no libera. (5) Un control dentro de un contexto de apilamiento
+// sin z-index (transform, opacidad) no lleva proxy: el vidrio no puede quedar entre él y su fondo.
+// La mejora es capturar solo la franja detrás de cada vidrio (PR #6 de ybouane/liquidglass): al
+// subir de versión, revisar (4) y quitar (1).
 
 // Se apaga si cualquiera calza. Separadas por coma (OR) a propósito: un motor que no conoce
 // prefers-reduced-transparency la evalúa falsa sola, sin anular las demás.
 const OFF_QUERY =
   "(min-width: 768px), (prefers-reduced-transparency: reduce), (prefers-contrast: more), (prefers-reduced-motion: reduce)"
 const INIT_TIMEOUT_MS = 3000 // init puede no resolver nunca en Chrome reciente (issue #3 upstream)
-const RECAPTURE_DEBOUNCE_MS = 600
+const REFRESH_DEBOUNCE_MS = 400
 const RESTART_DEBOUNCE_MS = 400
 const TRACK_MS = 700 // cuánto se siguen las cajas después del último evento que las mueve
 const SHEET_DELAY_MS = 450 // la hoja termina de subir y sus acciones llegan por portal
@@ -51,11 +59,26 @@ const LEVELS: Partial<GlassConfig>[] = [
   { blurAmount: 0.2, refraction: 0.5, saturation: 0.5 },
   { blurAmount: 0.3, refraction: 0.3, saturation: 0.6 },
 ]
+const POPUP_MIN_BLUR = 0.3 // texto encima: lo de atrás no puede competir con él
 
-// Los controles flotantes del marco: la fila superior móvil y lo marcado con data-lg-control.
-const SHELL_CONTROLS =
-  '.top-bar :is(.liquid-glass, [class~="max-md:liquid-glass"]), [data-lg-control]'
-const SHEET_CONTROLS = '[data-slot="drawer-header"] .liquid-glass'
+// Todo control de vidrio: las cápsulas y círculos `liquid-glass`, los botones redondos secundarios
+// (steppers, íconos), la pestaña activa de Tabs y lo marcado con data-lg-control (la pastilla de
+// Segmented, la búsqueda).
+const GLASS_CONTROLS = [
+  ".liquid-glass:not([data-lg-proxy])",
+  '[class~="max-md:liquid-glass"]',
+  "[data-lg-control]",
+  '[data-slot="button"][data-variant="secondary"][data-size^="icon"]',
+  '[data-slot="tabs-trigger"][data-state="active"]',
+].join(",")
+const POPUPS = [
+  "dropdown-menu-content",
+  "dropdown-menu-sub-content",
+  "select-content",
+  "popover-content",
+]
+  .map((slot) => `[data-slot="${slot}"][data-state="open"]`)
+  .join(",")
 
 type Options = {
   root: HTMLElement
@@ -63,11 +86,31 @@ type Options = {
   controls: () => HTMLElement[] // controles en cualquier parte del root: van con proxy
   isOn?: (control: HTMLElement, pressed: boolean) => boolean // por defecto, siempre
   dynamic?: () => HTMLElement[] // se recapturan por frame mientras hay un dedo encima
-  followScroll?: boolean // el root se desplaza con la ventana y hay vidrios fijos encima
   pressed?: boolean // se montó desde un pointerdown que sigue en curso
+  popup?: boolean // material de lectura: más relleno y más desenfoque
+  positionRoot?: boolean // el root hace de bloque contenedor de los proxies (no en <body>)
 }
 
 const allowed = (mql: MediaQueryList) => !mql.matches && getGlass() < GLASS_MAX
+// Hay una navegación en curso (useNavDirection marca <html> hasta que termina la entrada).
+const navigating = () => document.documentElement.hasAttribute("data-nav-dir")
+
+let proxySeq = 0
+
+// Crea un contexto de apilamiento (resumen de la regla de CSS).
+function stacks(s: CSSStyleDeclaration) {
+  return (
+    (s.position !== "static" && s.zIndex !== "auto") ||
+    s.position === "fixed" ||
+    s.position === "sticky" ||
+    s.transform !== "none" ||
+    Number(s.opacity) < 1 ||
+    s.filter !== "none" ||
+    s.isolation === "isolate" ||
+    /transform|opacity/.test(s.willChange) ||
+    /paint|strict|content/.test(s.contain)
+  )
+}
 
 // Monta una superficie y la mantiene al día con la accesibilidad y el nivel de vidrio. Devuelve
 // cómo desmontarla, que deja el DOM como estaba.
@@ -104,11 +147,12 @@ function startSession(o: Options): () => void {
   let raf = 0
   let trackUntil = 0
   let markNext = false
-  let recaptureTimer = 0
+  let refreshTimer = 0
   let restartTimer = 0
   let bg = "#ffffff"
   const rootPosition = root.style.position
-  if (getComputedStyle(root).position === "static") root.style.position = "relative"
+  if (o.positionRoot !== false && getComputedStyle(root).position === "static")
+    root.style.position = "relative"
 
   const all = () => [...glassEls, ...proxies]
   const fits = () => {
@@ -120,9 +164,13 @@ function startSession(o: Options): () => void {
       parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0,
       el.offsetHeight / 2
     )
+    const level = LEVELS[getGlass()] ?? LEVELS[GLASS_DEFAULT]
     return JSON.stringify({
       ...BASE,
-      ...(LEVELS[getGlass()] ?? LEVELS[GLASS_DEFAULT]),
+      ...level,
+      ...(o.popup && {
+        blurAmount: Math.max(level.blurAmount ?? 0, POPUP_MIN_BLUR),
+      }),
       cornerRadius: radius,
       zRadius: Math.min(24, radius),
     })
@@ -134,32 +182,48 @@ function startSession(o: Options): () => void {
   const setDynamic = (on: boolean) => {
     for (const el of o.dynamic?.() ?? []) el.toggleAttribute("data-dynamic", on)
   }
+  const setActive = (on: boolean) => {
+    for (const g of all()) g.toggleAttribute("data-lg-active", on && !!inst)
+  }
   // Fondo de la escena: el primero no transparente desde el root hacia arriba (sigue al tema).
   const readBg = () => {
     for (let e: HTMLElement | null = root; e; e = e.parentElement) {
       const c = getComputedStyle(e).backgroundColor
-      if (c && c !== "transparent" && !/,\s*0\)$/.test(c) && !/\/\s*0\)$/.test(c)) {
+      if (
+        c &&
+        c !== "transparent" &&
+        !/,\s*0\)$/.test(c) &&
+        !/\/\s*0\)$/.test(c)
+      ) {
         bg = c
         return
       }
     }
   }
 
-  // El hijo directo del root que contiene al control, y la capa en que se pinta.
+  // El hijo directo del root que contiene al control.
   const topChild = (el: HTMLElement) => {
     let e: HTMLElement | null = el
     while (e && e.parentElement !== root) e = e.parentElement
     return e
   }
-  const layer = (el: HTMLElement) => {
-    let pinned = false
-    let z = "auto"
-    for (let e: HTMLElement | null = el; e && e !== root; e = e.parentElement) {
+  // Dónde se pinta el proxy para quedar entre el control y lo de atrás:
+  // - sin contexto de apilamiento entre el control y el root: z 1, y el control sube a z 2;
+  // - con uno, el más externo (la fila superior, el contenedor de la búsqueda, el de un menú, la
+  //   perilla): su mismo z, justo antes en el árbol. Sirve si es hijo del root o si tiene z propio;
+  //   si no, no hay lugar (null) y queda el vidrio CSS.
+  const layer = (c: HTMLElement) => {
+    let pinned = getComputedStyle(c).position === "fixed"
+    let outer: HTMLElement | null = null
+    for (let e = c.parentElement; e && e !== root; e = e.parentElement) {
       const s = getComputedStyle(e)
       if (s.position === "fixed" || s.position === "sticky") pinned = true
-      if (z === "auto" && s.position !== "static" && s.zIndex !== "auto") z = s.zIndex
+      if (stacks(s)) outer = e
     }
-    return { pinned, z }
+    if (!outer) return { pinned, z: "1", lift: true }
+    const z = getComputedStyle(outer).zIndex
+    if (topChild(c) !== outer && z === "auto") return null
+    return { pinned, z, lift: false }
   }
 
   const makeProxy = () => {
@@ -167,7 +231,8 @@ function startSession(o: Options): () => void {
     p.className = "liquid-glass"
     p.setAttribute("aria-hidden", "true")
     p.setAttribute("data-nuevo", "")
-    p.dataset.lgProxy = ""
+    p.dataset.lgProxy = String(++proxySeq)
+    if (o.popup) p.dataset.lgPopup = ""
     p.style.cssText =
       "left:0;top:0;width:0;height:0;margin:0;pointer-events:none;isolation:isolate;visibility:hidden"
     return p
@@ -177,7 +242,12 @@ function startSession(o: Options): () => void {
     p.dataset.lgKey = "hidden"
     p.style.visibility = "hidden"
     p.style.width = p.style.height = "0px"
+    p.style.viewTransitionName = ""
     return true
+  }
+  const release = (c: HTMLElement) => {
+    c.removeAttribute("data-lg-proxied")
+    c.removeAttribute("data-lg-lift")
   }
 
   // Copia la caja del control al proxy. Devuelve si algo cambió.
@@ -189,39 +259,62 @@ function startSession(o: Options): () => void {
       opacity *= Number(getComputedStyle(e).opacity)
     const w = c.offsetWidth
     const h = c.offsetHeight
-    const on =
+    const where =
       (o.isOn?.(c, pressed) ?? true) &&
       s.visibility === "visible" &&
       w > 0 &&
       h > 0 &&
       opacity > 0.01
-    c.toggleAttribute("data-lg-proxied", on)
-    if (!on) return hide(p)
+        ? layer(c)
+        : null
+    // Al cambiar de página el contenido se desliza (view transition) y un proxy que no está fijo
+    // quedaría quieto: mientras dura, ese control lleva su propio vidrio CSS.
+    if (!where || (!where.pinned && navigating())) {
+      release(c)
+      return hide(p)
+    }
+    c.setAttribute("data-lg-proxied", "")
+    if (where.lift && !c.hasAttribute("data-lg-lift"))
+      c.setAttribute("data-lg-lift", s.position === "static" ? "static" : "")
     const r = c.getBoundingClientRect()
-    const { pinned, z } = layer(c)
     // Centro de la caja visible menos media caja sin transform: el transform se copia aparte.
     let x = r.left + r.width / 2 - w / 2
     let y = r.top + r.height / 2 - h / 2
-    if (!pinned) {
+    if (!where.pinned) {
       const rr = root.getBoundingClientRect()
       x -= rr.left + root.clientLeft
       y -= rr.top + root.clientTop
     }
-    const key = [pinned, x, y, w, h, s.transform, s.borderRadius, z, opacity].join("|")
+    const key = [
+      where.pinned,
+      x,
+      y,
+      w,
+      h,
+      s.transform,
+      s.transformOrigin,
+      s.borderRadius,
+      where.z,
+      opacity,
+    ].join("|")
     if (p.dataset.lgKey === key) return false
     p.dataset.lgKey = key
-    p.toggleAttribute("data-lg-pinned", pinned)
+    p.toggleAttribute("data-lg-pinned", where.pinned)
     Object.assign(p.style, {
       left: `${x}px`,
       top: `${y}px`,
       width: `${w}px`,
       height: `${h}px`,
       transform: s.transform,
+      transformOrigin: s.transformOrigin, // los menús escalan desde su disparador
       borderRadius: s.borderRadius,
-      zIndex: z,
+      zIndex: where.z,
       opacity: String(opacity),
       visibility: "visible",
+      // Fijo, queda quieto con el marco en el cambio de página (globals.css, `lg-proxy`).
+      viewTransitionName: where.pinned ? `lg-proxy-${p.dataset.lgProxy}` : "",
     })
+    p.style.setProperty("view-transition-class", where.pinned ? "lg-proxy" : "")
     // Justo antes del hijo que lo contiene: en la misma capa se pinta debajo del control.
     const child = topChild(c)
     if (child && p.nextElementSibling !== child) root.insertBefore(p, child)
@@ -236,7 +329,7 @@ function startSession(o: Options): () => void {
     proxies.forEach((p, i) => {
       const c = controls[i]
       const prev = assigned.get(p)
-      if (prev && prev !== c) prev.removeAttribute("data-lg-proxied")
+      if (prev && prev !== c) release(prev)
       if (c) assigned.set(p, c)
       else assigned.delete(p)
       changed = place(p, c) || changed
@@ -250,33 +343,35 @@ function startSession(o: Options): () => void {
     if (!alive) return
     if (sync() || markNext) inst?.markChanged()
     markNext = false
-    if (pressed || performance.now() < trackUntil) raf = requestAnimationFrame(tick)
+    if (pressed || performance.now() < trackUntil)
+      raf = requestAnimationFrame(tick)
   }
   const kick = () => {
     trackUntil = performance.now() + TRACK_MS
     if (!raf && alive) raf = requestAnimationFrame(tick)
   }
 
-  const release = (i: LiquidGlass) => {
+  const destroy = (i: LiquidGlass) => {
     i.destroy()
     // Su destroy no libera el contexto WebGL, y iOS admite pocos a la vez.
     const canvas = i.renderer.canvas
     const gl = canvas.getContext("webgl2") ?? canvas.getContext("webgl")
     gl?.getExtension("WEBGL_lose_context")?.loseContext()
     // destroy también quita estilos en línea de los vidrios: los proxies se vuelven a ubicar. Su
-    // position vive en globals.css ([data-lg-proxy]) para que nunca caigan al flujo del flex.
+    // position vive en globals.css ([data-lg-proxy]) para que nunca caigan al flujo.
     for (const p of proxies) delete p.dataset.lgKey
     kick()
   }
   const stopInst = () => {
     if (!inst) return
-    release(inst)
+    setActive(false)
+    destroy(inst)
     inst = null
-    for (const g of all()) delete g.dataset.lgActive
   }
   // La escena de la librería arranca en blanco: se pinta con el fondo del tema.
   const patchScene = (i: LiquidGlass) => {
-    const ctx = (i as unknown as { _sceneCtx?: CanvasRenderingContext2D })._sceneCtx
+    const ctx = (i as unknown as { _sceneCtx?: CanvasRenderingContext2D })
+      ._sceneCtx
     if (!ctx) return
     const fill = ctx.fillRect.bind(ctx)
     ctx.fillRect = (x, y, w, h) => {
@@ -285,7 +380,7 @@ function startSession(o: Options): () => void {
     }
   }
   const removeProxies = () => {
-    for (const c of assigned.values()) c.removeAttribute("data-lg-proxied")
+    for (const c of assigned.values()) release(c)
     assigned.clear()
     for (const p of proxies) p.remove()
     proxies.length = 0
@@ -320,11 +415,11 @@ function startSession(o: Options): () => void {
           window.clearTimeout(timer)
           starting = false
           // Llegó tarde, se desmontó o el contenido creció mientras arrancaba.
-          if (timedOut || !alive || !fits()) return release(i)
+          if (timedOut || !alive || !fits()) return destroy(i)
           inst = i
           patchScene(i)
           setDynamic(pressed)
-          for (const g of all()) g.dataset.lgActive = ""
+          setActive(true)
           markNext = true
           kick()
         },
@@ -336,26 +431,44 @@ function startSession(o: Options): () => void {
   }
   function scheduleRestart() {
     window.clearTimeout(restartTimer)
-    restartTimer = window.setTimeout(() => {
-      if (starting || !alive || failed) return
+    restartTimer = window.setTimeout(function restart() {
+      if (!alive || failed) return
+      if (starting || navigating())
+        return void (restartTimer = window.setTimeout(restart, 100))
       stopInst()
       start()
     }, RESTART_DEBOUNCE_MS)
   }
 
-  // Contenido o tema distintos: la librería no recaptura si el tamaño no cambia. `force` conserva
-  // la foto anterior hasta que llega la nueva (sin parpadeo en blanco).
-  const recapture = () => {
-    window.clearTimeout(recaptureTimer)
-    recaptureTimer = window.setTimeout(() => {
-      readBg()
-      if (!inst) return
-      const glass = all()
-      for (const child of root.children)
-        if (!glass.includes(child as HTMLElement))
-          void inst.capture.captureElement(child as HTMLElement, true)
-    }, RECAPTURE_DEBOUNCE_MS)
+  // Recaptura lo de atrás: la librería no lo hace si el tamaño no cambia, y si cambia estira la
+  // foto vieja (el contenido se vería corrido). `drop` muestra el vidrio CSS, que ve el contenido
+  // vivo, hasta que llega la foto nueva. Espera a que termine la entrada de la página.
+  const refresh = async () => {
+    if (navigating())
+      return void (refreshTimer = window.setTimeout(refresh, 100))
+    readBg()
+    const i = inst
+    if (!i) return
+    const glass = all()
+    await Promise.all(
+      [...root.children]
+        .filter((child) => !glass.includes(child as HTMLElement))
+        .map((child) => i.capture.captureElement(child as HTMLElement, true))
+    )
+    if (inst !== i || !alive) return
+    markNext = true
+    kick()
+    // Dos frames: el shader ya pintó con la foto nueva cuando el vidrio CSS se va.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => inst === i && setActive(true))
+    )
   }
+  const scheduleRefresh = (drop: boolean) => {
+    if (drop) setActive(false)
+    window.clearTimeout(refreshTimer)
+    refreshTimer = window.setTimeout(refresh, REFRESH_DEBOUNCE_MS)
+  }
+
   const ownMutation = (m: MutationRecord) =>
     all().some((g) => g.contains(m.target)) ||
     (m.target === root &&
@@ -365,29 +478,39 @@ function startSession(o: Options): () => void {
   const contentObserver = new MutationObserver((records) => {
     if (records.every(ownMutation)) return
     kick()
-    recapture()
+    scheduleRefresh(false)
   })
-  contentObserver.observe(root, { childList: true, subtree: true, characterData: true })
-  const themeObserver = new MutationObserver(recapture)
-  themeObserver.observe(document.documentElement, {
+  contentObserver.observe(root, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  })
+  // Tema (clase de <html>): colores distintos, misma caja. Navegación (data-nav-dir): los
+  // proxies que no están fijos se apartan mientras se desliza el contenido.
+  const htmlObserver = new MutationObserver((records) => {
+    kick()
+    if (records.some((r) => r.attributeName === "class")) scheduleRefresh(true)
+  })
+  htmlObserver.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ["class"],
+    attributeFilter: ["class", "data-nav-dir"],
   })
-  // Con otro tamaño la librería estira la foto vieja hasta que llega la nueva: el contenido
-  // aparecería corrido (más con más scroll). Mejor la escena lisa del fondo mientras tanto.
   const sizeObserver = new ResizeObserver(() => {
     if (!fits()) stopInst()
-    else if (inst) {
-      const glass = all()
-      for (const child of root.children)
-        if (!glass.includes(child as HTMLElement)) inst.capture.invalidateCache(child as HTMLElement)
-      markNext = true
-    } else start()
+    else if (inst) scheduleRefresh(true)
+    else start()
     kick()
   })
   sizeObserver.observe(root)
 
+  // Con scroll, lo de atrás se mueve solo bajo los vidrios fijos; los demás se mueven con él.
   const onScroll = () => {
+    if (!inst) return
+    for (const g of glassEls) inst.markChanged(g)
+    for (const p of proxies)
+      if (p.hasAttribute("data-lg-pinned")) inst.markChanged(p)
+  }
+  const onResize = () => {
     markNext = true
     kick()
   }
@@ -407,24 +530,24 @@ function startSession(o: Options): () => void {
   root.addEventListener("pointerdown", onDown)
   window.addEventListener("pointerup", onUp)
   window.addEventListener("pointercancel", onUp)
-  window.addEventListener("resize", onScroll, { passive: true })
-  if (o.followScroll) window.addEventListener("scroll", onScroll, { passive: true })
+  window.addEventListener("resize", onResize, { passive: true })
+  window.addEventListener("scroll", onScroll, { passive: true })
   start()
 
   return () => {
     alive = false
     cancelAnimationFrame(raf)
-    window.clearTimeout(recaptureTimer)
+    window.clearTimeout(refreshTimer)
     window.clearTimeout(restartTimer)
     contentObserver.disconnect()
-    themeObserver.disconnect()
+    htmlObserver.disconnect()
     sizeObserver.disconnect()
     root.removeEventListener("transitionrun", kick)
     root.removeEventListener("animationstart", kick)
     root.removeEventListener("pointerdown", onDown)
     window.removeEventListener("pointerup", onUp)
     window.removeEventListener("pointercancel", onUp)
-    window.removeEventListener("resize", onScroll)
+    window.removeEventListener("resize", onResize)
     window.removeEventListener("scroll", onScroll)
     stopInst()
     setDynamic(false)
@@ -434,8 +557,12 @@ function startSession(o: Options): () => void {
   }
 }
 
-// Monta la superficie del marco (la barra `navRef` y los controles flotantes) y vigila las hojas
-// que se abren y los sliders que se tocan. Una vez por app, en el marco.
+const query = (root: ParentNode, selector: string) => [
+  ...root.querySelectorAll<HTMLElement>(selector),
+]
+
+// Monta la superficie del marco (la barra `navRef` y los controles de las páginas) y vigila las
+// hojas que se abren, los menús y popovers, y los sliders que se tocan. Una vez, en el marco.
 export function useLiquidGlass(navRef: React.RefObject<HTMLElement | null>) {
   React.useEffect(() => {
     const nav = navRef.current
@@ -449,42 +576,70 @@ export function useLiquidGlass(navRef: React.RefObject<HTMLElement | null>) {
       mountSurface({
         root,
         glass: [nav],
-        controls: () => [...root.querySelectorAll<HTMLElement>(SHELL_CONTROLS)],
-        followScroll: true,
+        controls: () =>
+          query(root, GLASS_CONTROLS).filter((c) => !nav.contains(c)),
       })
     )
 
     const mountSheet = (sheet: HTMLElement) => {
       pending.delete(sheet)
-      if (!sheet.isConnected || sheet.dataset.state !== "open" || mounted.has(sheet)) return
+      if (
+        !sheet.isConnected ||
+        sheet.dataset.state !== "open" ||
+        mounted.has(sheet)
+      )
+        return
       mounted.set(
         sheet,
         mountSurface({
           root: sheet,
-          controls: () => [...sheet.querySelectorAll<HTMLElement>(SHEET_CONTROLS)],
+          controls: () => query(sheet, GLASS_CONTROLS),
         })
       )
     }
+    const body = document.body
     let queued = false
     const scan = () => {
       queued = false
-      for (const sheet of document.querySelectorAll<HTMLElement>(
+      for (const sheet of query(
+        document,
         '[data-slot="drawer-content"][data-state="open"]'
       ))
         if (!mounted.has(sheet) && !pending.has(sheet))
-          pending.set(sheet, window.setTimeout(() => mountSheet(sheet), SHEET_DELAY_MS))
-      for (const [el, unmount] of mounted)
-        if (el !== root && (!el.isConnected || el.dataset.state === "closed")) {
+          pending.set(
+            sheet,
+            window.setTimeout(() => mountSheet(sheet), SHEET_DELAY_MS)
+          )
+      // Menús y popovers: una instancia mientras haya alguno abierto, con lo de atrás capturado
+      // al abrir; al cerrarse el último, se destruye.
+      const popupsOpen = document.querySelector(POPUPS) !== null
+      if (popupsOpen && !mounted.has(body))
+        mounted.set(
+          body,
+          mountSurface({
+            root: body,
+            controls: () => query(body, POPUPS),
+            popup: true,
+            positionRoot: false,
+          })
+        )
+      for (const [el, unmount] of mounted) {
+        const gone =
+          el === body
+            ? !popupsOpen
+            : el !== root && (!el.isConnected || el.dataset.state === "closed")
+        if (gone) {
           unmount()
           mounted.delete(el)
         }
+      }
     }
     const bodyObserver = new MutationObserver(() => {
       if (queued) return
       queued = true
       requestAnimationFrame(scan)
     })
-    bodyObserver.observe(document.body, {
+    bodyObserver.observe(body, {
       childList: true,
       subtree: true,
       attributes: true,
@@ -493,11 +648,16 @@ export function useLiquidGlass(navRef: React.RefObject<HTMLElement | null>) {
 
     // Slider: su propio root (la pista es lo de atrás), montado con el primer toque.
     const onSliderDown = (e: PointerEvent) => {
-      const slider = (e.target as Element | null)?.closest<HTMLElement>('[data-slot="slider"]')
-      if (!slider || mounted.has(slider) || slider.hasAttribute("data-disabled")) return
-      const thumbs = () => [
-        ...slider.querySelectorAll<HTMLElement>('[data-slot="slider-thumb"]'),
-      ]
+      const slider = (e.target as Element | null)?.closest<HTMLElement>(
+        '[data-slot="slider"]'
+      )
+      if (
+        !slider ||
+        mounted.has(slider) ||
+        slider.hasAttribute("data-disabled")
+      )
+        return
+      const thumbs = () => query(slider, '[data-slot="slider-thumb"]')
       mounted.set(
         slider,
         mountSurface({
@@ -505,10 +665,9 @@ export function useLiquidGlass(navRef: React.RefObject<HTMLElement | null>) {
           controls: thumbs,
           // Como el CSS: en el simple, mientras hay dedo; en el rango, la perilla tomada (foco).
           isOn: (thumb, pressed) =>
-            pressed && (thumbs().length === 1 || thumb === document.activeElement),
-          dynamic: () => [
-            ...slider.querySelectorAll<HTMLElement>('[data-slot="slider-track"]'),
-          ],
+            pressed &&
+            (thumbs().length === 1 || thumb === document.activeElement),
+          dynamic: () => query(slider, '[data-slot="slider-track"]'),
           pressed: true,
         })
       )

@@ -316,7 +316,7 @@ function useNavDirection() {
   }, [])
 
   // Llegó la ruta nueva: la transición ya arrancó con la marca. Se borra al terminar el
-  // deslizamiento (--nav-duration 280 ms + margen); borrarla antes cortaría la animación, que lee
+  // deslizamiento (--nav-duration 240 ms + margen); borrarla antes cortaría la animación, que lee
   // `data-nav-dir` mientras corre. Si otra navegación marcó entretanto, se respeta la suya.
   React.useEffect(() => {
     const root = document.documentElement

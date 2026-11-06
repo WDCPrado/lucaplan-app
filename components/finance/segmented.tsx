@@ -36,9 +36,13 @@ export function Segmented<T extends string>({
       )}
     >
       {/* Pastilla clara que se desliza hasta el segmento elegido (spring corto; salta con
-          movimiento reducido). Los segmentos miden lo mismo: basta su índice. */}
+          movimiento reducido). Los segmentos miden lo mismo: basta su índice. Las etiquetas van en
+          z-[2] para quedar sobre ella también cuando la refracción la sube a z 2. */}
       <span
         aria-hidden
+        // Vidrio con refracción en móvil (components/finance/liquid-glass.ts).
+        data-lg-control
+        data-nuevo
         className={cn(
           "pointer-events-none absolute inset-y-0.5 left-0.5 rounded-full bg-(--glass-control-active) shadow-(--knob-shadow) transition-transform duration-500 ease-(--ease-spring) motion-reduce:transition-none",
           activeIndex < 0 && "opacity-0"
@@ -56,7 +60,7 @@ export function Segmented<T extends string>({
             key={o.value}
             disabled={disabled}
             className={cn(
-              "relative flex-1 rounded-full px-3 text-subheadline whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50",
+              "relative z-[2] flex-1 rounded-full px-3 text-subheadline whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50",
               active
                 ? "font-semibold text-foreground"
                 : // En oscuro, muted sobre la pista de una hoja queda en 4.49:1: no llega a AA.

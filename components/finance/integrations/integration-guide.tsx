@@ -9,7 +9,7 @@ export type GuideLink = { label: string; href: string }
 // Lo que hay que copiar o escribir tal cual: en monoespaciada, seleccionable de un toque.
 function Mono({ children }: { children: ReactNode }) {
   return (
-    <code className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.9em] break-all select-all">
+    <code className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-subheadline break-all select-all">
       {children}
     </code>
   )
@@ -74,8 +74,8 @@ function steps(group: string, redirectUri: string): ReactNode[] {
       </>,
       <>
         En <strong>API permissions → Add a permission → Microsoft Graph →
-        Delegated permissions</strong> marca <Mono>Mail.Read</Mono> y{" "}
-        <Mono>offline_access</Mono>. Nada más: Luca Plan solo lee.
+        Delegated permissions</strong> marca solo <Mono>Mail.Read</Mono>. Nada más: Luca Plan solo lee; el
+        acceso sin conexión se pide solo al conectar.
       </>,
       <>
         En <strong>Tenant</strong> escribe <Mono>consumers</Mono>, que calza con

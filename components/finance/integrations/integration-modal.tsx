@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -25,8 +25,10 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import {
-  LOCAL_CHARS,
   buildSender,
+  cleanDomain,
+  cleanLocal,
+  cleanName,
   nameFromDomain,
   parseSender,
   senderSchema,
@@ -194,14 +196,14 @@ function IntegrationForm({
             <div className="relative">
               <Input
                 id={fieldId}
-                {...form.register("value", {
+                {...form.register(
+                  "value",
                   // Una clave no lleva espacios: el que se cuela al pegar (o un salto) se descarta.
                   // El remitente sí («Luca Plan <codigos@…>»).
-                  onChange: (e) => {
-                    if (!KEYS_WITH_SPACES.includes(entry.key))
-                      e.target.value = e.target.value.replace(/\s/g, "")
-                  },
-                })}
+                  KEYS_WITH_SPACES.includes(entry.key)
+                    ? undefined
+                    : sanitized((v) => v.replace(/\s/g, ""))
+                )}
                 type={secret && !reveal ? "password" : "text"}
                 maxLength={500}
                 autoComplete="off"
@@ -260,6 +262,18 @@ function IntegrationForm({
   )
 }
 
+// Saneo en vivo que también llega al formulario: RHF lee el valor ANTES de llamar al onChange de
+// `register`, así que cambiar solo `e.target.value` deja guardado lo que se tecleó. `setValueAs`
+// pasa el mismo saneo al valor que guarda.
+function sanitized(clean: (value: string) => string) {
+  return {
+    setValueAs: (value: unknown) => clean(String(value ?? "")),
+    onChange: (e: { target: { value: string } }) => {
+      e.target.value = clean(e.target.value)
+    },
+  }
+}
+
 // --- Remitente (RESEND_FROM) en dos pasos: Dominio → Nombre y dirección ----------------------------
 // Lo que viaja sigue siendo un solo string («Lucaplan <notificaciones@lucaplan.cl>») por el mismo
 // PUT; la API lo vuelve a validar con `valueFor("RESEND_FROM")`. Estas reglas son solo de la UI que
@@ -296,13 +310,22 @@ function SenderForm({
   const busy = isSubmitting || removing
   const values = useWatch({ control: form.control })
   const preview = buildSender({ domain: "", name: "", local: "", ...values })
-  const unchanged = preview === (entry.display ?? "")
+  // Se compara con lo guardado ya armado en forma canónica: «"Luca Plan" <a@b.cl>» y
+  // «Luca Plan <a@b.cl>» son lo mismo.
+  const unchanged = preview === (saved ? buildSender(saved) : (entry.display ?? ""))
+  // Se anuncia al cambiar de paso, y el foco va al contenedor del paso (el botón que lo cambió
+  // puede quedar deshabilitado o desaparecer).
+  const stepRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (step.dir !== 0) stepRef.current?.focus({ preventScroll: true })
+  }, [step])
 
   async function next() {
     if (!(await form.trigger("domain"))) return
-    // El nombre se propone desde el dominio mientras la persona no lo haya escrito a mano; si el
-    // dominio es el guardado, se queda el nombre guardado («Luca Plan»).
-    if (!dirtyFields.name && (dirtyFields.domain || !form.getValues("name")))
+    // El nombre se propone desde el dominio mientras la persona no lo haya escrito a mano, y solo si
+    // el dominio cambió o no había nada guardado: con el guardado se queda su nombre, aunque esté
+    // vacío.
+    if (!dirtyFields.name && (dirtyFields.domain || !saved))
       form.setValue("name", nameFromDomain(form.getValues("domain")))
     setStep({ n: 2, dir: 1 })
   }
@@ -388,9 +411,27 @@ function SenderForm({
             })}
           </ol>
 
+          <p className="sr-only" aria-live="polite">
+            {step.dir === 0
+              ? ""
+              : step.n === 1
+                ? "Paso 1 de 2: Dominio"
+                : "Paso 2 de 2: Remitente"}
+          </p>
+
           {errors.root && (
             <p role="alert" className="text-subheadline text-destructive">
               {errors.root.message}
+            </p>
+          )}
+
+          {/* Lo guardado que no se pudo descomponer: se muestra para saber qué se reemplaza. */}
+          {!saved && entry.display && (
+            <p className="text-footnote text-muted-foreground">
+              Ahora:{" "}
+              <span className="font-mono break-all text-foreground">
+                {entry.display}
+              </span>
             </p>
           )}
 
@@ -399,8 +440,10 @@ function SenderForm({
           <div className="-mx-5 -my-1 overflow-hidden px-5 py-1">
             <div
               key={step.n}
+              ref={stepRef}
+              tabIndex={-1}
               className={cn(
-                "flex flex-col gap-7",
+                "flex flex-col gap-7 outline-none",
                 step.dir === 1 && "month-in-next",
                 step.dir === -1 && "month-in-prev"
               )}
@@ -415,12 +458,7 @@ function SenderForm({
                   <Input
                    
                     id={ids.domain}
-                    {...form.register("domain", {
-                      // Un dominio no lleva espacios ni mayúsculas.
-                      onChange: (e) => {
-                        e.target.value = e.target.value.replace(/\s/g, "").toLowerCase()
-                      },
-                    })}
+                    {...form.register("domain", sanitized(cleanDomain))}
                     {...noAuto}
                     inputMode="url"
                     maxLength={253}
@@ -436,13 +474,9 @@ function SenderForm({
                     <span className="text-footnote text-muted-foreground">
                       Así lo verá quien reciba el correo
                     </span>
-                    <output
-                      htmlFor={`${ids.name} ${ids.local}`}
-                      aria-live="polite"
-                      className="self-start rounded-full bg-muted px-3 py-1.5 font-mono text-footnote break-all"
-                    >
+                    <p className="self-start rounded-full bg-muted px-3 py-1.5 font-mono text-footnote break-all">
                       {preview}
-                    </output>
+                    </p>
                   </div>
                   <FinanceField
                     id={ids.name}
@@ -452,15 +486,10 @@ function SenderForm({
                     <Input
                      
                       id={ids.name}
-                      {...form.register("name", {
-                        onChange: (e) => {
-                          e.target.value = e.target.value.replace(/[<>"]/g, "")
-                        },
-                      })}
+                      {...form.register("name", sanitized(cleanName))}
                       autoComplete="off"
                       maxLength={100}
                       placeholder={nameFromDomain(values.domain ?? "")}
-                      autoFocus={!isMobile}
                       aria-invalid={!!errors.name}
                       aria-describedby={described("name")}
                     />
@@ -474,12 +503,7 @@ function SenderForm({
                     <Input
                      
                       id={ids.local}
-                      {...form.register("local", {
-                        // Solo lo que vale antes de una @: fuera espacios, la @ y lo demás.
-                        onChange: (e) => {
-                          e.target.value = e.target.value.replace(LOCAL_CHARS, "")
-                        },
-                      })}
+                      {...form.register("local", sanitized(cleanLocal))}
                       {...noAuto}
                       inputMode="email"
                       maxLength={64}
@@ -547,7 +571,7 @@ function RemoveControl({
       className="flex flex-col gap-3"
     >
       <p id={`${formId}-remove-title`} className="px-1 text-subheadline">
-        ¿Quitar {label}? Lo que la usa deja de funcionar hasta que pegues otra.
+        ¿Quitar {label}? Lo que depende de esto deja de funcionar hasta que guardes otro valor.
       </p>
       <ModalDangerRow onClick={onRemove} aria-busy={removing || undefined}>
         {removing ? "Quitando…" : "Sí, quitar"}
@@ -558,7 +582,7 @@ function RemoveControl({
         onClick={() => setConfirm(false)}
         className="min-h-11"
       >
-        No, conservarla
+        No, conservar
       </Button>
     </div>
   )

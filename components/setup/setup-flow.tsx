@@ -369,6 +369,8 @@ function CodeStep({
           <Input
             id={fieldId}
             {...form.register("code", {
+              // RHF lee el valor antes de este onChange: setValueAs guarda lo mismo que se ve.
+              setValueAs: maskCode,
               onChange: (e) => {
                 e.target.value = maskCode(e.target.value)
               },

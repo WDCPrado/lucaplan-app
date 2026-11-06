@@ -6,7 +6,7 @@ import { z } from "zod"
 const DOMAIN_RE =
   /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
 // Parte local de un correo (RFC 5322 «dot-atom», sin comillas): lo que vale antes de la @.
-export const LOCAL_CHARS = /[^a-z0-9.!#$%&'*+/=?^_`{|}~-]/gi
+const LOCAL_CHARS = /[^a-z0-9.!#$%&'*+/=?^_`{|}~-]/gi
 const LOCAL_RE =
   /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/i
 
@@ -47,8 +47,20 @@ export function nameFromDomain(domain: string) {
   return first.charAt(0).toUpperCase() + first.slice(1)
 }
 
+// Lo que un nombre puede llevar sin comillas (RFC 5322 «atom» con espacios); con otra cosa
+// («Plan, Luca») va entre comillas.
+const ATOM_PHRASE = /^[a-z0-9!#$%&'*+/=?^_`{|}~ -]+$/i
+
 export function buildSender({ name, local, domain }: Sender) {
   const address = `${local.trim()}@${domain.trim()}`
-  return name.trim() ? `${name.trim()} <${address}>` : address
+  const shown = name.trim()
+  if (!shown) return address
+  return `${ATOM_PHRASE.test(shown) ? shown : `"${shown}"`} <${address}>`
 }
+
+// Saneo mientras se escribe: lo que no cabe en cada parte no se puede escribir.
+export const cleanDomain = (v: string) => v.replace(/\s/g, "").toLowerCase()
+export const cleanName = (v: string) => v.replace(/[<>"]/g, "")
+/** Lo de antes de la @ (si pegan el correo entero) y solo los caracteres que valen ahí. */
+export const cleanLocal = (v: string) => v.split("@")[0].replace(LOCAL_CHARS, "")
 

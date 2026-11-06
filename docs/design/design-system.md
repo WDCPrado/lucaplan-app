@@ -58,12 +58,14 @@ Tres superficies, todas desde tokens de `globals.css`:
 | Material regular | `material` (`--material`) y `[data-slot]` de menús, select, popover, tooltip, toasts y alertas | lectura sobre contenido y aviso de refresco PWA |
 | Sólido | `card`, `--sheet`, `--sheet-cell` | contenido, listas, hojas y diálogos |
 
-El vidrio usa un relleno neutro, desenfoque de 22 px, saturación de 165 % y un brillo interior radial
+El vidrio usa un relleno neutro, desenfoque de 22 px (nivel por defecto), saturación de 165 % y un brillo interior radial
 desde arriba-izquierda (`--glass-sheen`, que se apaga con reducir transparencia, más contraste o sin
 desenfoque). El sidebar reutiliza el
 acabado de `liquid-glass` con más relleno. El borde combina un contorno tenue de 0.5 px con un
 reflejo localizado arriba-izquierda y un eco más débil abajo-derecha; no ilumina todo el perímetro.
-Los cinco niveles de Apariencia cambian la transparencia, conservando el desenfoque.
+Los cinco niveles de Apariencia van de transparente a teñido como en iOS 26: 0–1 aclaran el relleno
+y bajan el desenfoque (4 y 12 px) para que el contenido se lea a través; 3–4 lo tiñen hacia la celda
+sólida (4 casi opaco).
 
 `liquid-glass-active` usa `--glass-tab-active`, un velo neutro de `foreground`, con
 `--glass-active-shadow`: es la pastilla de la pestaña móvil activa y la del link activo del

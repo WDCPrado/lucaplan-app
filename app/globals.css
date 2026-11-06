@@ -160,8 +160,8 @@
        sin color propio. Lo grande (sidebar) un poco más opaco que lo chico (barra, botones).
        Ajustes → Apariencia (`data-glass` en <html>; por usuario, en la base: lib/appearance.ts) lo mueve: 2 (sin atributo)
        es el vidrio por defecto; 0–1 lo aclaran más (`--glass-clear`) y 3–4 lo tiñen hacia la celda
-       sólida (`--glass-tint`). El desenfoque se conserva en los cinco niveles: transparencia no
-       significa dejar que las letras del fondo compitan con los controles. Los menús no se aclaran. */
+       sólida (`--glass-tint`). Como en iOS 26, el transparente (0–1) también baja el desenfoque
+       para que el contenido se lea a través, con el canto de luz intacto. Los menús no se aclaran. */
     --glass-tint: 0%;
     --glass-clear: 20%;
     --scroll-edge-amount: 22%; /* velo del scroll edge, suave: baja con el nivel de vidrio */
@@ -859,12 +859,13 @@ html:has(main[data-landing]) body {
 }
 
 /* Nivel del vidrio elegido en Ajustes (0 = más transparente; 4 = teñido, casi sólido).
-   Solo cambia el relleno y el velo: el desenfoque de 22px protege la lectura en los cinco pasos.
-   Más contraste y menos transparencia del sistema, abajo, siguen ganando. */
-:root[data-glass="0"] { --glass-clear: 65%; --scroll-edge-amount: 0%; }
-:root[data-glass="1"] { --glass-clear: 40%; --scroll-edge-amount: 10%; }
-:root[data-glass="3"] { --glass-clear: 0%; --glass-tint: 30%; --scroll-edge-amount: 34%; }
-:root[data-glass="4"] { --glass-clear: 0%; --glass-tint: 75%; --scroll-edge-amount: 42%; }
+   Como «Transparente / Teñido» de iOS 26: en 0 el contenido de atrás se lee con un desenfoque leve
+   y el canto de luz; en 4 la celda es casi opaca. Más contraste y menos transparencia del sistema,
+   abajo, siguen ganando. */
+:root[data-glass="0"] { --glass-clear: 75%; --glass-blur: 4px; --scroll-edge-amount: 0%; }
+:root[data-glass="1"] { --glass-clear: 45%; --glass-blur: 12px; --scroll-edge-amount: 10%; }
+:root[data-glass="3"] { --glass-clear: 0%; --glass-tint: 35%; --scroll-edge-amount: 34%; }
+:root[data-glass="4"] { --glass-clear: 0%; --glass-tint: 90%; --scroll-edge-amount: 42%; }
 
 /* Accesibilidad (apple-hig/foundations/materials): con MÁS CONTRASTE el vidrio gana relleno y
    contorno; con MENOS TRANSPARENCIA todo material cae a sólido, y va después para ganarle a
@@ -892,7 +893,8 @@ html:has(main[data-landing]) body {
   }
 }
 @media (prefers-reduced-transparency: reduce) {
-  :root, .dark {
+  /* :root[data-glass] iguala la especificidad de los niveles, que también mueven el desenfoque. */
+  :root, .dark, :root[data-glass] {
     --glass-fill: var(--card);
     --glass-fill-large: var(--card);
     --material: var(--card);

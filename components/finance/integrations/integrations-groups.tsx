@@ -42,6 +42,8 @@ const GROUPS: {
   purpose: string
   icon: typeof Sparkles
   keys: IntegrationKey[]
+  // Dónde se saca cada clave: la consola del proveedor y, si hay, la guía paso a paso.
+  links: { label: string; href: string }[]
 }[] = [
   {
     id: "openai",
@@ -49,6 +51,9 @@ const GROUPS: {
     purpose: "Categoriza tus movimientos y propone categorías.",
     icon: Sparkles,
     keys: ["OPENAI_API_KEY", "OPENAI_MODEL"],
+    links: [
+      { label: "Crear una API key en OpenAI", href: "https://platform.openai.com/api-keys" },
+    ],
   },
   {
     id: "outlook",
@@ -56,6 +61,13 @@ const GROUPS: {
     purpose: "Lee los avisos de tu banco que llegan al correo.",
     icon: Mail,
     keys: ["OUTLOOK_CLIENT_ID", "OUTLOOK_CLIENT_SECRET", "OUTLOOK_TENANT"],
+    links: [
+      {
+        label: "Registrar la app en Microsoft Entra",
+        href: "https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade",
+      },
+      { label: "Guía paso a paso", href: README_OUTLOOK },
+    ],
   },
   {
     id: "resend",
@@ -63,6 +75,10 @@ const GROUPS: {
     purpose: "Envía los códigos de acceso por correo.",
     icon: Send,
     keys: ["RESEND_API_KEY", "RESEND_FROM"],
+    links: [
+      { label: "Crear una API key en Resend", href: "https://resend.com/api-keys" },
+      { label: "Verificar el dominio del remitente", href: "https://resend.com/domains" },
+    ],
   },
 ]
 
@@ -234,22 +250,19 @@ export function IntegrationsList({
               />
             )
           })}
-          {group.id === "outlook" && (
-            <>
-              <RedirectUriRow uri={redirectUri} />
-              <a
-                href={README_OUTLOOK}
-                target="_blank"
-                rel="noreferrer"
-                className="press flex min-h-11 items-center gap-3 px-4 py-2.5 text-body text-primary hover:bg-accent/60"
-              >
-                <span className="flex-1">
-                  Cómo crear la app en Microsoft Entra
-                </span>
-                <ExternalLink aria-hidden className="size-4 shrink-0" />
-              </a>
-            </>
-          )}
+          {group.id === "outlook" && <RedirectUriRow uri={redirectUri} />}
+          {group.links.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              target="_blank"
+              rel="noreferrer"
+              className="press flex min-h-11 items-center gap-3 px-4 py-2.5 text-body text-primary hover:bg-accent/60"
+            >
+              <span className="flex-1">{link.label}</span>
+              <ExternalLink aria-hidden className="size-4 shrink-0" />
+            </a>
+          ))}
         </div>
       ))}
       <IntegrationModal

@@ -2,6 +2,7 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { auth } from "@/arch/v1/infrastructure/auth/auth"
+import { isSignupOpen } from "@/arch/v1/infrastructure/auth/login-code"
 import { LoginForm } from "./login-form"
 
 export default async function LoginPage({
@@ -17,5 +18,5 @@ export default async function LoginPage({
   const session = await auth.api.getSession({ headers: await headers() })
   if (session && !continuingOAuth) redirect("/dashboard")
 
-  return <LoginForm />
+  return <LoginForm signupOpen={isSignupOpen()} />
 }

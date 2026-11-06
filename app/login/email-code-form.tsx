@@ -24,14 +24,20 @@ import { GmailIcon, OutlookIcon } from "./mail-app-icons"
 const STEP_CLASS =
   "flex flex-col gap-5 animate-in fade-in-0 slide-in-from-right-4 duration-200 motion-reduce:animate-none"
 
-export function EmailCodeForm() {
+// Con el registro cerrado, un correo nuevo no recibe código: el texto no lo promete.
+export function EmailCodeForm({ signupOpen }: { signupOpen: boolean }) {
   const [email, setEmail] = useState("")
   const [sent, setSent] = useState(false)
   return sent ? (
-    <CodeStep email={email} onChangeEmail={() => setSent(false)} />
+    <CodeStep
+      email={email}
+      signupOpen={signupOpen}
+      onChangeEmail={() => setSent(false)}
+    />
   ) : (
     <EmailStep
       email={email}
+      signupOpen={signupOpen}
       onSent={(value) => {
         setEmail(value)
         setSent(true)
@@ -42,9 +48,11 @@ export function EmailCodeForm() {
 
 function EmailStep({
   email,
+  signupOpen,
   onSent,
 }: {
   email: string
+  signupOpen: boolean
   onSent: (email: string) => void
 }) {
   const [pending, setPending] = useState(false)
@@ -120,7 +128,9 @@ function EmailStep({
           </p>
         )}
         <p id="login-email-hint" className="text-sm text-muted-foreground">
-          Te mandamos un código de 6 dígitos para entrar sin contraseña.
+          {signupOpen
+            ? "Te mandamos un código de 6 dígitos. Si no tienes cuenta, la creamos con ese mismo código."
+            : "Te mandamos un código de 6 dígitos para entrar sin contraseña."}
         </p>
       </div>
       <Button type="submit" disabled={pending} className="h-11 text-base">
@@ -138,9 +148,11 @@ function EmailStep({
 
 function CodeStep({
   email,
+  signupOpen,
   onChangeEmail,
 }: {
   email: string
+  signupOpen: boolean
   onChangeEmail: () => void
 }) {
   const [code, setCode] = useState("")
@@ -249,10 +261,16 @@ function CodeStep({
         </p>
       )}
       <p className="text-sm break-words text-muted-foreground">
-        Si tienes cuenta, te enviamos un código a{" "}
+        {signupOpen ? "Te enviamos" : "Si tienes cuenta, te enviamos"} un
+        código a{" "}
         <span className="font-medium text-foreground">{maskEmail(email)}</span>.
         Vale 10 minutos.
       </p>
+      {process.env.NODE_ENV === "development" && (
+        <p className="text-footnote text-muted-foreground">
+          En local, el código aparece en la consola del servidor.
+        </p>
+      )}
       <div className="flex flex-col items-center gap-2">
         <Label htmlFor="login-code" className="self-start">
           Código

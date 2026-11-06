@@ -42,7 +42,7 @@ function GitHubIcon() {
   )
 }
 
-// Registro cerrado en la vitrina: Luca Plan es open source y se instala local.
+// Vitrina: Luca Plan es open source y también se instala local.
 function OpenSourceNotice() {
   const [copied, setCopied] = useState(false)
   const cloneCmd = `git clone ${GITHUB_URL}.git`
@@ -71,8 +71,7 @@ function OpenSourceNotice() {
         ¿Quieres tu propio Luca Plan?
       </p>
       <p className="mt-1 text-sm leading-6 text-muted-foreground">
-        Esta demo no permite crear cuentas. Clónalo y córrelo en tu máquina, con
-        tus datos.
+        Es open source: clónalo y córrelo en tu máquina, con tus datos.
       </p>
       <button
         type="button"
@@ -100,7 +99,7 @@ function OpenSourceNotice() {
   )
 }
 
-export function LoginForm() {
+export function LoginForm({ signupOpen }: { signupOpen: boolean }) {
   const [legal, setLegal] = useState<LegalKey | null>(null)
   return (
     <main className="relative grid min-h-dvh grid-cols-1 lg:grid-cols-2">
@@ -175,22 +174,26 @@ export function LoginForm() {
                 Luca Plan
               </h1>
               <p className="text-sm text-muted-foreground">
-                Planifica tu dinero con claridad.
+                {signupOpen
+                  ? "Entra o crea tu cuenta con tu correo."
+                  : "Planifica tu dinero con claridad."}
               </p>
             </div>
           </div>
 
           <div className="hidden animate-in duration-500 fade-in slide-in-from-bottom-2 lg:block">
             <h2 className="text-3xl font-semibold tracking-[-0.03em]">
-              Entra a tu plan
+              {signupOpen ? "Entra o crea tu cuenta" : "Entra a tu plan"}
             </h2>
             <p className="mt-2 text-muted-foreground">
-              Tu mes te está esperando.
+              {signupOpen
+                ? "Con tu correo: el mismo código sirve para las dos cosas."
+                : "Tu mes te está esperando."}
             </p>
           </div>
 
           <div className="mt-0 lg:mt-8">
-            <EmailCodeForm />
+            <EmailCodeForm signupOpen={signupOpen} />
             {LANDING_ONLY && <OpenSourceNotice />}
 
             <p

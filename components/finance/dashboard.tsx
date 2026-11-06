@@ -39,6 +39,7 @@ import { SyncBancoChileButton } from "./sync-bancochile-button"
 import { TransactionModal } from "./transaction-modal"
 import { IncomeModal } from "./income-modal"
 import { OnboardingFlow } from "./onboarding/onboarding-flow"
+import type { OnboardingStatus } from "@/lib/onboarding-schemas"
 import {
   formatCLP,
   formatDateHeader,
@@ -92,6 +93,8 @@ type Props = {
   previousMonthDebt: number
   outlookResult: string | null
   outlookReason: string | null
+  // Estado del onboarding (GET /api/onboarding, resuelto en el servidor): sin terminar ⇒ pantalla completa.
+  onboardingStatus: OnboardingStatus
   // `?tx=<id>` de la notificación de movimiento, ya resuelto en el servidor (aunque sea de otro
   // período): abre ese modal al entrar.
   openTx: TransactionDTO | null
@@ -115,10 +118,12 @@ export function Dashboard({
   outlookResult,
   outlookReason,
   openTx,
+  onboardingStatus,
 }: Props) {
   const router = useRouter()
-  // Primera conexión de correo (callback OAuth ?outlook=setup, aún sin banco): onboarding fullscreen.
-  const [onboarding, setOnboarding] = useState(outlookResult === "setup")
+  // Cuenta sin onboarding terminado: pantalla completa. El retorno de Microsoft (?outlook=setup)
+  // lo retoma en el paso del banco; con el onboarding ya terminado, ese retorno va al modal del banco.
+  const [onboarding, setOnboarding] = useState(!onboardingStatus.completed)
   const [liquidityOpen, setLiquidityOpen] = useState(false)
   const [detail, setDetail] = useState<CategoryDTO | null>(null)
   const [detailTx, setDetailTx] = useState<TransactionDTO | null>(openTx)
@@ -837,6 +842,7 @@ export function Dashboard({
 
       {onboarding && (
         <OnboardingFlow
+          status={onboardingStatus}
           accounts={accounts}
           categories={budget.categories}
           incomes={incomes}
@@ -845,6 +851,9 @@ export function Dashboard({
           globalLimit={budget.globalLimit}
           totalSpent={totalUsed}
           remainingToAllocate={budget.remainingToAllocate}
+          transactions={transactions}
+          outlookResult={outlookResult}
+          outlookReason={outlookReason}
           onFinish={() => {
             setOnboarding(false)
             router.replace("/dashboard", { scroll: false })

@@ -6,7 +6,7 @@
 export const IMPORT_STEPS = [
   {
     title: "Revisando tu correo",
-    detail: "Leemos 2 meses de notificaciones de Banco de Chile",
+    detail: "Leemos 3 meses de notificaciones de Banco de Chile",
   },
   {
     title: "Importando movimientos",

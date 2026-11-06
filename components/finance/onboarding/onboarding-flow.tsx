@@ -2,11 +2,35 @@
 
 import type { IncomeSource } from "@/arch/v1/domain/finance/income.domain"
 
-import { useCallback, useState } from "react"
+import {
+  startTransition,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  ViewTransition,
+  type ReactNode,
+} from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Check, Plus, Wallet } from "lucide-react"
+import {
+  ArrowRight,
+  CalendarSync,
+  Check,
+  ExternalLink,
+  Loader,
+  Mail,
+  Plus,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { formatMoney } from "@/lib/finance-format"
+import { cn } from "@/lib/utils"
+import {
+  SCAN_LOOKBACK_MONTHS,
+  type OnboardingStatus,
+} from "@/lib/onboarding-schemas"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import {
   OutlookBankConnection,
@@ -15,18 +39,42 @@ import {
 import { CategoryModal } from "../category-modal"
 import { IncomeModal } from "../income-modal"
 import { CategoryIcon } from "../category-icons"
+import { MovementRow } from "../movement-row"
 import type {
   AccountDTO,
   CategoryDTO,
   IncomeDTO,
+  TransactionDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
+import { CategoriesStep } from "./categories-step"
+import { completeOnboarding } from "./http"
 
-type Step = "welcome" | "connect" | "income" | "budget"
+const STEPS = [
+  "welcome",
+  "categories",
+  "connect",
+  "preview",
+  "income",
+  "done",
+] as const
+type Step = (typeof STEPS)[number]
 
-// Onboarding fullscreen de la primera conexión. Orquesta pasos reutilizando los componentes
-// existentes; el estado del paso vive en el cliente y sobrevive a los router.refresh() (el shell no
-// se desmonta hasta onFinish). Lee props frescas del dashboard tras cada refresh.
+// El paso sobrevive al ida y vuelta de Microsoft (OAuth sale de la app y vuelve con ?outlook=setup).
+const STORAGE_KEY = "lucaplan:onboarding-step"
+const README_OUTLOOK =
+  "https://github.com/WDCPrado/lucaplan-app#-conectar-outlook-banco-de-chile-paso-a-paso"
+
+const noopSubscribe = () => () => {}
+function readStoredStep(): Step | null {
+  const v = sessionStorage.getItem(STORAGE_KEY)
+  return STEPS.includes(v as Step) ? (v as Step) : null
+}
+
+// Onboarding de pantalla completa de una cuenta nueva. Orquesta los pasos reutilizando los
+// componentes existentes (OutlookBankConnection, IncomeModal, MovementRow). El shell no se desmonta
+// hasta onFinish, así que el estado sobrevive a los router.refresh() y lee props frescas.
 export function OnboardingFlow({
+  status,
   accounts,
   categories,
   incomes,
@@ -35,8 +83,12 @@ export function OnboardingFlow({
   globalLimit,
   totalSpent,
   remainingToAllocate,
+  transactions,
+  outlookResult,
+  outlookReason,
   onFinish,
 }: {
+  status: OnboardingStatus
   accounts: AccountDTO[]
   categories: CategoryDTO[]
   incomes: IncomeDTO[]
@@ -45,102 +97,156 @@ export function OnboardingFlow({
   globalLimit: number | null
   totalSpent: number
   remainingToAllocate: number | null
+  transactions: TransactionDTO[]
+  outlookResult: string | null
+  outlookReason: string | null
   onFinish: () => void
 }) {
   const router = useRouter()
-  const [step, setStep] = useState<Step>("welcome")
-  const [status, setStatus] = useState<OutlookStatus | null>(null)
-  const [locked, setLocked] = useState(false) // import en curso: no permitir cerrar
+  // Lo guardado se lee después de hidratar (getServerSnapshot = null): sin mismatch ni useEffect.
+  const stored = useSyncExternalStore(noopSubscribe, readStoredStep, () => null)
+  const [picked, setPicked] = useState<Step | null>(null)
+  const step: Step =
+    picked ?? (outlookResult === "setup" ? "connect" : stored) ?? "welcome"
+  const [locked, setLocked] = useState(false) // importación en curso: no salir del paso
+  const [finishing, setFinishing] = useState(false)
   const [incomeOpen, setIncomeOpen] = useState(false)
   const [catOpen, setCatOpen] = useState(false)
-  const loadStatus = useCallback(async () => {
-    try {
-      const res = await fetch("/api/email-connection/status", {
-        cache: "no-store",
-      })
-      setStatus(await res.json())
-    } catch {
-      setStatus({ providers: [], mailboxes: [], availableBanks: [] })
-    }
-  }, [])
 
-  // Import terminado (OutlookBankConnection llama onReload): refresca datos y sigue a ingresos.
-  async function afterImport() {
-    await loadStatus()
-    router.refresh()
-    setStep("income")
+  function go(next: Step) {
+    const dir = STEPS.indexOf(next) < STEPS.indexOf(step) ? "back" : "forward"
+    // Misma transición que el cambio de pantalla (clase `nav` de globals.css): la dirección va en
+    // <html> antes del cambio; una transición nueva corta la anterior.
+    document.documentElement.dataset.navDir = dir
+    sessionStorage.setItem(STORAGE_KEY, next)
+    startTransition(() => setPicked(next))
   }
 
-  const view = step
+  async function finish() {
+    setFinishing(true)
+    try {
+      await completeOnboarding()
+      sessionStorage.removeItem(STORAGE_KEY)
+      onFinish()
+    } catch {
+      toast.error("No pudimos terminar. Vuelve a intentarlo.")
+      setFinishing(false)
+    }
+  }
+
+  const index = STEPS.indexOf(step)
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background p-[env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)]">
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-5 py-8">
-        <StepDots step={view} />
-        <div
-          key={view}
-          className="flex flex-1 animate-in flex-col duration-300 fade-in-0 slide-in-from-right-4 motion-reduce:slide-in-from-right-0"
-        >
-          {view === "welcome" && (
-            <Welcome
-              onStart={() => {
-                setStep("connect")
-                void loadStatus()
-              }}
-            />
-          )}
-
-          {view === "connect" && (
-            <div className="flex flex-1 flex-col gap-8">
-              <Header
-                title="Revisemos tus correos"
-                subtitle="Detectamos tus cuentas y tarjetas desde las notificaciones del banco."
-              />
-              <div className="flex items-start gap-2 rounded-xl border border-primary/25 bg-primary/5 p-3 text-subheadline text-muted-foreground">
-                <Wallet className="mt-0.5 size-4 shrink-0 text-primary" />
-                <span>
-                  Ingresa el{" "}
-                  <span className="font-medium text-foreground">
-                    saldo actual
-                  </span>{" "}
-                  de cada cuenta y tarjeta.
-                </span>
-              </div>
-              <OutlookBankConnection
-                status={status}
-                onReload={afterImport}
-                onImportingChange={setLocked}
-                inline
-              />
-            </div>
-          )}
-
-          {view === "income" && (
-            <IncomeStep
-              incomes={incomes}
-              onAdd={() => setIncomeOpen(true)}
-              onContinue={() => setStep("budget")}
-            />
-          )}
-
-          {view === "budget" && (
-            <BudgetReady
-              globalLimit={globalLimit}
-              spent={totalSpent}
-              onFinish={onFinish}
-            />
-          )}
-        </div>
-
-        {!locked && view !== "welcome" && view !== "budget" && (
+    <div
+      className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background p-[env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)]"
+    >
+      <header className="mx-auto flex w-full max-w-5xl items-center gap-4 px-5 pt-4 pb-3 lg:px-10 lg:pt-8">
+        <Progress index={index} />
+        {!locked && step !== "done" && (
           <button
-            onClick={onFinish}
-            className="mt-6 min-h-11 self-center px-4 text-subheadline text-muted-foreground hover:text-foreground"
+            type="button"
+            onClick={finish}
+            disabled={finishing}
+            className="press min-h-11 shrink-0 px-2 text-subheadline text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
             Omitir por ahora
           </button>
         )}
-      </div>
+      </header>
+
+      <ViewTransition key={step} enter="nav" exit="nav" default="none">
+        <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-5 pt-4 pb-8 lg:px-10 lg:pt-10">
+          {step === "welcome" && <Welcome onStart={() => go("categories")} />}
+
+          {step === "categories" && (
+            <Split
+              eyebrow="Tu día a día"
+              title="Ordenemos tus gastos a tu manera"
+              body="Cuéntanos dónde compras, cómo te mueves y qué pagas cada mes. Con eso proponemos categorías que reconocen los comercios de tu banco."
+            >
+              <CategoriesStep
+                aiAvailable={status.aiAvailable}
+                onSaved={() => {
+                  router.refresh()
+                  go("connect")
+                }}
+              />
+            </Split>
+          )}
+
+          {step === "connect" && (
+            <Split
+              eyebrow="Tu banco"
+              title="Conecta el correo donde te avisa tu banco"
+              body="Cada compra con tu tarjeta llega como aviso a tu correo. Luca Plan lee esos avisos y arma tus movimientos."
+              points={[
+                {
+                  icon: ShieldCheck,
+                  text: "Solo lectura (Mail.Read): no puede enviar ni borrar correos.",
+                },
+                {
+                  icon: Mail,
+                  text: "Solo lee los correos que envía tu banco, nada más.",
+                },
+                {
+                  icon: CalendarSync,
+                  text: `Parte con los avisos de los últimos ${SCAN_LOOKBACK_MONTHS} meses.`,
+                },
+              ]}
+            >
+              {status.outlookAvailable ? (
+                <ConnectStep
+                  outlookResult={outlookResult}
+                  outlookReason={outlookReason}
+                  onImportingChange={setLocked}
+                  onImported={() => {
+                    router.refresh()
+                    go("preview")
+                  }}
+                />
+              ) : (
+                <NotConfigured onContinue={() => go("income")} />
+              )}
+            </Split>
+          )}
+
+          {step === "preview" && (
+            <Split
+              eyebrow="Así se ve"
+              title="Tus movimientos ya llegaron ordenados"
+              body="Cada movimiento cae en su categoría. Si alguno queda mal, lo corriges con un toque y Luca Plan aprende."
+            >
+              <Preview
+                transactions={transactions}
+                onContinue={() => go("income")}
+              />
+            </Split>
+          )}
+
+          {step === "income" && (
+            <Split
+              eyebrow="Ingresos"
+              title="¿Cuánto ingresas al mes?"
+              body="Agrega tus fuentes de ingreso (sueldo, arriendo…). Con eso armamos tu presupuesto."
+            >
+              <IncomeStep
+                incomes={incomes}
+                onAdd={() => setIncomeOpen(true)}
+                onContinue={() => go("done")}
+              />
+            </Split>
+          )}
+
+          {step === "done" && (
+            <Done
+              globalLimit={globalLimit}
+              spent={totalSpent}
+              busy={finishing}
+              onFinish={finish}
+            />
+          )}
+        </main>
+      </ViewTransition>
 
       <IncomeModal
         availableSources={availableIncomeSources}
@@ -167,62 +273,256 @@ export function OnboardingFlow({
   )
 }
 
-const STEPS: Step[] = ["welcome", "connect", "income", "budget"]
-
-function StepDots({ step }: { step: Step }) {
-  const idx = STEPS.indexOf(step)
+function Progress({ index }: { index: number }) {
   return (
     <div
       role="progressbar"
       aria-valuemin={1}
       aria-valuemax={STEPS.length}
-      aria-valuenow={idx + 1}
-      aria-valuetext={`Paso ${idx + 1} de ${STEPS.length}`}
-      aria-label={`Paso ${idx + 1} de ${STEPS.length}`}
-      className="mb-8 flex justify-center gap-1.5"
+      aria-valuenow={index + 1}
+      aria-valuetext={`Paso ${index + 1} de ${STEPS.length}`}
+      aria-label="Progreso del inicio"
+      className="flex flex-1 gap-1.5"
     >
       {STEPS.map((s, i) => (
         <span
           key={s}
           aria-hidden
-          className={
-            i <= idx
-              ? "h-1.5 w-6 rounded-full bg-primary transition-all motion-reduce:transition-none"
-              : "h-1.5 w-1.5 rounded-full bg-border transition-all motion-reduce:transition-none"
-          }
-        />
+          className="h-1 flex-1 overflow-hidden rounded-full bg-border"
+        >
+          <span
+            className={cn(
+              "block h-full origin-left rounded-full bg-primary transition-transform duration-500 ease-out motion-reduce:transition-none",
+              i <= index ? "scale-x-100" : "scale-x-0"
+            )}
+          />
+        </span>
       ))}
     </div>
   )
 }
 
-function Header({ title, subtitle }: { title: string; subtitle: string }) {
+// Escritorio: la explicación a un lado y la acción al otro. Móvil: una columna.
+function Split({
+  eyebrow,
+  title,
+  body,
+  points,
+  children,
+}: {
+  eyebrow: string
+  title: string
+  body: string
+  points?: { icon: typeof Mail; text: string }[]
+  children: ReactNode
+}) {
   return (
-    <div>
-      <h1 className="text-title-1 font-bold text-balance">{title}</h1>
-      <p className="mt-1 text-body text-pretty text-muted-foreground">
-        {subtitle}
-      </p>
+    <div className="grid flex-1 content-start gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-16">
+      <div className="lg:sticky lg:top-10 lg:self-start">
+        <p className="text-footnote font-semibold tracking-wide text-primary uppercase">
+          {eyebrow}
+        </p>
+        <h1 className="mt-2 text-title-1 font-bold text-balance lg:text-large-title">
+          {title}
+        </h1>
+        <p className="mt-3 text-body text-pretty text-muted-foreground">
+          {body}
+        </p>
+        {points && (
+          <ul className="mt-6 flex flex-col gap-3">
+            {points.map(({ icon: Icon, text }) => (
+              <li key={text} className="flex items-start gap-3">
+                <Icon
+                  aria-hidden
+                  className="mt-0.5 size-5 shrink-0 text-primary"
+                />
+                <span className="text-subheadline text-pretty">{text}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="min-w-0">{children}</div>
     </div>
   )
 }
 
+const IDEAS = [
+  {
+    icon: CalendarSync,
+    title: "Cada mes parte limpio",
+    text: "Un presupuesto que se reinicia contigo, con lo que te queda para hoy.",
+  },
+  {
+    icon: Mail,
+    title: "Tu banco ya te avisa por correo",
+    text: "Luca Plan lee esos avisos y registra cada movimiento por ti.",
+  },
+  {
+    icon: Sparkles,
+    title: "La IA ordena tus gastos",
+    text: "Cada compra cae en su categoría, y aprende cuando la corriges.",
+  },
+]
+
 function Welcome({ onStart }: { onStart: () => void }) {
   return (
-    <div className="flex flex-1 flex-col justify-center gap-8 text-center">
-      <div className="flex flex-col items-center gap-4">
-        <div>
-          <h1 className="text-large-title font-bold text-balance">
-            Armemos tu presupuesto
-          </h1>
-          <p className="mx-auto mt-2 max-w-xs text-subheadline text-pretty text-muted-foreground">
-            Leemos los correos de tu banco, ordenamos tus movimientos y creamos
-            tu presupuesto del mes. Toma un minuto.
-          </p>
-        </div>
+    <div className="grid flex-1 content-center gap-10 lg:grid-cols-2 lg:gap-16">
+      <div className="lg:self-center">
+        <h1 className="text-large-title font-bold text-balance">
+          Tu plata en orden, sin anotar nada
+        </h1>
+        <p className="mt-3 text-body text-pretty text-muted-foreground">
+          En unos minutos dejamos listos tus categorías, tu banco y tus
+          ingresos.
+        </p>
+        <Button
+          onClick={onStart}
+          className="mt-8 hidden h-12 px-8 text-body lg:inline-flex"
+        >
+          Comenzar <ArrowRight aria-hidden className="size-4" />
+        </Button>
       </div>
-      <Button onClick={onStart} className="h-12 w-full text-body">
-        Comenzar <ArrowRight className="size-4" />
+      <ol className="flex flex-col gap-3">
+        {IDEAS.map(({ icon: Icon, title, text }, i) => (
+          <li
+            key={title}
+            style={{ animationDelay: `${150 + i * 140}ms` }}
+            className="sheet-group flex animate-in items-start gap-4 rounded-xl p-4 duration-500 fill-mode-both fade-in-0 slide-in-from-bottom-3 motion-reduce:animate-none"
+          >
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+              <Icon aria-hidden className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-headline font-semibold">{title}</h2>
+              <p className="mt-0.5 text-subheadline text-pretty text-muted-foreground">
+                {text}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <Button onClick={onStart} className="h-12 w-full text-body lg:hidden">
+        Comenzar <ArrowRight aria-hidden className="size-4" />
+      </Button>
+    </div>
+  )
+}
+
+// Paso del banco: carga el estado del correo al montar (también al volver de Microsoft, cuando el
+// paso se retoma desde sessionStorage) y deja que OutlookBankConnection siga su flujo.
+function ConnectStep({
+  outlookResult,
+  outlookReason,
+  onImportingChange,
+  onImported,
+}: {
+  outlookResult: string | null
+  outlookReason: string | null
+  onImportingChange: (v: boolean) => void
+  onImported: () => void
+}) {
+  const router = useRouter()
+  const [status, setStatus] = useState<OutlookStatus | null>(null)
+  const handled = useRef(false)
+
+  async function loadStatus() {
+    try {
+      const res = await fetch("/api/email-connection/status", {
+        cache: "no-store",
+      })
+      setStatus(await res.json())
+    } catch {
+      setStatus({ providers: [], mailboxes: [], availableBanks: [] })
+    }
+  }
+
+  // Entrar al paso es asomarse a un sistema externo (el correo): una sola carga, y el retorno de
+  // OAuth se atiende una vez y se limpia de la URL para que un refresh no lo repita.
+  useEffect(() => {
+    if (handled.current) return
+    handled.current = true
+    void loadStatus()
+    if (outlookResult === "error")
+      toast.error(
+        `No se pudo conectar Outlook${outlookReason ? ` (${outlookReason})` : ""}`
+      )
+    if (outlookResult) router.replace("/dashboard", { scroll: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- evento único al entrar al paso
+  }, [])
+
+  return (
+    <OutlookBankConnection
+      status={status}
+      onReload={async () => {
+        await loadStatus()
+        onImported()
+      }}
+      onImportingChange={onImportingChange}
+      inline
+    />
+  )
+}
+
+function NotConfigured({ onContinue }: { onContinue: () => void }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="sheet-group rounded-xl p-4">
+        <h2 className="text-headline font-semibold">Falta configurar Outlook</h2>
+        <p className="mt-1 text-subheadline text-pretty text-muted-foreground">
+          Esta instalación no tiene{" "}
+          <code className="text-footnote">OUTLOOK_CLIENT_ID</code> ni{" "}
+          <code className="text-footnote">OUTLOOK_CLIENT_SECRET</code>. Sin
+          ellos no se puede leer el correo del banco; puedes seguir y conectarlo
+          después desde Ajustes.
+        </p>
+        <a
+          href={README_OUTLOOK}
+          target="_blank"
+          rel="noreferrer"
+          className="press mt-2 inline-flex min-h-11 items-center gap-1.5 text-body text-primary"
+        >
+          Cómo configurarlo
+          <ExternalLink aria-hidden className="size-4" />
+        </a>
+      </div>
+      <Button onClick={onContinue} className="h-12 w-full text-body">
+        Continuar <ArrowRight aria-hidden className="size-4" />
+      </Button>
+    </div>
+  )
+}
+
+function Preview({
+  transactions,
+  onContinue,
+}: {
+  transactions: TransactionDTO[]
+  onContinue: () => void
+}) {
+  const sample = transactions.filter((t) => t.categoryId).slice(0, 5)
+  return (
+    <div className="flex flex-col gap-6">
+      {sample.length > 0 ? (
+        <ul className="sheet-group inset-list overflow-hidden rounded-xl">
+          {sample.map((tx, i) => (
+            <li
+              key={tx.id}
+              style={{ animationDelay: `${i * 80}ms` }}
+              className="animate-in duration-300 fill-mode-both fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none"
+            >
+              <MovementRow tx={tx} className="px-4" />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="sheet-group rounded-xl p-4 text-subheadline text-pretty text-muted-foreground">
+          Aún no hay movimientos de este mes. Llegarán con el próximo aviso de
+          tu banco.
+        </p>
+      )}
+      <Button onClick={onContinue} className="h-12 w-full text-body">
+        Continuar <ArrowRight aria-hidden className="size-4" />
       </Button>
     </div>
   )
@@ -238,66 +538,69 @@ function IncomeStep({
   onContinue: () => void
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-8">
-      <Header
-        title="¿Cuánto ingresas al mes?"
-        subtitle="Agrega tus fuentes de ingreso (sueldo, arriendo…). Con eso armamos tu presupuesto."
-      />
+    <div className="flex flex-col gap-6">
       {incomes.length > 0 && (
-        <ul className="flex flex-col gap-2">
+        <ul className="sheet-group inset-list overflow-hidden rounded-xl">
           {incomes.map((i) => (
             <li
               key={i.id}
-              className="flex items-center gap-3 rounded-xl bg-secondary/40 p-3"
+              className="flex min-h-11 items-center gap-3 px-4 py-3"
             >
               <CategoryIcon
                 icon={i.categoryIcon}
                 size={20}
                 color={i.categoryColor ?? undefined}
               />
-              <span className="min-w-0 flex-1 truncate text-subheadline font-medium">
+              <span className="min-w-0 flex-1 truncate text-body">
                 {i.name}
               </span>
-              <span className="tabular text-subheadline font-semibold text-success">
+              <span className="tabular text-body font-semibold text-success">
                 +{formatMoney(i.amount, i.currency as CurrencyCode)}
               </span>
             </li>
           ))}
         </ul>
       )}
-      <Button variant="outline" onClick={onAdd} className="h-12 w-full text-body">
-        <Plus className="size-4" />
-        Agregar ingreso
-      </Button>
-      <div className="flex-1" />
       <Button
-        onClick={onContinue}
-        disabled={incomes.length === 0}
+        variant="outline"
+        onClick={onAdd}
         className="h-12 w-full text-body"
       >
-        Continuar <ArrowRight className="size-4" />
+        <Plus aria-hidden className="size-4" />
+        Agregar ingreso
+      </Button>
+      {incomes.length === 0 && (
+        <p className="text-footnote text-pretty text-muted-foreground">
+          Si prefieres, sigue sin ingresos: los agregas después en «Ajustar
+          plan».
+        </p>
+      )}
+      <Button onClick={onContinue} className="h-12 w-full text-body">
+        Continuar <ArrowRight aria-hidden className="size-4" />
       </Button>
     </div>
   )
 }
 
-function BudgetReady({
+function Done({
   globalLimit,
   spent,
+  busy,
   onFinish,
 }: {
   globalLimit: number | null
   spent: number
+  busy: boolean
   onFinish: () => void
 }) {
   return (
-    <div className="flex flex-1 flex-col justify-center gap-8 text-center">
+    <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-8 text-center">
       <div className="flex flex-col items-center gap-4">
-        <span className="grid size-16 place-items-center rounded-full bg-success/15 text-success">
-          <Check className="size-8" />
+        <span className="grid size-16 animate-in place-items-center rounded-full bg-success/15 text-success duration-500 zoom-in-75 motion-reduce:animate-none">
+          <Check aria-hidden className="size-8" />
         </span>
         <div>
-          <h1 className="text-title-1 font-bold">¡Todo listo!</h1>
+          <h1 className="text-title-1 font-bold">Todo listo</h1>
           {globalLimit !== null ? (
             <p className="mt-2 text-subheadline text-pretty text-muted-foreground">
               Tu presupuesto del mes es de{" "}
@@ -308,13 +611,24 @@ function BudgetReady({
             </p>
           ) : (
             <p className="mt-2 text-subheadline text-pretty text-muted-foreground">
-              Puedes definir tu presupuesto cuando quieras desde el dashboard.
+              Puedes definir tu presupuesto cuando quieras desde el Inicio.
             </p>
           )}
         </div>
       </div>
-      <Button onClick={onFinish} className="h-12 w-full text-body">
-        Ir al dashboard <ArrowRight className="size-4" />
+      <Button
+        onClick={onFinish}
+        disabled={busy}
+        aria-busy={busy || undefined}
+        className="h-12 w-full text-body"
+      >
+        {busy && (
+          <Loader
+            aria-hidden
+            className="size-4 animate-spin motion-reduce:animate-none"
+          />
+        )}
+        Ir al Inicio <ArrowRight aria-hidden className="size-4" />
       </Button>
     </div>
   )

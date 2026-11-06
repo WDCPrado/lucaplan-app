@@ -154,7 +154,7 @@ código sale en la consola del servidor. Detalle en [docs/login-code.md](docs/lo
 
 ### Onboarding con IA
 
-![Onboarding: categorías propuestas por la IA](docs/images/ai-categorization.png)
+![Onboarding: el set de categorías de partida, que la IA ajusta a tu día a día](docs/images/ai-categorization.png)
 
 Toda cuenta nueva pasa por un onboarding corto:
 

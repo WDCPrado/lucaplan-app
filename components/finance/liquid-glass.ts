@@ -126,7 +126,7 @@ function stacks(s: CSSStyleDeclaration) {
     s.containerType !== "normal" ||
     s.mixBlendMode !== "normal" ||
     s.clipPath !== "none" ||
-    s.backdropFilter !== "none" ||
+    (s.backdropFilter || "none") !== "none" || // Safari < 18 solo expone el prefijo
     (s.getPropertyValue("-webkit-backdrop-filter") || "none") !== "none" ||
     s.maskImage !== "none" ||
     (s.getPropertyValue("-webkit-mask-image") || "none") !== "none"
@@ -446,14 +446,17 @@ function startSession(o: Options): () => void {
       setDynamic(false)
       removeProxies()
     }
-    const timer = window.setTimeout(() => {
-      timedOut = true
-      hung = true
-      freeSelect(root)
-      fail()
-    }, INIT_TIMEOUT_MS)
+    let timer = 0
     import("@ybouane/liquidglass")
       .then(({ LiquidGlass }) => {
+        // El plazo cuenta solo init, no la descarga del chunk: una red lenta no es un cuelgue.
+        timer = window.setTimeout(() => {
+          if (!alive) return
+          timedOut = true
+          hung = true
+          freeSelect(root)
+          fail()
+        }, INIT_TIMEOUT_MS)
         // init pone el user-select antes de su primer await: se quita al tiro.
         const ready = LiquidGlass.init({ root, glassElements: all(), defaults: BASE })
         freeSelect(root)

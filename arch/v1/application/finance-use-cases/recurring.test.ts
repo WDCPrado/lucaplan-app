@@ -757,13 +757,12 @@ test("WDC-179: con septiembre cobrado, un cargo del 2-oct no paga octubre 23 dí
   assert.equal(rows.find((r) => r.periodKey === "2026-10")?.status, "pending")
 })
 
-test("WDC-179: con septiembre cobrado, un cargo del 2-oct no pisa la marca manual de octubre", async () => {
-  const { repo, rows } = makeRepo([entel])
-  await materializePeriod({ recurring: repo }, entel, new Date("2026-09-01T00:00:00Z"))
-  await confirmFromMovement({ recurring: repo }, [entel], cargoEntel("tx-sep", "2026-09-25"))
-  await setRecurringPeriodPaid({ recurring: repo }, "u1", { id: "entel", paid: true }, new Date("2026-10-01T12:00:00Z"))
+test("WDC-179: un cargo 15 días atrasado no pisa la marca manual fuera de la ventana", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  // Octubre vence el 5 y está marcado a mano; el 20-oct no cae en la ventana de octubre ni de noviembre.
+  await setRecurringPeriodPaid({ recurring: repo }, "u1", { id: arriendo.id, paid: true }, new Date("2026-10-01T12:00:00Z"))
 
-  assert.equal(await confirmFromMovement({ recurring: repo }, [entel], cargoEntel("tx-dup", "2026-10-02")), null)
+  assert.equal(await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-late", "2026-10-20")), null)
   assert.equal(rows.find((r) => r.periodKey === "2026-10")?.externalId, null, "la marca se conserva")
 })
 

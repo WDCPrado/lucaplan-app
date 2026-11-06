@@ -280,7 +280,7 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
       .catch((e) => {
         if (e instanceof NotAttached) return false
         // Carrera con `materializePeriod`: abrió el mismo período entre la lectura y el vínculo
-        // (único plantilla+período). No se vincula ahora; el próximo procesamiento lo resuelve.
+        // (único plantilla+período). No se vincula: el movimiento queda para triage.
         if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return false
         throw e
       })

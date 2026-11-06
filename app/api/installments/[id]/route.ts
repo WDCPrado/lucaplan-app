@@ -11,6 +11,7 @@ import {
   updateInstallmentItem,
 } from "@/arch/v1/application/finance-use-cases/installment-use-cases"
 import { followIncome } from "@/arch/v1/application/finance-use-cases/follow-income"
+import { todayKey } from "@/arch/shared/today"
 
 // Acciones sobre el plan o una de sus cuotas, según lo que traiga el cuerpo:
 //  · `categoryId` (sin itemId) → recategorizar el plan COMPLETO (plan + todos sus movimientos);
@@ -56,7 +57,7 @@ export async function PATCH(
       payInstallmentManually(financeDeps, userId, {
         planId: id,
         itemId,
-        date: body.date ? new Date(body.date) : new Date(),
+        date: new Date(body.date || `${todayKey()}T00:00:00.000Z`),
         amount: Number(body.amount),
       })
     )

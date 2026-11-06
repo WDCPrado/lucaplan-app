@@ -112,14 +112,16 @@ export function schedule(
   count: number,
   startIndex = 1
 ): Date[] {
+  // Días civiles (`@db.Date`, medianoche UTC) con getters UTC: con los locales, en Chile la
+  // medianoche UTC del 1 cae el día anterior y la cuota se corría de mes según la TZ del proceso.
   const dates: Date[] = []
   for (let i = 1; i <= count; i++) {
-    const year = startDate.getFullYear()
-    const month = startDate.getMonth() + (i - startIndex) // Date normaliza el desborde
-    const d = new Date(year, month, 1)
-    const y = d.getFullYear()
-    const m = d.getMonth() + 1
-    dates.push(new Date(y, m - 1, Math.min(dayOfMonth, lastDayOfMonth(y, m))))
+    const year = startDate.getUTCFullYear()
+    const month = startDate.getUTCMonth() + (i - startIndex) // Date normaliza el desborde
+    const d = new Date(Date.UTC(year, month, 1))
+    const y = d.getUTCFullYear()
+    const m = d.getUTCMonth() + 1
+    dates.push(new Date(Date.UTC(y, m - 1, Math.min(dayOfMonth, lastDayOfMonth(y, m)))))
   }
   return dates
 }

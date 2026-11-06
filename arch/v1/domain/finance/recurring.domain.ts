@@ -302,13 +302,19 @@ export function requiresDayOfMonth(periodicity: Periodicity): boolean {
 // --- Cobro con un movimiento elegido ---
 
 /**
- * ¿Puede `tx` usarse como el cobro del período de `template`? null si sí; si no, el motivo en
- * palabras del usuario (→ 422). La fecha no importa: justamente se usa cuando el cargo cayó fuera
- * del período. El mismo criterio lo aplica el filtro `recurringCandidates` del buscador.
+ * ¿Puede `tx` usarse como el cobro del período `periodKey` de `template`? null si sí; si no, el
+ * motivo en palabras del usuario (→ 422). El monto, como en el match automático, dentro de la
+ * tolerancia. Sin tope por atraso: el cargo real puede llegar tarde (Willy, WDC-179). De la fecha
+ * solo se exige que no sea anterior a
+ * `RECURRING_MATCH_WINDOW_DAYS` días del vencimiento: un cargo de octubre elegido en noviembre no
+ * es el cobro de noviembre, y vincularlo borraba el pendiente del mes. El filtro
+ * `recurringCandidates` del buscador aplica las reglas del movimiento; `listRecurringCandidates`, el
+ * piso de fecha y el monto.
  */
 export function paymentCandidateRejection(
   tx: Transaction,
-  template: Pick<RecurringTemplate, "currency" | "direction">
+  template: RecurringTemplate,
+  periodKey: string
 ): string | null {
   if (tx.direction !== template.direction)
     return template.direction === "debit"
@@ -327,8 +333,29 @@ export function paymentCandidateRejection(
   if (tx.installmentItemId) return "El movimiento ya es la cuota de un plan"
   if (tx.amount.currency !== template.currency)
     return "El movimiento está en otra moneda que la recurrente"
+  if (!canPayPeriod(template, periodKey, tx.date))
+    return `Ese cargo es del ${civilDayLabel(tx.date)}, antes del cobro de este período (vence el ${civilDayLabel(executionDateFor(template, periodKey))})`
+  if (!matchesAmount(tx, template))
+    return "El monto no está dentro de la tolerancia de la recurrente"
   return null
 }
+
+/**
+ * ¿Un cargo del día `date` puede ser el cobro del período `periodKey`? Solo el piso: atrasado vale
+ * siempre (aunque llegue en el mes siguiente); adelantado, hasta `RECURRING_MATCH_WINDOW_DAYS` días
+ * antes del vencimiento. La comparten el vínculo a mano y el del correo.
+ */
+export function canPayPeriod(
+  template: RecurringTemplate,
+  periodKey: string,
+  date: Date
+): boolean {
+  return daysBetween(executionDateFor(template, periodKey), date) >= -RECURRING_MATCH_WINDOW_DAYS
+}
+
+// "4 de octubre": el día civil tal cual está guardado (medianoche UTC).
+const civilDayLabel = (date: Date) =>
+  date.toLocaleDateString("es-CL", { day: "numeric", month: "long", timeZone: "UTC" })
 
 // --- Port (lo implementa la infraestructura) ---
 
@@ -369,6 +396,13 @@ export interface RecurringTemplateRepository {
     templateId: string,
     periodKey: string
   ): Promise<{ id: string; status: string; isManual: boolean } | null>
+  /**
+   * Períodos de la plantilla que el banco todavía no cobró: los comprometidos (`pending`) y los
+   * confirmados a mano (sin `externalId`, `isManual`). En cualquier orden.
+   */
+  listOpenPeriods(
+    templateId: string
+  ): Promise<{ periodKey: string; isManual: boolean }[]>
   /**
    * Marca manual del cobro del período: confirma el comprometido (`paid`) o lo devuelve a
    * comprometido. Conserva monto y fecha — el monto y la fecha reales los fija el correo.

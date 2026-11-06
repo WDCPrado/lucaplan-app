@@ -25,6 +25,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { haptic } from "@/lib/haptics"
+import { todayKey } from "@/lib/finance-format"
 import { RECURRING_URL_MAX, linkHost, recurringUrlSchema } from "@/lib/schemas/recurring-url"
 import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
@@ -202,7 +203,8 @@ export function RecurringModal({
             tolerancePct,
             periodicity,
             dayOfMonth: needsDay ? day : null,
-            startDate: template?.startDate ?? new Date().toISOString(),
+            // Hoy en Chile, no el instante UTC: a las 22:00 ya es mañana y se perdía el período.
+            startDate: template?.startDate ?? todayKey(),
             endDate: endDate || null,
             isActive: template?.isActive ?? true,
             sourceTransactionId: template

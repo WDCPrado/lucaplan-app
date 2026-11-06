@@ -3,6 +3,7 @@ import { test } from "node:test"
 import type { BankEmailMessage } from "../../domain/finance/email-connection.domain.ts"
 import { parseBiceEmail } from "./bice-email-map.ts"
 import { routeEmail } from "./bank-email-registry.ts"
+import { parseDate } from "./bank-email-map.ts"
 
 // Plantillas reales de BICE con los datos reemplazados: cuenta 12345678, tarjeta 4321 y nombres
 // inventados. Son tablas de "etiqueta | valor", así que cada celda queda en su propia línea.
@@ -231,4 +232,15 @@ test("fail-closed: asunto no catalogado, sin monto, sin cupo y sin cuenta se omi
     ),
     { ok: false, reason: "plantilla_desconocida" }
   )
+})
+
+test("WDC-179: sin fecha en el cuerpo, el cargo es del día de recepción en Chile, no en UTC", () => {
+  // 01:00 UTC del 5-oct = 22:00 del 4-oct en Chile.
+  const recibido = new Date("2026-10-05T01:00:00Z")
+  assert.equal(parseDate("sin fecha", recibido).toISOString(), "2026-10-04T00:00:00.000Z")
+  const bice = parseBiceEmail(
+    message({ receivedAt: recibido, htmlBody: TRANSFERENCIA_HTML.replace("28 Jul 2026, 17:12", "") })
+  )
+  assert.ok(bice.ok)
+  assert.equal(bice.event.date.toISOString(), "2026-10-04T00:00:00.000Z", "BICE usa el mismo respaldo")
 })

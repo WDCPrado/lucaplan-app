@@ -25,7 +25,8 @@ import {
 } from "./installment.domain.ts"
 
 const clp = (n: number) => Money.fromMinor(n, "CLP")
-const day = (y: number, m: number, d: number) => new Date(y, m - 1, d)
+// Día civil como llega de un @db.Date: medianoche UTC.
+const day = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d))
 
 function makeItem(
   index: number,
@@ -76,7 +77,7 @@ function makePlan(over: Partial<InstallmentPlan> = {}): InstallmentPlan {
 test("el cronograma reparte una cuota por mes desde el día de pago", () => {
   const dates = schedule(day(2026, 8, 5), 5, 3)
   assert.deepEqual(
-    dates.map((d) => [d.getFullYear(), d.getMonth() + 1, d.getDate()]),
+    dates.map((d) => [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()]),
     [
       [2026, 8, 5],
       [2026, 9, 5],
@@ -88,7 +89,7 @@ test("el cronograma reparte una cuota por mes desde el día de pago", () => {
 test("un día 31 cae al último día en los meses cortos", () => {
   const dates = schedule(day(2026, 1, 31), 31, 3)
   assert.deepEqual(
-    dates.map((d) => d.getDate()),
+    dates.map((d) => d.getUTCDate()),
     [31, 28, 31] // enero, febrero (2026 no bisiesto), marzo
   )
 })
@@ -96,7 +97,7 @@ test("un día 31 cae al último día en los meses cortos", () => {
 test("el cronograma cruza el cambio de año", () => {
   const dates = schedule(day(2026, 11, 10), 10, 3)
   assert.deepEqual(
-    dates.map((d) => [d.getFullYear(), d.getMonth() + 1]),
+    dates.map((d) => [d.getUTCFullYear(), d.getUTCMonth() + 1]),
     [
       [2026, 11],
       [2026, 12],
@@ -492,4 +493,27 @@ test("un plan con una cuota pendiente no está completo", () => {
   const plan = makePlan()
   plan.items[0].transactionId = "t"
   assert.equal(isComplete(plan), false)
+})
+
+test("WDC-179: el cronograma no depende de la TZ del proceso (Chile o UTC)", () => {
+  const prev = process.env.TZ
+  try {
+    for (const tz of ["America/Santiago", "UTC"]) {
+      process.env.TZ = tz
+      assert.deepEqual(
+        schedule(day(2026, 1, 31), 31, 3).map((d) => d.toISOString().slice(0, 10)),
+        ["2026-01-31", "2026-02-28", "2026-03-31"],
+        tz
+      )
+      // El 1 a medianoche UTC es el 31 a las 21:00 en Chile: con getters locales caía un mes antes.
+      assert.deepEqual(
+        schedule(day(2026, 11, 1), 1, 2, 1).map((d) => d.toISOString().slice(0, 10)),
+        ["2026-11-01", "2026-12-01"],
+        tz
+      )
+    }
+  } finally {
+    if (prev === undefined) delete process.env.TZ
+    else process.env.TZ = prev
+  }
 })

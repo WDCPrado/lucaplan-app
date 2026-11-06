@@ -10,6 +10,7 @@ import type {
   PluginToolName,
 } from "../../../../lib/schemas/plugin.ts"
 import { Money } from "../../domain/finance/money.ts"
+import { todayKey } from "../../../shared/today.ts"
 import { calculateFinancialOverview } from "../../../../lib/financial-health.ts"
 import { reconcileBankRows } from "../../../../lib/bank-reconciliation.ts"
 import { isSameBankMovement } from "../../domain/finance/bank-reconciliation.domain.ts"
@@ -404,7 +405,8 @@ const handlers: Handlers = {
     if (!category || category.userId !== userId) throw new PluginReferenceError("categoryId")
     if (category.type !== "income") throw new PluginRejection("Se requiere categoría de ingreso")
     const date = new Date(input.date+"T00:00:00Z")
-    if (!Number.isFinite(date.getTime()) || date > new Date()) throw new PluginRejection("Fecha inválida o futura")
+    // Futura = después de hoy en Chile; contra el instante UTC, de noche pasaba la de mañana.
+    if (!Number.isFinite(date.getTime()) || input.date > todayKey()) throw new PluginRejection("Fecha inválida o futura")
     const start = new Date(date); start.setUTCDate(start.getUTCDate()-1)
     const end = new Date(date); end.setUTCDate(end.getUTCDate()+1)
     const existing = await deps.transactions.listByUserPeriod(userId, {
@@ -423,7 +425,7 @@ const handlers: Handlers = {
     if (account.provider === "manual") throw new PluginRejection("Esta herramienta es solo para cuentas conectadas")
     if (account.accountType !== "credit_card" && account.currency !== input.currency) throw new PluginRejection("La moneda no corresponde a la cuenta")
     const day = new Date(input.date + "T00:00:00.000Z")
-    if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== input.date || day > new Date())
+    if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== input.date || input.date > todayKey())
       throw new PluginRejection("Fecha inválida o futura")
     // Sin editar el origen bancario, sin sumar cuotas o pagos como si fueran gastos.
     const description = input.description.trim()

@@ -8,7 +8,7 @@ import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
-import { formatCLP } from "@/lib/finance-format"
+import { formatCLP, todayKey } from "@/lib/finance-format"
 import { CategoryIcon } from "./category-icons"
 import { MonthPicker } from "./month-picker"
 import { Chip, savedFirst } from "./transaction-modal"
@@ -51,6 +51,7 @@ function shortDate(d: Date): string {
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: "UTC", // `schedule` da días civiles (medianoche UTC): en local mostraría el día anterior
   })
 }
 
@@ -73,6 +74,9 @@ export function InstallmentModal({
 }) {
   const router = useRouter()
   const today = new Date()
+  // Hoy como día civil de Chile, en la misma forma que las fechas de `schedule` (medianoche UTC):
+  // con `new Date()` desde las 21:00 la cuota de mañana ya contaba como vencida y pagada.
+  const civilToday = new Date(`${todayKey()}T00:00:00Z`)
 
   // `card` se dispara con el pago de UNA TARJETA: sobre otra cuenta el plan no se ejecutaría nunca.
   // `loan` se carga a la cuenta que uno elija.
@@ -130,7 +134,7 @@ export function InstallmentModal({
   // las que quedó debiendo. Las anteriores al desfase no entran: ya se dan por pagadas.
   const overdue = dates
     .map((d, i) => ({ index: i + 1, date: d }))
-    .filter(({ index, date }) => index >= startIndex && date <= today)
+    .filter(({ index, date }) => index >= startIndex && date <= civilToday)
   const paidIndexes = overdue.map((o) => o.index).filter((i) => !unpaid.has(i))
 
   const canSave =
@@ -419,8 +423,8 @@ export function InstallmentModal({
                   inglés ("October 2026") y con el icono del navegador. */}
               <MonthPicker
                 period={{
-                  year: startDate.getFullYear(),
-                  month: startDate.getMonth() + 1,
+                  year: startDate.getUTCFullYear(),
+                  month: startDate.getUTCMonth() + 1,
                 }}
                 onSelect={(y, m) =>
                   setStartMonth(`${y}-${String(m).padStart(2, "0")}`)
@@ -450,7 +454,7 @@ export function InstallmentModal({
                   pagadas y listarlas sería ruido. El número mostrado es el DEL BANCO. */}
               {dates.slice(startIndex - 1).map((date, pos) => {
                 const index = pos + startIndex
-                const isOverdue = date <= today
+                const isOverdue = date <= civilToday
                 const paid = isOverdue && !unpaid.has(index)
                 return (
                   <li
@@ -526,7 +530,7 @@ function monthValue(d: Date): string {
 
 function startOfMonth(value: string): Date {
   const [y, m] = value.split("-").map(Number)
-  return new Date(y, (m || 1) - 1, 1)
+  return new Date(Date.UTC(y, (m || 1) - 1, 1)) // día civil, como lo lee `schedule`
 }
 
 function Section({

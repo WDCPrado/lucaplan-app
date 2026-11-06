@@ -88,6 +88,14 @@ function makeRepo(templates: RecurringTemplate[]) {
       rows.push(row)
       return { transactionId: row.id, created: true }
     },
+    listOpenPeriods: async (templateId) =>
+      rows
+        .filter(
+          (r) =>
+            r.templateId === templateId &&
+            (r.status === "pending" || r.externalId === null)
+        )
+        .map((r) => ({ periodKey: r.periodKey, isManual: r.status === "confirmed" })),
     findPeriodTransaction: async (templateId, periodKey) => {
       const row = rows.find(
         (r) => r.templateId === templateId && r.periodKey === periodKey
@@ -113,6 +121,9 @@ function makeRepo(templates: RecurringTemplate[]) {
       )
       // Lo que cerró el BANCO no se pisa; una marca manual del usuario sí la reemplaza el correo.
       if (committed?.status === "confirmed" && committed.externalId !== null)
+        return false
+      // Un cobro ya vinculado a otro período no se mueve (igual que el where del adapter real).
+      if (rows.some((r) => r.id === transactionId && r.periodKey !== periodKey))
         return false
       // El importado toma el lugar de lo que hubiera: el comprometido o la marca manual.
       if (committed) rows.splice(rows.indexOf(committed), 1)
@@ -666,6 +677,117 @@ test("el cargo del correo reemplaza la marca manual del período", async () => {
   assert.notEqual(rows[0].externalId, null)
 })
 
+const correo = (id: string, day: string) => ({
+  id,
+  description: "ARRIENDO DEPTO",
+  amount: Money.of(355_000, "CLP"),
+  direction: "debit" as const,
+  date: new Date(`${day}T00:00:00Z`),
+})
+
+test("WDC-179: el correo paga el período pendiente aunque el cargo llegue atrasado y en el mes siguiente", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-08-12T00:00:00Z"))
+
+  // Agosto vence el 5; el cargo llega el 20 de septiembre (46 días tarde).
+  const claimed = await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-tarde", "2026-09-20"))
+
+  assert.equal(claimed?.id, "arriendo")
+  assert.equal(rows.length, 1, "no abre septiembre ni duplica")
+  assert.equal(rows[0].id, "tx-tarde")
+  assert.equal(rows[0].periodKey, "2026-08", "salda el agosto atrasado")
+})
+
+test("WDC-179: con octubre y noviembre pendientes, el cargo del 4-nov paga noviembre y octubre sigue pendiente", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-10-01T00:00:00Z"))
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-11-01T00:00:00Z"))
+  const periodo = (key: string) => rows.find((r) => r.periodKey === key)
+
+  // El 4-nov cae en la ventana de noviembre (vence el 5): es su cobro, no el de octubre saltado.
+  await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-1", "2026-11-04"))
+  assert.equal(periodo("2026-11")?.id, "tx-1", "el período propio del cargo")
+  assert.equal(periodo("2026-10")?.status, "pending", "octubre sigue por cobrar")
+
+  // Volver a procesar el mismo cargo no lo mueve al octubre atrasado.
+  assert.equal(await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-1", "2026-11-04")), null)
+  assert.equal(periodo("2026-11")?.id, "tx-1")
+  assert.equal(periodo("2026-10")?.status, "pending")
+
+  // Con noviembre ya cobrado por el banco, un segundo cargo salda el octubre atrasado.
+  await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-2", "2026-11-06"))
+  assert.equal(periodo("2026-10")?.id, "tx-2")
+  assert.equal(rows.length, 2, "un cobro por período")
+})
+
+test("WDC-179: con el período propio ya cobrado por el banco, el cargo paga el pendiente atrasado", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-08-12T00:00:00Z"))
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-09-01T00:00:00Z"))
+  await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-sep", "2026-09-05"))
+  assert.equal(rows.find((r) => r.periodKey === "2026-09")?.id, "tx-sep")
+
+  // El 10-sep cae en la ventana de septiembre (26-ago..15-sep), pero septiembre ya lo cobró el banco.
+  await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-ago", "2026-09-10"))
+  assert.equal(rows.find((r) => r.periodKey === "2026-08")?.id, "tx-ago", "salda el agosto atrasado")
+  assert.equal(rows.length, 2)
+})
+
+test("WDC-179: con agosto pendiente y septiembre sin abrir, el cargo del 5-sep abre y paga septiembre", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-08-12T00:00:00Z"))
+
+  await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-sep", "2026-09-05"))
+  assert.equal(rows.find((r) => r.periodKey === "2026-09")?.id, "tx-sep", "el período propio, aunque el cron no lo abrió")
+  assert.equal(rows.find((r) => r.periodKey === "2026-08")?.status, "pending", "agosto sigue por cobrar")
+})
+
+// ENTEL vence el 25: la ventana de septiembre (15-sep..5-oct) ya está cobrada y el 2-oct no cae en
+// la de octubre (15-oct..4-nov). El respaldo «período de la fecha» tiene el mismo piso de fecha.
+const entel: RecurringTemplate = { ...arriendo, id: "entel", description: "ENTEL HOGAR", dayOfMonth: 25, baseAmount: Money.of(30_000, "CLP") }
+const cargoEntel = (id: string, day: string) => ({ id, description: "ENTEL HOGAR", amount: Money.of(30_000, "CLP"), direction: "debit" as const, date: new Date(`${day}T00:00:00Z`) })
+
+test("WDC-179: con septiembre cobrado, un cargo del 2-oct no paga octubre 23 días antes de su vencimiento", async () => {
+  const { repo, rows } = makeRepo([entel])
+  await materializePeriod({ recurring: repo }, entel, new Date("2026-09-01T00:00:00Z"))
+  await materializePeriod({ recurring: repo }, entel, new Date("2026-10-01T00:00:00Z"))
+  await confirmFromMovement({ recurring: repo }, [entel], cargoEntel("tx-sep", "2026-09-25"))
+
+  assert.equal(await confirmFromMovement({ recurring: repo }, [entel], cargoEntel("tx-dup", "2026-10-02")), null, "va a triage")
+  assert.equal(rows.find((r) => r.periodKey === "2026-10")?.status, "pending")
+})
+
+test("WDC-179: un cargo 15 días atrasado no pisa la marca manual fuera de la ventana", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  // Octubre vence el 5 y está marcado a mano; el 20-oct no cae en la ventana de octubre ni de noviembre.
+  await setRecurringPeriodPaid({ recurring: repo }, "u1", { id: arriendo.id, paid: true }, new Date("2026-10-01T12:00:00Z"))
+
+  assert.equal(await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-late", "2026-10-20")), null)
+  assert.equal(rows.find((r) => r.periodKey === "2026-10")?.externalId, null, "la marca se conserva")
+})
+
+test("WDC-179: un período pendiente no lo paga un cargo anterior a 10 días de su vencimiento", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-11-01T00:00:00Z"))
+
+  // Noviembre vence el 5: un cargo del 25-oct (11 días antes) es de octubre, no de noviembre.
+  await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-oct", "2026-10-25"))
+  assert.equal(rows.find((r) => r.periodKey === "2026-11")?.status, "pending")
+  assert.equal(rows.find((r) => r.id === "tx-oct")?.periodKey, "2026-10")
+})
+
+test("WDC-179: una marca manual vieja no se persigue: el cargo paga el período en curso", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  await setRecurringPeriodPaid({ recurring: repo }, "u1", { id: "arriendo", paid: true }, HOY) // agosto
+  await materializePeriod({ recurring: repo }, arriendo, new Date("2026-09-01T00:00:00Z"))
+
+  await confirmFromMovement({ recurring: repo }, [arriendo], correo("tx-sep", "2026-09-06"))
+  assert.equal(rows.find((r) => r.periodKey === "2026-09")?.id, "tx-sep")
+  const agosto = rows.find((r) => r.periodKey === "2026-08")
+  assert.equal(agosto?.externalId, null, "la marca de agosto se conserva")
+  assert.equal(agosto?.status, "confirmed")
+})
+
 test("el cargo del correo no pisa un cobro que ya venía del banco", async () => {
   const { repo, rows, confirm } = makeRepo([arriendo])
   await materializePeriod({ recurring: repo }, arriendo, HOY)
@@ -773,6 +895,77 @@ test("rechaza lo que no puede ser el cobro: ingreso, manual, vinculado, cuota, i
   }
 })
 
+test("WDC-179: un cargo del mes anterior no salda el período en curso ni borra su pendiente (ENTEL HOGAR)", async () => {
+  const entel: RecurringTemplate = {
+    ...arriendo,
+    id: "entel",
+    label: "ENTEL HOGAR",
+    description: "ENTEL HOGAR",
+    baseAmount: Money.of(25_990, "CLP"),
+    tolerancePct: 10,
+    dayOfMonth: 5,
+    startDate: new Date("2026-01-05T00:00:00Z"),
+  }
+  const hoy = new Date("2026-11-03T15:00:00Z") // 3/11 en Chile; noviembre vence el 5
+  const { repo, rows } = makeRepo([entel])
+  await materializePeriod({ recurring: repo }, entel, new Date("2026-11-03T00:00:00Z"))
+  const pagarEntel = (tx: Transaction) =>
+    payRecurringPeriodWith(
+      { recurring: repo, transactions: txRepo([tx]) },
+      "u1",
+      { id: "entel", transactionId: tx.id },
+      hoy
+    )
+  const cargo = (date: string, monto = 25_990) =>
+    movimiento({ id: `entel-${date}`, description: "ENTEL HOGAR", amount: Money.of(monto, "CLP"), date: new Date(`${date}T00:00:00Z`) })
+
+  await assert.rejects(pagarEntel(cargo("2026-10-04")), {
+    name: "InvalidRecurringTemplateError",
+    message: "Ese cargo es del 4 de octubre, antes del cobro de este período (vence el 5 de noviembre)",
+  })
+  assert.equal(rows.length, 1, "el pendiente de noviembre sigue")
+  assert.equal(rows[0].periodKey, "2026-11")
+  assert.equal(rows[0].status, "pending")
+  // Bordes: 10 días antes del vencimiento todavía vale; 11, no.
+  await assert.rejects(pagarEntel(cargo("2026-10-25")), { name: "InvalidRecurringTemplateError" })
+
+  await assert.rejects(pagarEntel(cargo("2026-11-04", 40_000)), {
+    name: "InvalidRecurringTemplateError",
+    message: "El monto no está dentro de la tolerancia de la recurrente",
+  })
+  assert.equal(rows[0].status, "pending", "monto fuera de tolerancia: tampoco toca el período")
+
+  await pagarEntel(cargo("2026-10-26", 27_500))
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].id, "entel-2026-10-26", "el cargo del 26/10 es el cobro de noviembre")
+  assert.equal(rows[0].periodKey, "2026-11")
+  assert.equal(rows[0].status, "confirmed")
+})
+
+test("WDC-179: un cargo atrasado reemplaza la marca manual («Ya lo pagué») sin duplicar", async () => {
+  const { repo, rows } = makeRepo([arriendo])
+  const hoy = new Date("2026-08-29T15:00:00Z") // vence el 5/08: 24 días de atraso
+  await setRecurringPeriodPaid({ recurring: repo }, "u1", { id: "arriendo", paid: true }, hoy)
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].externalId, null, "la marca manual")
+
+  await payRecurringPeriodWith(
+    {
+      recurring: repo,
+      transactions: txRepo([
+        movimiento({ id: "tx-atrasado", amount: Money.of(380_000, "CLP"), date: new Date("2026-08-28T00:00:00Z") }),
+      ]),
+    },
+    "u1",
+    { id: "arriendo", transactionId: "tx-atrasado" },
+    hoy
+  )
+  assert.equal(rows.length, 1, "un solo pago en el período")
+  assert.equal(rows[0].id, "tx-atrasado", "el cargo real, no la marca manual")
+  assert.equal(rows[0].periodKey, "2026-08")
+  assert.notEqual(rows[0].externalId, null)
+})
+
 test("el movimiento de otro usuario o inexistente se rechaza como no encontrado", async () => {
   const { repo } = makeRepo([arriendo])
   await assert.rejects(pagarCon(repo, movimiento({ userId: "u2" })), {
@@ -815,16 +1008,21 @@ test("los candidatos: del banco, sin vínculo, en su moneda, últimos N días en
   assert.equal(pedido?.recurringCandidates, true)
   assert.equal(pedido?.settledOnly, true)
   assert.equal(pedido?.limit, 50)
-  assert.equal(pedido?.amountMin, undefined, "sin filtro de monto")
-  assert.equal(pedido?.amountMax, undefined, "sin filtro de monto")
+  assert.equal(pedido?.amountMin, 315_000, "monto en tolerancia (350.000 ± 10 %)")
+  assert.equal(pedido?.amountMax, 385_000, "monto en tolerancia (350.000 ± 10 %)")
   assert.equal(pedido?.query, undefined)
   assert.equal(pedido?.categoryId, "vivienda", "siempre la categoría de la plantilla")
-  assert.equal(pedido?.to, undefined, "los futuros también entran")
+  assert.equal(pedido?.to, undefined, "sin tope: atrasados y futuros entran")
   assert.equal(pedido?.from?.toISOString(), "2026-08-02T00:00:00.000Z", "10 días por defecto")
 
-  // Pasadas las 20:00 en Chile ya es otro día en UTC: manda el día de Chile.
-  await listRecurringCandidates(deps, "u1", "arriendo", { days: 30 }, new Date("2026-08-13T02:00:00Z"))
-  assert.equal(pedido?.from?.toISOString(), "2026-07-13T00:00:00.000Z")
+  // Más días no ofrecen lo que el vínculo rechazaría: nunca antes de 10 días del vencimiento.
+  await listRecurringCandidates(deps, "u1", "arriendo", { days: 30 }, ahora)
+  assert.equal(pedido?.from?.toISOString(), "2026-07-26T00:00:00.000Z")
+
+  // Pasadas las 20:00 en Chile ya es otro día en UTC: manda el día de Chile (31/08 sigue en
+  // agosto: piso 26/07, así que 30 días atrás no alcanzan a pasarlo).
+  await listRecurringCandidates(deps, "u1", "arriendo", { days: 30 }, new Date("2026-09-01T02:00:00Z"))
+  assert.equal(pedido?.from?.toISOString(), "2026-08-01T00:00:00.000Z")
 
   await listRecurringCandidates(
     deps,

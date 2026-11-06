@@ -241,8 +241,8 @@ async function adoptOrMarkOutside(
     const match = payments.find((p) => {
       if (
         used.has(p.transactionId) ||
-        p.date.getFullYear() !== item.dueDate.getFullYear() ||
-        p.date.getMonth() !== item.dueDate.getMonth() ||
+        p.date.getUTCFullYear() !== item.dueDate.getUTCFullYear() ||
+        p.date.getUTCMonth() !== item.dueDate.getUTCMonth() ||
         p.amount.currency !== plan.currency ||
         p.amount.compare(min) < 0 ||
         p.amount.compare(max) > 0

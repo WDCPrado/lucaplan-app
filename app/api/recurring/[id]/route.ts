@@ -10,6 +10,7 @@ import {
   updateRecurringTemplate,
 } from "@/arch/v1/application/finance-use-cases/recurring-use-cases"
 import { followIncome } from "@/arch/v1/application/finance-use-cases/follow-income"
+import { todayKey } from "@/arch/shared/today"
 import { recurringUrlSchema } from "@/lib/schemas/recurring-url"
 import {
   InvalidRecurringUrlError,
@@ -62,7 +63,7 @@ export async function PATCH(
         body.dayOfMonth === null || body.dayOfMonth === undefined
           ? null
           : Number(body.dayOfMonth),
-      startDate: body.startDate ? new Date(body.startDate) : new Date(),
+      startDate: new Date(body.startDate || `${todayKey()}T00:00:00.000Z`),
       endDate: body.endDate ? new Date(body.endDate) : null,
       isActive: body.isActive ?? true,
       url: body.url === undefined ? undefined : url.data,

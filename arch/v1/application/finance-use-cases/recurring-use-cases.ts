@@ -20,6 +20,7 @@ import {
   RecurringPeriodNotManualError,
   RecurringTemplateEndedError,
   RecurringTemplateNotFoundError,
+  canPayPeriod,
   executionDateFor,
   hasEnded,
   isValidTolerance,
@@ -319,6 +320,7 @@ export async function setRecurringPeriodPaid(
 /**
  * Usa un movimiento que ya existe como el cobro del período en curso, aunque su fecha caiga fuera
  * de él: el cargo real llegó con otra fecha y el match automático (que mira la fecha) no lo vinculó.
+ * Solo dentro de la ventana del vencimiento y con el monto en tolerancia (`paymentCandidateRejection`).
  * Reemplaza el comprometido o la marca manual del período, igual que un cargo del correo; un cargo
  * del banco no se pisa (→ 409). El movimiento conserva su fecha, monto y externalId.
  */
@@ -333,11 +335,13 @@ export async function payRecurringPeriodWith(
 ): Promise<{ ok: true }> {
   const today = civilToday(now)
   const template = await chargeableTemplate(deps, userId, input.id, today)
-  // Valida el movimiento: 404 si no está o no es suyo, 422 si no puede ser el cobro.
+  const currentPeriod = periodKeyFor(template, today)
+  // Valida el movimiento: 404 si no está o no es suyo, 422 si no puede ser el cobro. Antes de abrir
+  // el período: un rechazo no deja nada escrito.
   const assertCandidate = async () => {
     const tx = await deps.transactions.findById(input.transactionId)
     if (!tx || tx.userId !== userId) throw new NotOwnerError()
-    const rejection = paymentCandidateRejection(tx, template)
+    const rejection = paymentCandidateRejection(tx, template, currentPeriod)
     if (rejection) throw new InvalidRecurringTemplateError(rejection)
     return tx
   }
@@ -400,26 +404,45 @@ async function openCurrentPeriod(
   return periodKeyFor(template, today)
 }
 
-// Período que salda el cargo: el pendiente más antiguo cuyo vencimiento cae en la ventana (borde de
-// mes: vence el 31, se cobra el 1). Pendiente = comprometido o marcado a mano («Ya lo pagué»: el
-// cargo real lo reemplaza); lo que ya cobró el banco no. Sin abrir no cuenta.
-async function oldestPendingPeriod(
+// Período que salda el cargo. Primero el suyo: el de la ventana de su vencimiento (`periodsAround`)
+// que siga abierto (comprometido, marca manual «Ya lo pagué» o sin materializar). Con octubre y noviembre
+// pendientes, el cargo del 4-nov paga noviembre y octubre sigue por cobrar: si pagara el más antiguo,
+// un mes saltado desfasaría todos los cargos siguientes. Solo si el suyo ya lo cobró el banco o el
+// cargo no cae en ninguna ventana, paga el comprometido más antiguo que el cargo puede pagar (`canPayPeriod`): el atrasado.
+// Una marca manual fuera de la ventana no se persigue: el usuario ya afirmó ese pago.
+// `late: false` (el match por monto, sin el texto de la recurrente) se queda en lo abierto de la ventana:
+// sin el texto, un monto parecido lejos del vencimiento no es evidencia suficiente.
+async function periodToPay(
   deps: { recurring: RecurringTemplateRepository },
   template: RecurringTemplate,
-  date: Date
+  date: Date,
+  late: boolean
 ): Promise<string | null> {
-  for (const { periodKey } of periodsAround(template, date)) {
-    const tx = await deps.recurring.findPeriodTransaction(template.id, periodKey)
-    if (tx && (tx.status === "pending" || tx.isManual)) return periodKey
-  }
-  return null
+  const open = await deps.recurring.listOpenPeriods(template.id)
+  const isOpen = (key: string) => open.some((o) => o.periodKey === key)
+  const nearby = periodsAround(template, date).map((p) => p.periodKey)
+  if (!late) return nearby.find(isOpen) ?? null
+  // Sin materializar (el cron no lo abrió) también es el suyo: `attachImportedMovement` lo abre.
+  for (const key of nearby)
+    if (isOpen(key) || !(await deps.recurring.findPeriodTransaction(template.id, key)))
+      return key
+  const overdue = open
+    .filter(({ periodKey, isManual }) => !isManual && canPayPeriod(template, periodKey, date))
+    .map(({ periodKey }) => ({ periodKey, due: executionDateFor(template, periodKey) }))
+    .sort((a, b) => a.due.getTime() - b.due.getTime())
+  if (overdue[0]) return overdue[0].periodKey
+  // Sin nada abierto que pagar: el período de la fecha del cargo (atrasado y sin materializar), con
+  // el mismo piso de fecha. Una marca manual fuera de la ventana no se pisa. Si no, va a triage.
+  const key = periodKeyFor(template, date)
+  const manual = open.some((o) => o.periodKey === key && o.isManual)
+  return !manual && canPayPeriod(template, key, date) ? key : null
 }
 
 /**
  * ¿Este movimiento recién importado es la ejecución de alguna plantilla POR TEXTO? Si lo es, pasa a
  * ser la ejecución del período (categoría de la plantilla, vínculo, revisado) y consume el
- * comprometido `pending`. El período es el pendiente más antiguo de la ventana y, si no hay, el de
- * la fecha del cargo (como siempre: un cargo tarde del mismo mes sigue saldándolo). Devuelve la
+ * comprometido `pending`. El período es el suyo si sigue abierto y, si no, el atrasado más antiguo
+ * (`periodToPay`); si no hay ninguno que el cargo pueda pagar, no se vincula. Devuelve la
  * plantilla que lo reclamó; null si ninguna matchea o si el período ya tenía ejecución confirmada
  * (entonces el movimiento sigue el flujo normal de IA/triage).
  */
@@ -434,9 +457,8 @@ export async function confirmFromMovement(
   // PRIMERA cuyo período aún no esté consumido (`attach` rebota si ya está confirmado). Así dos
   // (o N) plantillas equivalentes reparten un cargo a cada una en vez de dejar el segundo huérfano.
   for (const template of rankTemplatesFor(movement, vigentes)) {
-    const periodKey =
-      (await oldestPendingPeriod(deps, template, movement.date)) ??
-      periodKeyFor(template, movement.date)
+    const periodKey = await periodToPay(deps, template, movement.date, true)
+    if (!periodKey) continue
     const attached = await deps.recurring.attachImportedMovement(
       movement.id,
       template,
@@ -483,7 +505,7 @@ export async function confirmFromMovements(
         !matchesAmount(movement, template)
       )
         continue
-      const periodKey = await oldestPendingPeriod(deps, template, movement.date)
+      const periodKey = await periodToPay(deps, template, movement.date, false)
       if (periodKey) pairs.push({ movement, template, periodKey })
     }
   }

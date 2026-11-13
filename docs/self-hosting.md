@@ -88,8 +88,9 @@ El rol se lee en cada petición: basta con recargar la app.
 
 ## /setup sin proxy
 
-El tope de 5 códigos incorrectos por hora cuenta por IP, y la IP sale de lo que agrega el proxy
-(Railway, Cloudflare). Sin proxy todos comparten la misma cubeta: si alguien prueba 5 códigos
+El tope de 5 códigos incorrectos por hora cuenta por IP, y la IP sale de lo que agrega el proxy.
+En Railway se lee sola; detrás de otro proxy (Cloudflare, Nginx) pon `TRUST_PROXY=true`, y solo si
+ese proxy pisa `X-Forwarded-For`: si no, el cliente la inventa. Sin esa variable todos comparten la misma cubeta: si alguien prueba 5 códigos
 malos, nadie más puede verificar durante una hora. Expón /setup detrás del proxy o reinicia el
 servidor (el contador vive en memoria).
 

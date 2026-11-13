@@ -236,6 +236,7 @@ Opcionales (las de OpenAI, Outlook y Resend también se cargan desde [Ajustes](#
 | `OUTLOOK_WEBHOOK_URL`, `OUTLOOK_RENEW_SECRET` | Avisos automáticos de correos nuevos. Requieren HTTPS público. |
 | `BANCOCHILE_ENC_KEY` | Llave de cifrado de secretos. En local se autogenera en `.bancochile-key`; en producción, 32+ caracteres y respaldada. |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Notificaciones push. Genera el par con `pnpm exec web-push generate-vapid-keys`. |
+| `TRUST_PROXY` | `true` detrás de un proxy propio que pisa `X-Forwarded-For`: `/setup` cuenta los intentos por IP. En Railway no hace falta. |
 | `CRON_SECRET` | Bearer de `POST /api/cron/notify-due` (recordatorio diario de vencimientos). Sin él, el endpoint rechaza todo. |
 
 ### Base de datos

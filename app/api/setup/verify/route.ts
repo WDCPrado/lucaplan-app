@@ -6,12 +6,15 @@ import { verifySetupCode } from "@/arch/v1/application/setup-use-cases/setup-use
 import { SETUP_COOKIE, SETUP_SESSION_MS } from "@/arch/v1/domain/setup/setup.domain"
 import { setupDeps } from "@/arch/v1/infrastructure/database/prisma/setup-deps"
 
-// La IP que agregó el proxy de confianza (Railway, Cloudflare): la ÚLTIMA de x-forwarded-for, o
-// `x-real-ip`. La primera la elige el cliente. Sin proxy, una sola cubeta para todos: 5 códigos
-// incorrectos de cualquiera bloquean la verificación una hora (ver docs/self-hosting.md).
+// La IP que agregó el proxy de confianza: la ÚLTIMA de x-forwarded-for, o `x-real-ip`. Solo se
+// leen si hay un proxy que las pise (Railway, o `TRUST_PROXY=true`): sin él, el cliente las inventa
+// y cambiar de cabecera en cada intento esquivaría el tope. Sin proxy, una sola cubeta para todos
+// (ver docs/self-hosting.md).
+const trustProxy = process.env.TRUST_PROXY === "true" || Boolean(process.env.RAILWAY_ENVIRONMENT_NAME)
 const ipOf = (req: Request) =>
-  req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ||
-  req.headers.get("x-real-ip")?.trim() ||
+  (trustProxy &&
+    (req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ||
+      req.headers.get("x-real-ip")?.trim())) ||
   "local"
 
 export async function POST(req: Request) {

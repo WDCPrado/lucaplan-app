@@ -24,3 +24,18 @@ export async function withLock<T>(
     active.delete(key)
   }
 }
+
+// Como withLock, pero espera a que se libere en vez de fallar. Para trabajo que nadie reintenta
+// (el webhook ya respondió): tres avisos seguidos no pueden perder dos por llegar juntos.
+export async function withLockWaiting<T>(
+  key: string,
+  fn: () => Promise<T>,
+  maxWaitMs = 120_000
+): Promise<T> {
+  const deadline = Date.now() + maxWaitMs
+  while (active.has(key)) {
+    if (Date.now() > deadline) throw new LockBusyError()
+    await new Promise((r) => setTimeout(r, 250))
+  }
+  return withLock(key, fn) // sin await entre el chequeo y la toma: nadie se cuela
+}

@@ -39,10 +39,11 @@ curl -X POST -H "Authorization: Bearer $OUTLOOK_RENEW_SECRET" https://app.exampl
 Usa un secreto aleatorio independiente. No se sondea el correo cada cinco minutos: el delta
 de Graph queda para recuperación manual con “Sincronizar”.
 
-Un webhook válido que falla, o que encuentra una sincronización ocupada, responde `503`
-para que Microsoft reintente; solo lo procesado se confirma con `202`. Los buzones con
-errores transitorios siguen admitiendo esos reintentos. Graph limita los reintentos a
-unas cuatro horas ([contrato de entrega](https://learn.microsoft.com/en-us/graph/change-notifications-delivery-webhooks)).
+Un webhook válido responde `202` apenas se valida y el correo se procesa después:
+Microsoft corta a los pocos segundos, y procesar antes de responder lo hacía reintentar en vez
+de entregar. Avisos que llegan juntos esperan su turno (hasta dos minutos). Si el
+procesamiento falla, el buzón queda en error con su aviso; el delta no avanzó, así que
+“Sincronizar” trae lo que faltó sin duplicar.
 No se puede detectar ni garantizar recuperación automática de una notificación que nunca llegó.
 
 Los fallos detectados en webhook o renovación se muestran en la conexión de Outlook y

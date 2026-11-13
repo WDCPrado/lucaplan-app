@@ -24,4 +24,4 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=10 \
 # Arranque: aplica migraciones pendientes (incremental, NUNCA borra datos), corre el seed (la cuenta
 # demo solo se siembra en un entorno de PR de Railway: acá NODE_ENV no es development) y levanta
 # Next en 0.0.0.0 para que la IP de Tailscale del host lo alcance.
-CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node scripts/seed.ts && pnpm exec next start -p 3005 -H 0.0.0.0"]
+CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node scripts/seed.ts && exec node_modules/.bin/next start -p 3005 -H 0.0.0.0"]

@@ -5,6 +5,9 @@ type WebhookDeps = {
   mailboxes: Pick<EmailMailboxRepository, "findBySubscriptionId">
   clientState: (mailboxId: string) => string
   process: (mailbox: EmailMailbox, ids: string[]) => Promise<void>
+  // Corre el trabajo después de responder. Graph corta a los pocos segundos: procesar antes de
+  // acusar recibo (importar, categorizar, avisar) lo hacía cortar y reintentar en vez de entregar.
+  defer: (work: () => Promise<void>, mailboxId: string) => void
 }
 
 function sameSecret(a: string, b: string) {
@@ -34,13 +37,11 @@ export async function handleEmailWebhook(req: Request, deps: WebhookDeps): Promi
   } catch {
     return new Response(null, { status: 503 })
   }
-  let failed = false
   for (const { mailbox, ids } of grouped.values()) {
     // Autorización revocada: el aviso ya está guardado; no volver a pedir tokens.
-    if (mailbox.status === "reauth_required") { failed = true; continue }
-    try { await deps.process(mailbox, ids) }
-    catch { failed = true }
+    if (mailbox.status === "reauth_required") continue
+    // Un fallo después del 202 deja el buzón en error y no avanza el delta: «Sincronizar» lo recupera.
+    deps.defer(() => deps.process(mailbox, ids), mailbox.id)
   }
-  // Un 2xx confirma entrega. Sin cola ni polling, los fallos/locks deben pedir reintento a Graph.
-  return new Response(null, { status: failed ? 503 : 202 })
+  return new Response(null, { status: 202 })
 }

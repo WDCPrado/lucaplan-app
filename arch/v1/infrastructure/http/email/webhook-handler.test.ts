@@ -13,6 +13,7 @@ function setup() {
     mailboxes: { findBySubscriptionId: async (id: string) => id === "sub" ? mailbox : null },
     clientState: () => "secret",
     process: async (mailbox: EmailMailbox, ids: string[]) => { calls.push({ mailbox, ids }) },
+    defer: (work: () => Promise<void>) => { void work() },
   }
   return { deps, calls }
 }
@@ -35,24 +36,27 @@ test("notificaciones inválidas no procesan ni generan avisos, incluso con secre
   assert.equal((await handleEmailWebhook(request(Array(101).fill(valid)), deps)).status, 413)
 })
 
-test("webhook en error sigue procesándose y los fallos o locks responden 503 para reintento", async () => {
+test("webhook en error sigue procesándose y responde 202 sin esperar el procesamiento", async () => {
   const { deps, calls } = setup()
   deps.mailboxes.findBySubscriptionId = async () => ({ ...mailbox, status: "error" })
   assert.equal((await handleEmailWebhook(request([valid]), deps)).status, 202)
   assert.equal(calls.length, 1)
-  for (const error of [new Error("private provider body"), new LockBusyError()]) {
-    deps.process = async () => { throw error }
-    const result = await handleEmailWebhook(request([valid]), deps)
-    assert.equal(result.status, 503)
-    assert.equal(await result.text(), "")
-  }
+  // Graph corta si tardamos: el 202 sale antes de que termine el trabajo, y un fallo no lo cambia.
+  const deferred: (() => Promise<void>)[] = []
+  deps.defer = (work) => { deferred.push(work) }
+  deps.process = async () => { throw new LockBusyError() }
+  const result = await handleEmailWebhook(request([valid]), deps)
+  assert.equal(result.status, 202)
+  assert.equal(await result.text(), "")
+  assert.equal(deferred.length, 1)
+  await assert.rejects(deferred[0](), LockBusyError)
 })
 
 test("un buzón requiere reconectar y no consume tokens; los otros del lote sí se procesan", async () => {
   const { deps, calls } = setup()
   deps.mailboxes.findBySubscriptionId = async (id) => id === "revoked"
     ? { ...mailbox, id: "revoked", status: "reauth_required" } : mailbox
-  assert.equal((await handleEmailWebhook(request([{ ...valid, subscriptionId: "revoked" }, valid]), deps)).status, 503)
+  assert.equal((await handleEmailWebhook(request([{ ...valid, subscriptionId: "revoked" }, valid]), deps)).status, 202)
   assert.equal(calls.length, 1)
   assert.equal(calls[0].mailbox.id, "mail")
 })

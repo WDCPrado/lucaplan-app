@@ -154,7 +154,7 @@ medidor.
 
 **El tope sigue al ingreso.** Al total anterior se le resta el déficit del período anterior (gasto
 por encima de su ingreso). Un presupuesto global lleva una marca, `followsIncome`, que se hereda
-igual que el tope: la pone «Igualar al ingreso» (o `fijar_presupuesto_global` con
+igual que el tope: la pone «Volver a seguir tus ingresos» (o `fijar_presupuesto_global` con
 `followIncome: true`) y la quita cualquier tope escrito a mano. Después de cada escritura que puede
 mover ese total, el tope del período **en curso** con la marca, o sin tope definido, queda igual al
 total nuevo (también en 0, si la marca ya estaba). Lo hacen cambiar el tipo de un abono, corregir o

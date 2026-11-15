@@ -106,6 +106,7 @@ solo existe mientras la base no tiene ninguna cuenta.
 El cron reutiliza la imagen de la app:
 
 - `scripts/notify-due.ts` a las **00:00 UTC** (21:00 del día anterior en Chile durante UTC−3).
+- `scripts/follow-income.ts` a las **00:00 y 12:00 UTC**: deja el tope que sigue al ingreso en el total del plan del período nuevo (a las 12:00 UTC ya es el día siguiente en Chile).
 - `POST http://app:3005/api/email-connection/renew` a las **00:00 y 12:00 UTC**, usando
   `OUTLOOK_RENEW_SECRET` como Bearer. Detecta errores HTTP y renovaciones parciales fallidas
   sin registrar el secreto ni respuestas del proveedor.
@@ -169,7 +170,7 @@ Si el último CI falla, se conserva la versión desplegada hasta corregirlo o re
 | Cambios | Servicios que se reconstruyen/recrean |
 | --- | --- |
 | `app/`, `components/`, `hooks/`, `public/`, configuración Next/PostCSS | `app` |
-| `scripts/local-cron.mjs`, `scripts/sync-email.ts`, `scripts/notify-due.ts` | `cron` |
+| `scripts/local-cron.mjs`, `scripts/sync-email.ts`, `scripts/notify-due.ts`, `scripts/follow-income.ts` | `cron` |
 | `arch/`, `lib/`, Prisma, Dockerfile, dependencias y otras rutas de runtime | `app` y `cron` |
 | Documentación, OpenSpec, tests, workflow y script de despliegue | Ninguno |
 | `compose.production.yml` | Se detiene para sincronización manual del manifiesto externo |

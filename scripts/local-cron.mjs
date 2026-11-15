@@ -6,8 +6,10 @@ export function dueJobs(now, previous) {
   if (Math.floor(now / 86_400_000) !== Math.floor(previous / 86_400_000)) {
     jobs.push("scripts/notify-due.ts")
   }
+  // El tope que sigue al ingreso: las 12:00 UTC ya son el día siguiente en Chile, así que un
+  // período nuevo queda alineado esa misma mañana. Es idempotente.
   if (Math.floor(now / 43_200_000) !== Math.floor(previous / 43_200_000)) {
-    jobs.push("renew-outlook")
+    jobs.push("scripts/follow-income.ts", "renew-outlook")
   }
   return jobs
 }
@@ -68,7 +70,7 @@ if (import.meta.main && process.argv[2] === "--renew-once") {
   }
 } else if (import.meta.main) {
   console.log(
-    "[cron] Correo por webhook; recordatorios 00:00 UTC; renovar Outlook 00:00 y 12:00 UTC."
+    "[cron] Correo por webhook; recordatorios 00:00 UTC; tope que sigue al ingreso y renovar Outlook 00:00 y 12:00 UTC."
   )
   let previous = Date.now()
   while (true) {

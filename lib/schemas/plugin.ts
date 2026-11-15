@@ -478,7 +478,7 @@ export const pluginTools = {
   ),
   lucaplan_fijar_presupuesto_global: write(
     { title: "Fijar presupuesto global", destructive: true },
-    "Fija el límite global del mes en CLP (entero ≥ 0), para el mes actual o uno futuro; los meses siguientes lo heredan hasta que se cambie. Es un tope: no crea gastos ni mueve dinero. Con followIncome=true (lo mismo que «Igualar al ingreso» en la app) el tope queda marcado y sigue solo al total del plan (ingreso − déficit del período anterior) cada vez que cambian los ingresos; sin él el tope queda fijado a mano y no se ajusta.",
+    "Fija el límite global del mes en CLP (entero ≥ 0), para el mes actual o uno futuro; los meses siguientes lo heredan hasta que se cambie. Es un tope: no crea gastos ni mueve dinero. Con followIncome=true (lo mismo que «Volver a seguir tus ingresos» en la app) el tope queda marcado y sigue solo al total del plan (ingreso − déficit del período anterior): se recalcula cada vez que cambian los ingresos y cada día con el cron, también al empezar un período; sin él el tope queda fijado a mano y no se ajusta.",
     monthlyBudgetSchema
       .extend({
         ...period,

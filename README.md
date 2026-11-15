@@ -94,8 +94,8 @@ Cada pieza, en corto y con su documentación.
   y define sus ingresos. Ver [Onboarding](#onboarding-con-ia).
 - **Plan del mes.** Límite global y por categoría, con lo que queda por gastar. Funciona en **modo
   débito** (mes calendario) o **modo crédito** (ciclo de la tarjeta), cada uno con su plan. Lo
-  disponible sale de los ingresos, lo gastado y lo comprometido. «Ajustar plan» sugiere el tope
-  desde tus ingresos. Reglas en [docs/product.md](docs/product.md).
+  disponible sale de los ingresos, lo gastado y lo comprometido. El tope sigue solo a tus ingresos;
+  uno fijado a mano ofrece «Volver a seguir tus ingresos». Reglas en [docs/product.md](docs/product.md).
 - **Cuentas y tarjetas.** Corrientes, de ahorro, tarjetas de crédito, líneas de crédito,
   billeteras e inversiones. Las tarjetas llevan cupo nacional (CLP) y cupo internacional (USD) por
   separado y las monedas nunca se mezclan; el dólar referencial sale de
@@ -237,7 +237,7 @@ Opcionales (las de OpenAI, Outlook y Resend también se cargan desde [Ajustes](#
 | `BANCOCHILE_ENC_KEY` | Llave de cifrado de secretos. En local se autogenera en `.bancochile-key`; en producción, 32+ caracteres y respaldada. |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Notificaciones push. Genera el par con `pnpm exec web-push generate-vapid-keys`. |
 | `TRUST_PROXY` | `true` detrás de un proxy propio que pisa `X-Forwarded-For`: `/setup` cuenta los intentos por IP. En Railway no hace falta. |
-| `CRON_SECRET` | Bearer de `POST /api/cron/notify-due` (recordatorio diario de vencimientos). Sin él, el endpoint rechaza todo. |
+| `CRON_SECRET` | Bearer de `POST /api/cron/notify-due` (recordatorio diario de vencimientos) y `POST /api/cron/follow-income` (tope que sigue al ingreso al empezar un período). Sin él, los endpoints rechazan todo. |
 
 ### Base de datos
 
@@ -338,16 +338,18 @@ guía el resto. Nunca uses `setup:db` ni `prisma migrate reset` en una base con 
 
 ### Tareas programadas
 
-Dos endpoints se llaman por HTTP con un secreto Bearer; el host debe agendarlos (cron del sistema,
+Tres endpoints se llaman por HTTP con un secreto Bearer; el host debe agendarlos (cron del sistema,
 el scheduler de tu plataforma, etc.):
 
 | Cuándo | Llamada | Para qué |
 | --- | --- | --- |
 | Una vez al día | `POST /api/cron/notify-due` con `CRON_SECRET` | Avisa los pagos por vencer. |
+| Una vez al día, pasada la medianoche de Chile | `POST /api/cron/follow-income` con `CRON_SECRET` | Deja el tope que sigue al ingreso en el total del plan al empezar un período sin movimientos. |
 | Cada 12 horas | `POST /api/email-connection/renew` con `OUTLOOK_RENEW_SECRET` | Renueva las suscripciones de Outlook; solo si usas el webhook. |
 
 ```bash
 curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://<tu-dominio>/api/cron/notify-due
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://<tu-dominio>/api/cron/follow-income
 curl -X POST -H "Authorization: Bearer $OUTLOOK_RENEW_SECRET" https://<tu-dominio>/api/email-connection/renew
 ```
 
@@ -419,6 +421,7 @@ ports, así los casos de uso se prueban con `node --test` sin framework ni base 
 | `pnpm create:account` | Crea una cuenta en la base que le indiques con `--db-prod`. |
 | `pnpm sync:email` | Sincroniza el correo a mano. |
 | `pnpm notify:due` | Notifica pagos por vencer (recurrentes y cuotas). |
+| `pnpm follow:income` | Alinea el tope que sigue al ingreso con el total del plan (la pasada del cron). |
 
 ## Mapa documental
 

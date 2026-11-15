@@ -46,6 +46,7 @@ En la Application configura **Scheduled Tasks** con timezone del servidor **UTC*
 | Comando dentro del contenedor | Cron UTC | Propósito |
 | --- | --- | --- |
 | `node /app/scripts/notify-due.ts` | `0 0 * * *` | Recordatorios diarios |
+| `node /app/scripts/follow-income.ts` | `0 0,12 * * *` | Tope que sigue al ingreso al empezar un período |
 | `node /app/scripts/local-cron.mjs --renew-once` | `0 0,12 * * *` | Renovar Outlook |
 
 El correo automático entra solo por webhook. Elimina o deja deshabilitada cualquier

@@ -118,6 +118,7 @@ Endpoints que expone, ambos con secreto Bearer y sin sesión de usuario:
 | Endpoint                            | Qué hace                                    | Secreto                 |
 | ----------------------------------- | ------------------------------------------- | ----------------------- |
 | `POST /api/cron/notify-due`         | Recordatorio de vencimientos a los suscritos | `CRON_SECRET`           |
+| `POST /api/cron/follow-income`      | Tope que sigue al ingreso al empezar un período (`pnpm follow:income` a mano) | `CRON_SECRET` |
 | `POST /api/email-connection/renew`  | Renueva las suscripciones de Graph           | `OUTLOOK_RENEW_SECRET`  |
 
 Código del servicio cron (Bun). **Sin `Bun.serve`**: un cron job debe terminar, no quedarse
@@ -147,6 +148,7 @@ async function call(path: string, secret: string | undefined, label: string) {
 
 const resultados = [
   await call("/api/cron/notify-due", process.env.CRON_SECRET, "vencimientos"),
+  await call("/api/cron/follow-income", process.env.CRON_SECRET, "tope que sigue al ingreso"),
   await call("/api/email-connection/renew", process.env.OUTLOOK_RENEW_SECRET, "renovación Outlook"),
 ]
 // Exit ≠ 0 marca la corrida como fallida en Railway (queda visible en Cron Runs).

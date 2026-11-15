@@ -6,7 +6,8 @@ import assert from "node:assert/strict"
 import { Money } from "../../domain/finance/money.ts"
 import type { MonthlyBudget, Transaction } from "../../domain/finance/finance.domain.ts"
 import type { PeriodMode } from "../../../shared/billing-cycle.ts"
-import { followIncome, setMonthlyBudgetFollowing, type FollowIncomeDeps } from "./follow-income.ts"
+import { alignGlobalLimits, followIncome, setMonthlyBudgetFollowing, type FollowIncomeDeps } from "./follow-income.ts"
+import type { IncomeSource } from "../../domain/finance/income-source.domain.ts"
 
 const TODAY = "2026-10-15" // calendario: período en curso = octubre 2026
 
@@ -203,4 +204,55 @@ test("un error de la escritura se propaga y no se sigue", async () => {
   await assert.rejects(f.run(async () => { calls++; throw new Error("rechazada") }), /rechazada/)
   assert.equal(calls, 1)
   assert.deepEqual(f.writes, [])
+})
+
+// WDC-186 · el cron del inicio de período: noviembre empieza sin movimientos y el plan ya conoce el
+// sueldo programado (1.500.000 esperados el 5), así que el tope que sigue queda en ese total.
+test("cron al empezar el período: sigue el tope con la marca; el manual y el que no tiene tope no se tocan", async () => {
+  const rows: Row[] = [
+    { id: "a", userId: "sigue", year: 2026, month: 10, globalLimit: Money.of(1_000_000, "CLP"), followsIncome: true, mode: "calendar" },
+    { id: "b", userId: "manual", year: 2026, month: 10, globalLimit: Money.of(800_000, "CLP"), followsIncome: false, mode: "calendar" },
+  ]
+  const sueldo = (userId: string): IncomeSource => ({
+    id: `sueldo-${userId}`, userId, name: "Sueldo", categoryId: "sueldo", currency: "CLP",
+    amount: Money.of(1_500_000, "CLP"), dayOfMonth: 5, startsOn: "2026-01-01", endsOn: null, amounts: [],
+  })
+  const deps = {
+    accounts: { async listByUser() { return [] } },
+    categories: {
+      async listByUser(userId: string) {
+        return [{ id: "sueldo", type: "income", userId, name: "sueldo", icon: null, color: null, description: null, paceEnabled: true }]
+      },
+      async listLimitsByUser() { return [] },
+    },
+    transactions: { async listByUserPeriod() { return [] } },
+    incomeSources: { async listByUser(userId: string) { return [sueldo(userId)] } },
+    monthlyBudgets: {
+      async listByUser(userId: string, mode: PeriodMode) {
+        return rows.filter((r) => r.userId === userId && r.mode === mode).map((r) => ({ ...r }))
+      },
+      async setFollowingIncome(input: { mode: PeriodMode; userId: string; year: number; month: number; globalLimit: Money }) {
+        const i = rows.findIndex((r) => r.userId === input.userId && r.mode === input.mode && r.year === input.year && r.month === input.month)
+        if (i >= 0 && !rows[i].followsIncome) return false
+        const row: Row = { id: `w${rows.length}`, ...input, followsIncome: true }
+        if (i >= 0) rows[i] = row
+        else rows.push(row)
+        return true
+      },
+    },
+    exchangeRates: { async clpPerUsdAt() { return 950 } },
+    budgetPeriod: { async get() { return { mode: "calendar", overrides: {} } } },
+  } as unknown as FollowIncomeDeps
+  const limit = (userId: string, month: number) =>
+    rows.find((r) => r.userId === userId && r.year === 2026 && r.month === month)?.globalLimit.toMajor()
+
+  const out = await alignGlobalLimits(deps, ["sigue", "manual", "sin"], { today: "2026-11-01" })
+
+  assert.deepEqual(out, { users: 1, adjusted: 1 })
+  assert.equal(limit("sigue", 11), 1_500_000) // fila propia del período nuevo, con la marca
+  assert.equal(limit("sigue", 10), 1_000_000) // el período anterior no se pisa
+  assert.equal(limit("manual", 11), undefined)
+  assert.equal(limit("manual", 10), 800_000)
+  assert.ok(!rows.some((r) => r.userId === "sin"))
+  assert.ok(!rows.some((r) => r.mode === "card_cycle")) // el otro modo sin tope no recibe uno
 })

@@ -26,6 +26,7 @@ test("ejecuta recordatorios y renovación a medianoche UTC y no repite el diario
   const midnight = Date.parse("2026-10-31T00:00:00Z")
   assert.deepEqual(dueJobs(midnight, midnight - 60_000), [
     "scripts/notify-due.ts",
+    "scripts/follow-income.ts",
     "renew-outlook",
   ])
   assert.deepEqual(dueJobs(midnight + 300_000, midnight), [])
@@ -34,6 +35,7 @@ test("ejecuta recordatorios y renovación a medianoche UTC y no repite el diario
 test("renueva Outlook cada doce horas sin repetir recordatorios", () => {
   const noon = Date.parse("2026-10-31T12:00:00Z")
   assert.deepEqual(dueJobs(noon, noon - 60_000), [
+    "scripts/follow-income.ts",
     "renew-outlook",
   ])
   assert.deepEqual(dueJobs(noon + 60_000, noon), [])

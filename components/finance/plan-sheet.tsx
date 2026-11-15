@@ -72,7 +72,7 @@ export function PlanSheet({
   mode: PeriodMode // modo guardado del período: mes calendario o ciclo de la tarjeta
   closing?: { date: string; estimated: boolean } // cierre del mes en pantalla; en modo calendario se muestra deshabilitado
   globalLimit: number | null
-  globalLimitFollowsIncome: boolean // el tope lo puso «Igualar al ingreso» y sigue solo
+  globalLimitFollowsIncome: boolean // el tope sigue solo al ingreso del plan (no fijado a mano)
   allocated: number
   incomeCategories: CategoryDTO[]
   expenseCategories: CategoryDTO[]
@@ -105,11 +105,9 @@ export function PlanSheet({
   // (Con `globalLimit === null` la deuda es 0 por construcción: el límite global hereda por
   // carry-forward, así que un mes sin límite implica que tampoco lo hubo antes.)
   const toAllocate = planTotal(activeIncomeTotal, previousMonthDebt)
-  // Los ingresos cambiaron y ya no calzan con el presupuesto: se ofrece igualarlos. Igualar deja
-  // el tope siguiendo solo al total del plan (`followIncome`); uno escrito a mano no lo sigue.
+  // Un tope que sigue al ingreso se recalcula solo; uno fijado a mano ofrece volver a seguirlo
+  // (`followIncome`), aunque ya calce con el total.
   const suggest = shouldSuggest(toAllocate, globalLimit, globalLimitFollowsIncome)
-  // Mismo número pero sin la marca: igualar no cambia el tope, solo lo deja siguiendo al ingreso.
-  const onlyFollow = suggest && globalLimit === toAllocate
   const income = useIncomeSources(open, period, activeIncomeTotal)
   // Abonos que el plan ya cuenta bajo un programado: «Otros ingresos» muestra el resto de cada
   // categoría, así Programados + Otros = Total. `c.used` viene en CLP (USD convertido).
@@ -263,30 +261,15 @@ export function PlanSheet({
             </button>
           )}
           {suggest && (
-            <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 py-1 pr-1 pl-4">
-              <p className="min-w-0 flex-1 basis-40 py-1.5 text-subheadline">
-                Tus ingresos suman{" "}
-                <span className="tabular font-semibold">
-                  {formatMoney(activeIncomeTotal, "CLP")}
-                </span>
-                {!onlyFollow && <> · presupuesto en {formatMoney(globalLimit ?? 0, "CLP")}</>}
-              </p>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={applySuggested}
-                disabled={applying}
-                className="press h-11 shrink-0 px-3 text-body font-semibold text-primary hover:bg-transparent hover:text-primary"
-              >
-                {applying
-                  ? "Actualizando…"
-                  : onlyFollow
-                    ? "Que el tope siga a tus ingresos"
-                    : previousMonthDebt > 0
-                      ? `Ajustar a ${formatMoney(toAllocate, "CLP")}`
-                      : "Igualar al ingreso"}
-              </Button>
-            </div>
+            <button
+             
+              type="button"
+              onClick={applySuggested}
+              disabled={applying}
+              className="press min-h-11 px-4 text-left text-subheadline font-semibold text-primary disabled:opacity-50"
+            >
+              {applying ? "Actualizando…" : "Volver a seguir tus ingresos"}
+            </button>
           )}
         </ModalSection>
 

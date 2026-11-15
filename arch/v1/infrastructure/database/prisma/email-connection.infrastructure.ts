@@ -40,30 +40,7 @@ import { runInstallmentsForImported } from "./run-installments.ts"
 import { notifyImportedForSync, pushDeps } from "./push-deps.ts"
 import { sendPushToUser } from "../../../application/notification-use-cases/push-use-cases.ts"
 import { alignGlobalLimit } from "../../../application/finance-use-cases/follow-income.ts"
-import {
-  accountRepository,
-  bankRepository,
-  categoryRepository,
-  monthlyBudgetRepository,
-  transactionRepository,
-} from "./finance.infrastructure.ts"
-import { reimbursementReadRepository } from "./reimbursement-read.infrastructure.ts"
-import { installmentPlanRepository } from "./installment.infrastructure.ts"
-import { budgetPeriodRepository } from "./budget-period.infrastructure.ts"
-import { exchangeRateProvider } from "../../http/exchange/usd-clp.ts"
-
-// Lo que lee el plan para que el tope siga al ingreso importado (misma composición que la app).
-const planDeps = {
-  accounts: accountRepository,
-  banks: bankRepository,
-  categories: categoryRepository,
-  monthlyBudgets: monthlyBudgetRepository,
-  transactions: transactionRepository,
-  reimbursements: reimbursementReadRepository,
-  installments: installmentPlanRepository,
-  budgetPeriod: budgetPeriodRepository,
-  exchangeRates: exchangeRateProvider,
-}
+import { planDeps } from "./follow-income.infrastructure.ts"
 
 // Un aviso del banco es provisorio (la cartola lo confirma). El correo nunca trae un abono no interno
 // (ver isInternalEvent), así que no lleva creditKind; un interno trae su tipo desde el aviso.

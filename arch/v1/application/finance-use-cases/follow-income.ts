@@ -89,6 +89,35 @@ export async function alignGlobalLimit(
 }
 
 /**
+ * El cron del inicio de período (WDC-186): sin escritura que lo dispare, el tope de un período
+ * nuevo quedaba en el del anterior. Solo quien tiene algún tope con la marca, en cualquier modo:
+ * a quien nunca la tuvo no se le crea un tope. `alignGlobalLimit` no lanza, así que un usuario
+ * que falla no corta a los demás. `adjusted` cuenta los del modo de la vista.
+ */
+export async function alignGlobalLimits(
+  deps: FollowIncomeDeps,
+  userIds: string[],
+  opts: { today?: string } = {}
+): Promise<{ users: number; adjusted: number }> {
+  let users = 0
+  let adjusted = 0
+  for (const userId of userIds) {
+    let follows = false
+    try {
+      for (const m of PERIOD_MODES)
+        if ((await deps.monthlyBudgets.listByUser(userId, m)).some((b) => b.followsIncome)) follows = true
+    } catch (error) {
+      console.error("followIncome: no se pudieron leer los topes", error)
+      continue
+    }
+    if (!follows) continue
+    users++
+    if ((await alignGlobalLimit(deps, userId, { ...opts, allModes: true }))?.seeded) adjusted++
+  }
+  return { users, adjusted }
+}
+
+/**
  * «Igualar al ingreso» (la app o el agente): guarda el tope con la marca y, si es el período en
  * curso, lo deja en el total que calcula el servidor; el número que mandó el cliente puede estar
  * viejo. Otro período se guarda tal cual. Sin `followIncome` es un tope a mano, sin seguimiento.

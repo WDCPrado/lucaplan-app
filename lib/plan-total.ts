@@ -1,5 +1,5 @@
 // Lo que el plan del mes DERIVA antes de dibujar nada: cuánta plata ofrece repartir, si vale la
-// pena ofrecerlo, y de qué mes viene el descuento.
+// pena ofrecer volver a seguirlo, y de qué mes viene el descuento.
 //
 // Vive acá y no dentro del componente porque son decisiones que tienen que moverse JUNTAS: el
 // total, la condición de mostrar la sugerencia y el número que se manda a `POST /api/budgets` son
@@ -25,25 +25,21 @@ export function planTotal(
 }
 
 /**
- * ¿Se ofrece igualar el presupuesto del mes a ese total? Solo si el mes tiene presupuesto definido
- * y el total difiere del vigente, o es igual pero el tope todavía no sigue al ingreso (sin la marca
- * `followsIncome`): igualar es lo que lo deja siguiendo.
+ * ¿Se ofrece «Volver a seguir tus ingresos»? Solo si el mes tiene un tope fijado a mano (sin la
+ * marca `followsIncome`). Un tope que ya sigue al ingreso se recalcula solo en cada escritura y al
+ * cambiar de período, así que no hay nada que ofrecer; uno igual al total pero sin la marca sí se
+ * ofrece: volver a seguir es lo que lo deja siguiendo.
  *
  * Con el total en 0 NO se ofrece, y esa es la parte que no es cosmética: significa que la deuda se
  * comió el ingreso entero, y dejar el presupuesto del mes en cero de un clic es una decisión del
  * usuario, no algo que la app deba sugerir. Ahí queda solo la explicación.
- *
- * `total > 0` cubre además el caso sin ingresos: sin ingresos el total es 0 y no hay nada que
- * igualar, así que no hace falta preguntarlo por separado.
  */
 export function shouldSuggest(
   total: number,
   globalLimit: number | null,
-  // El tope ya sigue solo al ingreso. Sin la marca, un tope igual al total también ofrece
-  // igualar: apretarlo es lo que lo deja siguiendo (los topes previos a la marca están así).
-  followsIncome = true
+  followsIncome: boolean
 ): boolean {
-  return globalLimit !== null && total > 0 && (total !== globalLimit || !followsIncome)
+  return globalLimit !== null && total > 0 && !followsIncome
 }
 
 /**

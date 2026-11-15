@@ -10,8 +10,10 @@ export async function reimbursementTransaction<T>(work: (db: Prisma.TransactionC
     try {
       return await prisma.$transaction(work, { isolationLevel: "Serializable" })
     } catch (error) {
-      const code = (error as { code?: string }).code
-      if (attempt >= 4 || (code !== "P2034" && code !== "P2002")) throw error
+      const { code, message } = error as { code?: string; message?: string }
+      // Un conflicto de serialización dentro de un $queryRaw llega como P2010 con SQLSTATE 40001.
+      const conflict = code === "P2034" || code === "P2002" || (code === "P2010" && /40001/.test(message ?? ""))
+      if (attempt >= 4 || !conflict) throw error
     }
   }
 }

@@ -47,7 +47,7 @@ try {
   assert.equal(budget.spent, 60000)
   assert.equal(budget.categories.find(c => c.id === category.id)?.available, 60000)
   assert.equal(budget.reimbursementAdjustment, 0)
-  assert.equal(budget.income, 20000)
+  assert.equal(budget.income, 0, "un abono vinculado como reembolso no es ingreso del plan (WDC-183)")
   assert.equal(budget.globalLimit, 100000)
   assert.equal(budget.remainingToAllocate, -20000)
   assert.equal((await view("card_cycle", 2026, 12)).allocated, 90000)

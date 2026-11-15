@@ -473,7 +473,7 @@ export const pluginTools = {
   ),
   lucaplan_ver_presupuesto: read(
     "Ver presupuesto del mes",
-    "Úsala para ver el límite global y el tope, gastado, comprometido y disponible de cada categoría en un mes (actual, pasado o futuro). Los topes se heredan del último mes definido (carry-forward). Todo en CLP; los gastos USD entran convertidos de forma referencial. Los movimientos internos no consumen presupuesto. El ingreso del plan es la suma de los abonos de ingreso (creditKind income) confirmados del período, por moneda.",
+    "Úsala para ver el límite global y el tope, gastado, comprometido y disponible de cada categoría en un mes (actual, pasado o futuro). Los topes se heredan del último mes definido (carry-forward). Todo en CLP; los gastos USD entran convertidos de forma referencial. Los movimientos internos no consumen presupuesto. El ingreso del plan = por cada ingreso programado lo recibido o, si no llegó, lo esperado, más los abonos de ingreso sueltos; por moneda.",
     z.strictObject(period)
   ),
   lucaplan_fijar_presupuesto_global: write(
@@ -805,7 +805,7 @@ export const pluginTools = {
   // --- Planificación ---
   lucaplan_planificar_periodo: read(
     "Planificar período",
-    "Úsala para planificar un mes actual o futuro: posición de hoy por moneda (caja, sobregiro usado y disponible, deuda y cupo de tarjetas), ingresos del período (abonos de ingreso confirmados), recurrentes esperadas vs pagadas, cuotas que vencen, movimientos confirmados con fecha futura y el presupuesto como tope. El ingreso del plan es la suma de los abonos de ingreso confirmados del período. Separado por moneda y sin doble conteo. Solo lectura: no crea movimientos ni pagos y no cambia saldos. En modo card_cycle devuelve creditCycleCoverage con los abonos de ingreso del ciclo anterior, que sirven para pagar su factura después del cierre. No atribuyas automáticamente al ciclo actual el sueldo recibido después del cierre anterior; evita duplicar ingresos entre facturaciones.",
+    "Úsala para planificar un mes actual o futuro: posición de hoy por moneda (caja, sobregiro usado y disponible, deuda y cupo de tarjetas), ingresos del período (programados y abonos de ingreso), recurrentes esperadas vs pagadas, cuotas que vencen, movimientos confirmados con fecha futura y el presupuesto como tope. El ingreso del plan = por cada ingreso programado lo recibido o, si no llegó, lo esperado, más los abonos de ingreso sueltos; por moneda. Separado por moneda y sin doble conteo. Solo lectura: no crea movimientos ni pagos y no cambia saldos. En modo card_cycle devuelve creditCycleCoverage con los abonos de ingreso del ciclo anterior, que sirven para pagar su factura después del cierre. No atribuyas automáticamente al ciclo actual el sueldo recibido después del cierre anterior; evita duplicar ingresos entre facturaciones.",
     z.strictObject(period)
   ),
 

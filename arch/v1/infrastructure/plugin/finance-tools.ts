@@ -1,4 +1,4 @@
-import { linkReimbursement } from "../database/prisma/reimbursement.infrastructure.ts"
+import { linkReimbursement, unlinkReimbursement } from "../database/prisma/reimbursement.infrastructure.ts"
 import { bankReconciliationStore } from "../database/prisma/bank-reconciliation.infrastructure.ts"
 import { reconcileBankAccount } from "../../application/finance-use-cases/bank-reconciliation.ts"
 import { proponerConciliacion } from "../../application/finance-use-cases/propose-reconciliation.ts"
@@ -285,6 +285,8 @@ const handlers: Handlers = {
     return { ok: true }
   },
   lucaplan_vincular_reembolso: (userId, input) => follow(userId, () => linkReimbursement(userId, input)),
+  lucaplan_desvincular_reembolso: (userId, input) =>
+    follow(userId, () => unlinkReimbursement(userId, input.reimbursementId)),
   lucaplan_asignar_categoria: (userId, input) =>
     categorizeTransaction(deps, userId, input.transactionId, input.categoryId),
   lucaplan_crear_categoria: async (userId, input) => {

@@ -5,7 +5,7 @@ if (!["localhost", "127.0.0.1"].includes(url.hostname) || url.pathname !== "/rei
   throw new Error("REIMBURSEMENT_TEST_DATABASE_URL debe apuntar a la base local aislada reimbursement_test")
 process.env.DATABASE_URL = url.toString()
 const { prisma } = await import("../arch/v1/infrastructure/database/prisma/client.ts")
-const { linkReimbursement, normalizeManualReimbursements, reimbursementTransaction } = await import("../arch/v1/infrastructure/database/prisma/reimbursement.infrastructure.ts")
+const { linkReimbursement, listReimbursementCandidates, normalizeManualReimbursements, reimbursementTransaction, unlinkReimbursement } = await import("../arch/v1/infrastructure/database/prisma/reimbursement.infrastructure.ts")
 const { accountRepository, bankRepository, categoryRepository, monthlyBudgetRepository, transactionRepository } = await import("../arch/v1/infrastructure/database/prisma/finance.infrastructure.ts")
 const { reimbursementReadRepository } = await import("../arch/v1/infrastructure/database/prisma/reimbursement-read.infrastructure.ts")
 const { budgetPeriodRepository } = await import("../arch/v1/infrastructure/database/prisma/budget-period.infrastructure.ts")
@@ -161,6 +161,39 @@ try {
   await budgetPeriodRepository.setClosing(2026, 12, null)
   await prisma.transaction.delete({ where: { id: cycleExpense.id } })
   assert.equal(await prisma.reimbursementBudgetEffect.count({ where: { reimbursementId: cycleLink.reimbursementId } }), 0)
+
+  // WDC-184: gastos que un abono puede devolver, y deshacer el vínculo desde la app.
+  const refundExpense = await movement("refund-expense", 12000, "debit", category.id, "2026-11-20")
+  const refundCredit = await movement("refund-credit", 12000, "credit", income.id, "2026-11-25")
+  const tooOld = await movement("too-old", 12000, "debit", category.id, "2026-07-01")
+  const tooLate = await movement("too-late", 12000, "debit", category.id, "2026-12-03")
+  const noCategory = await movement("no-category", 12000, "debit", null, "2026-11-20")
+  const found = await listReimbursementCandidates(userId, refundCredit.id)
+  assert.equal(found.creditFree, 12000)
+  assert.equal(found.candidates[0].id, refundExpense.id, "el de saldo libre igual al abono va primero")
+  assert.deepEqual(found.candidates[0], { id: refundExpense.id, date: "2026-11-20", description: "refund-expense",
+    amount: 12000, free: 12000, categoryName: "Compras demo" })
+  const foundIds = found.candidates.map(c => c.id)
+  for (const out of [tooOld, tooLate, noCategory, missing, refundCredit])
+    assert.ok(!foundIds.includes(out.id), `${out.description} no es candidato`)
+  assert.ok(found.candidates.every(c => c.free > 0))
+  await assert.rejects(listReimbursementCandidates("other-user", refundCredit.id), /no pertenece/)
+  await assert.rejects(listReimbursementCandidates(userId, refundExpense.id), /abono/)
+  const refundLink = await linkReimbursement(userId, { expenseId: refundExpense.id, creditId: refundCredit.id, amount: 12000 })
+  assert.equal((await prisma.transaction.findUniqueOrThrow({ where: { id: refundCredit.id } })).creditKind, "reimbursement")
+  assert.deepEqual((await listReimbursementCandidates(userId, refundCredit.id)).candidates, [], "abono sin saldo libre")
+  const withLink = (await view("card_cycle")).allocated
+  await assert.rejects(unlinkReimbursement("other-user", refundLink.reimbursementId), /no pertenece/)
+  await assert.rejects(unlinkReimbursement(userId, refundLink.reimbursementId, tooOld.id), /no pertenece/, "el vínculo no toca ese movimiento")
+  assert.equal(await prisma.expenseReimbursement.count({ where: { id: refundLink.reimbursementId } }), 1)
+  assert.deepEqual(await unlinkReimbursement(userId, refundLink.reimbursementId, refundExpense.id),
+    { reimbursementId: refundLink.reimbursementId, amount: 12000 })
+  assert.equal(await prisma.expenseReimbursement.count({ where: { id: refundLink.reimbursementId } }), 0)
+  assert.equal(await prisma.reimbursementBudgetEffect.count({ where: { reimbursementId: refundLink.reimbursementId } }), 0)
+  assert.equal((await view("card_cycle")).allocated, withLink - 12000, "el tope pierde el suplemento")
+  assert.equal((await prisma.transaction.findUniqueOrThrow({ where: { id: refundCredit.id } })).creditKind, "income",
+    "sin vínculos que lo cubran, el abono vuelve a ser ingreso")
+  await assert.rejects(unlinkReimbursement(userId, refundLink.reimbursementId), /no pertenece/)
   console.log("Reimbursements: gross budget, periods/modes, caps, retries, concurrency, rollback, legacy normalization and cascades OK")
 } finally {
   if (bankId) await prisma.bank.delete({ where: { id: bankId } })

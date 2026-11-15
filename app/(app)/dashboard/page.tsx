@@ -19,7 +19,6 @@ import {
   getPreviousMonthDebt,
   getLinkedTransactionDTO,
   listTransactions,
-  listIncomeCredits,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { materializeUserPeriods } from "@/arch/v1/application/finance-use-cases/recurring-use-cases"
 import { getPaceFrequency } from "@/arch/v1/application/finance-use-cases/pace-use-cases"
@@ -84,7 +83,6 @@ export default async function DashboardPage({
     budget,
     transactions,
     previousMonthDebt,
-    incomeCredits,
     onboardingStatus,
   ] = await Promise.all([
     getMonthlySummary(financePageDeps, userId, year, month),
@@ -102,7 +100,6 @@ export default async function DashboardPage({
     // Degradando a 0 el plan se comporta como antes de existir el descuento, que es el modo de
     // fallo correcto.
     getPreviousMonthDebt(financePageDeps, userId, year, month).catch(() => 0),
-    listIncomeCredits(financePageDeps, userId, year, month),
     getOnboardingStatusFor(userId),
   ])
 
@@ -130,7 +127,6 @@ export default async function DashboardPage({
         accounts={accounts}
         budget={budget}
         transactions={transactions}
-        incomeCredits={incomeCredits}
         previousMonthDebt={previousMonthDebt}
         outlookResult={sp.outlook ?? null}
         outlookReason={sp.reason ?? null}

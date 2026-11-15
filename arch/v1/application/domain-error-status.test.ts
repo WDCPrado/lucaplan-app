@@ -14,6 +14,7 @@ import {
 import { InvalidRecurringUrlError } from "../domain/finance/recurring.domain.ts"
 import { UnknownBankError } from "./finance-use-cases/bank-email-registry.ts"
 import { StalePreviewError } from "../domain/finance/bank-reconciliation.domain.ts"
+import { PluginRejection } from "./plugin-use-cases/plugin-tools.ts"
 
 test("Cada error de dominio que llega por withUser tiene su status y deja pasar su mensaje", () => {
   const cases: [Error, number][] = [
@@ -25,6 +26,7 @@ test("Cada error de dominio que llega por withUser tiene su status y deja pasar 
     [new StalePreviewError(), 409],
     [new SelfTargetError("banear"), 422],
     [new BankLabelRequiredError(), 422],
+    [new PluginRejection("La compensación excede el saldo libre del gasto o abono"), 422],
   ]
   for (const [error, status] of cases) assert.equal(domainErrorStatus(error), status, error.name)
   // Sale de la aritmética de Money en cualquier punto, también después de escribir: no se mapea,

@@ -287,6 +287,11 @@ export const pluginTools = {
       ...operation,
     })
   ),
+  lucaplan_desvincular_reembolso: write(
+    { title: "Desvincular reembolso de gasto", destructive: true },
+    "Deshace un vínculo de reembolso (el reimbursementId que devolvió lucaplan_vincular_reembolso): quita el aumento automático del tope de la categoría del gasto y, si el abono era reembolso y ya no queda cubierto entero, vuelve a contar como ingreso del plan. No borra ni cambia el gasto ni el abono. Confirma con el usuario antes.",
+    z.strictObject({ reimbursementId: ref("Vínculo de reembolso a deshacer"), ...operation })
+  ),
   lucaplan_asignar_categoria: write(
     { title: "Categorizar movimiento", destructive: true },
     "Úsala para asignar, cambiar o quitar (null) la categoría de UN movimiento, también de bancos conectados. Si el movimiento es de una recurrente o un plan de cuotas, la categoría pasa a toda la recurrente o el plan. Aprende el texto del comercio si no tenía regla. Responde sameTextCount (cuántos movimientos sin categoría tienen el mismo texto) y learnedCategoryId (regla previa distinta que NO se pisó): si alguno aplica, ofrece lucaplan_aprender_categoria.",

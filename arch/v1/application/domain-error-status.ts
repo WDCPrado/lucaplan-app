@@ -71,6 +71,8 @@ import {
   SetupUnauthorizedError,
 } from "../domain/setup/setup.domain.ts"
 import { LockBusyError } from "../../shared/mutex.ts"
+// Ciclo de imports con plugin-tools (que usa esta lista): seguro, solo se lee al llamar.
+import { PluginRejection } from "./plugin-use-cases/plugin-tools.ts"
 import {
   StalePreviewError,
   StatementReadError,
@@ -141,7 +143,8 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof AccountBalanceError ||
     e instanceof BankLabelRequiredError ||
     e instanceof SelfTargetError ||
-    e instanceof AmbiguousCategoryNameError
+    e instanceof AmbiguousCategoryNameError ||
+    e instanceof PluginRejection // regla validada en un adapter compartido con el MCP (reembolsos)
   )
     return 422
   if (

@@ -57,7 +57,6 @@ import type {
   AccountDTO,
   BudgetViewDTO,
   CategoryDTO,
-  IncomeCreditDTO,
   MonthlySummaryDTO,
   TransactionDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
@@ -83,7 +82,6 @@ type Props = {
   budget: BudgetViewDTO
   transactions: TransactionDTO[]
   // Abonos de ingreso del período (lo que llegó al banco): la sección Ingresos del plan.
-  incomeCredits: IncomeCreditDTO[]
   // Déficit de gastos frente a ingresos del período ANTERIOR, descontado del total a repartir.
   // Llega resuelta del servidor; el front no la recalcula. 0 = el mes pasado cerró en regla.
   previousMonthDebt: number
@@ -107,7 +105,6 @@ export function Dashboard({
   accounts,
   budget,
   transactions,
-  incomeCredits,
   previousMonthDebt,
   outlookResult,
   outlookReason,
@@ -783,7 +780,6 @@ export function Dashboard({
         expenseCategories={budget.categories.filter(
           (c) => c.type === "expense"
         )}
-        incomeCredits={incomeCredits}
         incomeCategories={incomeCategories}
         activeIncomeTotal={activeIncomeTotal}
         previousMonthDebt={previousMonthDebt}

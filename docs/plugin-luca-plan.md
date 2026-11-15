@@ -72,7 +72,7 @@ argumento con `.describe()`. Agrupadas así:
 | Cuentas | `listar_cuentas`, `previsualizar_eliminar_cuenta` | `crear_cuenta`, `editar_cuenta`, `eliminar_cuenta` |
 | Conciliación | `proponer_conciliacion`, `previsualizar_conciliacion` | `aplicar_conciliacion` |
 | Categorías | `listar_categorias` | `crear_categoria`, `editar_categoria`, `eliminar_categoria`, `asignar_categoria`, `aprender_categoria` |
-| Movimientos | `buscar_movimientos`, `ver_movimiento` | `corregir_movimiento`, `corregir_metadatos_movimiento`, `eliminar_movimiento`, `vincular_reembolso` |
+| Movimientos | `buscar_movimientos`, `ver_movimiento` | `corregir_movimiento`, `corregir_metadatos_movimiento`, `eliminar_movimiento`, `vincular_reembolso`, `desvincular_reembolso` |
 | Presupuesto | `resumen_mes`, `ver_presupuesto` | `fijar_presupuesto_global`, `fijar_presupuesto_categoria` |
 | Ingresos | `listar_ingresos` (abonos de ingreso del período) | `cambiar_tipo_abono` (ingreso ↔ reembolso) |
 | Recurrentes | `listar_recurrentes`, `candidatos_pago_recurrente` | `crear_recurrente` (desde un movimiento), `planificar_recurrente` (sin cobro previo), `editar_recurrente`, `activar_recurrente`, `eliminar_recurrente`, `marcar_pago_recurrente`, `vincular_pago_recurrente`; `crear_recurrente`, `planificar_recurrente` y `editar_recurrente` aceptan `url` opcional (enlace de pago) |

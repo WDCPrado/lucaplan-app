@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useEffect, useId, useState } from "react"
+import { useId, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
@@ -60,6 +60,7 @@ import { InstallmentModal } from "./installment-modal"
 import { AssignToInstallmentModal } from "./assign-to-installment-modal"
 import { CategoryIcon } from "./category-icons"
 import { Segmented } from "./segmented"
+import { ReimbursementSection } from "./reimbursements/reimbursement-section"
 import {
   categoryUsageLine,
   formatCLP,
@@ -252,8 +253,6 @@ export function DatePicker({
 }
 
 // Movimiento manual → editable (form tipo crear + eliminar). Movimiento conectado → solo lectura.
-type ReimbursementCounterpart = { id: string; amount: number; transaction: TransactionDTO }
-
 export function TransactionModal({
   tx,
   categories,
@@ -265,8 +264,8 @@ export function TransactionModal({
   accounts: AccountDTO[]
   onOpenChange: (o: boolean) => void
 }) {
-  // El movimiento relacionado y los vínculos valen solo para el movimiento con que se pidieron:
-  // se derivan en render (abrir otro los descarta) en vez de limpiarlos en un efecto.
+  // El movimiento relacionado vale solo para el movimiento con que se pidió:
+  // se deriva en render (abrir otro lo descarta) en vez de limpiarlo en un efecto.
   const [related, setRelated] = useState<{ forId: string; tx: TransactionDTO } | null>(null)
   // Al cerrar (tx = null) o abrir otro, se descarta durante el render: si no, reabrir el mismo
   // movimiento mostraría el relacionado que se vio antes.
@@ -274,21 +273,6 @@ export function TransactionModal({
   const relatedTx = related && related.forId === tx?.id ? related.tx : null
   const setRelatedTx = (next: TransactionDTO) => tx && setRelated({ forId: tx.id, tx: next })
   const activeTx = relatedTx ?? tx
-  const [fetchedLinks, setFetchedLinks] = useState<{ forId: string; links: ReimbursementCounterpart[] } | null>(null)
-  const links =
-    activeTx?.reimbursementCount && fetchedLinks && fetchedLinks.forId === activeTx.id
-      ? fetchedLinks.links
-      : []
-  useEffect(() => {
-    if (!activeTx?.reimbursementCount) return
-    const id = activeTx.id
-    const controller = new AbortController()
-    fetch(`/api/transactions/${id}/reimbursements`, { signal: controller.signal })
-      .then(res => { if (!res.ok) throw new Error("No se pudieron cargar los movimientos relacionados"); return res.json() })
-      .then((data: { links: ReimbursementCounterpart[] }) => { if (!controller.signal.aborted) setFetchedLinks({ forId: id, links: data.links }) })
-      .catch(() => { /* Modal sigue utilizable aunque falle la consulta de enlaces. */ })
-    return () => controller.abort()
-  }, [activeTx?.id, activeTx?.reimbursementCount])
   const account = activeTx ? accounts.find(a => a.id === activeTx.accountId) : undefined
   return (
     <ResponsiveModal
@@ -296,21 +280,7 @@ export function TransactionModal({
       onOpenChange={onOpenChange}
       title={activeTx?.editable ? "Editar movimiento" : "Movimiento del banco"}
     >
-      {!!links.length && (
-        <div className="mb-6 px-5">
-        <ModalSection title="Reembolso vinculado">
-          {links.map(link => (
-            <button key={link.id} type="button" onClick={() => setRelatedTx(link.transaction)}
-              className="press flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2 text-left hover:bg-foreground/5">
-              <span className="min-w-0"><span className="block truncate text-body">{link.transaction.description}</span>
-                <span className="block text-footnote text-muted-foreground">{fullDate(link.transaction.date)} · {link.transaction.direction === "credit" ? "Ingreso recibido" : "Compra original"}</span>
-              </span>
-              <span className="flex shrink-0 items-center gap-1.5 text-body font-semibold"><span className="tabular">{formatCLP(link.amount)}</span><ChevronRight aria-hidden className="disclosure" /></span>
-            </button>
-          ))}
-        </ModalSection>
-        </div>
-      )}
+      {activeTx && <ReimbursementSection key={activeTx.id} tx={activeTx} onOpenRelated={setRelatedTx} />}
       {activeTx && (activeTx.editable ? (
         <EditForm key={activeTx.id} tx={activeTx} account={account} accounts={accounts} categories={categories} onClose={() => onOpenChange(false)} />
       ) : (

@@ -27,17 +27,11 @@ import {
   formatCLP,
   formatMoney,
   monthName,
-  formatShortDateHeader,
 } from "@/lib/finance-format"
-import { changeCreditKind } from "./income-credits/http"
 import { planTotal, previousMonthLabel, shouldSuggest } from "@/lib/plan-total"
-import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type { PeriodMode } from "@/arch/shared/billing-cycle"
 import { ClosingPicker, PeriodModeControl } from "./month-status"
-import type {
-  CategoryDTO,
-  IncomeCreditDTO,
-} from "@/arch/v1/application/finance-use-cases/finance-read"
+import type { CategoryDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 /**
  * Plan del mes: de dónde viene la plata (ingresos) y cuánta se puede gastar (presupuesto).
@@ -56,7 +50,6 @@ export function PlanSheet({
   globalLimit,
   globalLimitFollowsIncome,
   allocated,
-  incomeCredits,
   incomeCategories,
   expenseCategories,
   activeIncomeTotal,
@@ -75,7 +68,6 @@ export function PlanSheet({
   globalLimit: number | null
   globalLimitFollowsIncome: boolean // el tope lo puso «Igualar al ingreso» y sigue solo
   allocated: number
-  incomeCredits: IncomeCreditDTO[]
   incomeCategories: CategoryDTO[]
   expenseCategories: CategoryDTO[]
   activeIncomeTotal: number
@@ -278,77 +270,64 @@ export function PlanSheet({
           )}
         </ModalSection>
 
-        {/* Ingresos: los abonos de ingreso que llegaron al banco en el período (la cartola los
-            confirma). Su suma es el ingreso del plan; uno mal clasificado pasa a reembolso. */}
+        {/* Ingresos por categoría: lo recibido en el período. Tocar una abre su detalle con los
+            abonos; ahí, en el abono, se dice si es reembolso y a qué gasto devuelve. */}
         <ModalSection
           title="Ingresos"
+          className="[--inset:4.25rem]"
           footer={
-            incomeCredits.length > 0
-              ? "Lo que llegó al banco en el período. Un abono que no es ingreso pásalo a reembolso: deja de sumar al plan."
-              : `Todavía no llegan abonos de ingreso este ${periodNoun}. Aparecen solos al sincronizar o conciliar la cartola.`
+            incomeCategories.length > 0
+              ? "Toca una categoría para ver sus abonos. Un abono que devuelve un gasto se marca como reembolso desde el abono."
+              : undefined
           }
         >
-          {incomeCredits.map((c) => (
-            <IncomeCreditRow key={c.id} credit={c} />
+          {incomeCategories.map((c) => (
+            <button
+              type="button"
+              key={c.id}
+              onClick={() => onOpenIncomeCategory(c)}
+              className="press flex min-h-11 w-full min-w-0 items-center gap-3 py-2 pr-3 pl-4 text-left"
+            >
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-muted">
+                <CategoryIcon
+                  icon={c.icon}
+                  size={20}
+                  color={c.color ?? undefined}
+                />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-body">
+                {c.name}
+              </span>
+              {/* Lo recibido en el mes: el "disponible" de una categoría de ingreso sin meta
+                  era $0 justo debajo de un sueldo ya recibido. */}
+              <span className="tabular shrink-0 text-subheadline text-muted-foreground">
+                {formatCLP(c.used)}
+              </span>
+              <ChevronRight
+                aria-hidden
+                className="disclosure"
+              />
+            </button>
           ))}
-          {incomeCredits.length > 0 && (
+          {incomeCategories.length > 0 && (
             <div className="flex min-h-11 items-center justify-between gap-3 px-4 py-3">
               <span className="text-body font-semibold">Total</span>
-              <span className="tabular flex flex-col items-end text-body font-semibold">
-                {totalsByCurrency(incomeCredits).map(([cur, total]) => (
-                  <span key={cur}>{formatMoney(total, cur)}</span>
-                ))}
+              <span className="tabular text-body font-semibold">
+                {formatCLP(activeIncomeTotal)}
               </span>
             </div>
           )}
-        </ModalSection>
-
-        {/* Categorías de ingreso: mismo patrón visual que las de gasto */}
-        {incomeCategories.length > 0 && (
-          <ModalSection
-            title="Categorías de ingreso"
-            className="[--inset:4.25rem]"
+          <button
+            type="button"
+            onClick={onNewIncomeCategory}
+            className="press flex min-h-11 w-full items-center gap-3 py-2 pr-3 pl-4 text-left text-primary"
           >
-            {incomeCategories.map((c) => (
-              <button
-                type="button"
-                key={c.id}
-                onClick={() => onOpenIncomeCategory(c)}
-                className="press flex min-h-11 w-full min-w-0 items-center gap-3 py-2 pr-3 pl-4 text-left"
-              >
-                <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-muted">
-                  <CategoryIcon
-                    icon={c.icon}
-                    size={20}
-                    color={c.color ?? undefined}
-                  />
-                </span>
-                <span className="min-w-0 flex-1 truncate text-body">
-                  {c.name}
-                </span>
-                {/* Lo recibido en el mes: el "disponible" de una categoría de ingreso sin meta
-                    era $0 justo debajo de un sueldo ya recibido. */}
-                <span className="tabular shrink-0 text-subheadline text-muted-foreground">
-                  {formatCLP(c.used)}
-                </span>
-                <ChevronRight
-                  aria-hidden
-                  className="disclosure"
-                />
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={onNewIncomeCategory}
-              className="press flex min-h-11 w-full items-center gap-3 py-2 pr-3 pl-4 text-left text-primary"
-            >
-              <span className="grid size-11 shrink-0 place-items-center rounded-lg">
-                <Plus className="size-5" aria-hidden="true" />
-              </span>
-              <span className="text-body">Nueva categoría de ingreso</span>
-            </button>
-          </ModalSection>
-        )}
+            <span className="grid size-11 shrink-0 place-items-center rounded-lg">
+              <Plus className="size-5" aria-hidden="true" />
+            </span>
+            <span className="text-body">Nueva categoría de ingreso</span>
+          </button>
+        </ModalSection>
 
         {/* Topes por categoría: el aviso «Te falta repartir…» abre este plan, así que acá se
             reparte. El saldo se recalcula al escribir; cada tope tiene un guardado explícito. */}
@@ -536,68 +515,5 @@ function LimitRow({
         </div>
       )}
     </form>
-  )
-}
-
-// Total por moneda: CLP y USD nunca se suman.
-function totalsByCurrency(credits: IncomeCreditDTO[]) {
-  const totals = new Map<CurrencyCode, number>()
-  for (const c of credits)
-    totals.set(c.currency, (totals.get(c.currency) ?? 0) + c.amount)
-  return [...totals]
-}
-
-// Abono de ingreso del período. «Es reembolso» lo saca del ingreso (el tope que sigue al ingreso
-// se ajusta solo en el servidor); el toast ofrece deshacerlo.
-function IncomeCreditRow({ credit }: { credit: IncomeCreditDTO }) {
-  const router = useRouter()
-  const [busy, setBusy] = useState(false)
-
-  async function setKind(kind: "income" | "reimbursement") {
-    setBusy(true)
-    try {
-      await changeCreditKind(credit.id, kind)
-      haptic("success")
-      if (kind === "reimbursement")
-        toast.success("Pasó a reembolso", {
-          description: credit.description,
-          action: { label: "Deshacer", onClick: () => setKind("income") },
-        })
-      router.refresh()
-    } catch (error) {
-      haptic("error")
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "No se pudo cambiar el tipo del abono."
-      )
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="flex min-h-11 items-center gap-3 py-1 pr-1 pl-4">
-      <div className="min-w-0 flex-1 py-1.5">
-        <p className="truncate text-body">{credit.description}</p>
-        <p className="text-footnote text-muted-foreground">
-          {formatShortDateHeader(credit.date)}
-        </p>
-      </div>
-      <div className="flex shrink-0 flex-col items-end">
-        <span className="tabular text-subheadline font-semibold text-success">
-          +{formatMoney(credit.amount, credit.currency)}
-        </span>
-        <button
-          type="button"
-          onClick={() => setKind("reimbursement")}
-          disabled={busy}
-          aria-label={`Es reembolso: ${credit.description}`}
-          className="press -mb-2 flex min-h-11 items-center px-3 text-subheadline font-semibold text-primary disabled:opacity-50"
-        >
-          Es reembolso
-        </button>
-      </div>
-    </div>
   )
 }

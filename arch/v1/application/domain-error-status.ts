@@ -71,7 +71,10 @@ import {
   SetupUnauthorizedError,
 } from "../domain/setup/setup.domain.ts"
 import { LockBusyError } from "../../shared/mutex.ts"
-import { StatementReadError } from "../domain/finance/bank-reconciliation.domain.ts"
+import {
+  StalePreviewError,
+  StatementReadError,
+} from "../domain/finance/bank-reconciliation.domain.ts"
 import {
   AmbiguousCategoryNameError,
   OnboardingCompletedError,
@@ -101,6 +104,7 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof DuplicateBudgetAlertError || // ya existe una alerta a ese %
     e instanceof RecurringPeriodBankPaidError || // el período ya lo cobró el banco
     e instanceof StaleAccountDeletionError || // la cuenta cambió desde la previsualización
+    e instanceof StalePreviewError || // la conciliación cambió desde la previsualización
     e instanceof BankAlreadyLinkedError || // ese banco ya está en este correo
     e instanceof OnboardingCompletedError || // el onboarding ya terminó
     e instanceof ConcurrentCategorySaveError || // otro guardado del set entró primero

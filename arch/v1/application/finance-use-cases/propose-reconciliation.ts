@@ -283,11 +283,14 @@ export function proposeReconciliation(
       isSameBankMovement(addition, m, { days: 4, match: "amountOrDescription" })
     )
     if (r.kind === "reversal") {
-      // El cargo que anula: mismo comercio e importe, hasta 30 días antes.
+      // El cargo que anula: mismo comercio e importe, hasta 30 días antes. Nunca un interno ni un
+      // candidato que otra fila deja para decidir (su par con una fila sí: el reverso lo anula).
       const merchant = normalizeMerchant(r.description)
       const charges = confirmed.filter(
         (m) =>
           m.direction === "debit" &&
+          !m.isInternal &&
+          (!used.has(m.id) || pairOf.has(m.id)) &&
           !reversalTargets.has(m.id) &&
           !m.reimbursementAmount &&
           !m.linked &&
@@ -324,14 +327,14 @@ export function proposeReconciliation(
       isSameBankMovement(addition, a, { days: 4, match: "amountOrDescription" })
     )
     if (unexplained.length || twin) {
-      for (const m of unexplained) used.add(m.id)
+      // Lo que no se puede corregir a la fila no se ofrece (solo queda el alta) ni se reserva: sigue
+      // su camino como retención o posterior al corte.
+      const offered = unexplained.filter((m) => correctable(m, addition))
+      for (const m of offered) used.add(m.id)
       ambiguous.push({
         rowIndex: r.rowIndex,
         reason: "multiple_candidates",
-        // Lo que no se puede corregir a la fila no se ofrece: solo queda el alta.
-        candidates: unexplained
-          .filter((m) => correctable(m, addition))
-          .map(candidate),
+        candidates: offered.map(candidate),
         addition: ready,
       })
       continue

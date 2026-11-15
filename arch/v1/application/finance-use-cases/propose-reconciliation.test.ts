@@ -228,3 +228,52 @@ test("reverso: el plan acepta el alta aunque distinctFrom traiga el mismo cargo 
     planBankReconciliation(state, { ...p.reconcileInput, additions: [withTarget] }, NOW)
   )
 })
+
+test("B10 en el día del corte: el cargo con reembolso que no se ofrece no bloquea el plan; queda posterior al corte", () => {
+  const state = card([mov("con-reembolso", "2026-11-10", "LIDER", 50_000, { reimbursementAmount: 10_000 })])
+  const { p, plan } = propose(state, cardDoc([row("2026-11-10", "LIDER", 55_000)]))
+  assert.deepEqual(p.ambiguous[0].candidates, [])
+  assert.deepEqual(p.reconcileInput.excludedSameDayIds, ["con-reembolso"])
+  assert.deepEqual(plan.replayedIds, ["con-reembolso"])
+  // Y si la persona elige el alta, el plan también la acepta.
+  assert.doesNotThrow(() =>
+    planBankReconciliation(state, { ...p.reconcileInput, additions: [p.ambiguous[0].addition!] }, NOW)
+  )
+})
+
+test("reverso: no anula un cargo interno ni uno que otra fila deja para decidir", () => {
+  const { p } = propose(
+    checking([
+      mov("interno", "2026-11-05", "PEDIDOSYA", 12_000, { isInternal: true, internalKind: "own_transfer", categoryId: null }),
+      mov("dudoso-1", "2026-11-04", "PEDIDOSYA", 12_000),
+      mov("dudoso-2", "2026-11-04", "PEDIDOSYA", 12_000),
+    ]),
+    checkingDoc([
+      // Misma fecha y comercio, otro importe: los dos cargos quedan como candidatos de esta fila.
+      row("2026-11-04", "PEDIDOSYA", 13_000),
+      row("2026-11-06", "PEDIDOSYA", 12_000, { direction: "credit", kind: "reversal" }),
+    ])
+  )
+  assert.ok(p.reconcileInput.additions.every((a) => !a.reversalOfId))
+  assert.deepEqual(
+    p.ambiguous.map((a) => [a.rowIndex, a.reason, a.candidates.map((c) => c.id)]),
+    [
+      [0, "multiple_candidates", ["dudoso-1", "dudoso-2"]],
+      [1, "reversal_without_charge", []],
+    ]
+  )
+})
+
+test("corriente: dos movimientos del día del corte sin aviso del banco que el documento no trae se reproyectan", () => {
+  const { p, plan } = propose(
+    checking([
+      mov("a", "2026-11-10", "CABIFY", 7000, { origin: "statement" }),
+      mov("b", "2026-11-10", "UBER", 5000, { origin: "statement" }),
+    ]),
+    checkingDoc([row("2026-11-09", "COPEC", 20_000)])
+  )
+  assert.deepEqual(p.reconcileInput.excludedSameDayIds, ["a", "b"])
+  assert.deepEqual(plan.replayedIds, ["a", "b"])
+  // 400.000 de caja menos los dos posteriores al corte.
+  assert.equal(plan.projectedBuckets.find((b) => b.kind === "cash")!.available, 388_000)
+})

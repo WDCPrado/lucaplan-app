@@ -74,13 +74,34 @@ DROP TABLE "income_plan";
 DROP TABLE "income";
 
 -- El límite del sobregiro vive en el bucket overdraft (limitAmount): la corriente con línea y sin
--- ese bucket lo recibe antes de perder la columna (usado = lo que la caja está bajo cero).
-INSERT INTO "balance_bucket" ("id", "userId", "accountId", "kind", "currency", "limitAmount", "used", "available", "createdAt", "updatedAt")
-SELECT gen_random_uuid()::text, a."userId", a."id", 'overdraft', a."currency", a."overdraftLimit",
-  greatest(-a."balance", 0), a."overdraftLimit" - greatest(-a."balance", 0), now(), now()
-FROM "financial_account" a
-WHERE a."accountType" = 'checking' AND a."overdraftLimit" > 0
-  AND NOT EXISTS (SELECT 1 FROM "balance_bucket" b WHERE b."accountId" = a."id" AND b."kind" = 'overdraft');
+-- ese bucket lo recibe antes de perder la columna. La deuda se cuenta una sola vez: si la caja está
+-- bajo cero, eso pasa a ser lo usado de la línea y la caja queda en 0; sin bucket de caja, lo usado
+-- es el saldo negativo de la cuenta (sin caja, la posición sigue leyendo el saldo, no la línea).
+WITH src AS (
+  SELECT a."id", a."userId", a."currency", a."overdraftLimit", coalesce(
+    (SELECT greatest(-c."available", 0) FROM "balance_bucket" c
+     WHERE c."accountId" = a."id" AND c."kind" = 'cash' AND c."currency" = a."currency"
+     ORDER BY c."available" LIMIT 1),
+    greatest(-a."balance", 0)) AS "used"
+  FROM "financial_account" a
+  WHERE a."accountType" = 'checking' AND a."overdraftLimit" > 0
+    AND NOT EXISTS (SELECT 1 FROM "balance_bucket" b WHERE b."accountId" = a."id" AND b."kind" = 'overdraft')
+), created AS (
+  INSERT INTO "balance_bucket" ("id", "userId", "accountId", "kind", "currency", "limitAmount", "used", "available", "createdAt", "updatedAt")
+  SELECT gen_random_uuid()::text, "userId", "id", 'overdraft', "currency", "overdraftLimit",
+    "used", "overdraftLimit" - "used", now(), now()
+  FROM src
+  RETURNING "accountId", "currency"
+)
+, cash AS (
+  UPDATE "balance_bucket" c SET "available" = 0, "updatedAt" = now()
+  FROM created
+  WHERE c."accountId" = created."accountId" AND c."kind" = 'cash'
+    AND c."currency" = created."currency" AND c."available" < 0
+  RETURNING c."accountId"
+)
+-- El saldo de la cuenta refleja la caja (como lo escribe la sincronización).
+UPDATE "financial_account" a SET "balance" = 0 FROM cash WHERE a."id" = cash."accountId";
 
 ALTER TABLE "financial_account" DROP COLUMN "overdraftLimit";
 

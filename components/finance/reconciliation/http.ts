@@ -1,34 +1,19 @@
-import { z } from "zod"
 import {
   reconciliationPreviewSchema,
   reconciliationProposalSchema,
   type BankReconciliationInput,
   type ReconciliationPreview,
+  type ReconciliationProposal,
 } from "@/lib/schemas/bank-reconciliation"
 import { financeResponseError } from "../finance-form-field"
 import { ApiError } from "../onboarding/http"
 
 export { ApiError }
-export type { ReconciliationPreview }
+export type { ReconciliationPreview, ReconciliationProposal }
 
-// Filas que no se pueden conciliar en esta cuenta (moneda sin cupo, etc.). Opcional mientras el
-// servidor no la mande; `.extend` también la acepta si el esquema compartido ya la trae.
-const proposalSchema = reconciliationProposalSchema.extend({
-  skipped: z
-    .array(
-      z.object({
-        rowIndex: z.int().nonnegative().nullish(),
-        reason: z.string(),
-        detail: z.string(),
-      })
-    )
-    .optional(),
-})
-export type ReconciliationProposal = z.infer<typeof proposalSchema>
-
-/** El servidor rechaza aplicar con un token que ya no calza con los datos: hay que previsualizar de nuevo. */
+/** El servidor rechaza aplicar con un token que ya no calza con los datos (409): hay que previsualizar de nuevo. */
 export const isStalePreview = (e: unknown) =>
-  e instanceof ApiError && /cambiaron desde la previsualizaci/i.test(e.message)
+  e instanceof ApiError && e.status === 409
 
 // Conciliar cartola (WDC-183): leer el archivo → propuesta (3.1), previsualizar y aplicar (3.2).
 
@@ -59,7 +44,7 @@ export async function readStatement(
 ): Promise<ReconciliationProposal> {
   const body = new FormData()
   body.append("file", file)
-  return proposalSchema.parse(
+  return reconciliationProposalSchema.parse(
     await post(`/api/accounts/${accountId}/statement`, { body })
   )
 }

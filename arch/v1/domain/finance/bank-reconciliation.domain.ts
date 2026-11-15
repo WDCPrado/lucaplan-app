@@ -178,6 +178,16 @@ export class StatementReadError extends Error {
   }
 }
 
+/** El token de la previsualización ya no calza con la cuenta (cambió o venció el día) → 409: previsualizar de nuevo. */
+export class StalePreviewError extends Error {
+  constructor(
+    message = "Los datos cambiaron desde la previsualización; repite el dry run"
+  ) {
+    super(message)
+    this.name = "StalePreviewError"
+  }
+}
+
 /** Lo que devuelve `planBankReconciliation`: puro, sin escribir nada. */
 export type BankReconciliationPlan = {
   corrections: ReconciliationCorrection[]

@@ -21,7 +21,12 @@ export async function POST(
 ) {
   // Antes de leer el cuerpo: sin largo declarado o sobre el tope no se recibe.
   const length = Number(req.headers.get("content-length"))
-  if (!length || length > MAX_BODY)
+  if (!length)
+    return Response.json(
+      { error: "No se pudo determinar el tamaño de la cartola" },
+      { status: 411 }
+    )
+  if (length > MAX_BODY)
     return Response.json(
       { error: "La cartola no puede pasar de 10 MB" },
       { status: 413 }

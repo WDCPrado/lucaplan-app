@@ -21,13 +21,17 @@ import {
   applyInternalPayment,
 } from "./email-projection.ts"
 import {
+  applyEventToProjection,
+  applyEventToStoredBuckets,
   confirmEmailSetup,
+  directionOf,
   disconnectBankById,
   resolveEventTarget,
   scanEmailCandidates,
   syncMailbox,
   syncUserMailboxes,
   type EmailConfirmPersistInput,
+  type EmailBucketDef,
   type EmailConnectionDeps,
   type EmailStoredBucket,
 } from "./email-connection-use-cases.ts"
@@ -1823,4 +1827,62 @@ test("WDC-183: el aviso de pago de la línea va a la caja de la corriente (como 
     resolveEventTarget(event, accounts, [bucket("b-cash", "cash"), bucket("b-od", "overdraft")]),
     { accountId: "acc-1", bucketId: "b-cash" }
   )
+})
+
+test("WDC-183: sin caja en la corriente, el aviso de pago de la línea se omite (no queda un cargo sin bucket)", () => {
+  const event = {
+    kind: "internal_payment",
+    source: "pago_linea",
+    amount: Money.of(100000, "CLP"),
+    date: new Date("2026-11-05T00:00:00Z"),
+    receivedAt: new Date("2026-11-05T12:00:00Z"),
+    description: "Pago de línea de crédito",
+    instrument: { kind: "checking", ref: "1100" },
+    paymentTarget: "overdraft",
+    cashLeg: null,
+    tefId: null,
+    externalId: "email:mid:linea",
+  } as Parameters<typeof resolveEventTarget>[0]
+  const accounts = [
+    { id: "acc-1", accountType: "checking", currency: "CLP" as const, externalRef: "009991111100", cardLast4: "1100" },
+  ]
+  const od: EmailStoredBucket = {
+    id: "b-od", accountId: "acc-1", kind: "overdraft", currency: "CLP",
+    limitAmount: Money.zero("CLP"), used: Money.zero("CLP"), available: Money.zero("CLP"),
+  }
+  assert.equal(resolveEventTarget(event, accounts, [od]), null)
+})
+
+test("WDC-183: el pago de la línea es un cargo y baja a la vez la caja y la línea usada (sync y alta)", () => {
+  const event = {
+    kind: "internal_payment",
+    source: "pago_linea",
+    amount: Money.of(100000, "CLP"),
+    date: new Date("2026-11-05T00:00:00Z"),
+    receivedAt: new Date("2026-11-05T12:00:00Z"),
+    description: "Pago de línea de crédito",
+    instrument: { kind: "checking", ref: "1100" },
+    paymentTarget: "overdraft",
+    cashLeg: null,
+    tefId: null,
+    externalId: "email:mid:linea",
+  } as Parameters<typeof resolveEventTarget>[0]
+  assert.equal(directionOf(event), "debit")
+  const clp = (n: number) => Money.of(n, "CLP")
+  const cash = { kind: "cash" as const, currency: "CLP" as const, limitAmount: clp(0), used: clp(0), available: clp(200000) }
+  const line = { kind: "overdraft" as const, currency: "CLP" as const, limitAmount: clp(500000), used: clp(150000), available: clp(350000) }
+  const amounts = (b: { used: Money; available: Money }) => [b.used.toMajor(), b.available.toMajor()]
+
+  const stored = new Map<string, EmailStoredBucket>([
+    ["b-cash", { ...cash, id: "b-cash", accountId: "acc-1" }],
+    ["b-od", { ...line, id: "b-od", accountId: "acc-1" }],
+  ])
+  applyEventToStoredBuckets(stored, "acc-1", event)
+  assert.deepEqual(amounts(stored.get("b-cash")!), [0, 100000])
+  assert.deepEqual(amounts(stored.get("b-od")!), [50000, 450000])
+
+  const projected = new Map<string, EmailBucketDef>([["checking:cash", cash], ["checking:overdraft", line]])
+  applyEventToProjection(projected, "checking", event)
+  assert.deepEqual(amounts(projected.get("checking:cash")!), [0, 100000])
+  assert.deepEqual(amounts(projected.get("checking:overdraft")!), [50000, 450000])
 })

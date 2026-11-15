@@ -10,6 +10,7 @@ import { planCardCorrections } from "./card-reconciliation.ts"
 import {
   canReconcileCorrection,
   isSameBankMovement,
+  StalePreviewError,
   type BankReconciliationPlan,
   type BankReconciliationStore,
   type ReconciliationCorrection,
@@ -379,6 +380,11 @@ export function planBankReconciliation(
   }
   if (state.accountType === "checking") {
     for (const day of new Set(replay.map((m) => m.date))) {
+      // Los del día del corte que el documento no trae (excludedSameDayIds, los decide la propuesta
+      // sola) se reproyectan en el orden fijo de abajo: bloquearlos dejaría la cartola sin aplicar.
+      // ponytail: su orden real se desconoce; solo importa con caja negativa o línea en el piso, y la
+      // cartola siguiente corrige.
+      if (day === cutoffDay) continue
       const sameDay = replay.filter((m) => m.date === day)
       if (sameDay.length > 1 && sameDay.some((m) => !m.bankReceivedAt))
         reject(
@@ -509,9 +515,7 @@ export async function reconcileBankAccount(
       }
     }
     if (token !== previewToken)
-      throw new EmailSetupStateError(
-        "Los datos cambiaron desde la previsualización; repite el dry run"
-      )
+      throw new StalePreviewError()
     return tx.apply(userId, input, plan, token, now)
   })
 }

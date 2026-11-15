@@ -279,11 +279,11 @@ export function resolveEventTarget(
   }
 
   // Pago de la línea: sale de la caja de la corriente (cargo `overdraft_payment`), igual que lo trae
-  // la cartola; la proyección baja caja y línea a la vez.
+  // la cartola; la proyección baja caja y línea a la vez. Sin caja no hay dónde cargarlo: se omite.
   if (event.paymentTarget === "overdraft") {
     const target = resolveChecking(event, accounts)
-    if (!target) return null
-    return { accountId: target.id, bucketId: bucketOf(target.id, "cash")?.id ?? null }
+    const cash = target && bucketOf(target.id, "cash")
+    return cash ? { accountId: cash.accountId, bucketId: cash.id } : null
   }
 
   if (!event.instrument) return null
@@ -373,7 +373,8 @@ function internalKindOf(event: EmailEvent): InternalKind | null {
 }
 
 // El pago de la línea es un cargo en la caja; el resto de los internos del correo, un abono.
-function directionOf(event: EmailEvent): Direction {
+// Exportado para tests (como las dos proyecciones de abajo).
+export function directionOf(event: EmailEvent): Direction {
   return isInternalEvent(event) && event.paymentTarget !== "overdraft"
     ? "credit"
     : "debit"
@@ -895,7 +896,7 @@ function toStoredForMapping(accounts: EmailAccountDef[]): {
 }
 
 // Aplica un evento a la proyección en memoria de los buckets de una cuenta (por clave temporal).
-function applyEventToProjection(
+export function applyEventToProjection(
   projected: Map<string, EmailBucketDef>,
   accountKey: string,
   event: EmailEvent
@@ -1298,7 +1299,7 @@ async function importIntoLink(
   }
 }
 
-function applyEventToStoredBuckets(
+export function applyEventToStoredBuckets(
   bucketById: Map<string, EmailStoredBucket>,
   accountId: string,
   event: EmailEvent

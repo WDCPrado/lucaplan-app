@@ -116,7 +116,6 @@ type Dependents = {
   movements: number
   recurring: number
   installments: number
-  incomes: number
 }
 
 const nowLocal = () => {
@@ -1075,7 +1074,6 @@ function DisconnectBankButton({
         [dependents.movements, "movimiento", "movimientos"],
         [dependents.recurring, "recurrente", "recurrentes"],
         [dependents.installments, "plan de cuotas", "planes de cuotas"],
-        [dependents.incomes, "fuente de ingreso", "fuentes de ingreso"],
       ]
         .filter(([n]) => (n as number) > 0)
         .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)

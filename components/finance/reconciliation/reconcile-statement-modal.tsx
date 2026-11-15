@@ -1,0 +1,640 @@
+"use client"
+
+import * as React from "react"
+import { useId, useState } from "react"
+import { useRouter } from "next/navigation"
+import { Controller, useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { toast } from "sonner"
+import { ArrowRight, Check, FileText } from "lucide-react"
+import { ModalSection, ResponsiveModal } from "@/components/ui/responsive-modal"
+import { FinanceField } from "../finance-form-field"
+import { formatMoney, formatShortDateHeader } from "@/lib/finance-format"
+import { haptic } from "@/lib/haptics"
+import { cn } from "@/lib/utils"
+import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
+import {
+  applyReconciliation,
+  previewReconciliation,
+  readStatement,
+  type ReconcileInput,
+  type ReconciliationPreview,
+  type ReconciliationProposal,
+} from "./http"
+
+const MAX_BYTES = 10 * 1024 * 1024
+const ACCEPT = ".pdf,.xls,.xlsx,.csv"
+const fileSchema = z.object({
+  file: z
+    .custom<File | null>()
+    .refine((f): f is File => f instanceof File, "Elige la cartola")
+    .refine((f) => !f || f.size <= MAX_BYTES, "El archivo pesa más de 10 MB")
+    .refine(
+      (f) => !f || /\.(pdf|xlsx?|csv)$/i.test(f.name),
+      "Solo PDF, XLS, XLSX o CSV"
+    ),
+})
+
+const KIND_LABEL: Record<string, string> = {
+  income: "Ingreso",
+  reimbursement: "Reembolso",
+  reversal: "Reverso",
+  overdraft_draw: "Uso de línea",
+  overdraft_payment: "Pago de línea",
+  own_transfer: "Traspaso propio",
+  card_payment: "Pago de tarjeta",
+}
+
+// Por fila ambigua: el id del candidato elegido, "otro" (movimiento distinto de todos), "agregar"
+// u "omitir" (reverso sin cargo).
+type Decisions = Record<number, string>
+type Ambiguous = ReconciliationProposal["ambiguous"][number]
+
+export function snapshotLabel(iso: string) {
+  return new Date(iso).toLocaleString("es-CL", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+const money = (amount: number, currency: string) =>
+  formatMoney(amount, currency as CurrencyCode)
+
+type Read = ReconciliationProposal
+type Row = Read["rows"][number]
+type Bucket = ReconciliationPreview["projectedBuckets"][number]
+
+// Una cuota o un pago de tarjeta van por su propio flujo: no se deciden aquí ni bloquean Aplicar.
+const needsDecision = (a: Ambiguous) =>
+  a.reason === "multiple_candidates" || a.reason === "reversal_without_charge"
+
+// La entrada propuesta (sin accountId, que va en la URL) más lo decidido en «Por decidir».
+function withDecisions(proposal: Read, decisions: Decisions): ReconcileInput {
+  const { accountId, ...input } = proposal.reconcileInput
+  void accountId
+  const additions = [...input.additions]
+  const corrections = [...input.corrections]
+  for (const a of proposal.ambiguous) {
+    const pick = decisions[a.rowIndex]
+    const row = proposal.rows.find((r) => r.rowIndex === a.rowIndex)
+    if (!row || pick === undefined || pick === "omitir") continue
+    // «Es otro movimiento» / «Agregar como reverso»: el alta viene lista del servidor.
+    if (pick === "otro" || pick === "agregar") {
+      if (a.addition) additions.push(a.addition)
+      continue
+    }
+    // Elegido con otro importe, moneda o fecha: se corrige con los datos de la cartola.
+    const c = a.candidates.find((x) => x.id === pick)
+    if (
+      c &&
+      (c.amount !== row.amount ||
+        c.currency !== row.currency ||
+        c.date !== row.date)
+    )
+      corrections.push({
+        transactionId: c.id,
+        date: row.date,
+        description: c.description,
+        amount: row.amount,
+        currency: row.currency,
+        categoryId: c.categoryId,
+        evidence: `Fila ${row.rowIndex + 1} de la cartola: ${row.description}`,
+      })
+  }
+  return { ...input, additions, corrections }
+}
+
+export function ReconcileStatementModal({
+  accountId,
+  open,
+  onOpenChange,
+}: {
+  accountId: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const router = useRouter()
+  const formId = `statement-${useId()}`
+  const fieldId = `${formId}-file`
+  const form = useForm({
+    resolver: zodResolver(fileSchema),
+    defaultValues: { file: null },
+  })
+  const { errors, isSubmitting } = form.formState
+  const [read, setRead] = useState<Read | null>(null)
+  const [preview, setPreview] = useState<ReconciliationPreview | null>(null)
+  const [decisions, setDecisions] = useState<Decisions>({})
+  const [busy, setBusy] = useState<"preview" | "apply" | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  function reset() {
+    form.reset()
+    setRead(null)
+    setPreview(null)
+    setDecisions({})
+    setBusy(null)
+    setError(null)
+  }
+  function close() {
+    reset()
+    onOpenChange(false)
+  }
+  const fail = (e: unknown, fallback: string) => {
+    haptic("error")
+    setError(e instanceof Error ? e.message : fallback)
+  }
+
+  async function readFile({ file }: { file: File | null }) {
+    if (!file) return
+    setError(null)
+    try {
+      const next = await readStatement(accountId, file)
+      const previewed = await previewReconciliation(
+        accountId,
+        withDecisions(next, {})
+      )
+      setRead(next)
+      setPreview(previewed)
+    } catch (e) {
+      fail(e, "No se pudo leer la cartola")
+    }
+  }
+
+  // Cada decisión cambia las altas o correcciones: se vuelve a previsualizar (token nuevo).
+  async function decide(rowIndex: number, value: string) {
+    if (!read) return
+    const next = { ...decisions, [rowIndex]: value }
+    setDecisions(next)
+    setBusy("preview")
+    setError(null)
+    try {
+      setPreview(
+        await previewReconciliation(accountId, withDecisions(read, next))
+      )
+    } catch (e) {
+      fail(e, "No se pudo previsualizar")
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function apply() {
+    if (!read || !preview) return
+    setBusy("apply")
+    setError(null)
+    try {
+      if (!preview.previewToken)
+        throw new Error("Falta la previsualización; vuelve a leer la cartola")
+      const applied = await applyReconciliation(
+        accountId,
+        withDecisions(read, decisions),
+        preview.previewToken
+      )
+      haptic("success")
+      toast.success(
+        `Conciliada hasta ${snapshotLabel(applied.reconciledUntil ?? preview.snapshotAt)}`,
+        {
+          description: summary(applied),
+        }
+      )
+      close()
+      router.refresh()
+    } catch (e) {
+      fail(e, "No se pudo aplicar la conciliación")
+      setBusy(null)
+    }
+  }
+
+  const pending = read
+    ? read.ambiguous.filter(
+        (a) => needsDecision(a) && decisions[a.rowIndex] === undefined
+      ).length
+    : 0
+
+  return (
+    <ResponsiveModal
+      open={open}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+      title="Conciliar cartola"
+      className={preview ? undefined : "sm:max-w-md"}
+      dismissible={busy !== "apply"}
+      cancel={{
+        label: "Cancelar",
+        disabled: busy === "apply" || isSubmitting,
+        onClick: close,
+      }}
+      primary={
+        preview
+          ? {
+              label: busy === "apply" ? "Aplicando…" : "Aplicar",
+              onClick: apply,
+              busy: busy === "apply",
+              disabled: busy !== null || pending > 0,
+            }
+          : {
+              label: isSubmitting ? "Leyendo…" : "Leer cartola",
+              plain: true,
+              form: formId,
+              busy: isSubmitting,
+            }
+      }
+    >
+      <div className="flex flex-col gap-8 px-5 pb-6">
+        {error && (
+          <p role="alert" className="text-subheadline text-destructive">
+            {error}
+          </p>
+        )}
+        {!preview || !read ? (
+          <form
+            id={formId}
+            onSubmit={form.handleSubmit(readFile)}
+            className="flex flex-col gap-4"
+          >
+            <FinanceField
+              id={fieldId}
+              label="Cartola del banco"
+              error={errors.file?.message}
+              hint="PDF, XLS, XLSX o CSV de hasta 10 MB. Lo anterior a la última conciliación no se vuelve a procesar. El archivo no se guarda."
+            >
+              <Controller
+                name="file"
+                control={form.control}
+                render={({ field }) => (
+                  <label
+                    htmlFor={fieldId}
+                    className={cn(
+                      "sheet-group press flex min-h-14 cursor-pointer items-center gap-3 rounded-xl px-4 py-3 focus-within:outline-2 focus-within:outline-ring",
+                      errors.file && "outline-2 outline-destructive"
+                    )}
+                  >
+                    <FileText
+                      aria-hidden
+                      className="size-5 shrink-0 text-muted-foreground"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-body">
+                      {field.value?.name ?? "Elegir archivo"}
+                    </span>
+                    {field.value && (
+                      <span className="shrink-0 text-footnote text-muted-foreground">
+                        {(field.value.size / 1024 / 1024).toFixed(1)} MB
+                      </span>
+                    )}
+                    <input
+                      id={fieldId}
+                      ref={field.ref}
+                      name={field.name}
+                      type="file"
+                      accept={ACCEPT}
+                      className="sr-only"
+                      disabled={isSubmitting}
+                      aria-invalid={!!errors.file}
+                      aria-describedby={`${fieldId}-${errors.file ? "error" : "hint"}`}
+                      onBlur={field.onBlur}
+                      onChange={(e) =>
+                        field.onChange(e.target.files?.[0] ?? null)
+                      }
+                    />
+                  </label>
+                )}
+              />
+            </FinanceField>
+          </form>
+        ) : (
+          <Review
+            read={read}
+            preview={preview}
+            decisions={decisions}
+            disabled={busy !== null}
+            onDecide={decide}
+          />
+        )}
+      </div>
+    </ResponsiveModal>
+  )
+}
+
+function summary(p: ReconciliationPreview) {
+  const parts = [
+    [p.additions.length, "agregado", "agregados"],
+    [p.corrections.length, "corregido", "corregidos"],
+    [p.retentions.length, "retención anulada", "retenciones anuladas"],
+  ] as const
+  return (
+    parts
+      .filter(([n]) => n > 0)
+      .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
+      .join(" · ") || "Sin cambios en los movimientos"
+  )
+}
+
+function Review({
+  read: proposal,
+  preview,
+  decisions,
+  disabled,
+  onDecide,
+}: {
+  read: Read
+  preview: ReconciliationPreview
+  decisions: Decisions
+  disabled: boolean
+  onDecide: (rowIndex: number, value: string) => void
+}) {
+  return (
+    <>
+      <ModalSection
+        title="Saldos"
+        footer={`Al corte del ${snapshotLabel(preview.snapshotAt)}.${
+          proposal.skippedBeforeCutoff > 0
+            ? ` ${proposal.skippedBeforeCutoff} filas anteriores ya estaban conciliadas.`
+            : ""
+        }`}
+      >
+        {preview.projectedBuckets.map((after) => (
+          <BucketRow
+            key={after.kind}
+            before={preview.beforeBuckets.find((b) => b.kind === after.kind)}
+            after={after}
+          />
+        ))}
+      </ModalSection>
+
+      {proposal.ambiguous.length > 0 && (
+        <ModalSection
+          title="Por decidir"
+          footer="Filas de la cartola que no se pueden emparejar solas. Aplicar se habilita cuando decides cada una."
+        >
+          {proposal.ambiguous.map((a) => (
+            <AmbiguousRow
+              key={a.rowIndex}
+              item={a}
+              row={proposal.rows.find((r) => r.rowIndex === a.rowIndex)}
+              value={decisions[a.rowIndex]}
+              disabled={disabled}
+              onDecide={(v) => onDecide(a.rowIndex, v)}
+            />
+          ))}
+        </ModalSection>
+      )}
+
+      {preview.additions.length > 0 && (
+        <ModalSection title="Se agregan">
+          {preview.additions.map((a, i) => (
+            <MovementLine
+              key={i}
+              date={a.date}
+              description={a.description}
+              tag={KIND_LABEL[a.creditKind ?? a.internalKind ?? ""] ?? "Cargo"}
+              amount={money(a.amount, a.currency)}
+              credit={a.direction === "credit"}
+            />
+          ))}
+        </ModalSection>
+      )}
+
+      {preview.corrections.length > 0 && (
+        <ModalSection title="Se corrigen">
+          {preview.corrections.map(({ before, after }) => (
+            <MovementLine
+              key={after.id}
+              date={after.date}
+              description={after.description}
+              tag={
+                before.date !== after.date
+                  ? `Fecha ${formatShortDateHeader(before.date)} → ${formatShortDateHeader(after.date)}`
+                  : undefined
+              }
+              amount={
+                <span className="inline-flex flex-wrap items-center justify-end gap-x-1.5">
+                  <span className="text-muted-foreground line-through">
+                    {money(before.amount, before.currency)}
+                  </span>
+                  <ArrowRight
+                    aria-label="pasa a"
+                    className="size-3.5 text-muted-foreground"
+                  />
+                  <span>{money(after.amount, after.currency)}</span>
+                </span>
+              }
+            />
+          ))}
+        </ModalSection>
+      )}
+
+      {preview.retentions.length > 0 && (
+        <ModalSection
+          title="Retenciones que se anulan"
+          footer="Cargos avisados por correo que la cartola no trae. Quedan anulados, no se borran."
+        >
+          {preview.retentions.map(({ before }) => (
+            <MovementLine
+              key={before.id}
+              date={before.date}
+              description={before.description}
+              amount={
+                <span className="text-muted-foreground line-through">
+                  {money(before.amount, before.currency)}
+                </span>
+              }
+            />
+          ))}
+        </ModalSection>
+      )}
+
+      {preview.additions.length +
+        preview.corrections.length +
+        preview.retentions.length ===
+        0 &&
+        proposal.ambiguous.length === 0 && (
+          <p className="px-4 text-subheadline text-muted-foreground">
+            Los movimientos ya coinciden con la cartola. Aplicar deja la cuenta
+            conciliada hasta este corte.
+          </p>
+        )}
+    </>
+  )
+}
+
+const BUCKET_LABEL: Record<Bucket["kind"], string> = {
+  cash: "Caja",
+  overdraft: "Línea de crédito usada",
+  credit_national: "Cupo nacional disponible",
+  credit_international: "Cupo internacional disponible",
+}
+
+// Cada bucket en su moneda: caja = disponible; línea = usado de total; cupos = disponible de total.
+function bucketValue(b: Bucket) {
+  if (b.kind === "cash") return money(b.available, b.currency)
+  if (b.kind === "overdraft") return money(b.used, b.currency)
+  return money(b.available, b.currency)
+}
+
+function BucketRow({ before, after }: { before?: Bucket; after: Bucket }) {
+  const changed = !before || bucketValue(before) !== bucketValue(after)
+  return (
+    <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3">
+      <span className="text-body">{BUCKET_LABEL[after.kind]}</span>
+      <span className="ml-auto flex flex-wrap items-center justify-end gap-x-1.5 text-body tabular-nums">
+        {before && changed && (
+          <>
+            <span className="text-muted-foreground">{bucketValue(before)}</span>
+            <ArrowRight
+              aria-label="pasa a"
+              className="size-3.5 text-muted-foreground"
+            />
+          </>
+        )}
+        <span className="font-semibold">{bucketValue(after)}</span>
+        {after.kind !== "cash" && (
+          <span className="text-muted-foreground">
+            de {money(after.limit, after.currency)}
+          </span>
+        )}
+      </span>
+    </div>
+  )
+}
+
+function MovementLine({
+  date,
+  description,
+  tag,
+  amount,
+  credit,
+}: {
+  date: string
+  description: string
+  tag?: string
+  amount: React.ReactNode
+  credit?: boolean
+}) {
+  return (
+    <div className="flex min-h-11 items-center gap-3 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-body">{description}</p>
+        <p className="text-footnote text-muted-foreground">
+          {formatShortDateHeader(date)}
+          {tag && ` · ${tag}`}
+        </p>
+      </div>
+      <span
+        className={cn(
+          "shrink-0 text-right text-body tabular-nums",
+          credit && "text-success"
+        )}
+      >
+        {credit && typeof amount === "string" ? `+${amount}` : amount}
+      </span>
+    </div>
+  )
+}
+
+function AmbiguousRow({
+  item,
+  row,
+  value,
+  disabled,
+  onDecide,
+}: {
+  item: Ambiguous
+  row: Row | undefined
+  value: string | undefined
+  disabled: boolean
+  onDecide: (value: string) => void
+}) {
+  if (!row) return null
+  const options =
+    item.reason === "multiple_candidates"
+      ? [
+          ...item.candidates.map((c) => ({
+            value: c.id,
+            label: c.description,
+            detail: `${formatShortDateHeader(c.date)} · ${money(c.amount, c.currency)}`,
+          })),
+          ...(item.addition
+            ? [
+                {
+                  value: "otro",
+                  label: "Es otro movimiento",
+                  detail: "Se agrega como movimiento nuevo",
+                },
+              ]
+            : []),
+        ]
+      : item.reason === "reversal_without_charge"
+        ? [
+            ...(item.addition
+              ? [
+                  {
+                    value: "agregar",
+                    label: "Agregar como reverso",
+                    detail: "No hay un cargo que anular; entra como abono",
+                  },
+                ]
+              : []),
+            {
+              value: "omitir",
+              label: "No agregar",
+              detail: "La fila queda fuera de esta conciliación",
+            },
+          ]
+        : []
+  const hint =
+    item.reason === "multiple_candidates"
+      ? "Puede ser cualquiera de estos movimientos"
+      : item.reason === "reversal_without_charge"
+        ? "Reverso sin cargo que anular"
+        : item.reason === "card_payment"
+          ? "Pago de tarjeta: va por su propio flujo"
+          : "Cuota: se salda desde su plan de cuotas"
+  return (
+    <fieldset className="py-1" disabled={disabled}>
+      <legend className="sr-only">{row.description}</legend>
+      <MovementLine
+        date={row.date}
+        description={row.description}
+        tag={hint}
+        amount={money(row.amount, row.currency)}
+        credit={row.direction === "credit"}
+      />
+      {options.length > 0 && (
+        <div
+          role="radiogroup"
+          aria-label={hint}
+          className="flex flex-col px-4 pb-2"
+        >
+          {options.map((o) => {
+            const selected = value === o.value
+            return (
+              <button
+                key={o.value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => onDecide(o.value)}
+                className="press flex min-h-11 items-center gap-3 rounded-md px-1 py-2 text-left focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60"
+              >
+                <span className="grid size-5 shrink-0 place-items-center text-primary">
+                  {selected && (
+                    <Check aria-hidden className="size-4" strokeWidth={2.75} />
+                  )}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-body">{o.label}</span>
+                  <span className="block text-footnote text-muted-foreground">
+                    {o.detail}
+                  </span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </fieldset>
+  )
+}

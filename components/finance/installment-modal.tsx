@@ -12,7 +12,7 @@ import { formatCLP, todayKey } from "@/lib/finance-format"
 import { CategoryIcon } from "./category-icons"
 import { MonthPicker } from "./month-picker"
 import { Chip, savedFirst } from "./transaction-modal"
-import { DayOfMonthPicker } from "./income-modal"
+import { DayOfMonthPicker } from "./day-of-month-picker"
 import { schedule } from "@/arch/v1/domain/finance/installment.domain"
 import type {
   AccountDTO,

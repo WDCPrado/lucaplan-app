@@ -1,4 +1,3 @@
-import { listAvailableIncomeSources } from "@/arch/v1/application/finance-use-cases/income-use-cases"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
@@ -20,7 +19,7 @@ import {
   getPreviousMonthDebt,
   getLinkedTransactionDTO,
   listTransactions,
-  listIncomesView,
+  listIncomeCredits,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { materializeUserPeriods } from "@/arch/v1/application/finance-use-cases/recurring-use-cases"
 import { getPaceFrequency } from "@/arch/v1/application/finance-use-cases/pace-use-cases"
@@ -84,10 +83,8 @@ export default async function DashboardPage({
     accounts,
     budget,
     transactions,
-    incomes,
-    availableIncomeSources,
     previousMonthDebt,
-    previousCycleIncomes,
+    incomeCredits,
     onboardingStatus,
   ] = await Promise.all([
     getMonthlySummary(financePageDeps, userId, year, month),
@@ -97,8 +94,6 @@ export default async function DashboardPage({
       today,
     }),
     listTransactions(financePageDeps, userId, year, month),
-    listIncomesView(financePageDeps, userId, year, month),
-    listAvailableIncomeSources(financePageDeps, userId),
     // Déficit de gastos frente a ingresos del período anterior: el plan lo descuenta del
     // total que ofrece repartir. Va acá y no en `getBudgetView` porque el único que la necesita es
     // el plan; meterla al DTO se la cobraría a todos los consumidores de la vista.
@@ -107,19 +102,7 @@ export default async function DashboardPage({
     // Degradando a 0 el plan se comporta como antes de existir el descuento, que es el modo de
     // fallo correcto.
     getPreviousMonthDebt(financePageDeps, userId, year, month).catch(() => 0),
-    // La cobertura del ciclo anterior es informativa: si falla la lectura histórica,
-    // la Home debe seguir cargando el período actual.
-    mode === "card_cycle"
-      ? listIncomesView(
-          financePageDeps,
-          userId,
-          month === 1 ? year - 1 : year,
-          month === 1 ? 12 : month - 1
-        ).catch((error) => {
-          console.error("[dashboard] No se pudieron consultar los ingresos del ciclo anterior", error)
-          return []
-        })
-      : Promise.resolve([]),
+    listIncomeCredits(financePageDeps, userId, year, month),
     getOnboardingStatusFor(userId),
   ])
 
@@ -127,7 +110,9 @@ export default async function DashboardPage({
   // informó días después, ya en el ciclo siguiente): se busca por id, solo si es del usuario.
   const openTx = sp.tx
     ? (transactions.find((t) => t.id === sp.tx) ??
-      (await getLinkedTransactionDTO(financePageDeps, userId, sp.tx).catch(() => null)))
+      (await getLinkedTransactionDTO(financePageDeps, userId, sp.tx).catch(
+        () => null
+      )))
     : null
 
   return (
@@ -145,9 +130,7 @@ export default async function DashboardPage({
         accounts={accounts}
         budget={budget}
         transactions={transactions}
-        incomes={incomes}
-        availableIncomeSources={availableIncomeSources}
-        previousCycleIncomes={previousCycleIncomes}
+        incomeCredits={incomeCredits}
         previousMonthDebt={previousMonthDebt}
         outlookResult={sp.outlook ?? null}
         outlookReason={sp.reason ?? null}

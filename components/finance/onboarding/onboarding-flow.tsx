@@ -1,6 +1,5 @@
 "use client"
 
-import type { IncomeSource } from "@/arch/v1/domain/finance/income.domain"
 
 import {
   startTransition,
@@ -18,7 +17,6 @@ import {
   ExternalLink,
   Loader,
   Mail,
-  Plus,
   ShieldCheck,
   Sparkles,
 } from "lucide-react"
@@ -29,19 +27,12 @@ import {
   SCAN_LOOKBACK_MONTHS,
   type OnboardingStatus,
 } from "@/lib/onboarding-schemas"
-import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import {
   OutlookBankConnection,
   type OutlookStatus,
 } from "../outlook-bank-connection"
-import { CategoryModal } from "../category-modal"
-import { IncomeModal } from "../income-modal"
-import { CategoryIcon } from "../category-icons"
 import { MovementRow } from "../movement-row"
 import type {
-  AccountDTO,
-  CategoryDTO,
-  IncomeDTO,
   TransactionDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { CategoriesStep } from "./categories-step"
@@ -53,7 +44,6 @@ const STEPS = [
   "categories",
   "connect",
   "preview",
-  "income",
   "done",
 ] as const
 type Step = (typeof STEPS)[number]
@@ -86,32 +76,20 @@ function readStoredStep(): Step | null {
 }
 
 // Onboarding de pantalla completa de una cuenta nueva. Orquesta los pasos reutilizando los
-// componentes existentes (OutlookBankConnection, IncomeModal, MovementRow). El shell no se desmonta
+// componentes existentes (OutlookBankConnection, MovementRow). El shell no se desmonta
 // hasta onFinish, así que el estado sobrevive a los router.refresh() y lee props frescas.
 export function OnboardingFlow({
   status,
-  accounts,
-  categories,
-  incomes,
-  availableIncomeSources,
-  period,
   globalLimit,
   totalSpent,
-  remainingToAllocate,
   transactions,
   outlookResult,
   outlookReason,
   onFinish,
 }: {
   status: OnboardingStatus
-  accounts: AccountDTO[]
-  categories: CategoryDTO[]
-  incomes: IncomeDTO[]
-  availableIncomeSources: IncomeSource[]
-  period: { year: number; month: number; mode: "calendar" | "card_cycle" }
   globalLimit: number | null
   totalSpent: number
-  remainingToAllocate: number | null
   transactions: TransactionDTO[]
   outlookResult: string | null
   outlookReason: string | null
@@ -125,8 +103,6 @@ export function OnboardingFlow({
     picked ?? (outlookResult === "setup" ? "connect" : stored) ?? "welcome"
   const [locked, setLocked] = useState(false) // importación en curso: no salir del paso
   const [finishing, setFinishing] = useState(false)
-  const [incomeOpen, setIncomeOpen] = useState(false)
-  const [catOpen, setCatOpen] = useState(false)
 
   function go(next: Step) {
     const dir = STEPS.indexOf(next) < STEPS.indexOf(step) ? "back" : "forward"
@@ -224,7 +200,7 @@ export function OnboardingFlow({
                   }}
                 />
               ) : (
-                <NotConfigured onContinue={() => go("income")} />
+                <NotConfigured onContinue={() => go("done")} />
               )}
             </Split>
           )}
@@ -237,20 +213,6 @@ export function OnboardingFlow({
             >
               <Preview
                 transactions={transactions}
-                onContinue={() => go("income")}
-              />
-            </Split>
-          )}
-
-          {step === "income" && (
-            <Split
-              eyebrow="Ingresos"
-              title="¿Cuánto ingresas al mes?"
-              body="Agrega tus fuentes de ingreso (sueldo, arriendo…). Con eso armamos tu presupuesto."
-            >
-              <IncomeStep
-                incomes={incomes}
-                onAdd={() => setIncomeOpen(true)}
                 onContinue={() => go("done")}
               />
             </Split>
@@ -267,27 +229,6 @@ export function OnboardingFlow({
         </div>
       </ViewTransition>
 
-      <IncomeModal
-        availableSources={availableIncomeSources}
-        open={incomeOpen}
-        onOpenChange={setIncomeOpen}
-        accounts={accounts}
-        categories={categories}
-        income={null}
-        period={period}
-        onCreateCategory={() => {
-          setCatOpen(true)
-        }}
-      >
-        <CategoryModal
-          open={catOpen}
-          onOpenChange={setCatOpen}
-          period={period}
-          category={null}
-          lockedType="income"
-          remainingToAllocate={remainingToAllocate}
-        />
-      </IncomeModal>
     </div>
   )
 }
@@ -474,60 +415,6 @@ function Preview({
         <p className="sheet-group rounded-xl p-4 text-subheadline text-pretty text-muted-foreground">
           Aún no hay movimientos de este mes. Llegarán con el próximo aviso de
           tu banco.
-        </p>
-      )}
-      <Button onClick={onContinue} className="h-12 w-full text-body">
-        Continuar <ArrowRight aria-hidden className="size-4" />
-      </Button>
-    </div>
-  )
-}
-
-function IncomeStep({
-  incomes,
-  onAdd,
-  onContinue,
-}: {
-  incomes: IncomeDTO[]
-  onAdd: () => void
-  onContinue: () => void
-}) {
-  return (
-    <div className="flex flex-col gap-6">
-      {incomes.length > 0 && (
-        <ul className="sheet-group inset-list overflow-hidden rounded-xl">
-          {incomes.map((i) => (
-            <li
-              key={i.id}
-              className="flex min-h-11 items-center gap-3 px-4 py-3"
-            >
-              <CategoryIcon
-                icon={i.categoryIcon}
-                size={20}
-                color={i.categoryColor ?? undefined}
-              />
-              <span className="min-w-0 flex-1 truncate text-body">
-                {i.name}
-              </span>
-              <span className="tabular text-body font-semibold text-success">
-                +{formatMoney(i.amount, i.currency as CurrencyCode)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      <Button
-        variant="outline"
-        onClick={onAdd}
-        className="h-12 w-full text-body"
-      >
-        <Plus aria-hidden className="size-4" />
-        Agregar ingreso
-      </Button>
-      {incomes.length === 0 && (
-        <p className="text-footnote text-pretty text-muted-foreground">
-          Si prefieres, sigue sin ingresos: los agregas después en «Ajustar
-          plan».
         </p>
       )}
       <Button onClick={onContinue} className="h-12 w-full text-body">

@@ -47,6 +47,7 @@ import {
   inRange,
   incomeOfPeriod,
   isPlanIncome,
+  planIncome,
   computeCategoryUsage,
   computeCategoryCommitted,
   computeCategoryPace,
@@ -73,10 +74,13 @@ import { currencyPositions } from "./financial-position.ts"
 
 const CLP = "CLP" as const
 
+import type { IncomeSourceRepository } from "../../domain/finance/income-source.domain.ts"
 import { usesGrossExpense, type ReimbursementRead } from "../../domain/finance/reimbursement.domain.ts"
 
 type ReadDeps = {
   balanceBuckets?: BalanceBucketRepository
+  // Opcional: los ingresos programados (WDC-185) entran al ingreso del plan. Sin él, solo abonos.
+  incomeSources?: IncomeSourceRepository
   reimbursements?: {
     listForTransactions(userId: string, ids: string[]): Promise<ReimbursementRead[]>
   }
@@ -145,6 +149,7 @@ export type TransactionDTO = {
   status: string // confirmed | pending | reversed | duplicated (solo confirmed cuenta)
   isInternal?: boolean // ajuste de saldo; no participa en ingresos, gastos ni presupuesto
   creditKind?: string | null // abono no interno: income | reimbursement | reversal
+  incomeSourceId?: string | null // abono income vinculado a un ingreso programado (WDC-185)
   categoryId: string | null
   categoryName: string | null
   categoryIcon: string | null
@@ -254,6 +259,7 @@ function txToDTO(
     status: t.status,
     isInternal: t.isInternal,
     creditKind: t.creditKind ?? null,
+    incomeSourceId: t.incomeSourceId ?? null,
     categoryId: t.categoryId,
     categoryName: cat?.name ?? null,
     categoryIcon: cat?.icon ?? null,
@@ -351,7 +357,10 @@ export async function getMonthlySummary(
   deps = await scopeBudgetPeriod(deps)
   const accounts = await deps.accounts.listByUser(userId)
   const range = await rangeOf(deps, year, month)
-  const txs = await deps.transactions.listByUserPeriod(userId, range)
+  const [txs, sources] = await Promise.all([
+    deps.transactions.listByUserPeriod(userId, range),
+    deps.incomeSources?.listByUser(userId) ?? [],
+  ])
   const withLimit = await categoriesWithLimit(deps, userId, year, month)
   // Montos en otra moneda (USD) convertidos a CLP por el dólar de su fecha, para que cuenten.
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
@@ -379,8 +388,8 @@ export async function getMonthlySummary(
       name: a.name,
       debt: currencyPositions([a], buckets).find(p => p.currency === CLP)!.cardDebt,
     })).filter(d => d.debt > 0),
-    // Ingreso del plan: abonos de ingreso CLP del período (el USD va aparte, nunca convertido).
-    income: incomeOfPeriod(txs, range, CLP).toMajor(),
+    // Ingreso del plan CLP del período: programados + abonos sueltos (el USD va aparte, nunca convertido).
+    income: incomeOfPeriod(txs, range, CLP, sources).toMajor(),
     expense: expense.toMajor(),
     // Solo categorías de gasto: mismo criterio que `allocated` en la vista de presupuestos.
     totalBudget: withLimit
@@ -808,26 +817,30 @@ export async function getBudgetView(
   deps = await scopeBudgetPeriod(deps)
   const range = await rangeOf(deps, year, month)
   const cycleAligned = (await getBudgetPeriod(deps)).mode === "card_cycle"
-  const [withLimit, txs, budgets, plans] =
+  const [withLimit, txs, budgets, plans, sources] =
     await Promise.all([
       categoriesWithLimit(deps, userId, year, month),
       deps.transactions.listByUserPeriod(userId, range),
       deps.monthlyBudgets.listByUser(userId, (await getBudgetPeriod(deps)).mode),
       deps.installments?.listByUser(userId) ?? Promise.resolve([]),
+      deps.incomeSources?.listByUser(userId) ?? Promise.resolve([]),
     ])
   // USD → CLP por fecha para que el uso por categoría cuente esos movimientos.
   const { clpTxs, rateUnavailable } = await clpView(deps.exchangeRates, txs)
   const { legacyRows, netBudgetTxs, installmentCommitted } = await budgetInputs(
     deps, userId, clpTxs, plans, range
   )
-  // Ingreso del plan: los abonos de ingreso CLP del período, calculado al leer (el USD nunca se
-  // suma al CLP). La meta de cada categoría de ingreso es lo que entró a ella.
-  const income = incomeOfPeriod(txs, range, CLP)
+  // Ingreso del plan CLP del período (programados + abonos sueltos), calculado al leer (el USD nunca
+  // se suma al CLP). La meta de cada categoría de ingreso es lo que el plan le cuenta: el aporte de
+  // sus programados más sus abonos sueltos.
+  const plan = planIncome(txs, range, CLP, sources)
+  const income = plan.total
   const incomeGoal = new Map<string, Money>()
-  for (const tx of txs) {
-    if (!tx.categoryId || !isPlanIncome(tx) || tx.amount.currency !== CLP || !inRange(tx.date, range)) continue
-    incomeGoal.set(tx.categoryId, (incomeGoal.get(tx.categoryId) ?? Money.zero(CLP)).add(tx.amount))
+  const addGoal = (categoryId: string | null, amount: Money) => {
+    if (categoryId) incomeGoal.set(categoryId, (incomeGoal.get(categoryId) ?? Money.zero(CLP)).add(amount))
   }
+  for (const s of plan.sources) addGoal(s.source.categoryId, s.contribution)
+  for (const tx of plan.loose) addGoal(tx.categoryId, tx.amount)
   // Cifras por categoría en Money, ANTES de bajarlas al DTO: los excedentes del mes se suman
   // desde acá en vez de recalcular el uso o reconstruir montos desde los números del DTO.
   const computed = withLimit.map(({ category, limit: catLimit }) => {
@@ -1038,6 +1051,7 @@ export type IncomeCreditDTO = {
   amount: number
   currency: CurrencyCode
   accountName: string
+  incomeSourceId: string | null // programado al que corresponde; null = suelto
 }
 
 // Los abonos que forman el ingreso del plan del período (mes o ciclo), más reciente primero. Misma
@@ -1068,6 +1082,7 @@ export async function listIncomeCredits(
       amount: t.amount.toMajor(),
       currency: t.amount.currency,
       accountName: accountName.get(t.accountId) ?? "",
+      incomeSourceId: t.incomeSourceId ?? null,
     }))
     .sort((a, b) => b.date.localeCompare(a.date))
 }

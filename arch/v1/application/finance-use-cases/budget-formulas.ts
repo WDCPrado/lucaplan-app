@@ -14,6 +14,7 @@ import type {
 import type { PaceFrequency } from "../../domain/finance/pace.domain.ts"
 import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
 import { daysOf, type PeriodRange } from "../../../shared/billing-cycle.ts"
+import { expectedAt, occurrencesIn, type IncomeSource } from "../../domain/finance/income-source.domain.ts"
 
 /**
  * ¿El día civil de `date` cae dentro del rango, bordes incluidos? UTC: las fechas de movimientos
@@ -42,18 +43,67 @@ export function isPlanIncome(
   )
 }
 
+export type SourceIncome = {
+  source: IncomeSource
+  occurrences: string[] // fechas esperadas dentro del período
+  expected: Money // Σ esperado de cada ocurrencia (monto del mes o el base)
+  received: Money // Σ abonos vinculados que el plan le cuenta en el período
+  credits: Transaction[] // esos abonos
+  contribution: Money // lo que aporta al ingreso del plan: recibido si llegó algo, si no esperado
+}
+
 /**
- * Ingreso del plan de un período: Σ abonos de ingreso con fecha en el rango, en UNA moneda (CLP y
- * USD nunca se suman). Se calcula al leer: agregar o reclasificar un abono lo mueve solo.
+ * Ingreso del plan de un período, en UNA moneda (CLP y USD nunca se suman), con su desglose:
+ * - cada programado de esa moneda con ocurrencias en el período aporta lo recibido (abonos de
+ *   ingreso vinculados a él, con fecha en el período) o, si aún no llega nada, su esperado
+ *   (por ocurrencia, el monto fijado para ese mes o el base);
+ * - más los abonos de ingreso sueltos: sin programado, o vinculados a uno sin ocurrencia en el
+ *   período (no se pierden).
+ * Se calcula al leer: agregar, reclasificar o vincular un abono lo mueve solo.
  */
+export function planIncome(
+  transactions: readonly Transaction[],
+  range: PeriodRange,
+  currency: CurrencyCode,
+  sources: readonly IncomeSource[] = []
+): { total: Money; sources: SourceIncome[]; loose: Transaction[] } {
+  const bySource = new Map<string, SourceIncome>()
+  for (const source of sources) {
+    if (source.currency !== currency) continue
+    const occurrences = occurrencesIn(source, range)
+    if (occurrences.length === 0) continue
+    const expected = occurrences.reduce((sum, day) => sum.add(expectedAt(source, day)), Money.zero(currency))
+    bySource.set(source.id, {
+      source, occurrences, expected, received: Money.zero(currency), credits: [], contribution: expected,
+    })
+  }
+  const loose: Transaction[] = []
+  for (const t of transactions) {
+    if (!isPlanIncome(t) || t.amount.currency !== currency || !inRange(t.date, range)) continue
+    const s = t.incomeSourceId ? bySource.get(t.incomeSourceId) : undefined
+    if (!s) {
+      loose.push(t)
+      continue
+    }
+    s.received = s.received.add(t.amount)
+    s.credits.push(t)
+    s.contribution = s.received
+  }
+  const total = [...bySource.values()].reduce(
+    (sum, s) => sum.add(s.contribution),
+    loose.reduce((sum, t) => sum.add(t.amount), Money.zero(currency))
+  )
+  return { total, sources: [...bySource.values()], loose }
+}
+
+/** El total de `planIncome`: la única definición del ingreso del plan. */
 export function incomeOfPeriod(
   transactions: readonly Transaction[],
   range: PeriodRange,
-  currency: CurrencyCode
+  currency: CurrencyCode,
+  sources: readonly IncomeSource[] = []
 ): Money {
-  return transactions
-    .filter((t) => isPlanIncome(t) && t.amount.currency === currency && inRange(t.date, range))
-    .reduce((sum, t) => sum.add(t.amount), Money.zero(currency))
+  return planIncome(transactions, range, currency, sources).total
 }
 
 /** Caja activa: Σ saldo POSITIVO de cuentas `checking` de la moneda dada. Cupos y negativos no cuentan. */

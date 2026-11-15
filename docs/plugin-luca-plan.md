@@ -74,7 +74,7 @@ argumento con `.describe()`. Agrupadas así:
 | Categorías | `listar_categorias` | `crear_categoria`, `editar_categoria`, `eliminar_categoria`, `asignar_categoria`, `aprender_categoria` |
 | Movimientos | `buscar_movimientos`, `ver_movimiento` | `corregir_movimiento`, `corregir_metadatos_movimiento`, `eliminar_movimiento`, `vincular_reembolso`, `desvincular_reembolso` |
 | Presupuesto | `resumen_mes`, `ver_presupuesto` | `fijar_presupuesto_global`, `fijar_presupuesto_categoria` |
-| Ingresos | `listar_ingresos` (abonos de ingreso del período) | `cambiar_tipo_abono` (ingreso ↔ reembolso) |
+| Ingresos | `listar_ingresos` (programados con su estado + abonos sueltos del período) | `crear_ingreso_programado`, `editar_ingreso_programado`, `eliminar_ingreso_programado`, `vincular_abono_ingreso`, `cambiar_tipo_abono` (ingreso ↔ reembolso) |
 | Recurrentes | `listar_recurrentes`, `candidatos_pago_recurrente` | `crear_recurrente` (desde un movimiento), `planificar_recurrente` (sin cobro previo), `editar_recurrente`, `activar_recurrente`, `eliminar_recurrente`, `marcar_pago_recurrente`, `vincular_pago_recurrente`; `crear_recurrente`, `planificar_recurrente` y `editar_recurrente` aceptan `url` opcional (enlace de pago) |
 | Cuotas | `listar_planes_cuotas`, `ver_plan_cuotas`, `candidatos_pago_cuota` | `crear_plan_cuotas`, `editar_cuota`, `categorizar_plan_cuotas`, `eliminar_plan_cuotas`, `pagar_cuota`, `vincular_pago_cuota`, `desvincular_pago_cuota`, `mover_pago_cuota` |
 | Planificación | `planificar_periodo` | — |
@@ -90,7 +90,7 @@ Todas llevan el prefijo `lucaplan_`. Cómo se navega: **buscar o listar → ver 
   con las mismas reglas que el caso de uso.
 - `planificar_periodo` es solo lectura: posición de hoy por moneda (caja, sobregiro usado y
   disponible, deuda y cupo de tarjetas, desde los buckets en cuentas conectadas), ingresos del
-  período (abonos de ingreso confirmados), recurrentes esperadas vs pagadas, cuotas que vencen, movimientos
+  período (programados más abonos de ingreso sueltos), recurrentes esperadas vs pagadas, cuotas que vencen, movimientos
   confirmados con fecha futura y el presupuesto como tope. Lo ya pagado por un movimiento no se
   cuenta dos veces y el presupuesto no se suma como gasto.
 - Eliminar una cuenta manual va en dos pasos. `previsualizar_eliminar_cuenta` calcula el impacto
@@ -129,12 +129,27 @@ Todas llevan el prefijo `lucaplan_`. Cómo se navega: **buscar o listar → ver 
 
 ## Ingresos para el ajuste del plan
 
-Todo movimiento real viene del banco: no hay altas manuales de movimientos ni fuentes de ingreso.
-El ingreso del plan de un período (mes o ciclo de tarjeta) es la suma de los abonos **de ingreso**
-(`creditKind = income`) confirmados, no internos, con fecha en el período, por moneda. Se calcula
-al leer: los reembolsos (`reimbursement`), los reversos (`reversal`) y los internos no cuentan. Un
-abono mal clasificado se corrige con `lucaplan_cambiar_tipo_abono`. `lucaplan_listar_ingresos`
-devuelve esos abonos. La misma regla usan el presupuesto, `lucaplan_planificar_periodo` y el
+Todo movimiento real viene del banco: no hay altas manuales de movimientos. Lo que sí se declara
+son los **ingresos programados** (WDC-185): lo que se espera recibir cada mes (el sueldo), con
+nombre, categoría de ingreso, moneda, monto base, día del mes (en meses más cortos, el último día),
+desde y hasta opcional. Un mes puede tener su propio monto (`amounts`: una cuota que cambia). Un
+programado es una **expectativa**: nunca crea movimientos ni dinero.
+
+El ingreso del plan de un período (mes o ciclo de tarjeta), por moneda, es:
+
+- por cada programado con una ocurrencia en el período: lo **recibido** (abonos de ingreso
+  confirmados vinculados a él, con fecha en el período) si llegó algo, o si no su **esperado**
+  (el monto de ese mes o el base, por ocurrencia; un ciclo que cruza dos meses puede tener dos);
+- más los abonos de ingreso (`creditKind = income`) confirmados, no internos, del período, **sin
+  programado** o vinculados a uno sin ocurrencia en el período (no se pierden).
+
+Se calcula al leer: los reembolsos, los reversos, los internos y lo que genera el sistema no
+cuentan. Un abono mal clasificado se corrige con `lucaplan_cambiar_tipo_abono`; pasarlo a reembolso
+lo desvincula de su programado. `lucaplan_vincular_abono_ingreso` lo ata a su programado (misma
+moneda) o lo suelta con `null`. Eliminar un programado con abonos vinculados no lo borra: termina
+su vigencia hoy. `lucaplan_listar_ingresos` devuelve los programados con `expected`, `received`,
+`pending`, `status` y sus `credits`, y los `looseCredits`. La misma regla usan el presupuesto,
+`lucaplan_planificar_periodo` (los programados aún sin abono son el `pending` del ingreso) y el
 medidor.
 
 **El tope sigue al ingreso.** Al total anterior se le resta el déficit del período anterior (gasto
@@ -281,7 +296,7 @@ comprometido en el período, que entran con tope 0); `limitedBy` dice cuál mand
 Modo débito (`calendar`) organiza por mes; modo crédito (`card_cycle`) por ciclo.
 Ambos incluyen corriente y tarjeta. Cambiar de modo nunca filtra cuentas ni altera saldos.
 El presupuesto global y los topes se guardan por modo; su herencia solo usa registros del mismo
-modo. El ingreso sale de los abonos de ingreso del rango de cada modo, así que no se duplica.
+modo. El ingreso del plan (programados y abonos de ingreso) sale del rango de cada modo, así que no se duplica.
 Los saldos desactualizados requieren conciliación: el medidor no verifica el banco.
 
 ### Movimientos importados como registro del correo
@@ -306,7 +321,10 @@ archivo no se guarda. La propuesta es determinística, sin IA:
 2. Par exacto: misma dirección, moneda e importe a ±5 días, el más cercano, 1 a 1.
 3. Par por comercio (moneda o importe distinto, ±5 días): `corrections` con lo de la fila.
 4. Sin par: `additions` con su `creditKind`/`internalKind` (un ingreso con la categoría aprendida
-   por texto o la de ingreso más usada). Un reverso apunta al cargo que anula (`reversalOfId`,
+   por texto o la de ingreso más usada). Un ingreso lleva `incomeSourceId` si hay UN programado de
+   la misma moneda con ocurrencia a ±5 días e importe ±15%, o con la misma categoría aprendida y
+   nombre parecido; con dos o más, sin vínculo. Al aplicar un alta o corrección de ingreso
+   vinculada, el monto de ese mes del programado queda fijado a lo recibido. Un reverso apunta al cargo que anula (`reversalOfId`,
    mismo comercio e importe hasta 30 días antes). Las cuotas y los pagos de tarjeta no se dan de
    alta: quedan en `ambiguous`, igual que un reverso sin cargo o varios candidatos (con el alta
    lista por si la persona dice «es otro movimiento»).

@@ -104,6 +104,7 @@ function toTransaction(row: any): Transaction {
     creditKind: (row.creditKind ?? null) as CreditKind | null,
     internalKind: (row.internalKind ?? null) as InternalKind | null,
     reversalOfId: row.reversalOfId ?? null,
+    incomeSourceId: row.incomeSourceId ?? null,
   }
 }
 
@@ -508,7 +509,8 @@ export const transactionRepository: TransactionRepository = {
           isInternal: false,
           creditKind: { in: ["income", "reimbursement"] },
         },
-        data: { creditKind },
+        // Un reembolso no corresponde a un ingreso programado: el vínculo solo vive en abonos income.
+        data: creditKind === "income" ? { creditKind } : { creditKind, incomeSourceId: null },
       })
     )
   },

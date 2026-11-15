@@ -250,8 +250,37 @@ export async function seed({
   ]
   await prisma.transaction.createMany({ data: movementRows })
 
-  // Sueldo ya recibido de cada mes: el abono de ingreso que trajo el aviso del banco. El ingreso del
-  // plan es la suma de estos abonos (no hay fuentes de ingreso).
+  // Ingresos programados (WDC-185): el sueldo, base del plan, y una cuota que se recibe con un monto
+  // distinto el mes siguiente (aún pendiente este mes: muestra «Pendiente» en el plan).
+  const salarySource = await prisma.incomeSource.create({
+    data: {
+      userId,
+      name: "Sueldo",
+      categoryId: salaryCategory.id,
+      currency: "CLP",
+      amount: 1400000,
+      dayOfMonth: 5,
+      startsOn: new Date(Date.UTC(prevYear, prevMonth - 1, 1)),
+    },
+  })
+  const nextYear = month === 12 ? year + 1 : year
+  const nextMonth = month === 12 ? 1 : month + 1
+  await prisma.incomeSource.create({
+    data: {
+      userId,
+      name: "Cuota Viaje Jo",
+      categoryId: salaryCategory.id,
+      currency: "CLP",
+      amount: 165114,
+      dayOfMonth: 28,
+      startsOn: new Date(Date.UTC(year, month - 1, 1)),
+      endsOn: new Date(Date.UTC(nextYear, nextMonth, 0)),
+      amounts: { create: { year: nextYear, month: nextMonth, amount: 53448 } },
+    },
+  })
+
+  // Sueldo ya recibido de cada mes: el abono de ingreso que trajo el aviso del banco, vinculado a su
+  // programado (lo recibido reemplaza al esperado).
   await prisma.transaction.createMany({
     data: [
       { year, month, amount: 1400000 },
@@ -262,6 +291,7 @@ export async function seed({
       categoryId: salaryCategory.id,
       origin: "email",
       creditKind: "income",
+      incomeSourceId: salarySource.id,
       transactionDate: new Date(Date.UTC(y, m - 1, 5)),
       description: "Abono Sueldo",
       amount,

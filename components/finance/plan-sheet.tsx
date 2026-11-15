@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react"
 
-import { useId, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronRight, Plus } from "lucide-react"
 import { toast } from "sonner"
@@ -31,7 +31,12 @@ import {
 import { planTotal, previousMonthLabel, shouldSuggest } from "@/lib/plan-total"
 import type { PeriodMode } from "@/arch/shared/billing-cycle"
 import { ClosingPicker, PeriodModeControl } from "./month-status"
-import type { CategoryDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
+import type {
+  CategoryDTO,
+  TransactionDTO,
+} from "@/arch/v1/application/finance-use-cases/finance-read"
+import { IncomeSourceModal } from "./income-sources/income-source-modal"
+import { listIncomeSources, type IncomeSourceDTO } from "./income-sources/http"
 
 /**
  * Plan del mes: de dónde viene la plata (ingresos) y cuánta se puede gastar (presupuesto).
@@ -53,6 +58,7 @@ export function PlanSheet({
   incomeCategories,
   expenseCategories,
   activeIncomeTotal,
+  transactions,
   previousMonthDebt,
   onEditBudget,
   onOpenIncomeCategory,
@@ -71,6 +77,8 @@ export function PlanSheet({
   incomeCategories: CategoryDTO[]
   expenseCategories: CategoryDTO[]
   activeIncomeTotal: number
+  // Movimientos del período: separan de cada categoría lo que ya cuenta bajo un programado.
+  transactions: TransactionDTO[]
   // Gastos realizados que superaron los ingresos del período anterior, resueltos en el servidor.
   previousMonthDebt: number
   onEditBudget: () => void
@@ -79,6 +87,7 @@ export function PlanSheet({
 }) {
   const router = useRouter()
   const [applying, setApplying] = useState(false)
+  const [editingSource, setEditingSource] = useState<IncomeSourceDTO | "new" | null>(null)
   // Topes en edición (por id): lo que falta repartir se recalcula mientras se escribe, sin
   // esperar el refresh que trae cada guardado.
   const [drafts, setDrafts] = useState<Record<string, number>>({})
@@ -101,6 +110,17 @@ export function PlanSheet({
   const suggest = shouldSuggest(toAllocate, globalLimit, globalLimitFollowsIncome)
   // Mismo número pero sin la marca: igualar no cambia el tope, solo lo deja siguiendo al ingreso.
   const onlyFollow = suggest && globalLimit === toAllocate
+  const income = useIncomeSources(open, period, activeIncomeTotal)
+  // Abonos que el plan ya cuenta bajo un programado: «Otros ingresos» muestra el resto de cada
+  // categoría, así Programados + Otros = Total. `c.used` viene en CLP (USD convertido).
+  const counted = new Set(income.sources.flatMap((s) => s.period.credits.map((c) => c.id)))
+  const countedByCategory = new Map<string, number>()
+  for (const t of transactions)
+    if (counted.has(t.id) && t.categoryId)
+      countedByCategory.set(
+        t.categoryId,
+        (countedByCategory.get(t.categoryId) ?? 0) + (t.amountClp ?? t.amount)
+      )
   const previousPeriod = mode === "card_cycle" ? "el ciclo anterior" : previousMonthLabel(period.year, period.month)
   const periodNoun = mode === "card_cycle" ? "ciclo" : "mes"
 
@@ -270,14 +290,67 @@ export function PlanSheet({
           )}
         </ModalSection>
 
-        {/* Ingresos por categoría: lo recibido en el período. Tocar una abre su detalle con los
-            abonos; ahí, en el abono, se dice si es reembolso y a qué gasto devuelve. */}
+        {/* Ingresos programados: la base del plan (el sueldo). Cuentan por lo esperado hasta que
+            llega su abono; desde ahí, por lo recibido. */}
         <ModalSection
-          title="Ingresos"
+          title="Ingresos programados"
+          className="[--inset:1rem]"
+          footer={
+            income.sources.length === 0 && !income.error
+              ? "Lo que recibes todos los meses, como tu sueldo. Cuenta en el plan desde el día 1, aunque todavía no llegue."
+              : undefined
+          }
+        >
+          {income.error && (
+            <div role="alert" className="flex min-h-11 flex-wrap items-center gap-x-3 pr-1 pl-4 text-subheadline text-destructive">
+              <span className="min-w-0 flex-1 py-2">{income.error}</span>
+              <button
+                type="button"
+                onClick={income.reload}
+                className="press min-h-11 px-3 font-semibold text-primary"
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
+          {income.sources.map((s) => (
+            <button
+              type="button"
+              key={s.id}
+              onClick={() => setEditingSource(s)}
+              className="press flex min-h-11 w-full min-w-0 items-center gap-3 py-2 pr-3 pl-4 text-left"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-body">{s.name}</span>
+                <span className="tabular block truncate text-footnote text-muted-foreground">
+                  Día {s.dayOfMonth} · esperado{" "}
+                  {formatMoney(s.period.expected || s.amount, s.currency)}
+                  {s.endsOn && ` · hasta ${shortDay(s.endsOn.slice(0, 10))}`}
+                </span>
+              </span>
+              <SourceStatus source={s} />
+              <ChevronRight aria-hidden className="disclosure" />
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setEditingSource("new")}
+            className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left text-primary"
+          >
+            <Plus className="size-5 shrink-0" aria-hidden="true" />
+            <span className="text-body">Ingreso programado</span>
+          </button>
+        </ModalSection>
+
+        {/* Otros ingresos: lo recibido por categoría que no cuenta bajo un programado. Tocar una
+            abre su detalle con los abonos; ahí, en el abono, se dice si es reembolso o de qué
+            programado es. */}
+        <ModalSection
+          title="Otros ingresos"
           className="[--inset:4.25rem]"
           footer={
             incomeCategories.length > 0
-              ? "Toca una categoría para ver sus abonos. Un abono que devuelve un gasto se marca como reembolso desde el abono."
+              ? "Toca una categoría para ver sus abonos. Desde el abono se marca si es reembolso o de qué ingreso programado es."
               : undefined
           }
         >
@@ -298,10 +371,8 @@ export function PlanSheet({
               <span className="min-w-0 flex-1 truncate text-body">
                 {c.name}
               </span>
-              {/* Lo recibido en el mes: el "disponible" de una categoría de ingreso sin meta
-                  era $0 justo debajo de un sueldo ya recibido. */}
               <span className="tabular shrink-0 text-subheadline text-muted-foreground">
-                {formatCLP(c.used)}
+                {formatCLP(Math.max(0, c.used - (countedByCategory.get(c.id) ?? 0)))}
               </span>
               <ChevronRight
                 aria-hidden
@@ -309,14 +380,6 @@ export function PlanSheet({
               />
             </button>
           ))}
-          {incomeCategories.length > 0 && (
-            <div className="flex min-h-11 items-center justify-between gap-3 px-4 py-3">
-              <span className="text-body font-semibold">Total</span>
-              <span className="tabular text-body font-semibold">
-                {formatCLP(activeIncomeTotal)}
-              </span>
-            </div>
-          )}
           <button
             type="button"
             onClick={onNewIncomeCategory}
@@ -327,6 +390,22 @@ export function PlanSheet({
             </span>
             <span className="text-body">Nueva categoría de ingreso</span>
           </button>
+        </ModalSection>
+
+        {/* El ingreso del plan: programados (esperado o recibido) más los otros ingresos, en CLP. */}
+        <ModalSection
+          footer={
+            income.sources.some((s) => s.currency === "USD")
+              ? "Los ingresos en dólares se planifican aparte y no suman a este total."
+              : undefined
+          }
+        >
+          <div className="flex min-h-11 items-center justify-between gap-3 px-4 py-3">
+            <span className="text-body font-semibold">Ingreso del {periodNoun}</span>
+            <span className="tabular text-body font-semibold">
+              {formatCLP(activeIncomeTotal)}
+            </span>
+          </div>
         </ModalSection>
 
         {/* Topes por categoría: el aviso «Te falta repartir…» abre este plan, así que acá se
@@ -377,9 +456,72 @@ export function PlanSheet({
           Cerrar plan
         </Button>
       </ModalFooter>
+      <IncomeSourceModal
+        open={editingSource !== null}
+        onOpenChange={(o) => !o && setEditingSource(null)}
+        source={editingSource === "new" ? null : editingSource}
+        incomeCategories={incomeCategories}
+        onSaved={() => {
+          income.reload()
+          router.refresh()
+        }}
+      />
       {children}
     </ResponsiveModal>
   )
+}
+
+/** Estado del programado en el período: recibido (verde) o lo que falta por llegar. */
+function SourceStatus({ source: s }: { source: IncomeSourceDTO }) {
+  const { status, received, pending } = s.period
+  if (status === "received")
+    return (
+      <span className="tabular shrink-0 text-right text-subheadline text-success">
+        Recibido {formatMoney(received, s.currency)}
+      </span>
+    )
+  if (status === "pending")
+    return (
+      <span className="tabular shrink-0 text-right text-subheadline text-muted-foreground">
+        Pendiente {formatMoney(pending, s.currency)}
+      </span>
+    )
+  return (
+    <span className="shrink-0 text-right text-subheadline text-muted-foreground">
+      Sin ingreso este período
+    </span>
+  )
+}
+
+/**
+ * Programados del período del plan. Se leen de la API al abrir el plan (no hay render del servidor
+ * dentro de la hoja) y otra vez cuando cambia el ingreso del plan: vincular un abono lo mueve.
+ */
+function useIncomeSources(
+  open: boolean,
+  period: { year: number; month: number },
+  incomeTotal: number
+) {
+  const [sources, setSources] = useState<IncomeSourceDTO[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [version, setVersion] = useState(0)
+  const { year, month } = period
+  // Efecto genuino: leer de la API mientras la hoja está abierta.
+  useEffect(() => {
+    if (!open) return
+    const controller = new AbortController()
+    listIncomeSources({ year, month }, controller.signal)
+      .then((s) => {
+        setError(null)
+        setSources(s)
+      })
+      .catch((e) => {
+        if (!controller.signal.aborted)
+          setError(e instanceof Error ? e.message : "No se pudieron cargar los ingresos programados.")
+      })
+    return () => controller.abort()
+  }, [open, year, month, incomeTotal, version])
+  return { sources, error, reload: () => setVersion((v) => v + 1) }
 }
 
 // Cada tope tiene un guardado explícito. Salir del campo nunca guarda por sorpresa.

@@ -324,6 +324,7 @@ model Category {
   recurring    RecurringTemplate[]
   installments InstallmentPlan[]
   reimbursementEffects ReimbursementBudgetEffect[]
+  incomeSources IncomeSource[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -513,6 +514,9 @@ model Transaction {
   // banco de ese pago reemplaza. Un movimiento que la persona escribió y asignó queda en false.
   generatedFromInstallment Boolean           @default(false)
   installmentPlanAsSource InstallmentPlan?   @relation("InstallmentSource")
+  // Abono de ingreso que corresponde a un ingreso programado (WDC-185). Solo en creditKind income.
+  incomeSourceId          String?
+  incomeSource            IncomeSource?      @relation(fields: [incomeSourceId], references: [id], onDelete: SetNull)
   transactionDate         DateTime           @db.Date
   description             String
   amount                  Decimal            @db.Decimal(18, 2)
@@ -533,7 +537,45 @@ model Transaction {
   @@index([bucketId])
   @@index([reversalOfId])
   @@index([recurringTemplateId])
+  @@index([incomeSourceId])
   @@map("transaction")
+}
+
+// Ingreso programado (WDC-185): lo que se espera recibir cada mes (el sueldo). Es una expectativa,
+// nunca un movimiento: el plan cuenta su monto hasta que llega el abono vinculado.
+model IncomeSource {
+  id           String        @id @default(uuid())
+  userId       String
+  name         String
+  categoryId   String // categoría de ingreso
+  category     Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  currency     String // CLP | USD
+  amount       Decimal       @db.Decimal(18, 2) // esperado por ocurrencia
+  dayOfMonth   Int // 1–31; en meses cortos cae al último día
+  startsOn     DateTime      @db.Date
+  endsOn       DateTime?     @db.Date
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+  amounts      IncomeSourceAmount[]
+
+  @@index([userId])
+  @@index([categoryId])
+  @@map("income_source")
+}
+
+// Monto de un mes calendario que reemplaza al base del programado (una cuota que cambia, un sueldo
+// con bono). Conciliar un abono vinculado lo fija al recibido.
+model IncomeSourceAmount {
+  id       String       @id @default(uuid())
+  sourceId String
+  source   IncomeSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  year     Int
+  month    Int // 1–12
+  amount   Decimal      @db.Decimal(18, 2)
+
+  @@unique([sourceId, year, month])
+  @@map("income_source_amount")
 }
 
 model Jwks {

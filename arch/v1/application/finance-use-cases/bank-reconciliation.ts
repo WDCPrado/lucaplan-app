@@ -5,6 +5,7 @@ import { todayKey } from "../../../shared/today.ts"
 import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
 import { NotOwnerError } from "../../domain/finance/finance.domain.ts"
 import { Money } from "../../domain/finance/money.ts"
+import { nearestOccurrence } from "../../domain/finance/income-source.domain.ts"
 import { planLoanCorrections } from "./loan-reconciliation.ts"
 import { planCardCorrections } from "./card-reconciliation.ts"
 import {
@@ -151,6 +152,12 @@ export function planBankReconciliation(
       "No repitas pagos de loanCorrections en corrections; concilia sus fechas por separado"
     )
   const ids = new Set<string>(loanChanges.movements.map((c) => c.before.id))
+  const incomeSource = (id: string) => state.incomeSources?.find((s) => s.id === id)
+  const sourceIn = (id: string, currency: string) => {
+    const s = incomeSource(id) ?? reject("Ingreso programado ajeno o inexistente")
+    if (s.currency !== currency) reject(`El ingreso programado ${s.name} es en ${s.currency}, no en ${currency}`)
+    return s
+  }
   const corrections: ReconciliationCorrection[] = input.corrections.map((c) => {
     if (ids.has(c.transactionId))
       reject("Un movimiento no puede corregirse dos veces en el lote")
@@ -205,11 +212,21 @@ export function planBankReconciliation(
             ? "No cambiar importe ni moneda de una transferencia interna sin conciliar ambas patas"
             : "El movimiento está vinculado a una cuota: conserva importe y moneda o concilia primero su plan"
       )
+    // Ingreso programado: explícito solo en un abono de ingreso y en su moneda; heredado, se suelta
+    // si la corrección cambia la moneda (el programado es de otra).
+    let incomeSourceId = c.incomeSourceId === undefined ? (old.incomeSourceId ?? null) : c.incomeSourceId
+    if (c.incomeSourceId !== undefined && c.incomeSourceId !== null) {
+      if (old.direction !== "credit" || old.isInternal || old.creditKind !== "income")
+        reject("incomeSourceId solo va en un abono de ingreso")
+      sourceIn(c.incomeSourceId, c.currency)
+    } else if (incomeSourceId && incomeSource(incomeSourceId)?.currency !== c.currency)
+      incomeSourceId = null
     return {
       before: old,
       after: {
         ...old,
         ...c,
+        incomeSourceId,
         bucketId: target(c.currency, old.isInternal, old.bucketId),
       },
     }
@@ -296,6 +313,7 @@ export function planBankReconciliation(
         reject(`Alta ${index}: la dirección no corresponde a ${a.internalKind}`)
     }
     const type = categoryType(a.categoryId)
+    if (a.incomeSourceId) sourceIn(a.incomeSourceId, a.currency)
     if (a.creditKind === "income") {
       if (type !== "income")
         reject(`Alta ${index}: un abono de ingreso exige una categoría de ingreso`)
@@ -442,6 +460,7 @@ export function planBankReconciliation(
     corrections,
     additions,
     retentions,
+    incomeSourceAmounts: incomeSourceAmounts(state, movements, corrections.map((c) => c.after), additions),
     loanCorrections: loanChanges.loans,
     cardCorrections: cardChanges,
     projectedBuckets: projected,
@@ -449,6 +468,48 @@ export function planBankReconciliation(
     snapshotAt: input.snapshotAt,
     source: input.source,
   }
+}
+
+// Ventana para atribuir un abono a la ocurrencia de su programado (el sueldo que llega antes o después).
+const OCCURRENCE_DAYS = 31
+
+/**
+ * El monto de cada mes de un programado que tocó este lote (alta o corrección de un abono income
+ * vinculado) queda fijado a lo recibido: Σ de los abonos vinculados atribuidos a esa ocurrencia.
+ * ponytail: suma solo los abonos de esta cuenta; un programado cobrado en dos cuentas el mismo mes
+ * queda con lo de la última conciliada. Leer todas las cuentas si eso llega a pasar.
+ */
+function incomeSourceAmounts(
+  state: ReconciliationState,
+  movements: ReconciliationMovement[],
+  corrected: ReconciliationMovement[],
+  additions: { date: string; amount: number; creditKind?: string | null; incomeSourceId?: string | null }[]
+): { sourceId: string; month: string; amount: number }[] {
+  const monthOf = (sourceId: string, day: string) => {
+    const s = state.incomeSources?.find((x) => x.id === sourceId)
+    return s ? nearestOccurrence(s, day, OCCURRENCE_DAYS)?.slice(0, 7) ?? null : null
+  }
+  const linked = [
+    ...movements.filter((m) => m.status === "confirmed" && m.direction === "credit" && !m.isInternal),
+    ...additions,
+  ].filter((m) => m.creditKind === "income" && m.incomeSourceId)
+  const key = (sourceId: string, month: string) => `${sourceId}|${month}`
+  const touched = new Set(
+    [
+      ...corrected.filter((m) => m.creditKind === "income" && m.incomeSourceId),
+      ...additions.filter((a) => a.creditKind === "income" && a.incomeSourceId),
+    ].flatMap((m) => {
+      const month = monthOf(m.incomeSourceId!, m.date)
+      return month ? [key(m.incomeSourceId!, month)] : []
+    })
+  )
+  return [...touched].map((k) => {
+    const [sourceId, month] = k.split("|")
+    const cents = linked
+      .filter((m) => m.incomeSourceId === sourceId && monthOf(sourceId, m.date) === month)
+      .reduce((sum, m) => sum + Math.round(m.amount * 100), 0)
+    return { sourceId, month, amount: cents / 100 }
+  }).filter((a) => a.amount > 0)
 }
 
 /**

@@ -262,6 +262,7 @@ export type Transaction = {
   creditKind?: CreditKind | null // solo credit no interno
   internalKind?: InternalKind | null // solo isInternal
   reversalOfId?: string | null // en un abono `reversal`: el cargo que anula
+  incomeSourceId?: string | null // abono income que corresponde a un ingreso programado (WDC-185)
 }
 
 // --- Inputs de escritura ---

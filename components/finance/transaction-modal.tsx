@@ -61,6 +61,7 @@ import { AssignToInstallmentModal } from "./assign-to-installment-modal"
 import { CategoryIcon } from "./category-icons"
 import { Segmented } from "./segmented"
 import { ReimbursementSection } from "./reimbursements/reimbursement-section"
+import { IncomeSourceLink } from "./income-sources/income-source-link"
 import {
   categoryUsageLine,
   formatCLP,
@@ -281,6 +282,7 @@ export function TransactionModal({
       title={activeTx?.editable ? "Editar movimiento" : "Movimiento del banco"}
     >
       {activeTx && <ReimbursementSection key={activeTx.id} tx={activeTx} onOpenRelated={setRelatedTx} />}
+      {activeTx && <IncomeSourceLink key={activeTx.id} tx={activeTx} />}
       {activeTx && (activeTx.editable ? (
         <EditForm key={activeTx.id} tx={activeTx} account={account} accounts={accounts} categories={categories} onClose={() => onOpenChange(false)} />
       ) : (

@@ -135,6 +135,12 @@ export const bankReconciliationSchema = z.strictObject({
           .describe(
             "True solo para liquidar un cobro recurrente confirmado con evidencia bancaria. Conserva vínculo, categoría y condiciones futuras del plan; no aplica a ingresos ni cuotas."
           ),
+        incomeSourceId: id
+          .nullable()
+          .optional()
+          .describe(
+            "Solo en un abono de ingreso (creditKind income): el ingreso programado al que corresponde, en su misma moneda; null lo desvincula. Ausente conserva el vínculo actual. Al aplicar, el monto de ese mes del programado queda fijado a lo recibido."
+          ),
       })
     )
     .max(200),
@@ -169,6 +175,12 @@ export const bankReconciliationSchema = z.strictObject({
             .optional()
             .describe(
               "Obligatorio si isInternal. Altas permitidas: overdraft_draw, overdraft_payment y own_transfer en cuenta corriente; card_payment va por su flujo e installment_source lo crea el plan de cuotas"
+            ),
+          incomeSourceId: id
+            .nullable()
+            .optional()
+            .describe(
+              "Opcional y solo con creditKind income: el ingreso programado al que corresponde este abono, en su misma moneda. Al aplicar, el monto de ese mes del programado queda fijado a lo recibido."
             ),
           reversalOfId: id
             .optional()
@@ -212,6 +224,12 @@ export const bankReconciliationSchema = z.strictObject({
               message: a.isInternal
                 ? "Un movimiento interno necesita internalKind"
                 : "internalKind solo va en un movimiento interno",
+            })
+          if (a.incomeSourceId != null && a.creditKind !== "income")
+            ctx.addIssue({
+              code: "custom",
+              path: ["incomeSourceId"],
+              message: "incomeSourceId solo va con creditKind income",
             })
           if (a.reversalOfId !== undefined && a.creditKind !== "reversal")
             ctx.addIssue({

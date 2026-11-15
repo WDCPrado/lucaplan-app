@@ -3,6 +3,11 @@ import {
   statementDocumentSchema,
 } from "./bank-reconciliation.ts"
 import { changeCreditKindSchema } from "./credit-kind.ts"
+import {
+  createIncomeSourceSchema,
+  linkIncomeSourceSchema,
+  updateIncomeSourceSchema,
+} from "./income-source.ts"
 import { z } from "zod"
 import type { PluginScope } from "../../arch/v1/domain/plugin/plugin.domain.ts"
 import { PERIODICITIES } from "../../arch/v1/domain/finance/recurring.domain.ts"
@@ -504,8 +509,39 @@ export const pluginTools = {
   // --- Ingresos ---
   lucaplan_listar_ingresos: read(
     "Listar ingresos del período",
-    "Lista los abonos de ingreso (creditKind income) confirmados del período, con fecha, descripción, monto, moneda y cuenta: su suma es el ingreso del plan. No hay fuentes de ingreso manuales: los ingresos llegan del banco y los que el correo no trae los agrega la conciliación. Para pasar uno a reembolso usa lucaplan_cambiar_tipo_abono.",
+    "Lista el ingreso del plan del período, por moneda (CLP y USD nunca se suman): los ingresos programados (sources) con su estado en el período —expected, received, pending, status received|pending|none y los abonos vinculados que le cuentan (credits)— y los abonos de ingreso sueltos (looseCredits: sin programado o de un programado sin ocurrencia en el período). Ingreso del plan = Σ por programado (received si llegó algo, si no expected) + Σ sueltos. Un programado es una expectativa: nunca crea movimientos. Para pasar un abono a reembolso usa lucaplan_cambiar_tipo_abono; para atarlo a su programado, lucaplan_vincular_abono_ingreso.",
     z.strictObject(period)
+  ),
+  lucaplan_crear_ingreso_programado: write(
+    { title: "Crear ingreso programado" },
+    "Crea un ingreso programado (p. ej. el sueldo): una expectativa mensual que entra al ingreso del plan hasta que llega su abono. No crea movimientos ni dinero. amount es el monto base por mes; amounts fija el de meses puntuales (una cuota que cambia). Requiere una categoría de ingreso.",
+    createIncomeSourceSchema.safeExtend({
+      name: createIncomeSourceSchema.shape.name.describe("Nombre visible, p. ej. «Sueldo Acme»"),
+      categoryId: ref("Categoría de ingreso"),
+      amount: positive.describe(money(": esperado por mes")),
+      dayOfMonth: day.describe("Día del mes en que se espera; en meses más cortos, el último día"),
+      startsOn: date.describe("Desde cuándo se espera, YYYY-MM-DD"),
+      ...operation,
+    })
+  ),
+  lucaplan_editar_ingreso_programado: write(
+    { title: "Editar ingreso programado" },
+    "Cambia solo los campos enviados de un ingreso programado. endsOn null lo deja indefinido; amounts fija o reemplaza el monto de esos meses (los demás se conservan). No cambia la moneda si tiene abonos o montos por mes.",
+    updateIncomeSourceSchema.safeExtend({ id: ref("Ingreso programado"), ...operation })
+  ),
+  lucaplan_eliminar_ingreso_programado: write(
+    { title: "Eliminar ingreso programado", destructive: true },
+    "Elimina un ingreso programado. Si tiene abonos vinculados no se borra: termina su vigencia hoy (ended true) y los abonos se conservan. Confirma con el usuario antes.",
+    z.strictObject({ id: ref("Ingreso programado"), ...operation })
+  ),
+  lucaplan_vincular_abono_ingreso: write(
+    { title: "Vincular abono a ingreso programado" },
+    "Ata un abono de ingreso (creditKind income) confirmado a su ingreso programado, en la misma moneda; null lo desvincula y vuelve a contar como suelto. No mueve saldos ni crea movimientos.",
+    linkIncomeSourceSchema.safeExtend({
+      transactionId: ref("Abono de ingreso (de lucaplan_listar_ingresos o lucaplan_buscar_movimientos)"),
+      incomeSourceId: id.nullable().describe("Ingreso programado; null desvincula"),
+      ...operation,
+    })
   ),
   lucaplan_cambiar_tipo_abono: write(
     { title: "Cambiar tipo de abono", destructive: true },

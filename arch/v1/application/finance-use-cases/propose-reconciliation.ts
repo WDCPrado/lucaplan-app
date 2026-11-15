@@ -13,6 +13,7 @@ import {
   type StatementRowKind,
 } from "../../domain/finance/bank-reconciliation.domain.ts"
 import { normalizeMovementText } from "../../domain/finance/categorization-learning.domain.ts"
+import { nearestOccurrence } from "../../domain/finance/income-source.domain.ts"
 import type {
   BankReconciliationInput,
   ReconciliationProposal,
@@ -23,6 +24,7 @@ import type {
 const DAY = 86_400_000
 const PAIR_DAYS = 5
 const REVERSAL_DAYS = 30
+const INCOME_AMOUNT_TOLERANCE = 0.15
 const daysApart = (a: string, b: string) =>
   Math.abs(Date.parse(a) - Date.parse(b)) / DAY
 // Tope de la evidencia en el esquema de la conciliación.
@@ -238,11 +240,14 @@ export function proposeReconciliation(
   const incomeIds = state.categories
     .filter((k) => k.type === "income")
     .map((k) => k.id)
-  const incomeCategory = (description: string) => {
+  const learnedIncomeCategory = (description: string) => {
     const text = normalizeMovementText(description)
-    const learned = state.learnedIncomeCategories?.find(
+    return state.learnedIncomeCategories?.find(
       (l) => l.normalizedText === text && incomeIds.includes(l.categoryId)
     )?.categoryId
+  }
+  const incomeCategory = (description: string) => {
+    const learned = learnedIncomeCategory(description)
     const top = state.topIncomeCategoryId
     return (
       learned ??
@@ -250,6 +255,30 @@ export function proposeReconciliation(
       incomeIds[0] ??
       null
     )
+  }
+
+  // Ingreso programado de un alta de ingreso: el ÚNICO de la misma moneda con una ocurrencia a ±5 días
+  // de la fila y el importe esperado de ese mes ±15%, o la misma categoría aprendida y un nombre
+  // parecido. Dos o más es ambiguo: sin vínculo (lo decide la persona).
+  const words = (s: string) =>
+    new Set(s.split(/\s+/).map(normalizeMerchant).filter((w) => w.length >= 4))
+  const similarName = (a: string, b: string) => {
+    const wb = words(b)
+    return [...words(a)].some((w) => wb.has(w))
+  }
+  const incomeSourceFor = (r: { date: string; amount: number; currency: string; description: string }) => {
+    const learned = learnedIncomeCategory(r.description)
+    const found = (state.incomeSources ?? []).filter((s) => {
+      if (s.currency !== r.currency) return false
+      const occurrence = nearestOccurrence(s, r.date, PAIR_DAYS)
+      if (!occurrence) return false
+      const expected = s.amounts.find((a) => a.month === occurrence.slice(0, 7))?.amount ?? s.amount
+      return (
+        Math.abs(r.amount - expected) <= expected * INCOME_AMOUNT_TOLERANCE ||
+        (s.categoryId === learned && similarName(s.name, r.description))
+      )
+    })
+    return found.length === 1 ? found[0] : null
   }
 
   // 4. Filas sin par → altas con su tipo.
@@ -278,6 +307,14 @@ export function proposeReconciliation(
       evidence: evidence(r.rowIndex),
       direction: r.direction,
       ...kind,
+    }
+    if (kind.creditKind === "income") {
+      const source = incomeSourceFor(r)
+      if (source) {
+        addition.incomeSourceId = source.id
+        // La categoría del programado manda si no hay una aprendida para el texto.
+        if (!learnedIncomeCategory(r.description)) addition.categoryId = source.categoryId
+      }
     }
     // Lo que la previsualización vería como posible duplicado (misma regla que reconcile): los ya
     // emparejados con otra fila o anulados se declaran distintos con su evidencia; cualquier otro lo

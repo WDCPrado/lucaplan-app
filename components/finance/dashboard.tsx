@@ -782,6 +782,7 @@ export function Dashboard({
         )}
         incomeCategories={incomeCategories}
         activeIncomeTotal={activeIncomeTotal}
+        transactions={transactions}
         previousMonthDebt={previousMonthDebt}
         onEditBudget={() => {
           setBudgetLimitOpen(true)

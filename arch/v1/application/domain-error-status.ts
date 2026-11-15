@@ -70,6 +70,10 @@ import {
   SetupRateLimitedError,
   SetupUnauthorizedError,
 } from "../domain/setup/setup.domain.ts"
+import {
+  IncomeSourceNotFoundError,
+  InvalidIncomeSourceError,
+} from "../domain/finance/income-source.domain.ts"
 import { LockBusyError } from "../../shared/mutex.ts"
 // Ciclo de imports con plugin-tools (que usa esta lista): seguro, solo se lee al llamar.
 import { PluginRejection } from "./plugin-use-cases/plugin-tools.ts"
@@ -144,6 +148,7 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof BankLabelRequiredError ||
     e instanceof SelfTargetError ||
     e instanceof AmbiguousCategoryNameError ||
+    e instanceof InvalidIncomeSourceError ||
     e instanceof PluginRejection // regla validada en un adapter compartido con el MCP (reembolsos)
   )
     return 422
@@ -153,6 +158,7 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof CategoryNotFoundError ||
     e instanceof RecurringTemplateNotFoundError ||
     e instanceof InstallmentPlanNotFoundError ||
+    e instanceof IncomeSourceNotFoundError ||
     e instanceof EmailConnectionNotFoundError ||
     e instanceof UserNotFoundError ||
     e instanceof SetupDoneError // ya hay cuentas: el asistente no existe

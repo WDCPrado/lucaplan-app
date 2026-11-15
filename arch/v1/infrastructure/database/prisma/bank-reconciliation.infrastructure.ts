@@ -67,7 +67,7 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
         include: { buckets: { orderBy: { id: "asc" } } },
       })
       if (!account) return null
-      const [rows, categories, links, loans, cards, learned, topIncome] =
+      const [rows, categories, links, loans, cards, learned, topIncome, sources] =
         await Promise.all([
         db.transaction.findMany({
           where: { accountId: account.id, userId },
@@ -137,6 +137,11 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
           orderBy: [{ _count: { categoryId: "desc" } }, { categoryId: "asc" }],
           take: 1,
         }),
+        db.incomeSource.findMany({
+          where: { userId },
+          orderBy: { id: "asc" },
+          include: { amounts: { orderBy: [{ year: "asc" }, { month: "asc" }] } },
+        }),
       ])
       loaded = { account, rows }
       const legacyCutoff =
@@ -151,6 +156,20 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
           reconciledUntil: account.reconciledUntil?.toISOString() ?? null,
           learnedIncomeCategories: learned,
           topIncomeCategoryId: topIncome[0]?.categoryId ?? null,
+          incomeSources: sources.map((src) => ({
+            id: src.id,
+            name: src.name,
+            categoryId: src.categoryId,
+            currency: src.currency,
+            amount: Number(src.amount),
+            dayOfMonth: src.dayOfMonth,
+            startsOn: src.startsOn.toISOString().slice(0, 10),
+            endsOn: src.endsOn?.toISOString().slice(0, 10) ?? null,
+            amounts: src.amounts.map((a) => ({
+              month: `${a.year}-${String(a.month).padStart(2, "0")}`,
+              amount: Number(a.amount),
+            })),
+          })),
           buckets: account.buckets.map((b) => ({
             id: b.id,
             kind: b.kind,
@@ -173,6 +192,7 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
             origin: m.origin,
             creditKind: m.creditKind as CreditKind | null,
             internalKind: m.internalKind as InternalKind | null,
+            incomeSourceId: m.incomeSourceId,
             cardInstallment: m.installmentItem?.plan.kind === "card",
             updatedAt: m.updatedAt.toISOString(),
           })),
@@ -301,6 +321,7 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
             currency: c.after.currency,
             categoryId: c.after.categoryId,
             bucketId: c.after.bucketId,
+            ...("incomeSourceId" in c.after ? { incomeSourceId: c.after.incomeSourceId ?? null } : {}),
             reviewed: true,
             reconciliation: json({
               source: plan.source,
@@ -336,6 +357,7 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
             creditKind: a.creditKind ?? null,
             internalKind: a.internalKind ?? null,
             reversalOfId: a.reversalOfId ?? null,
+            incomeSourceId: a.incomeSourceId ?? null,
             reviewed: true,
             reconciliation: json({
               source: plan.source,
@@ -348,6 +370,15 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
           },
         })
         addedIds.push(added.id)
+      }
+      // El monto del mes de cada programado que recibió un abono vinculado queda en lo recibido.
+      for (const a of plan.incomeSourceAmounts ?? []) {
+        const [year, month] = a.month.split("-").map(Number)
+        await db.incomeSourceAmount.upsert({
+          where: { sourceId_year_month: { sourceId: a.sourceId, year, month } },
+          create: { sourceId: a.sourceId, year, month, amount: a.amount },
+          update: { amount: a.amount },
+        })
       }
       // Retenciones y cargos que un reverso anula: quedan `reversed` (no se borran), con evidencia.
       const voided = [

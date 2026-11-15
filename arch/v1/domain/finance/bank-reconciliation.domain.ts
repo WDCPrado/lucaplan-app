@@ -28,6 +28,7 @@ export type ReconciliationMovement = {
   origin?: string
   creditKind?: CreditKind | null
   internalKind?: InternalKind | null
+  incomeSourceId?: string | null // abono income vinculado a un ingreso programado
 }
 export type ReconciliationState = {
   accountType: string
@@ -37,6 +38,9 @@ export type ReconciliationState = {
   // `normalizeMovementText`) y la categoría de ingreso más usada por el usuario.
   learnedIncomeCategories?: { normalizedText: string; categoryId: string }[]
   topIncomeCategoryId?: string | null
+  // Ingresos programados del usuario: la propuesta vincula un alta de ingreso al que le corresponde
+  // y la aplicación fija el monto de ese mes al recibido (WDC-185).
+  incomeSources?: ReconciliationIncomeSource[]
   buckets: {
     id: string
     kind: string
@@ -47,6 +51,19 @@ export type ReconciliationState = {
   categories: { id: string; type: string }[]
   loanPlans?: ReconciliationLoanPlan[]
   cardPlans?: ReconciliationCardPlan[]
+}
+
+/** Ingreso programado en montos planos (el estado entra al hash del token como JSON). */
+export type ReconciliationIncomeSource = {
+  id: string
+  name: string
+  categoryId: string
+  currency: string
+  amount: number
+  dayOfMonth: number
+  startsOn: string
+  endsOn: string | null
+  amounts: { month: string; amount: number }[]
 }
 
 /** Cronograma e identidad leídos dentro de la misma transacción que los movimientos. */
@@ -128,6 +145,7 @@ export type ReconciliationAddition = SettledFields & {
   creditKind?: CreditKind | null // obligatorio en credit no interno
   internalKind?: InternalKind | null // obligatorio con isInternal
   reversalOfId?: string | null // cargo que anula un abono `reversal`; queda `reversed`
+  incomeSourceId?: string | null // ingreso programado de un abono income
   distinctFrom?: { transactionId: string; evidence: string }[]
 }
 export type ReconciliationProjectedBucket = {
@@ -197,6 +215,8 @@ export type BankReconciliationPlan = {
   cardCorrections: ReconciliationCardCorrection[]
   projectedBuckets: ReconciliationProjectedBucket[]
   replayedIds: string[]
+  // Monto de un mes de un programado que queda fijado a lo recibido (abonos income vinculados).
+  incomeSourceAmounts?: { sourceId: string; month: string; amount: number }[]
   snapshotAt: string
   source: string
 }

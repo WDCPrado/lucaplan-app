@@ -73,6 +73,14 @@ import {
   listRecurringCandidates,
 } from "../../application/finance-use-cases/finance-read.ts"
 import { rangeOf } from "../../application/finance-use-cases/budget-period-use-cases.ts"
+import {
+  createIncomeSource,
+  deleteIncomeSource,
+  linkCreditToIncomeSource,
+  listIncomeSources,
+  updateIncomeSource,
+} from "../../application/finance-use-cases/income-source-use-cases.ts"
+import { incomeSourceRepository } from "../database/prisma/income-source.infrastructure.ts"
 import { createHash, createHmac } from "node:crypto"
 import { manualAccountRepository } from "../database/prisma/manual-account.infrastructure.ts"
 import { budgetAlertRepository } from "../database/prisma/budget-alert.infrastructure.ts"
@@ -119,6 +127,7 @@ const deps = {
   dueReminder: dueReminderRepository,
   paceFrequency: paceFrequencyRepository,
   bankReconciliation: bankReconciliationStore,
+  incomeSources: incomeSourceRepository,
 }
 
 // Escritura que mueve el ingreso del plan: el tope igualado al ingreso la sigue en los dos modos
@@ -374,8 +383,26 @@ const handlers: Handlers = {
     setMonthlyBudgetFollowing(deps, userId, input),
   lucaplan_fijar_presupuesto_categoria: (userId, input) =>
     setCategoryLimit(deps, userId, input),
-  lucaplan_listar_ingresos: (userId, input) =>
-    listIncomeCredits(deps, userId, input.year, input.month),
+  lucaplan_listar_ingresos: async (userId, input) => {
+    const [sources, credits] = await Promise.all([
+      listIncomeSources(deps, userId, input),
+      listIncomeCredits(deps, userId, input.year, input.month),
+    ])
+    const counted = new Set(sources.flatMap((s) => s.period.credits.map((c) => c.id)))
+    return {
+      notice:
+        "Ingreso del plan por moneda = Σ por programado (received si llegó algo, si no expected) + Σ looseCredits. CLP y USD no se suman. Un programado es una expectativa: no es dinero recibido.",
+      sources,
+      looseCredits: credits.filter((c) => !counted.has(c.id)),
+    }
+  },
+  lucaplan_crear_ingreso_programado: (userId, input) =>
+    createIncomeSource(deps, userId, input),
+  lucaplan_editar_ingreso_programado: (userId, { id, ...input }) =>
+    updateIncomeSource(deps, userId, id, input),
+  lucaplan_eliminar_ingreso_programado: (userId, input) => deleteIncomeSource(deps, userId, input.id),
+  lucaplan_vincular_abono_ingreso: (userId, input) =>
+    linkCreditToIncomeSource(deps, userId, input.transactionId, input.incomeSourceId),
   lucaplan_cambiar_tipo_abono: async (userId, input) =>
     (await changeCreditKind(deps, userId, input)).transaction,
   lucaplan_listar_recurrentes: (userId) => listRecurringView(deps, userId),

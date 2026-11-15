@@ -21,6 +21,7 @@ import { reimbursementReadRepository } from "../../infrastructure/database/prism
 import { recurringTemplateRepository } from "../../infrastructure/database/prisma/recurring.infrastructure.ts"
 import { installmentPlanRepository } from "../../infrastructure/database/prisma/installment.infrastructure.ts"
 import { budgetPeriodRepository } from "../../infrastructure/database/prisma/budget-period.infrastructure.ts"
+import { incomeSourceRepository } from "../../infrastructure/database/prisma/income-source.infrastructure.ts"
 import { bankReconciliationStore } from "../../infrastructure/database/prisma/bank-reconciliation.infrastructure.ts"
 import { currentBudgetPeriod } from "../../application/finance-use-cases/budget-period-use-cases.ts"
 import { todayKey } from "../../../shared/today.ts"
@@ -45,6 +46,7 @@ export const financeDeps = {
   corrections: correctionRepository,
   exchangeRates: exchangeRateProvider,
   bankReconciliation: bankReconciliationStore,
+  incomeSources: incomeSourceRepository,
 }
 
 // Un almacén de memoización por render. `cache` de React le entrega uno nuevo a cada render de

@@ -5,8 +5,9 @@
 //
 // Sin doble conteo: una recurrente o cuota ya pagada se informa como pagada y no suma a lo
 // pendiente; un movimiento confirmado que paga una recurrente o una cuota, o un abono de ingreso, no
-// vuelve a sumarse como "movimiento futuro". El ingreso es lo que ya entró (abonos de ingreso del
-// período, `incomeOfPeriod`): no hay ingresos esperados. El presupuesto se informa como TOPE, nunca como gasto extra.
+// vuelve a sumarse como "movimiento futuro". El ingreso es el del plan (`planIncome`): lo que ya
+// entró más lo esperado de los ingresos programados que aún no llegan (pendiente). El presupuesto se
+// informa como TOPE, nunca como gasto extra.
 import type {
   AccountRepository,
   BalanceBucketRepository,
@@ -32,7 +33,8 @@ import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
 import { daysOf } from "../../../shared/billing-cycle.ts"
 import { todayKey } from "../../../shared/today.ts"
 import { rangeOf, scopeBudgetPeriod } from "./budget-period-use-cases.ts"
-import { inRange, incomeOfPeriod, isPlanIncome } from "./budget-formulas.ts"
+import { inRange, isPlanIncome, planIncome } from "./budget-formulas.ts"
+import { expectedAt, type IncomeSourceRepository } from "../../domain/finance/income-source.domain.ts"
 import { getBudgetView } from "./finance-read.ts"
 
 const CURRENCIES: CurrencyCode[] = ["CLP", "USD"]
@@ -53,6 +55,7 @@ type PlanDeps = {
   exchangeRates: ExchangeRateProvider
   reimbursements?: Parameters<typeof getBudgetView>[0]["reimbursements"]
   budgetPeriod?: BudgetPeriodRepository
+  incomeSources?: IncomeSourceRepository
 }
 
 type Flow = { expected: Money; done: Money; pending: Money }
@@ -86,6 +89,7 @@ export async function getPeriodPlan(
     plans,
     txs,
     budget,
+    sources,
   ] = await Promise.all([
     deps.accounts.listByUser(userId),
     deps.balanceBuckets.listByUser(userId),
@@ -93,6 +97,7 @@ export async function getPeriodPlan(
     deps.installments.listByUser(userId),
     deps.transactions.listByUserPeriod(userId, range),
     getBudgetView(deps, userId, year, month),
+    deps.incomeSources?.listByUser(userId) ?? Promise.resolve([]),
   ])
   const byCurrency = new Map(
     CURRENCIES.map((c) => [
@@ -111,23 +116,54 @@ export async function getPeriodPlan(
   )
   const totals = (c: CurrencyCode) => byCurrency.get(c)!
 
-  // Ingresos: los abonos de ingreso del período, por moneda. Ya entraron: no hay pendiente.
+  // Ingresos, por moneda: el ingreso del plan es lo esperado; lo hecho, los abonos que ya entraron;
+  // lo pendiente, el esperado de los programados que aún no llegan.
+  const incomeRows: {
+    id: string
+    description: string
+    accountId: string | null
+    date: string
+    amount: number
+    currency: CurrencyCode
+    status: "registrado" | "esperado"
+    incomeSourceId: string | null
+  }[] = []
   for (const c of CURRENCIES) {
-    const received = incomeOfPeriod(txs, range, c)
-    totals(c).income.expected = received
-    totals(c).income.done = received
+    const plan = planIncome(txs, range, c, sources)
+    const done = txs
+      .filter((t) => isPlanIncome(t) && t.amount.currency === c && inRange(t.date, range))
+      .reduce((sum, t) => sum.add(t.amount), Money.zero(c))
+    totals(c).income.expected = plan.total
+    totals(c).income.done = done
+    totals(c).income.pending = plan.sources
+      .filter((s) => s.received.isZero)
+      .reduce((sum, s) => sum.add(s.expected), Money.zero(c))
+    for (const s of plan.sources)
+      if (s.received.isZero)
+        for (const day of s.occurrences)
+          incomeRows.push({
+            id: s.source.id,
+            description: s.source.name,
+            accountId: null,
+            date: day,
+            amount: expectedAt(s.source, day).toMajor(),
+            currency: c,
+            status: "esperado",
+            incomeSourceId: s.source.id,
+          })
   }
-  const incomeRows = txs
-    .filter((t) => isPlanIncome(t) && inRange(t.date, range))
-    .map((t) => ({
-      id: t.id,
-      description: t.description,
-      accountId: t.accountId,
-      date: t.date.toISOString().slice(0, 10),
-      amount: t.amount.toMajor(),
-      currency: t.amount.currency,
-      status: "registrado" as const,
-    }))
+  for (const t of txs)
+    if (isPlanIncome(t) && inRange(t.date, range))
+      incomeRows.push({
+        id: t.id,
+        description: t.description,
+        accountId: t.accountId,
+        date: t.date.toISOString().slice(0, 10),
+        amount: t.amount.toMajor(),
+        currency: t.amount.currency,
+        status: "registrado",
+        incomeSourceId: t.incomeSourceId ?? null,
+      })
 
   // Recurrentes: cada período cuya fecha de ejecución cae en el rango, con su estado real.
   const recurringRows = []

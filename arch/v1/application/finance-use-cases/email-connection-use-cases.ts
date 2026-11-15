@@ -19,6 +19,7 @@ import type {
   BucketKind,
   CardType,
   Direction,
+  InternalKind,
   MovementStatus,
 } from "../../domain/finance/finance.domain.ts"
 import {
@@ -97,6 +98,7 @@ export type EmailMovementDef = {
   direction: Direction
   status: MovementStatus // siempre "confirmed" (solo lectura)
   isInternal: boolean
+  internalKind?: InternalKind | null
 }
 
 export type EmailConfirmPersistInput = {
@@ -139,6 +141,7 @@ export type ResolvedEmailMovement = {
   amount: Money
   direction: Direction
   isInternal: boolean
+  internalKind?: InternalKind | null
 }
 
 // Lo que se pierde al desconectar un banco: sus cuentas arrastran en cascada datos que el usuario
@@ -358,6 +361,13 @@ function resolveCashLeg(
 // de ingreso: la regla es estructural, no una decisión por banco.
 function isInternalEvent(event: EmailEvent): boolean {
   return event.kind !== "expense"
+}
+
+// Tipo de interno de un aviso: el pago de la línea es `overdraft_payment`; el de tarjeta (sus dos
+// patas), `card_payment`.
+function internalKindOf(event: EmailEvent): InternalKind | null {
+  if (!isInternalEvent(event)) return null
+  return event.paymentTarget === "overdraft" ? "overdraft_payment" : "card_payment"
 }
 
 function directionOf(event: EmailEvent): Direction {
@@ -754,6 +764,7 @@ export async function confirmEmailSetup(
       direction: directionOf(event),
       status: "confirmed",
       isInternal: isInternalEvent(event),
+      internalKind: internalKindOf(event),
     })
     if (posterior) applyEventToProjection(projected, target.accountId, event)
     if (event.cashLeg && cashTarget) {
@@ -767,6 +778,7 @@ export async function confirmEmailSetup(
         direction: "debit",
         status: "confirmed",
         isInternal: true,
+        internalKind: internalKindOf(event),
       })
       if (posterior)
         applyCashDebitToProjection(
@@ -1178,6 +1190,7 @@ async function importIntoLink(
       amount: event.amount,
       direction: directionOf(event),
       isInternal: isInternalEvent(event),
+      internalKind: internalKindOf(event),
     })
     byExternalId.set(debtExternalId, event)
     if (event.cashLeg && cashTarget) {
@@ -1191,6 +1204,7 @@ async function importIntoLink(
         amount: event.cashLeg.amount,
         direction: "debit",
         isInternal: true,
+        internalKind: internalKindOf(event),
       })
       byExternalId.set(cashExternalId, event)
     }

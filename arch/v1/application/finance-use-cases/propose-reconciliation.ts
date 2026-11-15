@@ -211,6 +211,7 @@ export function proposeReconciliation(
           m.direction === "debit" &&
           !reversalTargets.has(m.id) &&
           !m.reimbursementAmount &&
+          !m.linked &&
           !corrections.some((c) => c.transactionId === m.id) &&
           m.currency === r.currency &&
           m.amount === r.amount &&
@@ -282,6 +283,7 @@ export function proposeReconciliation(
             !used.has(m.id) &&
             !reversalTargets.has(m.id) &&
             !m.reimbursementAmount &&
+          !m.linked &&
             m.date >= firstDay &&
             m.date <= cutoffDay &&
             (!reconciledDay || m.date >= reconciledDay) &&

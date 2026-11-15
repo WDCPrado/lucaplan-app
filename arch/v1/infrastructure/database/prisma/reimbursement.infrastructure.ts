@@ -64,6 +64,9 @@ export async function linkReimbursement(userId: string, input: { expenseId: stri
       userId, expenseId: expense.id, creditId: credit.id, amount: input.amount,
       budgetEffects: { create: effect },
     } })
+    // Un abono vinculado como reembolso deja de ser ingreso del plan (WDC-183). Un reverso se queda reverso.
+    if (credit.creditKind === "income")
+      await db.transaction.update({ where: { id: credit.id, userId }, data: { creditKind: "reimbursement" } })
     return { reimbursementId: linked.id, amount: input.amount, created: true,
       budgetAdjustment: { applied: true, alreadyApplied: false, amount: input.amount,
         ...effect, categoryName: category.name, legacy: false } }

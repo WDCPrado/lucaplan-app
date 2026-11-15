@@ -223,7 +223,7 @@ export function planBankReconciliation(
     }))
   )
   // Cargo que queda anulado (retención o reverso): del correo o la app, confirmado, hasta el corte,
-  // sin reembolso vinculado (no se desvincula solo) y sin otra decisión en el lote.
+  // sin reembolso, cuota ni recurrente vinculada (no se desvincula solo) y sin otra decisión en el lote.
   const voidable = (id: string, what: string) => {
     if (ids.has(id))
       reject(`${what}: el movimiento ${id} ya tiene otra decisión en el lote`)
@@ -236,6 +236,10 @@ export function planBankReconciliation(
     if (m.reimbursementAmount)
       reject(
         `${what}: el cargo ${id} tiene un reembolso vinculado; desvincúlalo antes de anularlo`
+      )
+    if (m.linked)
+      reject(
+        `${what}: el cargo ${id} está vinculado a una cuota o a una recurrente; desvincúlalo antes de anularlo`
       )
     return m
   }

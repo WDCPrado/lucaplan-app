@@ -67,12 +67,16 @@ const planDeps = {
 
 // Un aviso del banco es provisorio (la cartola lo confirma). Un abono no interno que llegue por correo
 // cuenta como ingreso hasta que la conciliación o la persona lo reclasifique.
-// ponytail: el correo no dice qué tipo de interno es (pago de tarjeta, de línea); queda sin
-// internalKind hasta que la cartola lo trae.
-function emailKinds(m: { direction: string; isInternal: boolean }) {
+// Un interno trae su tipo desde el aviso (pago de tarjeta o de la línea).
+function emailKinds(m: {
+  direction: string
+  isInternal: boolean
+  internalKind?: string | null
+}) {
   return {
     origin: "email",
     creditKind: m.direction === "credit" && !m.isInternal ? "income" : null,
+    internalKind: m.isInternal ? (m.internalKind ?? null) : null,
   }
 }
 

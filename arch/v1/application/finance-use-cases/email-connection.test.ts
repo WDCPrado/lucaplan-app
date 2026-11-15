@@ -1333,6 +1333,37 @@ test("pago de tarjeta: sync expande dos patas (caja + deuda) y es idempotente", 
   assert.equal(captured.byId.get("b-nat")!.used.toMajor(), 147420)
 })
 
+test("pago de tarjeta por correo: sus dos patas quedan como internas de tipo card_payment (WDC-183)", async () => {
+  const captured = {
+    seen: new Set<string>(),
+    upserted: [] as { externalId: string; direction: string; isInternal: boolean }[],
+    byId: new Map<string, EmailStoredBucket>(),
+  }
+  const deps = syncDepsForCardPayment(
+    {
+      accounts: [
+        { id: "acct-cta", accountType: "checking", currency: "CLP", externalRef: "009991111100", cardLast4: "1100" },
+        { id: "acct-tj", accountType: "credit_card", currency: "CLP", externalRef: "2120", cardLast4: "2120" },
+      ],
+      buckets: [
+        { id: "b-cash", accountId: "acct-cta", kind: "cash", currency: "CLP", limitAmount: Money.zero("CLP"), used: Money.zero("CLP"), available: Money.of(1000000, "CLP") },
+        { id: "b-nat", accountId: "acct-tj", kind: "credit_national", currency: "CLP", limitAmount: Money.of(2000000, "CLP"), used: Money.of(800000, "CLP"), available: Money.of(1200000, "CLP") },
+      ],
+    },
+    captured
+  )
+  await syncMailbox(deps, "mbx-1", { now: new Date("2026-07-14T13:00:00Z") })
+  assert.deepEqual(
+    (captured.upserted as unknown as { externalId: string; isInternal: boolean; internalKind: string }[])
+      .map((m) => [m.externalId, m.isInternal, m.internalKind])
+      .sort(),
+    [
+      ["email:txn:BCAMOVIL012026062800111122223:card", true, "card_payment"],
+      ["email:txn:BCAMOVIL012026062800111122223:cash", true, "card_payment"],
+    ]
+  )
+})
+
 test("pago de tarjeta: sin la cuenta de origen confirmada se omite el pago completo", async () => {
   // Solo la tarjeta está confirmada; la cuenta corriente de origen no. Ni la deuda ni la caja se
   // registran (nunca medio pago).

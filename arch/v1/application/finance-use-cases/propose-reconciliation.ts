@@ -107,6 +107,9 @@ export function proposeReconciliation(
 
   const confirmed = state.movements.filter((m) => m.status === "confirmed")
   const used = new Set<string>() // movimientos que ya tienen fila o decisión
+  // Parecido a una fila del día del corte pero no corregible: la cartola lo trae, así que su saldo ya
+  // lo incluye; nunca se reproyecta como posterior (contaría dos veces).
+  const heldSameDay = new Set<string>()
   const pairOf = new Map<string, number>() // movimiento → fila con la que se emparejó
   const matched: ReconciliationProposal["matched"] = []
   const corrections: BankReconciliationInput["corrections"] = []
@@ -331,6 +334,8 @@ export function proposeReconciliation(
       // su camino como retención o posterior al corte.
       const offered = unexplained.filter((m) => correctable(m, addition))
       for (const m of offered) used.add(m.id)
+      for (const m of unexplained)
+        if (!offered.includes(m) && m.date === cutoffDay) heldSameDay.add(m.id)
       ambiguous.push({
         rowIndex: r.rowIndex,
         reason: "multiple_candidates",
@@ -392,20 +397,22 @@ export function proposeReconciliation(
   // fecha que queda tras la corrección (la de la fila).
   const dateOf = (m: ReconciliationMovement) =>
     corrections.find((c) => c.transactionId === m.id)?.date ?? m.date
+  const retained = new Set(retentions.map((r) => r.transactionId))
   const includedSameDayIds = matched
     .map((p) => p.transactionId)
     .filter((id) => {
       const m = state.movements.find((m) => m.id === id)
       return !!m && dateOf(m) === cutoffDay
     })
+    .concat([...heldSameDay].filter((id) => !retained.has(id) && !reversalTargets.has(id)))
   // Del día del corte sin fila, ni retención ni otra decisión: el documento no lo incluye, se
   // reproyecta como posterior al corte.
-  const retained = new Set(retentions.map((r) => r.transactionId))
   const excludedSameDayIds = confirmed
     .filter(
       (m) =>
         m.date === cutoffDay &&
         !used.has(m.id) &&
+        !heldSameDay.has(m.id) &&
         !retained.has(m.id) &&
         !reversalTargets.has(m.id)
     )

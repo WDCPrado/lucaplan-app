@@ -229,12 +229,13 @@ test("reverso: el plan acepta el alta aunque distinctFrom traiga el mismo cargo 
   )
 })
 
-test("B10 en el día del corte: el cargo con reembolso que no se ofrece no bloquea el plan; queda posterior al corte", () => {
+test("B10 en el día del corte: el cargo con reembolso que no se ofrece no bloquea el plan; la cartola ya lo trae, no se reproyecta", () => {
   const state = card([mov("con-reembolso", "2026-11-10", "LIDER", 50_000, { reimbursementAmount: 10_000 })])
   const { p, plan } = propose(state, cardDoc([row("2026-11-10", "LIDER", 55_000)]))
   assert.deepEqual(p.ambiguous[0].candidates, [])
-  assert.deepEqual(p.reconcileInput.excludedSameDayIds, ["con-reembolso"])
-  assert.deepEqual(plan.replayedIds, ["con-reembolso"])
+  assert.deepEqual(p.reconcileInput.includedSameDayIds, ["con-reembolso"])
+  assert.equal(p.reconcileInput.excludedSameDayIds, undefined)
+  assert.deepEqual(plan.replayedIds, [])
   // Y si la persona elige el alta, el plan también la acepta.
   assert.doesNotThrow(() =>
     planBankReconciliation(state, { ...p.reconcileInput, additions: [p.ambiguous[0].addition!] }, NOW)

@@ -79,9 +79,8 @@ DROP TABLE "income";
 -- es el saldo negativo de la cuenta (sin caja, la posición sigue leyendo el saldo, no la línea).
 WITH src AS (
   SELECT a."id", a."userId", a."currency", a."overdraftLimit", coalesce(
-    (SELECT greatest(-c."available", 0) FROM "balance_bucket" c
-     WHERE c."accountId" = a."id" AND c."kind" = 'cash' AND c."currency" = a."currency"
-     ORDER BY c."available" LIMIT 1),
+    (SELECT sum(greatest(-c."available", 0)) FROM "balance_bucket" c
+     WHERE c."accountId" = a."id" AND c."kind" = 'cash' AND c."currency" = a."currency"),
     greatest(-a."balance", 0)) AS "used"
   FROM "financial_account" a
   WHERE a."accountType" = 'checking' AND a."overdraftLimit" > 0

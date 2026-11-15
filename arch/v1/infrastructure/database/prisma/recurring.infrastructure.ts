@@ -5,15 +5,20 @@
 import { Prisma } from "./generated/client.ts"
 import { prisma } from "./client.ts"
 import { Money, type CurrencyCode } from "../../../domain/finance/money.ts"
-import type { Direction } from "../../../domain/finance/finance.domain.ts"
+import { BANK_ORIGINS, type Direction } from "../../../domain/finance/finance.domain.ts"
 import {
   canPayPeriod,
+  isFromBank,
   matchesTemplateText,
   periodsAround,
   type Periodicity,
   type RecurringTemplate,
   type RecurringTemplateRepository,
 } from "../../../domain/finance/recurring.domain.ts"
+
+// «No vino del banco» en un where: ni aviso de correo ni fila de cartola (una alta de cartola no
+// trae externalId, así que externalId null ya no basta).
+const NOT_FROM_BANK = { origin: { notIn: [...BANK_ORIGINS] } }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toTemplate(row: any): RecurringTemplate {
@@ -178,6 +183,8 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
           direction: template.direction,
           status: "pending", // comprometido: no cuenta como gasto ni mueve el saldo
           reviewed: true, // ya tiene la categoría de la plantilla: fuera del triage y de la IA
+          origin: "system", // comprometido generado; el banco lo confirma después
+          creditKind: template.direction === "credit" ? "income" : null,
         },
       })
       return { transactionId: row.id, created: true }
@@ -192,15 +199,15 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
   async findPeriodTransaction(templateId, periodKey) {
     const row = await prisma.transaction.findFirst({
       where: { recurringTemplateId: templateId, periodKey },
-      select: { id: true, status: true, externalId: true, transactionDate: true, description: true },
+      select: { id: true, status: true, origin: true, transactionDate: true, description: true },
     })
-    // Sin `externalId` no vino del banco: es la marca manual del usuario (o el movimiento de
+    // No vino del banco (ni correo ni cartola): es la marca manual del usuario (o el movimiento de
     // origen de la plantilla, que es la misma afirmación suya).
     return row
       ? {
           id: row.id,
           status: row.status,
-          isManual: row.externalId === null,
+          isManual: !isFromBank(row),
           date: row.transactionDate,
           description: row.description,
         }
@@ -211,11 +218,11 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
       where: {
         recurringTemplateId: templateId,
         periodKey: { not: null },
-        OR: [{ status: "pending" }, { status: "confirmed", externalId: null }],
+        OR: [{ status: "pending" }, { status: "confirmed", ...NOT_FROM_BANK }],
       },
       select: { periodKey: true, status: true },
     })
-    // Confirmado y en este where = sin externalId: la marca manual.
+    // Confirmado y en este where = no vino del banco: la marca manual.
     return rows.flatMap((r) =>
       r.periodKey ? [{ periodKey: r.periodKey, isManual: r.status === "confirmed" }] : []
     )
@@ -228,7 +235,7 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
         status: paid ? "pending" : "confirmed",
         // Deshacer solo alcanza a lo confirmado a mano. La comprobación del use-case da el error
         // legible; esta hace que una carrera no pueda revertir un cargo real igualmente.
-        ...(paid ? {} : { externalId: null }),
+        ...(paid ? {} : NOT_FROM_BANK),
       },
       // Monto y fecha se conservan: el comprometido ya los tiene, y los reales los fija el correo.
       data: { status: paid ? "confirmed" : "pending" },
@@ -242,7 +249,7 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
           where: { recurringTemplateId: template.id, periodKey },
         })
         const bankCharge =
-          committed !== null && committed.status !== "pending" && committed.externalId !== null
+          committed !== null && committed.status !== "pending" && isFromBank(committed)
         // El período ya lo cerró el BANCO con el texto de la recurrente: dos cargos reales no se
         // pisan, este sigue el flujo normal.
         if (bankCharge && matchesTemplateText(committed.description, template)) return false
@@ -315,13 +322,13 @@ export const recurringTemplateRepository: RecurringTemplateRepository = {
 // quedan igual. Idempotente: corregido, ya no hay nada que mover.
 async function returnMisplacedCharge(template: RecurringTemplate, periodKey: string) {
   const misplaced = (
-    row: { status: string; externalId: string | null; transactionDate: Date } | null
+    row: { status: string; origin: string; transactionDate: Date } | null
   ) =>
     row !== null &&
     row.status === "confirmed" &&
-    row.externalId !== null &&
+    isFromBank(row) &&
     !canPayPeriod(template, periodKey, row.transactionDate)
-  const select = { id: true, status: true, externalId: true, transactionDate: true } as const
+  const select = { id: true, status: true, origin: true, transactionDate: true } as const
   const where = { recurringTemplateId: template.id, periodKey }
   // Lo normal es que no haya nada que mover: se lee fuera de la transacción y solo se abre si hace falta.
   const first = await prisma.transaction.findFirst({ where, select })

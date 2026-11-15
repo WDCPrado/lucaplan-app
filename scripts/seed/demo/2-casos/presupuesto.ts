@@ -3,9 +3,10 @@
 //   - Un gasto sin categoría: sube «Gastado» aunque no tenga tope (WDC-171).
 //   - Mascotas sin tope: su gasto cuenta en «Gastado» pero no en ninguna barra.
 //   - Suscripciones con el ritmo apagado y Supermercado con ritmo, las dos con gasto de hoy.
-//   - Planes distintos por modo: calendario y ciclo de tarjeta con su propio tope e ingreso.
+//   - Planes distintos por modo: calendario y ciclo de tarjeta con su propio tope (el ingreso es el
+//     mismo: los abonos de ingreso del período).
 //   - Dos cargos de tarjeta a los dos lados del último cierre (presupuesto por ciclo).
-//   - Un reembolso con suplemento del período.
+//   - Un reembolso con suplemento del período (abono creditKind=reimbursement, no suma al ingreso).
 //   - El mes anterior cerrado $150.000 por sobre el tope (deuda que el plan ofrece descontar).
 import type { DemoContext } from "../1-base/cuenta-demo.ts"
 import { todayKey } from "../../../../arch/shared/today.ts"
@@ -38,6 +39,7 @@ export async function seed(ctx: DemoContext) {
         currency: "CLP",
         direction: "debit",
         reviewed: data.categoryId !== null,
+        origin: "email",
       },
     })
 
@@ -72,11 +74,10 @@ export async function seed(ctx: DemoContext) {
   await gasto({ categoryId: cat("Suscripciones"), description: "Pago:netflix.com anual", amount: 38000 })
   await gasto({ categoryId: cat("Supermercado"), description: "Pago:jumbo costanera", amount: 95000 })
 
-  // Planes por modo: cada uno con su tope global, su tope de Supermercado y su ingreso.
-  const income = await prisma.income.findFirstOrThrow({ where: { userId } })
-  for (const [mode, globalLimit, limitAmount, amount] of [
-    ["calendar", 1500000, 200000, 1400000],
-    ["card_cycle", 1800000, 400000, 2000000],
+  // Planes por modo: cada uno con su tope global y su tope de Supermercado.
+  for (const [mode, globalLimit, limitAmount] of [
+    ["calendar", 1500000, 200000],
+    ["card_cycle", 1800000, 400000],
   ] as const) {
     await prisma.monthlyBudget.upsert({
       where: { userId_mode_year_month: { userId, mode, year, month } },
@@ -85,10 +86,6 @@ export async function seed(ctx: DemoContext) {
     await prisma.categoryLimit.upsert({
       where: { categoryId_mode_year_month: { categoryId: cat("Supermercado"), mode, year, month } },
       create: { categoryId: cat("Supermercado"), mode, year, month, limitAmount }, update: { limitAmount },
-    })
-    await prisma.incomeAmount.upsert({
-      where: { incomeId_mode_year_month: { incomeId: income.id, mode, year, month } },
-      create: { incomeId: income.id, mode, year, month, amount }, update: { amount },
     })
   }
 
@@ -106,12 +103,12 @@ export async function seed(ctx: DemoContext) {
 
   // Reembolso con suplemento: la cena de $60.000 se paga entera y los $20.000 recibidos suben el
   // disponible de Compras solo en este período.
-  const abono = await prisma.category.create({ data: { userId, name: "Abono de terceros", type: "income" } })
   const cena = await gasto({ categoryId: cat("Compras"), description: "Cena demo compartida", amount: 60000 })
   const credito = await prisma.transaction.create({
     data: {
-      userId, accountId: checkingId, categoryId: abono.id, transactionDate: hoy,
+      userId, accountId: checkingId, categoryId: null, transactionDate: hoy,
       description: "Transferencia demo recibida", amount: 20000, currency: "CLP", direction: "credit", reviewed: true,
+      origin: "email", creditKind: "reimbursement",
     },
   })
   const { overrides } = await budgetPeriodSettings(prisma)

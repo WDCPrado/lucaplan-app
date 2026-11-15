@@ -1,23 +1,39 @@
 import { z } from "zod"
+import {
+  CREDIT_KINDS,
+  INTERNAL_KINDS,
+} from "../../arch/v1/domain/finance/finance.domain.ts"
+import { STATEMENT_ROW_KINDS } from "../../arch/v1/domain/finance/bank-reconciliation.domain.ts"
 
 const id = z.string().trim().min(1).max(200)
 const money = z.number().finite().nonnegative()
+const currency = z.enum(["CLP", "USD"])
+const evidence = z.string().trim().min(1).max(2000)
+const bucket = z.strictObject({
+  kind: z.enum([
+    "cash",
+    "overdraft",
+    "credit_national",
+    "credit_international",
+  ]),
+  currency,
+  limit: money,
+  used: money,
+  available: z.number().finite(),
+})
 const settled = z.strictObject({
   date: z.iso.date(),
   description: z.string().trim().min(1).max(2000),
   amount: money.positive(),
-  currency: z.enum(["CLP", "USD"]),
+  currency,
   categoryId: id
     .nullable()
     .describe(
       "Categoría final; conserva la actual salvo evidencia para cambiarla"
     ),
-  evidence: z
-    .string()
-    .trim()
-    .min(1)
-    .max(2000)
-    .describe("Documento y fila bancaria que justifican la corrección"),
+  evidence: evidence.describe(
+    "Documento y fila bancaria que justifican la corrección"
+  ),
 })
 export const bankReconciliationSchema = z.strictObject({
   accountId: id,
@@ -95,28 +111,19 @@ export const bankReconciliationSchema = z.strictObject({
     .describe(
       "Corrección completa de préstamos/avances loan contra cartola. Conserva moneda, fechas, cuenta, categoría e IDs. No usar para planes card ni repetir sus movimientos en corrections."
     ),
-  buckets: z
-    .array(
-      z.strictObject({
-        kind: z.enum([
-          "cash",
-          "overdraft",
-          "credit_national",
-          "credit_international",
-        ]),
-        currency: z.enum(["CLP", "USD"]),
-        limit: money,
-        used: money,
-        available: z.number().finite(),
-      })
-    )
-    .min(1)
-    .max(4),
+  buckets: z.array(bucket).min(1).max(4),
   includedSameDayIds: z
     .array(id)
     .max(500)
     .describe(
       "IDs del día del corte que el documento ya incluye; no asumir por fecha de importación"
+    ),
+  excludedSameDayIds: z
+    .array(id)
+    .max(500)
+    .optional()
+    .describe(
+      "IDs del día del corte que el documento NO incluye (sin fila en la cartola): se reproyectan como posteriores al corte"
     ),
   corrections: z
     .array(
@@ -131,31 +138,88 @@ export const bankReconciliationSchema = z.strictObject({
       })
     )
     .max(200),
+  retentions: z
+    .array(
+      z.strictObject({
+        transactionId: id,
+        evidence: evidence.describe(
+          "Por qué la cartola no trae este cargo del correo (documento y rango revisado)"
+        ),
+      })
+    )
+    .max(200)
+    .optional()
+    .describe(
+      "Cargos del correo (confirmados, hasta el día del corte) sin par en la cartola: quedan anulados (reversed), no se borran. Se rechaza si el cargo tiene un reembolso vinculado (no se desvincula solo)"
+    ),
   additions: z
     .array(
-      settled.extend({
-        direction: z.enum(["debit", "credit"]),
-        isInternal: z.boolean(),
-        distinctFrom: z
-          .array(
-            z.strictObject({
-              transactionId: id,
-              evidence: z
-                .string()
-                .trim()
-                .min(1)
-                .max(2000)
-                .describe(
-                  "Fila bancaria independiente del candidato: explica por qué son dos operaciones distintas"
-                ),
+      settled
+        .extend({
+          direction: z.enum(["debit", "credit"]),
+          isInternal: z.boolean(),
+          creditKind: z
+            .enum(CREDIT_KINDS)
+            .optional()
+            .describe(
+              "Obligatorio en un abono no interno: income (cuenta como ingreso del plan; categoría de ingreso), reimbursement o reversal (sin categoría o de gasto)"
+            ),
+          internalKind: z
+            .enum(INTERNAL_KINDS)
+            .optional()
+            .describe(
+              "Obligatorio si isInternal. Altas permitidas: overdraft_draw, overdraft_payment y own_transfer en cuenta corriente; card_payment va por su flujo e installment_source lo crea el plan de cuotas"
+            ),
+          reversalOfId: id
+            .optional()
+            .describe(
+              "Opcional y solo con creditKind reversal: el cargo de la app que este abono anula, que queda anulado (reversed). Sin él, el reverso se da de alta solo. Se rechaza si el cargo tiene un reembolso vinculado"
+            ),
+          distinctFrom: z
+            .array(
+              z.strictObject({
+                transactionId: id,
+                evidence: z
+                  .string()
+                  .trim()
+                  .min(1)
+                  .max(2000)
+                  .describe(
+                    "Fila bancaria independiente del candidato: explica por qué son dos operaciones distintas"
+                  ),
+              })
+            )
+            .max(200)
+            .optional()
+            .describe(
+              "Candidatos revisados que son otros cargos reales. Debe enumerar exactamente todos los candidatos detectados, sin IDs ajenos ni omisiones."
+            ),
+        })
+        .superRefine((a, ctx) => {
+          const kindedCredit = a.direction === "credit" && !a.isInternal
+          if (kindedCredit !== (a.creditKind !== undefined))
+            ctx.addIssue({
+              code: "custom",
+              path: ["creditKind"],
+              message: kindedCredit
+                ? "Un abono no interno necesita creditKind"
+                : "creditKind solo va en un abono no interno",
             })
-          )
-          .max(200)
-          .optional()
-          .describe(
-            "Candidatos revisados que son otros cargos reales. Debe enumerar exactamente todos los candidatos detectados, sin IDs ajenos ni omisiones."
-          ),
-      })
+          if (a.isInternal !== (a.internalKind !== undefined))
+            ctx.addIssue({
+              code: "custom",
+              path: ["internalKind"],
+              message: a.isInternal
+                ? "Un movimiento interno necesita internalKind"
+                : "internalKind solo va en un movimiento interno",
+            })
+          if (a.reversalOfId !== undefined && a.creditKind !== "reversal")
+            ctx.addIssue({
+              code: "custom",
+              path: ["reversalOfId"],
+              message: "reversalOfId solo va con creditKind reversal",
+            })
+        })
     )
     .max(200)
     .describe(
@@ -163,3 +227,175 @@ export const bankReconciliationSchema = z.strictObject({
     ),
 })
 export type BankReconciliationInput = z.infer<typeof bankReconciliationSchema>
+
+// Dirección que fija cada tipo de fila; los que no están aquí van en ambos sentidos según la cuenta
+// (un pago de tarjeta es cargo en la corriente y abono en la tarjeta).
+const ROW_DIRECTION: Partial<
+  Record<(typeof STATEMENT_ROW_KINDS)[number], "debit" | "credit">
+> = {
+  purchase: "debit",
+  fee: "debit",
+  installment: "debit",
+  overdraft_payment: "debit",
+  income: "credit",
+  reimbursement: "credit",
+  reversal: "credit",
+  overdraft_draw: "credit",
+}
+
+const statementRow = z.strictObject({
+  date: z.iso.date(),
+  description: z.string().trim().min(1).max(2000),
+  amount: money.positive(),
+  currency,
+  direction: z.enum(["debit", "credit"]),
+  kind: z.enum(STATEMENT_ROW_KINDS),
+  // ponytail: nullish para aceptar el null del json_schema strict de OpenAI y la omisión del MCP.
+  installment: z
+    .strictObject({
+      n: z.int().positive(),
+      of: z.int().positive(),
+    })
+    .refine((i) => i.n <= i.of, "La cuota no puede pasar del total")
+    .nullish(),
+  originalAmount: z
+    .strictObject({ amount: money.positive(), currency })
+    .nullish(),
+})
+
+/** La cartola tal como la lee la extracción (OpenAI o el agente del usuario). El archivo no se guarda. */
+export const statementDocumentSchema = z.strictObject({
+  snapshotAt: bankReconciliationSchema.shape.snapshotAt.describe(
+    "Fecha y hora del corte de la cartola, con zona"
+  ),
+  source: bankReconciliationSchema.shape.source.describe(
+    "Documento leído: banco, cuenta y período"
+  ),
+  buckets: z.array(bucket).min(1).max(4),
+  rows: z
+    .array(
+      statementRow.refine(
+        (r) => (ROW_DIRECTION[r.kind] ?? r.direction) === r.direction,
+        {
+          path: ["direction"],
+          message: "La dirección no corresponde al tipo de fila",
+        }
+      )
+    )
+    .max(2000),
+})
+export type StatementDocument = z.infer<typeof statementDocumentSchema>
+
+const addition = bankReconciliationSchema.shape.additions.element
+
+// Movimiento de la app tal como lo devuelven la propuesta y la previsualización. Sin `strict`: la
+// salida trae además vínculos internos (linked, recurringOnly…) que el cliente no necesita.
+const movementOut = z.object({
+  id,
+  date: z.iso.date(),
+  description: z.string(),
+  amount: z.number(),
+  currency: z.string(),
+  direction: z.enum(["debit", "credit"]),
+  categoryId: id.nullable(),
+  bucketId: id.nullable().optional(),
+  status: z.string().optional(),
+  isInternal: z.boolean().optional(),
+  origin: z.string().optional(),
+  creditKind: z.enum(CREDIT_KINDS).nullable().optional(),
+  internalKind: z.enum(INTERNAL_KINDS).nullable().optional(),
+})
+const bucketOut = bucket.extend({ id })
+
+export const reconciliationSkippedSchema = z.strictObject({
+  rowIndex: z.int().nonnegative().optional(),
+  reason: z.enum(["currency_without_bucket", "bucket_not_in_account"]),
+  detail: z.string(),
+})
+export type ReconciliationSkipped = z.infer<typeof reconciliationSkippedSchema>
+
+/** Salida de proponerConciliacion: `reconcileInput` va tal cual a previsualizar. */
+export const reconciliationProposalSchema = z.strictObject({
+  reconcileInput: bankReconciliationSchema,
+  // Filas del documento que siguen tras descartar las anteriores al corte, con su índice original
+  // (al que apuntan matched y ambiguous): la UI no tiene el documento cuando la extracción es del servidor.
+  rows: z.array(statementRow.extend({ rowIndex: z.int().nonnegative() })),
+  matched: z.array(
+    z.strictObject({ rowIndex: z.int().nonnegative(), transactionId: id })
+  ),
+  ambiguous: z.array(
+    z.strictObject({
+      rowIndex: z.int().nonnegative(),
+      // installment: se salda con pagar_cuota · reversal_without_charge: no hay cargo que anular
+      // (se puede dar de alta igual) · multiple_candidates: más de un movimiento podría ser su par ·
+      // card_payment: pago de tarjeta sin par, va por su flujo (sin alta).
+      reason: z.enum([
+        "installment",
+        "card_payment",
+        "reversal_without_charge",
+        "multiple_candidates",
+      ]),
+      // Movimientos de la app que podrían ser su par (vacío en installment y sin cargo que anular).
+      candidates: z.array(
+        movementOut.pick({
+          id: true,
+          date: true,
+          description: true,
+          amount: true,
+          currency: true,
+          categoryId: true,
+          origin: true,
+        })
+      ),
+      // El alta lista para cuando la persona dice «es otro movimiento»: con categoría, tipo y
+      // distinctFrom hacia todos los candidatos. null en installment (se salda con pagar_cuota).
+      addition: addition.nullable(),
+    })
+  ),
+  skippedBeforeCutoff: z.int().nonnegative(),
+  // Lo que no se puede conciliar en esta cuenta y queda fuera de reconcileInput (no bloquea aplicar):
+  // currency_without_bucket: fila en una moneda sin cupo en la cuenta (USD en una corriente CLP) ·
+  // bucket_not_in_account: saldo del documento para un cupo que la cuenta no tiene.
+  skipped: z.array(reconciliationSkippedSchema),
+})
+export type ReconciliationProposal = z.infer<
+  typeof reconciliationProposalSchema
+>
+
+/** Salida de previsualizar (dryRun true, con previewToken) y aplicar (dryRun false, con addedIds). */
+export const reconciliationPreviewSchema = z.object({
+  dryRun: z.boolean(),
+  previewToken: z.string().length(64).optional(),
+  snapshotAt: z.iso.datetime({ offset: true }),
+  source: z.string(),
+  beforeBuckets: z.array(bucketOut.extend({ asOf: z.string().nullable() })),
+  projectedBuckets: z.array(bucketOut),
+  corrections: z.array(
+    z.object({
+      before: movementOut,
+      after: movementOut.extend({ evidence: z.string() }),
+    })
+  ),
+  additions: z.array(addition.safeExtend({ bucketId: id })),
+  retentions: z.array(z.object({ before: movementOut, evidence: z.string() })),
+  replayedIds: z.array(id),
+  // Solo en tarjeta: cuotas card que vencen hasta el corte, para saldar con pagar_cuota.
+  cuotasPendientes: z
+    .array(
+      z.object({
+        planId: id,
+        itemId: id,
+        description: z.string(),
+        index: z.int(),
+        installmentsCount: z.int(),
+        dueDate: z.iso.date(),
+        amount: z.number(),
+        currency,
+      })
+    )
+    .optional(),
+  addedIds: z.array(id).optional(),
+  appliedAt: z.iso.datetime({ offset: true }).optional(),
+  reconciledUntil: z.iso.datetime({ offset: true }).optional(),
+})
+export type ReconciliationPreview = z.infer<typeof reconciliationPreviewSchema>

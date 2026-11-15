@@ -57,6 +57,7 @@ function fixture(mode: PeriodMode) {
     status: "confirmed",
     isInternal: false,
     externalId: null,
+    creditKind: over.direction === "credit" ? "income" : null,
     ...over,
   })
   const txs = [

@@ -10,8 +10,10 @@ export async function reimbursementTransaction<T>(work: (db: Prisma.TransactionC
     try {
       return await prisma.$transaction(work, { isolationLevel: "Serializable" })
     } catch (error) {
-      const code = (error as { code?: string }).code
-      if (attempt >= 4 || (code !== "P2034" && code !== "P2002")) throw error
+      const { code, message } = error as { code?: string; message?: string }
+      // Un conflicto de serialización dentro de un $queryRaw llega como P2010 con SQLSTATE 40001.
+      const conflict = code === "P2034" || code === "P2002" || (code === "P2010" && /40001/.test(message ?? ""))
+      if (attempt >= 4 || !conflict) throw error
     }
   }
 }
@@ -54,8 +56,10 @@ export async function linkReimbursement(userId: string, input: { expenseId: stri
       db.expenseReimbursement.aggregate({ where: { expenseId: expense.id }, _sum: { amount: true } }),
       db.expenseReimbursement.aggregate({ where: { creditId: credit.id }, _sum: { amount: true } }),
     ])
-    if (Number(expenseLinks._sum.amount ?? 0) + input.amount > Number(expense.amount) ||
-        Number(creditLinks._sum.amount ?? 0) + input.amount > Number(credit.amount))
+    // En centavos: en USD la suma en coma flotante no cuadra (10.10 + 20.20 ≠ 30.30).
+    const cents = (x: unknown) => Math.round(Number(x ?? 0) * 100)
+    if (cents(expenseLinks._sum.amount) + cents(input.amount) > cents(expense.amount) ||
+        cents(creditLinks._sum.amount) + cents(input.amount) > cents(credit.amount))
       throw new PluginRejection("La compensación excede el saldo libre del gasto o abono")
     const settings = await budgetPeriodSettings(db)
     const { year, month } = await currentBudgetPeriod({ periodSettings: settings }, expense.transactionDate.toISOString().slice(0, 10))
@@ -64,6 +68,11 @@ export async function linkReimbursement(userId: string, input: { expenseId: stri
       userId, expenseId: expense.id, creditId: credit.id, amount: input.amount,
       budgetEffects: { create: effect },
     } })
+    // Un abono cubierto entero por reembolsos deja de ser ingreso del plan (WDC-183); uno parcial sigue
+    // siendo ingreso. Un reverso se queda reverso.
+    if (credit.creditKind === "income" &&
+        cents(creditLinks._sum.amount) + cents(input.amount) === cents(credit.amount))
+      await db.transaction.update({ where: { id: credit.id, userId }, data: { creditKind: "reimbursement" } })
     return { reimbursementId: linked.id, amount: input.amount, created: true,
       budgetAdjustment: { applied: true, alreadyApplied: false, amount: input.amount,
         ...effect, categoryName: category.name, legacy: false } }

@@ -8,6 +8,7 @@ import { exchangeRateProvider } from "../http/exchange/usd-clp.ts"
 import type { Prisma } from "../database/prisma/generated/client.ts"
 import { reconciliationLinks } from "../database/prisma/bank-reconciliation.infrastructure.ts"
 import { canReconcileCorrection } from "../../domain/finance/bank-reconciliation.domain.ts"
+import { isFromBank } from "../../domain/finance/recurring.domain.ts"
 import { prisma } from "../database/prisma/client.ts"
 import {
   amountDigits,
@@ -40,7 +41,9 @@ const movementSelect = {
   updatedAt: true,
   recurringTemplateId: true,
   installmentItemId: true,
-  incomeId: true,
+  origin: true,
+  creditKind: true,
+  internalKind: true,
   bucket: { select: { kind: true, currency: true } },
   account: {
     select: {
@@ -61,7 +64,6 @@ const movementSelect = {
       },
     },
   },
-  income: { select: { name: true } },
   installmentPlanAsSource: {
     select: { id: true, description: true, installmentsCount: true },
   },
@@ -74,11 +76,11 @@ type MovementRow = Prisma.TransactionGetPayload<{
 }>
 
 const SOURCE_LABEL = {
-  bank_email: "Banco conectado por correo",
-  income: "Generado desde una fuente de ingreso",
+  bank_email: "Aviso del banco por correo (provisorio hasta la cartola)",
+  bank_statement: "Cartola del banco",
   recurring: "Recurrente (por cobrar o marcada como pagada a mano)",
   installment: "Cuota registrada por la app",
-  manual: "Ingresado a mano",
+  manual: "Anterior a la conciliación con cartola",
 } as const
 
 // Procedencia, relaciones y capacidades efectivas: lo que el chat necesita para decidir qué
@@ -89,10 +91,11 @@ function movementView(
   context: ReturnType<typeof movementFinancialContext>,
   duplicateInstallment = false
 ) {
-  const source: keyof typeof SOURCE_LABEL = row.externalId
+  const fromBank = isFromBank(row)
+  const source: keyof typeof SOURCE_LABEL = row.origin === "email"
     ? "bank_email"
-    : row.incomeId
-      ? "income"
+    : row.origin === "statement"
+      ? "bank_statement"
       : row.recurringTemplateId
         ? "recurring"
         : row.installmentItemId
@@ -130,6 +133,8 @@ function movementView(
     categoryName: row.category?.name ?? null,
     source,
     sourceLabel: SOURCE_LABEL[source],
+    creditKind: row.creditKind,
+    internalKind: row.internalKind,
     relations: {
       recurring: row.recurringTemplateId
         ? {
@@ -148,9 +153,6 @@ function movementView(
               kind: row.installmentItem.plan.kind,
             }
           : null,
-      income: row.incomeId
-        ? { id: row.incomeId, name: row.income?.name ?? null }
-        : null,
       sourceOfInstallmentPlan: row.installmentPlanAsSource
         ? {
             planId: row.installmentPlanAsSource.id,
@@ -161,10 +163,9 @@ function movementView(
     },
     capabilities: {
       canCorrectMetadata:
-        !row.externalId &&
+        !fromBank &&
         !row.installmentItemId &&
-        !row.recurringTemplateId &&
-        !row.incomeId,
+        !row.recurringTemplateId,
       canReconcile: ["checking", "credit_card"].includes(
         row.account.accountType
       ),

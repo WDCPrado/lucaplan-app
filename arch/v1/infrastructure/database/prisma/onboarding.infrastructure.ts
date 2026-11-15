@@ -48,7 +48,6 @@ export const categoryUsageIn = (db: Prisma.TransactionClient): CategoryUsage => 
           { corrections: { some: {} } },
           { recurring: { some: {} } },
           { installments: { some: {} } },
-          { incomes: { some: {} } },
           { reimbursementEffects: { some: {} } },
         ],
       },

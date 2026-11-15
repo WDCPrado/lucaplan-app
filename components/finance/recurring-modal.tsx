@@ -31,7 +31,7 @@ import { useMoneyInput } from "@/hooks/use-money-input"
 import { CategoryIcon } from "./category-icons"
 import { DatePicker } from "./transaction-modal"
 import { Segmented } from "./segmented"
-import { DayOfMonthPicker } from "./income-modal"
+import { DayOfMonthPicker } from "./day-of-month-picker"
 import {
   RecurringLinkPicker,
   type CandidateFilters,

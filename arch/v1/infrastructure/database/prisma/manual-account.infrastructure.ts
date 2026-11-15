@@ -36,7 +36,6 @@ async function loadSnapshot(
         },
       },
       _count: { select: { buckets: true, cards: true } },
-      incomes: { select: { id: true, name: true }, orderBy: { id: "asc" } },
       recurring: { select: { id: true, label: true }, orderBy: { id: "asc" } },
       installments: {
         select: { id: true, description: true, kind: true },
@@ -61,8 +60,6 @@ async function loadSnapshot(
       installmentItem: {
         select: { planId: true, plan: { select: { accountId: true } } },
       },
-      incomeId: true,
-      income: { select: { accountId: true } },
       installmentPlanAsSource: { select: { id: true, accountId: true } },
     },
   })
@@ -73,7 +70,6 @@ async function loadSnapshot(
       OR: [
         { recurringTemplate: { accountId } },
         { installmentItem: { plan: { accountId } } },
-        { income: { accountId } },
       ],
     },
     orderBy: { id: "asc" },
@@ -84,7 +80,6 @@ async function loadSnapshot(
       recurringTemplateId: true,
       installmentItemId: true,
       installmentItem: { select: { planId: true } },
-      incomeId: true,
     },
   })
   return {
@@ -113,12 +108,9 @@ async function loadSnapshot(
       installmentItemId: t.installmentItemId,
       installmentPlanId: t.installmentItem?.planId ?? null,
       installmentPlanAccountId: t.installmentItem?.plan.accountId ?? null,
-      incomeId: t.incomeId,
-      incomeAccountId: t.income?.accountId ?? null,
       sourceOfPlanId: t.installmentPlanAsSource?.id ?? null,
       sourceOfPlanAccountId: t.installmentPlanAsSource?.accountId ?? null,
     })),
-    incomes: account.incomes,
     recurring: account.recurring,
     plans: account.installments,
     foreignTransactions: foreign.map((t) => ({
@@ -128,7 +120,6 @@ async function loadSnapshot(
       recurringTemplateId: t.recurringTemplateId,
       installmentItemId: t.installmentItemId,
       installmentPlanId: t.installmentItem?.planId ?? null,
-      incomeId: t.incomeId,
     })),
   }
 }
@@ -141,7 +132,6 @@ export const manualAccountRepository: ManualAccountRepository = {
         name: input.name,
         color: input.color,
         cardLast4: input.cardLast4,
-        overdraftLimit: input.overdraftLimit.toFixed(2),
       },
     })
   },
@@ -157,7 +147,7 @@ export const manualAccountRepository: ManualAccountRepository = {
             where: { id: { in: impact.plansToReopen }, userId },
             data: { completedAt: null },
           })
-        // FK en cascada: movimientos, buckets, tarjetas, ingresos, recurrentes y planes de la
+        // FK en cascada: movimientos, buckets, tarjetas, recurrentes y planes de la
         // cuenta. Lo de otras cuentas que apuntaba aquí queda sin vínculo (SetNull).
         await db.financialAccount.delete({ where: { id: accountId } })
         if (impact.deletes.bank)

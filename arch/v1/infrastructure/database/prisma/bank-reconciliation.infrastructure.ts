@@ -4,6 +4,10 @@ import type {
   BankReconciliationStore,
   BankReconciliationTx,
 } from "../../../domain/finance/bank-reconciliation.domain.ts"
+import type {
+  CreditKind,
+  InternalKind,
+} from "../../../domain/finance/finance.domain.ts"
 import { Prisma } from "./generated/client.ts"
 
 const json = (value: unknown) =>
@@ -12,7 +16,6 @@ const json = (value: unknown) =>
 /** Vínculos que la regla de corrección mira; lo comparte la búsqueda del plugin. */
 export function reconciliationLinks(m: {
   recurringTemplateId: string | null
-  incomeId: string | null
   installmentItemId: string | null
   installmentPlanAsSource: unknown
   reimbursementsPaid: { amount: Prisma.Decimal }[]
@@ -23,16 +26,13 @@ export function reconciliationLinks(m: {
     installmentOnly:
       !!m.installmentItemId &&
       !m.recurringTemplateId &&
-      !m.incomeId &&
       !m.installmentPlanAsSource,
     recurringOnly:
       !!m.recurringTemplateId &&
-      !m.incomeId &&
       !m.installmentItemId &&
       !m.installmentPlanAsSource,
     linked: !!(
       m.recurringTemplateId ||
-      m.incomeId ||
       m.installmentItemId ||
       m.installmentPlanAsSource
     ),
@@ -67,7 +67,8 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
         include: { buckets: { orderBy: { id: "asc" } } },
       })
       if (!account) return null
-      const [rows, categories, links, loans, cards] = await Promise.all([
+      const [rows, categories, links, loans, cards, learned, topIncome] =
+        await Promise.all([
         db.transaction.findMany({
           where: { accountId: account.id, userId },
           orderBy: { id: "asc" },
@@ -117,6 +118,25 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
             },
           },
         }),
+        // Para proponer la categoría de un abono de ingreso: la regla aprendida por texto y, si no
+        // hay, la categoría de ingreso más usada por el usuario.
+        db.categorizationCorrection.findMany({
+          where: { userId, direction: "credit", category: { type: "income" } },
+          select: { normalizedText: true, categoryId: true },
+          orderBy: { normalizedText: "asc" },
+        }),
+        db.transaction.groupBy({
+          by: ["categoryId"],
+          where: {
+            userId,
+            direction: "credit",
+            isInternal: false,
+            category: { type: "income" },
+          },
+          _count: { _all: true },
+          orderBy: [{ _count: { categoryId: "desc" } }, { categoryId: "asc" }],
+          take: 1,
+        }),
       ])
       loaded = { account, rows }
       const legacyCutoff =
@@ -128,6 +148,9 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
       return {
         state: {
           accountType: account.accountType,
+          reconciledUntil: account.reconciledUntil?.toISOString() ?? null,
+          learnedIncomeCategories: learned,
+          topIncomeCategoryId: topIncome[0]?.categoryId ?? null,
           buckets: account.buckets.map((b) => ({
             id: b.id,
             kind: b.kind,
@@ -147,6 +170,9 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
             isInternal: m.isInternal,
             bankReceivedAt: m.bankReceivedAt?.toISOString() ?? null,
             ...reconciliationLinks(m),
+            origin: m.origin,
+            creditKind: m.creditKind as CreditKind | null,
+            internalKind: m.internalKind as InternalKind | null,
             cardInstallment: m.installmentItem?.plan.kind === "card",
             updatedAt: m.updatedAt.toISOString(),
           })),
@@ -306,6 +332,10 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
             bucketId: a.bucketId,
             direction: a.direction,
             isInternal: a.isInternal,
+            origin: "statement",
+            creditKind: a.creditKind ?? null,
+            internalKind: a.internalKind ?? null,
+            reversalOfId: a.reversalOfId ?? null,
             reviewed: true,
             reconciliation: json({
               source: plan.source,
@@ -318,6 +348,32 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
           },
         })
         addedIds.push(added.id)
+      }
+      // Retenciones y cargos que un reverso anula: quedan `reversed` (no se borran), con evidencia.
+      const voided = [
+        ...plan.retentions.map((r) => ({ id: r.before.id, evidence: r.evidence })),
+        ...plan.additions.flatMap((a, i) =>
+          a.reversalOfId
+            ? [{ id: a.reversalOfId, evidence: a.evidence, reversedBy: addedIds[i] }]
+            : []
+        ),
+      ]
+      for (const v of voided) {
+        const row = rows.find((r) => r.id === v.id)!
+        await db.transaction.update({
+          where: { id: v.id, userId, status: "confirmed" },
+          data: {
+            status: "reversed",
+            reconciliation: json({
+              source: plan.source,
+              evidence: v.evidence,
+              ...("reversedBy" in v ? { reversedBy: v.reversedBy } : { retention: true }),
+              snapshotAt: plan.snapshotAt,
+              reconciledAt: now.toISOString(),
+              original: row.reconciliation ?? null,
+            }),
+          },
+        })
       }
       for (const b of plan.projectedBuckets)
         await db.balanceBucket.update({
@@ -334,15 +390,20 @@ function reconciliationTx(db: Prisma.TransactionClient): BankReconciliationTx {
       const national = plan.projectedBuckets.find(
         (b) => b.kind === "credit_national"
       )
+      const reconciledUntil = new Date(plan.snapshotAt)
       await db.financialAccount.update({
         where: { id: account.id, userId },
-        data: { balance: cash ? cash.available : -(national?.used ?? 0) },
+        data: {
+          balance: cash ? cash.available : -(national?.used ?? 0),
+          reconciledUntil,
+        },
       })
       const result = json({
         dryRun: false,
         ...plan,
         addedIds,
         appliedAt: now.toISOString(),
+        reconciledUntil: reconciledUntil.toISOString(),
       })
       await db.bankReconciliation.create({
         data: {

@@ -9,7 +9,11 @@
 // movimiento real de origen y es inmutable desde el front. Renombrar (editar `label`) nunca rompe
 // el reconocimiento del cargo.
 
-import type { Direction, Transaction } from "./finance.domain.ts"
+import {
+  BANK_ORIGINS,
+  type Direction,
+  type Transaction,
+} from "./finance.domain.ts"
 import { normalizeMovementText } from "./categorization-learning.domain.ts"
 import { type CurrencyCode } from "./money.ts"
 import { Money } from "./money.ts"
@@ -317,6 +321,10 @@ export function requiresDayOfMonth(periodicity: Periodicity): boolean {
  * `recurringCandidates` del buscador aplica las reglas del movimiento; `listRecurringCandidates`, el
  * piso de fecha y el monto.
  */
+/** «Vino del banco»: lo trajo el aviso por correo o la cartola (no un pendiente ni lo anterior). */
+export const isFromBank = (tx: { origin?: string | null }): boolean =>
+  (BANK_ORIGINS as readonly string[]).includes(tx.origin ?? "")
+
 export function paymentCandidateRejection(
   tx: Transaction,
   template: RecurringTemplate,
@@ -328,7 +336,7 @@ export function paymentCandidateRejection(
       : "Un gasto no puede ser el cobro de una recurrente de ingreso"
   // Solo lo que vino del banco: un movimiento manual vinculado se confundiría con la marca de «Ya
   // lo pagué», y el próximo correo del período lo borraría (`attachImportedMovement`).
-  if (tx.externalId === null)
+  if (!isFromBank(tx))
     return "Solo se pueden elegir movimientos que vinieron del banco"
   if (tx.status !== "confirmed")
     return "El movimiento todavía no está confirmado"

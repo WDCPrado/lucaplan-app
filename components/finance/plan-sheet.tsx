@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 
 import { useId, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, ChevronRight, Plus } from "lucide-react"
+import { ChevronRight, Plus } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -27,16 +27,16 @@ import {
   formatCLP,
   formatMoney,
   monthName,
-  todayKey,
+  formatShortDateHeader,
 } from "@/lib/finance-format"
-import { incomeDueDateInRange } from "@/lib/income-schedule"
+import { changeCreditKind } from "./income-credits/http"
 import { planTotal, previousMonthLabel, shouldSuggest } from "@/lib/plan-total"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type { PeriodMode } from "@/arch/shared/billing-cycle"
 import { ClosingPicker, PeriodModeControl } from "./month-status"
 import type {
   CategoryDTO,
-  IncomeDTO,
+  IncomeCreditDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 /**
@@ -53,19 +53,15 @@ export function PlanSheet({
   cycleRange,
   mode,
   closing,
-  isCurrentMonth,
   globalLimit,
   globalLimitFollowsIncome,
   allocated,
-  incomes,
-  previousCycleIncomes,
+  incomeCredits,
   incomeCategories,
   expenseCategories,
   activeIncomeTotal,
   previousMonthDebt,
   onEditBudget,
-  onAddIncome,
-  onEditIncome,
   onOpenIncomeCategory,
   onNewIncomeCategory,
 }: {
@@ -76,20 +72,16 @@ export function PlanSheet({
   cycleRange?: { start: string; end: string }
   mode: PeriodMode // modo guardado del período: mes calendario o ciclo de la tarjeta
   closing?: { date: string; estimated: boolean } // cierre del mes en pantalla; en modo calendario se muestra deshabilitado
-  isCurrentMonth: boolean
   globalLimit: number | null
   globalLimitFollowsIncome: boolean // el tope lo puso «Igualar al ingreso» y sigue solo
   allocated: number
-  incomes: IncomeDTO[]
-  previousCycleIncomes: IncomeDTO[]
+  incomeCredits: IncomeCreditDTO[]
   incomeCategories: CategoryDTO[]
   expenseCategories: CategoryDTO[]
   activeIncomeTotal: number
   // Gastos realizados que superaron los ingresos del período anterior, resueltos en el servidor.
   previousMonthDebt: number
   onEditBudget: () => void
-  onAddIncome: () => void
-  onEditIncome: (income: IncomeDTO) => void
   onOpenIncomeCategory: (category: CategoryDTO) => void
   onNewIncomeCategory: () => void
 }) {
@@ -188,48 +180,6 @@ export function PlanSheet({
             </div>
           )}
         </section>
-        {/* Exclusivo de modo crédito: el padre pasa [] en modo calendario. No confundir
-            "generated" con depósito bancario; las fechas futuras prevalecen. */}
-        {previousCycleIncomes.filter((inc) => {
-          const payDate = new Date(Date.UTC(
-            period.month === 1 ? period.year - 1 : period.year,
-            period.month === 1 ? 11 : period.month - 2,
-            inc.dayOfMonth
-          ))
-          const planned = payDate.toISOString().slice(0, 10)
-          return !inc.generated || planned > todayKey()
-        }).length > 0 && (
-          <ModalSection
-            title="Ingresos pendientes del ciclo anterior"
-            className="px-4 [--inset:3.5rem]"
-            footer="Son para cubrir la factura anterior. Un ingreso generado en la app no significa que el banco lo haya abonado."
-          >
-            {previousCycleIncomes.filter((inc) => {
-              const payDate = new Date(Date.UTC(
-                period.month === 1 ? period.year - 1 : period.year,
-                period.month === 1 ? 11 : period.month - 2,
-                inc.dayOfMonth
-              ))
-              return !inc.generated || payDate.toISOString().slice(0, 10) > todayKey()
-            }).map((inc) => (
-              <IncomeRow
-                  key={inc.id}
-                  income={inc}
-                  period={{
-                    mode,                    year: period.month === 1 ? period.year - 1 : period.year,
-                    month: period.month === 1 ? 12 : period.month - 1,
-                  }}
-                  isCurrentMonth={false}
-                  onEdit={() => onEditIncome(inc)}
-                  onOpenCategory={() => {
-                    const cat = incomeCategories.find((c) => c.id === inc.categoryId)
-                    if (cat) onOpenIncomeCategory(cat)
-                  }}
-                  priorCycle
-                />
-            ))}
-          </ModalSection>
-        )}
         {/* Presupuesto del mes. De dónde sale el descuento va en el pie y FUERA de la
             sugerencia a propósito: aplicarla apaga `suggest`, y si el porqué viviera ahí adentro
             desaparecería justo cuando el presupuesto queda más chico —sin rastro de por qué—.
@@ -328,45 +278,29 @@ export function PlanSheet({
           )}
         </ModalSection>
 
-        {/* Ingresos: una fila por fuente, con su estado del mes */}
-        <ModalSection title="Ingresos" className="px-4 [--inset:3.5rem]">
-            {incomes.map((inc) => (
-              <IncomeRow
-                key={inc.id}
-                income={inc}
-                period={period}
-                cycleRange={cycleRange}
-                isCurrentMonth={isCurrentMonth}
-                onEdit={() => onEditIncome(inc)}
-                onOpenCategory={() => {
-                  const cat = incomeCategories.find(
-                    (c) => c.id === inc.categoryId
-                  )
-                  if (cat) onOpenIncomeCategory(cat)
-                }}
-              />
-            ))}
-            <button
-              type="button"
-              onClick={onAddIncome}
-              className="press flex w-full items-center gap-3 py-2.5 text-left text-primary"
-            >
-              <span className="grid size-11 shrink-0 place-items-center rounded-lg">
-                <Plus className="size-5" aria-hidden="true" />
+        {/* Ingresos: los abonos de ingreso que llegaron al banco en el período (la cartola los
+            confirma). Su suma es el ingreso del plan; uno mal clasificado pasa a reembolso. */}
+        <ModalSection
+          title="Ingresos"
+          footer={
+            incomeCredits.length > 0
+              ? "Lo que llegó al banco en el período. Un abono que no es ingreso pásalo a reembolso: deja de sumar al plan."
+              : `Todavía no llegan abonos de ingreso este ${periodNoun}. Aparecen solos al sincronizar o conciliar la cartola.`
+          }
+        >
+          {incomeCredits.map((c) => (
+            <IncomeCreditRow key={c.id} credit={c} />
+          ))}
+          {incomeCredits.length > 0 && (
+            <div className="flex min-h-11 items-center justify-between gap-3 px-4 py-3">
+              <span className="text-body font-semibold">Total</span>
+              <span className="tabular flex flex-col items-end text-body font-semibold">
+                {totalsByCurrency(incomeCredits).map(([cur, total]) => (
+                  <span key={cur}>{formatMoney(total, cur)}</span>
+                ))}
               </span>
-              {incomes.length > 0 ? (
-                <span className="text-body">Agregar ingreso</span>
-              ) : (
-                <span className="min-w-0">
-                  <span className="block text-subheadline font-medium">
-                    Registra tus ingresos
-                  </span>
-                  <span className="block text-footnote text-muted-foreground">
-                    Sueldo, arriendo u otros · planifica cuánto entra
-                  </span>
-                </span>
-              )}
-            </button>
+            </div>
+          )}
         </ModalSection>
 
         {/* Categorías de ingreso: mismo patrón visual que las de gasto */}
@@ -605,122 +539,63 @@ function LimitRow({
   )
 }
 
-// Fila de INGRESO (fuente): cuándo llega, cuánto y su estado del mes. El aro es la categoría
-// (tocarla la edita); el resto de la fila edita el ingreso — son entidades separadas. "Generar"
-// crea el movimiento (idempotente en el backend); tocar "Recibido" lo deshace.
-// Exportada: el panel Presupuestos del dashboard muestra las mismas filas (misma acción, un tap menos).
-function IncomeRow({
-  income,
-  period,
-  cycleRange,
-  isCurrentMonth,
-  onEdit,
-  onOpenCategory,
-  priorCycle = false,
-}: {
-  income: IncomeDTO
-  period: { year: number; month: number; mode: PeriodMode }
-  cycleRange?: { start: string; end: string }
-  isCurrentMonth: boolean
-  onEdit: () => void
-  onOpenCategory: () => void
-  priorCycle?: boolean
-}) {
+// Total por moneda: CLP y USD nunca se suman.
+function totalsByCurrency(credits: IncomeCreditDTO[]) {
+  const totals = new Map<CurrencyCode, number>()
+  for (const c of credits)
+    totals.set(c.currency, (totals.get(c.currency) ?? 0) + c.amount)
+  return [...totals]
+}
+
+// Abono de ingreso del período. «Es reembolso» lo saca del ingreso (el tope que sigue al ingreso
+// se ajusta solo en el servidor); el toast ofrece deshacerlo.
+function IncomeCreditRow({ credit }: { credit: IncomeCreditDTO }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
 
-  async function toggleGenerated() {
-    if (busy) return
+  async function setKind(kind: "income" | "reimbursement") {
     setBusy(true)
     try {
-      const res = await fetch(
-        `/api/incomes/${income.id}/generate?year=${period.year}&month=${period.month}&mode=${period.mode}`,
-        { method: income.generated ? "DELETE" : "POST" }
-      )
-      if (!res.ok)
-        throw new Error(
-          await financeResponseError(res, "No se pudo actualizar el ingreso.")
-        )
+      await changeCreditKind(credit.id, kind)
       haptic("success")
-      toast.success(income.generated ? "Ingreso deshecho" : "Ingreso recibido")
+      if (kind === "reimbursement")
+        toast.success("Pasó a reembolso", {
+          description: credit.description,
+          action: { label: "Deshacer", onClick: () => setKind("income") },
+        })
       router.refresh()
     } catch (error) {
       haptic("error")
       toast.error(
         error instanceof Error
           ? error.message
-          : "No se pudo actualizar el ingreso."
+          : "No se pudo cambiar el tipo del abono."
       )
     } finally {
       setBusy(false)
     }
   }
 
-  // Detalle de fecha: día absoluto siempre; en el mes actual, cuánto falta para que llegue.
-  const scheduledDate = incomeDueDateInRange(period, income.dayOfMonth, cycleRange)
-  const day = Number(scheduledDate.slice(-2))
-  let when: string
-  if (income.generated) {
-    when = priorCycle ? `Registrado en Luca Plan · confirmar depósito del día ${day}` : `Llegó el ${day}`
-  } else if (isCurrentMonth) {
-    // Días reales hasta el pago: en modo tarjeta el mes en curso puede ser el siguiente.
-    const diff = Math.round((Date.parse(`${scheduledDate}T00:00:00Z`) - Date.parse(`${todayKey()}T00:00:00Z`)) / 86400000)
-    when =
-      diff > 1
-        ? `Llega el ${day} · en ${diff} días`
-        : diff === 1
-          ? `Llega el ${day} · mañana`
-          : diff === 0
-            ? "Llega hoy"
-            : `Esperado el día ${day}`
-  } else {
-    when = `Llega el ${day} · ${income.accountName}`
-  }
-
   return (
-    <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-x-3 py-2">
-      <button
-        type="button"
-        onClick={onOpenCategory}
-        aria-label="Ver la categoría del ingreso"
-        className="shrink-0"
-      >
-        <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-muted">
-          <CategoryIcon
-            icon={income.categoryIcon}
-            size={18}
-            color={income.categoryColor ?? undefined}
-          />
-        </span>
-      </button>
-      <button
-        type="button"
-        onClick={onEdit}
-        className="flex min-h-11 min-w-0 flex-col justify-center text-left"
-      >
-        <span className="block truncate text-body">{income.name}</span>
-        <span className="block truncate text-footnote text-muted-foreground">
-          {when}
-        </span>
-      </button>
-      {/* Monto arriba y el estado como acción de texto debajo: «Generar» en azul, «Recibido» en
-          verde (tocarlo lo deshace). Nada de pastillas rellenas dentro de la lista. */}
-      <div className="flex min-w-0 flex-col items-end">
+    <div className="flex min-h-11 items-center gap-3 py-1 pr-1 pl-4">
+      <div className="min-w-0 flex-1 py-1.5">
+        <p className="truncate text-body">{credit.description}</p>
+        <p className="text-footnote text-muted-foreground">
+          {formatShortDateHeader(credit.date)}
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-col items-end">
         <span className="tabular text-subheadline font-semibold text-success">
-          +{formatMoney(income.amount, income.currency as CurrencyCode)}
+          +{formatMoney(credit.amount, credit.currency)}
         </span>
         <button
           type="button"
-          onClick={toggleGenerated}
-          disabled={busy || (priorCycle && income.generated)}
-          title={income.generated ? "Deshacer" : "Registrar el ingreso del mes"}
-          className={cn(
-            "press -mr-2 -mb-2 flex min-h-11 items-center gap-1 px-2 text-subheadline font-semibold disabled:opacity-50",
-            income.generated ? "text-success" : "text-primary"
-          )}
+          onClick={() => setKind("reimbursement")}
+          disabled={busy}
+          aria-label={`Es reembolso: ${credit.description}`}
+          className="press -mb-2 flex min-h-11 items-center px-3 text-subheadline font-semibold text-primary disabled:opacity-50"
         >
-          {income.generated && <Check className="size-3.5" />}
-          {income.generated ? (priorCycle ? "Verificar" : "Recibido") : "Generar"}
+          Es reembolso
         </button>
       </div>
     </div>

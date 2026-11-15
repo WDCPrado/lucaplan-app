@@ -1,4 +1,8 @@
-import { bankReconciliationSchema } from "./bank-reconciliation.ts"
+import {
+  bankReconciliationSchema,
+  statementDocumentSchema,
+} from "./bank-reconciliation.ts"
+import { changeCreditKindSchema } from "./credit-kind.ts"
 import { z } from "zod"
 import type { PluginScope } from "../../arch/v1/domain/plugin/plugin.domain.ts"
 import { PERIODICITIES } from "../../arch/v1/domain/finance/recurring.domain.ts"
@@ -7,9 +11,7 @@ import { recurringUrlSchema } from "./recurring-url.ts"
 import {
   accountSchema,
   categorySchema,
-  incomeSchema,
   monthlyBudgetSchema,
-  transactionSchema,
   transactionUpdateSchema,
 } from "../finance-form-schemas.ts"
 
@@ -44,20 +46,8 @@ const categoryFields = {
       "Qué significa esta categoría en tu vida; lo usa la categorización automática"
     ),
 }
-const incomeFields = {
-  accountId: ref(
-    "Cuenta donde entra el ingreso (no tarjeta ni línea de crédito)"
-  ),
-  categoryId: ref("Categoría de tipo ingreso (income)"),
-  name: name.describe("Nombre de la fuente, p. ej. «Sueldo»"),
-  amount: incomeSchema.shape.amount.describe(money(", mayor que 0")),
-  dayOfMonth: incomeSchema.shape.dayOfMonth.describe(
-    "Día del mes en que llega, 1 a 31"
-  ),
-}
 // Límites técnicos de payload; no cambian la regla financiera del dominio.
 const MAX_INSTALLMENTS = 1000
-const MAX_SNAPSHOT_CARDS = 100
 const period = {
   year: monthlyBudgetSchema.shape.year.describe(
     "Año del período del presupuesto, p. ej. 2026"
@@ -123,29 +113,6 @@ const recurring = {
       "Enlace donde se paga, p. ej. https://www.enel.cl (sin https se asume); null lo quita; omitido al editar lo conserva"
     ),
 }
-const snapshotBucket = (money: z.ZodNumber) =>
-  z
-    .strictObject({
-      limit: money,
-      used: money,
-    })
-    .refine((value) => value.used <= value.limit, {
-      message: "El utilizado debe estar entre cero y el cupo total",
-      path: ["used"],
-    })
-const clp = amount.int().nonnegative()
-const usd = amount.nonnegative().multipleOf(0.01)
-const snapshotClpBucket = snapshotBucket(clp)
-const snapshotUsdBucket = snapshotBucket(usd)
-const bucket = z.strictObject({
-  available: amount
-    .nullable()
-    .describe("Disponible; null si el documento no lo muestra"),
-  used: amount
-    .nullable()
-    .describe("Utilizado (deuda); null si el documento no lo muestra"),
-})
-
 type ToolOptions = { title: string; destructive?: boolean }
 function read<S extends z.ZodObject>(
   title: string,
@@ -191,7 +158,7 @@ export const pluginTools = {
   // --- Cuentas y saldos ---
   lucaplan_listar_cuentas: read(
     "Listar cuentas y saldos",
-    "Úsala para conocer las cuentas del usuario, sus ids y saldos antes de crear movimientos, ingresos, recurrentes o cuotas. Cada cuenta trae moneda, tipo, si es manual o conectada por correo (provider/connectionMethod) y, en las conectadas, sus buckets: cash = caja, overdraft = sobregiro (used es deuda), credit_national (CLP) y credit_international (USD) = cupos de tarjeta. El cupo y la línea no son caja. Para la posición consolidada por moneda usa lucaplan_planificar_periodo.",
+    "Úsala para conocer las cuentas del usuario, sus ids y saldos antes de conciliar o crear recurrentes y cuotas. Cada cuenta trae moneda, tipo, si es manual o conectada por correo (provider/connectionMethod) y, en las conectadas, sus buckets: cash = caja, overdraft = sobregiro (used es deuda), credit_national (CLP) y credit_international (USD) = cupos de tarjeta. El cupo y la línea no son caja. Para la posición consolidada por moneda usa lucaplan_planificar_periodo.",
     empty
   ),
   lucaplan_crear_cuenta: write(
@@ -214,9 +181,6 @@ export const pluginTools = {
             ". En checking puede ser negativo (sobregiro usado); en tarjeta, negativo = deuda"
           )
         ),
-        overdraftLimit: accountSchema.shape.overdraftLimit.describe(
-          "Línea de sobregiro total (solo checking), ≥ 0"
-        ),
         color: z
           .string()
           .max(100)
@@ -235,7 +199,7 @@ export const pluginTools = {
   ),
   lucaplan_editar_cuenta: write(
     { title: "Editar cuenta manual", destructive: true },
-    "Úsala para cambiar nombre, color, últimos 4 dígitos o línea de sobregiro de una cuenta MANUAL. No cambia saldo, moneda ni tipo (para el saldo usa lucaplan_actualizar_saldos). Rechaza cuentas conectadas por correo.",
+    "Úsala para cambiar nombre, color o últimos 4 dígitos de una cuenta MANUAL. No cambia saldo, moneda ni tipo: el saldo lo fija la conciliación con la cartola. Rechaza cuentas conectadas por correo.",
     z.strictObject({
       accountId: ref("Cuenta manual a editar"),
       name: name.describe("Nombre visible nuevo"),
@@ -247,18 +211,12 @@ export const pluginTools = {
         .describe(
           "Últimos 4 dígitos (obligatorio en checking y credit_card); null en el resto"
         ),
-      overdraftLimit: amount
-        .nonnegative()
-        .optional()
-        .describe(
-          "Línea de sobregiro total, solo en checking; omitido = sin cambio"
-        ),
       ...operation,
     })
   ),
   lucaplan_previsualizar_eliminar_cuenta: read(
     "Previsualizar eliminación de cuenta",
-    "Paso 1 de 2 para eliminar una cuenta MANUAL. No borra nada: calcula qué se borraría (movimientos, buckets, ingresos, recurrentes, planes de cuotas, el banco si queda vacío) y qué relaciones con otras cuentas se rompen en ambos sentidos. Devuelve confirmationToken, válido 15 minutos y solo para este estado exacto. Muestra el impacto al usuario y pide su confirmación explícita antes de llamar lucaplan_eliminar_cuenta. Rechaza cuentas conectadas por correo.",
+    "Paso 1 de 2 para eliminar una cuenta MANUAL. No borra nada: calcula qué se borraría (movimientos, buckets, recurrentes, planes de cuotas, el banco si queda vacío) y qué relaciones con otras cuentas se rompen en ambos sentidos. Devuelve confirmationToken, válido 15 minutos y solo para este estado exacto. Muestra el impacto al usuario y pide su confirmación explícita antes de llamar lucaplan_eliminar_cuenta. Rechaza cuentas conectadas por correo.",
     z.strictObject({ accountId: ref("Cuenta manual a eliminar") })
   ),
   lucaplan_eliminar_cuenta: write(
@@ -276,74 +234,10 @@ export const pluginTools = {
       ...operation,
     })
   ),
-  lucaplan_actualizar_saldos: write(
-    { title: "Actualizar saldos actuales", destructive: true },
-    "Úsala cuando el usuario informa los saldos que su banco muestra HOY (caja, sobregiro, cupos). Aplica valores explícitos con fecha de ahora, sin IA; no cambia cupos totales ni crea movimientos. No la uses para cartolas o fechas pasadas (para un banco conectado usa lucaplan_reconciliar_saldos_correo). national es CLP e international es USD; un campo null significa que el documento no lo muestra.",
-    z.strictObject({
-      accountId: ref("Cuenta a actualizar"),
-      last4: z
-        .string()
-        .regex(/^\d{4}$/)
-        .nullable()
-        .describe("Últimos 4 dígitos de la tarjeta, si aplica"),
-      cash: amount
-        .nullable()
-        .describe(
-          "Saldo de la cuenta en CLP, con su signo; puede ser negativo aunque la línea esté sin uso. No se deduce deuda de línea de este saldo; null si no se muestra"
-        ),
-      overdraft: bucket.describe("Sobregiro (CLP)"),
-      national: bucket.describe("Cupo nacional de tarjeta (CLP)"),
-      international: bucket.describe("Cupo internacional de tarjeta (USD)"),
-      ...operation,
-    })
-  ),
-  lucaplan_reconciliar_saldos_correo: write(
-    { title: "Reconciliar banco conectado", destructive: true },
-    "Úsala solo para un banco conectado por correo, con la fecha y valores reales de un documento (linkId sale de lucaplan_listar_cuentas). national, cash y overdraft son CLP; international es USD. Rechaza fechas futuras o anteriores a la última reconciliación o sincronización. Cambia saldos; no crea movimientos desde la cartola.",
-    z.strictObject({
-      linkId: ref("linkId del banco conectado"),
-      snapshotAt: z.iso
-        .datetime({ offset: true })
-        .refine(
-          (value) => new Date(value).getTime() <= Date.now(),
-          "La fecha del documento no puede ser futura"
-        )
-        .describe(
-          "Fecha y hora del documento con zona, p. ej. 2026-10-16T09:30:00-03:00"
-        ),
-      checking: z
-        .strictObject({
-          ref: z
-            .string()
-            .regex(/^\d{4,40}$/)
-            .describe("Número o últimos dígitos de la cuenta corriente"),
-          cash: clp.describe("Caja en CLP, entero ≥ 0"),
-          overdraft: snapshotClpBucket
-            .nullable()
-            .describe("Línea de sobregiro CLP: limit y used"),
-        })
-        .nullable(),
-      cards: z
-        .array(
-          z.strictObject({
-            last4: z.string().regex(/^\d{4}$/),
-            national: snapshotClpBucket
-              .nullable()
-              .describe("Cupo nacional CLP"),
-            international: snapshotUsdBucket
-              .nullable()
-              .describe("Cupo internacional USD"),
-          })
-        )
-        .max(MAX_SNAPSHOT_CARDS),
-      ...operation,
-    })
-  ),
-
   // --- Categorías ---
   lucaplan_listar_categorias: read(
     "Listar categorías",
-    "Úsala para obtener los ids y tipos (income = ingreso, expense = gasto) de las categorías antes de categorizar, presupuestar o crear ingresos, recurrentes y cuotas. Una categoría de gasto solo aplica a cargos (debit) y una de ingreso a abonos (credit). Para el uso del mes por categoría usa lucaplan_ver_presupuesto.",
+    "Úsala para obtener los ids y tipos (income = ingreso, expense = gasto) de las categorías antes de categorizar, presupuestar o crear recurrentes y cuotas. Una categoría de gasto solo aplica a cargos (debit) y una de ingreso a abonos (credit). Para el uso del mes por categoría usa lucaplan_ver_presupuesto.",
     empty
   ),
   lucaplan_crear_categoria: write(
@@ -380,7 +274,7 @@ export const pluginTools = {
   ),
   lucaplan_eliminar_categoria: write(
     { title: "Eliminar categoría", destructive: true },
-    "Elimina una categoría: sus movimientos quedan sin categoría y se eliminan las fuentes de ingreso que la usan. Rechaza la eliminación si la usan recurrentes o planes de cuotas (recategorízalos primero). Confirma con el usuario antes.",
+    "Elimina una categoría: sus movimientos quedan sin categoría. Rechaza la eliminación si la usan recurrentes o planes de cuotas (recategorízalos primero). Confirma con el usuario antes.",
     z.strictObject({ categoryId: ref("Categoría a eliminar"), ...operation })
   ),
   lucaplan_vincular_reembolso: write(
@@ -390,15 +284,6 @@ export const pluginTools = {
       expenseId: ref("ID del gasto bancario confirmado"),
       creditId: ref("ID del ingreso bancario confirmado"),
       amount: z.number().int().positive().describe("Importe compensado en CLP"),
-      ...operation,
-    })
-  ),
-  lucaplan_vincular_abono_ingreso: write(
-    { title: "Vincular abono a ingreso planificado" },
-    "Vincula un abono bancario ya existente a su fuente de ingreso. No genera un abono nuevo, no modifica el saldo ni la fecha bancaria original. La fuente y el abono deben pertenecer al usuario y coincidir en cuenta, categoría y moneda.",
-    z.strictObject({
-      incomeId: ref("Fuente de ingreso planificada"),
-      transactionId: ref("Abono real confirmado"),
       ...operation,
     })
   ),
@@ -439,7 +324,7 @@ export const pluginTools = {
   // --- Movimientos ---
   lucaplan_buscar_movimientos: read(
     "Buscar movimientos",
-    "Úsala para encontrar movimientos y sus ids: combina filtros (todos con AND) y pagina con offset/limit. Orden estable: fecha desc y luego id. La respuesta trae total, hasMore y nextOffset para recorrer todo y conciliar. Cada movimiento trae su procedencia (manual, banco por correo, ingreso, recurrente, cuota), sus relaciones y qué se puede hacer con él (canEdit, canDelete y el motivo si no). Los movimientos source=bank_email son el registro persistido de los avisos bancarios recibidos por correo: consúltalos como fuente de lo que llegó al buzón, sin volver a leer Outlook. Revisa también los que siguen almacenados tras una eliminación lógica: por defecto (settledOnly) excluye reversed y duplicated; utiliza status y settledOnly=false cuando corresponda. La cartola/no facturados confirma el importe, moneda y fecha definitivos, que pueden diferir del aviso. No crees un gasto nuevo solo porque no aparece en la búsqueda predeterminada. financialContext distingue importe guardado, impacto registrado en cupo, evidencia bancaria no verificada y equivalente CLP referencial. affectsCash solo corresponde a cuenta corriente; countsInBudget indica gasto confirmado dentro de categoría con tope en budgetPeriod, no ingreso ni gasto neto. Para el detalle completo de uno usa lucaplan_ver_movimiento.",
+    "Úsala para encontrar movimientos y sus ids: combina filtros (todos con AND) y pagina con offset/limit. Orden estable: fecha desc y luego id. La respuesta trae total, hasMore y nextOffset para recorrer todo y conciliar. Cada movimiento trae su procedencia (banco por correo, cartola, recurrente, cuota), sus relaciones y qué se puede hacer con él (canEdit, canDelete y el motivo si no). Los movimientos source=bank_email son el registro persistido de los avisos bancarios recibidos por correo: consúltalos como fuente de lo que llegó al buzón, sin volver a leer Outlook. Revisa también los que siguen almacenados tras una eliminación lógica: por defecto (settledOnly) excluye reversed y duplicated; utiliza status y settledOnly=false cuando corresponda. La cartola/no facturados confirma el importe, moneda y fecha definitivos, que pueden diferir del aviso. No crees un gasto nuevo solo porque no aparece en la búsqueda predeterminada. financialContext distingue importe guardado, impacto registrado en cupo, evidencia bancaria no verificada y equivalente CLP referencial. affectsCash solo corresponde a cuenta corriente; countsInBudget indica gasto confirmado dentro de categoría con tope en budgetPeriod, no ingreso ni gasto neto. Para el detalle completo de uno usa lucaplan_ver_movimiento.",
     z.strictObject({
       query: z
         .string()
@@ -502,99 +387,30 @@ export const pluginTools = {
   ),
   lucaplan_ver_movimiento: read(
     "Ver detalle de movimiento",
-    "Úsala antes de editar, borrar o re-vincular un movimiento: devuelve sus datos, procedencia, relaciones (recurrente, cuota y plan, ingreso, compra origen de un plan) y capacidades exactas (canEdit, editableFields, canDelete, canCategorize con su motivo). Incluye financialContext y budgetPeriod: moneda guardada, impacto registrado, cupo vinculado, equivalente CLP referencial y evidencia no verificada. canCorrectMetadata y canCorrectCurrency indican si las herramientas actuales permiten esas correcciones; no deducir liquidación bancaria desde un correo en pesos.",
+    "Úsala antes de editar, borrar o re-vincular un movimiento: devuelve sus datos, procedencia, relaciones (recurrente, cuota y plan, compra origen de un plan) y capacidades exactas (canEdit, editableFields, canDelete, canCategorize con su motivo). Incluye financialContext y budgetPeriod: moneda guardada, impacto registrado, cupo vinculado, equivalente CLP referencial y evidencia no verificada. canCorrectMetadata y canCorrectCurrency indican si las herramientas actuales permiten esas correcciones; no deducir liquidación bancaria desde un correo en pesos.",
     z.strictObject({ transactionId: ref("Movimiento a consultar") })
   ),
-  lucaplan_crear_movimiento: write(
-    { title: "Crear movimiento manual" },
-    "Úsala para registrar un gasto o ingreso real en una cuenta manual, con su fecha. En cuentas conectadas solo admite abonos (credit) en la cuenta corriente: los cargos llegan por correo y se duplicarían. Mueve el saldo de la cuenta. Un abono confirmado independiente (sin incomeId) participa una sola vez en el ajuste de ingresos del ciclo; uno vinculado a fuente se considera desde la fuente y no se suma dos veces. No la uses para planificar algo futuro (usa ingresos, recurrentes o cuotas) ni para pagar una cuota (usa lucaplan_pagar_cuota o lucaplan_vincular_pago_cuota).",
-    transactionSchema
-      .extend({
-        accountId: ref("Cuenta del movimiento"),
-        categoryId: ref("Categoría del mismo lado")
-          .nullable()
-          .describe(
-            "Categoría del mismo lado (expense para debit, income para credit); null sin categoría"
-          ),
-        description: description.describe("Descripción, p. ej. «Veterinario»"),
-        date: transactionSchema.shape.date
-          .max(40)
-          .describe("Fecha del movimiento YYYY-MM-DD"),
-        amount: transactionSchema.shape.amount.describe(
-          money(", mayor que 0 (el signo lo da direction)")
-        ),
-        currency: transactionSchema.shape.currency.describe(
-          "Moneda: debe ser la de la cuenta"
-        ),
-        direction: transactionSchema.shape.direction.describe(
-          "debit = gasto; credit = ingreso"
-        ),
-        ...operation,
-      })
-      .strict()
+  lucaplan_proponer_conciliacion: read(
+    "Proponer conciliación desde la cartola",
+    "Paso 1 de la conciliación. Recibe la cartola que TÚ ya leíste (document: corte con zona, saldos de cada bucket y cada fila con su tipo) y la empareja con lo que tiene la cuenta, sin IA y sin escribir: pares exactos (dirección, moneda e importe, ±5 días), correcciones por comercio (moneda o importe distinto), altas de lo que falta con su creditKind/internalKind, reversos con el cargo que anulan y retenciones (cargos del correo sin fila). Descarta las filas anteriores al día del último corte conciliado. Devuelve reconcileInput para lucaplan_previsualizar_conciliacion y ambiguous con lo que debe decidir el usuario (cuotas que se saldan con lucaplan_pagar_cuota, reversos sin cargo, varios candidatos; cada uno trae el alta lista si es otro movimiento). Lee la cartola tal cual: no inventes filas ni conviertas monedas.",
+    z.strictObject({
+      accountId: ref("Cuenta corriente o tarjeta de la cartola"),
+      document: statementDocumentSchema,
+    })
   ),
   lucaplan_previsualizar_conciliacion: read(
     "Previsualizar conciliación bancaria completa",
-    "Simula correcciones explícitas por ID (moneda, importe, fecha, categoría), altas sin contraparte y saldos de UNA cuenta. Conserva vínculos, rechaza ambigüedad y reejecuta solo movimientos posteriores al corte. Incluye todos los buckets de esa cuenta e IDs del día del corte que el documento ya incluye. Devuelve previewToken y diferencias; no escribe. No adivinar categorías ni convertir CLP a USD por tipo de cambio estimado: usar moneda e importe de cartola. Si un alta tiene candidatos, devuelve sus IDs para revisarlos con distinctFrom y evidencia por operación distinta. Para liquidar un cobro recurrente conservando su plan usa settleRecurringCharge=true. Para corregir el total y las cuotas de un préstamo o avance loan, incluso pagadas, usa loanCorrections con el cronograma completo y evidencia; conserva fechas y moneda. Para corregir el total financiado y las cuotas pendientes de una compra card usa cardCorrections con todas las cuotas y evidencia; conserva compra origen, importes registrados, fechas y moneda. La diferencia financiada no vuelve a consumir cupo. En una tarjeta devuelve cuotasPendientes con los importes de la propuesta: cuotas de planes card sin saldar que vencen hasta el día del corte. Las líneas de cuota de la factura NO van como additions: sáldalas después con lucaplan_pagar_cuota (o lucaplan_vincular_pago_cuota si su cargo ya está en la app), con la fecha de facturación (día del corte) y el monto de la línea, no la fecha de vencimiento del pago.",
+    "Simula correcciones explícitas por ID (moneda, importe, fecha, categoría), altas sin contraparte, retenciones y saldos de UNA cuenta. Parte normalmente de reconcileInput de lucaplan_proponer_conciliacion. La cartola es la verdad: todo movimiento real entra por aquí (no hay altas manuales). Cada alta lleva creditKind si es abono no interno (income con categoría de ingreso; reimbursement o reversal sin categoría o de gasto) e internalKind si es interna (en cuenta corriente solo overdraft_draw, overdraft_payment y own_transfer; el pago de tarjeta va por su flujo). Un reverso puede llevar reversalOfId: el cargo que anula queda anulado (reversed). retentions anula (reversed, no borra) cargos del correo sin fila en la cartola, con evidencia; se rechaza si el cargo tiene un reembolso vinculado. Rechaza un corte anterior al último conciliado de la cuenta (reconciledUntil). Conserva vínculos, rechaza ambigüedad y reejecuta solo movimientos posteriores al corte. Incluye todos los buckets de esa cuenta e IDs del día del corte que el documento ya incluye. Devuelve previewToken y diferencias; no escribe. No adivinar categorías ni convertir CLP a USD por tipo de cambio estimado: usar moneda e importe de cartola. Si un alta tiene candidatos, devuelve sus IDs para revisarlos con distinctFrom y evidencia por operación distinta. Para liquidar un cobro recurrente conservando su plan usa settleRecurringCharge=true. Para corregir el total y las cuotas de un préstamo o avance loan, incluso pagadas, usa loanCorrections con el cronograma completo y evidencia; conserva fechas y moneda. Para corregir el total financiado y las cuotas pendientes de una compra card usa cardCorrections con todas las cuotas y evidencia; conserva compra origen, importes registrados, fechas y moneda. La diferencia financiada no vuelve a consumir cupo. En una tarjeta devuelve cuotasPendientes con los importes de la propuesta: cuotas de planes card sin saldar que vencen hasta el día del corte. Las líneas de cuota de la factura NO van como additions: sáldalas después con lucaplan_pagar_cuota (o lucaplan_vincular_pago_cuota si su cargo ya está en la app), con la fecha de facturación (día del corte) y el monto de la línea, no la fecha de vencimiento del pago.",
     bankReconciliationSchema
   ),
   lucaplan_aplicar_conciliacion: write(
     {title:"Aplicar conciliación bancaria",destructive:true},
-    "Aplica atómicamente la propuesta verificada por lucaplan_previsualizar_conciliacion, con los mismos datos y previewToken. Conserva identidad y vínculos; guarda auditoría y protege las correcciones del reproceso del correo. No duplica movimientos anteriores al corte. Si cambiaron datos, vuelve a previsualizar. Los cobros recurrentes permiten settleRecurringCharge=true para corregir el importe y moneda liquidados sin cambiar categoría ni plan futuro. loanCorrections corrige atómicamente el total y todas las cuotas de un préstamo loan, incluidos sus pagos existentes, sin cambiar fechas, moneda ni vínculos. No repitas esos pagos en corrections. cardCorrections actualiza el total financiado y los importes pendientes de compras card; conserva la compra origen, las cuotas registradas y sus movimientos, fechas y moneda, sin agregar cargos por la diferencia. No repitas su compra ni sus cuotas registradas en corrections. Los ingresos mantienen sus restricciones. Las altas distintas de candidatos cercanos exigen distinctFrom con sus IDs y evidencia individual.",
+    "Aplica atómicamente la propuesta verificada por lucaplan_previsualizar_conciliacion, con los mismos datos y previewToken. Conserva identidad y vínculos; guarda auditoría y protege las correcciones del reproceso del correo. No duplica movimientos anteriores al corte. Si cambiaron datos, vuelve a previsualizar. Los cobros recurrentes permiten settleRecurringCharge=true para corregir el importe y moneda liquidados sin cambiar categoría ni plan futuro. loanCorrections corrige atómicamente el total y todas las cuotas de un préstamo loan, incluidos sus pagos existentes, sin cambiar fechas, moneda ni vínculos. No repitas esos pagos en corrections. cardCorrections actualiza el total financiado y los importes pendientes de compras card; conserva la compra origen, las cuotas registradas y sus movimientos, fechas y moneda, sin agregar cargos por la diferencia. No repitas su compra ni sus cuotas registradas en corrections. Las retenciones y los reversos con reversalOfId dejan el cargo anulado (reversed), sin borrarlo. Fija reconciledUntil de la cuenta en snapshotAt. Las altas distintas de candidatos cercanos exigen distinctFrom con sus IDs y evidencia individual.",
     bankReconciliationSchema.extend({previewToken:z.string().length(64),...operation})
-  ),
-  lucaplan_conciliar_cartola: read(
-    "Conciliar cartola",
-    "Previsualiza coincidencias de una cartola ya extraída, sin escribir: importe exacto, misma cuenta y moneda, fechas ±1 día; si hay varias coincidencias marca ambiguo. Los pagos y transferencias internas deben excluirse del lote de cargos. No interpreta PDF directamente.",
-    z.strictObject({
-      accountId: ref("Cuenta bancaria"),
-      currency: z.enum(["CLP","USD"]),
-      movements: z.array(z.strictObject({
-        date, description: description.min(1), amount: positive,
-        direction: z.enum(["debit","credit"]),
-      })).min(1).max(50),
-    })
-  ),
-  lucaplan_importar_cargos_bancarios: write(
-    { title: "Importar cargos bancarios en lote", destructive: true },
-    "Importa hasta 20 cargos confirmados de cartola y opcionalmente categoriza cada uno. Revisa duplicados contra movimientos existentes antes de crear cada cargo. Devuelve el resultado individual: creado, duplicado/revisión o error, además de un resumen. Usa operationId idempotente y no repitas el lote si una respuesta queda incierta.",
-    z.strictObject({
-      accountId: ref("Cuenta bancaria conectada"),
-      currency: z.enum(["CLP","USD"]),
-      movements: z.array(z.strictObject({
-        date, description: description.min(1), amount: positive,
-        categoryId: ref("Categoría de gasto").nullable().optional(),
-      })).min(1).max(20),
-      ...operation,
-    })
-  ),
-  lucaplan_registrar_ingreso_extraordinario: write(
-    { title: "Registrar ingreso extraordinario", destructive: true },
-    "Registra un abono real único en cuenta corriente y categoría de ingreso, sin generar una fuente mensual recurrente. No registrar transferencias entre cuentas propias como ingresos. Los abonos confirmados sin fuente de ingreso vinculada sí cuentan para ajustar el presupuesto del ciclo; si ya están vinculados a una fuente, no vuelvas a sumarlos. Verifica antes que no exista el abono. Idempotente por operationId. El presupuesto global del período en curso que sigue al total del plan (marcado con «Igualar al ingreso», o sin definir) se ajusta solo; uno fijado a mano no se toca.",
-    z.strictObject({
-      accountId: ref("Cuenta corriente"),
-      categoryId: ref("Categoría de ingreso"),
-      date, description: description.min(1), amount: positive,
-      currency: z.enum(["CLP","USD"]),
-      ...operation,
-    })
-  ),
-  lucaplan_registrar_cargo_bancario: write(
-    { title: "Registrar cargo bancario faltante", destructive: true },
-    "Registra un cargo real de cartola en una cuenta conectada por correo cuando falta su aviso. Comprueba antes la cuenta, moneda, fecha y monto con lucaplan_buscar_movimientos. Rechaza coincidencias del mismo importe dentro de +/-1 día para impedir duplicados; si hay dos cargos legítimos iguales, usa la importación visual para revisión. No sirve para pagos de tarjeta, traspasos internos, cuotas ya planificadas ni ingresos. Acepta categoryId opcional para clasificar al crear; null mantiene sin categoría. Si se rechaza, explica el motivo y no crea movimiento. La escritura usa operationId idempotente.",
-    z.strictObject({
-      accountId: ref("Cuenta conectada del banco"),
-      date: date.describe("Fecha de la cartola, YYYY-MM-DD"),
-      description: description.min(1).describe("Descripción bancaria real, no una interpretación"),
-      amount: positive.describe("Importe positivo en moneda de la cuenta"),
-      currency: z.enum(["CLP", "USD"]).describe("Moneda de la cuenta"),
-      categoryId: ref("Categoría de gasto perteneciente al usuario").nullable().optional().describe("Categoría opcional; null para dejar sin categorizar"),
-      ...operation,
-    })
   ),
   lucaplan_corregir_metadatos_movimiento: write(
     { title: "Corregir fecha y descripción de movimiento", destructive: true },
-    "Corrige la fecha o descripción de un movimiento propio importado o creado por el agente, incluso en cuenta conectada. No permite alterar importe, moneda, dirección, categoría ni movimientos con ID externo bancario. No modifica saldo. Los ingresos vinculados a una fuente siguen perteneciendo a su mes de generación; para cambiar ese mes se debe deshacer y regenerar con verificación bancaria.",
+    "Corrige la fecha o descripción de un movimiento propio importado o creado por el agente, incluso en cuenta conectada. No permite alterar importe, moneda, dirección, categoría ni movimientos con ID externo bancario. No modifica saldo. No aplica a lo que vino del banco (correo o cartola): eso se corrige en la conciliación.",
     z.strictObject({
       transactionId: ref("Movimiento a corregir"),
       date: date.describe("Fecha real del movimiento YYYY-MM-DD"),
@@ -642,12 +458,12 @@ export const pluginTools = {
   ),
   lucaplan_medidor_financiero: read(
     "Medidor de salud financiera",
-    "Consulta planStatus (presupuesto) y status (plan más liquidez registrada). Una posición neta negativa impide sano, y caja neta cero o línea utilizada implica al menos al_limite. Compara todos los ingresos planificados activos contra todo gasto confirmado no interno del período (con o sin categoría o tope), más una proyección separada de compromisos pendientes sin doble conteo. Crédito y débito usan el mismo cálculo; cambia solo el rango del período. balance y porcentaje corresponden solo al plan; spendable.amount es el disponible para gastar = menor entre margen y topes que quedan (limitedBy dice cuál manda), no caja; liquidity separa caja, línea utilizada y posición neta CLP con los últimos saldos registrados, no saldos históricos del período. Ambos modos incluyen corriente y tarjeta; nunca sumar cupos a caja.",
+    "Consulta planStatus (presupuesto) y status (plan más liquidez registrada). Una posición neta negativa impide sano, y caja neta cero o línea utilizada implica al menos al_limite. Compara el ingreso del período (los abonos de ingreso confirmados) contra todo gasto confirmado no interno del período (con o sin categoría o tope), más una proyección separada de compromisos pendientes sin doble conteo. Crédito y débito usan el mismo cálculo; cambia solo el rango del período. balance y porcentaje corresponden solo al plan; spendable.amount es el disponible para gastar = menor entre margen y topes que quedan (limitedBy dice cuál manda), no caja; liquidity separa caja, línea utilizada y posición neta CLP con los últimos saldos registrados, no saldos históricos del período. Ambos modos incluyen corriente y tarjeta; nunca sumar cupos a caja.",
     z.strictObject(period)
   ),
   lucaplan_ver_presupuesto: read(
     "Ver presupuesto del mes",
-    "Úsala para ver el límite global y el tope, gastado, comprometido y disponible de cada categoría en un mes (actual, pasado o futuro). Los topes se heredan del último mes definido (carry-forward). Todo en CLP; los gastos USD entran convertidos de forma referencial. Los movimientos internos no consumen presupuesto. Para ajustar el límite global: fuentes de ingreso vigentes + abonos confirmados independientes (sin incomeId), sin duplicar los abonos vinculados a ingresos planificados.",
+    "Úsala para ver el límite global y el tope, gastado, comprometido y disponible de cada categoría en un mes (actual, pasado o futuro). Los topes se heredan del último mes definido (carry-forward). Todo en CLP; los gastos USD entran convertidos de forma referencial. Los movimientos internos no consumen presupuesto. El ingreso del plan es la suma de los abonos de ingreso (creditKind income) confirmados del período, por moneda.",
     z.strictObject(period)
   ),
   lucaplan_fijar_presupuesto_global: write(
@@ -682,50 +498,24 @@ export const pluginTools = {
 
   // --- Ingresos ---
   lucaplan_listar_ingresos: read(
-    "Listar fuentes de ingreso",
-    "Lista las fuentes vigentes, su monto y generated. Con available=true lista identidades del usuario sin plan en el modo activo, para incorporarlas mediante sourceId sin duplicar la fuente.",
-    z.strictObject({ ...period, available: z.boolean().optional() })
+    "Listar ingresos del período",
+    "Lista los abonos de ingreso (creditKind income) confirmados del período, con fecha, descripción, monto, moneda y cuenta: su suma es el ingreso del plan. No hay fuentes de ingreso manuales: los ingresos llegan del banco y los que el correo no trae los agrega la conciliación. Para pasar uno a reembolso usa lucaplan_cambiar_tipo_abono.",
+    z.strictObject(period)
   ),
-  lucaplan_crear_ingreso: write(
-    { title: "Crear fuente de ingreso" },
-    "Planifica un ingreso desde el mes indicado en el modo activo. sourceId opcional incorpora una fuente devuelta por listar_ingresos available=true: usa su identidad, cuenta, categoría y día existentes, y solo fija el monto del nuevo plan. No crea movimientos ni cambia caja. El presupuesto global del período en curso que sigue al total del plan (marcado con «Igualar al ingreso», o sin definir) se ajusta solo; uno fijado a mano no se toca.",
-    incomeSchema.extend({ ...incomeFields, ...period, ...operation }).strict()
-  ),
-  lucaplan_editar_ingreso: write(
-    { title: "Editar fuente de ingreso", destructive: true },
-    "Cambia una fuente de ingreso desde el mes indicado; los meses anteriores conservan su monto. Reemplaza todos los campos. Para terminarla usa lucaplan_eliminar_ingreso. El presupuesto global del período en curso que sigue al total del plan (marcado con «Igualar al ingreso», o sin definir) se ajusta solo; uno fijado a mano no se toca.",
-    incomeSchema
+  lucaplan_cambiar_tipo_abono: write(
+    { title: "Cambiar tipo de abono", destructive: true },
+    "Corrige si un abono no interno es ingreso (income: cuenta en el ingreso del plan) o reembolso (reimbursement: no cuenta). No mueve saldos ni crea movimientos. El presupuesto global que sigue al ingreso se ajusta solo; uno fijado a mano no se toca.",
+    changeCreditKindSchema
       .extend({
-        ...incomeFields,
-        id: ref("Fuente de ingreso"),
-        isActive: z.boolean().describe("false = pausada"),
-        ...period,
+        transactionId: ref(
+          "Abono a reclasificar (de lucaplan_listar_ingresos o lucaplan_buscar_movimientos)"
+        ),
+        creditKind: changeCreditKindSchema.shape.creditKind.describe(
+          "income = ingreso del plan; reimbursement = reembolso"
+        ),
         ...operation,
       })
       .strict()
-  ),
-  lucaplan_eliminar_ingreso: write(
-    { title: "Finalizar fuente de ingreso", destructive: true },
-    "Finaliza el plan de la fuente en el modo activo desde el mes indicado. Conserva la identidad, el otro modo, los meses anteriores y los cobros reales.",
-    z.strictObject({ id: ref("Fuente de ingreso"), ...period, ...operation })
-  ),
-  lucaplan_registrar_ingreso_mes: write(
-    { title: "Registrar cobro de ingreso" },
-    "Úsala cuando el ingreso del mes ya llegó: crea una sola vez el movimiento (abono) en su cuenta con el monto de la fuente y sube la caja. Repetirlo no abona dos veces. Si el monto real fue otro, corrígelo después con lucaplan_corregir_movimiento (cuentas manuales). El presupuesto global del período en curso que sigue al total del plan (marcado con «Igualar al ingreso», o sin definir) se ajusta solo; uno fijado a mano no se toca.",
-    z.strictObject({
-      incomeId: ref("Fuente de ingreso"),
-      ...period,
-      ...operation,
-    })
-  ),
-  lucaplan_deshacer_ingreso_mes: write(
-    { title: "Revertir cobro de ingreso", destructive: true },
-    "Deshace el movimiento de ingreso registrado para ese mes y revierte su efecto en la caja. Úsala si se registró por error.",
-    z.strictObject({
-      incomeId: ref("Fuente de ingreso"),
-      ...period,
-      ...operation,
-    })
   ),
 
   // --- Recurrentes ---
@@ -974,7 +764,7 @@ export const pluginTools = {
   // --- Planificación ---
   lucaplan_planificar_periodo: read(
     "Planificar período",
-    "Úsala para planificar un mes actual o futuro: posición de hoy por moneda (caja, sobregiro usado y disponible, deuda y cupo de tarjetas), ingresos esperados vs registrados, recurrentes esperadas vs pagadas, cuotas que vencen, movimientos confirmados con fecha futura y el presupuesto como tope. Los abonos confirmados independientes aumentan el ingreso del período una sola vez; los vinculados a fuentes planificadas no vuelven a sumarse. Separado por moneda y sin doble conteo. Solo lectura: no crea movimientos ni pagos y no cambia saldos. En modo card_cycle devuelve creditCycleCoverage con los ingresos del ciclo anterior que sirven para pagar su factura después del cierre, e indica los pendientes de registro. No atribuyas automáticamente al ciclo actual el sueldo recibido después del cierre anterior; evita duplicar ingresos entre facturaciones. El estado registrado_en_app no prueba recepción bancaria.",
+    "Úsala para planificar un mes actual o futuro: posición de hoy por moneda (caja, sobregiro usado y disponible, deuda y cupo de tarjetas), ingresos del período (abonos de ingreso confirmados), recurrentes esperadas vs pagadas, cuotas que vencen, movimientos confirmados con fecha futura y el presupuesto como tope. El ingreso del plan es la suma de los abonos de ingreso confirmados del período. Separado por moneda y sin doble conteo. Solo lectura: no crea movimientos ni pagos y no cambia saldos. En modo card_cycle devuelve creditCycleCoverage con los abonos de ingreso del ciclo anterior, que sirven para pagar su factura después del cierre. No atribuyas automáticamente al ciclo actual el sueldo recibido después del cierre anterior; evita duplicar ingresos entre facturaciones.",
     z.strictObject(period)
   ),
 

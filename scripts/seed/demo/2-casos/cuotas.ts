@@ -68,6 +68,7 @@ export async function seed({
         direction: "debit",
         status: "confirmed",
         reviewed: true,
+        origin: "email",
       },
     })
   }
@@ -102,7 +103,9 @@ export async function seed({
         direction: "debit",
         status: "confirmed",
         isInternal: true,
+        internalKind: "installment_source",
         reviewed: true,
+        origin: "email",
         externalId: `demo-card-financing-${scenario.key}`,
       },
     })
@@ -144,6 +147,7 @@ export async function seed({
           direction: "debit",
           status: "confirmed",
           reviewed: true,
+          origin: "email",
         },
       })
     }

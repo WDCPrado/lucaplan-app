@@ -3,8 +3,10 @@
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { FileCheck } from "lucide-react"
 import {
   ModalDangerRow,
+  ModalSection,
   ResponsiveModal,
 } from "@/components/ui/responsive-modal"
 import {
@@ -19,6 +21,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { AccountCard } from "./account-card"
+import {
+  ReconcileStatementModal,
+  snapshotLabel,
+} from "./reconciliation/reconcile-statement-modal"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
@@ -42,6 +48,7 @@ export function AccountInfoModal({
   onOpenChange: (o: boolean) => void
 }) {
   const router = useRouter()
+  const [reconciling, setReconciling] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
   const [disconnectError, setDisconnectError] = useState<string | null>(null)
   // Conectada = importada por un banco, cualquiera sea (ver account-card.tsx).
@@ -53,6 +60,11 @@ export function AccountInfoModal({
   const intl = buckets.find((b) => b.kind === "credit_international")
   // Tarjeta de crédito: el "saldo" útil es el CUPO DISPONIBLE, no la deuda (account.balance negativo).
   const isCreditCupo = account?.accountType === "credit_card" && !!nat
+  // La conciliación existe solo para corriente y tarjeta conectadas.
+  const canReconcile =
+    connected &&
+    (account?.accountType === "checking" ||
+      account?.accountType === "credit_card")
 
   async function disconnect() {
     if (!account) return
@@ -155,7 +167,30 @@ export function AccountInfoModal({
                 value={`Saldo estimado desde ${account.buckets?.find((bucket) => bucket.asOf)?.asOf ? new Date(account.buckets.find((bucket) => bucket.asOf)!.asOf!).toLocaleString("es-CL") : "sin fecha"}`}
               />
             )}
+            {canReconcile && (
+              <Row
+                label="Conciliada hasta"
+                value={
+                  account.reconciledUntil
+                    ? snapshotLabel(account.reconciledUntil)
+                    : "Sin conciliar"
+                }
+              />
+            )}
           </dl>
+
+          {canReconcile && (
+            <ModalSection footer="Sube la cartola del banco: agrega lo que falta, corrige lo que difiere y anula las retenciones.">
+              <button
+                type="button"
+                onClick={() => setReconciling(true)}
+                className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <FileCheck aria-hidden className="size-5 shrink-0" />
+                Conciliar cartola
+              </button>
+            </ModalSection>
+          )}
 
           {connected && (
             <div className="flex flex-col gap-1.5">
@@ -198,6 +233,13 @@ export function AccountInfoModal({
             </div>
           )}
         </div>
+      )}
+      {account && (
+        <ReconcileStatementModal
+          accountId={account.id}
+          open={reconciling}
+          onOpenChange={setReconciling}
+        />
       )}
     </ResponsiveModal>
   )

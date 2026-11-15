@@ -64,16 +64,17 @@ financieras existentes.
 
 El contrato fuente está en [`lib/schemas/plugin.ts`](../lib/schemas/plugin.ts): cada herramienta
 tiene `title`, una descripción que empieza por cuándo usarla (y cuál usar en su lugar) y cada
-argumento con `.describe()`. Hoy son 51, agrupadas así:
+argumento con `.describe()`. Agrupadas así:
 
 | Grupo | Leer | Escribir |
 | --- | --- | --- |
 | Operaciones | `ver_operacion` | — |
-| Cuentas y saldos | `listar_cuentas`, `previsualizar_eliminar_cuenta` | `crear_cuenta`, `editar_cuenta`, `eliminar_cuenta`, `actualizar_saldos`, `reconciliar_saldos_correo` |
+| Cuentas | `listar_cuentas`, `previsualizar_eliminar_cuenta` | `crear_cuenta`, `editar_cuenta`, `eliminar_cuenta` |
+| Conciliación | `proponer_conciliacion`, `previsualizar_conciliacion` | `aplicar_conciliacion` |
 | Categorías | `listar_categorias` | `crear_categoria`, `editar_categoria`, `eliminar_categoria`, `asignar_categoria`, `aprender_categoria` |
-| Movimientos | `buscar_movimientos`, `ver_movimiento` | `crear_movimiento`, `corregir_movimiento`, `eliminar_movimiento` |
+| Movimientos | `buscar_movimientos`, `ver_movimiento` | `corregir_movimiento`, `corregir_metadatos_movimiento`, `eliminar_movimiento`, `vincular_reembolso` |
 | Presupuesto | `resumen_mes`, `ver_presupuesto` | `fijar_presupuesto_global`, `fijar_presupuesto_categoria` |
-| Ingresos | `listar_ingresos` | `crear_ingreso`, `editar_ingreso`, `eliminar_ingreso` (finaliza desde un mes), `registrar_ingreso_mes`, `deshacer_ingreso_mes` |
+| Ingresos | `listar_ingresos` (abonos de ingreso del período) | `cambiar_tipo_abono` (ingreso ↔ reembolso) |
 | Recurrentes | `listar_recurrentes`, `candidatos_pago_recurrente` | `crear_recurrente` (desde un movimiento), `planificar_recurrente` (sin cobro previo), `editar_recurrente`, `activar_recurrente`, `eliminar_recurrente`, `marcar_pago_recurrente`, `vincular_pago_recurrente`; `crear_recurrente`, `planificar_recurrente` y `editar_recurrente` aceptan `url` opcional (enlace de pago) |
 | Cuotas | `listar_planes_cuotas`, `ver_plan_cuotas`, `candidatos_pago_cuota` | `crear_plan_cuotas`, `editar_cuota`, `categorizar_plan_cuotas`, `eliminar_plan_cuotas`, `pagar_cuota`, `vincular_pago_cuota`, `desvincular_pago_cuota`, `mover_pago_cuota` |
 | Planificación | `planificar_periodo` | — |
@@ -84,12 +85,12 @@ Todas llevan el prefijo `lucaplan_`. Cómo se navega: **buscar o listar → ver 
 - `buscar_movimientos` filtra por texto, cuenta, moneda, categoría, sin categoría, banco, fechas,
   montos, dirección, internos y estado, con orden estable (fecha desc, id desc) y paginación
   explícita (`total`, `offset`, `limit`, `hasMore`, `nextOffset`). Cada movimiento trae su
-  procedencia (`source`: manual, banco por correo, ingreso, recurrente, cuota), sus relaciones y
+  procedencia (`source`: banco por correo, cartola, recurrente, cuota), sus relaciones y
   sus capacidades efectivas (`canEdit`, `editableFields`, `canDelete` y el motivo si no), calculadas
   con las mismas reglas que el caso de uso.
 - `planificar_periodo` es solo lectura: posición de hoy por moneda (caja, sobregiro usado y
-  disponible, deuda y cupo de tarjetas, desde los buckets en cuentas conectadas), ingresos
-  esperados vs registrados, recurrentes esperadas vs pagadas, cuotas que vencen, movimientos
+  disponible, deuda y cupo de tarjetas, desde los buckets en cuentas conectadas), ingresos del
+  período (abonos de ingreso confirmados), recurrentes esperadas vs pagadas, cuotas que vencen, movimientos
   confirmados con fecha futura y el presupuesto como tope. Lo ya pagado por un movimiento no se
   cuenta dos veces y el presupuesto no se suma como gasto.
 - Eliminar una cuenta manual va en dos pasos. `previsualizar_eliminar_cuenta` calcula el impacto
@@ -128,25 +129,22 @@ Todas llevan el prefijo `lucaplan_`. Cómo se navega: **buscar o listar → ver 
 
 ## Ingresos para el ajuste del plan
 
-El importe que se ofrece con **Igualar al ingreso** (en «Ajustar plan») es la suma de las fuentes de ingreso
-vigentes del período **más** las transacciones `credit` confirmadas del mismo
-período que no estén vinculadas a una fuente (`incomeId = null`). Un abono
-vinculado a una fuente ya está representado por ella y **no se vuelve a sumar**.
-Quedan excluidos movimientos internos, pendientes, anulados, duplicados,
-cuotas y recurrentes que el plan contabiliza por separado. La selección temporal
-respeta modo calendario o ciclo de tarjeta. Esta regla también aplica a
-`lucaplan_planificar_periodo`, sin crear ingresos ficticios ni modificar saldos.
-No confundas el ingreso planificado con la acreditación bancaria confirmada.
+Todo movimiento real viene del banco: no hay altas manuales de movimientos ni fuentes de ingreso.
+El ingreso del plan de un período (mes o ciclo de tarjeta) es la suma de los abonos **de ingreso**
+(`creditKind = income`) confirmados, no internos, con fecha en el período, por moneda. Se calcula
+al leer: los reembolsos (`reimbursement`), los reversos (`reversal`) y los internos no cuentan. Un
+abono mal clasificado se corrige con `lucaplan_cambiar_tipo_abono`. `lucaplan_listar_ingresos`
+devuelve esos abonos. La misma regla usan el presupuesto, `lucaplan_planificar_periodo` y el
+medidor.
 
 **El tope sigue al ingreso.** Al total anterior se le resta el déficit del período anterior (gasto
 por encima de su ingreso). Un presupuesto global lleva una marca, `followsIncome`, que se hereda
 igual que el tope: la pone «Igualar al ingreso» (o `fijar_presupuesto_global` con
 `followIncome: true`) y la quita cualquier tope escrito a mano. Después de cada escritura que puede
 mover ese total, el tope del período **en curso** con la marca, o sin tope definido, queda igual al
-total nuevo (también en 0, si la marca ya estaba). Lo hacen las altas, ediciones y bajas de fuentes
-de ingreso, registrar o deshacer el ingreso del mes, crear, corregir o eliminar movimientos
-(también el cargo bancario y la corrección de fecha), aplicar una conciliación, vincular un abono a
-su fuente o un movimiento a una recurrente o cuota, y la sincronización por correo cuando crea
+total nuevo (también en 0, si la marca ya estaba). Lo hacen cambiar el tipo de un abono, corregir o
+eliminar movimientos (también la corrección de fecha), aplicar una conciliación, vincular un
+movimiento a una recurrente o cuota, y la sincronización por correo cuando crea
 movimientos. Un tope sin la marca nunca se toca, ni aunque llegue en medio: la escritura es
 condicional en la base. Los períodos pasados nunca cambian. Los movimientos valen para los dos
 modos: el que no es el de la vista solo sigue si ya tenía tope. Los topes que existían antes de la
@@ -164,13 +162,13 @@ marca quedan como fijados a mano hasta que se vuelva a igualar.
 - CLP y USD se mantienen separados; las conversiones a CLP del presupuesto son referenciales.
 - Caja, sobregiro y cupo son distintos. En cuentas conectadas el sobregiro sale de sus buckets: el
   saldo de la cuenta nunca se pone negativo para representarlo.
-- Planificar (fuentes de ingreso, recurrentes, planes de cuotas futuros, presupuestos) no crea
+- Planificar (recurrentes, planes de cuotas futuros, presupuestos) no crea
   movimientos, no registra pagos ni cambia la caja.
 - Editar o borrar un movimiento pendiente no mueve la caja: solo un confirmado la movió.
 - Se valida la propiedad de todos los ids de entrada, también los relacionados (`toPlanId`,
-  `transactionId`, `sourceTransactionId`, `categoryId`, `accountId`, `incomeId`).
-- `lucaplan_actualizar_saldos` representa el estado actual; `lucaplan_reconciliar_saldos_correo`
-  recibe la fecha real del documento y rechaza fechas futuras o anteriores al snapshot vigente.
+  `transactionId`, `sourceTransactionId`, `categoryId`, `accountId`).
+- Los saldos solo los fija la conciliación con la cartola (`aplicar_conciliacion`); no hay
+  herramienta para escribirlos a mano.
 - Nada de conexiones bancarias, buzones, lectura de correos ni IA desde el plugin.
 
 ## Cambiar los metadatos de las herramientas
@@ -282,13 +280,8 @@ comprometido en el período, que entran con tope 0); `limitedBy` dice cuál mand
 
 Modo débito (`calendar`) organiza por mes; modo crédito (`card_cycle`) por ciclo.
 Ambos incluyen corriente y tarjeta. Cambiar de modo nunca filtra cuentas ni altera saldos.
-El presupuesto global, los topes y los montos/vigencia de ingresos se guardan por modo;
-su herencia solo usa registros del mismo modo. Cada operación captura el modo activo.
-Las fuentes y sus cobros son compartidos: registrar desde otro modo no duplica un abono
-que ya pertenece a su rango de fechas.
-Para incorporar una fuente al otro modo, `lucaplan_listar_ingresos` con `available=true`
-devuelve las identidades sin plan allí. `lucaplan_crear_ingreso` acepta su `sourceId` y el
-monto para ese plan; conserva la identidad existente. No reactiva planes finalizados.
+El presupuesto global y los topes se guardan por modo; su herencia solo usa registros del mismo
+modo. El ingreso sale de los abonos de ingreso del rango de cada modo, así que no se duplica.
 Los saldos desactualizados requieren conciliación: el medidor no verifica el banco.
 
 ### Movimientos importados como registro del correo
@@ -298,6 +291,37 @@ Para conciliar, **los movimientos `source=bank_email` guardados en Luca Plan son
 Antes de importar un movimiento que parece faltar, buscar en la misma cuenta y considerar también los movimientos excluidos por filtros normales (`settledOnly=false`, `status` para anulados/`reversed` y duplicados/`duplicated`). Un registro conservado mediante eliminación lógica sigue siendo evidencia de un correo procesado y debe revisarse para evitar reimportaciones, aunque no deba computarse como gasto vigente. No asumir que borrar lógicamente borra el correo de origen ni que toda ausencia en la lista predeterminada implica ausencia en el histórico.
 
 Conciliar por cuenta y moneda, importe y ventana razonable de fechas; usar la descripción del comercio para desempatar, sin exigir coincidencia literal. Para avisos provisionales en CLP que se liquidan en USD, corregir el movimiento por ID con el valor de la cartola, conservando identidad y vínculos. Si hay varios candidatos, no asignarlos arbitrariamente: revisar uno a uno. **Este cambio documenta el contrato de uso; no altera el motor de conciliación ni el comportamiento de eliminación lógica.**
+
+### La cartola es la verdad
+
+La cartola manda; el correo es provisorio y sirve de contraste. El agente lee la cartola (con la
+suscripción del usuario) y llama a `lucaplan_proponer_conciliacion` con el documento leído:
+`snapshotAt` con zona, los saldos de cada bucket y cada fila con su `kind` (`purchase`, `fee`,
+`income`, `reimbursement`, `reversal`, `overdraft_draw`, `overdraft_payment`, `own_transfer`,
+`card_payment`, `installment`). En la app, `POST /api/accounts/:id/statement` (multipart `file`:
+PDF, XLS, XLSX o CSV hasta 10 MB) hace la lectura con OpenAI y devuelve la misma propuesta; el
+archivo no se guarda. La propuesta es determinística, sin IA:
+
+1. Descarta las filas anteriores al día de `reconciledUntil` de la cuenta (ya conciliadas).
+2. Par exacto: misma dirección, moneda e importe a ±5 días, el más cercano, 1 a 1.
+3. Par por comercio (moneda o importe distinto, ±5 días): `corrections` con lo de la fila.
+4. Sin par: `additions` con su `creditKind`/`internalKind` (un ingreso con la categoría aprendida
+   por texto o la de ingreso más usada). Un reverso apunta al cargo que anula (`reversalOfId`,
+   mismo comercio e importe hasta 30 días antes). Las cuotas y los pagos de tarjeta no se dan de
+   alta: quedan en `ambiguous`, igual que un reverso sin cargo o varios candidatos (con el alta
+   lista por si la persona dice «es otro movimiento»).
+5. Cargos del correo confirmados entre la primera fila y el día del corte sin fila → `retentions`:
+   se anulan (`reversed`), no se borran.
+6. Los del día del corte con par van en `includedSameDayIds`.
+
+`reconcileInput` va tal cual a `previsualizar_conciliacion`. Al aplicar, las altas quedan con
+`origin = statement`, las retenciones y los cargos de un reverso quedan `reversed` con su
+evidencia, y la cuenta guarda `reconciledUntil = snapshotAt`: un corte anterior se rechaza. Un
+cargo con un reembolso vinculado no se retiene ni se revierte (hay que desvincularlo antes). En
+la corriente se dan de alta internos de una pata: giro de la línea (`overdraft_draw`: caja y
+deuda de la línea suben), pago de la línea (`overdraft_payment`: bajan ambas, la deuda sin pasar
+de 0) y traspaso propio; el pago de tarjeta va por su flujo. Al reproyectar lo posterior al corte,
+todo abono salvo el giro paga primero la línea usada, como el banco.
 
 ### Conciliación que aplica cambios
 
@@ -335,17 +359,12 @@ Los movimientos vinculados admiten corregir fecha y texto conservando sus enlace
 recurrentes permiten corregir importe o moneda con `settleRecurringCharge`; los préstamos permiten
 corregir importes junto con su cronograma mediante `loanCorrections`. En compras de tarjeta,
 `cardCorrections` corrige el total financiado y las cuotas pendientes sin cambiar la compra
-original ni cuotas ya registradas (ver ambos flujos abajo). Para ingresos y cuotas `card`
-vinculados hay que revisar primero su plan. Con un reembolso vinculado no se
+original ni cuotas ya registradas (ver ambos flujos abajo). Para cuotas `card` vinculadas hay
+que revisar primero su plan. Con un reembolso vinculado no se
 corrige importe ni moneda, y una transferencia interna tampoco lo admite.
 Editar el importe o la fecha de un movimiento conciliado (en la app, en el MCP o al editar su
 cuota) borra su conciliación; cambiar solo categoría o descripción la conserva.
-Las altas se rechazan si existe un candidato cercano; no se crean transferencias internas
-sin sus dos patas. Las categorías se eligen con evidencia del usuario, nunca por adivinación.
-
-Las herramientas antiguas de previsualización simple y reconciliación de saldos se conservan
-por compatibilidad. Para documentos históricos y correcciones usa el flujo nuevo, no
-`actualizar_saldos` fingiendo que un saldo histórico es actual.
+Las altas se rechazan si existe un candidato cercano sin `distinctFrom`. Las categorías se eligen con evidencia del usuario, nunca por adivinación.
 
 Búsqueda y detalle exponen `bankReconciliation` con evidencia cuando existe.
 

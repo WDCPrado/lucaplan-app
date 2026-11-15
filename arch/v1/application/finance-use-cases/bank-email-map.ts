@@ -20,9 +20,9 @@ export type EmailInstrumentRef =
   | { kind: "credit_card"; last4: string }
   | { kind: "primary_checking" }
 
-// No existe una variante de ingreso, y es a propósito: del correo solo sale el gasto; toda entrada
-// de dinero es ajuste de saldo interno. Ver docs/bank-email-contract.md.
-export type EmailEventKind = "expense" | "internal_credit" | "internal_payment"
+// No existe una variante de ingreso ni de abono, y es a propósito: del correo solo salen el gasto y
+// el pago interno; los ingresos los agrega la conciliación con la cartola. Ver docs/bank-email-contract.md.
+export type EmailEventKind = "expense" | "internal_payment"
 
 export type EmailEventSource =
   | "cargo_cuenta"
@@ -56,7 +56,7 @@ export type EmailSkipReason =
   | "sin_monto"
   | "sin_instrumento"
   | "plantilla_desconocida"
-  | "abono_ignorado" // entrada de dinero: se declara en Ingresos, no se deduce del correo
+  | "abono_ignorado" // entrada de dinero: la agrega la conciliación con la cartola
 
 export type ParsedEmail =
   | { ok: true; event: EmailEvent }

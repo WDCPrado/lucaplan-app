@@ -2,6 +2,8 @@
 // persiste y las reglas únicas que comparten la conciliación, el aviso por correo y la búsqueda.
 // Sin IO ni Prisma: los adapters implementan `BankReconciliationStore`.
 
+import type { CreditKind, InternalKind } from "./finance.domain.ts"
+
 export type ReconciliationMovement = {
   id: string
   date: string
@@ -22,9 +24,19 @@ export type ReconciliationMovement = {
   linked: boolean
   reimbursementAmount: number
   updatedAt: string
+  // ponytail: opcionales para no romper fixtures; el adapter los llena siempre.
+  origin?: string
+  creditKind?: CreditKind | null
+  internalKind?: InternalKind | null
 }
 export type ReconciliationState = {
   accountType: string
+  // Corte de la última conciliación aplicada a la cuenta; un corte anterior se rechaza.
+  reconciledUntil?: string | null
+  // Para proponer la categoría de un abono de ingreso: reglas aprendidas (texto normalizado con
+  // `normalizeMovementText`) y la categoría de ingreso más usada por el usuario.
+  learnedIncomeCategories?: { normalizedText: string; categoryId: string }[]
+  topIncomeCategoryId?: string | null
   buckets: {
     id: string
     kind: string
@@ -113,6 +125,9 @@ export type ReconciliationAddition = SettledFields & {
   direction: string
   isInternal: boolean
   bucketId: string
+  creditKind?: CreditKind | null // obligatorio en credit no interno
+  internalKind?: InternalKind | null // obligatorio con isInternal
+  reversalOfId?: string | null // cargo que anula un abono `reversal`; queda `reversed`
   distinctFrom?: { transactionId: string; evidence: string }[]
 }
 export type ReconciliationProjectedBucket = {
@@ -123,10 +138,61 @@ export type ReconciliationProjectedBucket = {
   used: number
   available: number
 }
+// --- Cartola leída: tipo de cada fila (el documento y la propuesta se tipan desde lib/schemas) ---
+
+/** Qué es cada fila de la cartola. `installment` no se da de alta: se salda con pagar_cuota. */
+export const STATEMENT_ROW_KINDS = [
+  "purchase",
+  "fee",
+  "income",
+  "reimbursement",
+  "reversal",
+  "overdraft_draw",
+  "overdraft_payment",
+  "own_transfer",
+  "card_payment",
+  "installment",
+] as const
+export type StatementRowKind = (typeof STATEMENT_ROW_KINDS)[number]
+
+/** Cargo del correo sin par en la cartola: queda `reversed` (no se borra) con su evidencia. */
+export type ReconciliationRetention = {
+  before: ReconciliationMovement
+  evidence: string
+}
+
+/** Lee una cartola (PDF, XLS, XLSX, CSV) y devuelve el documento crudo; el caso de uso lo valida. */
+export interface StatementReader {
+  read(
+    file: { name: string; type: string; data: Uint8Array },
+    // buckets: los cupos que tiene la cuenta (tipo y moneda), para que el lector no invente otros.
+    context: { accountType: string; buckets: { kind: string; currency: string }[] }
+  ): Promise<unknown>
+}
+
+/** La cartola subida no se pudo recibir o leer (formato, tamaño, lector caído o salida inválida). */
+export class StatementReadError extends Error {
+  constructor(message = "No se pudo leer la cartola") {
+    super(message)
+    this.name = "StatementReadError"
+  }
+}
+
+/** El token de la previsualización ya no calza con la cuenta (cambió o venció el día) → 409: previsualizar de nuevo. */
+export class StalePreviewError extends Error {
+  constructor(
+    message = "Los datos cambiaron desde la previsualización; repite el dry run"
+  ) {
+    super(message)
+    this.name = "StalePreviewError"
+  }
+}
+
 /** Lo que devuelve `planBankReconciliation`: puro, sin escribir nada. */
 export type BankReconciliationPlan = {
   corrections: ReconciliationCorrection[]
   additions: ReconciliationAddition[]
+  retentions: ReconciliationRetention[]
   loanCorrections: ReconciliationLoanCorrection[]
   cardCorrections: ReconciliationCardCorrection[]
   projectedBuckets: ReconciliationProjectedBucket[]

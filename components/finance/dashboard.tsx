@@ -1,7 +1,5 @@
 "use client"
 
-import type { IncomeSource } from "@/arch/v1/domain/finance/income.domain"
-
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -37,7 +35,6 @@ import { AccountInfoModal } from "./account-info-modal"
 import { LiquidityDetailModal } from "./liquidity-detail-modal"
 import { SyncBancoChileButton } from "./sync-bancochile-button"
 import { TransactionModal } from "./transaction-modal"
-import { IncomeModal } from "./income-modal"
 import { OnboardingFlow } from "./onboarding/onboarding-flow"
 import type { OnboardingStatus } from "@/lib/onboarding-schemas"
 import {
@@ -60,7 +57,7 @@ import type {
   AccountDTO,
   BudgetViewDTO,
   CategoryDTO,
-  IncomeDTO,
+  IncomeCreditDTO,
   MonthlySummaryDTO,
   TransactionDTO,
 } from "@/arch/v1/application/finance-use-cases/finance-read"
@@ -85,9 +82,8 @@ type Props = {
   accounts: AccountDTO[]
   budget: BudgetViewDTO
   transactions: TransactionDTO[]
-  incomes: IncomeDTO[]
-  availableIncomeSources: IncomeSource[]
-  previousCycleIncomes: IncomeDTO[]
+  // Abonos de ingreso del período (lo que llegó al banco): la sección Ingresos del plan.
+  incomeCredits: IncomeCreditDTO[]
   // Déficit de gastos frente a ingresos del período ANTERIOR, descontado del total a repartir.
   // Llega resuelta del servidor; el front no la recalcula. 0 = el mes pasado cerró en regla.
   previousMonthDebt: number
@@ -111,9 +107,7 @@ export function Dashboard({
   accounts,
   budget,
   transactions,
-  incomes,
-  availableIncomeSources,
-  previousCycleIncomes,
+  incomeCredits,
   previousMonthDebt,
   outlookResult,
   outlookReason,
@@ -142,16 +136,14 @@ export function Dashboard({
   const [newCatType, setNewCatType] = useState<"income" | "expense" | null>(
     null
   )
-  // Ingreso (fuente) en edición: modal SEPARADO del de categoría (una categoría tiene N ingresos).
-  const [editIncome, setEditIncome] = useState<IncomeDTO | null | undefined>(
-    undefined
-  ) // undefined=cerrado, null=crear
   const {
     ref: cardsRef,
     handlers: cardsHandlers,
     onScroll: cardsScroll,
   } = useCardCarousel()
-  const [infoAccount, setInfoAccount] = useState<AccountDTO | null>(null)
+  // Solo el id: la cuenta se deriva de `accounts` para que «Conciliada hasta» se refresque.
+  const [infoAccountId, setInfoAccountId] = useState<string | null>(null)
+  const infoAccount = accounts.find((a) => a.id === infoAccountId) ?? null
   const [budgetLimitOpen, setBudgetLimitOpen] = useState(false)
   // Plan del mes (ingresos + presupuesto): decisiones ocasionales, fuera del flujo diario.
   const [planOpen, setPlanOpen] = useState(false)
@@ -360,24 +352,6 @@ export function Dashboard({
       lockedType={editCat ? null : newCatType}
       remainingToAllocate={budget.remainingToAllocate}
     />
-  )
-  const incomeEditor = (
-    <IncomeModal
-      availableSources={availableIncomeSources}
-      key={editIncome?.id ?? "new-income"}
-      open={editIncome !== undefined}
-      onOpenChange={(o) => !o && setEditIncome(undefined)}
-      accounts={accounts}
-      categories={budget.categories}
-      income={editIncome}
-      period={period}
-      onCreateCategory={() => {
-        setNewCatType("income")
-        setEditCat(null)
-      }}
-    >
-      {editIncome !== undefined && categoryEditor}
-    </IncomeModal>
   )
   const budgetEditor = (
     <BudgetLimitModal
@@ -761,7 +735,7 @@ export function Dashboard({
                   >
                     <AccountCard
                       account={a}
-                      onClick={() => setInfoAccount(a)}
+                      onClick={() => setInfoAccountId(a.id)}
                     />
                   </div>
                 ))}
@@ -791,11 +765,10 @@ export function Dashboard({
       />
       <AccountInfoModal
         account={infoAccount}
-        onOpenChange={(o) => !o && setInfoAccount(null)}
+        onOpenChange={(o) => !o && setInfoAccountId(null)}
       />
       {!planOpen && categoryDetail}
-      {!planOpen && editIncome === undefined && !detail && categoryEditor}
-      {!planOpen && incomeEditor}
+      {!planOpen && !detail && categoryEditor}
       {!planOpen && budgetEditor}
       <PlanSheet
         open={planOpen}
@@ -804,26 +777,18 @@ export function Dashboard({
         cycleRange={cycle.mode === "card_cycle" ? cycle.range : undefined}
         mode={cycle.mode}
         closing={cycle.closing}
-        isCurrentMonth={isCurrentMonth}
         globalLimit={budget.globalLimit}
         globalLimitFollowsIncome={budget.globalLimitFollowsIncome}
         allocated={budget.allocated}
         expenseCategories={budget.categories.filter(
           (c) => c.type === "expense"
         )}
-        incomes={incomes}
-        previousCycleIncomes={cycle.mode === "card_cycle" ? previousCycleIncomes : []}
+        incomeCredits={incomeCredits}
         incomeCategories={incomeCategories}
         activeIncomeTotal={activeIncomeTotal}
         previousMonthDebt={previousMonthDebt}
         onEditBudget={() => {
           setBudgetLimitOpen(true)
-        }}
-        onAddIncome={() => {
-          setEditIncome(null)
-        }}
-        onEditIncome={(inc) => {
-          setEditIncome(inc)
         }}
         onOpenIncomeCategory={(cat) => {
           setDetail(cat)
@@ -834,23 +799,16 @@ export function Dashboard({
         }}
       >
         {budgetEditor}
-        {incomeEditor}
         {categoryDetail}
-        {editIncome === undefined && !detail && categoryEditor}
+        {!detail && categoryEditor}
       </PlanSheet>
       {!detail && transactionEditor}
 
       {onboarding && (
         <OnboardingFlow
           status={onboardingStatus}
-          accounts={accounts}
-          categories={budget.categories}
-          incomes={incomes}
-          availableIncomeSources={availableIncomeSources}
-          period={period}
           globalLimit={budget.globalLimit}
           totalSpent={totalUsed}
-          remainingToAllocate={budget.remainingToAllocate}
           transactions={transactions}
           outlookResult={outlookResult}
           outlookReason={outlookReason}

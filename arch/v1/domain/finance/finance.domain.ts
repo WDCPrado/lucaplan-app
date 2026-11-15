@@ -78,6 +78,37 @@ export const MOVEMENT_STATUSES = [
 ] as const
 export type MovementStatus = (typeof MOVEMENT_STATUSES)[number]
 
+// De dónde vino un movimiento. La cartola es la verdad; el correo es provisorio y se contrasta con
+// ella. `system` es el comprometido (pendiente) de una recurrente o cuota; `legacy`, lo anterior a
+// WDC-183. No hay altas manuales.
+export const TRANSACTION_ORIGINS = [
+  "email",
+  "statement",
+  "system",
+  "legacy",
+] as const
+export type TransactionOrigin = (typeof TRANSACTION_ORIGINS)[number]
+// «Vino del banco»: lo que trajo el aviso o la cartola.
+export const BANK_ORIGINS = [
+  "email",
+  "statement",
+] as const satisfies readonly TransactionOrigin[]
+
+// Tipo de un abono no interno. El ingreso del plan suma solo los `income` confirmados del período.
+export const CREDIT_KINDS = ["income", "reimbursement", "reversal"] as const
+export type CreditKind = (typeof CREDIT_KINDS)[number]
+
+// Tipo de un movimiento interno (no consume presupuesto). Los de sobregiro mueven caja y deuda de la
+// línea a la vez; la línea no es caja.
+export const INTERNAL_KINDS = [
+  "overdraft_draw",
+  "overdraft_payment",
+  "own_transfer",
+  "card_payment",
+  "installment_source", // compra original de un plan card, neutralizada; no se da de alta
+] as const
+export type InternalKind = (typeof INTERNAL_KINDS)[number]
+
 // Efecto de un movimiento sobre el saldo de su cuenta: el crédito suma y el débito resta, pero SOLO
 // si está confirmado. Un pendiente (el comprometido de una recurrente, un cargo que el banco aún no
 // confirma) nunca movió la caja, así que editarlo o borrarlo tampoco puede moverla.
@@ -129,11 +160,12 @@ export type Account = {
   accountType: AccountType
   currency: CurrencyCode
   balance: Money // saldo firmado; en checking es independiente de la línea utilizada
-  overdraftLimit: Money
   color: string | null // presentación
   cardLast4: string | null // últimos 4 dígitos de la tarjeta; obligatorio en tipos con tarjeta (checking/credit_card)
   provider: Provider // "manual" | "bancochile"; las conectadas son de solo lectura
   externalId: string | null // id de la cuenta en el banco (número de cuenta / últimos 4)
+  // Corte de la última cartola conciliada; lo anterior no se reprocesa. Opcional para no romper fixtures.
+  reconciledUntil?: Date | null
 }
 
 // Tarjeta física de una cuenta. Una cuenta corriente tiene una tarjeta de débito; una cuenta de
@@ -225,21 +257,14 @@ export type Transaction = {
   recurringTemplateId?: string | null
   // Cuota de un plan que este movimiento salda; ausente = no pertenece a ningún plan.
   installmentItemId?: string | null
-  // Fuente de ingreso que generó este movimiento; ausente = no lo generó una fuente.
-  incomeId?: string | null
+  // ponytail: opcionales como los de arriba para no romper fixtures; el repo los llena siempre.
+  origin?: TransactionOrigin
+  creditKind?: CreditKind | null // solo credit no interno
+  internalKind?: InternalKind | null // solo isInternal
+  reversalOfId?: string | null // en un abono `reversal`: el cargo que anula
 }
 
 // --- Inputs de escritura ---
-
-export type NewTransaction = {
-  userId: string
-  accountId: string
-  categoryId: string | null
-  date: Date
-  description: string
-  amount: Money
-  direction: Direction
-}
 
 export type UpdateTransaction = {
   id: string
@@ -261,7 +286,6 @@ export type NewAccount = {
   accountType: AccountType
   currency: CurrencyCode
   balance: Money
-  overdraftLimit: Money
   color: string | null
   cardLast4: string | null
 }
@@ -381,7 +405,9 @@ export interface MonthlyBudgetRepository {
   // Escribe el tope del mes con la marca puesta SOLO si ese mes no tiene fila o la suya sigue al
   // ingreso: nunca pisa un tope manual, aunque llegue entre la lectura y esta escritura.
   // `true` = escribió.
-  setFollowingIncome(input: Omit<MonthlyBudgetInput, "followsIncome">): Promise<boolean>
+  setFollowingIncome(
+    input: Omit<MonthlyBudgetInput, "followsIncome">
+  ): Promise<boolean>
 }
 
 export interface TransactionRepository {
@@ -407,8 +433,6 @@ export interface TransactionRepository {
   // otro caso además de la UI lo necesita.
   amountBounds?(userId: string): Promise<{ min: number; max: number }>
   findById(id: string): Promise<Transaction | null>
-  // Crea el movimiento y ajusta el saldo de la cuenta atómicamente (débito resta, crédito suma).
-  create(tx: NewTransaction): Promise<Transaction>
   // Edita un movimiento manual reajustando el saldo por la diferencia (nuevo − viejo), atómico.
   update(input: UpdateTransaction): Promise<Transaction>
   // Asigna/cambia solo la categoría (permitido también en movimientos conectados; no toca el saldo).
@@ -422,6 +446,8 @@ export interface TransactionRepository {
     transactionId: string,
     categoryId: string
   ): Promise<boolean>
+  // Corrige el tipo de un abono (ingreso ↔ reembolso). No toca el saldo.
+  setCreditKind(transactionId: string, creditKind: CreditKind, userId: string): Promise<Transaction>
   // Borra un movimiento manual revirtiendo su efecto en el saldo, atómico.
   delete(transactionId: string): Promise<void>
 }
@@ -464,6 +490,14 @@ export class InvalidMonthlyBudgetError extends Error {
   constructor(message = "Presupuesto del mes inválido") {
     super(message)
     this.name = "InvalidMonthlyBudgetError"
+  }
+}
+
+// Solo un abono no interno de ingreso o reembolso cambia de tipo (→ 422).
+export class InvalidCreditKindChangeError extends Error {
+  constructor(message = "Solo un abono de ingreso o reembolso puede cambiar de tipo") {
+    super(message)
+    this.name = "InvalidCreditKindChangeError"
   }
 }
 
@@ -518,4 +552,3 @@ export class WebhookSignatureError extends Error {
     this.name = "WebhookSignatureError"
   }
 }
-

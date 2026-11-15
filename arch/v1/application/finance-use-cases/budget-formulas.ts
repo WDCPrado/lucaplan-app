@@ -25,6 +25,37 @@ export function inRange(date: Date, range: PeriodRange): boolean {
   return day >= range.start && day <= range.end
 }
 
+/**
+ * ¿Es un abono que cuenta como ingreso del plan? Confirmado, no interno, `creditKind=income` y real:
+ * el que genera el sistema (una recurrente de ingreso marcada pagada) no cuenta hasta que llega por
+ * correo o cartola.
+ */
+export function isPlanIncome(
+  t: Pick<Transaction, "direction" | "status" | "isInternal" | "creditKind" | "origin">
+): boolean {
+  return (
+    t.direction === "credit" &&
+    t.creditKind === "income" &&
+    t.status === "confirmed" &&
+    !t.isInternal &&
+    t.origin !== "system"
+  )
+}
+
+/**
+ * Ingreso del plan de un período: Σ abonos de ingreso con fecha en el rango, en UNA moneda (CLP y
+ * USD nunca se suman). Se calcula al leer: agregar o reclasificar un abono lo mueve solo.
+ */
+export function incomeOfPeriod(
+  transactions: readonly Transaction[],
+  range: PeriodRange,
+  currency: CurrencyCode
+): Money {
+  return transactions
+    .filter((t) => isPlanIncome(t) && t.amount.currency === currency && inRange(t.date, range))
+    .reduce((sum, t) => sum.add(t.amount), Money.zero(currency))
+}
+
 /** Caja activa: Σ saldo POSITIVO de cuentas `checking` de la moneda dada. Cupos y negativos no cuentan. */
 export function computeActiveCash(
   accounts: Account[],
@@ -40,17 +71,6 @@ export function computeActiveCash(
     .reduce((sum, a) => sum.add(a.balance), Money.zero(currency))
 }
 
-/** Sobregiro de una cuenta: usado = |saldo| si es negativo; disponible = límite − usado. */
-export function computeOverdraft(account: Account): {
-  used: Money
-  available: Money
-} {
-  const used = account.balance.isNegative
-    ? account.balance.negate()
-    : Money.zero(account.currency)
-  return { used, available: account.overdraftLimit.subtract(used) }
-}
-
 /** Deuda de sobregiro total: Σ saldos negativos de cuentas `checking` de la moneda dada. */
 export function computeOverdraftDebt(
   accounts: Account[],
@@ -63,7 +83,7 @@ export function computeOverdraftDebt(
         a.currency === currency &&
         a.balance.isNegative
     )
-    .reduce((sum, a) => sum.add(computeOverdraft(a).used), Money.zero(currency))
+    .reduce((sum, a) => sum.add(a.balance.negate()), Money.zero(currency))
 }
 
 /** Posición neta = caja activa − deuda de sobregiro. Puede ser negativa (aquí aparece el rojo). */

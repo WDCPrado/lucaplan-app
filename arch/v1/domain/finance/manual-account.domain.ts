@@ -8,7 +8,6 @@ export type ManualAccountUpdate = {
   name: string
   color: string | null
   cardLast4: string | null
-  overdraftLimit: number
 }
 
 // Foto de todo lo que borrar la cuenta toca, leída en una sola consulta. Es la base del impacto
@@ -37,15 +36,12 @@ export type ManualAccountSnapshot = {
     installmentItemId: string | null
     installmentPlanId: string | null
     installmentPlanAccountId: string | null
-    incomeId: string | null
-    incomeAccountId: string | null
     sourceOfPlanId: string | null // compra origen neutralizada de un plan de cuotas
     sourceOfPlanAccountId: string | null
   }[]
-  incomes: { id: string; name: string }[]
   recurring: { id: string; label: string }[]
   plans: { id: string; description: string; kind: string }[]
-  // Movimientos de OTRAS cuentas que apuntan a ingresos, recurrentes o planes de ESTA cuenta.
+  // Movimientos de OTRAS cuentas que apuntan a recurrentes o planes de ESTA cuenta.
   foreignTransactions: {
     id: string
     accountId: string
@@ -53,14 +49,13 @@ export type ManualAccountSnapshot = {
     recurringTemplateId: string | null
     installmentItemId: string | null
     installmentPlanId: string | null
-    incomeId: string | null
   }[]
 }
 
 export type CrossLink = {
   transactionId: string
-  kind: "cuota" | "recurrente" | "ingreso" | "compra_origen"
-  targetId: string // plan, plantilla o fuente apuntada
+  kind: "cuota" | "recurrente" | "compra_origen"
+  targetId: string // plan o plantilla apuntada
   otherAccountId: string // la cuenta que NO se borra
   effect: string
 }
@@ -72,7 +67,6 @@ export type AccountDeletionImpact = {
     pendingTransactions: number
     buckets: number
     cards: number
-    incomes: { id: string; name: string }[]
     recurring: { id: string; label: string }[]
     installmentPlans: { id: string; description: string; kind: string }[]
     bank: boolean
@@ -115,14 +109,6 @@ export function accountDeletionImpact(
         otherAccountId: t.recurringAccountId,
         effect: "Ese período de la recurrente vuelve a quedar sin cobro",
       })
-    if (t.incomeId && t.incomeAccountId && t.incomeAccountId !== own)
-      toOtherAccounts.push({
-        transactionId: t.id,
-        kind: "ingreso",
-        targetId: t.incomeId,
-        otherAccountId: t.incomeAccountId,
-        effect: "Ese mes del ingreso vuelve a quedar sin registrar",
-      })
     if (
       t.sourceOfPlanId &&
       t.sourceOfPlanAccountId &&
@@ -149,18 +135,11 @@ export function accountDeletionImpact(
         targetId: t.installmentPlanId ?? t.installmentItemId,
         effect: "El pago queda como gasto normal, con su categoría actual",
       }
-    if (t.recurringTemplateId)
-      return {
-        ...base,
-        kind: "recurrente" as const,
-        targetId: t.recurringTemplateId,
-        effect: "El cobro queda como movimiento normal, sin recurrente",
-      }
     return {
       ...base,
-      kind: "ingreso" as const,
-      targetId: t.incomeId ?? "",
-      effect: "El movimiento queda sin fuente de ingreso",
+      kind: "recurrente" as const,
+      targetId: t.recurringTemplateId ?? "",
+      effect: "El cobro queda como movimiento normal, sin recurrente",
     }
   })
   return {
@@ -172,7 +151,6 @@ export function accountDeletionImpact(
       ).length,
       buckets: s.buckets,
       cards: s.cards,
-      incomes: s.incomes,
       recurring: s.recurring,
       installmentPlans: s.plans,
       bank: s.account.bankIsManual && s.otherAccountsInBank === 0,
@@ -197,7 +175,7 @@ export interface ManualAccountRepository {
   /**
    * En UNA transacción: vuelve a leer la foto, se la pasa a `check` (que lanza para abortar sin
    * escribir), reabre los planes de otras cuentas que pierden un pago, borra la cuenta —la
-   * cascada de la BD se lleva movimientos, buckets, tarjetas, ingresos, recurrentes y planes— y
+   * cascada de la BD se lleva movimientos, buckets, tarjetas, recurrentes y planes— y
    * el banco manual si queda vacío. Devuelve lo que `check` devolvió.
    */
   deleteChecked(

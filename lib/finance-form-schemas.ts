@@ -66,7 +66,6 @@ export const accountSchema = z
     }),
     currency: z.enum(["CLP", "USD"], { error: "Selecciona una moneda" }),
     balance: number,
-    overdraftLimit: number.optional(),
     color: nullableText,
     cardLast4: nullableText,
   })
@@ -83,22 +82,6 @@ export const accountSchema = z
       })
     }
   })
-
-export const incomeSchema = z.object({
-  sourceId: text.optional(),
-  accountId: text,
-  categoryId: text,
-  name: text.refine(
-    (value) => Boolean(value.trim()),
-    "La fuente de ingreso necesita un nombre"
-  ),
-  amount: number.positive("El monto del ingreso debe ser mayor que 0"),
-  dayOfMonth: number
-    .int("El día de ingreso debe estar entre 1 y 31")
-    .min(1, "El día de ingreso debe estar entre 1 y 31")
-    .max(31, "El día de ingreso debe estar entre 1 y 31"),
-})
-export const incomeUpdateSchema = incomeSchema.extend({ isActive: z.boolean() })
 
 const transactionFields = {
   categoryId: nullableText,
@@ -125,15 +108,16 @@ export const transactionUpdateSchema = z.object({
 // El editor conserva la restricción de la UI existente. El PATCH mantiene su contrato histórico.
 export const transactionEditFormSchema = transactionUpdateSchema.extend({
   amount: transactionSchema.shape.amount,
-  description: incomeSchema.shape.name,
+  description: text.refine(
+    (value) => Boolean(value.trim()),
+    "El movimiento necesita una descripción"
+  ),
 })
 
 export type MonthlyBudgetFormValues = z.infer<typeof monthlyBudgetSchema>
 export type CategoryLimitFormValues = z.infer<typeof categoryLimitSchema>
 export type CategoryFormValues = z.infer<typeof categorySchema>
 export type AccountFormValues = z.infer<typeof accountSchema>
-export type IncomeFormValues = z.infer<typeof incomeSchema>
-export type IncomeUpdateFormValues = z.infer<typeof incomeUpdateSchema>
 export type TransactionFormValues = z.infer<typeof transactionSchema>
 export type TransactionUpdateFormValues = z.infer<
   typeof transactionUpdateSchema

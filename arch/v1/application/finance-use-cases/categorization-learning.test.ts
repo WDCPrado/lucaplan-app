@@ -86,7 +86,7 @@ function fakeTransactions(byId: Record<string, Transaction>) {
     async findById(id: string) {
       return byId[id] ?? null
     },
-    async create(): Promise<Transaction> {
+    async setCreditKind(): Promise<Transaction> {
       throw new Error("no usado")
     },
     async update(): Promise<Transaction> {

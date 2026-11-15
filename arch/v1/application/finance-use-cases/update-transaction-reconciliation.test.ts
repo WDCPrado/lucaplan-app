@@ -22,7 +22,6 @@ const account: Account = {
   accountType: "credit_card",
   currency: "CLP",
   balance: Money.of(0, "CLP"),
-  overdraftLimit: Money.of(0, "CLP"),
   color: null,
   cardLast4: null,
   provider: "manual",

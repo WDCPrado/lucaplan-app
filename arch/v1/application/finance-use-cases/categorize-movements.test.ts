@@ -76,7 +76,7 @@ function makeDeps(provider: CategorizationProvider, categories: Category[]) {
       async countByUser() {
         return 0
       },
-      async create() {
+      async setCreditKind() {
         throw new Error("no usado")
       },
       async findById() {

@@ -13,6 +13,7 @@ import {
 } from "../domain/finance/email-connection.domain.ts"
 import { InvalidRecurringUrlError } from "../domain/finance/recurring.domain.ts"
 import { UnknownBankError } from "./finance-use-cases/bank-email-registry.ts"
+import { StalePreviewError } from "../domain/finance/bank-reconciliation.domain.ts"
 
 test("Cada error de dominio que llega por withUser tiene su status y deja pasar su mensaje", () => {
   const cases: [Error, number][] = [
@@ -21,6 +22,7 @@ test("Cada error de dominio que llega por withUser tiene su status y deja pasar 
     [new InvalidRecurringUrlError("Escribe un enlace válido"), 400],
     [new UserNotFoundError("u1"), 404],
     [new BankAlreadyLinkedError(), 409],
+    [new StalePreviewError(), 409],
     [new SelfTargetError("banear"), 422],
     [new BankLabelRequiredError(), 422],
   ]

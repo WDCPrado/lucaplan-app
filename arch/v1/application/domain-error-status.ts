@@ -12,6 +12,7 @@ import {
   CategoryNotFoundError,
   InvalidMonthlyBudgetError,
   TransactionCurrencyMismatchError,
+  InvalidCreditKindChangeError,
   CardLast4RequiredError,
   ConnectedAccountReadOnlyError,
   BankConnectionError,
@@ -26,10 +27,6 @@ import {
   EmailSetupStateError,
   OAuthStateError,
 } from "../domain/finance/email-connection.domain.ts"
-import {
-  InvalidIncomeError,
-  IncomeNotFoundError,
-} from "../domain/finance/income.domain.ts"
 import { InvalidPaceFrequencyError } from "../domain/finance/pace.domain.ts"
 import { InvalidBudgetPeriodError } from "../domain/finance/budget-period.domain.ts"
 import { AccountBalanceError } from "../domain/finance/account-balance.domain.ts"
@@ -75,6 +72,10 @@ import {
 } from "../domain/setup/setup.domain.ts"
 import { LockBusyError } from "../../shared/mutex.ts"
 import {
+  StalePreviewError,
+  StatementReadError,
+} from "../domain/finance/bank-reconciliation.domain.ts"
+import {
   AmbiguousCategoryNameError,
   OnboardingCompletedError,
   ConcurrentCategorySaveError,
@@ -103,6 +104,7 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof DuplicateBudgetAlertError || // ya existe una alerta a ese %
     e instanceof RecurringPeriodBankPaidError || // el período ya lo cobró el banco
     e instanceof StaleAccountDeletionError || // la cuenta cambió desde la previsualización
+    e instanceof StalePreviewError || // la conciliación cambió desde la previsualización
     e instanceof BankAlreadyLinkedError || // ese banco ya está en este correo
     e instanceof OnboardingCompletedError || // el onboarding ya terminó
     e instanceof ConcurrentCategorySaveError || // otro guardado del set entró primero
@@ -116,12 +118,12 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof InvalidPaceFrequencyError ||
     e instanceof InvalidBudgetPeriodError ||
     e instanceof TransactionCurrencyMismatchError ||
+    e instanceof InvalidCreditKindChangeError ||
     e instanceof CategoryInUseError ||
     e instanceof CardLast4RequiredError ||
     e instanceof ConnectedAccountReadOnlyError ||
     e instanceof BankConnectionError ||
     e instanceof InvalidMonthlyBudgetError ||
-    e instanceof InvalidIncomeError ||
     e instanceof InvalidRecurringTemplateError ||
     e instanceof RecurringCategoryRequiredError ||
     e instanceof RecurringPeriodNotManualError ||
@@ -135,6 +137,7 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof InvalidManualAccountError ||
     e instanceof EmailReauthRequiredError ||
     e instanceof EmailSetupStateError ||
+    e instanceof StatementReadError ||
     e instanceof AccountBalanceError ||
     e instanceof BankLabelRequiredError ||
     e instanceof SelfTargetError ||
@@ -145,7 +148,6 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof NotOwnerError ||
     e instanceof AccountNotFoundError ||
     e instanceof CategoryNotFoundError ||
-    e instanceof IncomeNotFoundError ||
     e instanceof RecurringTemplateNotFoundError ||
     e instanceof InstallmentPlanNotFoundError ||
     e instanceof EmailConnectionNotFoundError ||

@@ -30,6 +30,7 @@ try {
   const movement = (id: string, amount: number, direction = "debit", categoryId: string | null = category.id, date = "2026-10-31") => prisma.transaction.create({ data: {
     id: `${userId}-${id}`, userId, accountId: account.id, categoryId, transactionDate: new Date(date), description: id,
     amount, currency: "CLP", direction, status: "confirmed",
+    origin: "statement", creditKind: direction === "credit" ? "income" : null,
   } })
   for (const mode of ["calendar", "card_cycle"])
     await prisma.categoryLimit.create({ data: { categoryId: category.id, mode, year: 2026, month: 9, limitAmount: 100000 } })
@@ -46,7 +47,7 @@ try {
   assert.equal(budget.spent, 60000)
   assert.equal(budget.categories.find(c => c.id === category.id)?.available, 60000)
   assert.equal(budget.reimbursementAdjustment, 0)
-  assert.equal(budget.income, 20000)
+  assert.equal(budget.income, 0, "un abono vinculado como reembolso no es ingreso del plan (WDC-183)")
   assert.equal(budget.globalLimit, 100000)
   assert.equal(budget.remainingToAllocate, -20000)
   assert.equal((await view("card_cycle", 2026, 12)).allocated, 90000)

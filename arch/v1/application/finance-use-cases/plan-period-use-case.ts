@@ -4,8 +4,9 @@
 // comprometidos, no crea movimientos ni toca saldos.
 //
 // Sin doble conteo: una recurrente o cuota ya pagada se informa como pagada y no suma a lo
-// pendiente; un movimiento confirmado que paga una recurrente, una cuota o un ingreso no vuelve a
-// sumarse como "movimiento futuro". El presupuesto se informa como TOPE, nunca como gasto extra.
+// pendiente; un movimiento confirmado que paga una recurrente o una cuota, o un abono de ingreso, no
+// vuelve a sumarse como "movimiento futuro". El ingreso es lo que ya entró (abonos de ingreso del
+// período, `incomeOfPeriod`): no hay ingresos esperados. El presupuesto se informa como TOPE, nunca como gasto extra.
 import type {
   AccountRepository,
   BalanceBucketRepository,
@@ -14,10 +15,6 @@ import type {
   MonthlyBudgetRepository,
   TransactionRepository,
 } from "../../domain/finance/finance.domain.ts"
-import {
-  isIncomeEndedAt,
-  type IncomeRepository,
-} from "../../domain/finance/income.domain.ts"
 import {
   executionDateFor,
   periodIsWithinValidity,
@@ -34,10 +31,8 @@ import type { BudgetPeriodRepository } from "../../domain/finance/budget-period.
 import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
 import { daysOf } from "../../../shared/billing-cycle.ts"
 import { todayKey } from "../../../shared/today.ts"
-import { rangeOf, getBudgetPeriod, scopeBudgetPeriod } from "./budget-period-use-cases.ts"
-import { inRange } from "./budget-formulas.ts"
-import { effectiveIncomeAmount } from "./income-use-cases.ts"
-import { isAdditionalIncome } from "../../../../lib/additional-income.ts"
+import { rangeOf, scopeBudgetPeriod } from "./budget-period-use-cases.ts"
+import { inRange, incomeOfPeriod, isPlanIncome } from "./budget-formulas.ts"
 import { getBudgetView } from "./finance-read.ts"
 
 const CURRENCIES: CurrencyCode[] = ["CLP", "USD"]
@@ -53,7 +48,6 @@ type PlanDeps = {
   categories: CategoryRepository
   monthlyBudgets: MonthlyBudgetRepository
   transactions: TransactionRepository
-  incomes: IncomeRepository
   recurring: RecurringTemplateRepository
   installments: InstallmentPlanRepository
   exchangeRates: ExchangeRateProvider
@@ -84,13 +78,10 @@ export async function getPeriodPlan(
   today = todayKey()
 ) {
   deps = await scopeBudgetPeriod(deps)
-  const { mode } = await getBudgetPeriod(deps)
   const range = await rangeOf(deps, year, month)
   const [
     accounts,
     buckets,
-    incomes,
-    incomeAmounts,
     templates,
     plans,
     txs,
@@ -98,8 +89,6 @@ export async function getPeriodPlan(
   ] = await Promise.all([
     deps.accounts.listByUser(userId),
     deps.balanceBuckets.listByUser(userId),
-    deps.incomes.listByUser(userId, mode),
-    deps.incomes.listAmountsByUser(userId, mode),
     deps.recurring.listActiveByUser(userId),
     deps.installments.listByUser(userId),
     deps.transactions.listByUserPeriod(userId, range),
@@ -122,38 +111,23 @@ export async function getPeriodPlan(
   )
   const totals = (c: CurrencyCode) => byCurrency.get(c)!
 
-  // Ingresos esperados del mes vs registrados (el movimiento generado desde la fuente).
-  const incomeRows = []
-  const plannedIncomeIds = new Set<string>()
-  for (const income of incomes) {
-    if (!income.isActive || isIncomeEndedAt(income, year, month)) continue
-    const amount = effectiveIncomeAmount(incomeAmounts, income.id, year, month)
-    if (!amount) continue
-    plannedIncomeIds.add(income.id)
-    const received = await deps.incomes.hasGeneratedFor(income.id, year, month, range)
-    const t = totals(amount.currency).income
-    t.expected = t.expected.add(amount)
-    if (received) t.done = t.done.add(amount)
-    else t.pending = t.pending.add(amount)
-    incomeRows.push({
-      id: income.id,
-      name: income.name,
-      accountId: income.accountId,
-      dayOfMonth: income.dayOfMonth,
-      amount: amount.toMajor(),
-      currency: amount.currency,
-      status: received ? "registrado" : "esperado",
-    })
+  // Ingresos: los abonos de ingreso del período, por moneda. Ya entraron: no hay pendiente.
+  for (const c of CURRENCIES) {
+    const received = incomeOfPeriod(txs, range, c)
+    totals(c).income.expected = received
+    totals(c).income.done = received
   }
-
-  // Abonos reales independientes: incrementan la capacidad del ciclo una sola vez.
-  // Un vínculo solo excluye el abono si su fuente fue incluida arriba.
-  for (const t of txs) {
-    if (!inRange(t.date, range) || !isAdditionalIncome(t, plannedIncomeIds)) continue
-    const c = totals(t.amount.currency).income
-    c.expected = c.expected.add(t.amount)
-    c.done = c.done.add(t.amount)
-  }
+  const incomeRows = txs
+    .filter((t) => isPlanIncome(t) && inRange(t.date, range))
+    .map((t) => ({
+      id: t.id,
+      description: t.description,
+      accountId: t.accountId,
+      date: t.date.toISOString().slice(0, 10),
+      amount: t.amount.toMajor(),
+      currency: t.amount.currency,
+      status: "registrado" as const,
+    }))
 
   // Recurrentes: cada período cuya fecha de ejecución cae en el rango, con su estado real.
   const recurringRows = []
@@ -229,15 +203,8 @@ export async function getPeriodPlan(
   // Movimientos ya registrados que no son de ninguna recurrente, cuota ni ingreso (esos ya están
   // arriba): los confirmados con fecha futura y los que el banco aún no confirma.
   for (const t of txs) {
-    // Ya agregado a income.done/expected arriba: no repetir como crédito futuro.
-    if (isAdditionalIncome(t, plannedIncomeIds)) continue
-    if (
-      t.isInternal ||
-      t.recurringTemplateId ||
-      t.installmentItemId ||
-      t.incomeId
-    )
-      continue
+    // Ya agregado a income arriba: no repetir como crédito futuro.
+    if (isPlanIncome(t) || t.isInternal || t.recurringTemplateId || t.installmentItemId) continue
     const c = totals(t.amount.currency)
     if (t.status === "confirmed" && t.date.toISOString().slice(0, 10) > today) {
       if (t.direction === "debit") c.futureDebit = c.futureDebit.add(t.amount)

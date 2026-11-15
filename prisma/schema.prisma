@@ -151,8 +151,6 @@ model Bank {
   isActive         Boolean            @default(true)
   provider         String             @default("manual") // manual | clave de un banco del catálogo (bancochile, …)
   connectionMethod String? // email (solo bancos conectados); null = manual
-  externalLinkId   String? // ponytail: columna legada sin uso; dropear en una migración aparte
-  linkToken        String? // ponytail: columna legada sin uso; dropear en una migración aparte
   lastSyncedAt     DateTime?
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
@@ -160,7 +158,6 @@ model Bank {
   emailBankLink    EmailBankLink?
 
   @@index([userId])
-  @@index([externalLinkId])
   @@map("bank")
 }
 
@@ -173,19 +170,19 @@ model FinancialAccount {
   accountType    String // checking | savings | credit_card | credit_line | wallet | investment
   currency       String // ISO 4217: CLP, USD
   balance        Decimal             @default(0) @db.Decimal(18, 2) // permite negativo (sobregiro) en checking
-  overdraftLimit Decimal             @default(0) @db.Decimal(18, 2)
   color          String? // presentación: color de la tarjeta (opcional)
   cardLast4      String? // últimos 4 dígitos de la tarjeta; obligatorio en app para checking/credit_card
   status         String              @default("active")
   provider       String              @default("manual") // manual | bancochile (solo lectura)
   externalId     String? // id de la cuenta en el banco (número de cuenta / últimos 4)
   lastSyncedAt   DateTime?
+  // Corte (snapshotAt) de la última conciliación con cartola aplicada; lo anterior no se reprocesa.
+  reconciledUntil DateTime?
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   transactions   Transaction[]
   cards          Card[]
   buckets        BalanceBucket[]
-  incomes        Income[]
   recurring      RecurringTemplate[]
   installments   InstallmentPlan[]
 
@@ -324,7 +321,6 @@ model Category {
   limits       CategoryLimit[]
   transactions Transaction[]
   corrections  CategorizationCorrection[]
-  incomes      Income[]
   recurring    RecurringTemplate[]
   installments InstallmentPlan[]
   reimbursementEffects ReimbursementBudgetEffect[]
@@ -332,63 +328,6 @@ model Category {
   @@unique([userId, name])
   @@index([userId])
   @@map("category")
-}
-
-// Fuente de ingreso mensual del usuario (sueldo, arriendo, freelance...), creada a mano. Semilla del
-// límite global del presupuesto (Σ ingresos activos). El botón "generar" materializa el ingreso del
-// mes como una Transaction (credit) en la cuenta destino (que NO es de crédito). `incomeId` en la
-// Transaction deja el gancho para la recurrencia automática futura. Relación con el usuario por
-// columna `userId` (convención: el dominio financiero no toca el User que regenera Better Auth).
-model Income {
-  id           String           @id @default(uuid())
-  userId       String
-  accountId    String // cuenta destino (no credit_card/credit_line): donde entra el ingreso
-  account      FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  categoryId   String // categoría type=income
-  category     Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  name         String
-  currency     String // ISO 4217: coincide con la moneda de la cuenta destino
-  dayOfMonth   Int // día de ingreso esperado (1–31)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  transactions Transaction[]
-  amounts      IncomeAmount[]
-  plans        IncomePlan[]
-
-  @@index([userId])
-  @@index([accountId])
-  @@index([categoryId])
-  @@map("income")
-}
-
-// Activación y fin de vigencia independientes; la identidad y los cobros siguen compartidos.
-model IncomePlan {
-  incomeId   String
-  income     Income @relation(fields: [incomeId], references: [id], onDelete: Cascade)
-  mode       String
-  isActive   Boolean @default(true)
-  endedYear  Int?
-  endedMonth Int?
-
-  @@id([incomeId, mode])
-  @@map("income_plan")
-}
-
-// Monto por modo y período. Hereda el último previo del mismo modo; antes del primero no existe.
-model IncomeAmount {
-  id        String   @id @default(uuid())
-  incomeId  String
-  income    Income   @relation(fields: [incomeId], references: [id], onDelete: Cascade)
-  mode      String
-  year      Int
-  month     Int
-  amount    Decimal  @db.Decimal(18, 2)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([incomeId, mode, year, month])
-  @@index([incomeId, mode, year, month])
-  @@map("income_amount")
 }
 
 // Corrección de categorización: memoria por usuario (texto normalizado del movimiento → categoría
@@ -452,7 +391,7 @@ model MonthlyBudget {
 // su Transaction como `pending` (gasto comprometido, no cuenta como gastado) y el cargo real del
 // banco la confirma, reconocido por descripción normalizada + monto dentro de ±tolerancePct del
 // baseAmount. La categoría es obligatoria y manda: un movimiento vinculado a una plantilla nunca
-// pasa por la IA. Mismo patrón que Income, pero para gastos.
+// pasa por la IA.
 model RecurringTemplate {
   id           String           @id @default(uuid())
   userId       String
@@ -548,8 +487,18 @@ model Transaction {
   reconciliation          Json? // evidencia bancaria y valores originales; protege del reproceso de correo
   bucketId                String? // bucket/cupo al que corresponde (solo si el banco lo identifica sin ambigüedad)
   bucket                  BalanceBucket?     @relation(fields: [bucketId], references: [id], onDelete: SetNull)
-  incomeId                String? // fuente de ingreso que generó este movimiento (gancho para recurrencia); null en el resto
-  income                  Income?            @relation(fields: [incomeId], references: [id], onDelete: SetNull)
+  // De dónde vino: email (aviso del banco, provisorio) | statement (cartola) | system (comprometido
+  // de una recurrente o cuota, pendiente) | legacy (anterior a WDC-183). «Vino del banco» = email|statement.
+  origin                  String
+  // Solo en credit no interno: income | reimbursement | reversal. El ingreso del plan suma los income.
+  creditKind              String?
+  // Solo con isInternal: overdraft_draw | overdraft_payment | own_transfer | card_payment |
+  // installment_source (compra original neutralizada de un plan card).
+  internalKind            String?
+  // En un abono `reversal`: el cargo que anula.
+  reversalOfId            String?
+  reversalOf              Transaction?       @relation("Reversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
+  reversals               Transaction[]      @relation("Reversal")
   reimbursementsPaid      ExpenseReimbursement[] @relation("ReimbursedExpense")
   reimbursementsReceived  ExpenseReimbursement[] @relation("ReimbursementCredit")
   // plantilla recurrente que materializó este movimiento; borrar la plantilla conserva lo confirmado
@@ -582,7 +531,7 @@ model Transaction {
   @@index([accountId, transactionDate])
   @@index([categoryId])
   @@index([bucketId])
-  @@index([incomeId])
+  @@index([reversalOfId])
   @@index([recurringTemplateId])
   @@map("transaction")
 }

@@ -78,6 +78,37 @@ export const MOVEMENT_STATUSES = [
 ] as const
 export type MovementStatus = (typeof MOVEMENT_STATUSES)[number]
 
+// De dónde vino un movimiento. La cartola es la verdad; el correo es provisorio y se contrasta con
+// ella. `system` es el comprometido (pendiente) de una recurrente o cuota; `legacy`, lo anterior a
+// WDC-183. No hay altas manuales.
+export const TRANSACTION_ORIGINS = [
+  "email",
+  "statement",
+  "system",
+  "legacy",
+] as const
+export type TransactionOrigin = (typeof TRANSACTION_ORIGINS)[number]
+// «Vino del banco»: lo que trajo el aviso o la cartola.
+export const BANK_ORIGINS = [
+  "email",
+  "statement",
+] as const satisfies readonly TransactionOrigin[]
+
+// Tipo de un abono no interno. El ingreso del plan suma solo los `income` confirmados del período.
+export const CREDIT_KINDS = ["income", "reimbursement", "reversal"] as const
+export type CreditKind = (typeof CREDIT_KINDS)[number]
+
+// Tipo de un movimiento interno (no consume presupuesto). Los de sobregiro mueven caja y deuda de la
+// línea a la vez; la línea no es caja.
+export const INTERNAL_KINDS = [
+  "overdraft_draw",
+  "overdraft_payment",
+  "own_transfer",
+  "card_payment",
+  "installment_source", // compra original de un plan card, neutralizada; no se da de alta
+] as const
+export type InternalKind = (typeof INTERNAL_KINDS)[number]
+
 // Efecto de un movimiento sobre el saldo de su cuenta: el crédito suma y el débito resta, pero SOLO
 // si está confirmado. Un pendiente (el comprometido de una recurrente, un cargo que el banco aún no
 // confirma) nunca movió la caja, así que editarlo o borrarlo tampoco puede moverla.
@@ -227,6 +258,11 @@ export type Transaction = {
   installmentItemId?: string | null
   // Fuente de ingreso que generó este movimiento; ausente = no lo generó una fuente.
   incomeId?: string | null
+  // ponytail: opcionales como los de arriba para no romper fixtures; el repo los llena siempre.
+  origin?: TransactionOrigin
+  creditKind?: CreditKind | null // solo credit no interno
+  internalKind?: InternalKind | null // solo isInternal
+  reversalOfId?: string | null // en un abono `reversal`: el cargo que anula
 }
 
 // --- Inputs de escritura ---
@@ -381,7 +417,9 @@ export interface MonthlyBudgetRepository {
   // Escribe el tope del mes con la marca puesta SOLO si ese mes no tiene fila o la suya sigue al
   // ingreso: nunca pisa un tope manual, aunque llegue entre la lectura y esta escritura.
   // `true` = escribió.
-  setFollowingIncome(input: Omit<MonthlyBudgetInput, "followsIncome">): Promise<boolean>
+  setFollowingIncome(
+    input: Omit<MonthlyBudgetInput, "followsIncome">
+  ): Promise<boolean>
 }
 
 export interface TransactionRepository {
@@ -518,4 +556,3 @@ export class WebhookSignatureError extends Error {
     this.name = "WebhookSignatureError"
   }
 }
-

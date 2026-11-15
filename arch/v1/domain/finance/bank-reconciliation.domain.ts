@@ -2,6 +2,8 @@
 // persiste y las reglas únicas que comparten la conciliación, el aviso por correo y la búsqueda.
 // Sin IO ni Prisma: los adapters implementan `BankReconciliationStore`.
 
+import type { CreditKind, InternalKind } from "./finance.domain.ts"
+
 export type ReconciliationMovement = {
   id: string
   date: string
@@ -113,6 +115,9 @@ export type ReconciliationAddition = SettledFields & {
   direction: string
   isInternal: boolean
   bucketId: string
+  creditKind?: CreditKind | null // obligatorio en credit no interno
+  internalKind?: InternalKind | null // obligatorio con isInternal
+  reversalOfId?: string | null // cargo que anula un abono `reversal`; queda `reversed`
   distinctFrom?: { transactionId: string; evidence: string }[]
 }
 export type ReconciliationProjectedBucket = {
@@ -123,6 +128,23 @@ export type ReconciliationProjectedBucket = {
   used: number
   available: number
 }
+// --- Cartola leída: tipo de cada fila (el documento y la propuesta se tipan desde lib/schemas) ---
+
+/** Qué es cada fila de la cartola. `installment` no se da de alta: se salda con pagar_cuota. */
+export const STATEMENT_ROW_KINDS = [
+  "purchase",
+  "fee",
+  "income",
+  "reimbursement",
+  "reversal",
+  "overdraft_draw",
+  "overdraft_payment",
+  "own_transfer",
+  "card_payment",
+  "installment",
+] as const
+export type StatementRowKind = (typeof STATEMENT_ROW_KINDS)[number]
+
 /** Lo que devuelve `planBankReconciliation`: puro, sin escribir nada. */
 export type BankReconciliationPlan = {
   corrections: ReconciliationCorrection[]

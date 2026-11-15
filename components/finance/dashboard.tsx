@@ -141,7 +141,9 @@ export function Dashboard({
     handlers: cardsHandlers,
     onScroll: cardsScroll,
   } = useCardCarousel()
-  const [infoAccount, setInfoAccount] = useState<AccountDTO | null>(null)
+  // Solo el id: la cuenta se deriva de `accounts` para que «Conciliada hasta» se refresque.
+  const [infoAccountId, setInfoAccountId] = useState<string | null>(null)
+  const infoAccount = accounts.find((a) => a.id === infoAccountId) ?? null
   const [budgetLimitOpen, setBudgetLimitOpen] = useState(false)
   // Plan del mes (ingresos + presupuesto): decisiones ocasionales, fuera del flujo diario.
   const [planOpen, setPlanOpen] = useState(false)
@@ -733,7 +735,7 @@ export function Dashboard({
                   >
                     <AccountCard
                       account={a}
-                      onClick={() => setInfoAccount(a)}
+                      onClick={() => setInfoAccountId(a.id)}
                     />
                   </div>
                 ))}
@@ -763,7 +765,7 @@ export function Dashboard({
       />
       <AccountInfoModal
         account={infoAccount}
-        onOpenChange={(o) => !o && setInfoAccount(null)}
+        onOpenChange={(o) => !o && setInfoAccountId(null)}
       />
       {!planOpen && categoryDetail}
       {!planOpen && !detail && categoryEditor}

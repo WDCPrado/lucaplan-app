@@ -222,8 +222,10 @@ export function planBankReconciliation(
       },
     }))
   )
-  // Cargo que queda anulado (retención o reverso): del correo o la app, confirmado, hasta el corte,
-  // sin reembolso, cuota ni recurrente vinculada (no se desvincula solo) y sin otra decisión en el lote.
+  // Movimiento que queda anulado (retención o reverso): confirmado, hasta el corte, no interno (una
+  // pata de un pago no se anula sola), sin reembolso, cuota ni recurrente vinculada (no se desvincula
+  // solo) y sin otra decisión en el lote. El reverso anula un cargo; la retención, un cargo del correo
+  // o un movimiento previo a la cartola (legacy) en cualquier sentido.
   const voidable = (id: string, what: string) => {
     if (ids.has(id))
       reject(`${what}: el movimiento ${id} ya tiene otra decisión en el lote`)
@@ -231,8 +233,10 @@ export function planBankReconciliation(
     const m =
       state.movements.find((m) => m.id === id) ??
       reject(`${what}: movimiento ajeno o inexistente`)
-    if (m.direction !== "debit" || m.status !== "confirmed" || m.date > cutoffDay)
-      reject(`${what}: solo un cargo confirmado hasta el día del corte`)
+    if (m.status !== "confirmed" || m.date > cutoffDay)
+      reject(`${what}: solo un movimiento confirmado hasta el día del corte`)
+    if (m.isInternal)
+      reject(`${what}: un movimiento interno no se anula; concilia sus dos patas`)
     if (m.reimbursementAmount)
       reject(
         `${what}: el cargo ${id} tiene un reembolso vinculado; desvincúlalo antes de anularlo`
@@ -245,14 +249,23 @@ export function planBankReconciliation(
   }
   const retentions = (input.retentions ?? []).map((r) => {
     const before = voidable(r.transactionId, "Retención")
-    if (before.origin !== "email")
-      reject("Retención: solo un cargo que vino del correo")
+    if (
+      before.origin === "email"
+        ? before.direction !== "debit"
+        : before.origin !== "legacy"
+    )
+      reject(
+        "Retención: solo un cargo del correo o un movimiento anterior a la cartola (legacy)"
+      )
     return { before, evidence: r.evidence }
   })
   const reversedIds = new Set(retentions.map((r) => r.before.id))
   for (const a of input.additions)
-    if (a.reversalOfId)
-      reversedIds.add(voidable(a.reversalOfId, "Reverso").id)
+    if (a.reversalOfId) {
+      const charge = voidable(a.reversalOfId, "Reverso")
+      if (charge.direction !== "debit") reject("Reverso: solo anula un cargo")
+      reversedIds.add(charge.id)
+    }
   const movements = state.movements.map((m) =>
     reversedIds.has(m.id)
       ? { ...m, status: "reversed" }
@@ -304,7 +317,10 @@ export function planBankReconciliation(
         `Posible duplicado entre altas del lote ${index}; concilia por separado`
       )
     const candidates = movements.filter(similar)
-    const reviewed = a.distinctFrom ?? []
+    // El cargo que este reverso anula (cargo, no abono) nunca es candidato: si viene, se ignora.
+    const reviewed = (a.distinctFrom ?? []).filter(
+      (r) => r.transactionId !== a.reversalOfId
+    )
     if (
       new Set(reviewed.map((r) => r.transactionId)).size !== reviewed.length ||
       reviewed.some(
@@ -326,14 +342,19 @@ export function planBankReconciliation(
     return { ...a, bucketId: target(a.currency, false, null) }
   })
   const included = new Set(input.includedSameDayIds)
-  for (const id of included) {
-    if (
-      !movements.some(
-        (m) => m.id === id && m.date === cutoffDay && m.status === "confirmed"
-      )
+  const excluded = new Set(input.excludedSameDayIds ?? [])
+  const sameDay = (id: string) =>
+    movements.some(
+      (m) => m.id === id && m.date === cutoffDay && m.status === "confirmed"
     )
+  for (const id of included)
+    if (!sameDay(id))
       reject("includedSameDayIds contiene un ID ajeno al día del corte")
-  }
+  for (const id of excluded)
+    if (!sameDay(id) || included.has(id))
+      reject(
+        "excludedSameDayIds contiene un ID ajeno al día del corte o que también está incluido"
+      )
   const replay: ReconciliationMovement[] = []
   for (const m of movements.filter((m) => m.status === "confirmed")) {
     if (m.date < cutoffDay || included.has(m.id) || ids.has(m.id)) continue
@@ -343,6 +364,7 @@ export function planBankReconciliation(
     if (m.cardInstallment) continue
     if (
       m.date === cutoffDay &&
+      !excluded.has(m.id) &&
       (!m.bankReceivedAt ||
         new Date(m.bankReceivedAt) <= new Date(input.snapshotAt))
     )

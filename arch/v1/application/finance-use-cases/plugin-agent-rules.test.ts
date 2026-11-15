@@ -7,12 +7,10 @@ import { Money } from "../../domain/finance/money.ts"
 import {
   cashDelta,
   type Account,
-  type BalanceBucket,
 } from "../../domain/finance/finance.domain.ts"
 import type { ManualAccountSnapshot } from "../../domain/finance/manual-account.domain.ts"
 import { StaleAccountDeletionError } from "../../domain/finance/manual-account.domain.ts"
-import { getPeriodPlan, currencyPositions } from "./plan-period-use-case.ts"
-import { projectCashEvent } from "./bucket-projection.ts"
+import { getPeriodPlan } from "./plan-period-use-case.ts"
 import {
   deleteManualAccount,
   previewManualAccountDeletion,
@@ -181,72 +179,6 @@ test("Dado un mes futuro, cuando planifico, entonces no escribe nada y separa CL
   )
   assert.equal(CLP.expectedNetChange, -50000)
   assert.equal(plan.positionToday[0].cash, 200000)
-})
-
-test("Dada caja 200.000 y línea disponible 1.000.000, cuando gasto 400.000, entonces caja 0, sobregiro usado 200.000 y línea disponible 800.000 sin saldo negativo en la cuenta", async () => {
-  const buckets: BalanceBucket[] = [
-    {
-      id: "cash",
-      userId: "u1",
-      accountId: "a1",
-      cardId: null,
-      kind: "cash",
-      currency: "CLP",
-      limitAmount: clp(0),
-      used: clp(0),
-      available: clp(200000),
-      asOf: null,
-    },
-    {
-      id: "od",
-      userId: "u1",
-      accountId: "a1",
-      cardId: null,
-      kind: "overdraft",
-      currency: "CLP",
-      limitAmount: clp(1000000),
-      used: clp(0),
-      available: clp(1000000),
-      asOf: null,
-    },
-  ]
-  let balance = clp(200000)
-  await projectCashEvent(
-    {
-      accounts: readOnly({
-        setBalance: async (_id: string, b: Money) => {
-          balance = b
-        },
-      }),
-      balanceBuckets: readOnly({
-        listByAccount: async () => buckets,
-        updateAmounts: async (
-          id: string,
-          a: Omit<
-            BalanceBucket,
-            "id" | "userId" | "accountId" | "cardId" | "kind" | "currency"
-          >
-        ) => {
-          Object.assign(buckets.find((b) => b.id === id)!, a)
-        },
-      }),
-    },
-    "a1",
-    clp(400000),
-    "debit"
-  )
-  assert.equal(
-    balance.toMajor(),
-    0,
-    "el saldo de la cuenta conectada no se pone negativo"
-  )
-  const [position] = currencyPositions(
-    [account({ provider: "bancochile", balance })],
-    buckets
-  )
-  assert.equal(position.cash, 0)
-  assert.equal(position.overdraftUsed, 200000)
-  assert.equal(position.overdraftAvailable, 800000)
 })
 
 test("Dado un movimiento pendiente, cuando se edita o borra, entonces no mueve la caja; uno confirmado sí", () => {

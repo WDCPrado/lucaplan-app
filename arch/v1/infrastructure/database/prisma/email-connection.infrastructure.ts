@@ -65,9 +65,8 @@ const planDeps = {
   exchangeRates: exchangeRateProvider,
 }
 
-// Un aviso del banco es provisorio (la cartola lo confirma). Un abono no interno que llegue por correo
-// cuenta como ingreso hasta que la conciliación o la persona lo reclasifique.
-// Un interno trae su tipo desde el aviso (pago de tarjeta o de la línea).
+// Un aviso del banco es provisorio (la cartola lo confirma). El correo nunca trae un abono no interno
+// (ver isInternalEvent), así que no lleva creditKind; un interno trae su tipo desde el aviso.
 function emailKinds(m: {
   direction: string
   isInternal: boolean
@@ -75,7 +74,7 @@ function emailKinds(m: {
 }) {
   return {
     origin: "email",
-    creditKind: m.direction === "credit" && !m.isInternal ? "income" : null,
+    creditKind: null,
     internalKind: m.isInternal ? (m.internalKind ?? null) : null,
   }
 }

@@ -16,6 +16,7 @@ import { normalizeMovementText } from "../../domain/finance/categorization-learn
 import type {
   BankReconciliationInput,
   ReconciliationProposal,
+  ReconciliationSkipped,
   StatementDocument,
 } from "../../../../lib/schemas/bank-reconciliation.ts"
 
@@ -24,6 +25,8 @@ const PAIR_DAYS = 5
 const REVERSAL_DAYS = 30
 const daysApart = (a: string, b: string) =>
   Math.abs(Date.parse(a) - Date.parse(b)) / DAY
+// Tope de la evidencia en el esquema de la conciliación.
+const cap = (text: string) => text.slice(0, 2000)
 
 type Addition = BankReconciliationInput["additions"][number]
 type Ambiguous = ReconciliationProposal["ambiguous"][number]
@@ -55,14 +58,52 @@ export function proposeReconciliation(
     : null
   const evidence = (i: number) => {
     const r = document.rows[i]
-    return `${document.source} · fila ${i + 1}: ${r.date} ${r.description} ${r.amount} ${r.currency}`
+    return cap(
+      `${document.source} · fila ${i + 1}: ${r.date} ${r.description} ${r.amount} ${r.currency}`
+    )
   }
+
+  // Lo que la cuenta no puede recibir (moneda sin cupo, cupo que no tiene) queda fuera y se informa,
+  // en vez de tumbar toda la previsualización.
+  const skipped: ReconciliationSkipped[] = []
+  const has = (kind: string, currency: string) =>
+    state.buckets.some((b) => b.kind === kind && b.currency === currency)
+  const rowBucket = (currency: string) =>
+    state.accountType === "credit_card"
+      ? currency === "USD"
+        ? "credit_international"
+        : "credit_national"
+      : "cash"
+  const BUCKET_NAME: Record<string, string> = {
+    cash: "caja",
+    overdraft: "línea de crédito",
+    credit_national: "cupo nacional",
+    credit_international: "cupo internacional",
+  }
+  const buckets = document.buckets.filter((b) => {
+    if (has(b.kind, b.currency)) return true
+    skipped.push({
+      reason: "bucket_not_in_account",
+      detail: `La cartola trae ${BUCKET_NAME[b.kind]} en ${b.currency}, pero la cuenta no lo tiene; ese saldo no se concilia.`,
+    })
+    return false
+  })
 
   // 1. Lo anterior al día del último corte ya está conciliado.
   const rows = document.rows
     .map((r, rowIndex) => ({ ...r, rowIndex }))
     .filter((r) => !reconciledDay || r.date >= reconciledDay)
   const skippedBeforeCutoff = document.rows.length - rows.length
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i]
+    if (has(rowBucket(r.currency), r.currency)) continue
+    skipped.unshift({
+      rowIndex: r.rowIndex,
+      reason: "currency_without_bucket",
+      detail: `Fila ${r.rowIndex + 1} (${r.date} ${r.description} ${r.amount} ${r.currency}): la cuenta no tiene cupo en ${r.currency}; no se concilia aquí.`,
+    })
+    rows.splice(i, 1)
+  }
 
   const confirmed = state.movements.filter((m) => m.status === "confirmed")
   const used = new Set<string>() // movimientos que ya tienen fila o decisión
@@ -77,6 +118,13 @@ export function proposeReconciliation(
     matched.push({ rowIndex, transactionId: m.id })
   }
 
+  // Mismo lado del movimiento. Un pago de la línea se reconoce por su tipo, sin mirar dirección ni
+  // cupo: los avisos antiguos lo guardaban como abono en la línea y la cartola lo trae como cargo.
+  const sameSide = (r: (typeof rows)[number], m: ReconciliationMovement) =>
+    r.kind === "overdraft_payment" && m.internalKind === "overdraft_payment"
+      ? true
+      : m.direction === r.direction
+
   // 2. Par exacto (dirección, moneda, importe, ±5 días), 1 a 1 y el más cercano primero: se ordenan
   // todos los pares posibles por distancia, así una fila no le quita el suyo a otra más cercana.
   const exact = rows
@@ -84,7 +132,7 @@ export function proposeReconciliation(
       confirmed
         .filter(
           (m) =>
-            m.direction === r.direction &&
+            sameSide(r, m) &&
             m.currency === r.currency &&
             m.amount === r.amount &&
             daysApart(m.date, r.date) <= PAIR_DAYS
@@ -100,6 +148,18 @@ export function proposeReconciliation(
     if (pairedRows.has(r.rowIndex) || used.has(m.id)) continue
     pairedRows.add(r.rowIndex)
     pair(r.rowIndex, m)
+    // Fechado en la app después del corte pero el banco lo trae antes: sin llevarlo a la fecha de la
+    // fila, el saldo del documento ya lo incluye y la proyección lo sumaría otra vez.
+    if (m.date > cutoffDay && r.date <= cutoffDay)
+      corrections.push({
+        transactionId: m.id,
+        date: r.date,
+        description: m.description,
+        amount: m.amount,
+        currency: r.currency, // par exacto: la misma moneda
+        categoryId: m.categoryId,
+        evidence: evidence(r.rowIndex),
+      })
   }
 
   const candidate = (m: ReconciliationMovement) => ({
@@ -112,23 +172,38 @@ export function proposeReconciliation(
     origin: m.origin,
   })
 
-  // 3. Par por comercio (moneda o importe distinto): se corrige con lo que dice la cartola.
+  // Solo es candidato lo que la conciliación puede llevar a la fila: mismo importe y moneda, o un
+  // movimiento que admite corregirlos (sin vínculos, reembolsos ni interno).
+  const correctable = (
+    m: ReconciliationMovement,
+    r: { amount: number; currency: string }
+  ) =>
+    (m.amount === r.amount && m.currency === r.currency) ||
+    canReconcileCorrection(m)
+
+  // 3. Par por comercio (moneda o importe distinto): se corrige con lo que dice la cartola. Una cuota
+  // no: su importe es una parte de la compra, no la compra (queda para pagar_cuota).
   for (const r of rows) {
     if (pairedRows.has(r.rowIndex)) continue
+    if (r.kind === "installment") {
+      pending.push(r)
+      continue
+    }
     const merchant = normalizeMerchant(r.description)
     const found = confirmed.filter(
       (m) =>
         !used.has(m.id) &&
-        m.direction === r.direction &&
+        sameSide(r, m) &&
         normalizeMerchant(m.description) === merchant &&
-        daysApart(m.date, r.date) <= PAIR_DAYS
+        daysApart(m.date, r.date) <= PAIR_DAYS &&
+        correctable(m, r)
     )
     if (!found.length) {
       pending.push(r)
       continue
     }
     const [m] = found
-    if (found.length === 1 && canReconcileCorrection(m)) {
+    if (found.length === 1) {
       pair(r.rowIndex, m)
       corrections.push({
         transactionId: m.id,
@@ -138,10 +213,14 @@ export function proposeReconciliation(
         currency: r.currency,
         categoryId: m.categoryId,
         evidence: evidence(r.rowIndex),
+        // Un cobro recurrente vinculado solo admite otro importe como liquidación del período.
+        ...(m.linked && (m.amount !== r.amount || m.currency !== r.currency)
+          ? { settleRecurringCharge: true }
+          : {}),
       })
       continue
     }
-    // Varios, o uno que no admite cambiar importe/moneda: lo decide la persona.
+    // Varios: lo decide la persona.
     for (const c of found) used.add(c.id)
     ambiguous.push({
       rowIndex: r.rowIndex,
@@ -249,7 +328,10 @@ export function proposeReconciliation(
       ambiguous.push({
         rowIndex: r.rowIndex,
         reason: "multiple_candidates",
-        candidates: unexplained.map(candidate),
+        // Lo que no se puede corregir a la fila no se ofrece: solo queda el alta.
+        candidates: unexplained
+          .filter((m) => correctable(m, addition))
+          .map(candidate),
         addition: ready,
       })
       continue
@@ -263,27 +345,32 @@ export function proposeReconciliation(
       ...a,
       distinctFrom: similar.map((m) => ({
         transactionId: m.id,
-        evidence: pairOf.has(m.id)
-          ? `${a.evidence}; ${m.id} es el par de la fila ${pairOf.get(m.id)! + 1}`
-          : m.status === "reversed" || m.status === "duplicated"
-            ? `${a.evidence}; ${m.id} está anulado o duplicado en la app`
-            : `${a.evidence}; la persona confirmó que es otro movimiento que ${m.id}`,
+        evidence: cap(
+          pairOf.has(m.id)
+            ? `${a.evidence}; ${m.id} es el par de la fila ${pairOf.get(m.id)! + 1}`
+            : m.status === "reversed" || m.status === "duplicated"
+              ? `${a.evidence}; ${m.id} está anulado o duplicado en la app`
+              : !correctable(m, a)
+                ? `${a.evidence}; ${m.id} no admite corregir importe o moneda (vínculo, reembolso o interno): es otro movimiento`
+                : `${a.evidence}; la persona confirmó que es otro movimiento que ${m.id}`
+        ),
       })),
     }
   }
 
-  // 5. Cargos del correo sin fila en el rango del documento → retención (quedan anulados).
+  // 5. Sin fila en el rango del documento → retención (quedan anulados): cargos del correo y
+  // movimientos previos a la cartola (legacy, en ambos sentidos), nunca internos.
   const firstDay = document.rows.map((r) => r.date).sort()[0]
   const retentions = firstDay
     ? confirmed
         .filter(
           (m) =>
-            m.origin === "email" &&
-            m.direction === "debit" &&
+            !m.isInternal &&
+            (m.origin === "email" ? m.direction === "debit" : m.origin === "legacy") &&
             !used.has(m.id) &&
             !reversalTargets.has(m.id) &&
             !m.reimbursementAmount &&
-          !m.linked &&
+            !m.linked &&
             m.date >= firstDay &&
             m.date <= cutoffDay &&
             (!reconciledDay || m.date >= reconciledDay) &&
@@ -292,22 +379,43 @@ export function proposeReconciliation(
         )
         .map((m) => ({
           transactionId: m.id,
-          evidence: `${document.source}: sin fila entre ${firstDay} y ${cutoffDay} para ${m.date} ${m.description} ${m.amount} ${m.currency}`,
+          evidence: cap(
+            `${document.source}: sin fila entre ${firstDay} y ${cutoffDay} para ${m.date} ${m.description} ${m.amount} ${m.currency}`
+          ),
         }))
     : []
 
-  // 6. Movimientos del día del corte con su fila: el saldo del documento ya los incluye.
+  // 6. Movimientos del día del corte con su fila: el saldo del documento ya los incluye. Cuenta la
+  // fecha que queda tras la corrección (la de la fila).
+  const dateOf = (m: ReconciliationMovement) =>
+    corrections.find((c) => c.transactionId === m.id)?.date ?? m.date
   const includedSameDayIds = matched
     .map((p) => p.transactionId)
-    .filter((id) => state.movements.find((m) => m.id === id)?.date === cutoffDay)
+    .filter((id) => {
+      const m = state.movements.find((m) => m.id === id)
+      return !!m && dateOf(m) === cutoffDay
+    })
+  // Del día del corte sin fila, ni retención ni otra decisión: el documento no lo incluye, se
+  // reproyecta como posterior al corte.
+  const retained = new Set(retentions.map((r) => r.transactionId))
+  const excludedSameDayIds = confirmed
+    .filter(
+      (m) =>
+        m.date === cutoffDay &&
+        !used.has(m.id) &&
+        !retained.has(m.id) &&
+        !reversalTargets.has(m.id)
+    )
+    .map((m) => m.id)
 
   return {
     reconcileInput: {
       accountId,
       snapshotAt: document.snapshotAt,
       source: document.source,
-      buckets: document.buckets,
+      buckets,
       includedSameDayIds,
+      ...(excludedSameDayIds.length ? { excludedSameDayIds } : {}),
       corrections,
       retentions,
       additions,
@@ -316,6 +424,7 @@ export function proposeReconciliation(
     matched: matched.sort((a, b) => a.rowIndex - b.rowIndex),
     ambiguous: ambiguous.sort((a, b) => a.rowIndex - b.rowIndex),
     skippedBeforeCutoff,
+    skipped,
   }
 }
 

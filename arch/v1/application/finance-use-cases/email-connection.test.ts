@@ -1797,3 +1797,30 @@ test("desconectar un banco sin conexión de correo falla explícito", async () =
     /conexión de correo/
   )
 })
+
+test("WDC-183: el aviso de pago de la línea va a la caja de la corriente (como la cartola), no a la línea", () => {
+  const event = {
+    kind: "internal_payment",
+    source: "pago_linea",
+    amount: Money.of(100000, "CLP"),
+    date: new Date("2026-11-05T00:00:00Z"),
+    receivedAt: new Date("2026-11-05T12:00:00Z"),
+    description: "Pago de línea de crédito",
+    instrument: { kind: "checking", ref: "1100" },
+    paymentTarget: "overdraft",
+    cashLeg: null,
+    tefId: null,
+    externalId: "email:mid:linea",
+  } as Parameters<typeof resolveEventTarget>[0]
+  const accounts = [
+    { id: "acc-1", accountType: "checking", currency: "CLP" as const, externalRef: "009991111100", cardLast4: "1100" },
+  ]
+  const bucket = (id: string, kind: EmailStoredBucket["kind"]): EmailStoredBucket => ({
+    id, accountId: "acc-1", kind, currency: "CLP",
+    limitAmount: Money.zero("CLP"), used: Money.zero("CLP"), available: Money.zero("CLP"),
+  })
+  assert.deepEqual(
+    resolveEventTarget(event, accounts, [bucket("b-cash", "cash"), bucket("b-od", "overdraft")]),
+    { accountId: "acc-1", bucketId: "b-cash" }
+  )
+})

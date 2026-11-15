@@ -25,11 +25,21 @@ export function inRange(date: Date, range: PeriodRange): boolean {
   return day >= range.start && day <= range.end
 }
 
-/** ¿Es un abono que cuenta como ingreso del plan? Confirmado, no interno, `creditKind=income`. */
+/**
+ * ¿Es un abono que cuenta como ingreso del plan? Confirmado, no interno, `creditKind=income` y real:
+ * el que genera el sistema (una recurrente de ingreso marcada pagada) no cuenta hasta que llega por
+ * correo o cartola.
+ */
 export function isPlanIncome(
-  t: Pick<Transaction, "direction" | "status" | "isInternal" | "creditKind">
+  t: Pick<Transaction, "direction" | "status" | "isInternal" | "creditKind" | "origin">
 ): boolean {
-  return t.direction === "credit" && t.creditKind === "income" && t.status === "confirmed" && !t.isInternal
+  return (
+    t.direction === "credit" &&
+    t.creditKind === "income" &&
+    t.status === "confirmed" &&
+    !t.isInternal &&
+    t.origin !== "system"
+  )
 }
 
 /**

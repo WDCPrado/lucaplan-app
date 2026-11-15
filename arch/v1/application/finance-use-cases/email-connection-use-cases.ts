@@ -59,6 +59,7 @@ import {
   applyCreditPurchase,
   applyDebitToCash,
   applyInternalPayment,
+  applyOverdraftPayment,
   type BucketAmounts,
 } from "./email-projection.ts"
 
@@ -277,11 +278,12 @@ export function resolveEventTarget(
     return bucket ? { accountId: matches[0].id, bucketId: bucket.id } : null
   }
 
+  // Pago de la línea: sale de la caja de la corriente (cargo `overdraft_payment`), igual que lo trae
+  // la cartola; la proyección baja caja y línea a la vez.
   if (event.paymentTarget === "overdraft") {
     const target = resolveChecking(event, accounts)
     if (!target) return null
-    const bucket = bucketOf(target.id, "overdraft")
-    return bucket ? { accountId: target.id, bucketId: bucket.id } : null
+    return { accountId: target.id, bucketId: bucketOf(target.id, "cash")?.id ?? null }
   }
 
   if (!event.instrument) return null
@@ -370,8 +372,11 @@ function internalKindOf(event: EmailEvent): InternalKind | null {
   return event.paymentTarget === "overdraft" ? "overdraft_payment" : "card_payment"
 }
 
+// El pago de la línea es un cargo en la caja; el resto de los internos del correo, un abono.
 function directionOf(event: EmailEvent): Direction {
-  return isInternalEvent(event) ? "credit" : "debit"
+  return isInternalEvent(event) && event.paymentTarget !== "overdraft"
+    ? "credit"
+    : "debit"
 }
 
 // --- OAuth: alta / reconexión del BUZÓN ---
@@ -919,6 +924,14 @@ function applyEventToProjection(
     if (bucket) set(kind, applyCreditPurchase(bucket, event.amount))
     return
   }
+  if (event.kind === "internal_payment" && event.paymentTarget === "overdraft") {
+    const cash = get("cash")
+    if (!cash) return
+    const res = applyOverdraftPayment(cash, get("overdraft"), event.amount)
+    set("cash", res.cash)
+    if (res.overdraft) set("overdraft", res.overdraft)
+    return
+  }
   if (event.kind === "internal_payment" && event.paymentTarget) {
     const bucket = get(event.paymentTarget)
     if (bucket)
@@ -1314,6 +1327,15 @@ function applyEventToStoredBuckets(
         : "credit_national"
     const bucket = ofKind(kind)
     if (bucket) set(bucket, applyCreditPurchase(bucket, event.amount))
+    return
+  }
+  if (event.kind === "internal_payment" && event.paymentTarget === "overdraft") {
+    const cash = ofKind("cash")
+    if (!cash) return
+    const od = ofKind("overdraft")
+    const res = applyOverdraftPayment(cash, od, event.amount)
+    set(cash, res.cash)
+    if (od && res.overdraft) set(od, res.overdraft)
     return
   }
   if (event.kind === "internal_payment" && event.paymentTarget) {

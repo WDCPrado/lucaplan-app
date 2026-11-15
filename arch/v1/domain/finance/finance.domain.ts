@@ -447,7 +447,7 @@ export interface TransactionRepository {
     categoryId: string
   ): Promise<boolean>
   // Corrige el tipo de un abono (ingreso ↔ reembolso). No toca el saldo.
-  setCreditKind(transactionId: string, creditKind: CreditKind): Promise<Transaction>
+  setCreditKind(transactionId: string, creditKind: CreditKind, userId: string): Promise<Transaction>
   // Borra un movimiento manual revirtiendo su efecto en el saldo, atómico.
   delete(transactionId: string): Promise<void>
 }

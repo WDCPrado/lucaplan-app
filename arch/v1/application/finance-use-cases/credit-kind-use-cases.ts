@@ -30,7 +30,7 @@ export async function changeCreditKind(
   const { result, seed } = await followIncome(
     deps,
     userId,
-    () => deps.transactions.setCreditKind(tx.id, input.creditKind),
+    () => deps.transactions.setCreditKind(tx.id, input.creditKind, userId),
     { allModes: true, today: opts.today }
   )
   return { transaction: result, seed }

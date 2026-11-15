@@ -21,15 +21,22 @@ UPDATE "transaction" SET "origin" = CASE
   ELSE 'legacy'
 END;
 
+-- Un abono es reembolso si sus vínculos lo cubren entero (uno parcial no basta); si no, ingreso solo
+-- con categoría de ingreso; en una tarjeta, reverso; el resto, reembolso (no infla el ingreso del plan).
 UPDATE "transaction" t SET "creditKind" = CASE
-  WHEN EXISTS (SELECT 1 FROM "expense_reimbursement" r WHERE r."creditId" = t."id") THEN 'reimbursement'
-  ELSE 'income'
+  WHEN (SELECT sum(r."amount") FROM "expense_reimbursement" r WHERE r."creditId" = t."id") = t."amount" THEN 'reimbursement'
+  WHEN EXISTS (SELECT 1 FROM "category" c WHERE c."id" = t."categoryId" AND c."type" = 'income') THEN 'income'
+  WHEN a."accountType" = 'credit_card' THEN 'reversal'
+  ELSE 'reimbursement'
 END
-WHERE t."direction" = 'credit' AND NOT t."isInternal";
+FROM "financial_account" a
+WHERE a."id" = t."accountId" AND t."direction" = 'credit' AND NOT t."isInternal";
 
 -- La compra original de un plan card (neutralizada) no es un pago: va primero.
 UPDATE "transaction" t SET "internalKind" = CASE
   WHEN EXISTS (SELECT 1 FROM "installment_plan" p WHERE p."sourceTransactionId" = t."id") THEN 'installment_source'
+  -- El aviso de pago de la línea quedaba como abono interno en el bucket overdraft.
+  WHEN EXISTS (SELECT 1 FROM "balance_bucket" b WHERE b."id" = t."bucketId" AND b."kind" = 'overdraft') THEN 'overdraft_payment'
   WHEN t."description" ~* 'pago.*tarjeta' THEN 'card_payment'
   WHEN a."accountType" = 'credit_card' THEN 'card_payment'
   ELSE 'own_transfer'
@@ -37,8 +44,11 @@ END
 FROM "financial_account" a
 WHERE a."id" = t."accountId" AND t."isInternal";
 
+-- El corte de la última conciliación aplicada (su recibo); reconciledAt del bucket también lo movía
+-- «actualizar saldos» a mano, que no es una cartola.
 UPDATE "financial_account" a SET "reconciledUntil" = (
-  SELECT max(b."reconciledAt") FROM "balance_bucket" b WHERE b."accountId" = a."id"
+  SELECT max((r."input"->>'snapshotAt')::timestamptz) AT TIME ZONE 'UTC'
+  FROM "bank_reconciliation" r WHERE r."accountId" = a."id"
 );
 
 ALTER TABLE "transaction" ALTER COLUMN "origin" SET NOT NULL;
@@ -63,7 +73,15 @@ DROP TABLE "income_amount";
 DROP TABLE "income_plan";
 DROP TABLE "income";
 
--- El límite del sobregiro vive en el bucket overdraft (limitAmount).
+-- El límite del sobregiro vive en el bucket overdraft (limitAmount): la corriente con línea y sin
+-- ese bucket lo recibe antes de perder la columna (usado = lo que la caja está bajo cero).
+INSERT INTO "balance_bucket" ("id", "userId", "accountId", "kind", "currency", "limitAmount", "used", "available", "createdAt", "updatedAt")
+SELECT gen_random_uuid()::text, a."userId", a."id", 'overdraft', a."currency", a."overdraftLimit",
+  greatest(-a."balance", 0), a."overdraftLimit" - greatest(-a."balance", 0), now(), now()
+FROM "financial_account" a
+WHERE a."accountType" = 'checking' AND a."overdraftLimit" > 0
+  AND NOT EXISTS (SELECT 1 FROM "balance_bucket" b WHERE b."accountId" = a."id" AND b."kind" = 'overdraft');
+
 ALTER TABLE "financial_account" DROP COLUMN "overdraftLimit";
 
 DROP INDEX "bank_externalLinkId_idx";

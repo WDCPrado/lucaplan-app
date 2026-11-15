@@ -106,17 +106,10 @@ export function PlanSheet({
   const toAllocate = planTotal(activeIncomeTotal, previousMonthDebt)
   // Los ingresos cambiaron y ya no calzan con el presupuesto: se ofrece igualarlos. Igualar deja
   // el tope siguiendo solo al total del plan (`followIncome`); uno escrito a mano no lo sigue.
-  const suggest = shouldSuggest(
-    toAllocate,
-    globalLimit,
-    globalLimitFollowsIncome
-  )
+  const suggest = shouldSuggest(toAllocate, globalLimit, globalLimitFollowsIncome)
   // Mismo número pero sin la marca: igualar no cambia el tope, solo lo deja siguiendo al ingreso.
   const onlyFollow = suggest && globalLimit === toAllocate
-  const previousPeriod =
-    mode === "card_cycle"
-      ? "el ciclo anterior"
-      : previousMonthLabel(period.year, period.month)
+  const previousPeriod = mode === "card_cycle" ? "el ciclo anterior" : previousMonthLabel(period.year, period.month)
   const periodNoun = mode === "card_cycle" ? "ciclo" : "mes"
 
   async function applySuggested() {
@@ -126,11 +119,7 @@ export function PlanSheet({
       const res = await fetch(`/api/budgets?mode=${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...period,
-          globalLimit: toAllocate,
-          followIncome: true,
-        }),
+        body: JSON.stringify({ ...period, globalLimit: toAllocate, followIncome: true }),
       })
       if (!res.ok)
         throw new Error(
@@ -157,9 +146,7 @@ export function PlanSheet({
   // El rango del período va junto a «Período», no en el título: el título queda corto como en
   // los demás modales y el rango se lee donde se decide.
   const shortDay = (iso: string) =>
-    `${iso.slice(8, 10)} ${monthName(Number(iso.slice(5, 7)))
-      .slice(0, 3)
-      .toLowerCase()}`
+    `${iso.slice(8, 10)} ${monthName(Number(iso.slice(5, 7))).slice(0, 3).toLowerCase()}`
   const rangeLabel = cycleRange
     ? `${shortDay(cycleRange.start)} – ${shortDay(cycleRange.end)}`
     : monthName(period.month)
@@ -205,8 +192,7 @@ export function PlanSheet({
                 En {previousPeriod}, los gastos superaron los ingresos en{" "}
                 <span className="tabular font-semibold text-foreground">
                   {formatMoney(previousMonthDebt, "CLP")}
-                </span>
-                .{" "}
+                </span>.{" "}
                 {toAllocate > 0 ? (
                   <>
                     Al cubrir esa diferencia, quedan{" "}
@@ -258,7 +244,10 @@ export function PlanSheet({
                   <span className="tabular">{formatCLP(globalLimit)}</span>
                 </span>
               </span>
-              <ChevronRight aria-hidden className="disclosure" />
+              <ChevronRight
+                aria-hidden
+                className="disclosure"
+              />
             </button>
           )}
           {suggest && (
@@ -268,9 +257,7 @@ export function PlanSheet({
                 <span className="tabular font-semibold">
                   {formatMoney(activeIncomeTotal, "CLP")}
                 </span>
-                {!onlyFollow && (
-                  <> · presupuesto en {formatMoney(globalLimit ?? 0, "CLP")}</>
-                )}
+                {!onlyFollow && <> · presupuesto en {formatMoney(globalLimit ?? 0, "CLP")}</>}
               </p>
               <Button
                 type="button"
@@ -344,7 +331,10 @@ export function PlanSheet({
                 <span className="tabular shrink-0 text-subheadline text-muted-foreground">
                   {formatCLP(c.used)}
                 </span>
-                <ChevronRight aria-hidden className="disclosure" />
+                <ChevronRight
+                  aria-hidden
+                  className="disclosure"
+                />
               </button>
             ))}
             <button
@@ -365,9 +355,7 @@ export function PlanSheet({
         {expenseCategories.length > 0 && (
           <section className="pb-2">
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3 px-4">
-              <h3 className="text-headline font-semibold">
-                Topes por categoría
-              </h3>
+              <h3 className="text-headline font-semibold">Topes por categoría</h3>
               {left !== null && (
                 <span
                   className={cn(
@@ -604,6 +592,7 @@ function IncomeCreditRow({ credit }: { credit: IncomeCreditDTO }) {
           type="button"
           onClick={() => setKind("reimbursement")}
           disabled={busy}
+          aria-label={`Es reembolso: ${credit.description}`}
           className="press -mb-2 flex min-h-11 items-center px-3 text-subheadline font-semibold text-primary disabled:opacity-50"
         >
           Es reembolso

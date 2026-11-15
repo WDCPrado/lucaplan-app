@@ -71,6 +71,7 @@ import {
   SetupUnauthorizedError,
 } from "../domain/setup/setup.domain.ts"
 import { LockBusyError } from "../../shared/mutex.ts"
+import { StatementReadError } from "../domain/finance/bank-reconciliation.domain.ts"
 import {
   AmbiguousCategoryNameError,
   OnboardingCompletedError,
@@ -132,6 +133,7 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof InvalidManualAccountError ||
     e instanceof EmailReauthRequiredError ||
     e instanceof EmailSetupStateError ||
+    e instanceof StatementReadError ||
     e instanceof AccountBalanceError ||
     e instanceof BankLabelRequiredError ||
     e instanceof SelfTargetError ||

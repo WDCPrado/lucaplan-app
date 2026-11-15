@@ -60,3 +60,10 @@ test("un reverso vinculado como reembolso conserva su tipo", async () => {
   assert.equal(txs[1].creditKind, "reversal")
   assert.deepEqual(updates, [])
 })
+
+test("un reembolso parcial deja el abono como ingreso: solo lo cubierto entero pasa a reembolso", async () => {
+  setup("income")
+  await linkReimbursement("u1", { expenseId: "asado", creditId: "transf-juan", amount: 10_000 })
+  assert.equal(txs[1].creditKind, "income")
+  assert.deepEqual(updates, [])
+})

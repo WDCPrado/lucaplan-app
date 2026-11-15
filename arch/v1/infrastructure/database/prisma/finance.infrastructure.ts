@@ -496,10 +496,20 @@ export const transactionRepository: TransactionRepository = {
     })
     return res.count > 0
   },
-  // Corrige el tipo de un abono (no toca el saldo).
-  async setCreditKind(transactionId: string, creditKind: CreditKind) {
+  // Corrige el tipo de un abono (no toca el saldo). El where repite la regla del caso de uso: solo un
+  // abono propio, no interno, de ingreso o reembolso (un reverso o un cargo no se reclasifican).
+  async setCreditKind(transactionId: string, creditKind: CreditKind, userId: string) {
     return toTransaction(
-      await prisma.transaction.update({ where: { id: transactionId }, data: { creditKind } })
+      await prisma.transaction.update({
+        where: {
+          id: transactionId,
+          userId,
+          direction: "credit",
+          isInternal: false,
+          creditKind: { in: ["income", "reimbursement"] },
+        },
+        data: { creditKind },
+      })
     )
   },
   // Borra un movimiento manual revirtiendo su efecto en el saldo, atómico.

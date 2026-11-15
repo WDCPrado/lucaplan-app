@@ -10,12 +10,17 @@ import { toast } from "sonner"
 import { ArrowRight, Check, FileText } from "lucide-react"
 import { ModalSection, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { FinanceField } from "../finance-form-field"
-import { formatMoney, formatShortDateHeader } from "@/lib/finance-format"
+import {
+  formatMoney,
+  formatShortDateHeader,
+  todayKey,
+} from "@/lib/finance-format"
 import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import {
   applyReconciliation,
+  isStalePreview,
   previewReconciliation,
   readStatement,
   type ReconcileInput,
@@ -78,6 +83,10 @@ function withDecisions(proposal: Read, decisions: Decisions): ReconcileInput {
   void accountId
   const additions = [...input.additions]
   const corrections = [...input.corrections]
+  const includedSameDayIds = [...input.includedSameDayIds]
+  const excluded = new Set(input.excludedSameDayIds ?? [])
+  const picked = new Set<string>()
+  const cutoffDay = todayKey(new Date(input.snapshotAt))
   for (const a of proposal.ambiguous) {
     const pick = decisions[a.rowIndex]
     const row = proposal.rows.find((r) => r.rowIndex === a.rowIndex)
@@ -87,13 +96,19 @@ function withDecisions(proposal: Read, decisions: Decisions): ReconcileInput {
       if (a.addition) additions.push(a.addition)
       continue
     }
-    // Elegido con otro importe, moneda o fecha: se corrige con los datos de la cartola.
     const c = a.candidates.find((x) => x.id === pick)
+    if (!c) continue
+    picked.add(c.id)
+    // Un reverso no se corrige contra el cargo: entra como alta que anula el cargo elegido.
+    if (row.kind === "reversal") {
+      if (a.addition) additions.push({ ...a.addition, reversalOfId: c.id })
+      continue
+    }
+    // Elegido con otro importe, moneda o fecha: se corrige con los datos de la cartola.
     if (
-      c &&
-      (c.amount !== row.amount ||
-        c.currency !== row.currency ||
-        c.date !== row.date)
+      c.amount !== row.amount ||
+      c.currency !== row.currency ||
+      c.date !== row.date
     )
       corrections.push({
         transactionId: c.id,
@@ -104,8 +119,24 @@ function withDecisions(proposal: Read, decisions: Decisions): ReconcileInput {
         categoryId: c.categoryId,
         evidence: `Fila ${row.rowIndex + 1} de la cartola: ${row.description}`,
       })
+    // Queda con fecha del corte (par exacto o corregido a la fila): el documento ya lo incluye.
+    if (row.date === cutoffDay && !includedSameDayIds.includes(c.id))
+      includedSameDayIds.push(c.id)
   }
-  return { ...input, additions, corrections }
+  // Candidato del día del corte que nadie eligió: el documento no lo incluye (posterior al corte).
+  for (const a of proposal.ambiguous)
+    for (const c of a.candidates)
+      if (c.date === cutoffDay && !picked.has(c.id) && !includedSameDayIds.includes(c.id))
+        excluded.add(c.id)
+  for (const id of picked) excluded.delete(id)
+  const excludedSameDayIds = [...excluded]
+  return {
+    ...input,
+    additions,
+    corrections,
+    includedSameDayIds,
+    ...(excludedSameDayIds.length ? { excludedSameDayIds } : {}),
+  }
 }
 
 export function ReconcileStatementModal({
@@ -151,35 +182,39 @@ export function ReconcileStatementModal({
   async function readFile({ file }: { file: File | null }) {
     if (!file) return
     setError(null)
+    let next: Read
     try {
-      const next = await readStatement(accountId, file)
-      const previewed = await previewReconciliation(
-        accountId,
-        withDecisions(next, {})
-      )
-      setRead(next)
-      setPreview(previewed)
+      next = await readStatement(accountId, file)
     } catch (e) {
-      fail(e, "No se pudo leer la cartola")
+      return fail(e, "No se pudo leer la cartola")
     }
+    // La lectura (lenta, con IA) se conserva: si la previsualización falla, se reintenta solo esa.
+    setRead(next)
+    await runPreview(next, {})
   }
 
-  // Cada decisión cambia las altas o correcciones: se vuelve a previsualizar (token nuevo).
-  async function decide(rowIndex: number, value: string) {
-    if (!read) return
-    const next = { ...decisions, [rowIndex]: value }
-    setDecisions(next)
+  // Previsualiza `proposal` con `next`; las decisiones solo se guardan si responde.
+  async function runPreview(proposal: Read, next: Decisions) {
     setBusy("preview")
     setError(null)
     try {
       setPreview(
-        await previewReconciliation(accountId, withDecisions(read, next))
+        await previewReconciliation(accountId, withDecisions(proposal, next))
       )
+      setDecisions(next)
+      return true
     } catch (e) {
       fail(e, "No se pudo previsualizar")
+      return false
     } finally {
       setBusy(null)
     }
+  }
+
+  // Cada decisión cambia las altas o correcciones: se vuelve a previsualizar (token nuevo).
+  function decide(rowIndex: number, value: string) {
+    if (read && busy === null)
+      void runPreview(read, { ...decisions, [rowIndex]: value })
   }
 
   async function apply() {
@@ -204,8 +239,12 @@ export function ReconcileStatementModal({
       close()
       router.refresh()
     } catch (e) {
-      fail(e, "No se pudo aplicar la conciliación")
       setBusy(null)
+      if (!isStalePreview(e))
+        return fail(e, "No se pudo aplicar la conciliación")
+      // Otro cambio en la cuenta dejó viejo el token: nueva propuesta con lo ya decidido.
+      if (await runPreview(read, decisions))
+        setError("La cuenta cambió; revisa la nueva propuesta")
     }
   }
 
@@ -221,10 +260,10 @@ export function ReconcileStatementModal({
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       title="Conciliar cartola"
       className={preview ? undefined : "sm:max-w-md"}
-      dismissible={busy !== "apply"}
+      dismissible={busy === null && !isSubmitting}
       cancel={{
         label: "Cancelar",
-        disabled: busy === "apply" || isSubmitting,
+        disabled: busy !== null || isSubmitting,
         onClick: close,
       }}
       primary={
@@ -235,12 +274,19 @@ export function ReconcileStatementModal({
               busy: busy === "apply",
               disabled: busy !== null || pending > 0,
             }
-          : {
-              label: isSubmitting ? "Leyendo…" : "Leer cartola",
-              plain: true,
-              form: formId,
-              busy: isSubmitting,
-            }
+          : read
+            ? {
+                label: busy === "preview" ? "Previsualizando…" : "Reintentar",
+                onClick: () => void runPreview(read, decisions),
+                busy: busy === "preview",
+                disabled: busy !== null,
+              }
+            : {
+                label: isSubmitting ? "Leyendo…" : "Leer cartola",
+                plain: true,
+                form: formId,
+                busy: isSubmitting,
+              }
       }
     >
       <div className="flex flex-col gap-8 px-5 pb-6">
@@ -249,7 +295,13 @@ export function ReconcileStatementModal({
             {error}
           </p>
         )}
-        {!preview || !read ? (
+        {read && !preview ? (
+          <p className="px-4 text-subheadline text-muted-foreground">
+            {busy === "preview"
+              ? "Cartola leída. Preparando la propuesta…"
+              : "La cartola ya está leída; solo falta la propuesta. Reintenta sin volver a subirla."}
+          </p>
+        ) : !preview || !read ? (
           <form
             id={formId}
             onSubmit={form.handleSubmit(readFile)}
@@ -350,9 +402,11 @@ function Review({
       <ModalSection
         title="Saldos"
         footer={`Al corte del ${snapshotLabel(preview.snapshotAt)}.${
-          proposal.skippedBeforeCutoff > 0
-            ? ` ${proposal.skippedBeforeCutoff} filas anteriores ya estaban conciliadas.`
-            : ""
+          proposal.skippedBeforeCutoff === 1
+            ? " 1 fila anterior ya estaba conciliada."
+            : proposal.skippedBeforeCutoff > 1
+              ? ` ${proposal.skippedBeforeCutoff} filas anteriores ya estaban conciliadas.`
+              : ""
         }`}
       >
         {preview.projectedBuckets.map((after) => (
@@ -379,6 +433,31 @@ function Review({
               onDecide={(v) => onDecide(a.rowIndex, v)}
             />
           ))}
+        </ModalSection>
+      )}
+
+      {(proposal.skipped ?? []).length > 0 && (
+        <ModalSection
+          title="Quedan fuera"
+          footer="Filas que esta cuenta no puede conciliar. No impiden aplicar el resto."
+        >
+          {(proposal.skipped ?? []).map((s, i) => {
+            const row = proposal.rows.find((r) => r.rowIndex === s.rowIndex)
+            return row ? (
+              <MovementLine
+                key={i}
+                date={row.date}
+                description={row.description}
+                tag={s.detail}
+                amount={money(row.amount, row.currency)}
+                credit={row.direction === "credit"}
+              />
+            ) : (
+              <p key={i} className="px-4 py-3 text-body">
+                {s.detail}
+              </p>
+            )
+          })}
         </ModalSection>
       )}
 
@@ -593,8 +672,7 @@ function AmbiguousRow({
           ? "Pago de tarjeta: va por su propio flujo"
           : "Cuota: se salda desde su plan de cuotas"
   return (
-    <fieldset className="py-1" disabled={disabled}>
-      <legend className="sr-only">{row.description}</legend>
+    <div role="group" aria-label={row.description} className="py-1">
       <MovementLine
         date={row.date}
         description={row.description}
@@ -603,26 +681,31 @@ function AmbiguousRow({
         credit={row.direction === "credit"}
       />
       {options.length > 0 && (
-        <div
-          role="radiogroup"
-          aria-label={hint}
-          className="flex flex-col px-4 pb-2"
-        >
+        // Botones con aria-pressed (no radios): cada elección previsualiza, y las flechas de un
+        // radiogroup dispararían una previsualización por tecla. aria-disabled y no `disabled`
+        // mientras previsualiza, para no perder el foco.
+        <div className="flex flex-col px-4 pb-2">
           {options.map((o) => {
             const selected = value === o.value
             return (
               <button
                 key={o.value}
                 type="button"
-                role="radio"
-                aria-checked={selected}
-                onClick={() => onDecide(o.value)}
-                className="press flex min-h-11 items-center gap-3 rounded-md px-1 py-2 text-left focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60"
+                aria-pressed={selected}
+                aria-disabled={disabled || undefined}
+                onClick={() => !disabled && onDecide(o.value)}
+                className="press flex min-h-11 items-center gap-3 rounded-md px-1 py-2 text-left focus-visible:outline-2 focus-visible:outline-ring aria-disabled:opacity-60"
               >
-                <span className="grid size-5 shrink-0 place-items-center text-primary">
-                  {selected && (
-                    <Check aria-hidden className="size-4" strokeWidth={2.75} />
+                <span
+                  aria-hidden
+                  className={cn(
+                    "grid size-5 shrink-0 place-items-center rounded-full",
+                    selected
+                      ? "bg-primary text-primary-foreground"
+                      : "border-2 border-muted-foreground/40"
                   )}
+                >
+                  {selected && <Check className="size-3.5" strokeWidth={3} />}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-body">{o.label}</span>
@@ -635,6 +718,6 @@ function AmbiguousRow({
           })}
         </div>
       )}
-    </fieldset>
+    </div>
   )
 }

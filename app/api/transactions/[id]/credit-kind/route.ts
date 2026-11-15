@@ -8,8 +8,8 @@ export async function PATCH(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params
-  const body = await req.json().catch(() => ({}))
   return withUser(req, async (userId) => {
+    const body = await req.json().catch(() => ({}))
     const input = changeCreditKindSchema.parse({ transactionId: id, creditKind: body?.creditKind })
     const { transaction, seed } = await changeCreditKind(financeDeps, userId, input)
     return { id: transaction.id, creditKind: transaction.creditKind, seed }

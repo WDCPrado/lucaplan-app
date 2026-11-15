@@ -118,6 +118,13 @@ export const bankReconciliationSchema = z.strictObject({
     .describe(
       "IDs del día del corte que el documento ya incluye; no asumir por fecha de importación"
     ),
+  excludedSameDayIds: z
+    .array(id)
+    .max(500)
+    .optional()
+    .describe(
+      "IDs del día del corte que el documento NO incluye (sin fila en la cartola): se reproyectan como posteriores al corte"
+    ),
   corrections: z
     .array(
       settled.extend({
@@ -300,6 +307,13 @@ const movementOut = z.object({
 })
 const bucketOut = bucket.extend({ id })
 
+export const reconciliationSkippedSchema = z.strictObject({
+  rowIndex: z.int().nonnegative().optional(),
+  reason: z.enum(["currency_without_bucket", "bucket_not_in_account"]),
+  detail: z.string(),
+})
+export type ReconciliationSkipped = z.infer<typeof reconciliationSkippedSchema>
+
 /** Salida de proponerConciliacion: `reconcileInput` va tal cual a previsualizar. */
 export const reconciliationProposalSchema = z.strictObject({
   reconcileInput: bankReconciliationSchema,
@@ -339,6 +353,10 @@ export const reconciliationProposalSchema = z.strictObject({
     })
   ),
   skippedBeforeCutoff: z.int().nonnegative(),
+  // Lo que no se puede conciliar en esta cuenta y queda fuera de reconcileInput (no bloquea aplicar):
+  // currency_without_bucket: fila en una moneda sin cupo en la cuenta (USD en una corriente CLP) ·
+  // bucket_not_in_account: saldo del documento para un cupo que la cuenta no tiene.
+  skipped: z.array(reconciliationSkippedSchema),
 })
 export type ReconciliationProposal = z.infer<
   typeof reconciliationProposalSchema

@@ -17,12 +17,13 @@ const MIME: Record<string, string> = {
 
 const SYSTEM =
   "Lees la cartola o el estado de cuenta de UNA cuenta de un banco chileno y devuelves exactamente " +
-  "lo que dice, sin inventar ni completar. snapshotAt: fecha y hora del corte o del saldo informado, " +
-  "ISO 8601 con zona de Chile (p. ej. 2026-11-10T23:59:00-03:00); si no trae hora, usa 23:59 del día " +
-  "del corte. source: banco, cuenta (últimos dígitos) y período. buckets: en cuenta corriente, cash " +
+  "lo que dice, sin inventar ni completar. snapshotAt: fecha y hora en que el banco emitió o se " +
+  "descargó el documento (p. ej. «emitido el», «fecha de consulta», «saldo al»), ISO 8601 con zona de " +
+  "Chile (p. ej. 2026-11-10T14:32:00-03:00); si no trae hora, usa 23:59 del día del corte. source: banco, cuenta (últimos dígitos) y período. buckets: en cuenta corriente, cash " +
   "(limit 0, used 0, available = saldo disponible de la cuenta) y overdraft si hay línea de crédito " +
   "(limit = cupo, used = utilizado, available = disponible); en tarjeta, credit_national (CLP) y " +
-  "credit_international (USD) si existe, con available = limit − used. rows: cada movimiento con " +
+  "credit_international (USD) si existe, con available = limit − used. Incluye solo los buckets que " +
+  "la cuenta tiene (se indican abajo). rows: cada movimiento con " +
   "fecha YYYY-MM-DD, la glosa tal cual, amount positivo (CLP en pesos enteros, USD con 2 decimales), " +
   "currency de la fila, direction debit (cargo) o credit (abono) y kind: purchase (compra), fee " +
   "(comisión, impuesto, interés), income (sueldo u otro ingreso), reimbursement (devolución de un " +
@@ -104,7 +105,9 @@ export const openaiStatementReader: StatementReader = {
               document,
               {
                 type: "input_text",
-                text: `Tipo de cuenta: ${context.accountType === "checking" ? "cuenta corriente" : "tarjeta de crédito"}.`,
+                text:
+                  `Tipo de cuenta: ${context.accountType === "checking" ? "cuenta corriente" : "tarjeta de crédito"}. ` +
+                  `Buckets de la cuenta: ${context.buckets.map((b) => `${b.kind} ${b.currency}`).join(", ") || "ninguno"}.`,
               },
             ],
           },

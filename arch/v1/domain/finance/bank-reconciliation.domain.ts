@@ -165,8 +165,17 @@ export type ReconciliationRetention = {
 export interface StatementReader {
   read(
     file: { name: string; type: string; data: Uint8Array },
-    context: { accountType: string }
+    // buckets: los cupos que tiene la cuenta (tipo y moneda), para que el lector no invente otros.
+    context: { accountType: string; buckets: { kind: string; currency: string }[] }
   ): Promise<unknown>
+}
+
+/** La cartola subida no se pudo recibir o leer (formato, tamaño, lector caído o salida inválida). */
+export class StatementReadError extends Error {
+  constructor(message = "No se pudo leer la cartola") {
+    super(message)
+    this.name = "StatementReadError"
+  }
 }
 
 /** Lo que devuelve `planBankReconciliation`: puro, sin escribir nada. */

@@ -13,11 +13,12 @@ export async function seed({ prisma, userId, checkingId }: DemoContext) {
     where: { id: checkingId, userId },
     data: { balance: -USADO },
   })
-  await prisma.balanceBucket.createMany({
-    data: [
-      { userId, accountId: checkingId, kind: "cash", currency: "CLP", limitAmount: 0, used: 0, available: 0, asOf },
-      { userId, accountId: checkingId, kind: "overdraft", currency: "CLP", limitAmount: LINEA, used: USADO, available: LINEA - USADO, asOf },
-    ],
+  // El giro va a la caja (sube caja y línea); la caja ya se gastó: queda en 0 y la línea con USADO.
+  const cash = await prisma.balanceBucket.create({
+    data: { userId, accountId: checkingId, kind: "cash", currency: "CLP", limitAmount: 0, used: 0, available: 0, asOf },
+  })
+  await prisma.balanceBucket.create({
+    data: { userId, accountId: checkingId, kind: "overdraft", currency: "CLP", limitAmount: LINEA, used: USADO, available: LINEA - USADO, asOf },
   })
   const hoy = new Date()
   await prisma.transaction.create({
@@ -32,6 +33,7 @@ export async function seed({ prisma, userId, checkingId }: DemoContext) {
       status: "confirmed",
       isInternal: true,
       internalKind: "overdraft_draw",
+      bucketId: cash.id,
       origin: "statement",
       reviewed: true,
     },

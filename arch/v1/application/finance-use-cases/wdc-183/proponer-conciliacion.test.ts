@@ -212,11 +212,14 @@ test("fila sin par en la corriente → alta con su tipo: sueldo como ingreso con
   assert.deepEqual(p.matched, [])
 })
 
-test("retención: un cargo del correo confirmado, entre la primera fila y el día del corte, sin fila en la cartola, se propone anular; los demás no", () => {
+test("retención: un cargo del correo confirmado, entre la primera fila y el corte, sin fila en la cartola, se propone anular; uno avisado después de la hora del corte y los demás no", () => {
   const p = proposeReconciliation(
     card([
       mov("pedidosya", "2026-11-04", "PEDIDOSYA", 12_000), // retención
-      mov("dia-corte", "2026-11-10", "STARBUCKS", 4500), // en el día del corte: retención
+      // En el día del corte, avisado antes de la hora del corte (18:00): retención.
+      mov("dia-corte", "2026-11-10", "STARBUCKS", 4500, { bankReceivedAt: "2026-11-10T12:00:00-03:00" }),
+      // Mismo día pero avisado después del corte: la cartola todavía no podía traerlo.
+      mov("tras-corte", "2026-11-10", "UBER EATS", 8900, { bankReceivedAt: "2026-11-10T18:01:00-03:00" }),
       mov("despues", "2026-11-11", "JUMBO", 30_000), // después del corte: el banco aún no lo muestra
       mov("antes", "2026-10-31", "SHELL", 25_000), // antes de la primera fila del documento
       mov("cartola", "2026-11-05", "FARMACIA", 8000, { origin: "statement" }), // no vino del correo
@@ -255,7 +258,7 @@ test("reverso: el abono de reverso apunta al cargo que anula (mismo comercio y m
   )
   assert.equal(limite.reconcileInput.additions[0]?.reversalOfId, "viejo")
 
-  // 31 días antes ya no: el reverso queda para decidir y no se da de alta solo.
+  // 31 días antes ya no: el reverso queda para decidir, con su alta lista por si Willy lo agrega.
   const sinCargo = proposeReconciliation(
     card([mov("viejo", "2026-10-06", "PEDIDOSYA", 12_000)]),
     "tarjeta",
@@ -266,6 +269,11 @@ test("reverso: el abono de reverso apunta al cargo que anula (mismo comercio y m
     sinCargo.ambiguous.map((a) => ({ rowIndex: a.rowIndex, reason: a.reason })),
     [{ rowIndex: 0, reason: "reversal_without_charge" }]
   )
+  const lista = sinCargo.ambiguous[0].addition
+  assert.ok(lista, "el reverso sin cargo trae su alta lista")
+  assert.equal(lista.creditKind, "reversal")
+  assert.equal(lista.amount, 12_000)
+  assert.equal(lista.reversalOfId, undefined)
 })
 
 test("cuota: una fila de cuota (3 de 12) no se da de alta; queda para saldarla con pagar_cuota", () => {
@@ -282,7 +290,22 @@ test("cuota: una fila de cuota (3 de 12) no se da de alta; queda para saldarla c
   )
 })
 
-test("varios candidatos: una fila de MercadoLibre con dos avisos del mismo comercio en la ventana queda para elegir; ninguno se corrige, se da de alta ni se retiene", () => {
+test("pago de tarjeta: una fila de pago de tarjeta en la corriente sin par no se da de alta; queda para decidir con motivo pago de tarjeta", () => {
+  const p = proposeReconciliation(
+    checking([]),
+    "corriente",
+    checkingDoc([row("2026-11-07", "PAGO TARJETA DE CREDITO", 350_000, { direction: "debit", kind: "card_payment" })])
+  )
+  assert.deepEqual(p.reconcileInput.additions, [])
+  assert.deepEqual(p.matched, [])
+  assert.deepEqual(
+    p.ambiguous.map((a) => ({ rowIndex: a.rowIndex, reason: a.reason })),
+    [{ rowIndex: 0, reason: "card_payment" }]
+  )
+  reconciliationProposalSchema.parse(p)
+})
+
+test("varios candidatos: una fila de MercadoLibre con dos avisos del mismo comercio en la ventana queda para elegir, con los dos candidatos y el alta lista por si es otro; ninguno se corrige, se da de alta ni se retiene", () => {
   const p = proposeReconciliation(
     card([
       mov("ml-1", "2026-11-03", "MERCADOLIBRE", 15_990),
@@ -292,8 +315,23 @@ test("varios candidatos: una fila de MercadoLibre con dos avisos del mismo comer
     cardDoc([row("2026-11-04", "MERCADOLIBRE", 12_990)])
   )
   assert.deepEqual(p.ambiguous.length, 1)
-  assert.equal(p.ambiguous[0].reason, "multiple_candidates")
-  assert.deepEqual([...p.ambiguous[0].candidates].sort(), ["ml-1", "ml-2"])
+  const a = p.ambiguous[0]
+  assert.equal(a.reason, "multiple_candidates")
+  // Cada candidato con lo que Willy necesita para elegir.
+  assert.deepEqual(
+    a.candidates.map((c) => ({ id: c.id, date: c.date, amount: c.amount, currency: c.currency, origin: c.origin })).sort((x, y) => x.id.localeCompare(y.id)),
+    [
+      { id: "ml-1", date: "2026-11-03", amount: 15_990, currency: "CLP", origin: "email" },
+      { id: "ml-2", date: "2026-11-05", amount: 8990, currency: "CLP", origin: "email" },
+    ]
+  )
+  // «Es otro movimiento»: el alta lista con la fila y distinctFrom hacia los dos candidatos.
+  assert.ok(a.addition, "trae el alta lista")
+  assert.equal(a.addition.amount, 12_990)
+  assert.equal(a.addition.description, "MERCADOLIBRE")
+  assert.deepEqual((a.addition.distinctFrom ?? []).map((d) => d.transactionId).sort(), ["ml-1", "ml-2"])
+  assert.ok((a.addition.distinctFrom ?? []).every((d) => d.evidence.trim().length > 0))
+  reconciliationProposalSchema.parse(p)
   assert.deepEqual(p.reconcileInput.corrections, [])
   assert.deepEqual(p.reconcileInput.additions, [])
   // Supuesto: un candidato en duda no se propone como retención.

@@ -208,7 +208,7 @@ test("corte ya conciliado: un corte anterior a la última conciliación de la cu
   assert.equal(later.snapshotAt, "2026-11-11T09:00:00-03:00")
 })
 
-test("proyección de la corriente después del corte: un abono paga primero la línea usada; el giro sube caja y línea; el pago de línea baja ambas sin pasar de 0; un traspaso propio solo sube la caja", () => {
+test("proyección de la corriente después del corte: un abono paga primero la línea usada; el giro sube caja y línea; el pago de línea baja ambas sin pasar de 0; un traspaso propio que entra también paga primero la línea", () => {
   // Caja 400.000, línea usada 200.000 (de 500.000) al corte del 10; el movimiento es del 11.
   const after = (over: Partial<ReconciliationMovement>) => {
     const p = plan(
@@ -234,8 +234,9 @@ test("proyección de la corriente después del corte: un abono paga primero la l
   assert.deepEqual(internal("overdraft_payment", "debit", 150_000), { cash: 250_000, used: 50_000, lineAvailable: 450_000 })
   // Pagar más que la deuda: la línea no baja de 0.
   assert.deepEqual(internal("overdraft_payment", "debit", 300_000), { cash: 100_000, used: 0, lineAvailable: 500_000 })
-  // Supuesto: un traspaso propio que entra es interno y no amortiza la línea.
-  assert.deepEqual(internal("own_transfer", "credit", 50_000), { cash: 450_000, used: 200_000, lineAvailable: 300_000 })
+  // Un traspaso propio que entra también paga primero la línea (solo el giro no la paga).
+  assert.deepEqual(internal("own_transfer", "credit", 50_000), { cash: 400_000, used: 150_000, lineAvailable: 350_000 })
+  assert.deepEqual(internal("own_transfer", "credit", 260_000), { cash: 460_000, used: 0, lineAvailable: 500_000 })
   // Un cargo sigue derramando a la línea cuando la caja no alcanza.
   assert.deepEqual(after({ amount: 450_000 }), { cash: 0, used: 250_000, lineAvailable: 250_000 })
 })

@@ -166,7 +166,7 @@ test("retención: un cargo del correo confirmado hasta el corte se anula con su 
   const reject = (m: ReconciliationMovement) =>
     assert.throws(
       () => plan(checking([m]), input({ retentions: [{ transactionId: m.id, evidence: "x" }] })),
-      undefined,
+      Error,
       `debía rechazar la retención de ${m.id}`
     )
   reject(mov("abono", { direction: "credit", categoryId: "sueldo" }))

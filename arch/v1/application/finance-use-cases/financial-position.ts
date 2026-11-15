@@ -60,16 +60,10 @@ export function currencyPositions(
           add(od.currency, "overdraftAvailable", od.available)
         }
       } else if (account.balance.isNegative) {
-        const used = account.balance.negate()
-        add(account.currency, "overdraftUsed", used)
-        add(
-          account.currency,
-          "overdraftAvailable",
-          account.overdraftLimit.subtract(used)
-        )
+        // Sin buckets la línea no se conoce: solo la deuda (el saldo negativo).
+        add(account.currency, "overdraftUsed", account.balance.negate())
       } else {
         add(account.currency, "cash", account.balance)
-        add(account.currency, "overdraftAvailable", account.overdraftLimit)
       }
     } else if (account.accountType === "credit_card") {
       const cards = own.filter(

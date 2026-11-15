@@ -98,6 +98,7 @@ try {
           direction: "debit",
           status: "confirmed",
           externalId: i === 0 ? "demo-loan-email" : null,
+          origin: i === 0 ? "email" : "statement",
           transactionDate: new Date(`2026-0${i + 8}-22`),
         },
       })

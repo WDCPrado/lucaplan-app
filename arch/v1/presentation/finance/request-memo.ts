@@ -18,7 +18,6 @@ import type {
   MonthlyBudgetRepository,
   TransactionRepository,
 } from "../../domain/finance/finance.domain.ts"
-import type { IncomeRepository } from "../../domain/finance/income.domain.ts"
 import type { InstallmentPlanRepository } from "../../domain/finance/installment.domain.ts"
 import type { RecurringTemplateRepository } from "../../domain/finance/recurring.domain.ts"
 import type { BudgetPeriodRepository } from "../../domain/finance/budget-period.domain.ts"
@@ -38,7 +37,6 @@ export type MemoizedPorts = {
   categories: CategoryRepository
   monthlyBudgets: MonthlyBudgetRepository
   transactions: TransactionRepository
-  incomes: IncomeRepository
   installments: InstallmentPlanRepository
   recurring: RecurringTemplateRepository
   budgetPeriod: BudgetPeriodRepository
@@ -47,8 +45,7 @@ export type MemoizedPorts = {
 // Lecturas de solo lectura, por usuario, que un mismo render pide idénticas más de una vez.
 //
 // NO están acá a propósito: `transactions.searchByUser` y `transactions.amountBounds` (se llaman
-// una sola vez por carga), `incomes.hasGeneratedFor` (un argumento distinto por ingreso, no hay
-// repetición que ahorrar) y `recurring.listActiveByUser` (la usa la materialización de períodos,
+// una sola vez por carga) y `recurring.listActiveByUser` (la usa la materialización de períodos,
 // que escribe).
 const READS = {
   accounts: ["listByUser"],
@@ -57,7 +54,6 @@ const READS = {
   categories: ["listByUser", "listLimitsByUser"],
   monthlyBudgets: ["listByUser"],
   transactions: ["listByUserPeriod"],
-  incomes: ["listByUser", "listAmountsByUser"],
   installments: ["listByUser"],
   recurring: ["listByUser"],
   // Modo y cierres: cada vista del mes resuelve su rango con esto, y un render arma varias.

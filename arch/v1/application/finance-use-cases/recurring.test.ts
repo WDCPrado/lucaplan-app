@@ -832,6 +832,7 @@ const movimiento = (over: Partial<Transaction> = {}): Transaction => ({
   status: "confirmed",
   isInternal: false,
   externalId: "banco-1",
+  origin: "email",
   recurringTemplateId: null,
   installmentItemId: null,
   ...over,
@@ -888,7 +889,7 @@ test("un período que ya cobró el banco se rechaza con 409", async () => {
 test("rechaza lo que no puede ser el cobro: ingreso, manual, vinculado, cuota, interno, otra moneda", async () => {
   const casos: [Partial<Transaction>, RegExp][] = [
     [{ direction: "credit" }, /ingreso/],
-    [{ externalId: null }, /^Solo se pueden elegir movimientos que vinieron del banco$/],
+    [{ externalId: null, origin: "legacy" }, /^Solo se pueden elegir movimientos que vinieron del banco$/],
     [{ recurringTemplateId: "otra" }, /ya es el cobro/],
     [{ installmentItemId: "item1" }, /cuota/],
     [{ isInternal: true }, /interno/],

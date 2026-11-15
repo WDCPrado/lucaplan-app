@@ -42,7 +42,6 @@ const account = (over: Partial<Account>): Account => ({
   accountType: "checking",
   currency: "CLP",
   balance: clp(0),
-  overdraftLimit: clp(0),
   color: null,
   cardLast4: "1234",
   provider: "manual",
@@ -67,10 +66,10 @@ test("Dado un mes futuro, cuando planifico, entonces no escribe nada y separa CL
       monthlyBudgets: readOnly({ listByUser: async () => [] }),
       transactions: readOnly({
         listByUserPeriod: async () => [
-          ...["sueldo", "fuente-ausente"].map(incomeId => ({
-            id: incomeId, userId: "u1", accountId: "a1", categoryId: "c", date: day,
+          ...["sueldo", "extra"].map(id => ({
+            id, userId: "u1", accountId: "a1", categoryId: "c", date: day,
             description: "abono", amount: clp(50000), direction: "credit", status: "confirmed",
-            isInternal: false, externalId: null, incomeId,
+            isInternal: false, externalId: null, origin: "statement", creditKind: "income",
           })),
           // Paga la cuota: no debe volver a sumarse como movimiento futuro.
           {
@@ -114,29 +113,6 @@ test("Dado un mes futuro, cuando planifico, entonces no escribe nada y separa CL
             externalId: null,
           },
         ],
-      }),
-      incomes: readOnly({
-        listByUser: async () => [
-          {
-            id: "sueldo",
-            userId: "u1",
-            accountId: "a1",
-            categoryId: "c",
-            name: "Sueldo",
-            currency: "CLP",
-            dayOfMonth: 5,
-            isActive: true,
-            endedYear: null,
-            endedMonth: null,
-          },
-        ],
-        listAmountsByUser: async () => [
-          { incomeId: "sueldo", year: 2030, month: 1, amount: clp(1000000) },
-        ],
-        hasGeneratedFor: async (_id: string, _year: number, _month: number, range: unknown) => {
-          assert.deepEqual(range, { start: "2030-02-21", end: "2030-03-20" })
-          return false
-        },
       }),
       recurring: readOnly({ listActiveByUser: async () => [] }),
       installments: readOnly({
@@ -185,7 +161,8 @@ test("Dado un mes futuro, cuando planifico, entonces no escribe nada y separa CL
     "2026-10-16"
   )
   const [CLP, USD] = plan.byCurrency
-  assert.deepEqual(CLP.income, { expected: 1050000, done: 50000, pending: 1000000 })
+  // El ingreso es lo que ya entró: los dos abonos de ingreso del ciclo.
+  assert.deepEqual(CLP.income, { expected: 100000, done: 100000, pending: 0 })
   assert.equal(plan.budgetCLP.income, CLP.income.expected)
   assert.deepEqual(CLP.installments, {
     expected: 100000,
@@ -202,7 +179,7 @@ test("Dado un mes futuro, cuando planifico, entonces no escribe nada y separa CL
     { debit: 10, credit: 0 },
     "el USD queda en su moneda"
   )
-  assert.equal(CLP.expectedNetChange, 1000000 - 50000)
+  assert.equal(CLP.expectedNetChange, -50000)
   assert.equal(plan.positionToday[0].cash, 200000)
 })
 
@@ -304,13 +281,10 @@ test("Dada una cuenta manual con relaciones cruzadas, cuando la elimino, entonce
         installmentItemId: "i9",
         installmentPlanId: "p-otro",
         installmentPlanAccountId: "a2",
-        incomeId: null,
-        incomeAccountId: null,
         sourceOfPlanId: null,
         sourceOfPlanAccountId: null,
       },
     ],
-    incomes: [],
     recurring: [],
     plans: [{ id: "p-mio", description: "Plan", kind: "loan" }],
     // Un pago de otra cuenta engancha una cuota de un plan de ESTA cuenta.
@@ -322,7 +296,6 @@ test("Dada una cuenta manual con relaciones cruzadas, cuando la elimino, entonce
         recurringTemplateId: null,
         installmentItemId: "i1",
         installmentPlanId: "p-mio",
-        incomeId: null,
       },
     ],
   })
@@ -405,7 +378,7 @@ test("Dadas las herramientas, cuando el host las lista, entonces solo borrar o s
       inputSchema: { shape: Record<string, unknown> }
     }
   >
-  assert.equal(tools.lucaplan_crear_movimiento.destructive, false)
+  assert.equal(tools.lucaplan_crear_categoria.destructive, false)
   assert.equal(tools.lucaplan_planificar_recurrente.destructive, false)
   assert.equal(tools.lucaplan_eliminar_cuenta.destructive, true)
   assert.equal(tools.lucaplan_corregir_movimiento.destructive, true)

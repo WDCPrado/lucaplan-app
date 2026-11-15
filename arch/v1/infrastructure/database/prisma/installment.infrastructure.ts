@@ -224,6 +224,7 @@ export const installmentPlanRepository: InstallmentPlanRepository = {
           status: "confirmed",
           reviewed: true, // ya tiene la categoría del plan: fuera del triage y de la IA
           generatedFromInstallment: true, // sustituto: el correo de este pago lo reemplaza
+          origin: "system",
         },
       })
       return true

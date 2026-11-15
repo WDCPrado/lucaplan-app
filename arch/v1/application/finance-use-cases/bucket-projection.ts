@@ -1,4 +1,5 @@
-// Proyección con IO sobre los buckets de una cuenta: aplica un abono (sube la caja sin amortizar la línea) o un cargo (consume caja, el exceso usa sobregiro) y fija el saldo
+// Proyección con IO sobre los buckets de una cuenta: aplica un abono no interno (paga primero la
+// línea usada y el resto sube la caja, como el banco) o un cargo (consume caja, el exceso usa sobregiro) y fija el saldo
 // derivado de la cuenta (balance = caja disponible). En una tarjeta de crédito —que no tiene caja—
 // el cargo consume cupo y el abono lo paga. Sin buckets —cuentas manuales— es no-op: ahí la
 // columna balance ya la ajustó el adapter. La usan el abono manual, el generar/deshacer del ingreso
@@ -10,8 +11,8 @@ import type {
 import type { Money } from "../../domain/finance/money.ts"
 import {
   applyCreditPurchase,
+  applyCreditToCash,
   applyDebitToCash,
-  applyInternalCredit,
   applyInternalPayment,
   type BucketAmounts,
 } from "./email-projection.ts"
@@ -59,7 +60,7 @@ export async function projectCashEvent(
   const od = buckets.find((b) => b.kind === "overdraft") ?? null
   const res =
     direction === "credit"
-      ? applyInternalCredit(amounts(cash), od ? amounts(od) : null, amount)
+      ? applyCreditToCash(amounts(cash), od ? amounts(od) : null, amount)
       : applyDebitToCash(amounts(cash), od ? amounts(od) : null, amount)
   const asOf = new Date()
   await deps.balanceBuckets.updateAmounts(cash.id, { ...res.cash, asOf })

@@ -18,10 +18,6 @@ import type {
   MonthlyBudget,
   Transaction,
 } from "../../domain/finance/finance.domain.ts"
-import type {
-  Income,
-  IncomeAmount,
-} from "../../domain/finance/income.domain.ts"
 import { cache } from "react"
 
 import {
@@ -36,7 +32,7 @@ import {
   listAccounts,
   listTransactions,
   listUncategorized,
-  listIncomesView,
+  listIncomeCredits,
   getAmountBounds,
 } from "../../application/finance-use-cases/finance-read.ts"
 
@@ -62,7 +58,6 @@ const account: Account = {
   accountType: "checking",
   currency: "CLP",
   balance: Money.of(500000, "CLP"),
-  overdraftLimit: Money.of(0, "CLP"),
   color: null,
   cardLast4: null,
   provider: "manual",
@@ -126,25 +121,6 @@ const tx = (id: string, day: number): Transaction => ({
   externalId: null,
 })
 
-const incomes: Income[] = [
-  {
-    id: "i1",
-    userId: USER,
-    accountId: "a1",
-    categoryId: "c-sueldo",
-    name: "Sueldo",
-    currency: "CLP",
-    dayOfMonth: 5,
-    isActive: true,
-    endedYear: null,
-    endedMonth: null,
-  },
-]
-
-const incomeAmounts: IncomeAmount[] = [
-  { incomeId: "i1", year: YEAR, month: 1, amount: Money.of(1400000, "CLP") },
-]
-
 // Repos falsos con la forma justa que usa la carga del dashboard. Cada método registra su llamada
 // con los argumentos: dos llamadas idénticas son la MISMA consulta repetida.
 function makeDeps() {
@@ -184,14 +160,6 @@ function makeDeps() {
         min: 0,
         max: 100000,
       })),
-    },
-    incomes: {
-      listByUser: log("incomes.listByUser", async () => incomes),
-      listAmountsByUser: log(
-        "incomes.listAmountsByUser",
-        async () => incomeAmounts
-      ),
-      hasGeneratedFor: log("incomes.hasGeneratedFor", async () => false),
     },
     installments: {
       listByUser: log("installments.listByUser", async () => []),
@@ -237,8 +205,8 @@ async function loadDashboard(deps: unknown) {
       YEAR,
       MONTH
     ),
-    listIncomesView(
-      d as unknown as Parameters<typeof listIncomesView>[0],
+    listIncomeCredits(
+      d as unknown as Parameters<typeof listIncomeCredits>[0],
       USER,
       YEAR,
       MONTH

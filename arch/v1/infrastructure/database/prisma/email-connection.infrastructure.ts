@@ -47,7 +47,6 @@ import {
   monthlyBudgetRepository,
   transactionRepository,
 } from "./finance.infrastructure.ts"
-import { incomeRepository } from "./income.infrastructure.ts"
 import { reimbursementReadRepository } from "./reimbursement-read.infrastructure.ts"
 import { installmentPlanRepository } from "./installment.infrastructure.ts"
 import { budgetPeriodRepository } from "./budget-period.infrastructure.ts"
@@ -60,11 +59,21 @@ const planDeps = {
   categories: categoryRepository,
   monthlyBudgets: monthlyBudgetRepository,
   transactions: transactionRepository,
-  incomes: incomeRepository,
   reimbursements: reimbursementReadRepository,
   installments: installmentPlanRepository,
   budgetPeriod: budgetPeriodRepository,
   exchangeRates: exchangeRateProvider,
+}
+
+// Un aviso del banco es provisorio (la cartola lo confirma). Un abono no interno que llegue por correo
+// cuenta como ingreso hasta que la conciliación o la persona lo reclasifique.
+// ponytail: el correo no dice qué tipo de interno es (pago de tarjeta, de línea); queda sin
+// internalKind hasta que la cartola lo trae.
+function emailKinds(m: { direction: string; isInternal: boolean }) {
+  return {
+    origin: "email",
+    creditKind: m.direction === "credit" && !m.isInternal ? "income" : null,
+  }
 }
 
 const CHUNK = 10 // upsert en lotes acotados (no satura el pool de conexiones)
@@ -373,6 +382,7 @@ export const emailSetupStore: EmailSetupStore = {
               status: m.status,
               pending: false,
               isInternal: m.isInternal,
+              ...emailKinds(m),
             },
             update: {}, // ya existía (no debería en la primera confirmación): se conserva intacto
           })
@@ -477,6 +487,7 @@ export const emailSetupStore: EmailSetupStore = {
                 accountId: m.accountId,
                 externalId: m.externalId,
                 ...fields,
+                ...emailKinds(m),
               },
               // categoryId intacto → categoría preservada. isInternal nunca baja de true a false:
               // una compra neutralizada al pasarla a cuotas volvería a contar entera al reprocesar.
@@ -537,27 +548,24 @@ export const emailSetupStore: EmailSetupStore = {
         movements: 0,
         recurring: 0,
         installments: 0,
-        incomes: 0,
       }
     const where = { accountId: { in: accountIds } }
-    const [movements, recurring, installments, incomes] = await Promise.all([
+    const [movements, recurring, installments] = await Promise.all([
       prisma.transaction.count({ where }),
       prisma.recurringTemplate.count({ where }),
       prisma.installmentPlan.count({ where }),
-      prisma.income.count({ where }),
     ])
     return {
       accounts: accountIds.length,
       movements,
       recurring,
       installments,
-      incomes,
     }
   },
 
   async deleteBank(bankId) {
     // FK ON DELETE CASCADE: borra cuentas y, con ellas, tarjetas, buckets, movimientos y lo que el
-    // usuario colgó de esas cuentas (ingresos, recurrentes, planes de cuotas). Por eso la UI lo
+    // usuario colgó de esas cuentas (recurrentes, planes de cuotas). Por eso la UI lo
     // enumera antes: ver countBankDependents.
     await prisma.bank.delete({ where: { id: bankId } })
   },

@@ -61,7 +61,7 @@ infrastructure → domain          (implementa sus ports)
 
   El invariante es **lo que escribe nunca lee de la memoización**, y lo garantiza qué objeto
   importa cada archivo, no dónde acabe corriendo el código. Un camino que escribe y después lee
-  (`updateIncome` seguido de `seedGlobalLimitFromIncomes`) sembraría datos con el estado previo a su
+  (`changeCreditKind` seguido de `alignGlobalLimit`) sembraría datos con el estado previo a su
   propia escritura si leyera de la memoria; con las deps crudas no tiene de dónde. No confíes en que
   `cache` de React no tenga ámbito fuera de un render: eso es un detalle de React, no una garantía
   nuestra, y una Server Action sí corre dentro de un render.

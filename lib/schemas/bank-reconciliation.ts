@@ -279,6 +279,27 @@ export const statementDocumentSchema = z.strictObject({
 })
 export type StatementDocument = z.infer<typeof statementDocumentSchema>
 
+const addition = bankReconciliationSchema.shape.additions.element
+
+// Movimiento de la app tal como lo devuelven la propuesta y la previsualización. Sin `strict`: la
+// salida trae además vínculos internos (linked, recurringOnly…) que el cliente no necesita.
+const movementOut = z.object({
+  id,
+  date: z.iso.date(),
+  description: z.string(),
+  amount: z.number(),
+  currency: z.string(),
+  direction: z.enum(["debit", "credit"]),
+  categoryId: id.nullable(),
+  bucketId: id.nullable().optional(),
+  status: z.string().optional(),
+  isInternal: z.boolean().optional(),
+  origin: z.string().optional(),
+  creditKind: z.enum(CREDIT_KINDS).nullable().optional(),
+  internalKind: z.enum(INTERNAL_KINDS).nullable().optional(),
+})
+const bucketOut = bucket.extend({ id })
+
 /** Salida de proponerConciliacion: `reconcileInput` va tal cual a previsualizar. */
 export const reconciliationProposalSchema = z.strictObject({
   reconcileInput: bankReconciliationSchema,
@@ -292,13 +313,29 @@ export const reconciliationProposalSchema = z.strictObject({
     z.strictObject({
       rowIndex: z.int().nonnegative(),
       // installment: se salda con pagar_cuota · reversal_without_charge: no hay cargo que anular
-      // (se puede dar de alta igual) · multiple_candidates: más de un movimiento podría ser su par.
+      // (se puede dar de alta igual) · multiple_candidates: más de un movimiento podría ser su par ·
+      // card_payment: pago de tarjeta sin par, va por su flujo (sin alta).
       reason: z.enum([
         "installment",
+        "card_payment",
         "reversal_without_charge",
         "multiple_candidates",
       ]),
-      candidates: z.array(id),
+      // Movimientos de la app que podrían ser su par (vacío en installment y sin cargo que anular).
+      candidates: z.array(
+        movementOut.pick({
+          id: true,
+          date: true,
+          description: true,
+          amount: true,
+          currency: true,
+          categoryId: true,
+          origin: true,
+        })
+      ),
+      // El alta lista para cuando la persona dice «es otro movimiento»: con categoría, tipo y
+      // distinctFrom hacia todos los candidatos. null en installment (se salda con pagar_cuota).
+      addition: addition.nullable(),
     })
   ),
   skippedBeforeCutoff: z.int().nonnegative(),
@@ -306,3 +343,41 @@ export const reconciliationProposalSchema = z.strictObject({
 export type ReconciliationProposal = z.infer<
   typeof reconciliationProposalSchema
 >
+
+/** Salida de previsualizar (dryRun true, con previewToken) y aplicar (dryRun false, con addedIds). */
+export const reconciliationPreviewSchema = z.object({
+  dryRun: z.boolean(),
+  previewToken: z.string().length(64).optional(),
+  snapshotAt: z.iso.datetime({ offset: true }),
+  source: z.string(),
+  beforeBuckets: z.array(bucketOut.extend({ asOf: z.string().nullable() })),
+  projectedBuckets: z.array(bucketOut),
+  corrections: z.array(
+    z.object({
+      before: movementOut,
+      after: movementOut.extend({ evidence: z.string() }),
+    })
+  ),
+  additions: z.array(addition.safeExtend({ bucketId: id })),
+  retentions: z.array(z.object({ before: movementOut, evidence: z.string() })),
+  replayedIds: z.array(id),
+  // Solo en tarjeta: cuotas card que vencen hasta el corte, para saldar con pagar_cuota.
+  cuotasPendientes: z
+    .array(
+      z.object({
+        planId: id,
+        itemId: id,
+        description: z.string(),
+        index: z.int(),
+        installmentsCount: z.int(),
+        dueDate: z.iso.date(),
+        amount: z.number(),
+        currency,
+      })
+    )
+    .optional(),
+  addedIds: z.array(id).optional(),
+  appliedAt: z.iso.datetime({ offset: true }).optional(),
+  reconciledUntil: z.iso.datetime({ offset: true }).optional(),
+})
+export type ReconciliationPreview = z.infer<typeof reconciliationPreviewSchema>

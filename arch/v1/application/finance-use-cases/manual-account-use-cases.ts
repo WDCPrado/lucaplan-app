@@ -42,7 +42,6 @@ export async function updateManualAccount(
     name: string
     color: string | null
     cardLast4: string | null
-    overdraftLimit?: number
   }
 ) {
   const account = await deps.accounts.findById(input.accountId)
@@ -59,28 +58,16 @@ export async function updateManualAccount(
     : null
   if (accountHasCard(account.accountType) && !cardLast4)
     throw new CardLast4RequiredError()
-  const overdraftLimit =
-    input.overdraftLimit ?? account.overdraftLimit.toMajor()
-  if (!Number.isFinite(overdraftLimit) || overdraftLimit < 0)
-    throw new InvalidManualAccountError(
-      "La línea de sobregiro debe ser un monto ≥ 0"
-    )
-  if (overdraftLimit > 0 && account.accountType !== "checking")
-    throw new InvalidManualAccountError(
-      "Solo una cuenta corriente (checking) tiene línea de sobregiro"
-    )
   await deps.manualAccounts.update(account.id, {
     name,
     color: input.color,
     cardLast4,
-    overdraftLimit,
   })
   return {
     id: account.id,
     name,
     color: input.color,
     cardLast4,
-    overdraftLimit: { amount: overdraftLimit, currency: account.currency },
   }
 }
 

@@ -14,7 +14,6 @@ export type CreateAccountInput = {
   accountType: AccountType
   currency: CurrencyCode
   balance: number
-  overdraftLimit?: number
   color?: string | null
   cardLast4?: string | null // requerido para tipos con tarjeta (checking/credit_card)
 }
@@ -50,7 +49,6 @@ export async function createAccount(
     accountType: input.accountType,
     currency: input.currency,
     balance: Money.of(input.balance, input.currency),
-    overdraftLimit: Money.of(input.overdraftLimit ?? 0, input.currency),
     color: input.color ?? null,
     cardLast4,
   })

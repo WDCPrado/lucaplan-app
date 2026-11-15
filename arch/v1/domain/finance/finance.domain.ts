@@ -160,11 +160,12 @@ export type Account = {
   accountType: AccountType
   currency: CurrencyCode
   balance: Money // saldo firmado; en checking es independiente de la línea utilizada
-  overdraftLimit: Money
   color: string | null // presentación
   cardLast4: string | null // últimos 4 dígitos de la tarjeta; obligatorio en tipos con tarjeta (checking/credit_card)
   provider: Provider // "manual" | "bancochile"; las conectadas son de solo lectura
   externalId: string | null // id de la cuenta en el banco (número de cuenta / últimos 4)
+  // Corte de la última cartola conciliada; lo anterior no se reprocesa. Opcional para no romper fixtures.
+  reconciledUntil?: Date | null
 }
 
 // Tarjeta física de una cuenta. Una cuenta corriente tiene una tarjeta de débito; una cuenta de
@@ -256,8 +257,6 @@ export type Transaction = {
   recurringTemplateId?: string | null
   // Cuota de un plan que este movimiento salda; ausente = no pertenece a ningún plan.
   installmentItemId?: string | null
-  // Fuente de ingreso que generó este movimiento; ausente = no lo generó una fuente.
-  incomeId?: string | null
   // ponytail: opcionales como los de arriba para no romper fixtures; el repo los llena siempre.
   origin?: TransactionOrigin
   creditKind?: CreditKind | null // solo credit no interno
@@ -266,16 +265,6 @@ export type Transaction = {
 }
 
 // --- Inputs de escritura ---
-
-export type NewTransaction = {
-  userId: string
-  accountId: string
-  categoryId: string | null
-  date: Date
-  description: string
-  amount: Money
-  direction: Direction
-}
 
 export type UpdateTransaction = {
   id: string
@@ -297,7 +286,6 @@ export type NewAccount = {
   accountType: AccountType
   currency: CurrencyCode
   balance: Money
-  overdraftLimit: Money
   color: string | null
   cardLast4: string | null
 }
@@ -445,8 +433,6 @@ export interface TransactionRepository {
   // otro caso además de la UI lo necesita.
   amountBounds?(userId: string): Promise<{ min: number; max: number }>
   findById(id: string): Promise<Transaction | null>
-  // Crea el movimiento y ajusta el saldo de la cuenta atómicamente (débito resta, crédito suma).
-  create(tx: NewTransaction): Promise<Transaction>
   // Edita un movimiento manual reajustando el saldo por la diferencia (nuevo − viejo), atómico.
   update(input: UpdateTransaction): Promise<Transaction>
   // Asigna/cambia solo la categoría (permitido también en movimientos conectados; no toca el saldo).
@@ -460,6 +446,8 @@ export interface TransactionRepository {
     transactionId: string,
     categoryId: string
   ): Promise<boolean>
+  // Corrige el tipo de un abono (ingreso ↔ reembolso). No toca el saldo.
+  setCreditKind(transactionId: string, creditKind: CreditKind): Promise<Transaction>
   // Borra un movimiento manual revirtiendo su efecto en el saldo, atómico.
   delete(transactionId: string): Promise<void>
 }
@@ -502,6 +490,14 @@ export class InvalidMonthlyBudgetError extends Error {
   constructor(message = "Presupuesto del mes inválido") {
     super(message)
     this.name = "InvalidMonthlyBudgetError"
+  }
+}
+
+// Solo un abono no interno de ingreso o reembolso cambia de tipo (→ 422).
+export class InvalidCreditKindChangeError extends Error {
+  constructor(message = "Solo un abono de ingreso o reembolso puede cambiar de tipo") {
+    super(message)
+    this.name = "InvalidCreditKindChangeError"
   }
 }
 

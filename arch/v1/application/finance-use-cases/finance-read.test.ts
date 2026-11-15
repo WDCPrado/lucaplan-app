@@ -24,7 +24,6 @@ import {
 } from "./finance-read.ts"
 import { inRange } from "./budget-formulas.ts"
 import { scopeBudgetPeriod } from "./budget-period-use-cases.ts"
-import { planTotal, shouldSuggest } from "../../../../lib/plan-total.ts"
 import { calculateFinancialOverview } from "../../../../lib/financial-health.ts"
 import type { InstallmentPlan } from "../../domain/finance/installment.domain.ts"
 import { readFileSync } from "node:fs"
@@ -54,7 +53,6 @@ const account = (id: string, provider: "manual" | "bancochile"): Account => ({
   accountType: "checking",
   currency: "CLP",
   balance: Money.of(0, "CLP"),
-  overdraftLimit: Money.of(0, "CLP"),
   color: null,
   cardLast4: null,
   provider,
@@ -82,7 +80,7 @@ function makeDeps(rows: Transaction[], accounts: Account[]) {
     async findById() {
       return null
     },
-    async create(): Promise<never> {
+    async setCreditKind(): Promise<never> {
       throw new Error("no usado")
     },
     async update(): Promise<never> {
@@ -277,6 +275,8 @@ const budgetTx = (
   status: "confirmed",
   isInternal: false,
   externalId: null,
+  // Un abono no interno es ingreso salvo que el test diga otra cosa (WDC-183).
+  creditKind: over.direction === "credit" && !over.isInternal ? "income" : null,
   ...over,
 })
 
@@ -596,41 +596,20 @@ test("getPreviousMonthDebt: la deuda es del mes anterior, no del que se está mi
   assert.equal(await getPreviousMonthDebt(debtDeps(budgets), "u1", 2026, 8), 0)
 })
 
-for (const sourceState of ["activa", "inactiva", "terminada", "sin-monto-vigente", "ausente"] as const) {
-  test(`ingresos del ciclo: abono vinculado a fuente ${sourceState} cuenta una sola vez`, async () => {
-    const rows = [
-      budgetTx({ id: "gastos", categoryId: "c-super", date: new Date("2026-10-22"), amount: Money.of(2832794, "CLP") }),
-      budgetTx({ id: "sueldo-recibido", categoryId: "c-sueldo", incomeId: "sueldo", direction: "credit", date: new Date("2026-09-25"), amount: Money.of(1800000, "CLP") }),
-      budgetTx({ id: "abono", categoryId: "c-sueldo", incomeId: "extra", direction: "credit", date: new Date("2026-09-25"), amount: Money.of(1000000, "CLP") }),
-      budgetTx({ id: "usd", categoryId: "c-sueldo", direction: "credit", date: new Date("2026-09-25"), amount: Money.of(20, "USD") }),
-    ]
-    const deps = debtDeps([monthBudget(2026, 10, 2416505)], rows, "card_cycle")
-    const salary = { id: "sueldo", userId: "u1", accountId: "a1", categoryId: "c-sueldo", name: "Sueldo", currency: "CLP", dayOfMonth: 25, isActive: true, endedYear: null, endedMonth: null }
-    deps.incomes = {
-      listByUser: async () => [salary, ...(sourceState === "ausente" ? [] : [{
-        ...salary, id: "extra", isActive: sourceState !== "inactiva",
-        endedYear: sourceState === "terminada" ? 2026 : null,
-        endedMonth: sourceState === "terminada" ? 10 : null,
-      }])],
-      listAmountsByUser: async () => [
-        { incomeId: "sueldo", year: 2026, month: 9, amount: Money.of(2182394, "CLP") },
-        { incomeId: "extra", year: 2026, month: sourceState === "sin-monto-vigente" ? 11 : 9, amount: Money.of(1000000, "CLP") },
-      ],
-    } as unknown as NonNullable<typeof deps.incomes>
-    deps.exchangeRates = { clpPerUsdAt: async () => 950 }
-    const view = await getBudgetView(deps, "u1", 2026, 10)
-    assert.equal(view.income, 3201394) // + abono US$20 convertido a 950
-    assert.equal(view.spent, 2832794)
-    assert.equal(view.income - view.spent, 368600)
-    assert.equal(view.monthOverspend, 416289, "el exceso sobre el tope no es déficit de ingresos")
-    const debt = await getPreviousMonthDebt(deps, "u1", 2026, 11)
-    assert.equal(debt, 0)
-    assert.equal(planTotal(2321762, debt), 2321762)
-    assert.equal(shouldSuggest(planTotal(2321762, debt), 1905473), true)
-    rows.push(budgetTx({ id: "ciclo-siguiente", categoryId: "c-super", date: new Date("2026-10-23"), amount: Money.of(900000, "CLP") }))
-    assert.equal(await getPreviousMonthDebt(deps, "u1", 2026, 11), 0)
-  })
-}
+test("ingresos del ciclo: cada abono de ingreso cuenta una vez y el USD no se suma al CLP", async () => {
+  const rows = [
+    budgetTx({ id: "gastos", categoryId: "c-super", date: new Date("2026-10-22"), amount: Money.of(2832794, "CLP") }),
+    budgetTx({ id: "sueldo-recibido", categoryId: "c-sueldo", direction: "credit", date: new Date("2026-09-25"), amount: Money.of(1800000, "CLP") }),
+    budgetTx({ id: "abono", categoryId: "c-sueldo", direction: "credit", date: new Date("2026-09-25"), amount: Money.of(1000000, "CLP") }),
+    budgetTx({ id: "usd", categoryId: "c-sueldo", direction: "credit", date: new Date("2026-09-25"), amount: Money.of(20, "USD") }),
+  ]
+  const deps = debtDeps([monthBudget(2026, 10, 2416505)], rows, "card_cycle")
+  deps.exchangeRates = { clpPerUsdAt: async () => 950 }
+  const view = await getBudgetView(deps, "u1", 2026, 10)
+  assert.equal(view.income, 2800000)
+  assert.equal(view.spent, 2832794)
+  assert.equal(await getPreviousMonthDebt(deps, "u1", 2026, 11), 32794)
+})
 
 test("getPreviousMonthDebt: en enero el mes anterior es diciembre del año pasado", async () => {
   const debt = await getPreviousMonthDebt(
@@ -904,40 +883,28 @@ test("modo tarjeta: el triage acota al rango del ciclo", async () => {
 
 
 for (const scenario of [
-  { name: "planificado", planned: 40000, active: true, category: "c-super", incomeId: "refund", expected: 40000 },
-  { name: "parcial", planned: 15000, active: true, category: "c-super", incomeId: "refund", expected: 15000 },
-  { name: "sin fuente", planned: 40000, active: true, category: "c-super", incomeId: null, expected: 40000 },
-  { name: "fuente ausente", planned: 40000, active: true, category: "c-super", incomeId: "missing", expected: 40000 },
-  { name: "inactivo", planned: 40000, active: false, category: "c-super", incomeId: "refund", expected: 40000 },
-  { name: "sin tope", planned: 40000, active: true, category: "c-transfer", incomeId: "refund", expected: 40000 },
+  { name: "abono de ingreso", creditKind: "income" as const, expected: 40000 },
+  { name: "abono de reembolso", creditKind: "reimbursement" as const, expected: 0 },
 ]) {
-  test(`reembolso ${scenario.name}: conserva neto por categoría y neutraliza solo ingreso incluido`, async () => {
+  test(`reembolso legado con ${scenario.name}: neutraliza solo lo que el plan cuenta como ingreso`, async () => {
     const rows = [
-      budgetTx({ id: "expense", categoryId: scenario.category, amount: Money.of(60000, "CLP") }),
-      budgetTx({ id: "credit", direction: "credit", categoryId: "c-sueldo", incomeId: scenario.incomeId, amount: Money.of(40000, "CLP") }),
+      budgetTx({ id: "expense", categoryId: "c-super", amount: Money.of(60000, "CLP") }),
+      budgetTx({ id: "credit", direction: "credit", categoryId: "c-sueldo", creditKind: scenario.creditKind, amount: Money.of(40000, "CLP") }),
     ]
     const deps = budgetDeps([])
     deps.transactions.listByUserPeriod = async () => rows
-    deps.incomes = {
-      listByUser: async () => scenario.incomeId === "refund" ? [{ id: "refund", userId: "u1", accountId: "a1", categoryId: "c-sueldo", name: "Reembolso", currency: "CLP", dayOfMonth: 10, isActive: scenario.active, endedYear: null, endedMonth: null }] : [],
-      listAmountsByUser: async () => [{ incomeId: "refund", year: 2026, month: 8, amount: Money.of(scenario.planned, "CLP") }],
-    } as unknown as NonNullable<typeof deps.incomes>
     deps.reimbursements = { listForTransactions: async () => [{ expenseId: "expense", creditId: "credit", amount: 40000 }] }
     const result = await getBudgetView(deps, "u1", 2026, 8)
     assert.equal(result.spent, 20000)
     assert.equal(result.reimbursementAdjustment, scenario.expected)
-    deps.monthlyBudgets.listByUser = async () => [monthBudget(2026, 8, 10000)]
-    assert.equal(await getPreviousMonthDebt(deps, "u1", 2026, 9), 20000,
-      "el reembolso compensa una sola vez: no es ingreso libre además de reducir el gasto")
+    assert.equal(result.income, scenario.expected)
     assert.equal(rows[0].amount.toMajor(), 60000, "no altera el movimiento bancario")
-    rows[1].date = new Date("2026-09-01")
-    assert.equal((await getBudgetView(deps, "u1", 2026, 8)).reimbursementAdjustment, 0, "otro ciclo no cuenta dos veces")
   })
 }
 
 for (const treatment of ["automatic", "manual"] as const) {
-  for (const planned of [false, true]) {
-    test(`reembolso ${treatment}, fuente ${planned}: gasto bruto, aumento único y sin compensación extra`, async () => {
+  {
+    test(`reembolso ${treatment}: gasto bruto, aumento único y sin compensación extra`, async () => {
       const deps = budgetDeps(globalBudget(100000))
       deps.categories.listLimitsByUser = async () => [
         { id: "base", categoryId: "c-super", year: 2026, month: 7, limit: Money.of(treatment === "manual" ? 120000 : 100000, "CLP") },
@@ -945,13 +912,9 @@ for (const treatment of ["automatic", "manual"] as const) {
       ]
       const rows = [
         budgetTx({ id: "expense", categoryId: "c-super", amount: Money.of(60000, "CLP") }),
-        budgetTx({ id: "credit", direction: "credit", categoryId: "c-sueldo", incomeId: planned ? "source" : null, amount: Money.of(20000, "CLP") }),
+        budgetTx({ id: "credit", direction: "credit", categoryId: "c-sueldo", amount: Money.of(20000, "CLP") }),
       ]
       deps.transactions.listByUserPeriod = async () => rows
-      if (planned) deps.incomes = {
-        listByUser: async () => [{ id: "source", userId: "u1", categoryId: "c-sueldo", isActive: true, endedYear: null, endedMonth: null }],
-        listAmountsByUser: async () => [{ incomeId: "source", year: 2026, month: 8, amount: Money.of(20000, "CLP") }],
-      } as unknown as NonNullable<typeof deps.incomes>
       deps.reimbursements = { listForTransactions: async () => [{ expenseId: "expense", creditId: "credit", amount: 20000,
         effects: [{ mode: "calendar", year: 2026, month: 8, categoryId: "c-super", treatment }] }] }
       const view = await getBudgetView(deps, "u1", 2026, 8)
@@ -1211,7 +1174,7 @@ test("pres-usd-sin-tasa: si el dólar observado no responde, el gasto en USD que
   assert.equal(rateFlag(await getBudgetView(withRate(mes([txs[0]]), null), "u1", 2026, 11)), false)
 })
 
-test("pres-usd-ingreso: un abono en USD suma a los ingresos convertido con el dólar del día, igual que un gasto", async () => {
+test("pres-usd-ingreso: un abono de ingreso en USD no se suma al ingreso CLP del plan, haya o no dólar (WDC-183)", async () => {
   const deps = wdc171Deps({
     cats: [cat("c-hogar", "expense", "Hogar"), cat("c-sueldo", "income", "Sueldo")],
     txs: [
@@ -1220,10 +1183,9 @@ test("pres-usd-ingreso: un abono en USD suma a los ingresos convertido con el d�
     ],
   })
   const conTasa = await getBudgetView(withRate(deps, 950), "u1", 2026, 11)
-  assert.equal(conTasa.income, 595000, "500.000 + US$100 × 950")
+  assert.equal(conTasa.income, 500000, "CLP y USD nunca se suman")
   const sinTasa = await getBudgetView(withRate(deps, null), "u1", 2026, 11)
   assert.equal(sinTasa.income, 500000)
-  assert.equal(rateFlag(sinTasa), true)
 })
 
 test("pres-detalle-cuadra: el detalle de Hogar dice el mismo comprometido y «libre» que la vista del mes, con la cuota del sillón por cobrar", async () => {

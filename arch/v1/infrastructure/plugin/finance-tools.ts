@@ -1,6 +1,9 @@
 import { linkReimbursement } from "../database/prisma/reimbursement.infrastructure.ts"
 import { bankReconciliationStore } from "../database/prisma/bank-reconciliation.infrastructure.ts"
 import { reconcileBankAccount } from "../../application/finance-use-cases/bank-reconciliation.ts"
+import { proponerConciliacion } from "../../application/finance-use-cases/propose-reconciliation.ts"
+import { changeCreditKind } from "../../application/finance-use-cases/credit-kind-use-cases.ts"
+import { isFromBank } from "../../domain/finance/recurring.domain.ts"
 import type {
   PluginActor,
   PluginJsonValue,
@@ -10,12 +13,8 @@ import type {
   PluginToolName,
 } from "../../../../lib/schemas/plugin.ts"
 import { Money } from "../../domain/finance/money.ts"
-import { todayKey } from "../../../shared/today.ts"
 import { calculateFinancialOverview } from "../../../../lib/financial-health.ts"
-import { reconcileBankRows } from "../../../../lib/bank-reconciliation.ts"
-import { isSameBankMovement } from "../../domain/finance/bank-reconciliation.domain.ts"
-import { NotOwnerError, type Transaction } from "../../domain/finance/finance.domain.ts"
-import { EmailSetupStateError } from "../../domain/finance/email-connection.domain.ts"
+import { NotOwnerError } from "../../domain/finance/finance.domain.ts"
 import { prisma } from "../database/prisma/client.ts"
 import { Prisma } from "../database/prisma/generated/client.ts"
 import {
@@ -26,16 +25,13 @@ import {
   monthlyBudgetRepository,
   transactionRepository,
 } from "../database/prisma/finance.infrastructure.ts"
-import { incomeRepository } from "../database/prisma/income.infrastructure.ts"
 import { reimbursementReadRepository } from "../database/prisma/reimbursement-read.infrastructure.ts"
 import { recurringTemplateRepository } from "../database/prisma/recurring.infrastructure.ts"
 import { installmentPlanRepository } from "../database/prisma/installment.infrastructure.ts"
 import { correctionRepository } from "../database/prisma/categorization-correction.infrastructure.ts"
 import { budgetPeriodRepository } from "../database/prisma/budget-period.infrastructure.ts"
 import { exchangeRateProvider } from "../http/exchange/usd-clp.ts"
-import { makeEmailConnectionDeps } from "../database/prisma/email-connection.infrastructure.ts"
 import { createAccount } from "../../application/finance-use-cases/create-account-use-case.ts"
-import { createTransaction } from "../../application/finance-use-cases/create-transaction-use-case.ts"
 import {
   updateTransaction,
   deleteTransaction,
@@ -47,14 +43,6 @@ import {
   setCategoryLimit,
 } from "../../application/finance-use-cases/upsert-category-use-case.ts"
 import { followIncome, setMonthlyBudgetFollowing } from "../../application/finance-use-cases/follow-income.ts"
-import {
-  createIncome,
-  listAvailableIncomeSources,
-  updateIncome,
-  deleteIncome,
-  generateMonthlyIncome,
-  ungenerateMonthlyIncome,
-} from "../../application/finance-use-cases/income-use-cases.ts"
 import {
   createRecurringTemplate,
   updateRecurringTemplate,
@@ -79,15 +67,12 @@ import {
   listAccounts,
   getMonthlySummary,
   getBudgetView,
-  listIncomesView,
+  listIncomeCredits,
   listRecurringView,
   listInstallmentsView,
   listRecurringCandidates,
 } from "../../application/finance-use-cases/finance-read.ts"
-import { applyAccountBalance } from "../../application/finance-use-cases/account-balance-use-cases.ts"
 import { rangeOf } from "../../application/finance-use-cases/budget-period-use-cases.ts"
-import { reconcileEmailBalances } from "../../application/finance-use-cases/email-connection-use-cases.ts"
-import { withLock } from "../../../shared/mutex.ts"
 import { createHash, createHmac } from "node:crypto"
 import { manualAccountRepository } from "../database/prisma/manual-account.infrastructure.ts"
 import { budgetAlertRepository } from "../database/prisma/budget-alert.infrastructure.ts"
@@ -123,7 +108,6 @@ const deps = {
   categories: categoryRepository,
   monthlyBudgets: monthlyBudgetRepository,
   transactions: transactionRepository,
-  incomes: incomeRepository,
   reimbursements: reimbursementReadRepository,
   recurring: recurringTemplateRepository,
   installments: installmentPlanRepository,
@@ -137,15 +121,10 @@ const deps = {
   bankReconciliation: bankReconciliationStore,
 }
 
-// Escritura que mueve el ingreso del plan: el tope igualado al ingreso la sigue (ver follow-income).
-// Movimientos en los dos modos; una fuente de ingreso solo en el suyo (`allModes: false`).
-const follow = async <T>(userId: string, mutate: () => Promise<T>, allModes = true) =>
-  (await followIncome(deps, userId, mutate, { allModes })).result
-
-// Un movimiento registrado como clave de `isSameBankMovement` (día civil UTC).
-const bankKey = (t: Transaction) => ({ date: t.date.toISOString().slice(0, 10),
-  direction: t.direction, amount: t.amount.toMajor(), currency: t.amount.currency,
-  description: t.description })
+// Escritura que mueve el ingreso del plan: el tope igualado al ingreso la sigue en los dos modos
+// (ver follow-income).
+const follow = async <T>(userId: string, mutate: () => Promise<T>) =>
+  (await followIncome(deps, userId, mutate, { allModes: true })).result
 
 // Confirmación de borrado de cuenta: hash del estado y firma con el secreto del servidor.
 const deletionDeps = {
@@ -191,7 +170,6 @@ async function ownedReferences(userId: string, input: Record<string, unknown>) {
   // Algunas altas históricas no validaban categoría: el boundary del plugin sí lo exige.
   await owned("categoryId", (id) => deps.categories.findById(id))
   await owned("transactionId", (id) => deps.transactions.findById(id))
-  await owned("incomeId", (id) => prisma.income.findUnique({ where: { id } }))
   await owned("planId", (id) => deps.installments.findById(id))
   await owned("toPlanId", (id) => deps.installments.findById(id))
   await owned("sourceTransactionId", async (id) => {
@@ -213,86 +191,6 @@ async function assertCategoryNameFree(
     throw new PluginRejection(
       `Ya existe una categoría llamada «${name.trim()}». Usa lucaplan_listar_categorias y edítala, o elige otro nombre`
     )
-}
-
-async function reconcile(
-  userId: string,
-  input: Omit<
-    PluginToolInput<"lucaplan_reconciliar_saldos_correo">,
-    "operationId"
-  >
-) {
-  return withLock(`email:${userId}`, async () => {
-    const link = await prisma.emailBankLink.findFirst({
-      where: { id: input.linkId, userId },
-      select: {
-        bankId: true,
-        lastBalanceReconciledAt: true,
-        mailbox: { select: { lastSyncedAt: true } },
-        bank: { select: { lastSyncedAt: true } },
-      },
-    })
-    if (!link?.bankId) throw new NotOwnerError()
-    const snapshotAt = new Date(input.snapshotAt)
-    const newest = await prisma.transaction.findFirst({
-      where: {
-        userId,
-        account: { bankId: link.bankId },
-        externalId: { not: null },
-      },
-      orderBy: { createdAt: "desc" },
-      select: { createdAt: true },
-    })
-    const bucket = await prisma.balanceBucket.findFirst({
-      where: { account: { userId, bankId: link.bankId } },
-      orderBy: { asOf: "desc" },
-      select: { asOf: true },
-    })
-    const cutoffs = [
-      link.lastBalanceReconciledAt,
-      link.mailbox.lastSyncedAt,
-      link.bank?.lastSyncedAt,
-      newest?.createdAt,
-      bucket?.asOf,
-    ]
-    if (
-      snapshotAt.getTime() > Date.now() ||
-      cutoffs.some((at) => at && at > snapshotAt)
-    )
-      throw new EmailSetupStateError(
-        "La fecha es anterior a datos ya conciliados o sincronizados. Se necesita un estado actual; la conciliación histórica no está habilitada"
-      )
-    const clp = (bucket: { limit: number; used: number } | null) =>
-      bucket && {
-        limit: Money.of(bucket.limit, "CLP"),
-        used: Money.of(bucket.used, "CLP"),
-      }
-    const usd = (bucket: { limit: number; used: number } | null) =>
-      bucket && {
-        limit: Money.of(bucket.limit, "USD"),
-        used: Money.of(bucket.used, "USD"),
-      }
-    return reconcileEmailBalances(
-      makeEmailConnectionDeps(),
-      userId,
-      input.linkId,
-      {
-        snapshotAt,
-        checking: input.checking
-          ? {
-              ref: input.checking.ref,
-              cash: Money.of(input.checking.cash, "CLP"),
-              overdraft: clp(input.checking.overdraft),
-            }
-          : null,
-        cards: input.cards.map((card) => ({
-          last4: card.last4,
-          national: clp(card.national),
-          international: usd(card.international),
-        })),
-      }
-    )
-  })
 }
 
 type Handlers = {
@@ -352,130 +250,26 @@ const handlers: Handlers = {
   },
   lucaplan_buscar_movimientos: (userId, input) =>
     searchPluginTransactions(userId, input),
-  lucaplan_crear_movimiento: (userId, input) =>
-    follow(userId, () => createTransaction(deps, userId, { ...input, date: new Date(input.date) })),
+  lucaplan_proponer_conciliacion: (userId, input) =>
+    proponerConciliacion(deps, userId, input.accountId, input.document),
   lucaplan_previsualizar_conciliacion: (userId, input) => reconcileBankAccount(deps, userId, input),
   lucaplan_aplicar_conciliacion: (userId, { previewToken, ...input }) =>
     follow(userId, () => reconcileBankAccount(deps, userId, input, previewToken)),
-  lucaplan_conciliar_cartola: async (userId, input) => {
-    const account = await deps.accounts.findById(input.accountId)
-    if (!account || account.userId !== userId) throw new PluginReferenceError("accountId")
-    if (account.accountType !== "credit_card" && account.currency !== input.currency) throw new PluginRejection("Moneda distinta a la cuenta")
-    const dates = input.movements.map((m) => m.date).sort()
-    const start = new Date(dates[0] + "T00:00:00Z")
-    const end = new Date(dates.at(-1) + "T00:00:00Z")
-    start.setUTCDate(start.getUTCDate()-1)
-    end.setUTCDate(end.getUTCDate()+1)
-    const existing = (await deps.transactions.listByUserPeriod(userId, {
-      start: start.toISOString().slice(0,10), end: end.toISOString().slice(0,10),
-    })).filter(t => t.accountId === input.accountId && !t.isInternal &&
-      t.status !== "reversed" && t.status !== "duplicated" && t.amount.currency === input.currency)
-    return { results: reconcileBankRows(input.movements, existing.map(t=>({
-      id:t.id, date:t.date.toISOString().slice(0,10), amount:t.amount.toMajor(),
-      direction:t.direction, description:t.description,
-    }))), notice:"Previsualización sin modificaciones. Los ambiguos requieren revisión manual." }
-  },
-  lucaplan_importar_cargos_bancarios: async (userId, input) => {
-    const results: Array<{ index:number; status:string; transactionId?:string; reason?:string }> = []
-    for (const [index, row] of input.movements.entries()) {
-      try {
-        // La operación por fila reutiliza las validaciones del alta individual.
-        // ponytail: cada fila alinea el tope por su cuenta (hasta 20); seguir una vez al final si pesa.
-        const created = await handlers.lucaplan_registrar_cargo_bancario(userId, {
-          ...row, accountId:input.accountId, currency:input.currency,
-        }) as { transactionId: string; created: boolean }
-        results.push({index,status:"created",transactionId:created.transactionId})
-      } catch (error) {
-        if (error instanceof PluginRejection || error instanceof PluginReferenceError) {
-          results.push({index,status:"rejected",reason:error.message})
-        } else {
-          throw error // El runner informa resultado incierto; consultar operación antes de repetir.
-        }
-      }
-    }
-    return {results,created:results.filter(r=>r.status==="created").length,
-      rejected:results.filter(r=>r.status==="rejected").length}
-  },
-  lucaplan_registrar_ingreso_extraordinario: async (userId, input) => {
-    const account = await deps.accounts.findById(input.accountId)
-    if (!account || account.userId !== userId) throw new PluginReferenceError("accountId")
-    if (account.accountType !== "checking" || account.currency !== input.currency)
-      throw new PluginRejection("Se requiere cuenta corriente con moneda coincidente")
-    const category = await deps.categories.findById(input.categoryId)
-    if (!category || category.userId !== userId) throw new PluginReferenceError("categoryId")
-    if (category.type !== "income") throw new PluginRejection("Se requiere categoría de ingreso")
-    const date = new Date(input.date+"T00:00:00Z")
-    // Futura = después de hoy en Chile; contra el instante UTC, de noche pasaba la de mañana.
-    if (!Number.isFinite(date.getTime()) || input.date > todayKey()) throw new PluginRejection("Fecha inválida o futura")
-    const start = new Date(date); start.setUTCDate(start.getUTCDate()-1)
-    const end = new Date(date); end.setUTCDate(end.getUTCDate()+1)
-    const existing = await deps.transactions.listByUserPeriod(userId, {
-      start:start.toISOString().slice(0,10),end:end.toISOString().slice(0,10),
-    })
-    if (existing.some(t=> t.accountId===input.accountId && t.status==="confirmed" &&
-      isSameBankMovement(bankKey(t), {date:input.date,direction:"credit",amount:input.amount,
-        currency:input.currency,description:input.description}, {days:1,match:"amount"})))
-      throw new PluginRejection("Ya existe un abono del mismo monto en fecha cercana; no se creó ingreso")
-    const tx = await follow(userId, () => createTransaction(deps,userId,{...input, direction:"credit",date}))
-    return {transactionId:tx.id,created:true}
-  },
-  lucaplan_registrar_cargo_bancario: async (userId, input) => {
-    const account = await deps.accounts.findById(input.accountId)
-    if (!account || account.userId !== userId) throw new PluginReferenceError("accountId")
-    if (account.provider === "manual") throw new PluginRejection("Esta herramienta es solo para cuentas conectadas")
-    if (account.accountType !== "credit_card" && account.currency !== input.currency) throw new PluginRejection("La moneda no corresponde a la cuenta")
-    const day = new Date(input.date + "T00:00:00.000Z")
-    if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== input.date || input.date > todayKey())
-      throw new PluginRejection("Fecha inválida o futura")
-    // Sin editar el origen bancario, sin sumar cuotas o pagos como si fueran gastos.
-    const description = input.description.trim()
-    if (/pago\s*(?:tarjeta|tc)|transferencia\s*(?:desde|a)\s*linea|traspaso\s*(?:de|a)\s*cuenta\s*propia/i.test(description))
-      throw new PluginRejection("Los pagos y traspasos internos deben conciliarse, no crearse como gastos")
-    const before = new Date(day)
-    before.setUTCDate(before.getUTCDate() - 1)
-    const after = new Date(day)
-    after.setUTCDate(after.getUTCDate() + 1)
-    const matches = await deps.transactions.listByUserPeriod(userId, {
-      start: before.toISOString().slice(0,10),
-      end: after.toISOString().slice(0,10),
-    })
-    if (matches.some((t) =>
-      t.accountId === input.accountId &&
-      t.status !== "reversed" && t.status !== "duplicated" &&
-      isSameBankMovement(bankKey(t), { date: input.date, direction: "debit", amount: input.amount,
-        currency: input.currency, description }, { days: 1, match: "amount" })
-    ))
-      throw new PluginRejection("Posible duplicado: ya existe un cargo del mismo monto en esta cuenta dentro de ±1 día. Revisa sus movimientos antes de importar; no se creó un cargo nuevo")
-    if (input.categoryId) {
-      const category = await deps.categories.findById(input.categoryId)
-      if (!category || category.userId !== userId) throw new PluginReferenceError("categoryId")
-      if (category.type !== "expense") throw new PluginRejection("La categoría debe ser de tipo gasto")
-    }
-    const tx = await follow(userId, () => createTransaction(deps, userId, {
-      accountId: input.accountId, categoryId: input.categoryId ?? null, date: day,
-      description, amount: input.amount, currency: input.currency,
-      direction: "debit", source: "bank-scan",
-    }))
-    return { transactionId: tx.id, created: true, categoryId: input.categoryId ?? null,
-      notice: "Cargo registrado. Revisa la proyección del saldo y su impacto en el presupuesto; si llega el correo del banco, comprueba que no se duplique." }
-  },
   lucaplan_corregir_metadatos_movimiento: async (userId, input) => {
     const tx = await deps.transactions.findById(input.transactionId)
     if (!tx || tx.userId !== userId) throw new PluginReferenceError("transactionId")
-    if (tx.externalId || tx.installmentItemId || tx.recurringTemplateId)
-      throw new PluginRejection("No se pueden alterar los datos originales del banco ni movimientos ligados a cuotas o recurrentes")
+    if (isFromBank(tx) || tx.externalId || tx.installmentItemId || tx.recurringTemplateId)
+      throw new PluginRejection("No se pueden alterar los datos originales del banco (correo o cartola) ni movimientos ligados a cuotas o recurrentes")
     const changedDate = new Date(input.date + "T00:00:00.000Z")
     if (!Number.isFinite(changedDate.getTime()) ||
         changedDate.toISOString().slice(0, 10) !== input.date)
       throw new PluginRejection("Fecha inválida")
-    if (tx.incomeId)
-      throw new PluginRejection("Es un ingreso generado desde una fuente mensual: la fecha debe corregirse desde el flujo de ingresos para conservar su ciclo de origen; no se modificó nada")
     // Otra fecha ya no es la que conciliaba la cartola: se borra la conciliación (WDC-123).
     const dateChanged = tx.date.toISOString().slice(0, 10) !== input.date
     // Otra fecha puede llevarlo a otro período: el tope que sigue al ingreso se alinea.
     const updated = await follow(userId, () => prisma.transaction.updateMany({
-      where: { id: tx.id, userId, externalId: null,
-        installmentItemId: null, recurringTemplateId: null, incomeId: null },
+      where: { id: tx.id, userId, externalId: null, origin: { notIn: ["email", "statement"] },
+        installmentItemId: null, recurringTemplateId: null },
       data: { transactionDate: changedDate, description: input.description.trim(),
         ...(dateChanged ? { reconciliation: Prisma.DbNull } : {}) },
     }))
@@ -491,36 +285,6 @@ const handlers: Handlers = {
     return { ok: true }
   },
   lucaplan_vincular_reembolso: (userId, input) => follow(userId, () => linkReimbursement(userId, input)),
-  lucaplan_vincular_abono_ingreso: async (userId, input) => {
-    const [income, credit] = await Promise.all([
-      prisma.income.findFirst({ where: { id: input.incomeId, userId } }),
-      prisma.transaction.findFirst({ where: { id: input.transactionId, userId } }),
-    ])
-    if (!income || !credit) throw new PluginReferenceError(!income ? "incomeId" : "transactionId")
-    if (credit.direction !== "credit" || credit.status !== "confirmed" || credit.isInternal ||
-        income.accountId !== credit.accountId || income.currency !== credit.currency ||
-        income.categoryId !== credit.categoryId ||
-        (credit.incomeId && credit.incomeId !== income.id))
-      throw new PluginRejection("El abono debe coincidir en cuenta, moneda y categoría y estar sin otra fuente")
-    // La fuente se genera por período: bloquear una segunda transacción de la misma fuente
-    // en el mes calendario de este abono, aunque ocurra otro día.
-    const year = credit.transactionDate.getUTCFullYear()
-    const month = credit.transactionDate.getUTCMonth()
-    const from = new Date(Date.UTC(year, month, 1))
-    const to = new Date(Date.UTC(year, month + 1, 1))
-    const existingIncomeMatch = await prisma.transaction.findFirst({
-      where: { userId, incomeId: income.id,
-        transactionDate: { gte: from, lt: to }, id: { not: credit.id } },
-    })
-    if (existingIncomeMatch) throw new PluginRejection("Ya hay un abono de esta fuente en ese mes")
-    // Vinculado deja de ser abono adicional: el total del plan baja y el tope igualado lo sigue.
-    const updated = await follow(userId, () => prisma.transaction.updateMany({
-      where: { id: credit.id, userId, OR: [{ incomeId: null }, { incomeId: income.id }] },
-      data: { incomeId: income.id },
-    }))
-    if (!updated.count) throw new PluginRejection("El abono está vinculado a otra fuente")
-    return { incomeId: income.id, transactionId: credit.id, linked: true, createdTransaction: false }
-  },
   lucaplan_asignar_categoria: (userId, input) =>
     categorizeTransaction(deps, userId, input.transactionId, input.categoryId),
   lucaplan_crear_categoria: async (userId, input) => {
@@ -551,19 +315,14 @@ const handlers: Handlers = {
     if (periodConfig.mode !== "card_cycle") return plan
     const previousYear = input.month === 1 ? input.year - 1 : input.year
     const previousMonth = input.month === 1 ? 12 : input.month - 1
-    const previous = await listIncomesView(scopedDeps, userId, previousYear, previousMonth)
+    const previous = await listIncomeCredits(scopedDeps, userId, previousYear, previousMonth)
     return {
       ...plan,
       creditCycleCoverage: {
-        explanation: "En modo crédito, los ingresos asociados a un ciclo sirven para liquidar la factura de ese ciclo, incluso si se reciben después del cierre. Los ingresos del ciclo actual respaldan su próxima facturación; no sumes ambos ciclos ni confundas un ingreso generado en la app con un abono conciliado del banco.",
+        explanation: "En modo crédito, los ingresos asociados a un ciclo sirven para liquidar la factura de ese ciclo, incluso si se reciben después del cierre. Los ingresos del ciclo actual respaldan su próxima facturación; no sumes ambos ciclos.",
         previousCycle: { year: previousYear, month: previousMonth },
-        previousCycleIncomes: previous.map(i => ({
-          id: i.id, name: i.name, amount: i.amount, currency: i.currency,
-          dayOfMonth: i.dayOfMonth,
-          status: i.generated ? "registrado_en_app" : "pendiente_en_app",
-        })),
-        previousCyclePendingCLP: previous.filter(i => !i.generated && i.currency === "CLP").reduce((sum, i) => sum + i.amount, 0),
-        verification: "El estado registrado_en_app no confirma necesariamente la recepción bancaria; concilia el correo o la cartola antes de declarar una factura cubierta.",
+        previousCycleIncomes: previous,
+        verification: "Son abonos de ingreso confirmados; los que el correo no trajo aparecen al conciliar la cartola.",
       },
     }
   },
@@ -600,7 +359,7 @@ const handlers: Handlers = {
       currency: "CLP",
       ...calculateFinancialOverview({ cash: summary.activeCash, overdraftDebt: summary.overdraftDebt, income: budget.income, spent: budget.spent, committed: budget.committed, reimbursementAdjustment: budget.reimbursementAdjustment }),
       spendable: budget.spendable,
-      notice: "Los ingresos incluyen fuentes activas vigentes y abonos adicionales confirmados sin duplicar los vinculados a esas fuentes; los gastos son todo gasto CLP confirmado no interno, con o sin categoría o tope, y los compromisos todo pendiente y cuota por cobrar. Un movimiento USD sin dólar observado queda fuera (exchangeRateUnavailable en el presupuesto). La compensación de reembolsos incluidos en ingresos se cuenta una sola vez. remainingBeforeCommitments es ingresos menos gasto realizado, antes de reservas. balance es margen del plan después de compromisos, no caja. spendable.amount es el disponible para gastar = menor entre margen (balance) y topes que quedan (spendable.plannedLeft: Σ tope − gastado − comprometido de las categorías en el plan, incluidas las sin tope que ya gastaron); spendable.limitedBy dice cuál manda; sin ningún tope definido manda el margen. Puede ser negativo y no es caja. Esta herramienta solo lee y no materializa las recurrentes del período: las que aún no existen como pendientes (el Inicio las crea al abrirse) no entran en committed. planStatus describe el presupuesto; status combina plan y liquidez. liquidity usa los últimos saldos registrados, no un saldo histórico ni proyectado del período. Ambos modos comparten movimientos de corriente y tarjeta; cada uno conserva su plan y su rango temporal.",
+      notice: "Los ingresos son los abonos de ingreso (creditKind income) confirmados del período; los gastos son todo gasto CLP confirmado no interno, con o sin categoría o tope, y los compromisos todo pendiente y cuota por cobrar. Un movimiento USD sin dólar observado queda fuera (exchangeRateUnavailable en el presupuesto). La compensación de reembolsos incluidos en ingresos se cuenta una sola vez. remainingBeforeCommitments es ingresos menos gasto realizado, antes de reservas. balance es margen del plan después de compromisos, no caja. spendable.amount es el disponible para gastar = menor entre margen (balance) y topes que quedan (spendable.plannedLeft: Σ tope − gastado − comprometido de las categorías en el plan, incluidas las sin tope que ya gastaron); spendable.limitedBy dice cuál manda; sin ningún tope definido manda el margen. Puede ser negativo y no es caja. Esta herramienta solo lee y no materializa las recurrentes del período: las que aún no existen como pendientes (el Inicio las crea al abrirse) no entran en committed. planStatus describe el presupuesto; status combina plan y liquidez. liquidity usa los últimos saldos registrados, no un saldo histórico ni proyectado del período. Ambos modos comparten movimientos de corriente y tarjeta; cada uno conserva su plan y su rango temporal.",
     }
   },
   lucaplan_ver_presupuesto: async (userId, input) => ({
@@ -614,17 +373,9 @@ const handlers: Handlers = {
   lucaplan_fijar_presupuesto_categoria: (userId, input) =>
     setCategoryLimit(deps, userId, input),
   lucaplan_listar_ingresos: (userId, input) =>
-    input.available ? listAvailableIncomeSources(deps, userId) : listIncomesView(deps, userId, input.year, input.month),
-  lucaplan_crear_ingreso: (userId, input) =>
-    follow(userId, () => createIncome(deps, userId, input), false),
-  lucaplan_editar_ingreso: (userId, input) =>
-    follow(userId, () => updateIncome(deps, userId, input), false),
-  lucaplan_eliminar_ingreso: (userId, input) =>
-    follow(userId, () => deleteIncome(deps, userId, input.id, input), false),
-  lucaplan_registrar_ingreso_mes: (userId, input) =>
-    follow(userId, () => generateMonthlyIncome(deps, userId, input)),
-  lucaplan_deshacer_ingreso_mes: (userId, input) =>
-    follow(userId, () => ungenerateMonthlyIncome(deps, userId, input)),
+    listIncomeCredits(deps, userId, input.year, input.month),
+  lucaplan_cambiar_tipo_abono: async (userId, input) =>
+    (await changeCreditKind(deps, userId, input)).transaction,
   lucaplan_listar_recurrentes: (userId) => listRecurringView(deps, userId),
   lucaplan_crear_recurrente: (userId, input) =>
     createRecurringTemplate(deps, userId, {
@@ -725,17 +476,6 @@ const handlers: Handlers = {
     follow(userId, () => unlinkTransactionFromItem(deps, userId, input)),
   lucaplan_mover_pago_cuota: (userId, input) =>
     follow(userId, () => moveInstallmentPayment(deps, userId, input)),
-  lucaplan_actualizar_saldos: (userId, input) =>
-    withLock(`email:${userId}`, () =>
-      applyAccountBalance(deps, userId, input.accountId, {
-        last4: input.last4,
-        cash: input.cash,
-        overdraft: { ...input.overdraft, limit: null },
-        national: { ...input.national, limit: null },
-        international: { ...input.international, limit: null },
-      })
-    ),
-  lucaplan_reconciliar_saldos_correo: reconcile,
 }
 
 export const pluginFinanceExecutor = {

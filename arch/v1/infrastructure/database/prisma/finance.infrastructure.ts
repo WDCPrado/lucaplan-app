@@ -21,13 +21,15 @@ import type {
   CategoryLimit,
   CategoryRepository,
   CategoryType,
+  CreditKind,
   Direction,
+  InternalKind,
   MonthlyBudget,
   MonthlyBudgetRepository,
   MovementStatus,
-  NewTransaction,
   Provider,
   Transaction,
+  TransactionOrigin,
   TransactionRepository,
   TransactionSearchFilters,
   UpdateTransaction,
@@ -48,11 +50,11 @@ function toAccount(row: any): Account {
     accountType: row.accountType as AccountType,
     currency,
     balance: Money.of(row.balance.toString(), currency),
-    overdraftLimit: Money.of(row.overdraftLimit.toString(), currency),
     color: row.color ?? null,
     cardLast4: row.cardLast4 ?? null,
     provider: (row.provider ?? "manual") as Provider,
     externalId: row.externalId ?? null,
+    reconciledUntil: row.reconciledUntil ?? null,
   }
 }
 
@@ -96,9 +98,12 @@ function toTransaction(row: any): Transaction {
     status: (row.status ?? "confirmed") as MovementStatus,
     recurringTemplateId: row.recurringTemplateId ?? null,
     installmentItemId: row.installmentItemId ?? null,
-    incomeId: row.incomeId ?? null,
     isInternal: row.isInternal ?? false,
     externalId: row.externalId ?? null,
+    origin: row.origin as TransactionOrigin,
+    creditKind: (row.creditKind ?? null) as CreditKind | null,
+    internalKind: (row.internalKind ?? null) as InternalKind | null,
+    reversalOfId: row.reversalOfId ?? null,
   }
 }
 
@@ -153,7 +158,6 @@ export const accountRepository: AccountRepository = {
         accountType: input.accountType,
         currency: input.currency,
         balance: input.balance.toDecimalString(),
-        overdraftLimit: input.overdraftLimit.toDecimalString(),
         color: input.color,
         cardLast4: input.cardLast4,
       },
@@ -419,37 +423,6 @@ export const transactionRepository: TransactionRepository = {
     const row = await prisma.transaction.findUnique({ where: { id } })
     return row ? toTransaction(row) : null
   },
-  async create(tx: NewTransaction) {
-    // Inserta el movimiento y ajusta el saldo de la cuenta atómicamente.
-    const delta = tx.direction === "credit" ? tx.amount : tx.amount.negate()
-    const row = await prisma.$transaction(async (db) => {
-      const account = await db.financialAccount.findUniqueOrThrow({
-        where: { id: tx.accountId },
-      })
-      const newBalance = Money.of(
-        account.balance.toString(),
-        account.currency as CurrencyCode
-      ).add(delta)
-      await db.financialAccount.update({
-        where: { id: tx.accountId },
-        data: { balance: newBalance.toDecimalString() },
-      })
-      return db.transaction.create({
-        data: {
-          userId: tx.userId,
-          accountId: tx.accountId,
-          categoryId: tx.categoryId,
-          transactionDate: tx.date,
-          description: tx.description,
-          amount: tx.amount.toDecimalString(),
-          currency: tx.amount.currency,
-          direction: tx.direction,
-          reviewed: true, // creación manual: el usuario ya decidió la categoría (o su ausencia)
-        },
-      })
-    })
-    return toTransaction(row)
-  },
   // Edita un movimiento manual reajustando el saldo por la diferencia (nuevo − viejo), atómico.
   // Solo un confirmado mueve la caja (ver cashDelta).
   async update(input: UpdateTransaction) {
@@ -522,6 +495,12 @@ export const transactionRepository: TransactionRepository = {
       data: { categoryId },
     })
     return res.count > 0
+  },
+  // Corrige el tipo de un abono (no toca el saldo).
+  async setCreditKind(transactionId: string, creditKind: CreditKind) {
+    return toTransaction(
+      await prisma.transaction.update({ where: { id: transactionId }, data: { creditKind } })
+    )
   },
   // Borra un movimiento manual revirtiendo su efecto en el saldo, atómico.
   async delete(transactionId: string) {

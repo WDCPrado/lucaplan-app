@@ -21,8 +21,10 @@ import {
   type InstallmentPlanRepository,
 } from "../../domain/finance/installment.domain.ts"
 import {
+  applyCreditToCash,
   applyDebitToCash,
-  applyInternalCredit,
+  applyOverdraftDraw,
+  applyOverdraftPayment,
   applyCreditPurchase,
   applyInternalPayment,
 } from "./email-projection.ts"
@@ -51,6 +53,13 @@ export function planBankReconciliation(
 ): BankReconciliationPlan {
   if (new Date(input.snapshotAt) > now)
     reject("El corte bancario no puede estar en el futuro")
+  if (
+    state.reconciledUntil &&
+    new Date(input.snapshotAt) < new Date(state.reconciledUntil)
+  )
+    reject(
+      `La cuenta ya está conciliada hasta ${state.reconciledUntil}; ese corte es anterior`
+    )
   const cutoffDay = todayKey(new Date(input.snapshotAt))
   const today = todayKey(now)
   if (!["checking", "credit_card"].includes(state.accountType))
@@ -182,7 +191,7 @@ export function planBankReconciliation(
         old.amount !== c.amount)
     )
       reject(
-        "El movimiento está vinculado a un ingreso, recurrente o cuota: conserva importe, moneda y categoría o concilia primero su plan"
+        "El movimiento está vinculado a una recurrente o cuota: conserva importe, moneda y categoría o concilia primero su plan"
       )
     if (
       (old.currency !== c.currency || old.amount !== c.amount) &&
@@ -193,7 +202,7 @@ export function planBankReconciliation(
           ? "La corrección invalidaría reembolsos vinculados"
           : old.isInternal
             ? "No cambiar importe ni moneda de una transferencia interna sin conciliar ambas patas"
-            : "El movimiento está vinculado a un ingreso o cuota: conserva importe y moneda o concilia primero su plan"
+            : "El movimiento está vinculado a una cuota: conserva importe y moneda o concilia primero su plan"
       )
     return {
       before: old,
@@ -213,23 +222,73 @@ export function planBankReconciliation(
       },
     }))
   )
-  const movements = state.movements.map(
-    (m) => corrections.find((c) => c.before.id === m.id)?.after ?? m
+  // Cargo que queda anulado (retención o reverso): del correo o la app, confirmado, hasta el corte,
+  // sin reembolso vinculado (no se desvincula solo) y sin otra decisión en el lote.
+  const voidable = (id: string, what: string) => {
+    if (ids.has(id))
+      reject(`${what}: el movimiento ${id} ya tiene otra decisión en el lote`)
+    ids.add(id)
+    const m =
+      state.movements.find((m) => m.id === id) ??
+      reject(`${what}: movimiento ajeno o inexistente`)
+    if (m.direction !== "debit" || m.status !== "confirmed" || m.date > cutoffDay)
+      reject(`${what}: solo un cargo confirmado hasta el día del corte`)
+    if (m.reimbursementAmount)
+      reject(
+        `${what}: el cargo ${id} tiene un reembolso vinculado; desvincúlalo antes de anularlo`
+      )
+    return m
+  }
+  const retentions = (input.retentions ?? []).map((r) => {
+    const before = voidable(r.transactionId, "Retención")
+    if (before.origin !== "email")
+      reject("Retención: solo un cargo que vino del correo")
+    return { before, evidence: r.evidence }
+  })
+  const reversedIds = new Set(retentions.map((r) => r.before.id))
+  for (const a of input.additions)
+    if (a.reversalOfId)
+      reversedIds.add(voidable(a.reversalOfId, "Reverso").id)
+  const movements = state.movements.map((m) =>
+    reversedIds.has(m.id)
+      ? { ...m, status: "reversed" }
+      : (corrections.find((c) => c.before.id === m.id)?.after ?? m)
   )
+  const categoryType = (id: string | null) =>
+    id === null
+      ? null
+      : (state.categories.find((k) => k.id === id)?.type ??
+        reject("Categoría inválida"))
   const additions = input.additions.map((a, index) => {
     if (a.date > cutoffDay || !precise(a.amount, a.currency))
       reject("Alta posterior al corte o precisión inválida")
-    if (a.isInternal)
-      reject(
-        "Las transferencias internas deben conciliar sus dos patas; no se crean desde este lote"
-      )
-    if (
-      a.categoryId &&
-      !state.categories.some(
-        (k) =>
-          k.id === a.categoryId &&
-          k.type === (a.direction === "debit" ? "expense" : "income")
-      )
+    if (a.isInternal) {
+      // Una sola pata: el giro y el pago de la línea, y el traspaso propio, en la corriente.
+      // El pago de tarjeta va por su flujo; la compra origen de un plan la crea el plan.
+      const leg = {
+        overdraft_draw: "credit",
+        overdraft_payment: "debit",
+        own_transfer: a.direction,
+      }[a.internalKind as string]
+      if (state.accountType !== "checking" || !leg)
+        reject(
+          `Alta ${index}: solo giro o pago de la línea y traspaso propio en cuenta corriente; el pago de tarjeta va por su flujo`
+        )
+      if (leg !== a.direction)
+        reject(`Alta ${index}: la dirección no corresponde a ${a.internalKind}`)
+    }
+    const type = categoryType(a.categoryId)
+    if (a.creditKind === "income") {
+      if (type !== "income")
+        reject(`Alta ${index}: un abono de ingreso exige una categoría de ingreso`)
+    } else if (a.creditKind) {
+      if (type !== null && type !== "expense")
+        reject(
+          `Alta ${index}: un reembolso o reverso va sin categoría o con categoría de gasto`
+        )
+    } else if (
+      type !== null &&
+      type !== (a.direction === "debit" ? "expense" : "income")
     )
       reject("Categoría inválida")
     // Conservador: incluso otra moneda del mismo comercio es candidata, no un alta automática.
@@ -328,10 +387,15 @@ export function planBankReconciliation(
     const amount = Money.of(m.amount, b.currency)
     if (b.kind === "cash") {
       const od = projected.find((b) => b.kind === "overdraft")
-      const next =
-        m.direction === "debit"
-          ? applyDebitToCash(amounts(b), od ? amounts(od) : null, amount)
-          : applyInternalCredit(amounts(b), od ? amounts(od) : null, amount)
+      const apply =
+        m.internalKind === "overdraft_draw"
+          ? applyOverdraftDraw
+          : m.internalKind === "overdraft_payment"
+            ? applyOverdraftPayment
+            : m.direction === "debit"
+              ? applyDebitToCash
+              : applyCreditToCash // todo abono salvo el giro paga primero la línea, como el banco
+      const next = apply(amounts(b), od ? amounts(od) : null, amount)
       assign(b, next.cash)
       if (od && next.overdraft) assign(od, next.overdraft)
     } else
@@ -345,6 +409,7 @@ export function planBankReconciliation(
   return {
     corrections,
     additions,
+    retentions,
     loanCorrections: loanChanges.loans,
     cardCorrections: cardChanges,
     projectedBuckets: projected,

@@ -4,7 +4,6 @@ import {
   accountSchema,
   categoryLimitSchema,
   categorySchema,
-  incomeSchema,
   monthlyBudgetSchema,
   transactionEditFormSchema,
   transactionSchema,
@@ -73,26 +72,6 @@ test("categoría conserva metadatos nullable, omisión de pace y nombre sin lím
   assert.equal("paceEnabled" in categorySchema.parse(input), false)
   for (const name of ["", "   "]) {
     assert.equal(categorySchema.safeParse({ ...input, name }).success, false)
-  }
-})
-
-test("ingreso rechaza nombre vacío y monto cero; permite día31 y decimales existentes", () => {
-  const input = {
-    accountId: "account",
-    categoryId: "income",
-    name: "Sueldo",
-    amount: 1.25,
-    dayOfMonth: 31,
-  }
-  assert.deepEqual(incomeSchema.parse(input), input)
-  for (const patch of [
-    { name: "  " },
-    { amount: 0 },
-    { dayOfMonth: 0 },
-    { dayOfMonth: 1.5 },
-    { dayOfMonth: 32 },
-  ]) {
-    assert.equal(incomeSchema.safeParse({ ...input, ...patch }).success, false)
   }
 })
 

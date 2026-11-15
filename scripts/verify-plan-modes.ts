@@ -60,74 +60,35 @@ try {
 
   const { prisma } = await import("../arch/v1/infrastructure/database/prisma/client.ts")
   disconnect = () => prisma.$disconnect()
-  const { incomeRepository } = await import("../arch/v1/infrastructure/database/prisma/income.infrastructure.ts")
   const { accountRepository, bankRepository, categoryRepository, monthlyBudgetRepository, transactionRepository } = await import("../arch/v1/infrastructure/database/prisma/finance.infrastructure.ts")
-  const { getBudgetView, getPreviousMonthDebt, listIncomesView } = await import("../arch/v1/application/finance-use-cases/finance-read.ts")
-  const { createIncome, updateIncome, deleteIncome, generateMonthlyIncome } = await import("../arch/v1/application/finance-use-cases/income-use-cases.ts")
+  const { getBudgetView, getPreviousMonthDebt } = await import("../arch/v1/application/finance-use-cases/finance-read.ts")
   const { setMonthlyBudget } = await import("../arch/v1/application/finance-use-cases/set-monthly-budget-use-case.ts")
   const { setCategoryLimit } = await import("../arch/v1/application/finance-use-cases/upsert-category-use-case.ts")
   const { scopeBudgetPeriod } = await import("../arch/v1/application/finance-use-cases/budget-period-use-cases.ts")
   const { alignGlobalLimit, setMonthlyBudgetFollowing } = await import("../arch/v1/application/finance-use-cases/follow-income.ts")
   const { planTotal } = await import("../lib/plan-total.ts")
-  const base = { budgetPeriod: undefined, accounts: accountRepository, banks: bankRepository, categories: categoryRepository, monthlyBudgets: monthlyBudgetRepository, transactions: transactionRepository, incomes: incomeRepository, exchangeRates: { clpPerUsdAt: async () => 950 } }
+  const base = { budgetPeriod: undefined, accounts: accountRepository, banks: bankRepository, categories: categoryRepository, monthlyBudgets: monthlyBudgetRepository, transactions: transactionRepository, exchangeRates: { clpPerUsdAt: async () => 950 } }
   const debit = await scopeBudgetPeriod(base, "calendar")
   const credit = await scopeBudgetPeriod(base, "card_cycle")
+  // WDC-183: el cobro histórico quedó como abono de ingreso (backfill) y el ingreso sale de los abonos.
+  const legacy = await prisma.transaction.findUniqueOrThrow({ where: { id: "legacy" } })
+  assert.deepEqual([legacy.origin, legacy.creditKind], ["legacy", "income"])
+  assert.equal((await getBudgetView(debit, "user", 2026, 9)).income, 1000)
   for (const deps of [debit, credit]) {
     const view = await getBudgetView(deps, "user", 2026, 11)
     assert.equal(view.globalLimit, 1100)
-    assert.equal(view.income, 1200)
+    assert.equal(view.income, 0)
     assert.equal(view.allocated, 500)
   }
   await setMonthlyBudget(credit, "user", { year: 2026, month: 11, globalLimit: 1800 })
   await setCategoryLimit(credit, "user", { categoryId: "expense", year: 2026, month: 11, limit: 700 })
-  const input = { id: "income", accountId: "account", categoryId: "salary", name: "Sueldo", amount: 2000, dayOfMonth: 30, year: 2026, month: 11, isActive: true }
-  await updateIncome(credit, "user", input)
   const d = await getBudgetView(debit, "user", 2026, 12)
   const c = await getBudgetView(credit, "user", 2026, 12)
-  assert.deepEqual([d.globalLimit, d.allocated, d.income], [1100, 500, 1200])
-  assert.deepEqual([c.globalLimit, c.allocated, c.income], [1800, 700, 2000])
+  assert.deepEqual([d.globalLimit, d.allocated], [1100, 500])
+  assert.deepEqual([c.globalLimit, c.allocated], [1800, 700])
   assert.equal((await getBudgetView(credit, "user", 2026, 10)).globalLimit, 1100)
-  await updateIncome(credit, "user", { ...input, isActive: false })
-  assert.equal((await getBudgetView(credit, "user", 2026, 12)).income, 0)
-  assert.equal((await getBudgetView(debit, "user", 2026, 12)).income, 1200)
-  await updateIncome(credit, "user", input)
-
-  // Overlapping calendar/cycle calls share one real credit, including concurrent requests.
-  const generated = await Promise.all([
-    generateMonthlyIncome(debit, "user", { incomeId: "income", year: 2026, month: 10 }),
-    generateMonthlyIncome(credit, "user", { incomeId: "income", year: 2026, month: 11 }),
-  ])
-  assert.equal(generated.filter(result => result.created).length, 1)
-  assert.equal(generated[0].transactionId, generated[1].transactionId)
-  assert.equal(await prisma.transaction.count({ where: { incomeId: "income" } }), 2)
-  assert.equal((await listIncomesView(credit, "user", 2026, 11))[0].generated, true)
-  assert.equal((await listIncomesView(debit, "user", 2026, 10))[0].generated, true)
-  const actual = await prisma.transaction.findUniqueOrThrow({ where: { id: generated[0].transactionId } })
-  const account = await prisma.financialAccount.findUniqueOrThrow({ where: { id: "account" } })
-  assert.equal(Number(account.balance), 500 + Number(actual.amount))
-  await deleteIncome(credit, "user", "income", { year: 2026, month: 12 })
-  await assert.rejects(generateMonthlyIncome(credit, "user", { incomeId: "income", year: 2026, month: 12 }), /no está vigente/)
-  assert.equal((await listIncomesView(credit, "user", 2026, 12)).length, 0)
-  assert.equal((await listIncomesView(debit, "user", 2026, 12)).length, 1)
-  assert.equal((await listIncomesView(credit, "user", 2026, 11)).length, 1)
-  assert.equal(await prisma.transaction.count({ where: { incomeId: "income" } }), 2)
-  const added = await createIncome(credit, "user", { ...input, name: "Solo crédito", amount: 300, year: 2026, month: 12 })
-  assert.equal(await incomeRepository.findById(added.id, "calendar"), null)
-  assert.ok((await incomeRepository.listAvailableSources("user", "calendar")).some(source => source.id === added.id))
-  await assert.rejects(createIncome(debit, "another-user", { ...input, sourceId: added.id }), /no está disponible/)
-  const incorporated = await createIncome(debit, "user", { ...input, sourceId: added.id, name: "No cambia identidad", amount: 500, month: 12 })
-  assert.equal(incorporated.id, added.id)
-  assert.equal(incorporated.name, "Solo crédito")
-  await assert.rejects(createIncome(debit, "user", { ...input, sourceId: added.id }), /no está disponible/)
-  assert.equal((await incomeRepository.listAvailableSources("user", "calendar")).length, 0)
-  assert.equal((await incomeRepository.listAvailableSources("user", "card_cycle")).some(source => source.id === "income"), false, "terminar no ofrece reactivación que reescriba historia")
-  const newCredit = await Promise.all([
-    generateMonthlyIncome(debit, "user", { incomeId: added.id, year: 2026, month: 12 }),
-    generateMonthlyIncome(credit, "user", { incomeId: added.id, year: 2027, month: 1 }),
-  ])
-  assert.equal(newCredit.filter(result => result.created).length, 1)
-  assert.equal(newCredit[0].transactionId, newCredit[1].transactionId)
-  // El tope de tarjeta se fijó a mano (1800, sin la marca): ni el ingreso nuevo ni el cobro lo resiembran.
+  // El tope de tarjeta se fijó a mano (1800, sin la marca): un abono nuevo no lo resiembra.
+  await prisma.transaction.create({ data: { userId: "user", accountId: "account", categoryId: "salary", transactionDate: new Date("2026-12-05"), description: "Sueldo", amount: 2000, currency: "CLP", direction: "credit", origin: "statement", creditKind: "income" } })
   assert.equal((await alignGlobalLimit(credit, "user", { today: "2026-12-15" }))?.seeded, false)
   assert.equal((await getBudgetView(credit, "user", 2026, 12)).globalLimit, 1800)
 
@@ -136,7 +97,7 @@ try {
   const total = async () => planTotal((await getBudgetView(debit, "user", 2026, 12)).income, await getPreviousMonthDebt(debit, "user", 2026, 12))
   const followed = await setMonthlyBudgetFollowing(debit, "user", { year: 2026, month: 12, globalLimit: 1, followIncome: true }, dec)
   assert.equal(followed.globalLimit.toMajor(), await total(), "Igualar con un número viejo queda en el total real")
-  await prisma.transaction.create({ data: { userId: "user", accountId: "account", categoryId: "salary", transactionDate: new Date("2026-12-10"), description: "Abono extra", amount: 250, currency: "CLP", direction: "credit" } })
+  await prisma.transaction.create({ data: { userId: "user", accountId: "account", categoryId: "salary", transactionDate: new Date("2026-12-10"), description: "Abono extra", amount: 250, currency: "CLP", direction: "credit", origin: "statement", creditKind: "income" } })
   const seed = await alignGlobalLimit(debit, "user", dec)
   assert.equal(seed?.seeded, true)
   assert.equal((await getBudgetView(debit, "user", 2026, 12)).globalLimit, await total())
@@ -145,12 +106,12 @@ try {
   assert.equal((await alignGlobalLimit(debit, "user", dec))?.seeded, false)
   assert.equal((await getBudgetView(debit, "user", 2026, 12)).globalLimit, 999)
 
-  await prisma.transaction.create({ data: { userId: "user", accountId: "account", categoryId: "expense", transactionDate: new Date("2026-10-23"), description: "Después del cierre", amount: 1500, currency: "CLP", direction: "debit" } })
+  await prisma.transaction.create({ data: { userId: "user", accountId: "account", categoryId: "expense", transactionDate: new Date("2026-10-23"), description: "Después del cierre", amount: 1500, currency: "CLP", direction: "debit", origin: "statement" } })
   assert.equal(await getPreviousMonthDebt(credit, "user", 2026, 11), 0)
-  assert.equal(await getPreviousMonthDebt(debit, "user", 2026, 11), 300)
+  assert.equal(await getPreviousMonthDebt(debit, "user", 2026, 11), 1500) // octubre no tuvo abonos de ingreso
   assert.equal(await prisma.financialAccount.count(), 1)
   assert.equal(await prisma.category.count(), 2)
-  console.log(`${postgresImage}: migration preserves history and real data; independent modes/carry/validity/deficit; one concurrent shared credit: OK`)
+  console.log(`${postgresImage}: migration preserves history and real data; independent modes/carry/validity/deficit; income from bank credits: OK`)
 } finally {
   await disconnect?.()
   if (containerId) docker(["rm", "-f", containerId])

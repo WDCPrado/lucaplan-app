@@ -62,14 +62,6 @@ test("reembolso MCP exige gasto, abono, cantidad positiva e idempotencia", () =>
   assert.equal(schema.safeParse({ ...valid, amount: 500.5 }).success, false)
   assert.equal(schema.safeParse({ ...valid, operationId: "" }).success, false)
 })
-test("vinculación de abono bancario con fuente de ingreso requiere identificadores e idempotencia", () => {
-  const schema = pluginTools.lucaplan_vincular_abono_ingreso.inputSchema
-  const valid = { incomeId: "fuente", transactionId: "abono", operationId: "vinculacion-1" }
-  assert.equal(schema.safeParse(valid).success, true)
-  assert.equal(schema.safeParse({ ...valid, transactionId: "" }).success, false)
-  assert.equal(schema.safeParse({ ...valid, operationId: "" }).success, false)
-})
-
 test("Dado una cuota de tarjeta, cuando el chat lee la herramienta lucaplan_pagar_cuota, entonces su descripción dice que el pago de la tarjeta no la cobra sola y que se salda al conciliar la factura", () => {
   const { description } = pluginTools.lucaplan_pagar_cuota
   assert.match(description, /tarjeta/i)

@@ -32,6 +32,8 @@ export async function seed({ prisma, userId }: DemoContext) {
         status: "confirmed",
         reviewed: true,
         externalId,
+        // Sin aviso del banco = la marca «Ya lo pagué» sobre el comprometido que generó la app.
+        origin: externalId ? "email" : "system",
       },
     })
   }

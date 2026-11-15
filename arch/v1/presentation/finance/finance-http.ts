@@ -17,7 +17,6 @@ import {
   transactionRepository,
 } from "../../infrastructure/database/prisma/finance.infrastructure.ts"
 import { correctionRepository } from "../../infrastructure/database/prisma/categorization-correction.infrastructure.ts"
-import { incomeRepository } from "../../infrastructure/database/prisma/income.infrastructure.ts"
 import { reimbursementReadRepository } from "../../infrastructure/database/prisma/reimbursement-read.infrastructure.ts"
 import { recurringTemplateRepository } from "../../infrastructure/database/prisma/recurring.infrastructure.ts"
 import { installmentPlanRepository } from "../../infrastructure/database/prisma/installment.infrastructure.ts"
@@ -38,7 +37,6 @@ export const financeDeps = {
   categories: categoryRepository,
   transactions: transactionRepository,
   monthlyBudgets: monthlyBudgetRepository,
-  incomes: incomeRepository,
   reimbursements: reimbursementReadRepository,
   recurring: recurringTemplateRepository,
   installments: installmentPlanRepository,
@@ -61,8 +59,8 @@ const requestStore = cache((): MemoStore => new Map())
 // La separación es a propósito y es el invariante que sostiene todo esto: **lo que escribe nunca
 // lee de la memoria**. Antes eso dependía de que `cache` no tuviera ámbito fuera de un render, o
 // sea de un detalle de React y de dónde acabara corriendo el código; ahora lo garantiza qué objeto
-// importa cada archivo. Un camino que escriba y después lea —`updateIncome` dentro de
-// `followIncome`, por ejemplo— no puede leer un ingreso previo a su propia escritura
+// importa cada archivo. Un camino que escriba y después lea —`changeCreditKind` dentro de
+// `followIncome`, por ejemplo— no puede leer un abono previo a su propia escritura
 // aunque alguien lo mueva a una Server Action, porque no tiene de dónde.
 export const financePageDeps = memoizeReads(financeDeps, requestStore)
 

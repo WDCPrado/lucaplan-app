@@ -18,12 +18,6 @@ import {
   CategoryNotFoundError,
 } from "../../domain/finance/finance.domain.ts"
 import {
-  isIncomeEndedAt,
-  type Income,
-  type IncomeRepository,
-} from "../../domain/finance/income.domain.ts"
-import { effectiveIncomeAmount } from "./income-use-cases.ts"
-import {
   executionDateFor,
   hasEnded,
   periodKeyFor,
@@ -51,6 +45,8 @@ import { toClp } from "../../domain/finance/exchange.domain.ts"
 import { Money, type CurrencyCode } from "../../domain/finance/money.ts"
 import {
   inRange,
+  incomeOfPeriod,
+  isPlanIncome,
   computeCategoryUsage,
   computeCategoryCommitted,
   computeCategoryPace,
@@ -72,7 +68,6 @@ import type { BudgetPeriodRepository } from "../../domain/finance/budget-period.
 import type { PeriodRange } from "../../../shared/billing-cycle.ts"
 import { rangeOf, getBudgetPeriod, scopeBudgetPeriod, type BudgetPeriodDeps } from "./budget-period-use-cases.ts"
 import { todayKey } from "../../../shared/today.ts"
-import { isAdditionalIncome } from "../../../../lib/additional-income.ts"
 
 import { currencyPositions } from "./financial-position.ts"
 
@@ -89,8 +84,6 @@ type ReadDeps = {
   recurring?: RecurringTemplateRepository
   // Opcional: el presupuesto suma las cuotas del mes al comprometido de su categoría.
   installments?: InstallmentPlanRepository
-  // Opcional: la meta de una categoría de ingreso es la suma de sus ingresos del mes.
-  incomes?: IncomeRepository
   // Opcional: modo del período (calendario o ciclo de la tarjeta). Sin él, mes calendario.
   budgetPeriod?: BudgetPeriodRepository
   accounts: AccountRepository
@@ -124,6 +117,7 @@ export type AccountDTO = {
   provider: string // "manual" | "bancochile"; las conectadas son de solo lectura (badge)
   connectionMethod?: string | null // "email" (solo conectadas) = saldos ESTIMADOS
   lastSyncedAt: string | null // ISO; última sync del banco conectado (null en cuentas manuales)
+  reconciledUntil?: string | null // ISO; corte de la última cartola conciliada; null = nunca
   buckets?: BucketDTO[] // saldos/cupos por bucket (solo cuentas conectadas). Montos en unidad mayor.
 }
 
@@ -150,7 +144,7 @@ export type TransactionDTO = {
   date: string
   status: string // confirmed | pending | reversed | duplicated (solo confirmed cuenta)
   isInternal?: boolean // ajuste de saldo; no participa en ingresos, gastos ni presupuesto
-  incomeId?: string | null // permite evitar contar dos veces abonos vinculados a una fuente
+  creditKind?: string | null // abono no interno: income | reimbursement | reversal
   categoryId: string | null
   categoryName: string | null
   categoryIcon: string | null
@@ -259,7 +253,7 @@ function txToDTO(
     date: t.date.toISOString(),
     status: t.status,
     isInternal: t.isInternal,
-    incomeId: t.incomeId ?? null,
+    creditKind: t.creditKind ?? null,
     categoryId: t.categoryId,
     categoryName: cat?.name ?? null,
     categoryIcon: cat?.icon ?? null,
@@ -363,18 +357,15 @@ export async function getMonthlySummary(
   const { clpTxs } = await clpView(deps.exchangeRates, txs)
 
   // Gastos: todo gasto real, con o sin categoría o tope (mismo criterio que `spent` del plan).
-  // Los ingresos mantienen su total categorizado.
-  const sumClp = (dir: string) =>
-    clpTxs
-      .filter(
-        (t) =>
-          t.direction === dir &&
-          (dir === "debit" || t.categoryId !== null) &&
-          t.amount.currency === CLP &&
-          t.status === "confirmed" &&
-          !t.isInternal
-      )
-      .reduce((s, t) => s.add(t.amount), Money.zero(CLP))
+  const expense = clpTxs
+    .filter(
+      (t) =>
+        t.direction === "debit" &&
+        t.amount.currency === CLP &&
+        t.status === "confirmed" &&
+        !t.isInternal
+    )
+    .reduce((s, t) => s.add(t.amount), Money.zero(CLP))
 
   const buckets = await deps.balanceBuckets?.listByUser(userId) ?? []
   const position = currencyPositions(accounts, buckets).find(p => p.currency === CLP)!
@@ -388,8 +379,9 @@ export async function getMonthlySummary(
       name: a.name,
       debt: currencyPositions([a], buckets).find(p => p.currency === CLP)!.cardDebt,
     })).filter(d => d.debt > 0),
-    income: sumClp("credit").toMajor(),
-    expense: sumClp("debit").toMajor(),
+    // Ingreso del plan: abonos de ingreso CLP del período (el USD va aparte, nunca convertido).
+    income: incomeOfPeriod(txs, range, CLP).toMajor(),
+    expense: expense.toMajor(),
     // Solo categorías de gasto: mismo criterio que `allocated` en la vista de presupuestos.
     totalBudget: withLimit
       .filter((x) => x.category.type === "expense")
@@ -440,6 +432,7 @@ export async function listAccounts(
       provider: a.provider,
       connectionMethod: bank?.connectionMethod ?? null,
       lastSyncedAt: bank?.lastSyncedAt?.toISOString() ?? null,
+      reconciledUntil: a.reconciledUntil?.toISOString() ?? null,
       buckets: bucketsByAccount.get(a.id) ?? [],
     }
   })
@@ -815,41 +808,25 @@ export async function getBudgetView(
   deps = await scopeBudgetPeriod(deps)
   const range = await rangeOf(deps, year, month)
   const cycleAligned = (await getBudgetPeriod(deps)).mode === "card_cycle"
-  const [withLimit, txs, budgets, plans, incomesList, incomeAmounts] =
+  const [withLimit, txs, budgets, plans] =
     await Promise.all([
       categoriesWithLimit(deps, userId, year, month),
       deps.transactions.listByUserPeriod(userId, range),
       deps.monthlyBudgets.listByUser(userId, (await getBudgetPeriod(deps)).mode),
       deps.installments?.listByUser(userId) ?? Promise.resolve([]),
-      deps.incomes?.listByUser(userId, (await getBudgetPeriod(deps)).mode) ?? Promise.resolve([]),
-      deps.incomes?.listAmountsByUser(userId, (await getBudgetPeriod(deps)).mode) ?? Promise.resolve([]),
     ])
   // USD → CLP por fecha para que el uso por categoría cuente esos movimientos.
   const { clpTxs, rateUnavailable } = await clpView(deps.exchangeRates, txs)
   const { legacyRows, netBudgetTxs, installmentCommitted } = await budgetInputs(
     deps, userId, clpTxs, plans, range
   )
-  // Meta de cada categoría de ingreso = suma de sus ingresos vigentes del mes. Derivada, no
-  // persistida: agregar/editar/eliminar un ingreso la actualiza sola.
-  // ponytail: suma solo CLP; una fuente en otra moneda no entra a la meta.
+  // Ingreso del plan: los abonos de ingreso CLP del período, calculado al leer (el USD nunca se
+  // suma al CLP). La meta de cada categoría de ingreso es lo que entró a ella.
+  const income = incomeOfPeriod(txs, range, CLP)
   const incomeGoal = new Map<string, Money>()
-  const plannedIncomeIds = new Set<string>()
-  const incomeRemaining = new Map<string, number>()
-  let income = Money.zero(CLP)
-  for (const inc of incomesList) {
-    if (!inc.isActive || isIncomeEndedAt(inc, year, month)) continue
-    const amount = effectiveIncomeAmount(incomeAmounts, inc.id, year, month)
-    if (!amount || amount.currency !== CLP) continue
-    plannedIncomeIds.add(inc.id)
-    incomeRemaining.set(inc.id, amount.toMajor())
-    income = income.add(amount)
-    const prev = incomeGoal.get(inc.categoryId)
-    incomeGoal.set(inc.categoryId, prev ? prev.add(amount) : amount)
-  }
-  // Abonos en USD convertidos igual que los gastos (sin tasa quedan fuera, con aviso).
-  for (const tx of clpTxs) {
-    if (tx.amount.currency === CLP && inRange(tx.date, range) && isAdditionalIncome(tx, plannedIncomeIds))
-      income = income.add(tx.amount)
+  for (const tx of txs) {
+    if (!tx.categoryId || !isPlanIncome(tx) || tx.amount.currency !== CLP || !inRange(tx.date, range)) continue
+    incomeGoal.set(tx.categoryId, (incomeGoal.get(tx.categoryId) ?? Money.zero(CLP)).add(tx.amount))
   }
   // Cifras por categoría en Money, ANTES de bajarlas al DTO: los excedentes del mes se suman
   // desde acá en vez de recalcular el uso o reconstruir montos desde los números del DTO.
@@ -994,15 +971,12 @@ export async function getBudgetView(
         !inRange(expense.date, range) || !inRange(credit.date, range)) continue
     const expenseLeft = expenseRemaining.get(expense.id) ?? expense.amount.toMajor()
     const creditLeft = creditRemaining.get(credit.id) ?? credit.amount.toMajor()
-    const plannedId = credit.incomeId && plannedIncomeIds.has(credit.incomeId) ? credit.incomeId : null
-    const incomeLeft = plannedId
-      ? incomeRemaining.get(plannedId) ?? 0
-      : isAdditionalIncome(credit, plannedIncomeIds) ? credit.amount.toMajor() : 0
+    // Solo un abono que el plan cuenta como ingreso necesita compensarse; un reembolso no suma.
+    const incomeLeft = isPlanIncome(credit) ? creditLeft : 0
     const adjustment = Math.max(0, Math.min(Number(row.amount), expenseLeft, creditLeft, incomeLeft))
     reimbursementAdjustment += adjustment
     expenseRemaining.set(expense.id, expenseLeft - adjustment)
     creditRemaining.set(credit.id, creditLeft - adjustment)
-    if (plannedId) incomeRemaining.set(plannedId, incomeLeft - adjustment)
   }
   // Disponible para gastar (WDC-177): solo categorías CLP en el plan; el margen es el balance del medidor.
   const spendable = computeSpendable({
@@ -1057,74 +1031,45 @@ export async function getPreviousMonthDebt(
   return Math.max(0, previous.spent + (previous.reimbursementAdjustment ?? 0) - previous.income)
 }
 
-export type IncomeDTO = {
+export type IncomeCreditDTO = {
   id: string
-  name: string
-  accountId: string
-  accountName: string
-  categoryId: string
-  categoryName: string
-  categoryIcon: string | null
-  categoryColor: string | null
+  date: string // YYYY-MM-DD
+  description: string
   amount: number
-  currency: string
-  dayOfMonth: number
-  isActive: boolean
-  generated: boolean // ¿ya se generó el movimiento de ingreso de este mes?
+  currency: CurrencyCode
+  accountName: string
 }
 
-// Fuentes de ingreso del usuario con nombres resueltos y la marca de si su movimiento del mes
-// (year, month) ya fue generado. Para la sección "Ingresos del mes" y el paso de onboarding.
-export async function listIncomesView(
+// Los abonos que forman el ingreso del plan del período (mes o ciclo), más reciente primero. Misma
+// regla que `incomeOfPeriod`; CLP y USD vienen por separado (cada uno con su moneda).
+export async function listIncomeCredits(
   deps: {
-    incomes: IncomeRepository
     accounts: AccountRepository
-    categories: CategoryRepository
+    transactions: TransactionRepository
     budgetPeriod?: BudgetPeriodRepository
   },
   userId: string,
   year: number,
   month: number
-): Promise<IncomeDTO[]> {
+): Promise<IncomeCreditDTO[]> {
   deps = await scopeBudgetPeriod(deps)
-  const [incomes, amounts, accounts, categories] = await Promise.all([
-    deps.incomes.listByUser(userId, (await getBudgetPeriod(deps)).mode),
-    deps.incomes.listAmountsByUser(userId, (await getBudgetPeriod(deps)).mode),
+  const range = await rangeOf(deps, year, month)
+  const [txs, accounts] = await Promise.all([
+    deps.transactions.listByUserPeriod(userId, range),
     deps.accounts.listByUser(userId),
-    deps.categories.listByUser(userId),
   ])
-  const incomeRange = await rangeOf(deps, year, month)
-  const accById = new Map(accounts.map((a) => [a.id, a]))
-  const catById = new Map(categories.map((c) => [c.id, c]))
-  // Monto vigente en ESE mes (carry-forward). Sin monto = la fuente no existía aún: no se lista,
-  // igual que un límite de categoría no aparece antes de haberse definido.
-  const visible = incomes
-    .filter((i) => !isIncomeEndedAt(i, year, month))
-    .map((i) => ({
-      income: i,
-      amount: effectiveIncomeAmount(amounts, i.id, year, month),
+  const accountName = new Map(accounts.map((a) => [a.id, a.name]))
+  return txs
+    .filter((t) => isPlanIncome(t) && inRange(t.date, range))
+    .map((t) => ({
+      id: t.id,
+      date: t.date.toISOString().slice(0, 10),
+      description: t.description,
+      amount: t.amount.toMajor(),
+      currency: t.amount.currency,
+      accountName: accountName.get(t.accountId) ?? "",
     }))
-    .filter((x): x is { income: Income; amount: Money } => x.amount !== null)
-  return Promise.all(
-    visible.map(async ({ income: i, amount }): Promise<IncomeDTO> => {
-      const cat = catById.get(i.categoryId)
-      return {
-        id: i.id,
-        name: i.name,
-        accountId: i.accountId,
-        accountName: accById.get(i.accountId)?.name ?? "",
-        categoryId: i.categoryId,
-        categoryName: cat?.name ?? "",
-        categoryIcon: cat?.icon ?? null,
-        categoryColor: cat?.color ?? null,
-        amount: amount.toMajor(),
-        currency: i.currency,
-        dayOfMonth: i.dayOfMonth,
-        isActive: i.isActive,
-        generated: await deps.incomes.hasGeneratedFor(i.id, year, month, incomeRange),
-      }
-    })
-  )
+    .sort((a, b) => b.date.localeCompare(a.date))
 }
 
 export type RecurringDTO = {

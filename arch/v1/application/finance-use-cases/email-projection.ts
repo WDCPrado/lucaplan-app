@@ -54,6 +54,47 @@ export function applyInternalCredit(
   }
 }
 
+// Abono no interno a la corriente (sueldo, reembolso, reverso): como el banco, paga primero la línea
+// usada y el resto sube la caja.
+// ponytail: aproximación del pago automático de línea; la cartola siguiente corrige.
+export function applyCreditToCash(
+  cash: BucketAmounts,
+  overdraft: BucketAmounts | null,
+  amount: Money
+): { cash: BucketAmounts; overdraft: BucketAmounts | null } {
+  if (!overdraft || !overdraft.used.isPositive)
+    return applyInternalCredit(cash, overdraft, amount)
+  const toLine = overdraft.used.compare(amount) < 0 ? overdraft.used : amount
+  return {
+    cash: { ...cash, available: cash.available.add(amount.subtract(toLine)) },
+    overdraft: applyInternalPayment(overdraft, toLine),
+  }
+}
+
+// Giro de la línea a la caja (`overdraft_draw`): la caja sube y la deuda de la línea también.
+export function applyOverdraftDraw(
+  cash: BucketAmounts,
+  overdraft: BucketAmounts | null,
+  amount: Money
+): { cash: BucketAmounts; overdraft: BucketAmounts | null } {
+  return {
+    cash: { ...cash, available: cash.available.add(amount) },
+    overdraft: overdraft && applyCreditPurchase(overdraft, amount),
+  }
+}
+
+// Pago de la línea desde la caja (`overdraft_payment`): baja la caja y la deuda (piso 0).
+export function applyOverdraftPayment(
+  cash: BucketAmounts,
+  overdraft: BucketAmounts | null,
+  amount: Money
+): { cash: BucketAmounts; overdraft: BucketAmounts | null } {
+  return {
+    cash: { ...cash, available: cash.available.subtract(amount) },
+    overdraft: overdraft && applyInternalPayment(overdraft, amount),
+  }
+}
+
 // Compra con tarjeta: aumenta el usado y reduce el disponible del cupo de SU moneda (nacional CLP o
 // internacional USD). El disponible puede quedar negativo si se excede el cupo (se muestra, no se
 // oculta).

@@ -137,7 +137,6 @@ export async function seed({
       accountType: "checking",
       currency: "CLP",
       balance: 842350,
-      overdraftLimit: 1500000,
       cardLast4: "4821",
       color: "#1e3a8a",
     },
@@ -212,27 +211,15 @@ export async function seed({
     ]),
   })
 
-  const income = await prisma.income.create({
-    data: {
-      userId,
-      accountId: checking.id,
-      categoryId: salaryCategory.id,
-      name: "Sueldo",
-      currency: "CLP",
-      dayOfMonth: 5,
-      plans: { create: [{ mode: "calendar" }, { mode: "card_cycle" }] },
-      amounts: {
-        create: ["calendar", "card_cycle"].flatMap(mode => [
-          { mode, year, month, amount: 1400000 },
-          { mode, year: prevYear, month: prevMonth, amount: 1350000 },
-        ]),
-      },
-    },
-  })
-
   // Movimientos: el mes actual solo hasta hoy (el ritmo diario del dashboard sería falso si el mes
   // apareciera completo), y el anterior entero con montos un poco distintos para que el historial
   // y el carry-forward tengan de dónde comparar.
+  // Todo movimiento real viene del banco (aquí, del aviso por correo). Un abono de un tercero en la
+  // demo es un reembolso (p. ej. Camila devolviendo su parte): no es ingreso del plan.
+  const bankKinds = (direction: "debit" | "credit") => ({
+    origin: "email",
+    creditKind: direction === "credit" ? "reimbursement" : null,
+  })
   const movementRows = [
     ...MOVEMENTS.filter(([day]) => day <= today).map(
       ([day, description, amount, cat, direction]) => ({
@@ -245,6 +232,7 @@ export async function seed({
         currency: "CLP",
         direction,
         reviewed: cat !== null,
+        ...bankKinds(direction),
       })
     ),
     ...MOVEMENTS.slice(0, 12).map(([day, description, amount, cat, direction]) => ({
@@ -257,11 +245,13 @@ export async function seed({
       currency: "CLP",
       direction,
       reviewed: cat !== null,
+      ...bankKinds(direction),
     })),
   ]
   await prisma.transaction.createMany({ data: movementRows })
 
-  // Sueldo ya recibido de cada mes, enganchado a su fuente de ingreso.
+  // Sueldo ya recibido de cada mes: el abono de ingreso que trajo el aviso del banco. El ingreso del
+  // plan es la suma de estos abonos (no hay fuentes de ingreso).
   await prisma.transaction.createMany({
     data: [
       { year, month, amount: 1400000 },
@@ -270,7 +260,8 @@ export async function seed({
       userId,
       accountId: checking.id,
       categoryId: salaryCategory.id,
-      incomeId: income.id,
+      origin: "email",
+      creditKind: "income",
       transactionDate: new Date(Date.UTC(y, m - 1, 5)),
       description: "Abono Sueldo",
       amount,

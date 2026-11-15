@@ -15,7 +15,6 @@ import type {
 import { InvalidMonthlyBudgetError } from "../../domain/finance/finance.domain.ts"
 import {
   computeActiveCash,
-  computeOverdraft,
   computeNetPosition,
   creditCardDebts,
   computeCategoryUsage,
@@ -42,7 +41,6 @@ const account = (over: Partial<Account>): Account => ({
   accountType: "checking",
   currency: "CLP",
   balance: clp(0),
-  overdraftLimit: clp(0),
   color: null,
   cardLast4: null,
   provider: "manual",
@@ -59,7 +57,6 @@ test("caja activa: solo saldo positivo de checking; el cupo de TC no cuenta", ()
       id: "tc",
       accountType: "credit_card",
       balance: clp(0),
-      overdraftLimit: clp(3272200),
     }),
   ]
   assert.equal(computeActiveCash(accounts, "CLP").toMajor(), 19005)
@@ -70,7 +67,6 @@ test("caja activa: saldo negativo aporta 0, no resta", () => {
     account({
       accountType: "checking",
       balance: clp(-100000),
-      overdraftLimit: clp(1000000),
     }),
   ]
   assert.equal(computeActiveCash(accounts, "CLP").toMajor(), 0)
@@ -78,17 +74,10 @@ test("caja activa: saldo negativo aporta 0, no resta", () => {
 
 // --- Sobregiro y posición neta ---
 
-test("sobregiro: límite 1.000.000, balance -100.000 → usado 100.000, disponible 900.000", () => {
-  const acc = account({ balance: clp(-100000), overdraftLimit: clp(1000000) })
-  const { used, available } = computeOverdraft(acc)
-  assert.equal(used.toMajor(), 100000)
-  assert.equal(available.toMajor(), 900000)
-})
-
 test("posición neta: caja 50.000 y deuda sobregiro 100.000 → -50.000", () => {
   const accounts = [
     account({ id: "c1", balance: clp(50000) }),
-    account({ id: "c2", balance: clp(-100000), overdraftLimit: clp(1000000) }),
+    account({ id: "c2", balance: clp(-100000) }),
   ]
   assert.equal(computeActiveCash(accounts, "CLP").toMajor(), 50000)
   assert.equal(computeNetPosition(accounts, "CLP").toMajor(), -50000)

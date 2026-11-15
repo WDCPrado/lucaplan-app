@@ -135,7 +135,7 @@ test("pasar un abono de ingreso a reembolso lo saca del ingreso del plan y el to
   for (const id of ["cargo", "traspaso", "reverso", "ajeno", "no-existe"])
     await assert.rejects(
       changeCreditKind(f.deps, "u1", { transactionId: id, creditKind: "reimbursement" }, { today: TODAY }),
-      undefined,
+      Error,
       `debía rechazar ${id}`
     )
   assert.equal(f.tope(), 1_000_000)

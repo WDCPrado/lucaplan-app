@@ -12,6 +12,7 @@ import {
   CategoryNotFoundError,
   InvalidMonthlyBudgetError,
   TransactionCurrencyMismatchError,
+  InvalidCreditKindChangeError,
   CardLast4RequiredError,
   ConnectedAccountReadOnlyError,
   BankConnectionError,
@@ -26,10 +27,6 @@ import {
   EmailSetupStateError,
   OAuthStateError,
 } from "../domain/finance/email-connection.domain.ts"
-import {
-  InvalidIncomeError,
-  IncomeNotFoundError,
-} from "../domain/finance/income.domain.ts"
 import { InvalidPaceFrequencyError } from "../domain/finance/pace.domain.ts"
 import { InvalidBudgetPeriodError } from "../domain/finance/budget-period.domain.ts"
 import { AccountBalanceError } from "../domain/finance/account-balance.domain.ts"
@@ -116,12 +113,12 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof InvalidPaceFrequencyError ||
     e instanceof InvalidBudgetPeriodError ||
     e instanceof TransactionCurrencyMismatchError ||
+    e instanceof InvalidCreditKindChangeError ||
     e instanceof CategoryInUseError ||
     e instanceof CardLast4RequiredError ||
     e instanceof ConnectedAccountReadOnlyError ||
     e instanceof BankConnectionError ||
     e instanceof InvalidMonthlyBudgetError ||
-    e instanceof InvalidIncomeError ||
     e instanceof InvalidRecurringTemplateError ||
     e instanceof RecurringCategoryRequiredError ||
     e instanceof RecurringPeriodNotManualError ||
@@ -145,7 +142,6 @@ export function domainErrorStatus(e: unknown): number | null {
     e instanceof NotOwnerError ||
     e instanceof AccountNotFoundError ||
     e instanceof CategoryNotFoundError ||
-    e instanceof IncomeNotFoundError ||
     e instanceof RecurringTemplateNotFoundError ||
     e instanceof InstallmentPlanNotFoundError ||
     e instanceof EmailConnectionNotFoundError ||

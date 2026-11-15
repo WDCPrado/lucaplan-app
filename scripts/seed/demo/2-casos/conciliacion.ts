@@ -6,7 +6,7 @@ import { todayKey } from "../../../../arch/shared/today.ts"
 
 export async function seed({ prisma, userId, creditCardId, nationalBucketId, internationalBucketId, categoryId }: DemoContext) {
   const hoy = new Date(`${todayKey()}T00:00:00Z`)
-  const base = { userId, accountId: creditCardId, categoryId: categoryId.get("Compras")!, transactionDate: hoy, direction: "debit", reviewed: true }
+  const base = { userId, accountId: creditCardId, categoryId: categoryId.get("Compras")!, transactionDate: hoy, direction: "debit", reviewed: true, origin: "email" }
   await prisma.transaction.createMany({
     data: [
       { ...base, bucketId: nationalBucketId, description: "Aviso de compra internacional en pesos", amount: 84000, currency: "CLP", externalId: "demo-reconcile-clp-email" },

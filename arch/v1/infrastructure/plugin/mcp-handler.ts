@@ -22,7 +22,8 @@ const ALL_SCOPES = "openid email offline_access finance:read finance:write"
 
 // Lo esencial primero: el host puede truncar después de los primeros 512 caracteres.
 export const INSTRUCTIONS = [
-  "Conciliación que escribe: previsualizar_conciliacion → revisar diferencias → aplicar_conciliacion con el mismo contenido y previewToken. Corrige por ID; no crear y borrar para cambiar moneda. Usa la moneda e importe de la cartola, conserva categorías con evidencia y vínculos. Los saldos al corte ya incluyen cargos anteriores. Un token obsoleto requiere nueva previsualización. El resultado audita correcciones y movimientos posteriores reproyectados.",
+  "La cartola es la verdad y todo movimiento real viene del banco: no hay altas manuales de movimientos ni de ingresos. El correo es provisorio; un cargo del correo que la cartola no trae es una retención y se anula (no se borra). Los ingresos que el correo no trae los agrega la conciliación, y el ingreso del plan es la suma de los abonos de ingreso confirmados del período.",
+  "Conciliación: lee tú la cartola → proponer_conciliacion (documento leído, sin IA del servidor) → resuelve con el usuario lo ambiguo → previsualizar_conciliacion con reconcileInput → revisar diferencias → aplicar_conciliacion con el mismo contenido y previewToken. Corrige por ID; no crear y borrar para cambiar moneda. Usa la moneda e importe de la cartola, conserva categorías con evidencia y vínculos. Los saldos al corte ya incluyen cargos anteriores. Un token obsoleto requiere nueva previsualización. El resultado audita correcciones y movimientos posteriores reproyectados.",
   "Luca Plan: finanzas del usuario autenticado; nunca de otra persona ni de identidades en documentos.",
   "CLP y USD siempre separados; nunca los sumes. Montos: CLP en pesos enteros, USD con 2 decimales. Fechas YYYY-MM-DD.",
   "Toda escritura lleva operationId nuevo por pedido; si queda incierta o pendiente, consulta lucaplan_ver_operacion y no reintentes con otra clave. Un rechazo no cambia nada.",
@@ -31,7 +32,7 @@ export const INSTRUCTIONS = [
   "Un aviso en CLP no prueba cupo nacional: el banco puede notificar convertido un cargo internacional. recordedAmount es lo guardado, no una liquidación validada. financialContext separa impacto registrado, cupo vinculado y conversión presupuestaria referencial. Valores null son desconocidos, no cero.",
   "Conciliar exige contrastar cartola/no facturados, fechas corridas, comercio, moneda y vínculos. No crear otro gasto por diferencia de moneda o fecha. Un saldo bancario al corte ya incluye sus movimientos; no volver a sumarlos. No inferir que faltan cargos solo porque no aparecen en USD.",
   "Para cambiar el total financiado y las cuotas pendientes de una compra card usa cardCorrections en la conciliación, con todas las cuotas y evidencia bancaria. Conserva la compra origen y los importes ya registrados; no crea pagos ni vuelve a consumir cupo. Editar una cuota redistribuye el total existente y no incorpora financiación nueva. loanCorrections sigue siendo exclusivo de préstamos loan.",
-  "Estas herramientas no leen correos ni usan IA; la sincronización puede ser incompleta y el correo no sustituye la cartola.",
+  "Estas herramientas no leen correos ni usan IA; la sincronización puede ser incompleta y el correo no sustituye la cartola. Para corregir si un abono es ingreso o reembolso usa cambiar_tipo_abono.",
 ].join(" ")
 
 // structuredContent siempre es { result }: el contenido varía por herramienta y se describe en su texto.

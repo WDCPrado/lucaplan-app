@@ -5,7 +5,6 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import { Money } from "../../domain/finance/money.ts"
 import type { MonthlyBudget, Transaction } from "../../domain/finance/finance.domain.ts"
-import type { Income, IncomeAmount } from "../../domain/finance/income.domain.ts"
 import type { PeriodMode } from "../../../shared/billing-cycle.ts"
 import { followIncome, setMonthlyBudgetFollowing, type FollowIncomeDeps } from "./follow-income.ts"
 
@@ -14,17 +13,19 @@ const TODAY = "2026-10-15" // calendario: período en curso = octubre 2026
 const tx = (id: string, date: string, amount: number, over: Partial<Transaction> = {}): Transaction => ({
   id, userId: "u1", accountId: "a1", categoryId: "sueldo", date: new Date(`${date}T00:00:00Z`),
   description: id, amount: Money.of(amount, "CLP"), direction: "credit", status: "confirmed",
-  isInternal: false, externalId: null, ...over,
+  isInternal: false, externalId: null, origin: "statement", creditKind: "income", ...over,
 })
 
 type Row = MonthlyBudget & { mode: PeriodMode }
 type Seed = { year: number; month: number; limit: number; follows: boolean; mode?: PeriodMode }
 
-// Sueldo planificado de 1.000.000 desde enero en el modo calendario.
-function fixture(budgets: Seed[], txs: Transaction[] = []) {
-  const income: Income = { id: "inc1", userId: "u1", accountId: "a1", categoryId: "sueldo", name: "Sueldo",
-    currency: "CLP", dayOfMonth: 5, isActive: true, endedYear: null, endedMonth: null }
-  const amounts: IncomeAmount[] = [{ incomeId: "inc1", year: 2026, month: 1, amount: Money.of(1_000_000, "CLP") }]
+// Sueldo de 1.000.000 que llega el 5 de cada mes de 2026 (abono de ingreso de la cartola).
+function fixture(budgets: Seed[], extra: Transaction[] = []) {
+  const txs = [
+    ...Array.from({ length: 12 }, (_, i) =>
+      tx(`sueldo-${i + 1}`, `2026-${String(i + 1).padStart(2, "0")}-05`, 1_000_000)),
+    ...extra,
+  ]
   const stored: Row[] = budgets.map((b, i) => ({
     id: `mb${i}`, userId: "u1", year: b.year, month: b.month, globalLimit: Money.of(b.limit, "CLP"),
     followsIncome: b.follows, mode: b.mode ?? "calendar",
@@ -67,10 +68,6 @@ function fixture(budgets: Seed[], txs: Transaction[] = []) {
       async listByUserPeriod(_u: string, range: { start: string; end: string }) {
         return txs.filter((t) => { const d = t.date.toISOString().slice(0, 10); return d >= range.start && d <= range.end })
       },
-    },
-    incomes: {
-      async listByUser(_u: string, mode: PeriodMode) { return mode === "calendar" ? [income] : [] },
-      async listAmountsByUser(_u: string, mode: PeriodMode) { return mode === "calendar" ? amounts : [] },
     },
     monthlyBudgets,
     exchangeRates: { async clpPerUsdAt() { return 950 } },

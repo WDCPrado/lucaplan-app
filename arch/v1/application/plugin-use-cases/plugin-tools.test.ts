@@ -145,23 +145,6 @@ test("reembolso: repetir operationId devuelve el recibo sin volver a ejecutar el
   await assert.rejects(run(deps, actor, "lucaplan_vincular_reembolso", { ...input, amount: 10000 }))
   assert.equal(calls.length, 1)
 })
-const snapshot = (operationId: string) => ({
-  operationId,
-  linkId: "banco-conectado",
-  snapshotAt: "2001-01-01T12:00:00-03:00",
-  checking: {
-    ref: "12345678",
-    cash: 120000,
-    overdraft: { limit: 50000, used: 0 },
-  },
-  cards: [
-    {
-      last4: "4321",
-      national: { limit: 100000, used: 100000 },
-      international: { limit: 100.01, used: 0.01 },
-    },
-  ],
-})
 function deferred() {
   let resolve!: () => void
   const promise = new Promise<void>((done) => {
@@ -243,9 +226,17 @@ test("Dado un chat conectado a mi cuenta, cuando pide otra identidad o una herra
     await assert.rejects(() => run(deps, actor, name, {}))
   }
   await assert.rejects(() =>
-    run(deps, actor, "lucaplan_reconciliar_saldos_correo", {
-      ...snapshot("identidad-anidada"),
-      checking: { ...snapshot("x").checking, userId: "otro" },
+    run(deps, actor, "lucaplan_proponer_conciliacion", {
+      accountId: "corriente",
+      document: {
+        snapshotAt: "2026-11-10T18:00:00-03:00",
+        source: "Cartola",
+        buckets: [
+          { kind: "cash", currency: "CLP", limit: 0, used: 0, available: 1 },
+        ],
+        rows: [],
+        userId: "otro",
+      },
     })
   )
   assert.equal(
@@ -293,43 +284,6 @@ test("Dado que busco movimientos, cuando indico filtros y tamaño de página, en
     )
   }
   assert.equal(calls.length, beforeInvalid)
-})
-
-// h4 — Sin pantalla; bordes de moneda, cupo y fecha en la misma regla de documento válido.
-test("Dado un documento del banco, cuando envío sus saldos, entonces rechaza fechas futuras y cupos imposibles y conserva CLP y USD separados", async () => {
-  const { deps, calls, operations } = setup()
-  const valid = snapshot("documento-valido")
-  await run(deps, actor, "lucaplan_reconciliar_saldos_correo", valid)
-  const expected = { ...valid } as Record<string, unknown>
-  delete expected.operationId
-  assert.deepEqual(calls[0].args, expected)
-  assert.equal(
-    (await operations.get(key(valid.operationId)))?.status,
-    "completed"
-  )
-  const invalidSnapshots = [
-    { ...snapshot("futura"), snapshotAt: "2099-01-01T12:00:00Z" },
-    { ...snapshot("clp-decimal"), checking: { ...valid.checking, cash: 0.01 } },
-    { ...snapshot("clp-negativo"), checking: { ...valid.checking, cash: -1 } },
-    {
-      ...snapshot("exceso"),
-      cards: [{ ...valid.cards[0], national: { limit: 100000, used: 100001 } }],
-    },
-    {
-      ...snapshot("usd-decimal"),
-      cards: [
-        { ...valid.cards[0], international: { limit: 100, used: 0.001 } },
-      ],
-    },
-    { ...snapshot("claves"), cards: [{ ...valid.cards[0], userId: "otro" }] },
-  ]
-  for (const invalid of invalidSnapshots) {
-    await assert.rejects(() =>
-      run(deps, actor, "lucaplan_reconciliar_saldos_correo", invalid)
-    )
-  }
-  assert.equal(calls.length, 1)
-  assert.equal(operations.claims, 1, "rechaza antes de reservar una operación")
 })
 
 // h5 — Sin pantalla.

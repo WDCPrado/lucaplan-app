@@ -15,6 +15,7 @@ type Row = {
   periodKey: string
   status: "pending" | "confirmed"
   externalId: string | null
+  origin: string
   transactionDate: Date
   amount: string
 }
@@ -93,6 +94,7 @@ const row = (over: Partial<Row> & Pick<Row, "id" | "periodKey" | "transactionDat
   recurringTemplateId: entel.id,
   status: "confirmed",
   externalId: `bch-${over.id}`,
+  origin: "email",
   amount: "25990",
   ...over,
 })

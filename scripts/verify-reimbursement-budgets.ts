@@ -30,6 +30,7 @@ try {
   const movement = (id: string, amount: number, direction = "debit", categoryId: string | null = category.id, date = "2026-10-31") => prisma.transaction.create({ data: {
     id: `${userId}-${id}`, userId, accountId: account.id, categoryId, transactionDate: new Date(date), description: id,
     amount, currency: "CLP", direction, status: "confirmed",
+    origin: "statement", creditKind: direction === "credit" ? "income" : null,
   } })
   for (const mode of ["calendar", "card_cycle"])
     await prisma.categoryLimit.create({ data: { categoryId: category.id, mode, year: 2026, month: 9, limitAmount: 100000 } })

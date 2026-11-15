@@ -24,9 +24,19 @@ export type ReconciliationMovement = {
   linked: boolean
   reimbursementAmount: number
   updatedAt: string
+  // ponytail: opcionales para no romper fixtures; el adapter los llena siempre.
+  origin?: string
+  creditKind?: CreditKind | null
+  internalKind?: InternalKind | null
 }
 export type ReconciliationState = {
   accountType: string
+  // Corte de la última conciliación aplicada a la cuenta; un corte anterior se rechaza.
+  reconciledUntil?: string | null
+  // Para proponer la categoría de un abono de ingreso: reglas aprendidas (texto normalizado con
+  // `normalizeMovementText`) y la categoría de ingreso más usada por el usuario.
+  learnedIncomeCategories?: { normalizedText: string; categoryId: string }[]
+  topIncomeCategoryId?: string | null
   buckets: {
     id: string
     kind: string
@@ -145,10 +155,25 @@ export const STATEMENT_ROW_KINDS = [
 ] as const
 export type StatementRowKind = (typeof STATEMENT_ROW_KINDS)[number]
 
+/** Cargo del correo sin par en la cartola: queda `reversed` (no se borra) con su evidencia. */
+export type ReconciliationRetention = {
+  before: ReconciliationMovement
+  evidence: string
+}
+
+/** Lee una cartola (PDF, XLS, XLSX, CSV) y devuelve el documento crudo; el caso de uso lo valida. */
+export interface StatementReader {
+  read(
+    file: { name: string; type: string; data: Uint8Array },
+    context: { accountType: string }
+  ): Promise<unknown>
+}
+
 /** Lo que devuelve `planBankReconciliation`: puro, sin escribir nada. */
 export type BankReconciliationPlan = {
   corrections: ReconciliationCorrection[]
   additions: ReconciliationAddition[]
+  retentions: ReconciliationRetention[]
   loanCorrections: ReconciliationLoanCorrection[]
   cardCorrections: ReconciliationCardCorrection[]
   projectedBuckets: ReconciliationProjectedBucket[]

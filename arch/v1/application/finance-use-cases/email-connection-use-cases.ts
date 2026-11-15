@@ -57,7 +57,6 @@ import {
 import {
   applyCreditPurchase,
   applyDebitToCash,
-  applyInternalCredit,
   applyInternalPayment,
   type BucketAmounts,
 } from "./email-projection.ts"
@@ -149,7 +148,6 @@ export type BankDependents = {
   movements: number
   recurring: number
   installments: number
-  incomes: number
 }
 
 export interface EmailSetupStore {
@@ -909,14 +907,6 @@ function applyEventToProjection(
     if (bucket) set(kind, applyCreditPurchase(bucket, event.amount))
     return
   }
-  if (event.kind === "internal_credit") {
-    const cash = get("cash")
-    if (!cash) return
-    const res = applyInternalCredit(cash, get("overdraft"), event.amount)
-    set("cash", res.cash)
-    if (res.overdraft) set("overdraft", res.overdraft)
-    return
-  }
   if (event.kind === "internal_payment" && event.paymentTarget) {
     const bucket = get(event.paymentTarget)
     if (bucket)
@@ -1312,15 +1302,6 @@ function applyEventToStoredBuckets(
     if (bucket) set(bucket, applyCreditPurchase(bucket, event.amount))
     return
   }
-  if (event.kind === "internal_credit") {
-    const cash = ofKind("cash")
-    if (!cash) return
-    const od = ofKind("overdraft")
-    const res = applyInternalCredit(cash, od, event.amount)
-    set(cash, res.cash)
-    if (od && res.overdraft) set(od, res.overdraft)
-    return
-  }
   if (event.kind === "internal_payment" && event.paymentTarget) {
     const bucket = ofKind(event.paymentTarget)
     if (bucket) set(bucket, applyInternalPayment(bucket, event.amount))
@@ -1412,213 +1393,10 @@ export async function syncWebhookMessages(deps: EmailConnectionDeps, mailbox: Em
   }
 }
 
-// --- Reconciliación manual ("Actualizar saldos") ---
-
-export async function reconcileEmailBalances(
-  deps: EmailConnectionDeps,
-  userId: string,
-  linkId: string,
-  input: EmailSnapshotInput
-): Promise<{ updatedBuckets: number }> {
-  const link = await requireLink(deps, userId, linkId)
-  if (!link.bankId)
-    throw new EmailSetupStateError(
-      "Ese banco aún no completa su configuración inicial"
-    )
-  const { accounts, buckets } = await deps.store.listInstruments(link.bankId)
-
-  const bucketOf = (accountId: string, kind: BucketKind) =>
-    buckets.find((b) => b.accountId === accountId && b.kind === kind) ?? null
-
-  // Todo o nada (WDC-81): primero se resuelve contra qué bucket va CADA dato que el usuario
-  // ingresó, y recién cuando todo calzó se escribe. Si algo ingresado no calza —o calza con más de
-  // una cuenta, o no tiene bucket donde caer— se corta acá, antes de la primera escritura: cero
-  // saldos tocados y el cursor intacto. Antes la corriente podía quedar escrita (y el cursor
-  // avanzado) aunque una tarjeta no calzara, y los movimientos de esa tarjeta entre el cursor
-  // viejo y el snapshot quedaban fuera de la proyección para siempre, sin aviso.
-  //
-  // Omitir sigue siendo legítimo y no exige calce: no ingresar cuenta corriente, o mandar una
-  // tarjeta con los dos cupos apagados ("esta no la actualices"), no es un dato ingresado.
-  const rechazo = (detalle: string) =>
-    new EmailSetupStateError(`No se guardó ningún saldo: ${detalle}`)
-
-  let corriente: {
-    datos: NonNullable<EmailSnapshotInput["checking"]>
-    accountId: string
-    cajaId: string
-    sobregiroId: string | null
-  } | null = null
-
-  if (input.checking) {
-    const ref = input.checking.ref.replace(/\D/g, "")
-    // Sin dígitos de los dos lados no hay nada que comparar: `"loQueSea".endsWith("")` es true, así
-    // que un ref vacío emparejaría con la primera corriente, y una cuenta guardada sin externalId
-    // (externalRef === "") emparejaría con cualquier ref. En ambos casos el saldo caería sobre la
-    // cuenta equivocada, sin error (WDC-80).
-    //
-    // Y "más de una coincidencia" no elige: `listInstruments` consulta sin `orderBy`, así que
-    // quedarse con "la primera" ni siquiera está definido. Ambigüedad = rechazar.
-    const matches = accounts.filter(
-      (a) =>
-        a.accountType === "checking" &&
-        ref !== "" &&
-        a.externalRef !== "" &&
-        (a.externalRef === ref ||
-          a.externalRef.endsWith(ref) ||
-          ref.endsWith(a.externalRef))
-    )
-    if (matches.length === 0)
-      throw rechazo(
-        `el número de cuenta «${input.checking.ref}» no calza con ninguna cuenta corriente de este banco`
-      )
-    if (matches.length > 1)
-      throw rechazo(
-        `el número de cuenta «${input.checking.ref}» calza con más de una cuenta corriente; escribe más dígitos`
-      )
-    const account = matches[0]
-    // Una cuenta creada a mano existe sin buckets: calza, pero no hay caja donde escribir el
-    // saldo, y escribir solo su `balance` (el espejo del bucket) sería guardar a medias.
-    const caja = bucketOf(account.id, "cash")
-    if (!caja)
-      throw rechazo(
-        `la cuenta corriente «${input.checking.ref}» no tiene dónde llevar el saldo en este banco`
-      )
-    let sobregiro = null
-    if (input.checking.overdraft) {
-      sobregiro = bucketOf(account.id, "overdraft")
-      if (!sobregiro)
-        throw rechazo(
-          `la cuenta corriente «${input.checking.ref}» no tiene línea de sobregiro en este banco; apágala para guardar`
-        )
-    }
-    corriente = {
-      datos: input.checking,
-      accountId: account.id,
-      cajaId: caja.id,
-      sobregiroId: sobregiro?.id ?? null,
-    }
-  }
-
-  const tarjetas: {
-    datos: EmailSnapshotInput["cards"][number]
-    accountId: string
-    nacionalId: string | null
-    internacionalId: string | null
-  }[] = []
-  for (const card of input.cards) {
-    // Los dos cupos apagados = "esta no la actualices": no hay dato que escribir, así que tampoco
-    // se le exige calzar.
-    if (!card.national && !card.international) continue
-    const last4 = card.last4.replace(/\D/g, "")
-    // `last4 !== ""` por el mismo motivo que arriba: la comparación acá es por igualdad, y un
-    // vacío solo calzaría con una tarjeta guardada sin last4 — igual de equivocado.
-    const matches = accounts.filter(
-      (a) =>
-        a.accountType === "credit_card" && last4 !== "" && a.cardLast4 === last4
-    )
-    if (matches.length === 0)
-      throw rechazo(
-        `la tarjeta «${card.last4}» no calza con ninguna tarjeta de este banco`
-      )
-    if (matches.length > 1)
-      throw rechazo(
-        `hay más de una tarjeta terminada en «${card.last4}» y no se sabe cuál actualizar`
-      )
-    const account = matches[0]
-    const nacional = card.national
-      ? bucketOf(account.id, "credit_national")
-      : null
-    if (card.national && !nacional)
-      throw rechazo(
-        `la tarjeta «${card.last4}» no tiene cupo nacional en este banco; apágalo para guardar`
-      )
-    const internacional = card.international
-      ? bucketOf(account.id, "credit_international")
-      : null
-    if (card.international && !internacional)
-      throw rechazo(
-        `la tarjeta «${card.last4}» no tiene cupo internacional en este banco; apágalo para guardar`
-      )
-    tarjetas.push({
-      datos: card,
-      accountId: account.id,
-      nacionalId: nacional?.id ?? null,
-      internacionalId: internacional?.id ?? null,
-    })
-  }
-
-  // Nada ingresado, nada que escribir — y avanzar el cursor sin escribir es peor que no hacer
-  // nada: `lastBalanceReconciledAt` gobierna la proyección (los eventos con
-  // `receivedAt <= reconciledAt` ya no mueven buckets), así que moverlo dejaría FUERA para siempre
-  // todo lo ocurrido entre el cursor viejo y este snapshot — los movimientos se importan, pero los
-  // saldos quedan desviados sin manera de recuperarlos. El 422 sale por el toast de la pantalla.
-  if (!corriente && tarjetas.length === 0)
-    throw new EmailSetupStateError(
-      "No hay ningún saldo que actualizar: ingresa tu cuenta corriente o enciende al menos un cupo"
-    )
-
-  // Fase de escritura: de aquí para abajo todo dato ingresado ya tiene su bucket resuelto.
-  let updated = 0
-  const write = async (bucketId: string, limitAmount: Money, used: Money) => {
-    await deps.store.updateBucketAmounts(bucketId, {
-      limitAmount,
-      used,
-      available: limitAmount.subtract(used),
-      asOf: input.snapshotAt,
-      reconciledAt: input.snapshotAt,
-    })
-    updated++
-  }
-
-  if (corriente) {
-    await deps.store.updateBucketAmounts(corriente.cajaId, {
-      limitAmount: Money.zero("CLP"),
-      used: Money.zero("CLP"),
-      available: corriente.datos.cash,
-      asOf: input.snapshotAt,
-      reconciledAt: input.snapshotAt,
-    })
-    updated++
-    // El balance de la cuenta es un espejo del bucket, así que se escribe junto con él — la misma
-    // regla que usa la proyección.
-    await deps.store.setAccountBalance(
-      corriente.accountId,
-      corriente.datos.cash
-    )
-    if (corriente.sobregiroId && corriente.datos.overdraft)
-      await write(
-        corriente.sobregiroId,
-        corriente.datos.overdraft.limit,
-        corriente.datos.overdraft.used
-      )
-  }
-
-  for (const t of tarjetas) {
-    if (t.nacionalId && t.datos.national) {
-      await write(t.nacionalId, t.datos.national.limit, t.datos.national.used)
-      await deps.store.setAccountBalance(
-        t.accountId,
-        t.datos.national.used.negate()
-      )
-    }
-    if (t.internacionalId && t.datos.international)
-      await write(
-        t.internacionalId,
-        t.datos.international.limit,
-        t.datos.international.used
-      )
-  }
-
-  await deps.links.update(link.id, {
-    lastBalanceReconciledAt: input.snapshotAt,
-  })
-  return { updatedBuckets: updated }
-}
-
 // --- Desconexión segura ---
 
 // Qué se pierde al desconectar este banco. Las cuentas arrastran en cascada lo que el usuario creó
-// sobre ellas (ingresos, recurrentes, cuotas): la UI lo enumera antes de ejecutar.
+// sobre ellas (recurrentes, cuotas): la UI lo enumera antes de ejecutar.
 export async function describeBankRemoval(
   deps: Pick<EmailConnectionDeps, "links" | "store">,
   userId: string,
@@ -1631,7 +1409,6 @@ export async function describeBankRemoval(
       movements: 0,
       recurring: 0,
       installments: 0,
-      incomes: 0,
     }
   return deps.store.countBankDependents(link.bankId)
 }

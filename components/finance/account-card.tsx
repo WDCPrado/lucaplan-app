@@ -150,6 +150,7 @@ export function AccountCard({
             <ProgressBar
               value={primary.used}
               max={primary.limit}
+              decorative
               label={`Cupo usado de ${account.bankName || account.name}`}
             />
             <span className="text-callout text-ink-2">
@@ -164,6 +165,7 @@ export function AccountCard({
               value={overdraft.used}
               max={overdraft.limit}
               tone={overdraft.used > 0 ? "warn" : "default"}
+              decorative
               label={`Sobregiro usado de ${account.bankName || account.name}`}
             />
             <span className="text-callout text-ink-2">

@@ -165,20 +165,19 @@ Para anti-slop y escaneabilidad manda la skill `impeccable` (modo Operate). La l
     sidebar, título, selector de mes (`MonthNav`, una sola superficie: flechas, el mes al centro que
     abre `MonthPicker` y «Hoy» cuando no es el mes en curso) y la búsqueda (`/` o Ctrl K) a la
     derecha. Con scroll gana un filete abajo. El tema no va en la barra.
-  - Móvil: barra superior pegada con fondo propio (`float`) y un desvanecido debajo: avatar que abre
-    el menú de la cuenta, título de la vista (se recoge con el primer scroll y el selector se
-    ensancha) y el selector de mes. En las vistas sin selector va el mismo deshabilitado con el
-    período en curso. Abajo, la barra flotante redondeada con las pestañas (la elegida en tono, que
-    se desliza) y la búsqueda en un círculo a la derecha, con el fondo desvanecido detrás. Todo
-    respeta `env(safe-area-inset-*)`; el contenido deja aire abajo.
+  - Móvil: barra superior pegada con fondo propio (`float`) y un desvanecido debajo: avatar a la
+    izquierda (abre la hoja «Tu cuenta»), el selector de mes de una sola superficie al centro
+    (flechas, mes y chevron; abre la hoja «Elegir mes») y la búsqueda a la derecha. El título de la
+    vista queda solo para el lector de pantalla (`sr-only`). Abajo, la barra inferior con solo los
+    destinos, sobre el fondo desvanecido. Todo respeta `env(safe-area-inset-*)`; el contenido deja
+    aire abajo.
   - Cambio de pantalla: solo el contenido se desliza un poco y funde (`<ViewTransition>`,
     `lib/nav-direction.ts`, `data-nav-dir`); el marco tiene nombre propio y queda quieto.
 - **Listas**: filas `ListRow` separadas por espacio; chevron solo cuando la fila abre algo. El
   encabezado de un grupo (el día en Movimientos) va en caption, tinta 3. En una fila de movimiento
   el monto va en body semibold (ingreso en `text-success`).
 - **Íconos**: `lucide-react`, 20 px en barras y filas, 16 junto a callout. Junto a texto semibold el
-  trazo sube solo (`globals.css`). El chevron de una fila que abre algo es `disclosure` o `ListRow
-  chevron`.
+  trazo sube solo (`globals.css`). El chevron de una fila que abre algo es el `chevron` de `ListRow`.
 - **Menús, popovers y selects siguen el tema**: nada de `dark` fijo en un primitivo.
 
 ## Flujo de creación de UI / mocks

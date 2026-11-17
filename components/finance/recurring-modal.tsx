@@ -664,7 +664,6 @@ export function RecurringModal({
             {/* Enlace opcional al portal de pago: se abre después desde la recurrente. */}
             <ModalSection
               title="Enlace"
-              className="[--inset:1rem]"
               footer={
                 urlError ? (
                   <p

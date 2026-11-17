@@ -25,7 +25,7 @@ import { AccountCard } from "./account-card"
 import { MovementRow } from "./movement-row"
 import { SpendPaceChart } from "./spend-pace-chart"
 import { CategoryIcon } from "./category-icons"
-import { Chevron, IconTile, ProgressBar, SectionAction, SectionCard } from "./blocks"
+import { Chevron, IconTile, ProgressBar, SectionAction, SectionCard, statusTone } from "./blocks"
 import { CategoryModal } from "./category-modal"
 import { BudgetLimitModal } from "./budget-limit-modal"
 import { CategoryDetailSheet } from "./category-detail-sheet"
@@ -284,13 +284,15 @@ export function Dashboard({
             <span className="shrink-0 text-right whitespace-nowrap text-ink-3">{figureLabel}</span>
           )}
         </span>
-        {/* Gastado sólido y comprometido tenue detrás (solo con tope); se tiñe con el estado. */}
+        {/* Gastado sólido y comprometido tenue detrás (solo con tope); se tiñe con el estado del
+            servidor, como antes del rediseño. Va dentro del botón y la cifra ya está en texto. */}
         {capped && (
           <ProgressBar
             value={c.used}
             committed={c.committed}
             max={c.limit}
-            tone={tone}
+            tone={statusTone(c.status)}
+            decorative
             label={`Gastado de ${c.name}`}
             className="col-span-2 col-start-2 mt-1"
           />

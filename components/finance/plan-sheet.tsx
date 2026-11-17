@@ -278,7 +278,6 @@ export function PlanSheet({
             llega su abono; desde ahí, por lo recibido. */}
         <ModalSection
           title="Ingresos programados"
-          className="[--inset:1rem]"
           footer={
             income.sources.length === 0 && !income.error
               ? "Lo que recibes todos los meses, como tu sueldo. Cuenta en el plan desde el día 1, aunque todavía no llegue."
@@ -331,7 +330,6 @@ export function PlanSheet({
             programado es. */}
         <ModalSection
           title="Otros ingresos"
-          className="[--inset:4rem]"
           footer={
             incomeCategories.length > 0
               ? "Toca una categoría para ver sus abonos. Desde el abono se marca si es reembolso o de qué ingreso programado es."

@@ -497,6 +497,9 @@ export function ResponsivePopover({
         <DrawerPrimitive.Trigger asChild>{trigger}</DrawerPrimitive.Trigger>
         <DrawerContent
           data-product=""
+          data-modal-id={scope.id}
+          data-modal-parent={scope.parentId}
+          data-modal-depth={scope.depth}
           onClick={isolateModalEvent}
           onSubmit={isolateModalEvent}
           className={sheetContentClass}

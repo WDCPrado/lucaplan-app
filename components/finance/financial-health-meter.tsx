@@ -45,6 +45,8 @@ export function PlanSummary({
   const remaining = closed ? spendable.margin : spendable.amount
   const net = cash - overdraftDebt // liquidez registrada: caja menos línea usada
   const keyed = limit !== null
+  // Una sola cifra de gastado en la tarjeta (línea, barra y tile), la de antes del rediseño.
+  const gastado = spent + reimbursementAdjustment
   // Muestra de color sobre la etiqueta: une «Gastado» y «Comprometido» con su tramo de la barra.
   const swatch = (cls: string) =>
     keyed && <span aria-hidden className={cn("mb-1 block h-1 w-3 rounded-full", cls)} />
@@ -76,14 +78,17 @@ export function PlanSummary({
       <div className="mt-auto flex flex-col gap-4">
         {keyed && (
           <div className="flex flex-col gap-2">
-            <p className="flex items-baseline justify-between gap-3 text-caption text-ink-3">
-              <span className="whitespace-nowrap">Tope de gasto</span>
-              <span className="whitespace-nowrap">
-                <b className="font-semibold text-ink-2">{formatCLP(spent)}</b> de {formatCLP(limit)}
-              </span>
-            </p>
+            {/* En un período cerrado el «Gastaste X de Y» ya lo dice MonthStatus arriba. */}
+            {!closed && (
+              <p className="flex items-baseline justify-between gap-3 text-caption text-ink-3">
+                <span className="whitespace-nowrap">Tope de gasto</span>
+                <span className="whitespace-nowrap">
+                  <b className="font-semibold text-ink-2">{formatCLP(gastado)}</b> de {formatCLP(limit)}
+                </span>
+              </p>
+            )}
             <ProgressBar
-              value={spent}
+              value={gastado}
               committed={committed}
               max={limit}
               label="Gastado y comprometido del tope de gasto"
@@ -98,7 +103,7 @@ export function PlanSummary({
           </div>
           <div className="min-w-0">
             <dt className="text-caption whitespace-nowrap text-ink-3">{swatch("bg-bar")}Gastado</dt>
-            <dd className="truncate text-callout font-semibold whitespace-nowrap">{formatCLP(spent + reimbursementAdjustment)}</dd>
+            <dd className="truncate text-callout font-semibold whitespace-nowrap">{formatCLP(gastado)}</dd>
           </div>
           <div className="min-w-0">
             <dt className="text-caption whitespace-nowrap text-ink-3">{swatch("bg-committed")}Comprometido</dt>

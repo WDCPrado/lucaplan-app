@@ -5,7 +5,7 @@ import { Pencil } from "lucide-react"
 
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { MovementRow } from "./movement-row"
-import { ProgressBar } from "./blocks"
+import { ProgressBar, statusTone } from "./blocks"
 import { cn } from "@/lib/utils"
 import { formatCLP } from "@/lib/finance-format"
 import type {
@@ -34,9 +34,7 @@ export function CategoryDetailSheet({
   // En el plan sin tope es tope $0 (como en la fila del Inicio): lo usado llena la barra.
   const capped = !!category && (category.limit > 0 || category.inPlan)
   // Mismo semáforo de antes (bueno / moderado / completado o excedido), en los tonos de estado.
-  const tone: "default" | "warn" | "alert" = !category || category.status === "bueno"
-    ? "default"
-    : category.status === "moderado" ? "warn" : "alert"
+  const tone = category ? statusTone(category.status) : "default"
   return (
     <ResponsiveModal
       open={category !== null}

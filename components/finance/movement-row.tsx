@@ -42,7 +42,7 @@ export function MovementRow({
   if (tx.recurringTemplateId) tags.push({ label: "Recurrente", tone: "secondary" })
   else if (tx.installmentForecast) tags.push({ label: "Cuota por cobrar", tone: "secondary" })
   else if (tx.installmentItemId) tags.push({ label: "Cuota", tone: "secondary" })
-  if (tx.reimbursementCount) tags.push({ label: "Reembolso", tone: "default" })
+  if (tx.reimbursementCount) tags.push({ label: "Con reembolso", tone: "default" })
   if (tx.isInternal) tags.push({ label: "Ajuste de saldo", tone: "secondary" })
 
   const tile = (
@@ -101,7 +101,7 @@ export function MovementRow({
           )}
         </span>
         <span className="flex min-w-24 shrink-0 flex-col items-end text-right whitespace-nowrap">
-          <span className={cn("font-semibold", income && !tx.isInternal && "text-success")}>
+          <span className={cn("font-semibold", income && "text-success")}>
             {income ? "+" : "−"}
             {tx.currency === "CLP"
               ? formatCLP(Math.abs(tx.amount))

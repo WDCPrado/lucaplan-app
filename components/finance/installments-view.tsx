@@ -195,10 +195,11 @@ function PlanRow({
             <span className="flex items-center gap-2">
               {/* El texto 4/12 ya lo dice para lectores de pantalla; la barra es apoyo visual. */}
               {p.installmentsCount > 0 && (
-                <span aria-hidden className="block w-full max-w-28 flex-1">
+                <span className="block w-full max-w-28 flex-1">
                   <ProgressBar
                     value={p.settledCount}
                     max={p.installmentsCount}
+                    decorative
                     label={`Cuotas pagadas de ${p.description}`}
                   />
                 </span>

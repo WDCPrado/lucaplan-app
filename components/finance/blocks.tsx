@@ -142,7 +142,8 @@ export function ListRow({
   const inner = (
     <>
       {icon && <span className="grid size-9 shrink-0 place-items-center">{icon}</span>}
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+      {/* Con aside, la fila ya se nombra con aria-labelledby: el texto visible no se lee dos veces. */}
+      <span aria-hidden={aside ? true : undefined} className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span id={`${id}-t`} className="truncate font-semibold">{title}</span>
         {meta && (
           <span className="flex flex-wrap items-center gap-x-2 text-callout text-ink-2">
@@ -152,7 +153,10 @@ export function ListRow({
       </span>
       {aside && <span className="relative z-2 flex min-w-0 shrink items-center">{aside}</span>}
       {(value || valueNote) && (
-        <span className="flex shrink-0 flex-col items-end text-right whitespace-nowrap">
+        <span
+          aria-hidden={aside ? true : undefined}
+          className="flex shrink-0 flex-col items-end text-right whitespace-nowrap"
+        >
           {value && <span id={`${id}-v`} className="font-semibold">{value}</span>}
           {valueNote && (
             <span id={`${id}-n`} className="text-caption text-ink-3">
@@ -288,9 +292,17 @@ export function InlineNotice({
   )
 }
 
+/** Tono de barra según el estado que calcula el servidor (el mismo semáforo que `statusVar`). */
+export function statusTone(status: string): "default" | "warn" | "alert" {
+  return status === "bueno" ? "default" : status === "moderado" ? "warn" : "alert"
+}
+
 /**
- * Barra de progreso de un tope: lo gastado (tinta 2), lo comprometido encima (tinta al 20 %) y, si
- * se pasa, toda la barra en óxido. `tone` la tiñe de ámbar u óxido (lo decide quien sabe la regla).
+ * Barra de progreso de un tope: lo gastado (acotado al 100 %) y lo comprometido tenue hasta
+ * completar. `tone` la tiñe de ámbar u óxido y lo decide quien sabe la regla (el estado del
+ * servidor); la barra solo fuerza óxido cuando lo gastado pasa del tope. `decorative` la saca del
+ * árbol de accesibilidad: dentro de un botón o enlace un `meter` no se expone, y la cifra ya está
+ * en el texto.
  */
 export function ProgressBar({
   value,
@@ -298,6 +310,7 @@ export function ProgressBar({
   max,
   tone = "default",
   label,
+  decorative = false,
   className,
 }: {
   value: number
@@ -306,20 +319,27 @@ export function ProgressBar({
   tone?: "default" | "warn" | "alert"
   /** Nombre accesible («Gastado de Supermercado»). */
   label: string
+  decorative?: boolean
   className?: string
 }) {
-  const over = max > 0 ? value + committed > max : value > 0
-  const pct = (n: number) => (max > 0 ? Math.max(0, Math.min(100, (n / max) * 100)) : 0)
-  const spent = over ? 100 : pct(value)
-  const comm = over ? 0 : Math.min(pct(committed), 100 - spent)
-  const t = over ? "alert" : tone
+  // Sin tope (tope $0), cualquier monto llena la barra, como antes del rediseño.
+  const pct = (n: number) =>
+    max > 0 ? Math.max(0, Math.min(100, (n / max) * 100)) : n > 0 ? 100 : 0
+  const spent = pct(value)
+  const comm = Math.min(pct(committed), 100 - spent)
+  const t = value > max ? "alert" : tone
+  const ariaMax = Math.max(1, max)
   return (
     <div
-      role="meter"
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={max}
-      aria-valuenow={value}
+      {...(decorative
+        ? { "aria-hidden": true }
+        : {
+            role: "meter",
+            "aria-label": label,
+            "aria-valuemin": 0,
+            "aria-valuemax": ariaMax,
+            "aria-valuenow": Math.max(0, Math.min(value, ariaMax)),
+          })}
       className={cn("relative h-1.5 overflow-hidden rounded-full bg-track", className)}
     >
       <i

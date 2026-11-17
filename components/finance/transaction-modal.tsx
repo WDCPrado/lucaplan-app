@@ -59,7 +59,7 @@ import { InstallmentModal } from "./installment-modal"
 import { AssignToInstallmentModal } from "./assign-to-installment-modal"
 import { CategoryIcon } from "./category-icons"
 import { Segmented } from "./segmented"
-import { ProgressBar } from "./blocks"
+import { ProgressBar, statusTone } from "./blocks"
 import { ReimbursementSection } from "./reimbursements/reimbursement-section"
 import { IncomeSourceLink } from "./income-sources/income-source-link"
 import {
@@ -133,12 +133,7 @@ function CategoryBudgetLine({
 }) {
   const line = category ? categoryUsageLine(category) : null
   if (!category || !line) return null
-  const tone =
-    category.status === "bueno"
-      ? "default"
-      : category.status === "moderado"
-        ? "warn"
-        : "alert"
+  const tone = statusTone(category.status)
   return (
     <div className="flex w-full flex-col gap-2">
       <div className="flex items-baseline justify-between gap-3 text-callout">
@@ -442,7 +437,9 @@ function EditForm({
   }
 
   const conversionsNoteId = `transaction-conversions-${tx.id}-${instanceId}`
+  // {links} trae su propio <form>: va como hermano del formulario de edición, nunca adentro.
   const editor = (
+    <div className="flex flex-col gap-6">
     <form
       id={`edit-transaction-${tx.id}-${instanceId}`}
       onSubmit={form.handleSubmit(save)}
@@ -608,6 +605,7 @@ function EditForm({
           </>
         )}
       </ModalSection>
+    </form>
 
       {links}
 
@@ -710,7 +708,7 @@ function EditForm({
           disabled: !canSave,
         }}
       />
-    </form>
+    </div>
   )
 
 
@@ -994,7 +992,7 @@ function ConnectedDetail({
         <p
           className={cn(
             "text-title font-semibold whitespace-nowrap",
-            income && !tx.isInternal && "text-success"
+            income && "text-success"
           )}
         >
           {income ? "+" : "−"}

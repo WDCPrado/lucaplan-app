@@ -24,16 +24,26 @@ export function PasskeySignIn() {
   // `chosen` se sabe cuando sale la verificación: fetchOptions solo va a verify-authentication.
   async function attempt(autoFill: boolean) {
     let chosen = false
-    const response = await authClient.signIn.passkey({
-      autoFill,
-      fetchOptions: {
-        onRequest: () => {
-          chosen = true
-          setPending(true)
-          setError(null)
+    let response: Awaited<ReturnType<typeof authClient.signIn.passkey>>
+    try {
+      response = await authClient.signIn.passkey({
+        autoFill,
+        fetchOptions: {
+          onRequest: () => {
+            chosen = true
+            setPending(true)
+            setError(null)
+          },
         },
-      },
-    })
+      })
+    } catch {
+      // Sin red el fetch rechaza: el autocompletado se queda callado; el botón (o una passkey ya
+      // elegida en el autocompletado) dice qué pasó y se suelta.
+      if (autoFill && !chosen) return
+      setError("No se pudo entrar. Revisa la conexión e intenta de nuevo.")
+      setPending(false)
+      return
+    }
     if (!response.error) {
       const blocked = finishSignIn(response.data)
       if (blocked) {
@@ -51,8 +61,12 @@ export function PasskeySignIn() {
   }
 
   async function arm() {
-    if (await PublicKeyCredential.isConditionalMediationAvailable?.())
-      await attempt(true)
+    try {
+      if (await PublicKeyCredential.isConditionalMediationAvailable?.())
+        await attempt(true)
+    } catch {
+      // Sin autocompletado queda el botón.
+    }
   }
 
   useEffect(() => {

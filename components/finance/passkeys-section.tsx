@@ -130,9 +130,8 @@ export function PasskeysSection() {
               value={
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="destructive"
                   size="sm"
-                  className="font-semibold text-destructive hover:text-destructive"
                   aria-label={`Quitar ${nameOf(p)}`}
                   onClick={() => setRemoving(p)}
                 >

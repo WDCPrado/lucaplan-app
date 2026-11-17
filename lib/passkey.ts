@@ -61,6 +61,10 @@ export function signInPasskeyMessage(
     return "No se pudo usar la biometría en este aparato. Entra con tu correo."
   if (error?.status === 429)
     return "Has hecho varios intentos. Espera un minuto e inténtalo de nuevo."
+  // El servidor exige verificar a la persona (huella, cara o PIN): sin eso responde UNAUTHORIZED.
+  // Una cuenta bloqueada responde 403 y cae en el mensaje genérico de abajo.
+  if (error?.code === "UNAUTHORIZED" || error?.status === 401)
+    return "No pudimos confirmar que eres tú. Usa la huella, la cara o el PIN de este aparato, o entra con tu correo."
   if ([400, 401, 403].includes(error?.status ?? 0))
     return "No pudimos entrar con biometría. Si tu cuenta sigue activa, entra con tu correo."
   return "No se pudo entrar. Revisa la conexión e intenta de nuevo."

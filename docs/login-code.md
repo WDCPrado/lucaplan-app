@@ -54,7 +54,9 @@ máximo 60 caracteres; el del selector del aparato es siempre el correo.
 Entrar solo sirve con una passkey guardada, así que nunca crea cuentas (tampoco con la base vacía
 de `/setup`), y una cuenta bloqueada responde 403 `BANNED_USER` como con el código. Registrar
 exige una sesión de menos de un día (`freshAge` por defecto de Better Auth): si no, 403
-`SESSION_NOT_FRESH` y hay que volver a entrar.
+`SESSION_NOT_FRESH` y hay que volver a entrar. Se exige que el aparato verifique a la persona
+(huella, cara o PIN): sin eso no se guarda la passkey (400) ni se entra (401), con el código
+`PASSKEY_USER_NOT_VERIFIED`.
 
 En pantalla (`app/login/passkey-sign-in.tsx`, `components/finance/passkeys-section.tsx`; textos en
 `lib/passkey.ts`) se dice siempre «biometría». En el login, bajo «Enviar código», una línea «o» y
@@ -65,9 +67,11 @@ cancelar el diálogo del sistema no muestra nada. Al entrar sigue el mismo desti
 acción (deshabilitada sin WebAuthn, con la razón al pie), los aparatos con su fecha de alta y
 «Quitar» con confirmación.
 
-Una passkey vale solo en el dominio donde se registró. Con `BETTER_AUTH_URL` el dominio y el origen
-aceptado son los de esa URL (`http://localhost:<puerto>` en local, que el navegador acepta sin
-HTTPS); sin ella, los del pedido. Cada entorno (local, cada PR, producción) tiene las suyas.
+Una passkey vale solo en el dominio donde se registró. El dominio y el origen aceptado son los de
+`BETTER_AUTH_URL` (`http://localhost:<puerto>` en local, que el navegador acepta sin HTTPS); en un
+entorno de PR de Railway, los de `https://$RAILWAY_PUBLIC_DOMAIN`, porque detrás del proxy la
+dirección del pedido es la interna. Sin ninguna de las dos, los del pedido. Cada entorno (local,
+cada PR, producción) tiene las suyas.
 
 ## Cuentas existentes y OAuth
 

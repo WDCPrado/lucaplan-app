@@ -20,6 +20,9 @@ function softAuthenticator(userId: string) {
     Buffer.from(jwk.y!, "base64url"),
   ])
   const credentialID = randomBytes(16).toString("base64url")
+  const rpIdHash = createHash("sha256").update("localhost").digest()
+  const clientData = (type: string, challenge: string, origin: string) =>
+    Buffer.from(JSON.stringify({ type, challenge, origin, crossOrigin: false }))
   return {
     row: {
       id: `pk-${userId}-${credentialID.slice(0, 6)}`,
@@ -33,13 +36,39 @@ function softAuthenticator(userId: string) {
       transports: "internal",
       createdAt: new Date(),
     },
-    assertion(challenge: string, origin = ORIGIN) {
-      const clientDataJSON = Buffer.from(
-        JSON.stringify({ type: "webauthn.get", challenge, origin, crossOrigin: false })
-      )
+    // Registro con attestation "none": {fmt, attStmt, authData} en CBOR.
+    attestation(challenge: string, { uv = true } = {}) {
       const authData = Buffer.concat([
-        createHash("sha256").update("localhost").digest(),
-        Buffer.from([0x05]), // presencia y verificación del usuario
+        rpIdHash,
+        Buffer.from([uv ? 0x45 : 0x41]), // presencia, (verificación), credencial incluida
+        Buffer.alloc(4),
+        Buffer.alloc(16), // aaguid
+        Buffer.from([0x00, 0x10]),
+        Buffer.from(credentialID, "base64url"),
+        cose,
+      ])
+      const attestationObject = Buffer.concat([
+        Buffer.from([0xa3, 0x63]), Buffer.from("fmt"), Buffer.from([0x64]), Buffer.from("none"),
+        Buffer.from([0x67]), Buffer.from("attStmt"), Buffer.from([0xa0]),
+        Buffer.from([0x68]), Buffer.from("authData"), Buffer.from([0x58, authData.length]), authData,
+      ])
+      return {
+        id: credentialID,
+        rawId: credentialID,
+        type: "public-key",
+        clientExtensionResults: {},
+        response: {
+          clientDataJSON: clientData("webauthn.create", challenge, ORIGIN).toString("base64url"),
+          attestationObject: attestationObject.toString("base64url"),
+          transports: ["internal"],
+        },
+      }
+    },
+    assertion(challenge: string, { origin = ORIGIN, uv = true } = {}) {
+      const clientDataJSON = clientData("webauthn.get", challenge, origin)
+      const authData = Buffer.concat([
+        rpIdHash,
+        Buffer.from([uv ? 0x05 : 0x01]), // presencia y (verificación) del usuario
         Buffer.alloc(4),
       ])
       const signature = sign(
@@ -62,7 +91,12 @@ function softAuthenticator(userId: string) {
   }
 }
 
-function fixture() {
+function fixture({
+  // null = sin URL (undefined tomaría el valor por defecto)
+  pluginUrl = ORIGIN as string | null,
+  baseURL = ORIGIN as string | null,
+  requestBase = ORIGIN,
+} = {}) {
   const now = new Date()
   const user = (id: string, email: string, banned = false) => ({
     id, name: id, email, emailVerified: true, banned, role: "USER", createdAt: now, updatedAt: now,
@@ -82,14 +116,14 @@ function fixture() {
     passkey: [mine.row, other.row, blocked.row],
   }
   const auth = betterAuth({
-    baseURL: ORIGIN,
+    baseURL: baseURL ?? undefined,
     secret: "wdc188-test-secret-only-not-a-real-secret-123456",
     database: memoryAdapter(db),
     emailAndPassword: { enabled: false },
     disabledPaths: PASSKEY_DISABLED_PATHS,
     plugins: [
       admin({ defaultRole: "USER", adminRoles: ["ADMIN"] }),
-      createPasskeyPlugin({ origin: ORIGIN }),
+      createPasskeyPlugin(pluginUrl ?? undefined),
     ],
     rateLimit: { enabled: false },
     logger: { disabled: true },
@@ -98,7 +132,7 @@ function fixture() {
   const jar = new Map<string, string>()
   const call = async (method: "GET" | "POST", path: string, body?: unknown) => {
     const res = await auth.handler(
-      new Request(`${ORIGIN}/api/auth${path}`, {
+      new Request(`${requestBase}/api/auth${path}`, {
         method,
         headers: {
           origin: ORIGIN,
@@ -115,10 +149,10 @@ function fixture() {
     }
     return res
   }
-  const signIn = async (key = mine, origin?: string) => {
+  const signIn = async (key = mine, opts?: { origin?: string; uv?: boolean }) => {
     const options = await (await call("GET", "/passkey/generate-authenticate-options")).json()
     return call("POST", "/passkey/verify-authentication", {
-      response: key.assertion(options.challenge, origin),
+      response: key.assertion(options.challenge, opts),
     })
   }
   return { db, jar, call, signIn, mine, other, blocked }
@@ -156,7 +190,7 @@ test("una passkey desconocida no entra ni crea cuenta", async () => {
 
 test("una firma hecha para otro sitio no entra", async () => {
   const f = fixture()
-  const res = await f.signIn(f.mine, "https://otro.example")
+  const res = await f.signIn(f.mine, { origin: "https://otro.example" })
   assert.equal(res.status, 400)
   assert.equal(f.db.session.length, 0)
 })
@@ -228,4 +262,67 @@ test("renombrar está deshabilitado", async () => {
   const res = await f.call("POST", "/passkey/update-passkey", { id: f.mine.row.id, name: "otro" })
   assert.equal(res.status, 404)
   assert.equal(f.db.passkey.find((p) => p.id === f.mine.row.id)!.name, "Pixel · Chrome")
+})
+
+test("una firma sin verificar a la persona (huella, cara o PIN) no entra", async () => {
+  const f = fixture()
+  const res = await f.signIn(f.mine, { uv: false })
+  assert.equal(res.status, 401)
+  assert.equal((await res.json()).code, "PASSKEY_USER_NOT_VERIFIED")
+  assert.equal(f.db.session.length, 0)
+})
+
+test("registrar guarda la passkey solo si el aparato verificó a la persona", async () => {
+  const f = fixture()
+  await f.signIn()
+  const register = async (uv: boolean) => {
+    const key = softAuthenticator("me")
+    const options = await (await f.call("GET", "/passkey/generate-register-options")).json()
+    assert.equal(options.authenticatorSelection.userVerification, "required")
+    const res = await f.call("POST", "/passkey/verify-registration", {
+      response: key.attestation(options.challenge, { uv }),
+      name: "Mac · Safari",
+    })
+    return { res, key }
+  }
+  const sinUv = await register(false)
+  assert.equal(sinUv.res.status, 400)
+  assert.equal((await sinUv.res.json()).code, "PASSKEY_USER_NOT_VERIFIED")
+  assert.equal(f.db.passkey.length, 3)
+  const conUv = await register(true)
+  assert.equal(conUv.res.status, 200)
+  const saved = f.db.passkey.find((p) => p.credentialID === conUv.key.row.credentialID)!
+  assert.equal(saved.userId, "me")
+  assert.equal(saved.name, "Mac · Safari")
+})
+
+test("registrar con una sesión de más de un día pide volver a entrar", async () => {
+  const f = fixture()
+  await f.signIn()
+  f.db.session[0].createdAt = new Date(Date.now() - 2 * 86400000)
+  const res = await f.call("GET", "/passkey/generate-register-options")
+  assert.equal(res.status, 403)
+  assert.equal((await res.json()).code, "SESSION_NOT_FRESH")
+})
+
+test("sin URL, el dominio de la passkey es el host del pedido", async () => {
+  const saved = process.env.BETTER_AUTH_URL
+  delete process.env.BETTER_AUTH_URL
+  try {
+    const f = fixture({ pluginUrl: null, baseURL: null, requestBase: "http://10.0.0.5:8080" })
+    const options = await (await f.call("GET", "/passkey/generate-authenticate-options")).json()
+    assert.equal(options.rpId, "10.0.0.5")
+  } finally {
+    if (saved !== undefined) process.env.BETTER_AUTH_URL = saved
+  }
+})
+
+test("con la URL del PR, el dominio de la passkey es el público aunque el pedido llegue por la red interna", async () => {
+  const f = fixture({
+    pluginUrl: "https://lucaplan-app-pr-3.up.railway.app",
+    baseURL: null,
+    requestBase: "http://10.0.0.5:8080",
+  })
+  const options = await (await f.call("GET", "/passkey/generate-authenticate-options")).json()
+  assert.equal(options.rpId, "lucaplan-app-pr-3.up.railway.app")
 })

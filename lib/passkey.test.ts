@@ -61,3 +61,14 @@ test("los errores de entrar y de agregar tienen su mensaje", () => {
     "Este aparato ya está registrado en tu cuenta."
   )
 })
+
+test("agregar con sesión vieja o vencida pide volver a entrar", () => {
+  assert.equal(
+    addPasskeyMessage({ code: "SESSION_NOT_FRESH", status: 403 }),
+    "Por seguridad, vuelve a iniciar sesión para agregar este aparato."
+  )
+  assert.equal(
+    addPasskeyMessage({ code: "UNAUTHORIZED", status: 401 }),
+    "Tu sesión venció. Vuelve a entrar para agregar este aparato."
+  )
+})

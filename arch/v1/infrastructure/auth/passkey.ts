@@ -10,18 +10,38 @@ export const PASSKEY_NAME_MAX = 60
 // Sin renombrar: para cambiar el nombre se quita y se agrega de nuevo.
 export const PASSKEY_DISABLED_PATHS = ["/passkey/update-passkey"]
 
+// Al entrar, 401; al registrar, 400, porque un 401 ahí se lee como sesión vencida.
+const userNotVerified = (status: "UNAUTHORIZED" | "BAD_REQUEST") =>
+  new APIError(status, {
+    message: "El aparato no confirmó tu huella, cara o PIN.",
+    code: "PASSKEY_USER_NOT_VERIFIED",
+  })
+
 /**
- * Con URL canónica (BETTER_AUTH_URL), las passkeys son de ese host y solo valen desde ese origen.
- * Sin ella, el plugin toma el host del pedido y el origen del header `Origin`.
+ * `url`: el origen público de la app (la URL canónica o, en un PR de Railway, su dominio). Las
+ * passkeys son de ese host y solo valen desde ese origen. Sin URL, el plugin toma el host de
+ * `request.url` (detrás de un proxy, la dirección interna) y el origen del header `Origin`.
  * `residentKey: "required"`: la credencial queda en el aparato y se entra sin escribir el correo.
+ * Se exige verificar a la persona (huella, cara o PIN del aparato), no solo tenerlo: al registrar se
+ * pide al navegador y en ambos lados se comprueba en el servidor, porque el plugin no lo exige.
  */
-export function createPasskeyPlugin(canonical?: { origin: string }) {
+export function createPasskeyPlugin(url?: string) {
   const plugin = passkey({
     rpName: "Luca Plan",
-    ...(canonical
-      ? { rpID: new URL(canonical.origin).hostname, origin: canonical.origin }
-      : {}),
-    authenticatorSelection: { residentKey: "required" },
+    ...(url ? { rpID: new URL(url).hostname, origin: new URL(url).origin } : {}),
+    authenticatorSelection: { residentKey: "required", userVerification: "required" },
+    registration: {
+      afterVerification: async ({ verification }) => {
+        if (!verification.registrationInfo?.userVerified) throw userNotVerified("BAD_REQUEST")
+      },
+    },
+    authentication: {
+      // Corre antes de crear la sesión. Las opciones de entrar piden UV "preferred" (fijo en el
+      // plugin); el lector de huella o cara del aparato la hace igual, y si no la hizo no entra.
+      afterVerification: async ({ verification }) => {
+        if (!verification.authenticationInfo.userVerified) throw userNotVerified("UNAUTHORIZED")
+      },
+    },
   })
   const guard = {
     matcher: (ctx: { path?: string }) =>
@@ -40,5 +60,6 @@ export function createPasskeyPlugin(canonical?: { origin: string }) {
         })
     }),
   }
-  return { ...plugin, hooks: { before: [guard] } }
+  const hooks = (plugin as { hooks?: { before?: (typeof guard)[] } }).hooks
+  return { ...plugin, hooks: { ...hooks, before: [...(hooks?.before ?? []), guard] } }
 }

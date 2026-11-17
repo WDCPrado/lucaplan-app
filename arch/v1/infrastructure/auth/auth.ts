@@ -138,7 +138,12 @@ export const auth = betterAuth({
       }
     ),
     admin({ defaultRole: "USER", adminRoles: ["ADMIN"] }),
-    createPasskeyPlugin(canonical),
+    // En un PR de Railway, el dominio público del PR (`request.url` es la dirección interna).
+    createPasskeyPlugin(
+      prDemoAccount() && process.env.RAILWAY_PUBLIC_DOMAIN
+        ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+        : canonical?.origin
+    ),
     jwt({ jwt: { issuer: canonical?.issuer } }),
     oauthProvider({
       schema: {

@@ -96,7 +96,7 @@ export function TransactionSearch({
       onOpenChange={onOpenChange}
       title="Buscar movimientos"
     >
-      <div className="flex flex-col gap-4 px-4 pb-6 md:px-6">
+      <div className="flex flex-col gap-4">
         <TransactionFilters
           value={filters}
           onChange={setFilters}

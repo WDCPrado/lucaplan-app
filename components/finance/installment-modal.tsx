@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
-import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { ModalSection, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
@@ -225,9 +225,9 @@ export function InstallmentModal({
             : "Necesitas una cuenta para registrar un crédito."}
         </div>
       ) : (
-        <div className="flex flex-col px-5">
+        <div className="flex flex-col gap-6">
           {/* 1 · Qué se debe ------------------------------------------------- */}
-          <Section title="Qué se debe">
+          <ModalSection plain title="Qué se debe">
             <Input
               placeholder={
                 kind === "card" ? "Ej. Notebook" : "Ej. Crédito de consumo"
@@ -235,7 +235,7 @@ export function InstallmentModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               aria-label="Descripción"
-              className="h-11 rounded-lg text-body md:text-body"
+              
             />
             {eligible.length > 1 && (
               <ChipRow>
@@ -279,10 +279,10 @@ export function InstallmentModal({
                 ))}
               </ChipRow>
             )}
-          </Section>
+          </ModalSection>
 
           {/* 2 · Cuánto y en cuántas ----------------------------------------- */}
-          <Section title="Cuánto y en cuántas">
+          <ModalSection plain title="Cuánto y en cuántas">
             <div className="flex items-baseline gap-2">
               <span className="text-title text-ink-3">
                 $
@@ -409,10 +409,10 @@ export function InstallmentModal({
                 el avance, pero no generan gasto en meses anteriores.
               </span>
             )}
-          </Section>
+          </ModalSection>
 
           {/* 3 · Cuándo ------------------------------------------------------- */}
-          <Section title="Cuándo se paga">
+          <ModalSection plain title="Cuándo se paga">
             <label className="flex items-center justify-between gap-3 text-callout">
               <span className="text-muted-foreground">
                 {kind === "loan"
@@ -439,10 +439,10 @@ export function InstallmentModal({
                 ? `La cuota ${startIndex} vence el ${shortDate(dates[startIndex - 1])} y la última el ${shortDate(dates[dates.length - 1])}.`
                 : `Termina el ${shortDate(dates[dates.length - 1])}.`}
             </span>
-          </Section>
+          </ModalSection>
 
           {/* 4 · Cronograma --------------------------------------------------- */}
-          <Section title="Cronograma" last>
+          <ModalSection plain title="Cronograma">
             {overdue.length > 0 && (
               <p className="text-caption text-muted-foreground">
                 Las cuotas que ya vencieron vienen marcadas como pagadas.
@@ -511,7 +511,7 @@ export function InstallmentModal({
                 {formatCLP(total)}. Ajusta {formatCLP(Math.abs(total - sum))}.
               </p>
             )}
-          </Section>
+          </ModalSection>
         </div>
       )}
     </ResponsiveModal>
@@ -533,31 +533,10 @@ function startOfMonth(value: string): Date {
   return new Date(Date.UTC(y, (m || 1) - 1, 1)) // día civil, como lo lee `schedule`
 }
 
-function Section({
-  title,
-  children,
-  last,
-}: {
-  title: string
-  children: React.ReactNode
-  last?: boolean
-}) {
-  return (
-    <section
-      className={cn(
-        "flex flex-col gap-3 pt-5",
-        last && "pb-5"
-      )}
-    >
-      <h3 className="text-callout font-semibold text-ink-2">{title}</h3>
-      {children}
-    </section>
-  )
-}
 
 function ChipRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="-mx-5 flex scrollbar-none gap-2 overflow-x-auto px-5 pb-1">
+    <div className="-mx-(--pad-sheet) flex scrollbar-none gap-2 overflow-x-auto px-(--pad-sheet) pb-1">
       {children}
     </div>
   )

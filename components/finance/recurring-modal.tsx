@@ -1,5 +1,6 @@
 "use client"
 
+import { cn } from "@/lib/utils"
 import { useId, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowUpRight, Check, ChevronRight, Loader } from "lucide-react"
@@ -8,6 +9,8 @@ import { toast } from "sonner"
 import {
   ModalDangerRow,
   ModalSection,
+  modalActionRow,
+  modalRow,
   ResponsiveModal,
 } from "@/components/ui/responsive-modal"
 import { Button } from "@/components/ui/button"
@@ -402,12 +405,12 @@ export function RecurringModal({
           Necesitas una cuenta para crear un gasto recurrente.
         </div>
       ) : (
-        <div className="flex flex-col gap-7 px-5 pt-2">
+        <div className="flex flex-col gap-6">
           {/* Estado del cobro del período: va arriba porque es el estado, no un campo. Elegir el
               movimiento a mano cubre el cargo que llegó con otra fecha y no se enganchó solo. */}
           {template && template.isActive && !template.hasEnded && (
             <ModalSection>
-              <p className="flex min-h-11 items-center px-4 py-2.5 text-callout">
+              <p className={cn(modalRow, "text-callout")}>
                 {template.currentPeriodPaid
                   ? "El cobro de este período ya está registrado."
                   : "El cobro de este período todavía no llega."}
@@ -418,7 +421,7 @@ export function RecurringModal({
                   onClick={markPaid}
                   disabled={saving}
                   aria-busy={busy === "paid" || undefined}
-                  className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary disabled:opacity-50"
+                  className={cn(modalActionRow, "font-semibold text-primary")}
                 >
                   <span className="min-w-0 flex-1">Ya lo pagué</span>
                   {busy === "paid" && <BusySpinner />}
@@ -432,7 +435,7 @@ export function RecurringModal({
                   onClick={openPicker}
                   disabled={saving}
                   aria-busy={busy === "pick" || undefined}
-                  className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body disabled:opacity-50"
+                  className={modalActionRow}
                 >
                   <span className="min-w-0 flex-1">Elegir movimiento</span>
                   {busy === "pick" ? (
@@ -453,7 +456,7 @@ export function RecurringModal({
                 href={template.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary"
+                className={cn(modalActionRow, "font-semibold text-primary")}
               >
                 <span className="min-w-0 flex-1 truncate">
                   Abrir {linkHost(template.url)}
@@ -480,7 +483,6 @@ export function RecurringModal({
                 la categoría siempre es heredada; se cambia recategorizando el movimiento. */}
             <ModalSection
               title="Qué se cobra"
-              className="[--inset:1rem]"
               footer="El nombre es solo para reconocerla aquí; cambiarlo no afecta la detección del cargo en el correo."
             >
               <Input
@@ -488,9 +490,9 @@ export function RecurringModal({
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 aria-label="Nombre"
-                className="h-11 rounded-none border-0 bg-transparent px-4 text-body shadow-none focus-visible:ring-0 md:text-body"
+                className="h-11 px-4"
               />
-              <div className="flex min-h-11 items-center gap-3 px-4 py-2">
+              <div className={modalRow}>
                 <CategoryIcon
                   icon={inheritedCategory?.icon ?? null}
                   size={18}
@@ -623,7 +625,7 @@ export function RecurringModal({
                   // El campo se abre VACÍO a propósito: una fecha propuesta (p. ej. "+1 año") se
                   // acepta sin mirar el año y termina guardando una vigencia que nadie eligió.
                   onClick={() => setWithEnd(true)}
-                  className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body"
+                  className={modalActionRow}
                 >
                   <span className="min-w-0 flex-1">Hasta cuándo</span>
                   <span className="shrink-0 text-muted-foreground">
@@ -644,7 +646,7 @@ export function RecurringModal({
                     type="button"
                     aria-pressed={selected}
                     onClick={() => setAccountId(a.id)}
-                    className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body"
+                    className={modalActionRow}
                   >
                     <span className="min-w-0 flex-1 truncate">{a.name}</span>
                     {selected && (
@@ -706,7 +708,7 @@ export function RecurringModal({
                 aria-describedby={
                   urlError ? "recurring-url-error" : "recurring-url-hint"
                 }
-                className="h-11 rounded-none border-0 bg-transparent px-4 text-body shadow-none focus-visible:ring-0 aria-invalid:ring-0 md:text-body"
+                className="h-11 px-4"
               />
             </ModalSection>
           </form>
@@ -723,7 +725,7 @@ export function RecurringModal({
                     onClick={toggleActive}
                     disabled={saving}
                     aria-busy={busy === "toggle" || undefined}
-                    className={ACTION_ROW}
+                    className={cn(modalActionRow, "justify-between")}
                   >
                     {template.isActive
                       ? "Pausar recurrente"
@@ -739,7 +741,7 @@ export function RecurringModal({
                       onClick={undoPaid}
                       disabled={saving}
                       aria-busy={busy === "undo" || undefined}
-                      className={ACTION_ROW}
+                      className={cn(modalActionRow, "justify-between")}
                     >
                       Deshacer «Ya lo pagué»
                       {busy === "undo" && <BusySpinner />}
@@ -798,9 +800,6 @@ export function RecurringModal({
   )
 }
 
-// Fila de acción de una lista agrupada: texto azul, 44 px de alto; el spinner va al final.
-const ACTION_ROW =
-  "press flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-body text-primary disabled:opacity-50"
 
 // Indicador de actividad de una fila mientras escribe; quieto con «reducir movimiento».
 function BusySpinner() {

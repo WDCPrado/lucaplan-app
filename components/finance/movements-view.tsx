@@ -172,14 +172,14 @@ export function MovementsView({
       }
     >
       <div className="page-container">
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3 xl:gap-5">
+        <div className="grid grid-cols-1 gap-4 md:gap-6 xl:grid-cols-3">
           {/* Resumen y filtros de la lista (no es la búsqueda global). Móvil y tablet: la cifra, el
               campo, «Filtros (n)» que abre el resto en una hoja y el tipo a la vista. Escritorio
               ancho: columna derecha pegada, con el panel de filtros abierto. */}
           <div className="min-w-0 xl:col-start-3 xl:row-start-1">
             <aside
               aria-label="Filtrar movimientos"
-              className="flex min-w-0 flex-col gap-4 xl:sticky xl:top-20 xl:gap-5"
+              className="flex min-w-0 flex-col gap-4 md:gap-6 xl:sticky xl:top-20"
             >
               <section
                 aria-labelledby="movements-summary"
@@ -327,7 +327,7 @@ export function MovementsView({
         onOpenChange={setFiltersOpen}
         title="Filtros"
       >
-        <div className="flex flex-col gap-4 px-4 pb-6 md:px-6">
+        <div className="flex flex-col gap-4">
           <FilterControls {...filterProps} hideDirection />
         </div>
         {/* Los filtros se aplican al tocarlos: sin check. La salida visible es la X de la hoja. */}

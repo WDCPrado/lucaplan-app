@@ -423,7 +423,7 @@ function Done() {
           id={TITLE_ID}
           ref={focusOnMount}
           tabIndex={-1}
-          className="text-title font-semibold outline-none"
+          className="text-screen-title font-semibold text-balance outline-none"
         >
           Tu instalación está lista
         </h1>
@@ -451,7 +451,7 @@ function AlreadyInstalled() {
         id={TITLE_ID}
         ref={focusOnMount}
         tabIndex={-1}
-        className="text-title font-semibold outline-none"
+        className="text-screen-title font-semibold text-balance outline-none"
       >
         Esta instalación ya está lista
       </h1>

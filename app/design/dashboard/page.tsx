@@ -407,7 +407,7 @@ function Inicio({ txs, onSeeAll }: { txs: Tx[]; onSeeAll: () => void }) {
             <article
               key={a.last4}
               className={cn(
-                "flex h-44 w-66 shrink-0 snap-start flex-col justify-between rounded-3xl p-5",
+                "flex h-44 w-66 shrink-0 snap-start flex-col justify-between rounded-xl p-5",
                 a.featured
                   ? "bg-[linear-gradient(135deg,var(--primary)_0%,#9b6bff_45%,var(--chart-2)_100%)] text-white shadow-lg shadow-primary/25"
                   : "border border-border bg-card"

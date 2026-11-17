@@ -32,14 +32,14 @@ export function SearchInput({
         disabled={disabled}
         onChange={(event) => onValueChange(event.target.value)}
         inputMode="search"
-        className={cn("h-11 rounded-md pr-11 pl-10 text-body", className)}
+        className={cn("h-(--ctl) rounded-md pr-(--ctl) pl-10 text-body", className)}
       />
       {value && (
         <button
           type="button"
           disabled={disabled}
           aria-label="Limpiar búsqueda"
-          className="press absolute top-1/2 right-0 grid size-11 -translate-y-1/2 place-items-center rounded-md focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+          className="press absolute top-1/2 right-0 grid size-(--ctl) -translate-y-1/2 place-items-center rounded-md focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
           onClick={() => {
             onValueChange("")
             input.current?.focus()
@@ -48,7 +48,7 @@ export function SearchInput({
           {/* Limpiar: círculo relleno con la X calada en el color del campo. */}
           <CircleX
             aria-hidden
-            className="size-4.5 fill-muted-foreground/70 text-(--sheet-cell)"
+            className="size-4.5 fill-muted-foreground/70 text-secondary"
             strokeWidth={2.5}
           />
         </button>

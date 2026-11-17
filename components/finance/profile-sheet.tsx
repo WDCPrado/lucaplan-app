@@ -68,7 +68,7 @@ function NameForm({
       id={NAME_FORM}
       onSubmit={form.handleSubmit(save)}
       noValidate
-      className="flex flex-col gap-6 px-4 md:px-6"
+      className="flex flex-col gap-6"
     >
       {/* Identidad: inicial, nombre y correo en una fila. El correo no se edita. */}
       <div className="flex items-center gap-3 rounded-lg bg-secondary p-3">
@@ -111,7 +111,6 @@ function NameForm({
         />
       </FinanceField>
       <ModalActions
-        className="md:-mx-6 md:px-6"
         primary={{
           label: "Guardar",
           form: NAME_FORM,

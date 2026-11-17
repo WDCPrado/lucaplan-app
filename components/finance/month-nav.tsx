@@ -78,7 +78,7 @@ export function MonthNav({
         >
           <ChevronLeft className="size-4" />
         </button>
-        <div aria-live="polite" className="flex min-w-0 flex-1 items-center justify-center overflow-hidden shadow-[inset_1px_0_0_var(--border),inset_-1px_0_0_var(--border)] md:min-w-42">
+        <div aria-live="polite" className="flex min-w-0 flex-1 items-center justify-center overflow-hidden border-x border-border md:min-w-42">
           {disabled ? (
             <span className="idle-ink flex max-w-full items-center truncate px-3 text-body font-semibold">
               {periodLabel(period, cycleRange)}
@@ -121,7 +121,8 @@ export function MonthNav({
       <div
         inert={isCurrent}
         className={cn(
-          "grid transition-[grid-template-columns,opacity] duration-[260ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+          // En móvil «Hoy» vive en la hoja «Elegir mes»: la barra queda avatar · mes · búsqueda, como en G.
+          "grid transition-[grid-template-columns,opacity] duration-260 ease-(--ease-out) max-md:hidden motion-reduce:transition-none",
           isCurrent ? "grid-cols-[0fr] opacity-0" : "grid-cols-[1fr] opacity-100"
         )}
       >

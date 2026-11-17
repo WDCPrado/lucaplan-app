@@ -59,7 +59,7 @@ export function MonthlyAmounts({
             <span className="shrink-0 text-callout whitespace-nowrap text-ink-2">
               {formatMoney(a.amount, source.currency)}
             </span>
-            <ChevronRight aria-hidden className="disclosure" />
+            <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
           </button>
         ))}
         <button
@@ -172,7 +172,7 @@ function MonthAmountModal({
         disabled: busy || (!!existing && !isDirty),
       }}
     >
-      <form id={formId} onSubmit={form.handleSubmit(save)} className="flex flex-col gap-7 px-5">
+      <form id={formId} onSubmit={form.handleSubmit(save)} className="flex flex-col gap-6">
         <fieldset disabled={busy} className="contents">
           {errors.root && (
             <p role="alert" className="text-callout text-destructive">

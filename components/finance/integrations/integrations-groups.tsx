@@ -124,11 +124,7 @@ export function LoadError({
   return (
     <div className="flex flex-col items-start gap-3">
       {/* El mensaje de la API puede ser largo: se deja envolver en vez de cortarse. */}
-      <InlineNotice
-        tone="alert"
-        label={message}
-        className="py-2 [&>span]:whitespace-normal"
-      />
+      <InlineNotice tone="alert" label={message} wrap />
       <Button type="button" variant="secondary" onClick={onRetry}>
         Reintentar
       </Button>

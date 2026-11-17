@@ -41,7 +41,7 @@ export function Segmented<T extends string>({
       <span
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-y-1 left-1 rounded-sm bg-card shadow-[0_1px_2px_rgb(0_0_0/0.08)] transition-transform duration-240 ease-(--ease-out) motion-reduce:transition-none",
+          "pointer-events-none absolute inset-y-1 left-1 rounded-sm bg-card shadow-thumb transition-transform duration-240 ease-(--ease-out) motion-reduce:transition-none",
           activeIndex < 0 && "opacity-0"
         )}
         style={{

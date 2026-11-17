@@ -7,11 +7,7 @@ import { toast } from "sonner"
 import { ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { ResponsivePopover } from "@/components/ui/responsive-modal"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { formatCLP, monthName, usagePct } from "@/lib/finance-format"
@@ -253,29 +249,34 @@ export function ClosingPicker({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="sheet-group inset-list px-4">
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              disabled={disabled}
-              aria-label={`Cierre de la tarjeta en ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}${disabled ? ". Solo se usa en modo ciclo de tarjeta" : ". Cambiar"}`}
-              className="press flex min-h-11 w-full items-center gap-2 py-2.5 text-left disabled:opacity-45"
-            >
-              <span className="min-w-0 flex-1 text-body">Cierre de la tarjeta</span>
-              <span className="text-body whitespace-nowrap text-ink-2">
-                {shortDate(closing.date)}
-              </span>
-              {closing.estimated && (
-                <span className="text-caption text-ink-3">
-                  Estimado
+      <div className="tone-rows [&>*]:px-4">
+        <ResponsivePopover
+          open={open}
+          onOpenChange={setOpen}
+          title={`Cierre de ${mes}`}
+          align="end"
+          className="w-auto gap-2 p-3"
+          trigger={
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={`Cierre de la tarjeta en ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}${disabled ? ". Solo se usa en modo ciclo de tarjeta" : ". Cambiar"}`}
+                className="press flex min-h-11 w-full items-center gap-2 py-2.5 text-left disabled:opacity-45"
+              >
+                <span className="min-w-0 flex-1 text-body">Cierre de la tarjeta</span>
+                <span className="text-body whitespace-nowrap text-ink-2">
+                  {shortDate(closing.date)}
                 </span>
-              )}
-              <ChevronRight className="disclosure" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-auto gap-2 p-3">
-            <p className="px-1 text-caption text-ink-3">Cierre de {mes}</p>
+                {closing.estimated && (
+                  <span className="text-caption text-ink-3">
+                    Estimado
+                  </span>
+                )}
+                <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
+              </button>
+          }
+        >
+          <p className="px-1 text-caption text-ink-3 max-md:hidden">Cierre de {mes}</p>
             <Calendar
               mode="single"
               locale={es}
@@ -295,8 +296,7 @@ export function ClosingPicker({
               classNames={{ nav: "hidden", month_caption: "sr-only" }}
               className="p-0"
             />
-          </PopoverContent>
-        </Popover>
+        </ResponsivePopover>
         {!closing.estimated && (
           <button
             type="button"

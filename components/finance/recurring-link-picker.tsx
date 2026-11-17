@@ -94,7 +94,7 @@ export function RecurringLinkPicker({
       title="Elegir movimiento"
       className="sm:max-w-md"
     >
-      <div className="flex flex-col px-5 pb-4">
+      <div className="flex flex-col">
         <p className="py-3 text-caption text-muted-foreground">
           Cargos del banco en la categoría de esta recurrente. Elige el que
           corresponde a este período: no se crea nada nuevo, el movimiento pasa
@@ -186,10 +186,9 @@ export function RecurringLinkPicker({
             No hay movimientos para elegir.
           </p>
         ) : (
-          // Lista agrupada de la hoja: una celda con separadores desde el texto, como las demás.
+          // Filas en tono de la hoja, como las demás.
           <ul
-
-            className="sheet-group inset-list mt-4 overflow-hidden"
+            className="tone-rows mt-4"
             aria-busy={busy}
           >
             {items.map((tx) => (
@@ -198,7 +197,7 @@ export function RecurringLinkPicker({
                   type="button"
                   disabled={busy}
                   onClick={() => setPending(tx)}
-                  className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left outline-none hover:bg-secondary/60 focus-visible:bg-secondary/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
+                  className="press flex min-h-11 w-full items-center gap-3 rounded-lg px-4 py-2.5 text-left hover:bg-surface-3 disabled:pointer-events-none disabled:opacity-45"
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-callout font-semibold">

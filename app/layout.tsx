@@ -98,7 +98,7 @@ export default function RootLayout({
             aria-hidden
             className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center pt-[env(safe-area-inset-top)]"
           >
-            <span className="animate-pulse rounded-b-md bg-emerald-500 px-2 pb-0.5 text-[10px] font-bold tracking-widest text-white uppercase shadow-[0_0_10px_2px_rgb(52_211_153/0.9)]">
+            <span className="rounded-b-md bg-success px-2 pb-0.5 text-caption font-semibold text-success-foreground">
               local
             </span>
           </div>

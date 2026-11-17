@@ -72,7 +72,7 @@ export function Split({
           id={TITLE_ID}
           ref={focusOnMount}
           tabIndex={-1}
-          className="mt-1 text-title font-semibold text-balance outline-none"
+          className="mt-1 text-screen-title font-semibold text-balance outline-none"
         >
           {title}
         </h1>
@@ -105,7 +105,9 @@ export function StepActions({
   return (
     <div
       className={cn(
-        "sticky bottom-0 z-10 -mx-4 mt-auto flex flex-col gap-2 bg-background px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] max-md:shadow-[0_-12px_12px_-4px_var(--background)] md:static md:mx-0 md:px-0 md:pt-2 md:pb-0 md:shadow-none",
+        // El desvanecido de arriba es el mismo recurso que el de la barra superior móvil (un degradé
+        // desde el papel), sin sombra a mano.
+        "sticky bottom-0 z-10 -mx-4 mt-auto flex flex-col gap-2 bg-background px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-3 before:bg-linear-to-t before:from-background before:to-transparent md:static md:mx-0 md:px-0 md:pt-2 md:pb-0 md:before:hidden",
         className
       )}
     >

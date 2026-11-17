@@ -125,7 +125,7 @@ export function LoginForm({
           <span className="font-semibold">Luca Plan</span>
         </div>
 
-        <h1 className="mt-8 text-title font-semibold">
+        <h1 className="mt-8 text-screen-title font-semibold text-balance">
           {signupOpen ? "Entra o crea tu cuenta" : "Entra a tu plan"}
         </h1>
 
@@ -162,8 +162,8 @@ export function LoginForm({
           onOpenChange={(o) => !o && setLegal(null)}
           title={LEGAL[legal].title}
         >
-          <ScrollArea className="max-h-[62dvh] px-6">
-            <div className="pb-8">{LEGAL[legal].body}</div>
+          <ScrollArea className="max-h-[62dvh]">
+            <div>{LEGAL[legal].body}</div>
           </ScrollArea>
         </ResponsiveModal>
       )}

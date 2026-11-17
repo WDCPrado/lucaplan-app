@@ -215,7 +215,7 @@ export function AccountCard({
         <span
           aria-hidden
           // Excepción a la escala tipográfica: es arte decorativo (aria-hidden), no texto que se lee.
-          className="pointer-events-none absolute top-1/2 -right-3 -translate-y-1/2 text-8xl leading-none font-bold text-white/12 select-none"
+          className="pointer-events-none absolute top-1/2 -right-3 -translate-y-1/2 text-8xl leading-none font-semibold text-white/12 select-none"
         >
           {art.monogram}
         </span>

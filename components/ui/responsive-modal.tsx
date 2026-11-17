@@ -1,8 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { createPortal } from "react-dom"
-import { Check, Loader, X } from "lucide-react"
+import { Loader, X } from "lucide-react"
 import { Drawer as DrawerPrimitive } from "vaul"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -21,6 +20,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 type ModalScopeInfo = {
   id: string
@@ -33,10 +33,6 @@ type ModalScopeInfo = {
 // cuando sus superficies son hermanas en el DOM. Radix sigue gestionando foco, Esc y el fondo.
 const ModalScopeContext = React.createContext<ModalScopeInfo | null>(null)
 
-// Huecos del encabezado de la hoja (móvil) donde `ModalActions` dibuja Cancelar y la acción
-// principal por portal, aunque se declaren dentro del formulario que guarda su estado.
-type HeaderSlots = { start: HTMLElement | null; end: HTMLElement | null }
-const HeaderSlotsContext = React.createContext<HeaderSlots | null>(null)
 
 function useNewModalScope(kind: ModalScopeInfo["kind"]) {
   const parent = React.useContext(ModalScopeContext)
@@ -105,15 +101,9 @@ function isolateModalEvent(event: React.SyntheticEvent) {
 /** Acción del modal: con `form` envía ese `<form>` (mismo submit que Enter); sin él, `onClick`. */
 export type ModalAction = {
   label: React.ReactNode
-  /**
-   * Acción que no confirma (Editar): en la hoja móvil va como texto en una cápsula de vidrio, no
-   * como el círculo azul. La HIG reserva el estilo prominente para Listo/Guardar.
-   */
+  /** Acción que no confirma (Editar): botón en tono en vez del verde, que es de Guardar/Listo. */
   plain?: boolean
-  /**
-   * Ícono de la acción `plain` en la hoja móvil: con él va un círculo de vidrio como la X, y el
-   * texto queda como nombre accesible. Para las que se leen de un vistazo (editar, sincronizar).
-   */
+  /** Ícono que acompaña al texto de la acción. */
   icon?: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>
   form?: string
   onClick?: () => void
@@ -141,10 +131,9 @@ const busySpinner = (className: string) => (
 )
 
 /**
- * Pie del diálogo de ESCRITORIO, anclado abajo (`sticky`, dentro del contenido que hace scroll) y
- * opaco. En la hoja de móvil no se dibuja: las acciones van en el encabezado (`primary`/`cancel`
- * de `ResponsiveModal`) y un «Listo»/«Cerrar» sobra porque la hoja se cierra arrastrando o tocando
- * el fondo. Lo que deba verse también en móvil no va aquí.
+ * Pie de la hoja o del diálogo, anclado abajo (`sticky`, dentro del cuerpo que hace scroll), en la
+ * superficie de la hoja y con un filete en tono arriba. Los botones van a la derecha (la principal la
+ * última); en móvil se reparten el ancho. Va al final del contenido.
  */
 export function ModalFooter({
   children,
@@ -154,14 +143,12 @@ export function ModalFooter({
   className?: string
 }) {
   const scope = React.useContext(ModalScopeContext)
-  if (scope?.kind === "drawer") return null
   return (
     <div
       data-slot="modal-footer"
       data-modal-owner={scope?.id}
       className={cn(
-        // bg-sheet: la misma superficie del diálogo, para que no se vea como una banda de otro color.
-        "sticky bottom-0 z-10 -mx-4 mt-6 flex flex-wrap items-center gap-3 border-t border-border bg-sheet px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] [&_button]:min-h-11",
+        "sticky bottom-0 z-10 -mx-(--pad-sheet) mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-secondary bg-card px-(--pad-sheet) pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-(--pad-sheet) max-md:*:flex-1 [&_button]:min-h-11",
         className
       )}
     >
@@ -171,9 +158,8 @@ export function ModalFooter({
 }
 
 /**
- * Acciones del modal, declaradas donde vive su estado (dentro del formulario si hace falta).
- * Móvil: «Cancelar» a la izquierda del título y la principal en texto azul semibold a la derecha,
- * en el encabezado de la hoja. Escritorio: pie con los dos botones, como siempre.
+ * Acciones del modal, declaradas donde vive su estado (dentro del formulario si hace falta): el pie
+ * con Cancelar en tono y la principal en verde a su derecha.
  */
 export function ModalActions({
   primary,
@@ -184,101 +170,22 @@ export function ModalActions({
   cancel?: ModalAction
   className?: string
 }) {
-  const scope = React.useContext(ModalScopeContext)
-  const slots = React.useContext(HeaderSlotsContext)
-  if (scope?.kind === "drawer") {
-    // Botones de ícono de 44 px en el encabezado de la hoja: Cancelar en tono con X; la primaria,
-    // en acento con ✓, en tono mientras no se puede (sin cambios o guardando).
-    // El texto completo queda como nombre accesible.
-    return (
-      <>
-        {cancel &&
-          slots?.start &&
-          createPortal(
-            <button
-              {...actionProps(cancel)}
-              data-modal-cancel
-              data-squish
-              className={cn(
-                sheetCircleClass,
-                "bg-secondary text-ink-2 hover:bg-surface-3 hover:text-foreground disabled:text-ink-3"
-              )}
-            >
-              <X aria-hidden className="size-5" strokeWidth={2.5} />
-              <span className="sr-only">{cancel.label}</span>
-            </button>,
-            slots.start
-          )}
-        {primary &&
-          slots?.end &&
-          createPortal(
-            primary.plain && primary.icon ? (
-              <button
-                {...actionProps(primary)}
-                data-squish
-                className={cn(
-                  sheetCircleClass,
-                  "bg-secondary text-ink-2 hover:bg-surface-3 hover:text-foreground disabled:text-ink-3"
-                )}
-              >
-                {primary.busy ? (
-                  busySpinner("size-5")
-                ) : (
-                  <primary.icon aria-hidden className="size-5" />
-                )}
-                <span className="sr-only">{primary.label}</span>
-              </button>
-            ) : primary.plain ? (
-              <button
-                {...actionProps(primary)}
-                data-squish
-                className="press relative h-11 shrink-0 rounded-md bg-secondary px-4 text-body font-semibold text-foreground hover:bg-surface-3 disabled:text-ink-3"
-              >
-                {/* Ocupado: el spinner ocupa el centro y el texto se queda (transparente) para que
-                  la cápsula no cambie de ancho ni pierda su nombre accesible. */}
-                <span className={cn(primary.busy && "opacity-0")}>
-                  {primary.label}
-                </span>
-                {primary.busy && busySpinner("absolute inset-0 m-auto size-5")}
-              </button>
-            ) : (
-              <button
-                {...actionProps(primary)}
-                className={cn(
-                  sheetCircleClass,
-                  "bg-primary text-primary-foreground hover:brightness-110 disabled:bg-secondary disabled:text-ink-3"
-                )}
-              >
-                {primary.busy ? (
-                  busySpinner("size-5")
-                ) : (
-                  <Check aria-hidden className="size-5" strokeWidth={2.75} />
-                )}
-                <span className="sr-only">{primary.label}</span>
-              </button>
-            ),
-            slots.end
-          )}
-      </>
-    )
-  }
   return (
     <ModalFooter className={className}>
       {cancel && (
-        <Button
-          {...actionProps(cancel)}
-          variant="secondary"
-          className="h-12 flex-1"
-        >
+        <Button {...actionProps(cancel)} variant="secondary">
           {cancel.label}
         </Button>
       )}
       {primary && (
         <Button
           {...actionProps(primary)}
-          className="h-auto min-h-12 min-w-0 flex-1 py-3 whitespace-normal"
+          variant={primary.plain ? "secondary" : "default"}
+          className="h-auto min-h-(--ctl) min-w-28 py-2 whitespace-normal"
         >
-          {primary.busy && busySpinner("size-5")}
+          {primary.busy
+            ? busySpinner("size-4")
+            : primary.icon && <primary.icon aria-hidden className="size-4" />}
           {primary.label}
         </Button>
       )}
@@ -287,41 +194,73 @@ export function ModalActions({
 }
 
 /**
- * Sección de lista agrupada dentro de una hoja, como en Ajustes: el título va fuera del grupo, las
- * filas (≥44 px) dentro de una sola celda con separadores, y la ayuda como pie del grupo en
- * `text-footnote`. Sin tarjetas dentro de tarjetas.
+ * Sección de una hoja: la etiqueta (callout semibold, tinta 2), el contenido y una ayuda opcional
+ * debajo (caption, tinta 3). Por defecto cada hijo es una fila en tono (`.tone-rows`: surface-2,
+ * radio 12, 8 px entre filas, sin líneas); `plain` deja el contenido en columna sin tono (campos,
+ * chips). Las filas de adentro usan `modalRow` / `modalActionRow`.
  */
 export function ModalSection({
   title,
+  action,
   footer,
+  plain = false,
   className,
   children,
 }: {
   title?: React.ReactNode
+  /** Acción de texto a la derecha de la etiqueta (un SectionAction). */
+  action?: React.ReactNode
   footer?: React.ReactNode
+  plain?: boolean
   className?: string
   children: React.ReactNode
 }) {
   return (
-    <section className="min-w-0">
-      {title && (
-        <h3 className="px-4 pb-2 text-callout font-semibold text-ink-2">{title}</h3>
-      )}
-      <div className={cn("sheet-group inset-list overflow-hidden", className)}>
-        {children}
-      </div>
-      {footer && (
-        <div className="px-4 pt-2 text-footnote text-muted-foreground">
-          {footer}
+    <section className="flex min-w-0 flex-col gap-2">
+      {(title || action) && (
+        <div className="flex min-h-8 items-center justify-between gap-3">
+          {title && (
+            <h3 className="min-w-0 flex-1 text-callout font-semibold text-ink-2">{title}</h3>
+          )}
+          {action && <div className="-mr-2 flex shrink-0 items-center">{action}</div>}
         </div>
       )}
+      <div className={cn(plain ? "flex min-w-0 flex-col gap-3" : "tone-rows", className)}>
+        {children}
+      </div>
+      {footer && <div className="text-caption text-pretty text-ink-3">{footer}</div>}
     </section>
   )
 }
 
 /**
- * Acción destructiva como fila de texto roja, en su propio grupo al final del contenido: nunca en el
- * encabezado ni junto a la acción primaria. Acepta las props de un botón para ir dentro de un
+ * Dato label → valor dentro de un `<dl className="sheet-group px-4 py-1">` (un bloque en tono): la
+ * etiqueta en tinta 2 y el valor en semibold a la derecha, 44 px, sin líneas.
+ */
+export function ModalDataRow({
+  label,
+  value,
+}: {
+  label: React.ReactNode
+  value: React.ReactNode
+}) {
+  return (
+    <div className="flex min-h-11 items-center justify-between gap-4 py-2">
+      <dt className="shrink-0 text-callout text-ink-2">{label}</dt>
+      <dd className="min-w-0 text-right font-semibold break-words">{value}</dd>
+    </div>
+  )
+}
+
+/** Fila de dato o de texto dentro de una sección en tono: 44 px, margen 16. */
+export const modalRow = "flex min-h-11 min-w-0 items-center gap-3 px-4 py-2.5 text-body"
+/** Fila que actúa (abre, marca, pausa): la misma fila, con hover en tono más oscuro. */
+export const modalActionRow =
+  "press flex min-h-11 w-full min-w-0 items-center gap-3 px-4 py-2.5 text-left text-body hover:bg-surface-3 disabled:pointer-events-none disabled:opacity-45 [&_svg]:size-5 [&_svg]:shrink-0"
+
+/**
+ * Acción destructiva como fila en tono con el texto en óxido, al final del contenido: nunca en el pie
+ * ni junto a la acción principal. Acepta las props de un botón para ir dentro de un
  * `AlertDialogTrigger asChild`.
  */
 export function ModalDangerRow({
@@ -333,7 +272,7 @@ export function ModalDangerRow({
       type="button"
       variant="ghost"
       className={cn(
-        "sheet-group press h-auto min-h-11 w-full justify-center rounded-lg px-4 py-2.5 text-body font-semibold whitespace-normal text-destructive hover:bg-destructive-soft hover:text-destructive aria-expanded:bg-destructive-soft aria-expanded:text-destructive",
+        "h-auto min-h-11 w-full justify-start gap-3 rounded-lg bg-secondary px-4 py-2.5 text-left text-body font-semibold whitespace-normal text-destructive [&_svg:not([class*='size-'])]:size-5 hover:bg-destructive-soft hover:text-destructive aria-expanded:bg-destructive-soft aria-expanded:text-destructive",
         className
       )}
       {...props}
@@ -341,13 +280,47 @@ export function ModalDangerRow({
   )
 }
 
-// Círculo de acción del encabezado de la hoja: 44 px, el mínimo táctil.
-const sheetCircleClass =
-  "press grid size-11 shrink-0 place-items-center rounded-md transition-colors disabled:cursor-default"
+// Encabezado fijo de una hoja (móvil): el título a la izquierda y la X a la derecha, 44 px.
+function SheetHeader({
+  title,
+  onClose,
+}: {
+  title: React.ReactNode
+  onClose?: () => void
+}) {
+  return (
+    <DrawerHeader className="flex shrink-0 flex-row items-center gap-2 py-2 pr-2 pl-(--pad-sheet) text-left group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left md:text-left">
+      <DrawerTitle className="min-w-0 flex-1 text-title font-semibold text-balance break-words">
+        {title}
+      </DrawerTitle>
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="press grid size-11 shrink-0 place-items-center rounded-md text-ink-2 hover:bg-secondary hover:text-foreground"
+        >
+          <X aria-hidden className="size-5" />
+          <span className="sr-only">Cerrar</span>
+        </button>
+      )}
+    </DrawerHeader>
+  )
+}
+
+// La hoja desde abajo (vaul): radio 24 arriba, asa, encabezado fijo y cuerpo con scroll propio; no
+// llega al notch. Con «reducir movimiento» aparece y se va sin deslizarse; el dedo la sigue igual.
+// No ocultar el `::after` de vaul: además de rellenar bajo la hoja al tirarla hacia arriba, es lo
+// que hace que `shouldDrag` reconozca la hoja (role=dialog con overflow).
+const sheetContentClass =
+  "h-auto rounded-t-(--radius-sheet) bg-card p-0 text-body shadow-sheet outline-none before:hidden data-[vaul-drawer-direction=bottom]:mt-0 data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))] motion-reduce:transition-none! motion-reduce:[animation-duration:1ms]"
+// Cuerpo de la hoja: margen --pad-sheet y, sin pie, aire más el espacio seguro del home indicator.
+const sheetBodyClass =
+  "flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-(--pad-sheet) pt-2 pb-[calc(1.5rem+env(safe-area-inset-bottom))] has-[[data-slot=modal-footer]]:pb-0 [&>*]:min-w-0 [&>*]:shrink-0"
 
 // Superficie contextual adaptativa: diálogo centrado en escritorio (radio 24), hoja desde abajo
 // en móvil (vaul: altura según el contenido y arrastrable). Mismo contenido y comportamiento;
-// solo cambia el envoltorio (useIsMobile, 768px).
+// solo cambia el envoltorio (useIsMobile, 768px). El cuerpo lleva el margen de la hoja
+// (--pad-sheet: 16 móvil, 24 escritorio): el contenido no pone el suyo.
 export function ResponsiveModal({
   open,
   onOpenChange,
@@ -376,12 +349,6 @@ export function ResponsiveModal({
   const parent = React.useContext(ModalScopeContext)
   const scope = useNewModalScope(isMobile ? "drawer" : "dialog")
   const focusHandlers = useModalFocus(scope)
-  const [slotStart, setSlotStart] = React.useState<HTMLElement | null>(null)
-  const [slotEnd, setSlotEnd] = React.useState<HTMLElement | null>(null)
-  const slots = React.useMemo(
-    () => ({ start: slotStart, end: slotEnd }),
-    [slotStart, slotEnd]
-  )
   // Ignora los intentos de cierre cuando está bloqueado; el resto pasa tal cual.
   const handleOpenChange = (o: boolean) => {
     if (!o && !dismissible) return
@@ -398,11 +365,13 @@ export function ResponsiveModal({
     }
   }, [open])
 
+  const actions = (cancel || primary) && (
+    <ModalActions cancel={cancel} primary={primary} />
+  )
+
   // Sin `shouldScaleBackground`: escalar el fondo le pone un `transform` al wrapper del layout, y un
   // ancestro con transform se vuelve el marco de referencia de todo `position: fixed` que tenga
-  // dentro. La barra de navegación inferior (`fixed bottom-0`) pasaba a colgar del final del wrapper
-  // —que mide todo el largo de la página, no la pantalla— y se iba de vista hasta cerrar el drawer.
-  // El efecto se perdía igual bajo el overlay al 80%.
+  // dentro; la barra inferior se iba de vista hasta cerrar el drawer.
   if (isMobile) {
     const DrawerRoot =
       parent?.kind === "drawer" ? DrawerPrimitive.NestedRoot : Drawer
@@ -423,66 +392,17 @@ export function ResponsiveModal({
             data-modal-depth={scope.depth}
             onClick={isolateModalEvent}
             onSubmit={isolateModalEvent}
-            className={cn(
-              // Hoja pegada abajo y a los lados (inset-x-0 bottom-0 del drawer base), con las
-              // esquinas de arriba redondeadas. Los paneles cortos usan su contenido; los largos
-              // desplazan el cuerpo sin alcanzar el notch. El teclado se superpone sin redimensionar
-              // ni elevar el panel.
-              // No ocultar el `::after` de vaul: además de rellenar bajo la hoja al tirarla hacia
-              // arriba, es lo que hace que `shouldDrag` reconozca la hoja (role=dialog con overflow)
-              // y deje de subir hasta <html>; con la página desplazada, sin él no se arrastraba.
-              // Con «reducir movimiento» la hoja aparece y se va sin deslizarse; el dedo la sigue igual.
-              "h-auto rounded-t-(--radius-sheet) bg-sheet p-0 text-body outline-none before:hidden data-[vaul-drawer-direction=bottom]:max-h-[calc(96dvh-env(safe-area-inset-top))] motion-reduce:transition-none! motion-reduce:[animation-duration:1ms]",
-              className
-            )}
+            className={cn(sheetContentClass, className)}
           >
-            {/* Encabezado fijo de la hoja: Cancelar a la izquierda, título centrado y la acción
-              principal a la derecha. Los lados crecen igual (`flex-1 basis-0`) para centrar el
-              título, que es lo único que se encoge y envuelve. */}
-            <DrawerHeader
-              className={cn(
-                "relative flex shrink-0 flex-row items-center gap-2 px-4 pt-1 pb-3 text-center",
-                headerClassName
-              )}
-            >
-              {/* Toda hoja se puede cerrar con la X: si el modal no declara su
-                  «Cancelar», va esta, que solo cierra. Cuando lo declara (llega por el portal con
-                  `data-modal-cancel`), CSS esconde la de respaldo: sin estado ni efectos. */}
-              <div className="flex min-w-fit flex-1 basis-0 justify-start [&:has([data-modal-cancel])>[data-default-close]]:hidden">
-                {dismissible && (
-                  <button
-                    type="button"
-                    data-default-close
-                    data-squish
-                    onClick={() => handleOpenChange(false)}
-                    className={cn(
-                      sheetCircleClass,
-                      "bg-secondary text-ink-2 hover:bg-surface-3 hover:text-foreground"
-                    )}
-                  >
-                    <X aria-hidden className="size-5" strokeWidth={2.5} />
-                    <span className="sr-only">Cerrar</span>
-                  </button>
-                )}
-                <div ref={setSlotStart} className="contents" />
-              </div>
-              <DrawerTitle className="min-w-0 shrink text-title font-semibold text-balance break-words">
-                {title}
-              </DrawerTitle>
-              <div
-                ref={setSlotEnd}
-                className="flex min-w-fit flex-1 basis-0 justify-end"
+            <div className={cn(headerClassName)}>
+              <SheetHeader
+                title={title}
+                onClose={dismissible ? () => handleOpenChange(false) : undefined}
               />
-            </DrawerHeader>
-            {/* El contenido se desplaza dentro del drawer, sin pie: el final deja aire y el espacio
-              seguro del home indicator, porque la hoja llega al borde del teléfono. */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pb-[calc(1.5rem+env(safe-area-inset-bottom))] [&>*]:min-w-0 [&>*]:shrink-0">
-              <HeaderSlotsContext.Provider value={slots}>
-                {children}
-                {(cancel || primary) && (
-                  <ModalActions cancel={cancel} primary={primary} />
-                )}
-              </HeaderSlotsContext.Provider>
+            </div>
+            <div className={sheetBodyClass}>
+              {children}
+              {actions}
             </div>
           </DrawerContent>
         </ModalScopeContext.Provider>
@@ -507,12 +427,12 @@ export function ResponsiveModal({
             dismissible ? undefined : (e) => e.preventDefault()
           }
           className={cn(
-            "max-h-[90dvh] rounded-(--radius-sheet) bg-sheet gap-0 overflow-x-hidden overflow-y-auto p-0 text-body sm:max-w-2xl [&>*]:min-w-0 [&>[data-slot=dialog-close]]:size-11 [&>[data-slot=modal-footer]]:mx-0",
+            "max-h-[90dvh] gap-0 overflow-x-hidden overflow-y-auto rounded-(--radius-sheet) bg-card p-0 text-body sm:max-w-2xl [&>*]:min-w-0",
             className
           )}
         >
-          <DialogHeader className={cn("p-6", headerClassName)}>
-            <DialogTitle className="pr-10 text-title font-semibold">
+          <DialogHeader className={cn("px-(--pad-sheet) pt-6 pb-4", headerClassName)}>
+            <DialogTitle className="pr-12 text-title font-semibold">
               {title}
             </DialogTitle>
             {dismissible && (
@@ -522,22 +442,79 @@ export function ResponsiveModal({
                   data-modal-owner={scope.id}
                   data-slot="dialog-close"
                   type="button"
-                  variant="secondary"
+                  variant="ghost"
                   size="icon"
-                  className="absolute top-5 right-5 hidden size-9 pointer-coarse:size-11 text-ink-2 hover:text-foreground md:inline-flex"
+                  className="absolute top-5 right-5 size-(--ctl) text-ink-2 hover:text-foreground"
                   aria-label={`Cerrar ${title}`}
                 >
-                  <X aria-hidden="true" className="size-4" strokeWidth={2.5} />
+                  <X aria-hidden="true" className="size-5" />
                 </Button>
               </DialogClose>
             )}
           </DialogHeader>
-          {children}
-          {(cancel || primary) && (
-            <ModalActions cancel={cancel} primary={primary} className="px-5" />
-          )}
+          <div className="flex min-w-0 flex-col px-(--pad-sheet) pb-(--pad-sheet) has-[[data-slot=modal-footer]]:pb-0">
+            {children}
+            {actions}
+          </div>
         </DialogContent>
       </ModalScopeContext.Provider>
     </Dialog>
+  )
+}
+
+/**
+ * Lo que en escritorio es un popover anclado a su botón (calendario, selector de mes, menú) y en
+ * móvil una hoja desde abajo con su título y la X. Mismo contenido y mismos handlers; dentro de una
+ * hoja se apila encima (NestedRoot de vaul). `trigger` es el botón que lo abre (asChild).
+ */
+export function ResponsivePopover({
+  open,
+  onOpenChange,
+  title,
+  trigger,
+  children,
+  align = "start",
+  className,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  /** Título de la hoja en móvil (en escritorio no se dibuja). */
+  title: React.ReactNode
+  trigger: React.ReactElement
+  children: React.ReactNode
+  align?: "start" | "center" | "end"
+  /** Clases del popover de escritorio. */
+  className?: string
+}) {
+  const isMobile = useIsMobile()
+  const parent = React.useContext(ModalScopeContext)
+  // La hoja es un ámbito más: un modal que se abra desde ella se apila encima (NestedRoot).
+  const scope = useNewModalScope("drawer")
+  if (isMobile) {
+    const Root = parent?.kind === "drawer" ? DrawerPrimitive.NestedRoot : Drawer
+    return (
+      <Root open={open} onOpenChange={onOpenChange} repositionInputs={false}>
+        <DrawerPrimitive.Trigger asChild>{trigger}</DrawerPrimitive.Trigger>
+        <DrawerContent
+          data-product=""
+          onClick={isolateModalEvent}
+          onSubmit={isolateModalEvent}
+          className={sheetContentClass}
+        >
+          <ModalScopeContext.Provider value={scope}>
+            <SheetHeader title={title} onClose={() => onOpenChange(false)} />
+            <div className={sheetBodyClass}>{children}</div>
+          </ModalScopeContext.Provider>
+        </DrawerContent>
+      </Root>
+    )
+  }
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent align={align} className={className}>
+        {children}
+      </PopoverContent>
+    </Popover>
   )
 }

@@ -112,7 +112,7 @@ export function InstallAppItem({
           onOpenChange={(o) => !o && setIosHelp(false)}
           title="Instalar Luca Plan"
         >
-          <div className="flex flex-col gap-4 px-4 pb-8 md:px-6">
+          <div className="flex flex-col gap-4">
             <p className="text-ink-2">
               En iPhone y iPad la instalación se hace desde Safari, en dos
               pasos:

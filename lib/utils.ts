@@ -19,6 +19,7 @@ const twMerge = extendTailwindMerge({
         "subheadline",
         "footnote",
         "caption",
+        "screen-title",
       ],
     },
   },

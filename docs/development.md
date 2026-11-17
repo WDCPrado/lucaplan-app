@@ -96,9 +96,11 @@ Rigen para todo lo nuevo; una pantalla existente se adapta cuando se toca.
   `components/<carpeta>/` (`finance/`, `landing/`, `pwa/`); `responsive-modal.tsx` es la
   composición documentada de Dialog y Drawer.
 - **Piezas de pantalla** (`components/finance/blocks.tsx`, solo presentación): `SectionCard`
-  (tarjeta con título a la izquierda, acción a la derecha y línea clave), `SectionAction`,
-  `KeyLine`, `ListRow` + `IconTile` (fila de 56 px con icono de 36, título, meta, valor y chevron),
-  `InlineNotice` (aviso a ancho completo), `ProgressBar` (gastado + comprometido + exceso),
+  (tarjeta con título a la izquierda, acción a la derecha y línea clave), `SectionAction` (`asChild`
+  para un `Link`),
+  `KeyLine`, `ListRow` + `IconTile` (fila de 56 px con icono de 36, título, meta, valor y chevron;
+  `aside` pone una acción propia, como un enlace, sin anidar botones), `InlineNotice` (aviso a ancho
+  completo; `wrap` para un texto que no cabe en una línea), `ProgressBar` (gastado + comprometido + exceso),
   `StatTile` y `Chevron` (gira al abrir). Una pantalla las usa antes de inventar las suyas.
 - **Tokens, no valores.** Color, fuente, tamaño, radio y espaciado salen de `app/globals.css`, en
   los dos temas ([design-system.md](design/design-system.md)). Un color nuevo es un token nuevo.
@@ -119,14 +121,19 @@ Rigen para todo lo nuevo; una pantalla existente se adapta cuando se toca.
 - **Modales, dos tipos y nada más.** `ResponsiveModal` para crear, editar o mostrar (diálogo de
   radio 24 en escritorio, hoja desde abajo en móvil con encabezado fijo y scroll interno);
   `AlertDialog` para confirmar al momento. Se cierran con la X, Esc, el fondo y, en móvil,
-  arrastrando. Las acciones se declaran con `ModalActions` (`primary`, `cancel`): en móvil van en el
-  encabezado de la hoja como botones de 44 px (Cancelar en tono con X; la primaria en acento con ✓,
-  en tono mientras no se puede); `plain` es una acción de texto que no confirma (Importar,
-  Conectar) y `icon` un botón de ícono con su texto como nombre accesible. En escritorio van en el
-  pie (Cancelar en `secondary`, la primaria rellena). La primaria queda deshabilitada sin cambios y
+  arrastrando. Las acciones se declaran con `ModalActions` (`primary`, `cancel`) y van siempre en el
+  pie fijo (`ModalFooter`): Cancelar en `secondary`, la primaria a la derecha y rellena; en móvil
+  los dos a lo ancho. `plain` es una acción que no confirma (Importar, Conectar). El padding lo
+  pone la base (`--pad-sheet`). La primaria queda deshabilitada sin cambios y
   con `busy` mientras guarda. El botón que envía lleva `form="<id>"`. Borrar va en
   `ModalDangerRow`, al final del contenido, nunca junto a la primaria. Las secciones son
-  `ModalSection` (título callout en tinta 2, grupo en tono y pie en caption).
+  `ModalSection` (título callout en tinta 2, filas en `.tone-rows` y pie en caption; `plain` para
+  campos). Dentro: `ModalDataRow` (dato `dt/dd` en un `.sheet-group`), `modalRow` y
+  `modalActionRow` (clases de fila y de fila-botón de 44 px).
+- **Selectores en móvil.** Lo que en escritorio es un popover anclado (mes, calendario, día del
+  mes, fechas, menú de la cuenta) en móvil es una hoja: `ResponsivePopover` de
+  `responsive-modal.tsx`, con su título. Dentro de un modal se apila encima. El `Calendar` acepta
+  el modificador `marked` (un punto bajo el día) cuando quien lo usa ya tiene el dato.
   **Ancho en escritorio**: contenido hereda `sm:max-w-2xl`; denso, `sm:max-w-3xl`; un campo o un
   aviso corto, `sm:max-w-md`; la confirmación, su default. En móvil la hoja toma la altura del
   contenido con tope de 96dvh.
@@ -136,7 +143,7 @@ Rigen para todo lo nuevo; una pantalla existente se adapta cuando se toca.
   botones de envío con IDs por instancia; las demás acciones, `type="button"`.
 - **Formularios.** Un `<form id>` por sección; error de cada campo debajo con `aria-invalid` y
   `aria-describedby`; Guardar manda solo lo que cambió. Dinero con `useMoneyInput`/`formatCLP`,
-  nunca `type="number"`. Fechas con Calendar + Popover; enums con `Select`.
+  nunca `type="number"`. Fechas con Calendar en `ResponsivePopover`; enums con `Select`.
 - **Un componente de campo no hace fetch ni muta**: recibe valores y callbacks. La mutación vive en
   quien abre el modal, que se cierra en el éxito, nunca antes.
 

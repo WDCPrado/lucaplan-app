@@ -1,15 +1,11 @@
 "use client"
 
-import { useId } from "react"
+import { useId, useState } from "react"
 import { CalendarIcon } from "lucide-react"
 import { SearchInput } from "@/components/ui/search-input"
 import type { DateRange } from "react-day-picker"
 import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { ResponsivePopover } from "@/components/ui/responsive-modal"
 import {
   Select,
   SelectContent,
@@ -171,6 +167,7 @@ export function FilterControls({
   const id = useId()
   // Un mes en el teléfono (dos no caben a 360 px); dos en escritorio.
   const isMobile = useIsMobile()
+  const [datesOpen, setDatesOpen] = useState(false)
   const set = (patch: Partial<FilterValues>) => onChange({ ...value, ...patch })
 
   // Slider de monto: solo si hay rango real (>1 monto distinto). El paso reparte el rango en ~100.
@@ -249,45 +246,45 @@ export function FilterControls({
       </div>
       </div>
 
-      {/* Rango de fechas (shadcn Calendar en Popover). Un mes en el teléfono, dos desde md, con
-          scroll dentro del popover si no caben. */}
+      {/* Rango de fechas: popover en escritorio (dos meses, con scroll si no caben) y hoja con un
+          mes en el teléfono. */}
       <div className="flex flex-col gap-2">
         <span id={`${id}-dates`} className={LABEL}>
           Fechas
         </span>
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              aria-labelledby={`${id}-dates ${id}-dates-value`}
-              className="press flex h-(--ctl) w-full min-w-0 items-center gap-2 rounded-md bg-secondary px-3 text-left text-body hover:bg-surface-3 pointer-coarse:min-h-11"
-            >
-              <CalendarIcon aria-hidden className="size-4 shrink-0 text-ink-3" />
-              <span
-                id={`${id}-dates-value`}
-                className={cn("min-w-0 flex-1 truncate", !range?.from && "text-ink-3")}
+        <ResponsivePopover
+          open={datesOpen}
+          onOpenChange={setDatesOpen}
+          title="Fechas"
+          className="max-h-(--radix-popover-content-available-height) w-auto overflow-y-auto p-0"
+          trigger={
+              <button
+                type="button"
+                aria-labelledby={`${id}-dates ${id}-dates-value`}
+                className="press flex h-(--ctl) w-full min-w-0 items-center gap-2 rounded-md bg-secondary px-3 text-left text-body hover:bg-surface-3 pointer-coarse:min-h-11"
               >
-                {range?.from
-                  ? range.to
-                    ? `${RANGE_FMT.format(range.from)} – ${RANGE_FMT.format(range.to)}`
-                    : RANGE_FMT.format(range.from)
-                  : "Todo el período"}
-              </span>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            className="max-h-(--radix-popover-content-available-height) w-auto overflow-y-auto p-0"
-            align="start"
-          >
-            <Calendar
-              mode="range"
-              selected={range}
-              onSelect={(r) => set({ range: r })}
-              numberOfMonths={isMobile ? 1 : 2}
-              autoFocus
-            />
-          </PopoverContent>
-        </Popover>
+                <CalendarIcon aria-hidden className="size-4 shrink-0 text-ink-3" />
+                <span
+                  id={`${id}-dates-value`}
+                  className={cn("min-w-0 flex-1 truncate", !range?.from && "text-ink-3")}
+                >
+                  {range?.from
+                    ? range.to
+                      ? `${RANGE_FMT.format(range.from)} – ${RANGE_FMT.format(range.to)}`
+                      : RANGE_FMT.format(range.from)
+                    : "Todo el período"}
+                </span>
+              </button>
+          }
+        >
+          <Calendar
+            mode="range"
+            selected={range}
+            onSelect={(r) => set({ range: r })}
+            numberOfMonths={isMobile ? 1 : 2}
+            autoFocus
+          />
+        </ResponsivePopover>
       </div>
 
       {/* Rango de monto */}

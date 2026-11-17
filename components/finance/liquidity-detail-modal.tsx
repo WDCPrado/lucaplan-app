@@ -24,7 +24,7 @@ export function LiquidityDetailModal({
   const net = cash - overdraftDebt
   return (
     <ResponsiveModal open={open} onOpenChange={onOpenChange} title="Detalle de cuentas">
-      <div className="flex flex-col gap-6 px-4 pb-6 md:px-6">
+      <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-1">
           <p className="text-callout text-ink-2">Posición neta registrada</p>
           <p className={cn("text-title font-semibold whitespace-nowrap", net < 0 && "text-destructive")}>

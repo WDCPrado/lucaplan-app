@@ -39,20 +39,19 @@ Light y dark van emparejados; el oscuro es por tono, no negro. Cambia con la cla
 ## Tipografía
 
 Una fuente, **Geist** (`next/font/local`, también en Apple), dos pesos: **400 y 600** (`font-bold`
-cae en 600). Cifras tabulares en todo el documento (el `body` las pone). Cinco tamaños y nada fuera
+cae en 600). Cifras tabulares en todo el documento (el `body` las pone). Seis tamaños y nada fuera
 de ellos; responden al ancho solos:
 
 | Utilidad | Móvil | ≥768 | Uso |
 | --- | --- | --- | --- |
 | `text-display` | 44/48 | 52/56 (60/64 ≥1200) | solo la cifra protagonista de una pantalla, semibold |
+| `text-screen-title` | 22/28 | 24/32 | título de pantalla fuera del marco: login, onboarding, setup, semibold |
 | `text-title` | 17/24 | 18/24 | título de tarjeta u hoja, cifra clave, semibold |
 | `text-body` | 16/22 | 15/22 | filas, formularios, botones |
 | `text-callout` | 14/20 | 14/20 | texto secundario, labels, acciones de texto |
 | `text-caption` | 12/16 | 13/16 | metadatos, ejes, etiquetas |
 
-Los nombres viejos siguen funcionando y caen en esta escala: `text-hero` y `text-large-title` →
-display; `text-title-1`, `text-title-3` y `text-headline` → title; `text-subheadline` → callout;
-`text-footnote` → caption. En código nuevo, los nombres nuevos. Tres tintas: `foreground`,
+Los nombres viejos (`text-hero`, `text-headline`, `text-footnote`…) ya no existen. Tres tintas: `foreground`,
 `ink-2`, `ink-3`. Un monto nunca se parte (`whitespace-nowrap`).
 
 ## Forma y espacio
@@ -66,7 +65,13 @@ display; `text-title-1`, `text-title-3` y `text-headline` → title; `text-subhe
   por tono y espacio, nunca por líneas.
 - **Página**: `page-container` (tope 1520, 16 px de margen en móvil, 32 en escritorio), el mismo borde
   que la barra superior.
-- **Sombras**: `shadow-float` (lo que flota: menús, barra inferior), `shadow-sheet`, `shadow-panel`.
+- **Grupos en tono**: `.tone-rows` (filas sueltas en tono, radio 12, separadas por 8 px) y
+  `.sheet-group` (un solo bloque en tono, radio 12, para datos `dt/dd`). Un campo dentro de
+  cualquiera de los dos pasa a superficie para no perderse en el tono.
+- **Hojas y diálogos**: padding `--pad-sheet` (16 móvil, 24 escritorio), puesto por la base; el
+  contenido no agrega el suyo.
+- **Sombras**: `shadow-float` (lo que flota: menús, barra inferior), `shadow-sheet`, `shadow-panel`,
+  `shadow-thumb` (la selección de un segmentado).
   Las tarjetas no llevan sombra.
 
 ## Lo que flota y el nivel de Apariencia
@@ -82,15 +87,19 @@ usuario en la base, `lib/appearance.ts`) mueve esas dos barras de más transpare
 | `--float-blur` | 24 px | 20 px | 16 px | 8 px | 0 |
 
 `prefers-reduced-transparency`, `prefers-contrast: more` (que además oscurece filetes y tinta 3) y la
-falta de `backdrop-filter` las dejan sólidas siempre. Los nombres heredados `liquid-glass`,
-`liquid-glass-active`, `liquid-squish`, `material`, `scroll-edge-top`, `.glass`, `--glass-*`,
-`--sheet*`, `--tab-active` siguen definidos y mapeados a lo de arriba para no romper pantallas que
-aún no se rediseñan; no se usan en código nuevo.
+falta de `backdrop-filter` las dejan sólidas siempre. Los nombres heredados del vidrio
+(`liquid-glass`, `material`, `.glass`, `--glass-*`, `--sheet*`, `--tab-active`…) se borraron.
+
+**Barra superior móvil** (como G): avatar a la izquierda (abre la hoja «Tu cuenta»), el selector de
+mes de una sola superficie al centro (flechas, mes y chevron que gira; abre la hoja «Elegir mes») y
+la búsqueda a la derecha. Todo a 44 px con margen 16. El título de la vista queda solo para el
+lector. **Barra inferior**: solo los destinos.
 
 ## Movimiento
 
 - Press: `.press` (escala .98, 140 ms). Hover en tono.
-- Menús y popovers nacen de su botón: 160 ms al entrar, 120 al salir.
+- Menús y popovers nacen de su botón: 160 ms al entrar, 120 al salir. En móvil (<768) un selector
+  (mes, día, fechas, día del mes, la cuenta) es una hoja desde abajo (`ResponsivePopover`).
 - Chevron que gira 180° al abrir (`Chevron` de `components/finance/blocks.tsx`).
 - Colapsables (`Collapsible`, `<details>`) con altura animada (200/160 ms).
 - Cambio de pantalla: el contenido se desliza (React `<ViewTransition>`, `--nav-duration`); el marco

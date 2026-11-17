@@ -55,7 +55,7 @@ export function CategoryDetailSheet({
       }
     >
       {category && (
-        <div className="flex flex-col gap-6 px-5">
+        <div className="flex flex-col gap-6">
           <section className="flex flex-col gap-1">
             <p className="text-callout text-ink-2">
               {category.type === "income"

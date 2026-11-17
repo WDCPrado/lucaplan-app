@@ -1,13 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowUpRight, Check, ChevronRight } from "lucide-react"
+import { ArrowUpRight, Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { linkHost } from "@/lib/schemas/recurring-url"
 import { currentPeriod, formatCLP } from "@/lib/finance-format"
 import { AppShell } from "./app-shell"
-import { Chevron, IconTile, InlineNotice, KeyLine, SectionCard } from "./blocks"
+import { Chevron, IconTile, InlineNotice, KeyLine, ListRow, SectionCard } from "./blocks"
 import { CategoryIcon } from "./category-icons"
 import { RecurringModal } from "./recurring-modal"
 import { InstallmentsSection } from "./installments-view"
@@ -96,8 +96,8 @@ export function RecurringView({
     <AppShell>
       {/* Móvil: una columna. xl: Recurrentes y Cuotas lado a lado, de la misma altura (items-stretch),
           con los bordes en la línea de la barra superior (page-container). */}
-      <div className="page-container pb-6">
-        <div className="grid gap-4 xl:grid-cols-2 xl:items-stretch xl:gap-6">
+      <div className="page-container">
+        <div className="grid gap-4 md:gap-6 xl:grid-cols-2 xl:items-stretch">
           {/* Sin botón "Nuevo": una recurrente solo nace de un movimiento (el use case rechaza el
               alta suelta). */}
           <SectionCard
@@ -122,7 +122,7 @@ export function RecurringView({
                 )}
 
                 {active.length > 0 && (
-                  <ul className="flex flex-col gap-1">
+                  <ul className="flex flex-col gap-2">
                     {active.map((t) => (
                       <RecurringRow key={t.id} template={t} onEdit={() => edit(t)} />
                     ))}
@@ -189,7 +189,7 @@ function RecurringGroup({
         </span>
         <Chevron className="group-open:rotate-180" />
       </summary>
-      <ul className="mt-1 flex flex-col gap-1">{children}</ul>
+      <ul className="mt-2 flex flex-col gap-2">{children}</ul>
     </details>
   )
 }
@@ -213,75 +213,59 @@ function RecurringRow({
       ? nextChargeLabel(t.nextExecution)
       : null
   return (
-    // El enlace no puede ir dentro del botón de la fila: el botón cubre la fila por debajo y el
-    // enlace queda encima, así tocarlo abre el portal sin abrir el modal.
-    <li className="press relative -mx-3 flex min-h-14 items-center gap-3 rounded-lg px-3 py-2 has-[>button:hover]:bg-secondary">
-      <button
-        type="button"
+    <li>
+      <ListRow
         onClick={onEdit}
-        // El nombre accesible es el de antes (nombre, monto y estado); el contenido visible va
-        // aria-hidden para que el lector no lo lea dos veces.
-        aria-labelledby={`rec-${t.id}-name rec-${t.id}-amount rec-${t.id}-status`}
-        className="absolute inset-0 z-1 rounded-[inherit]"
-      />
-      {/* Decorativo: atenuarlo marca la fila inactiva sin tocar el contraste del texto. */}
-      <span aria-hidden className={cn(inactive && "opacity-50")}>
-        <IconTile color={t.categoryColor ?? undefined}>
-          <CategoryIcon icon={t.categoryIcon} size={18} />
-        </IconTile>
-      </span>
-      <span aria-hidden className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span id={`rec-${t.id}-name`} className="truncate font-semibold">
-          {t.label}
-        </span>
-        <span className="truncate text-callout text-ink-2">
-          {t.categoryName}
-          {periodicity && ` · ${periodicity}`}
-          {/* La vigencia se ve sin abrir el modal: es lo que uno olvida haber fijado. */}
-          {t.endDate && !t.hasEnded && ` · hasta ${shortDate(t.endDate)}`}
-        </span>
-      </span>
-      {t.url && (
-        <a
-          href={t.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`Abrir ${linkHost(t.url)}`}
-          className="press relative z-2 flex min-h-11 max-w-32 min-w-0 shrink items-center"
-        >
-          <span className="flex h-8 min-w-0 items-center gap-1 rounded-md bg-secondary px-2 text-caption text-primary hover:bg-primary-soft">
-            <span aria-hidden className="truncate max-sm:hidden">
-              {linkHost(t.url)}
-            </span>
-            <ArrowUpRight aria-hidden className="size-3.5 shrink-0" />
+        // Decorativo: atenuarlo marca la fila inactiva sin tocar el contraste del texto.
+        icon={
+          <span aria-hidden className={cn(inactive && "opacity-50")}>
+            <IconTile color={t.categoryColor ?? undefined}>
+              <CategoryIcon icon={t.categoryIcon} size={18} />
+            </IconTile>
           </span>
-        </a>
-      )}
-      <span aria-hidden className="flex shrink-0 flex-col items-end text-right whitespace-nowrap">
-        {/* Pausada o finalizada: el monto en tinta 3 (ya no compromete el mes). */}
-        <span
-          id={`rec-${t.id}-amount`}
-          className={cn("font-semibold", inactive && "text-ink-3")}
-        >
-          {formatCLP(t.baseAmount)}
-        </span>
-        {t.currentPeriodPaid && !t.hasEnded && t.isActive ? (
-          <span
-            id={`rec-${t.id}-status`}
-            className="flex items-center gap-1 text-caption text-success"
-          >
-            <Check className="size-3.5" />
-            Pagado
+        }
+        title={t.label}
+        meta={
+          <span className="truncate">
+            {t.categoryName}
+            {periodicity && ` · ${periodicity}`}
+            {/* La vigencia se ve sin abrir el modal: es lo que uno olvida haber fijado. */}
+            {t.endDate && !t.hasEnded && ` · hasta ${shortDate(t.endDate)}`}
           </span>
-        ) : (
-          status && (
-            <span id={`rec-${t.id}-status`} className="text-caption text-ink-3">
-              {status}
-            </span>
+        }
+        // El portal de pago va dentro de la fila: tocarlo abre el portal sin abrir el modal.
+        aside={
+          t.url && (
+            <a
+              href={t.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Abrir ${linkHost(t.url)}`}
+              className="press flex min-h-11 max-w-32 min-w-0 shrink items-center"
+            >
+              <span className="flex h-8 min-w-0 items-center gap-1 rounded-md bg-secondary px-2 text-caption text-primary hover:bg-primary-soft">
+                <span aria-hidden className="truncate max-sm:hidden">
+                  {linkHost(t.url)}
+                </span>
+                <ArrowUpRight aria-hidden className="size-3.5 shrink-0" />
+              </span>
+            </a>
           )
-        )}
-      </span>
-      <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
+        }
+        // Pausada o finalizada: el monto en tinta 3 (ya no compromete el mes).
+        value={<span className={cn(inactive && "text-ink-3")}>{formatCLP(t.baseAmount)}</span>}
+        valueNote={
+          t.currentPeriodPaid && !t.hasEnded && t.isActive ? (
+            <span className="flex items-center gap-1 text-success">
+              <Check aria-hidden className="size-3.5" />
+              Pagado
+            </span>
+          ) : (
+            status
+          )
+        }
+        chevron
+      />
     </li>
   )
 }

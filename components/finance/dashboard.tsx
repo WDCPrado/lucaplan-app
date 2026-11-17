@@ -13,11 +13,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { ResponsivePopover } from "@/components/ui/responsive-modal"
 import { haptic } from "@/lib/haptics"
 import { useCardCarousel } from "@/hooks/use-card-carousel"
 import { AppShell } from "./app-shell"
@@ -192,6 +188,7 @@ export function Dashboard({
       ? -1
       : days.length - 1
   const civilDate = (d: string) => fromYmd(d)!
+  const markedDays = transactions.map((t) => civilDate(dateOf(t)))
   const prevDisabled = dayIndex <= 0
   const nextDisabled = dayIndex < 0 || selectedDay >= lastSelectable
   // El presupuesto de gastos usa las categorías de gasto (tope/uso). Las de ingreso se muestran
@@ -388,9 +385,6 @@ export function Dashboard({
   }
 
   const hasBand = budget.monthOverspend > 0 || budget.capsOverspend > 0
-  // Acción de texto en verde con forma de enlace (la de SectionAction, sobre un Link).
-  const linkAction =
-    "press -mr-2 inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-callout font-semibold whitespace-nowrap text-primary hover:bg-primary-soft md:min-h-8 [&_svg]:size-4"
   const dayArrow =
     "press grid size-(--ctl) shrink-0 place-items-center rounded-md text-ink-2 hover:bg-secondary hover:text-foreground aria-disabled:cursor-default aria-disabled:opacity-35 aria-disabled:hover:bg-transparent"
 
@@ -408,10 +402,10 @@ export function Dashboard({
       {/* Orden = urgencia de decisión: cuánto queda → voy bien → dónde se va → qué pasó → con qué
           cuento. Móvil: una columna en ese orden. Desde 1200 px, dos columnas parejas: plan y ritmo
           arriba, la banda de excedente a lo ancho, y categorías junto a movimientos y cuentas. */}
-      <div className="page-container max-md:pb-2">
+      <div className="page-container">
         <div
           className={cn(
-            "grid grid-cols-1 gap-4 min-[75rem]:grid-cols-2 min-[75rem]:gap-6",
+            "grid grid-cols-1 gap-4 md:gap-6 min-[75rem]:grid-cols-2",
             hasBand
               ? "min-[75rem]:[grid-template-areas:'hero_pace'_'band_band'_'cats_side']"
               : "min-[75rem]:[grid-template-areas:'hero_pace'_'cats_side']"
@@ -546,15 +540,13 @@ export function Dashboard({
               title="Movimientos"
               action={
                 // El resto del período vive en Movimientos.
-                <Link
-                  href="/movements"
-                  // Entrar: la pantalla llega desde la derecha (no como un cambio de pestaña).
-                  data-nav="forward"
-                  className={linkAction}
-                >
-                  Ver todos
-                  <ChevronRight aria-hidden />
-                </Link>
+                <SectionAction asChild>
+                  {/* Entrar: la pantalla llega desde la derecha (no como un cambio de pestaña). */}
+                  <Link href="/movements" data-nav="forward">
+                    Ver todos
+                    <ChevronRight aria-hidden />
+                  </Link>
+                </SectionAction>
               }
               className="min-[75rem]:flex-1"
             >
@@ -569,8 +561,12 @@ export function Dashboard({
                 >
                   <ChevronLeft className="size-5" />
                 </button>
-                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                  <PopoverTrigger asChild>
+                <ResponsivePopover
+                  open={calendarOpen}
+                  onOpenChange={setCalendarOpen}
+                  title="Elegir día"
+                  className="w-auto p-3"
+                  trigger={
                     <button
                       type="button"
                       aria-describedby="day-picker-hint"
@@ -594,12 +590,9 @@ export function Dashboard({
                       </span>
                       <Chevron />
                     </button>
-                  </PopoverTrigger>
-                  <span id="day-picker-hint" className="sr-only">
-                    Elegir otro día
-                  </span>
-                  <PopoverContent align="start" className="w-auto p-3">
-                    <Calendar
+                  }
+                >
+                  <Calendar
                       mode="single"
                       locale={es}
                       required
@@ -616,11 +609,14 @@ export function Dashboard({
                         setCalendarOpen(false)
                         if (key !== selectedDay) selectDay(key)
                       }}
-                      // Celdas de 44 px: el mínimo táctil.
-                      className="p-0 [--cell-size:--spacing(11)]"
+                      // Un punto bajo los días con movimientos (ya están en la página).
+                      modifiers={{ marked: markedDays }}
+                      className="p-0"
                     />
-                  </PopoverContent>
-                </Popover>
+                </ResponsivePopover>
+                  <span id="day-picker-hint" className="sr-only">
+                    Elegir otro día
+                  </span>
                 <button
                   type="button"
                   aria-label="Día siguiente"
@@ -732,7 +728,10 @@ export function Dashboard({
                 {/* Sin bancos conectados, conectar es un tile del tamaño de una cuenta; con alguno ya
                     conectado, es la acción de la tarjeta. El tile toma el tono de las cuentas. */}
                 {!hasConnected && (
-                  <div className="contents [&>[data-card]]:w-[calc(100%-2.25rem+var(--pad-card))] [&>[data-card]]:rounded-lg [&>[data-card]]:bg-secondary [&>[data-card]]:hover:bg-surface-3 lg:[&>[data-card]]:w-auto">
+                  <div
+                    data-card
+                    className="flex w-[calc(100%-2.25rem+var(--pad-card))] shrink-0 snap-start last:snap-end lg:w-auto"
+                  >
                     <SyncBancoChileButton
                       outlookResult={onboarding ? null : outlookResult}
                       outlookReason={outlookReason}

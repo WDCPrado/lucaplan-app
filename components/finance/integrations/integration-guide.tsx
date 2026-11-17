@@ -121,7 +121,7 @@ export function IntegrationGuideModal({
       title={group ? `Cómo conseguir las claves de ${group.name}` : ""}
     >
       {group && (
-        <div className="flex flex-col gap-6 px-4 pb-6 md:px-6">
+        <div className="flex flex-col gap-6">
           <ol className="flex flex-col gap-4">
             {steps(group.id, redirectUri).map((step, i) => (
               <li key={i} className="flex gap-3 text-body text-pretty">

@@ -62,7 +62,7 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
     >
       {/* Contenido y pie de escritorio comparten el contenedor con `px-4`: el pie se sangra con
           `-mx-4` para llegar a los bordes. En móvil las acciones van en el encabezado. */}
-      <div className="flex flex-col gap-4 px-4 pt-2 md:px-6">
+      <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
           <IconTile color="var(--primary)">
             <BellRing />

@@ -22,6 +22,8 @@ import {
   ModalActions,
   ModalDangerRow,
   ModalSection,
+  modalActionRow,
+  modalRow,
 } from "@/components/ui/responsive-modal"
 import { DatePicker } from "./transaction-modal"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
@@ -641,18 +643,17 @@ export function OutlookBankConnection({
 }
 
 // Fila de una lista agrupada (≥44 px) y la variante que es una acción en texto azul.
-const ROW = "flex min-h-11 items-center gap-3 px-4 py-2.5"
-const ACTION_ROW =
-  "press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left font-semibold text-primary hover:bg-primary-soft disabled:opacity-45"
+const ROW = modalRow
+const ACTION_ROW = cn(modalActionRow, "font-semibold text-primary")
 // Botón de texto dentro de una fila (Desconectar): sin relleno, 44 px de alto.
 const TEXT_BUTTON =
   "press h-11 px-3 text-body font-normal hover:bg-transparent dark:hover:bg-transparent"
 // Pie de escritorio (en la hoja de móvil van al encabezado): llega a los bordes del contenedor, que
-// tiene px-4 pb-6 (px-6 desde md) en el modal.
-const ACTIONS_CLASS = "-mx-4 mt-0 -mb-6 px-4 md:-mx-6 md:px-6"
+// ya trae el margen de la hoja (ModalFooter lo compensa solo).
+const ACTIONS_CLASS = "mt-0"
 // Sin modal no hay pie que anclar: los botones quedan en el flujo, sobre el fondo de la página.
 const INLINE_ACTIONS_CLASS =
-  "static mx-0 mt-0 border-0 bg-transparent px-0 py-0 pb-0"
+  "static mx-0 mt-0 border-0 bg-transparent px-0 py-0 pb-0 md:pb-0"
 
 // Bancos que todavía no se pueden conectar: se nombran al pie de la lista de bancos, que es donde
 // la persona busca el suyo.
@@ -797,7 +798,7 @@ function AddBankSection({
             placeholder="Empresa, Personal…"
             aria-label="Etiqueta"
             maxLength={24}
-            className="h-11 rounded-none border-0 bg-transparent px-4 text-body shadow-none focus-visible:ring-0 md:text-body"
+            className="h-11 px-4"
           />
         </ModalSection>
       )}

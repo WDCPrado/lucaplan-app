@@ -36,6 +36,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { ResponsivePopover, modalActionRow } from "@/components/ui/responsive-modal"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { authClient } from "@/lib/auth-client"
@@ -328,21 +329,6 @@ function useNavDirection() {
   }, [pathname])
 }
 
-// Móvil: la búsqueda va suelta a la derecha de la barra de pestañas, del alto de la barra. Está en todas las vistas, así la cápsula no cambia de ancho al navegar.
-function SearchCircle({ onSearch }: { onSearch: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onSearch}
-      aria-label="Buscar movimientos"
-      data-squish
-      className="press float pointer-events-auto grid size-15 shrink-0 place-items-center rounded-full text-ink-2 hover:text-foreground"
-    >
-      <Search className="size-5" />
-    </button>
-  )
-}
-
 // Dentro del AppFrame solo cuentan `actions` y `children`; lo demás es para los mocks de /design,
 // que dibujan el marco completo.
 type AppShellProps = {
@@ -445,7 +431,7 @@ function Chrome({
           <div
             style={{ viewTransitionName: "app-topbar" }}
             data-scrolled={scrolled || undefined}
-            className="sticky top-0 z-10 hidden bg-background transition-shadow duration-200 data-scrolled:shadow-[0_1px_0_var(--border)] md:block"
+            className="sticky top-0 z-10 hidden border-b border-transparent bg-background transition-colors duration-200 data-scrolled:border-border md:block"
           >
             <header className="flex h-16 items-center gap-3 px-[max(2rem,calc((100%-var(--page-max))/2+2rem))]">
               <SidebarTrigger className="size-(--ctl) shrink-0 rounded-md border border-border bg-card text-ink-2 hover:border-rule-strong hover:bg-card hover:text-foreground" />
@@ -478,19 +464,18 @@ function Chrome({
                   <span className="hidden flex-1 text-left lg:inline">
                     Buscar movimientos
                   </span>
-                  <kbd className="hidden min-w-6 rounded-xs bg-secondary px-1 text-center font-sans text-caption text-ink-3 shadow-[inset_0_0_0_1px_var(--border)] lg:inline">
+                  <kbd className="hidden min-w-6 rounded-xs bg-secondary px-1 text-center font-sans text-caption text-ink-3 ring-1 ring-border ring-inset lg:inline">
                     /
                   </kbd>
                 </button>
               )}
             </header>
           </div>
-          {/* Móvil: barra pegada con fondo propio (su transparencia y desenfoque los mueve el nivel de
-              Apariencia) y un desvanecido corto debajo. A la izquierda el avatar abre el menú de la
-              cuenta; después el título de la vista (el h1 de la página en móvil) y el resto para las
-              acciones de la vista (el selector de mes); sin ellas, en la misma celda queda el selector
-              deshabilitado con el período en curso, así la fila es igual en todas las vistas. Con el
-              primer scroll el título se va y el selector se ensancha (`.top-title`). */}
+          {/* Móvil (G): barra pegada con fondo propio (su transparencia y desenfoque los mueve el nivel
+              de Apariencia) y un desvanecido corto debajo. A la izquierda el avatar abre la hoja de la
+              cuenta; al centro las acciones de la vista (el selector de mes) y, sin ellas, el selector
+              deshabilitado con el período en curso, así la fila es igual en todas las vistas; a la
+              derecha, la búsqueda. Todo a 44 px y margen 16. */}
           <div
             data-scrolled={scrolled || undefined}
             style={{ viewTransitionName: "app-top-mobile" }}
@@ -504,19 +489,8 @@ function Chrome({
                 compact
               />
             )}
-            {title && (
-              <div className="top-title grid">
-                <div className="min-w-0 overflow-hidden">
-                  {/* key: al navegar el título entra con un fundido; la fila no se desmonta. */}
-                  <h1
-                    key={title}
-                    className="pr-1 text-title font-semibold whitespace-nowrap"
-                  >
-                    {title}
-                  </h1>
-                </div>
-              </div>
-            )}
+            {/* El título de la vista no se dibuja en la barra móvil (como en G): queda para el lector. */}
+            {title && <h1 className="sr-only">{title}</h1>}
             <div className="grid min-h-11 min-w-0 flex-1 items-center *:col-start-1 *:row-start-1">
               {idle && (
                 <div className="top-idle flex w-full min-w-0">
@@ -531,6 +505,16 @@ function Chrome({
                 {actions}
               </div>
             </div>
+            {onSearch && (
+              <button
+                type="button"
+                onClick={onSearch}
+                aria-label="Buscar movimientos"
+                className="press grid size-(--ctl) shrink-0 place-items-center rounded-md border border-border bg-card text-ink-2 hover:border-rule-strong hover:text-foreground"
+              >
+                <Search aria-hidden className="size-5" />
+              </button>
+            )}
           </div>
           {/* Aire inferior solo en móvil, por la barra flotante. En escritorio no flota nada. */}
           <div className="min-w-0 flex-1 pb-[calc(6rem+var(--tab-bar-inset))] md:pb-0">
@@ -541,7 +525,6 @@ function Chrome({
         <BottomNav
           active={active}
           onNavigate={onNavigate}
-          trailing={onSearch && <SearchCircle onSearch={onSearch} />}
         />
       </SidebarProvider>
     </TooltipProvider>
@@ -614,7 +597,7 @@ function NavMenu({
 }
 
 // Navegación inferior (solo móvil), flotante: una barra redondeada con los mismos destinos del
-// sidebar y, suelta a la derecha, la búsqueda (`trailing`). Debajo, el fondo se desvanece para que el
+// sidebar (la búsqueda va en la barra superior). Debajo, el fondo se desvanece para que el
 // contenido no se lea a través. La selección es un tono (surface-2) que se desliza de una pestaña a
 // otra con la misma duración y curva que el contenido (`.tab-pill`); la etiqueta activa sube a
 // tinta primaria sin cambiar de peso, así ningún ancho cambia. Su transparencia y desenfoque los
@@ -622,11 +605,9 @@ function NavMenu({
 function BottomNav({
   active,
   onNavigate,
-  trailing,
 }: {
   active?: NavKey
   onNavigate?: (key: NavKey) => void
-  trailing?: React.ReactNode
 }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -700,7 +681,6 @@ function BottomNav({
                     router.push(href)
                   })
                 }}
-                data-squish
                 style={{ flexGrow: weight }}
                 // Sin negrita en la activa: la marcan la pastilla, el azul y aria-current; un peso distinto
                 // ensancharía su etiqueta y movería a las vecinas bajo la pastilla.
@@ -720,7 +700,6 @@ function BottomNav({
           })}
         </div>
       </nav>
-      {trailing}
     </div>
   )
 }
@@ -742,22 +721,90 @@ function UserMenu({
   // «Perfil» abre la hoja recién cuando el menú terminó de cerrarse y Radix devolvió el foco a su
   // botón: así la hoja lo guarda como opener y, al cerrarla, el foco vuelve ahí y no a <body>.
   const pendingProfile = React.useRef(false)
+  const [sheetOpen, setSheetOpen] = React.useState(false)
 
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        {compact ? (
+  // Móvil: el avatar abre la hoja «Tu cuenta» desde abajo, con filas de 48 px (como en G).
+  if (compact) {
+    const row = cn(modalActionRow, "min-h-12")
+    return (
+      <ResponsivePopover
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        title="Tu cuenta"
+        trigger={
           <button
             type="button"
             aria-label={"Cuenta de " + (user.name || user.email || "")}
-            className="press grid size-11 shrink-0 place-items-center rounded-full"
+            className="press grid size-(--ctl) shrink-0 place-items-center rounded-full"
           >
             <span className="grid size-9 place-items-center rounded-full bg-primary-soft text-callout font-semibold text-primary">
               {user.initial}
             </span>
           </button>
-        ) : (
-          <SidebarMenuButton
+        }
+      >
+        <div className="flex min-w-0 items-center gap-3 pb-4">
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary-soft text-callout font-semibold text-primary">
+            {user.initial}
+          </span>
+          <span className="grid min-w-0">
+            <span className="truncate font-semibold">{user.name || user.email}</span>
+            {user.name && user.email && (
+              <span className="truncate text-callout text-ink-2">{user.email}</span>
+            )}
+          </span>
+        </div>
+        <div className="tone-rows">
+          {onProfile && (
+            <button
+              type="button"
+              className={row}
+              onClick={() => {
+                setSheetOpen(false)
+                onProfile()
+              }}
+            >
+              <UserRound aria-hidden className="text-ink-2" />
+              Perfil
+            </button>
+          )}
+          <button
+            type="button"
+            className={row}
+            onClick={() => {
+              haptic("light")
+              toggleTheme()
+            }}
+          >
+            <Sun aria-hidden className="hidden text-ink-2 [html.dark_&]:block" />
+            <Moon aria-hidden className="text-ink-2 [html.dark_&]:hidden" />
+            <span className="hidden [html.dark_&]:inline">Tema claro</span>
+            <span className="[html.dark_&]:hidden">Tema oscuro</span>
+          </button>
+          {/* Solo aparece si hay vía de instalación y la app no corre ya instalada */}
+          <InstallAppItem rowClassName={row} />
+        </div>
+        <div className="tone-rows mt-3">
+          <button
+            type="button"
+            className={cn(row, "font-semibold text-destructive hover:bg-destructive-soft")}
+            onClick={() => {
+              setSheetOpen(false)
+              onSignOut?.()
+            }}
+          >
+            <LogOut aria-hidden />
+            Cerrar sesión
+          </button>
+        </div>
+      </ResponsivePopover>
+    )
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <SidebarMenuButton
             size="lg"
             className="min-h-14 rounded-lg px-2 data-[state=open]:bg-secondary [&_svg]:size-4"
           >
@@ -779,10 +826,9 @@ function UserMenu({
             </div>
             <ChevronsUpDown className="ml-auto text-ink-3 group-data-[collapsible=icon]:hidden" />
           </SidebarMenuButton>
-        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        side={compact ? "bottom" : "top"}
+        side="top"
         align="start"
         className="w-60"
         onCloseAutoFocus={() => {

@@ -103,7 +103,7 @@ export function InstallmentLinkPicker({
       onOpenChange={onOpenChange}
       title="Asignar un movimiento"
     >
-      <div className="flex flex-col px-5 pb-4">
+      <div className="flex flex-col">
         <p className="py-3 text-caption text-muted-foreground">
           Elige el gasto que corresponde a esta cuota. No se crea nada nuevo: el
           movimiento pasa a ser la cuota.
@@ -174,13 +174,13 @@ export function InstallmentLinkPicker({
               : "No hay movimientos sin asignar cerca de esa fecha."}
           </p>
         ) : (
-          <ul className="flex flex-col">
+          <ul className="tone-rows">
             {filtered.map((c) => (
               <li key={c.transactionId}>
                 <button
                   type="button"
                   onClick={() => onPick(c.transactionId)}
-                  className="press flex min-h-11 w-full items-center gap-3 border-b border-border/40 py-2.5 text-left transition-colors hover:bg-secondary/40"
+                  className="press flex min-h-11 w-full items-center gap-3 rounded-lg px-4 py-2.5 text-left hover:bg-surface-3"
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-callout font-semibold">

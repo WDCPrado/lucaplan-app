@@ -170,7 +170,7 @@ export function PlanSheet({
       }}
       title="Plan"
     >
-      <div className="flex min-w-0 flex-col gap-8 px-5">
+      <div className="flex min-w-0 flex-col gap-6">
         {/* Período del plan: decide el rango de todo lo de abajo, por eso va primero. */}
         <section>
           <div className="mb-2 flex items-baseline justify-between gap-3 px-4">
@@ -257,7 +257,7 @@ export function PlanSheet({
               </span>
               <ChevronRight
                 aria-hidden
-                className="disclosure"
+                className="size-4 shrink-0 text-ink-3"
               />
             </button>
           )}
@@ -313,7 +313,7 @@ export function PlanSheet({
                 </span>
               </span>
               <SourceStatus source={s} />
-              <ChevronRight aria-hidden className="disclosure" />
+              <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
             </button>
           ))}
           <button
@@ -356,7 +356,7 @@ export function PlanSheet({
               </span>
               <ChevronRight
                 aria-hidden
-                className="disclosure"
+                className="size-4 shrink-0 text-ink-3"
               />
             </button>
           ))}
@@ -409,7 +409,7 @@ export function PlanSheet({
                 </span>
               )}
             </div>
-            <div className="sheet-group inset-list px-4 [--inset:3.5rem]">
+            <div className="tone-rows [&>*]:px-4">
               {expenseCategories.map((c) => (
                 <LimitRow
                   // El tope guardado cambia con el refresh: la fila se rehace con el valor nuevo.
@@ -423,7 +423,7 @@ export function PlanSheet({
           </section>
         )}
       </div>
-      <ModalFooter className="px-5">
+      <ModalFooter>
         <Button
           type="button"
           variant="secondary"

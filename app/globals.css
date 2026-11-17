@@ -51,7 +51,6 @@
     --color-primary-foreground: var(--primary-foreground);
     --color-primary: var(--primary);
     --color-primary-soft: var(--primary-soft);
-    --color-tab-active: var(--tab-active);
     --color-popover-foreground: var(--popover-foreground);
     --color-popover: var(--popover);
     --color-card-foreground: var(--card-foreground);
@@ -72,8 +71,6 @@
     --color-card-art-info: var(--card-art-info);
     --color-card-art-warn: var(--card-art-warn);
     --color-card-art-danger: var(--card-art-danger);
-    --color-sheet: var(--sheet);
-    --color-sheet-cell: var(--sheet-cell);
     /* Radios: 8 controles · 12 filas y controles grandes · 16 tarjetas · 24 hojas. */
     --radius-xs: 0.25rem;  /* 4: kbd, marcas chicas */
     --radius-sm: 0.5rem;   /* 8 */
@@ -81,11 +78,10 @@
     --radius-lg: 0.75rem;  /* 12: filas, ítems, campos grandes */
     --radius-xl: 1rem;     /* 16: tarjetas, popovers, diálogos chicos */
     --radius-2xl: 1.5rem;  /* 24: hojas y diálogos */
-    --radius-3xl: 1.5rem;
-    --radius-4xl: 1.5rem;
     --shadow-float: var(--shadow-float);
     --shadow-sheet: var(--shadow-sheet);
     --shadow-panel: var(--shadow-panel);
+    --shadow-thumb: var(--shadow-thumb);
 }
 /* === Escala tipográfica: 5 tamaños y nada fuera de ellos (Geist 400/600, cifras tabulares) ===
      display  44 móvil · 52 ≥768 · 60 ≥1200   solo la cifra protagonista (semibold)
@@ -93,11 +89,8 @@
      body     16 · 15 ≥768                    texto de filas y formularios (16 en móvil: sin zoom de iOS)
      callout  14                              texto secundario, acciones de texto, labels
      caption  12 · 13 ≥768                    metadatos, ejes, etiquetas
-   Mapa de los nombres viejos (iOS) → escala nueva, conservados porque los usan cientos de clases:
-     text-hero, text-large-title → display · text-title-1, text-title-3, text-headline → title ·
-     text-body → body · text-subheadline → callout · text-footnote, text-caption → caption.
-   En código nuevo usa los nombres nuevos: text-display, text-title, text-body, text-callout,
-   text-caption. Los tamaños responden al ancho solos (variables --fs-* de :root). */
+     screen-title 22 · 24 ≥768                 único tamaño extra: el título de una pantalla completa
+   Los tamaños responden al ancho solos (variables --fs-* de :root). */
 @theme {
     --text-display: var(--fs-display);
     --text-display--line-height: var(--lh-display);
@@ -111,25 +104,10 @@
     --text-callout--line-height: var(--lh-callout);
     --text-caption: var(--fs-caption);
     --text-caption--line-height: var(--lh-caption);
-    /* Alias viejos */
-    --text-large-title: var(--fs-display);
-    --text-large-title--line-height: var(--lh-display);
-    --text-large-title--letter-spacing: -0.03em;
-    --text-hero: var(--fs-display);
-    --text-hero--line-height: var(--lh-display);
-    --text-hero--letter-spacing: -0.03em;
-    --text-title-1: var(--fs-title);
-    --text-title-1--line-height: var(--lh-title);
-    --text-title-1--letter-spacing: -0.01em;
-    --text-title-3: var(--fs-title);
-    --text-title-3--line-height: var(--lh-title);
-    --text-title-3--letter-spacing: -0.01em;
-    --text-headline: var(--fs-title);
-    --text-headline--line-height: var(--lh-title);
-    --text-subheadline: var(--fs-callout);
-    --text-subheadline--line-height: var(--lh-callout);
-    --text-footnote: var(--fs-caption);
-    --text-footnote--line-height: var(--lh-caption);
+    /* Título de pantalla completa (login, onboarding, instalación, vacíos de página): 22 · 24 ≥768. */
+    --text-screen-title: var(--fs-screen-title);
+    --text-screen-title--line-height: var(--lh-screen-title);
+    --text-screen-title--letter-spacing: -0.02em;
     /* Dos pesos: 400 y 600. font-bold/extrabold caen en 600 para no salir de la escala. */
     --font-weight-bold: 600;
     --font-weight-extrabold: 600;
@@ -145,6 +123,8 @@
     --fs-body: 1rem;       --lh-body: 1.375rem;     /* 16/22 */
     --fs-callout: 0.875rem; --lh-callout: 1.25rem;  /* 14/20 */
     --fs-caption: 0.75rem; --lh-caption: 1rem;      /* 12/16 */
+    --fs-screen-title: 1.375rem; --lh-screen-title: 1.75rem; /* 22/28 */
+    --pad-sheet: 1rem; /* margen del cuerpo de una hoja o diálogo: 16 móvil · 24 ≥768 */
 
     /* Controles: un alto. 44 táctil; 36 con puntero fino desde 768 (abajo). */
     --ctl: 2.75rem;
@@ -165,7 +145,6 @@
 
     --radius: 0.75rem;
     --radius-sheet: 1.5rem;     /* hojas y alertas: rounded-(--radius-sheet) */
-    --radius-bar-inner: 0.5rem; /* heredado: lo que va dentro de una barra = radio de control */
 
     /* Claro: papel cálido */
     --background: #F4F1EA;            /* papel */
@@ -227,27 +206,14 @@
     --shadow-float: 0 8px 24px rgba(23, 22, 15, 0.1), 0 1px 3px rgba(23, 22, 15, 0.08);
     --shadow-sheet: 0 -8px 32px rgba(23, 22, 15, 0.14);
     --shadow-panel: -12px 0 40px rgba(23, 22, 15, 0.14);
+    --shadow-thumb: 0 1px 2px rgba(0, 0, 0, 0.08); /* la selección de un segmentado */
 
-    /* Heredados del vidrio (siguen definidos para no romper a quien los lea; no usar en código nuevo). */
-    --glass-control: var(--secondary);
-    --glass-control-active: var(--card);
-    --glass-tab-active: var(--surface-2);
-    --glass-fill: var(--float);
-    --glass-fill-large: var(--card);
-    --glass-blur: var(--float-blur);
-    --glass-edge: var(--border);
-    --material: var(--popover);
-    --material-shadow: var(--shadow-float);
-    --scroll-edge: var(--background);
-    --tab-active: var(--foreground);
     --switch-on: var(--primary);
     --knob: var(--card);
     --knob-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
     --ease-spring: var(--ease-out);
     --scrollbar: var(--surface-3);
     --scrollbar-hover: var(--rule-strong);
-    --sheet: var(--card);
-    --sheet-cell: var(--secondary);
     --grabber: var(--surface-3);
 
     /* Estado del cupo sobre el arte de las tarjetas de cuenta (fondo de color del banco). */
@@ -262,6 +228,8 @@
         --fs-title: 1.125rem;                         /* 18 */
         --fs-body: 0.9375rem;                         /* 15 */
         --fs-caption: 0.8125rem;                      /* 13 */
+        --fs-screen-title: 1.5rem; --lh-screen-title: 2rem; /* 24/32 */
+        --pad-sheet: 1.5rem;
         --pad-card: 1.5rem;
     }
 }
@@ -329,8 +297,6 @@
     --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.5);
     --shadow-panel: -12px 0 40px rgba(0, 0, 0, 0.5);
     --knob: #EEEBE3;
-    --sheet: var(--card);
-    --sheet-cell: var(--secondary);
 }
 
 /* Nivel de Apariencia (data-glass en <html>, 0–4, por usuario): la transparencia y el desenfoque de
@@ -377,27 +343,6 @@
 }
 
 @layer components {
-  /* Nombre heredado: .glass / .glass-strong son hoy la tarjeta de superficie (card), sin borde. */
-  .glass,
-  .glass-strong {
-    background-color: var(--card);
-    border: 1px solid transparent;
-  }
-  /* Lista con separador fino entre filas desde el texto (--inset, 1rem por defecto). Heredada: en
-     código nuevo las filas se separan por espacio (gap-2), sin líneas. */
-  .inset-list > * {
-    position: relative;
-  }
-  .inset-list > * + *::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    right: 0;
-    left: var(--inset, 1rem);
-    height: 1px;
-    background: var(--border);
-    pointer-events: none;
-  }
   /* Respuesta al toque: hover y press (escala .98), interrumpible. */
   .press {
     transition: transform 140ms var(--ease-out), background-color 140ms var(--ease-out), color 140ms var(--ease-out);
@@ -411,83 +356,23 @@
    Un ícono toma el peso del texto que acompaña, como un símbolo junto a su etiqueta: regular con
    texto regular, más grueso con texto semibold/bold. El tamaño lo sigue poniendo `size-*` según la
    escala tipográfica (`size-4` junto a subheadline/body, `size-5` en barras, `size-6` sueltos). */
-/* En @layer base para que `disclosure` y las utilidades `stroke-*` le ganen; solo toca el trazo
+/* En @layer base para que las utilidades `stroke-*` le ganen; solo toca el trazo
    `stroke-width="2"` (el de lucide por defecto); un `strokeWidth` distinto de 2 se respeta. */
 @layer base {
   :is(.font-semibold, .font-bold) > svg.lucide[stroke-width="2"] {
     stroke-width: 2.5;
   }
 }
-/* Chevron de fila (`chevron.right` de una lista de iOS): más chico que el texto, semibold y en
-   gris terciario. Para el chevron que abre algo desde una fila, nunca para navegar. */
-@utility disclosure {
-  width: 0.875rem;
-  height: 0.875rem;
-  flex-shrink: 0;
-  stroke-width: 3;
-  color: color-mix(in oklch, var(--muted-foreground) 60%, transparent);
-}
 
 
-/* === Lo que flota (antes Liquid Glass) ===
-   Los nombres se conservan para no romper a quien los usa, pero ya no hay vidrio: «float» (alias
-   «liquid-glass») es el fondo propio con desenfoque de las barras flotantes, que mueve el nivel de
-   Apariencia; «material» es la superficie de menús y popovers. */
+/* === Lo que flota ===
+   «float» es el fondo propio con desenfoque de las barras flotantes (la superior móvil y la inferior);
+   lo mueve el nivel de Apariencia. Nada más lleva desenfoque. */
 @utility float {
   background-color: var(--float);
   -webkit-backdrop-filter: blur(var(--float-blur)) saturate(140%);
   backdrop-filter: blur(var(--float-blur)) saturate(140%);
   box-shadow: var(--shadow-float);
-}
-@utility liquid-glass {
-  background-color: var(--float);
-  -webkit-backdrop-filter: blur(var(--float-blur)) saturate(140%);
-  backdrop-filter: blur(var(--float-blur)) saturate(140%);
-  box-shadow: var(--shadow-float);
-}
-/* Heredado: press de lo que flota. Igual que .press. */
-@utility liquid-squish {
-  transition: transform 140ms var(--ease-out), background-color 140ms var(--ease-out);
-  &:is([data-squish]:active, :has([data-squish]:active)) {
-    transform: scale(0.98);
-  }
-}
-/* Heredado: selección dentro de una barra (pestaña activa) = tono. */
-@utility liquid-glass-active {
-  background-color: var(--surface-2);
-}
-@utility material {
-  background-color: var(--popover);
-  box-shadow: var(--shadow-float);
-}
-/* Heredado: la barra superior de escritorio ya tiene fondo propio; no dibuja velo. */
-@utility scroll-edge-top {
-  background-color: var(--background);
-}
-/* Título de la fila móvil. Arriba del todo ocupa su ancho y el selector de mes el resto; con el
-   primer scroll (`data-scrolled`, del IntersectionObserver de AppFrame) se va con un fundido y un
-   leve desplazamiento a la izquierda, y su columna se cierra (1fr → 0fr, el mismo recurso que «Hoy»
-   en el MonthNav): el selector se corre a la izquierda y se ensancha en una sola transición de
-   grid-template-columns. CSS puro, así un cambio a mitad de camino retoma desde donde está. */
-.top-title {
-  grid-template-columns: 1fr;
-  transition: grid-template-columns 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.top-title h1 {
-  animation: title-in 200ms ease-out; /* al navegar entra el título nuevo (key) */
-  transition:
-    opacity 200ms ease-out,
-    transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.top-bar[data-scrolled] .top-title {
-  grid-template-columns: 0fr;
-}
-.top-bar[data-scrolled] .top-title h1 {
-  opacity: 0;
-  transform: translateX(-0.75rem);
-}
-@keyframes title-in {
-  from { opacity: 0; }
 }
 /* MonthNav deshabilitado (vistas sin selector de mes): media tinta, legible sin invitar a tocar. */
 .idle-ink {
@@ -546,48 +431,13 @@
   font-size: clamp(2.75rem, 7vw, 4.75rem);
   line-height: 1.02;
   letter-spacing: -0.035em;
-  font-weight: 700;
+  font-weight: 600;
 }
 @utility landing-title {
   font-size: clamp(2rem, 4.5vw, 3rem);
   line-height: 1.05;
   letter-spacing: -0.03em;
-  font-weight: 700;
-}
-
-/* Barra de presupuesto: se llena al entrar en viewport */
-.landing-bar {
-  width: 0%;
-  transition: width 1100ms cubic-bezier(0.22, 1, 0.36, 1) 350ms;
-}
-.is-visible .landing-bar {
-  width: var(--bar, 50%);
-}
-
-/* Barra de progreso que se llena al montar (login) */
-@keyframes bar-fill {
-  from {
-    width: 0;
-  }
-}
-
-/* Flotación sutil de las cards del collage (dos fases para que no vayan al unísono).
-   Como @utility para poder aplicarla con variantes (ej. lg:landing-float-a: las tarjetas
-   demo solo flotan en escritorio; en móvil van en carrusel como el dashboard). */
-@keyframes landing-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
-@utility landing-float-a {
-  animation: landing-float 7s ease-in-out infinite;
-}
-@utility landing-float-b {
-  animation: landing-float 9s ease-in-out 1.2s infinite;
+  font-weight: 600;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -595,13 +445,6 @@
     opacity: 1;
     transform: none;
     transition: none;
-  }
-  .landing-bar {
-    width: var(--bar, 50%);
-    transition: none;
-  }
-  [class*="landing-float"] {
-    animation: none;
   }
 }
 
@@ -613,14 +456,8 @@
     right var(--nav-duration) var(--nav-ease),
     opacity 300ms ease-out;
 }
-.nav-pill {
-  transition:
-    transform var(--nav-duration) var(--nav-ease),
-    opacity 300ms ease-out;
-}
 @media (prefers-reduced-motion: reduce) {
-  .tab-pill,
-  .nav-pill {
+  .tab-pill {
     transition: none;
   }
 }
@@ -776,8 +613,6 @@
     animation: none;
   }
   /* La fila superior cambia de estado sin fundidos ni desplazamientos. */
-  .top-title,
-  .top-title h1,
   [data-top-actions] > *,
   .top-idle,
   .top-idle .idle-ink {
@@ -849,23 +684,31 @@
   background-color: var(--grabber);
 }
 @layer components {
-  /* Grupo dentro de una hoja o tarjeta: tono surface-2, radio 12. */
+  /* Grupo en tono dentro de una hoja o tarjeta: un bloque surface-2 de radio 12 con sus filas
+     adentro, sin líneas (datos label → valor). */
   .sheet-group {
-    background-color: var(--sheet-cell);
+    background-color: var(--secondary);
+    border-radius: var(--radius-lg);
+  }
+  /* Filas en tono: cada hijo es una fila surface-2 de radio 12, separadas por 8 px y sin líneas
+     (ModalSection, listas de acciones y de elección dentro de una hoja). */
+  .tone-rows {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .tone-rows > * {
+    background-color: var(--secondary);
     border-radius: var(--radius-lg);
   }
 }
 /* Un campo dentro de un grupo surface-2 sube un tono para seguir leyéndose. */
-.sheet-group [data-slot="input"]:not(.bg-transparent),
-.sheet-group [data-slot="textarea"],
-.sheet-group [data-slot="select-trigger"],
-.sheet-group [data-slot="input-group"] {
+:is(.sheet-group, .tone-rows > *) [data-slot="input"]:not(.bg-transparent),
+:is(.sheet-group, .tone-rows > *) [data-slot="textarea"],
+:is(.sheet-group, .tone-rows > *) [data-slot="select-trigger"],
+:is(.sheet-group, .tone-rows > *) [data-slot="input-group"] {
   background-color: var(--card);
-}
-[data-product] .glass,
-[data-product] .glass-strong {
-  background: var(--sheet-cell);
-  border-color: transparent;
 }
 /* Tooltip: sin flecha. */
 [data-slot="tooltip-content"] svg.rotate-45 {

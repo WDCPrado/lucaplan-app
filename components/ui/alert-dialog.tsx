@@ -63,7 +63,7 @@ function AlertDialogContent({
         data-size={size}
 
         className={cn(
-          "group/alert-dialog-content material fixed top-1/2 left-1/2 z-50 grid w-[min(20rem,calc(100%-2.5rem))] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-(--radius-sheet) p-5 text-popover-foreground duration-160 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-[min(20rem,calc(100%-2.5rem))] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-(--radius-sheet) bg-card p-5 text-card-foreground shadow-float duration-160 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -128,7 +128,7 @@ function AlertDialogTitle({
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
       className={cn(
-        "text-headline font-semibold text-balance",
+        "text-title font-semibold text-balance",
         className
       )}
       {...props}
@@ -144,7 +144,7 @@ function AlertDialogDescription({
     <AlertDialogPrimitive.Description
       data-slot="alert-dialog-description"
       className={cn(
-        "text-subheadline text-balance text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
+        "text-callout text-balance text-ink-2 *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
         className
       )}
       {...props}

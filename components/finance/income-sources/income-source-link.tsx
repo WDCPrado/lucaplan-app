@@ -82,7 +82,7 @@ export function IncomeSourceLink({
   }
 
   return (
-    <div className="mb-6 px-5">
+    <div>
       <ModalSection
         title={<label htmlFor={fieldId}>Ingreso programado</label>}
         footer={

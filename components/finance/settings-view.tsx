@@ -84,7 +84,7 @@ export function SettingsView({
     <AppShell>
       <div className="page-container">
         {/* Móvil una columna; escritorio dos columnas parejas (cada fila estira sus tarjetas). */}
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
           {/* Móvil: la cuenta (en escritorio vive en el pie del sidebar). */}
           <section
             aria-label="Cuenta"

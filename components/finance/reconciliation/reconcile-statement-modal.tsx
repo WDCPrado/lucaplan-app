@@ -290,7 +290,7 @@ export function ReconcileStatementModal({
               }
       }
     >
-      <div className="flex flex-col gap-6 px-4 pb-6 md:px-6">
+      <div className="flex flex-col gap-6">
         {error && (
           <p
             role="alert"

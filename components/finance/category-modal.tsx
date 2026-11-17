@@ -217,7 +217,7 @@ export function CategoryModal({
       <form
         id={formId}
         onSubmit={form.handleSubmit(save)}
-        className="flex flex-col gap-7 px-5"
+        className="flex flex-col gap-6"
       >
         <fieldset disabled={busy} className="contents">
           {errors.root && (
@@ -370,7 +370,7 @@ export function CategoryModal({
         </fieldset>
       </form>
       {category && (
-        <div className="mt-8 px-5">
+        <div className="mt-6">
           <ModalDangerRow
             disabled={busy}
             onClick={() => setConfirmDelete(true)}

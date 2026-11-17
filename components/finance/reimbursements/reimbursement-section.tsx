@@ -221,7 +221,7 @@ function ReimbursementPicker({
           : undefined
       }
     >
-      <div className="flex flex-col px-5 pb-4">
+      <div className="flex flex-col">
         {chosen && data ? (
           <AmountForm
             formId={formId}

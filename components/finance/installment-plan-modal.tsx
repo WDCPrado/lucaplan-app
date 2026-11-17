@@ -226,7 +226,7 @@ export function InstallmentPlanModal({
       onOpenChange={onOpenChange}
       title={plan.description}
     >
-      <div className="flex flex-col px-5">
+      <div className="flex flex-col">
         {/* Dato hero: lo que falta (deuda). El avance va debajo, como contexto. */}
         <section className="flex flex-col gap-3 pt-2 pb-5">
           <p>
@@ -266,8 +266,8 @@ export function InstallmentPlanModal({
         </section>
 
         <section className="pb-5">
-          <h3 className="px-4 pb-2 text-callout font-semibold text-ink-2">Cronograma</h3>
-          <ul className="sheet-group inset-list flex flex-col [--inset:3.25rem]">
+          <h3 className="pb-2 text-callout font-semibold text-ink-2">Cronograma</h3>
+          <ul className="tone-rows">
             {plan.items.map((item) => {
               const settled =
                 item.status === "paid" || item.status === "outside_app"

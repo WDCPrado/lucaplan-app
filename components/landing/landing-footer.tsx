@@ -98,7 +98,7 @@ export function LandingFooter() {
           titulares.
         </p>
 
-        <div className="mt-6 flex flex-col gap-3 border-t border-rule-strong pt-6 text-caption text-ink-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-6 flex flex-col gap-3 pt-6 text-caption text-ink-3 sm:flex-row sm:items-center sm:justify-between">
           <p>
             © 2026 Luca Plan. Open source, hecho por{" "}
             <a
@@ -146,8 +146,8 @@ export function LandingFooter() {
           onOpenChange={(o) => !o && setLegal(null)}
           title={LEGAL[legal].title}
         >
-          <ScrollArea className="max-h-[62dvh] px-6">
-            <div className="pb-8">{LEGAL[legal].body}</div>
+          <ScrollArea className="max-h-[62dvh]">
+            <div>{LEGAL[legal].body}</div>
           </ScrollArea>
         </ResponsiveModal>
       )}

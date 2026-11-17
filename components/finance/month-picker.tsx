@@ -1,12 +1,9 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { ResponsivePopover } from "@/components/ui/responsive-modal"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { currentPeriod, monthName } from "@/lib/finance-format"
@@ -26,8 +23,9 @@ export function periodLabel(
     : monthName(period.month)
 }
 
-// Selector de mes con Popover de shadcn: el pill del mes abre un grid de 12 meses con
-// navegación de año. El mes seleccionado va en primary; el mes actual lleva un anillo.
+// Selector de mes: el botón del mes abre la grilla de 12 meses con navegación de año, en un popover
+// en escritorio y en la hoja «Elegir mes» en móvil. El elegido va relleno en el acento; el mes en
+// curso lleva un anillo, y «Ir a hoy» vuelve a él cuando se mira otro.
 export function MonthPicker({
   period,
   onSelect,
@@ -47,16 +45,22 @@ export function MonthPicker({
   const [year, setYear] = useState(period.year)
   const now = current ?? currentPeriod()
   const selectedMonth = useRef<HTMLButtonElement>(null)
+  // Estable: corre al montar el contenido (cada vez que se abre), no en cada render.
+  const focusSelected = useCallback((el: HTMLDivElement | null) => {
+    if (el) requestAnimationFrame(() => selectedMonth.current?.focus({ preventScroll: true }))
+  }, [])
 
   return (
-    <Popover
+    <ResponsivePopover
       open={open}
       onOpenChange={(o) => {
         setOpen(o)
         if (o) setYear(period.year) // al abrir, arrancar en el año del período visible
       }}
-    >
-      <PopoverTrigger asChild>
+      title="Elegir mes"
+      align="center"
+      className="w-64 p-3"
+      trigger={
         <button
           type="button"
           className={cn(
@@ -73,15 +77,11 @@ export function MonthPicker({
             className="size-4 shrink-0 text-ink-3 transition-transform duration-180 ease-(--ease-out) group-data-[state=open]/mp:rotate-180 motion-reduce:transition-none"
           />
         </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="center"
-        sideOffset={8}
-        className="w-64 p-3"
-        onOpenAutoFocus={(event) => {
-          event.preventDefault()
-          selectedMonth.current?.focus()
-        }}
+      }
+    >
+      <div
+        // Al abrir, el foco va al mes elegido (no al primer botón).
+        ref={focusSelected}
       >
         <div className="mb-2 flex items-center justify-between">
           <button
@@ -122,11 +122,11 @@ export function MonthPicker({
                   onSelect(year, m)
                 }}
                 className={cn(
-                  "press h-(--ctl) rounded-md text-callout transition-colors",
+                  "press min-h-(--ctl) rounded-md text-callout transition-colors max-md:min-h-12 max-md:text-body",
                   selected
                     ? "bg-primary font-semibold text-primary-foreground"
                     : "bg-secondary hover:bg-surface-3",
-                  !selected && isNow && "shadow-[inset_0_0_0_2px_var(--primary)]"
+                  !selected && isNow && "ring-2 ring-primary ring-inset"
                 )}
               >
                 {monthName(m).slice(0, 3)}
@@ -134,7 +134,21 @@ export function MonthPicker({
             )
           })}
         </div>
-      </PopoverContent>
-    </Popover>
+        {(period.year !== now.year || period.month !== now.month) && (
+          <Button
+            type="button"
+            variant="secondary"
+            className="mt-3 w-full"
+            onClick={() => {
+              haptic("light")
+              setOpen(false)
+              onSelect(now.year, now.month)
+            }}
+          >
+            Ir a hoy
+          </Button>
+        )}
+      </div>
+    </ResponsivePopover>
   )
 }

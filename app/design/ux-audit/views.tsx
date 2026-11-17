@@ -46,7 +46,7 @@ function Surface({
   className?: string
 }) {
   return (
-    <section className={cn("glass rounded-2xl", className)}>{children}</section>
+    <section className={cn("rounded-xl bg-card", className)}>{children}</section>
   )
 }
 
@@ -177,7 +177,7 @@ export function Accounts({ hidden }: { hidden: boolean }) {
         return (
           <article
             key={a.id}
-            className="glass flex snap-center flex-col justify-between gap-3 rounded-2xl p-4"
+            className="bg-card flex snap-center flex-col justify-between gap-3 rounded-2xl p-4"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">

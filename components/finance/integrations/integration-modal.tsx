@@ -179,7 +179,7 @@ function IntegrationForm({
       <form
         id={formId}
         onSubmit={form.handleSubmit(({ value }) => send(value))}
-        className="flex flex-col gap-6 px-4 md:px-6"
+        className="flex flex-col gap-6"
       >
         <fieldset disabled={busy} className="contents">
           {errors.root && (
@@ -259,8 +259,7 @@ function IntegrationForm({
           busy: isSubmitting,
           disabled: busy || !isDirty,
         }}
-        className="px-4 md:px-6"
-      />
+              />
     </>
   )
 }
@@ -378,7 +377,7 @@ function SenderForm({
             void next()
           } else void form.handleSubmit((v) => send(buildSender(v)))(e)
         }}
-        className="flex flex-col gap-6 px-4 md:px-6"
+        className="flex flex-col gap-6"
       >
         <fieldset disabled={busy} className="contents">
           <ol aria-label="Pasos" className="grid grid-cols-2 gap-2">
@@ -443,13 +442,13 @@ function SenderForm({
 
           {/* El paso entra desde el lado hacia el que se avanza; con «reducir movimiento», quieto
               (las clases month-in-* ya lo respetan en globals.css). */}
-          <div className="-mx-4 -my-1 overflow-hidden px-4 py-1 md:-mx-6 md:px-6">
+          <div className="-mx-(--pad-sheet) -my-1 overflow-hidden px-(--pad-sheet) py-1">
             <div
               key={step.n}
               ref={stepRef}
               tabIndex={-1}
               className={cn(
-                "flex flex-col gap-7 outline-none",
+                "flex flex-col gap-6 outline-none",
                 step.dir === 1 && "month-in-next",
                 step.dir === -1 && "month-in-prev"
               )}
@@ -547,8 +546,7 @@ function SenderForm({
                 disabled: busy || unchanged,
               }
         }
-        className="px-4 md:px-6"
-      />
+              />
     </>
   )
 }

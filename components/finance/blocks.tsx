@@ -1,5 +1,6 @@
 import * as React from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
+import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
@@ -54,15 +55,20 @@ export function SectionCard({
   )
 }
 
-/** Acción de texto en verde para el encabezado de una tarjeta («Ver todo», «Editar»). Botón o enlace con asChild. */
+/**
+ * Acción de texto en verde para el encabezado de una tarjeta («Ver todo», «Editar»). Botón; con
+ * `asChild` toma la forma de su hijo (un `<Link>`) con las mismas clases.
+ */
 export function SectionAction({
   className,
   children,
+  asChild = false,
   ...props
-}: React.ComponentProps<"button">) {
+}: React.ComponentProps<"button"> & { asChild?: boolean }) {
+  const Comp = asChild ? Slot.Root : "button"
   return (
-    <button
-      type="button"
+    <Comp
+      {...(asChild ? {} : { type: "button" as const })}
       className={cn(
         "press inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-callout font-semibold whitespace-nowrap text-primary hover:bg-primary-soft disabled:opacity-45 md:min-h-8 [&_svg]:size-4",
         className
@@ -70,7 +76,7 @@ export function SectionAction({
       {...props}
     >
       {children}
-    </button>
+    </Comp>
   )
 }
 
@@ -103,6 +109,9 @@ export function KeyLine({
  * Fila de lista: icono de 36 a la izquierda, título y meta, valor a la derecha y chevron opcional.
  * 56 px de alto mínimo. Con onClick o href es interactiva (hover en tono); sin ellos, solo lectura.
  * Las filas van en una columna con gap-2, sin separadores.
+ * `aside` es una acción secundaria dentro de la fila (un enlace al portal de pago): como un control
+ * no puede ir dentro de otro, la acción principal pasa a cubrir la fila por debajo y `aside` queda
+ * encima; el nombre accesible de la fila es su título y su valor.
  */
 export function ListRow({
   icon,
@@ -111,6 +120,7 @@ export function ListRow({
   value,
   valueNote,
   chevron = false,
+  aside,
   href,
   onClick,
   className,
@@ -123,24 +133,32 @@ export function ListRow({
   /** Segunda línea bajo el valor (caption, tinta 3). */
   valueNote?: React.ReactNode
   chevron?: boolean
+  /** Acción secundaria dentro de la fila, entre el texto y el valor. */
+  aside?: React.ReactNode
   href?: string
   onClick?: () => void
 }) {
+  const id = React.useId()
   const inner = (
     <>
       {icon && <span className="grid size-9 shrink-0 place-items-center">{icon}</span>}
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="truncate font-semibold">{title}</span>
+        <span id={`${id}-t`} className="truncate font-semibold">{title}</span>
         {meta && (
           <span className="flex flex-wrap items-center gap-x-2 text-callout text-ink-2">
             {meta}
           </span>
         )}
       </span>
+      {aside && <span className="relative z-2 flex min-w-0 shrink items-center">{aside}</span>}
       {(value || valueNote) && (
         <span className="flex shrink-0 flex-col items-end text-right whitespace-nowrap">
-          {value && <span className="font-semibold">{value}</span>}
-          {valueNote && <span className="text-caption text-ink-3">{valueNote}</span>}
+          {value && <span id={`${id}-v`} className="font-semibold">{value}</span>}
+          {valueNote && (
+            <span id={`${id}-n`} className="text-caption text-ink-3">
+              {valueNote}
+            </span>
+          )}
         </span>
       )}
       {chevron && <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />}
@@ -149,8 +167,25 @@ export function ListRow({
   const rowClass = cn(
     "-mx-3 flex min-h-14 w-[calc(100%+1.5rem)] items-center gap-3 rounded-lg px-3 py-2 text-left",
     (href || onClick) && "press hover:bg-secondary",
+    aside && "relative",
     className
   )
+  if (aside) {
+    const cover = "absolute inset-0 z-1 rounded-[inherit]"
+    const labelledBy = [`${id}-t`, value && `${id}-v`, valueNote && `${id}-n`]
+      .filter(Boolean)
+      .join(" ")
+    return (
+      <div className={rowClass} {...props}>
+        {href ? (
+          <a href={href} aria-labelledby={labelledBy} className={cover} />
+        ) : onClick ? (
+          <button type="button" onClick={onClick} aria-labelledby={labelledBy} className={cover} />
+        ) : null}
+        {inner}
+      </div>
+    )
+  }
   if (href)
     return (
       <a href={href} className={rowClass} {...(props as React.ComponentProps<"a">)}>
@@ -206,7 +241,8 @@ const noticeTone = {
 
 /**
  * Aviso en línea: fila a ancho completo de 44 px, radio 8, en tono suave (ámbar, óxido o verde).
- * Nunca una píldora suelta. Con onClick es un botón (y lleva chevron).
+ * Nunca una píldora suelta. Con onClick es un botón (y lleva chevron). `wrap` deja que un mensaje
+ * largo (el de la API) se envuelva en vez de cortarse.
  */
 export function InlineNotice({
   tone = "warn",
@@ -214,9 +250,11 @@ export function InlineNotice({
   value,
   icon,
   onClick,
+  wrap = false,
   className,
 }: {
   tone?: keyof typeof noticeTone
+  wrap?: boolean
   label: React.ReactNode
   /** Cifra o acción a la derecha, en semibold. */
   value?: React.ReactNode
@@ -227,13 +265,14 @@ export function InlineNotice({
   const cls = cn(
     "flex min-h-11 w-full items-center justify-between gap-3 rounded-md px-3 text-left text-callout [&_svg]:size-4 [&_svg]:shrink-0",
     noticeTone[tone],
+    wrap && "py-2",
     onClick && "press hover:brightness-97",
     className
   )
   const inner = (
     <>
       {icon}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className={cn("min-w-0 flex-1", wrap ? "text-pretty" : "truncate")}>{label}</span>
       {value && <span className="font-semibold whitespace-nowrap">{value}</span>}
       {onClick && <ChevronRight aria-hidden />}
     </>

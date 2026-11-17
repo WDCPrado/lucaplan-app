@@ -267,7 +267,7 @@ function Welcome({ onStart }: { onStart: () => void }) {
           id={TITLE_ID}
           ref={focusOnMount}
           tabIndex={-1}
-          className="text-title font-semibold text-balance outline-none"
+          className="text-screen-title font-semibold text-balance outline-none"
         >
           Tu plata en orden, sin anotar nada
         </h1>
@@ -456,7 +456,7 @@ function Done({
           id={TITLE_ID}
           ref={focusOnMount}
           tabIndex={-1}
-          className="text-title font-semibold outline-none"
+          className="text-screen-title font-semibold text-balance outline-none"
         >
           Todo listo
         </h1>

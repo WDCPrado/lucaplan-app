@@ -116,7 +116,7 @@ export function AssignToInstallmentModal({
       onOpenChange={onOpenChange}
       title="Marcar como cuota"
     >
-      <div className="flex flex-col px-5 pb-4">
+      <div className="flex flex-col">
         {plans === null ? (
           <p
             role="status"
@@ -140,13 +140,13 @@ export function AssignToInstallmentModal({
             <p className="py-3 text-callout">
               ¿De qué deuda es este pago?
             </p>
-            <ul className="sheet-group inset-list flex flex-col overflow-hidden [--inset:4.5rem]">
+            <ul className="tone-rows">
               {plans.map((p) => (
                 <li key={p.id}>
                   <button
                     type="button"
                     onClick={() => setPlanId(p.id)}
-                    className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left hover:bg-surface-3"
+                    className="press flex min-h-11 w-full items-center gap-3 rounded-lg px-4 py-2 text-left hover:bg-surface-3"
                   >
                     <span
                       className="grid size-9 shrink-0 place-items-center rounded-sm bg-surface-3"
@@ -190,7 +190,7 @@ export function AssignToInstallmentModal({
                 </button>
               )}
             </div>
-            <ul className="sheet-group inset-list flex flex-col overflow-hidden [--inset:3.25rem]">
+            <ul className="tone-rows">
               {plan.items
                 .filter(
                   (i) => i.status === "overdue" || i.status === "upcoming"
@@ -202,7 +202,7 @@ export function AssignToInstallmentModal({
                       onClick={() => assign(item.id)}
                       disabled={busy !== null}
                       aria-busy={busy === item.id || undefined}
-                      className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left hover:bg-surface-3 disabled:opacity-50"
+                      className="press flex min-h-11 w-full items-center gap-3 rounded-lg px-4 py-2 text-left hover:bg-surface-3 disabled:opacity-50"
                     >
                       <span className="tabular w-6 shrink-0 text-caption text-muted-foreground">
                         {item.index}

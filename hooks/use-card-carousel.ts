@@ -7,7 +7,8 @@ import { haptic } from "@/lib/haptics"
 // Carrusel de tarjetas (dashboard y landing): drag con mouse + fade dinámico en los bordes
 // (aparece a la izquierda al scrollear, desaparece a la derecha al llegar al final) y, en móvil,
 // zoom estilo wallet según distancia al centro con un haptic ligero al cambiar la tarjeta activa.
-// Los ítems se marcan con [data-card]; el contenedor lleva la mask con --fade-l/--fade-r.
+// Los ítems se marcan con [data-card]. El fade lo dibuja quien lo quiera con una mask que lea
+// --fade-l/--fade-r (la landing); el Inicio no lleva mask y esas variables quedan sin uso.
 export function useCardCarousel() {
   const { ref, handlers } = useDragScroll()
   const raf = useRef(0)

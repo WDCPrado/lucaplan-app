@@ -1,12 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowUpRight, Check, ChevronRight } from "lucide-react"
+import { ArrowUpRight, Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { linkHost } from "@/lib/schemas/recurring-url"
 import { currentPeriod, formatCLP } from "@/lib/finance-format"
 import { AppShell } from "./app-shell"
+import { Chevron, IconTile, InlineNotice, KeyLine, ListRow, SectionCard } from "./blocks"
 import { CategoryIcon } from "./category-icons"
 import { RecurringModal } from "./recurring-modal"
 import { InstallmentsSection } from "./installments-view"
@@ -61,9 +62,8 @@ function isThisMonth(iso: string): boolean {
   return d.getUTCFullYear() === t.year && d.getUTCMonth() + 1 === t.month
 }
 
-// Pantalla Recurrentes: lo que ya está comprometido cada mes, en dos secciones. Recurrentes y
-// Cuotas van lado a lado desde xl (cada una en una columna con su resumen arriba) y apiladas por
-// debajo, con Cuotas al final.
+// Pantalla Recurrentes: lo que ya está comprometido cada mes, en dos tarjetas (Recurrentes y
+// Cuotas), apiladas en móvil y lado a lado desde xl.
 export function RecurringView({
   templates,
   plans,
@@ -94,56 +94,43 @@ export function RecurringView({
 
   return (
     <AppShell>
-      {/* En móvil el contenido arranca pegado al header flotante; en escritorio la topbar pide su
-          margen. xl: dos columnas de ~30rem, el mínimo en que una fila de recurrente cabe con su
-          nombre y el "Ya lo pagué"; por debajo de eso, una columna. */}
-      <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 md:pt-6 lg:px-8 xl:max-w-7xl">
-        <div className="grid gap-10 xl:grid-cols-2 xl:items-start xl:gap-8">
-          <section aria-labelledby="recurrentes-title" className="min-w-0">
-            {/* Sin botón "Nuevo": una recurrente solo nace de un movimiento (el use case rechaza el
-                alta suelta). min-h-11: mide lo mismo que la cabecera de Cuotas, que lleva su
-                acción, para que los títulos queden alineados lado a lado. En móvil el título
-                grande ya dice "Recurrentes": el h2 queda para el lector de pantalla. */}
-            <div className="mb-2 flex min-h-11 items-center max-md:sr-only">
-              <h2 id="recurrentes-title" className="text-title-3 font-bold">
-                Recurrentes
-              </h2>
-            </div>
-
+      {/* Móvil: una columna. xl: Recurrentes y Cuotas lado a lado, de la misma altura (items-stretch),
+          con los bordes en la línea de la barra superior (page-container). */}
+      <div className="page-container">
+        <div className="grid gap-4 md:gap-6 xl:grid-cols-2 xl:items-stretch">
+          {/* Sin botón "Nuevo": una recurrente solo nace de un movimiento (el use case rechaza el
+              alta suelta). */}
+          <SectionCard
+            title="Recurrentes"
+            keyLine={
+              templates.length > 0 && (
+                <KeyLine value={formatCLP(committed)} note="comprometido al mes" />
+              )
+            }
+          >
             {templates.length === 0 ? (
               <EmptyState />
             ) : (
-              <div className="flex flex-col gap-6">
-                {/* El resumen del mes va primero: es el titular de la sección. Lo accionable es lo
-                    que falta cobrar dentro del mes (hay que reservarlo). */}
-                <div className="glass rounded-xl p-4">
-                  <p className="text-subheadline text-muted-foreground">Total recurrente</p>
-                  <p className="tabular text-hero font-bold">{formatCLP(committed)}</p>
-                  {dueTotal > 0 && (
-                    <p className="mt-2 text-subheadline">
-                      Reserva{" "}
-                      <strong className="tabular font-semibold">
-                        {formatCLP(dueTotal)}
-                      </strong>{" "}
-                      antes de fin de mes
-                    </p>
-                  )}
-                </div>
+              <div className="flex flex-col gap-4">
+                {/* Lo accionable: lo que falta cobrar dentro del mes (hay que reservarlo). */}
+                {dueTotal > 0 && (
+                  <InlineNotice
+                    tone="accent"
+                    label="Reserva antes de fin de mes"
+                    value={formatCLP(dueTotal)}
+                  />
+                )}
 
                 {active.length > 0 && (
-                  <ul className="glass inset-list overflow-hidden rounded-xl [--inset:4.25rem]">
+                  <ul className="flex flex-col gap-2">
                     {active.map((t) => (
-                      <RecurringRow
-                        key={t.id}
-                        template={t}
-                        onEdit={() => edit(t)}
-                      />
+                      <RecurringRow key={t.id} template={t} onEdit={() => edit(t)} />
                     ))}
                   </ul>
                 )}
 
                 {paused.length > 0 && (
-                  <RecurringGroup title="Pausadas">
+                  <RecurringGroup title="Pausadas" count={paused.length} defaultOpen>
                     {paused.map((t) => (
                       <RecurringRow key={t.id} template={t} onEdit={() => edit(t)} />
                     ))}
@@ -151,7 +138,7 @@ export function RecurringView({
                 )}
 
                 {ended.length > 0 && (
-                  <RecurringGroup title="Finalizadas">
+                  <RecurringGroup title="Finalizadas" count={ended.length}>
                     {ended.map((t) => (
                       <RecurringRow key={t.id} template={t} onEdit={() => edit(t)} />
                     ))}
@@ -159,7 +146,7 @@ export function RecurringView({
                 )}
               </div>
             )}
-          </section>
+          </SectionCard>
 
           <InstallmentsSection plans={plans} accounts={accounts} categories={categories} />
         </div>
@@ -181,24 +168,29 @@ export function RecurringView({
   )
 }
 
-// Subgrupo de la lista (Pausadas, Finalizadas): encabezado de lista agrupada de iOS, fuera de
-// la tarjeta y alineado con el texto de las filas.
+// Subgrupo de la lista (Pausadas, Finalizadas): un <details> nativo con su cuenta; la altura se
+// anima desde globals.css y el chevron gira con [open].
 function RecurringGroup({
   title,
+  count,
+  defaultOpen = false,
   children,
 }: {
   title: string
+  count: number
+  defaultOpen?: boolean
   children: React.ReactNode
 }) {
   return (
-    <section>
-      <h3 className="mb-1.5 px-4 text-footnote tracking-wide text-muted-foreground uppercase">
-        {title}
-      </h3>
-      <ul className="glass inset-list overflow-hidden rounded-xl [--inset:4.25rem]">
-        {children}
-      </ul>
-    </section>
+    <details open={defaultOpen} className="group">
+      <summary className="press -mx-2 flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-callout font-semibold text-ink-2 hover:bg-secondary [&::-webkit-details-marker]:hidden">
+        <span className="flex-1">
+          {title} <span className="font-normal text-ink-3">· {count}</span>
+        </span>
+        <Chevron className="group-open:rotate-180" />
+      </summary>
+      <ul className="mt-2 flex flex-col gap-2">{children}</ul>
+    </details>
   )
 }
 
@@ -221,82 +213,59 @@ function RecurringRow({
       ? nextChargeLabel(t.nextExecution)
       : null
   return (
-    // El enlace no puede ir dentro del botón de la fila: el botón cubre la fila por debajo y el
-    // enlace queda encima, así tocarlo abre el portal sin abrir el modal.
-    <li className="relative flex min-h-11 items-center gap-3 py-2.5 pr-4 pl-4 transition-[opacity,background-color] duration-120 ease-out has-[>button:hover]:bg-accent/60 has-[>button:active]:opacity-55 motion-reduce:transition-none">
-      <button
-        type="button"
+    <li>
+      <ListRow
         onClick={onEdit}
-        // El nombre accesible es el de antes (nombre, monto y estado); el contenido visible va
-        // aria-hidden para que el lector no lo lea dos veces.
-        aria-labelledby={`rec-${t.id}-name rec-${t.id}-amount rec-${t.id}-status`}
-        className="absolute inset-0 z-1 rounded-[inherit]"
-      />
-        <span
-          className="grid size-10 shrink-0 place-items-center rounded-full data-inactive:opacity-50"
-          style={{
-            background: t.categoryColor ? `${t.categoryColor}1f` : "var(--muted)",
-          }}
-          aria-hidden
-          // Decorativo: atenuarlo marca la fila inactiva sin tocar el contraste del texto.
-          data-inactive={inactive || undefined}
-        >
-          <CategoryIcon
-            icon={t.categoryIcon}
-            size={18}
-            color={t.categoryColor ?? undefined}
-          />
-        </span>
-        <span aria-hidden className="min-w-20 flex-1">
-          <span id={`rec-${t.id}-name`} className="block truncate text-body">{t.label}</span>
-          <span className="block truncate text-footnote text-muted-foreground">
+        // Decorativo: atenuarlo marca la fila inactiva sin tocar el contraste del texto.
+        icon={
+          <span aria-hidden className={cn(inactive && "opacity-50")}>
+            <IconTile color={t.categoryColor ?? undefined}>
+              <CategoryIcon icon={t.categoryIcon} size={18} />
+            </IconTile>
+          </span>
+        }
+        title={t.label}
+        meta={
+          <span className="truncate">
             {t.categoryName}
             {periodicity && ` · ${periodicity}`}
             {/* La vigencia se ve sin abrir el modal: es lo que uno olvida haber fijado. */}
             {t.endDate && !t.hasEnded && ` · hasta ${shortDate(t.endDate)}`}
           </span>
-        </span>
-        {t.url && (
-          <a
-            href={t.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`Abrir ${linkHost(t.url)}`}
-            className="press relative z-2 flex min-h-11 min-w-0 max-w-32 shrink items-center gap-1 rounded-full px-1 text-footnote text-primary"
-          >
-            <span className="flex h-7 min-w-0 items-center gap-1 rounded-full bg-(--glass-control) px-2.5">
-              <span aria-hidden className="truncate max-sm:hidden">{linkHost(t.url)}</span>
-              <ArrowUpRight aria-hidden className="size-3.5 shrink-0" />
-            </span>
-          </a>
-        )}
-        <span aria-hidden className="shrink-0 text-right">
-          {/* Pausada o finalizada: el monto en gris secundario (ya no compromete el mes), sin
-              atenuar toda la fila, que dejaba el texto secundario bajo 4.5:1. */}
-          <span
-            id={`rec-${t.id}-amount`}
-            className={cn(
-              "tabular block text-body font-semibold",
-              inactive && "text-muted-foreground"
-            )}
-          >
-            {formatCLP(t.baseAmount)}
-          </span>
-          {t.currentPeriodPaid && !t.hasEnded && t.isActive ? (
-            <span id={`rec-${t.id}-status`} className="flex items-center justify-end gap-1 text-footnote whitespace-nowrap text-primary">
-              <Check className="size-3.5" />
+        }
+        // El portal de pago va dentro de la fila: tocarlo abre el portal sin abrir el modal.
+        aside={
+          t.url && (
+            <a
+              href={t.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Abrir ${linkHost(t.url)}`}
+              className="press flex min-h-11 max-w-32 min-w-0 shrink items-center"
+            >
+              <span className="flex h-8 min-w-0 items-center gap-1 rounded-md bg-secondary px-2 text-caption text-primary hover:bg-primary-soft">
+                <span aria-hidden className="truncate max-sm:hidden">
+                  {linkHost(t.url)}
+                </span>
+                <ArrowUpRight aria-hidden className="size-3.5 shrink-0" />
+              </span>
+            </a>
+          )
+        }
+        // Pausada o finalizada: el monto en tinta 3 (ya no compromete el mes).
+        value={<span className={cn(inactive && "text-ink-3")}>{formatCLP(t.baseAmount)}</span>}
+        valueNote={
+          t.currentPeriodPaid && !t.hasEnded && t.isActive ? (
+            <span className="flex items-center gap-1 text-success">
+              <Check aria-hidden className="size-3.5" />
               Pagado
             </span>
           ) : (
-            status && (
-              <span id={`rec-${t.id}-status`} className="block text-footnote whitespace-nowrap text-muted-foreground">
-                {status}
-              </span>
-            )
-          )}
-        </span>
-        {/* La fila abre el detalle: chevron de lista de iOS. */}
-        <ChevronRight aria-hidden className="disclosure" />
+            status
+          )
+        }
+        chevron
+      />
     </li>
   )
 }
@@ -305,11 +274,11 @@ function RecurringRow({
 // camino es desde un movimiento.
 function EmptyState() {
   return (
-    <div className="glass rounded-xl px-6 py-10 text-center">
-      <h3 className="text-headline">Anticipa lo que ya sabes que vas a pagar</h3>
-      <p className="mx-auto mt-1 max-w-sm text-subheadline text-balance text-muted-foreground">
+    <div className="rounded-lg bg-secondary px-4 py-8 text-center">
+      <h3 className="font-semibold">Anticipa lo que ya sabes que vas a pagar</h3>
+      <p className="mx-auto mt-1 max-w-sm text-callout text-balance text-ink-2">
         Para crear una, abre el movimiento del cargo y elige{" "}
-        <span className="font-medium text-foreground">Hacer recurrente</span>.
+        <span className="font-semibold text-foreground">Hacer recurrente</span>.
       </p>
     </div>
   )

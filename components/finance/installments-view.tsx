@@ -6,6 +6,14 @@ import { Check, ChevronRight, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { currentPeriod, formatCLP } from "@/lib/finance-format"
 import { CategoryIcon } from "./category-icons"
+import {
+  Chevron,
+  IconTile,
+  KeyLine,
+  ProgressBar,
+  SectionAction,
+  SectionCard,
+} from "./blocks"
 import { InstallmentModal } from "./installment-modal"
 import { InstallmentPlanModal } from "./installment-plan-modal"
 import { Button } from "@/components/ui/button"
@@ -45,9 +53,8 @@ function thisMonthSettled(p: InstallmentPlanDTO): boolean {
   return !!item && (item.status === "paid" || item.status === "outside_app")
 }
 
-// Sección "Cuotas" de la pantalla Recurrentes: una columna con el resumen del mes arriba y la
-// lista debajo, porque comparte el ancho con la sección de recurrentes. El AppShell y la sesión
-// son de la página que la contiene.
+// Tarjeta "Cuotas" de la pantalla Recurrentes. El AppShell y la sesión son de la página que la
+// contiene.
 export function InstallmentsSection({
   plans,
   accounts,
@@ -81,58 +88,53 @@ export function InstallmentsSection({
 
   return (
     // scroll-mt: los enlaces a /recurring#cuotas no quedan bajo el header fijo.
-    <section id="cuotas" aria-labelledby="cuotas-title" className="min-w-0 scroll-mt-24">
-      {/* min-h-11: la fila mide lo mismo con o sin la acción, así los títulos de las dos
-          secciones quedan alineados cuando van lado a lado. */}
-      <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
-        <h2 id="cuotas-title" className="text-title-3 font-bold">
-          Cuotas
-        </h2>
-        {/* Crear un plan es la acción de la sección: texto azul a la derecha del encabezado.
-            Vacía, el CTA es el del empty state. */}
-        {plans.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            className="press flex min-h-11 shrink-0 items-center gap-1 text-body text-primary"
-          >
-            <Plus className="size-4" /> Nueva compra
-          </button>
-        )}
-      </div>
-
+    <SectionCard
+      id="cuotas"
+      className="scroll-mt-24"
+      title="Cuotas"
+      // Crear un plan es la acción de la tarjeta. Vacía, el CTA es el del empty state.
+      action={
+        plans.length > 0 && (
+          <SectionAction onClick={() => setCreating(true)}>
+            <Plus /> Nueva compra
+          </SectionAction>
+        )
+      }
+      keyLine={
+        plans.length > 0 && <KeyLine value={formatCLP(monthTotal)} note="en cuotas este mes" />
+      }
+    >
       {plans.length === 0 ? (
         <EmptyState onCreate={() => setCreating(true)} />
       ) : (
-        <div className="flex flex-col gap-6">
-          {/* El resumen del mes va primero: lo que cargan las cuotas este mes, y lo que falta. */}
-          <div className="glass rounded-xl p-4">
-            <p className="text-subheadline text-muted-foreground">Pagas en cuotas este mes</p>
-            <p className="tabular text-hero font-bold">{formatCLP(monthTotal)}</p>
-            <p className="mt-2 flex justify-between gap-2 text-subheadline">
-              <span className="text-muted-foreground">Deuda total restante</span>
-              <span className="tabular font-semibold">{formatCLP(debt)}</span>
-            </p>
-          </div>
+        <div className="flex flex-col gap-4">
+          {/* Lo que falta pagar en total: deuda, no caja. */}
+          <p className="-mt-1 flex items-baseline justify-between gap-3 text-callout">
+            <span className="text-ink-2">Deuda total restante</span>
+            <span className="font-semibold whitespace-nowrap">{formatCLP(debt)}</span>
+          </p>
 
           {active.length > 0 && (
-            <ul className="glass inset-list overflow-hidden rounded-xl [--inset:4.25rem]">
+            <ul className="flex flex-col gap-1">
               {active.map((p) => (
                 <PlanRow key={p.id} plan={p} onOpen={() => setDetailId(p.id)} />
               ))}
             </ul>
           )}
           {done.length > 0 && (
-            <section>
-              <h3 className="mb-1.5 px-4 text-footnote tracking-wide text-muted-foreground uppercase">
-                Pagadas
-              </h3>
-              <ul className="glass inset-list overflow-hidden rounded-xl [--inset:4.25rem]">
+            <details className="group">
+              <summary className="press -mx-2 flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-callout font-semibold text-ink-2 hover:bg-secondary [&::-webkit-details-marker]:hidden">
+                <span className="flex-1">
+                  Pagadas <span className="font-normal text-ink-3">· {done.length}</span>
+                </span>
+                <Chevron className="group-open:rotate-180" />
+              </summary>
+              <ul className="mt-1 flex flex-col gap-1">
                 {done.map((p) => (
                   <PlanRow key={p.id} plan={p} onOpen={() => setDetailId(p.id)} />
                 ))}
               </ul>
-            </section>
+            </details>
           )}
         </div>
       )}
@@ -154,7 +156,7 @@ export function InstallmentsSection({
           plan={detail}
         />
       )}
-    </section>
+    </SectionCard>
   )
 }
 
@@ -170,74 +172,69 @@ function PlanRow({
   const monthPaid = !completed && thisMonthSettled(p)
   const overdue = completed ? 0 : p.items.filter((i) => i.status === "overdue").length
 
-  // Dos líneas: nombre y cuota del mes; debajo, en qué cuota va y cuándo vence la próxima.
+  // Nombre y avance (4/12 con su barra) a la izquierda; la cuota del mes y su estado a la derecha.
   return (
-    <li className={cn(completed && "opacity-60")}>
+    <li>
       <button
         type="button"
         onClick={onOpen}
-        className="press flex min-h-11 w-full items-center gap-3 py-2.5 pr-4 pl-4 text-left hover:bg-accent/60"
+        className="press -mx-3 flex min-h-16 w-[calc(100%+1.5rem)] items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-secondary"
       >
-        <span
-          className="grid size-10 shrink-0 place-items-center rounded-full"
-          style={{
-            background: p.categoryColor ? `${p.categoryColor}1f` : "var(--muted)",
-          }}
-          aria-hidden
-        >
-          <CategoryIcon
-            icon={p.categoryIcon}
-            size={18}
-            color={p.categoryColor ?? undefined}
-          />
+        <span aria-hidden className={cn(completed && "opacity-50")}>
+          <IconTile color={p.categoryColor ?? undefined}>
+            <CategoryIcon icon={p.categoryIcon} size={18} />
+          </IconTile>
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-baseline justify-between gap-3">
-            <span className="min-w-0 truncate text-body">{p.description}</span>
-            {/* La cuota del mes manda: el total del plan se paga en meses que no son este. Pagada,
-                el total del plan. */}
-            <span className="tabular shrink-0 text-body font-semibold">
-              {formatCLP(completed ? p.totalAmount : item ? item.amount : p.outstanding)}
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="truncate font-semibold">{p.description}</span>
+          {completed ? (
+            <span className="text-callout text-ink-2">
+              {p.installmentsCount} de {p.installmentsCount} cuotas
             </span>
-          </span>
-          {!completed && (
-            <span className="mt-0.5 flex items-center justify-between gap-3 text-footnote text-muted-foreground">
-              <span className="min-w-0 truncate">
-                cuota {p.settledCount} de {p.installmentsCount}
-                {p.nextDueDate && ` · vence ${shortDate(p.nextDueDate)}`}
-              </span>
-              {/* Atrasada manda sobre pagada: es lo que hay que resolver. */}
-              {overdue > 0 ? (
-                <span className="shrink-0 font-medium text-destructive">
-                  {overdue === 1 ? "Atrasada" : `${overdue} atrasadas`}
+          ) : (
+            <span className="flex items-center gap-2">
+              {/* El texto 4/12 ya lo dice para lectores de pantalla; la barra es apoyo visual. */}
+              {p.installmentsCount > 0 && (
+                <span className="block w-full max-w-28 flex-1">
+                  <ProgressBar
+                    value={p.settledCount}
+                    max={p.installmentsCount}
+                    decorative
+                    label={`Cuotas pagadas de ${p.description}`}
+                  />
                 </span>
-              ) : (
-                monthPaid && (
-                  <span className="flex shrink-0 items-center gap-0.5 text-primary">
-                    <Check className="size-3.5" />
-                    Pagado
-                  </span>
-                )
               )}
-            </span>
-          )}
-          {/* Avance del plan; el texto «cuota X de Y» ya lo dice para lectores de pantalla. */}
-          {!completed && p.installmentsCount > 0 && (
-            <span
-              aria-hidden
-              className="mt-2 block h-1.5 overflow-hidden rounded-full bg-muted"
-            >
-              <span
-                className="block h-full rounded-full bg-primary"
-                style={{
-                  width: `${Math.min(100, (p.settledCount / p.installmentsCount) * 100)}%`,
-                }}
-              />
+              <span className="shrink-0 text-callout text-ink-2">
+                <span className="sr-only">cuota </span>
+                {p.settledCount}/{p.installmentsCount}
+              </span>
             </span>
           )}
         </span>
-        {/* La fila abre el detalle: chevron de lista de iOS. */}
-        <ChevronRight aria-hidden className="disclosure" />
+        <span className="flex shrink-0 flex-col items-end text-right whitespace-nowrap">
+          {/* La cuota del mes manda: el total del plan se paga en meses que no son este. Pagada,
+              el total del plan. */}
+          <span className={cn("font-semibold", completed && "text-ink-3")}>
+            {formatCLP(completed ? p.totalAmount : item ? item.amount : p.outstanding)}
+          </span>
+          {/* Atrasada manda sobre pagada: es lo que hay que resolver. */}
+          {!completed &&
+            (overdue > 0 ? (
+              <span className="text-caption font-semibold text-destructive">
+                {overdue === 1 ? "Atrasada" : `${overdue} atrasadas`}
+              </span>
+            ) : monthPaid ? (
+              <span className="flex items-center gap-1 text-caption text-success">
+                <Check className="size-3.5" />
+                Pagada
+              </span>
+            ) : (
+              p.nextDueDate && (
+                <span className="text-caption text-ink-3">vence {shortDate(p.nextDueDate)}</span>
+              )
+            ))}
+        </span>
+        <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
       </button>
     </li>
   )
@@ -246,12 +243,13 @@ function PlanRow({
 // Empty state: qué resuelve y el CTA.
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="glass rounded-xl px-6 py-10 text-center">
-      <h3 className="text-headline">Reparte una deuda en los meses que dura</h3>
-      <p className="mx-auto mt-1 max-w-sm text-subheadline text-balance text-muted-foreground">
-        Una compra en cuotas convertida en plan hace que cada mes cargue solo su cuota, y te dice cuánto falta de verdad.
+    <div className="rounded-lg bg-secondary px-4 py-8 text-center">
+      <h3 className="font-semibold">Reparte una deuda en los meses que dura</h3>
+      <p className="mx-auto mt-1 max-w-sm text-callout text-balance text-ink-2">
+        Una compra en cuotas convertida en plan hace que cada mes cargue solo su cuota, y te dice
+        cuánto falta de verdad.
       </p>
-      <Button onClick={onCreate} className="mt-5 h-11 text-body">
+      <Button onClick={onCreate} className="mt-4">
         <Plus className="size-4" />
         Registrar un crédito
       </Button>

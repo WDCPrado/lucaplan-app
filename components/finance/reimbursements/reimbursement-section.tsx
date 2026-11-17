@@ -8,7 +8,7 @@ import { z } from "zod"
 import { ChevronRight, Plus } from "lucide-react"
 import { toast } from "sonner"
 
-import { ModalSection, ResponsiveModal } from "@/components/ui/responsive-modal"
+import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { SearchInput } from "@/components/ui/search-input"
 import { haptic } from "@/lib/haptics"
 import { formatCLP } from "@/lib/finance-format"
@@ -91,34 +91,28 @@ export function ReimbursementSection({
   if (!links.length && !canLink) return null
 
   return (
-    <div className="mb-6 px-5">
-      <ModalSection
-        title="Reembolso"
-        footer={
-          canLink && !links.length
-            ? "Si este abono te devuelve un gasto, vincúlalo: deja de contar como ingreso y el gasto baja."
-            : undefined
-        }
-      >
+    <section className="flex min-w-0 flex-col gap-2">
+      <h3 className="text-callout font-semibold text-ink-2">Reembolso</h3>
+      <div className="-mx-3 flex flex-col gap-1">
         {links.map((link) => (
-          <div key={link.id} className="flex min-h-11 items-center gap-1 pr-1">
+          <div key={link.id} className="flex min-h-12 items-center gap-1">
             <button
               type="button"
               onClick={() => onOpenRelated(link.transaction)}
-              className="press flex min-h-11 min-w-0 flex-1 items-center gap-3 py-2 pl-4 text-left"
+              className="press flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-secondary"
             >
               <span className="min-w-0 flex-1">
                 <span className="block text-body">
                   {isCredit ? "Devuelve " : "Te devolvieron "}
-                  <span className="tabular font-semibold">{formatCLP(link.amount)}</span>
+                  <span className="font-semibold whitespace-nowrap">{formatCLP(link.amount)}</span>
                   {isCredit ? " de " : " con "}
                   <span className="break-words">{link.transaction.description}</span>
                 </span>
-                <span className="block text-footnote text-muted-foreground">
+                <span className="block text-caption text-ink-3">
                   {shortDate(link.transaction.date)}
                 </span>
               </span>
-              <ChevronRight aria-hidden className="disclosure" />
+              <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
             </button>
             <button
               type="button"
@@ -126,7 +120,7 @@ export function ReimbursementSection({
               disabled={undoing !== null}
               aria-busy={undoing === link.id || undefined}
               aria-label={`Deshacer vínculo con ${link.transaction.description}`}
-              className="press flex min-h-11 shrink-0 items-center px-3 text-subheadline font-semibold text-primary disabled:opacity-50"
+              className="press flex min-h-11 shrink-0 items-center rounded-md px-3 text-callout font-semibold text-primary hover:bg-primary-soft disabled:opacity-45"
             >
               {undoing === link.id ? "Deshaciendo…" : "Deshacer"}
             </button>
@@ -136,15 +130,21 @@ export function ReimbursementSection({
           <button
             type="button"
             onClick={() => setPicking(true)}
-            className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left text-primary"
+            className="press flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-secondary"
           >
-            <Plus aria-hidden className="size-5 shrink-0" />
-            <span className="text-body">
+            <Plus aria-hidden className="size-5 shrink-0 text-ink-2" />
+            <span className="min-w-0 flex-1 text-body">
               {links.length ? "Vincular otro gasto" : "Es reembolso"}
             </span>
+            <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
           </button>
         )}
-      </ModalSection>
+      </div>
+      {canLink && !links.length && (
+        <p className="text-caption text-ink-3">
+          Si este abono te devuelve un gasto, vincúlalo: deja de contar como ingreso y el gasto baja.
+        </p>
+      )}
       {canLink && (
         <ReimbursementPicker
           key={`${tx.id}-${version}`}
@@ -158,7 +158,7 @@ export function ReimbursementSection({
           }}
         />
       )}
-    </div>
+    </section>
   )
 }
 
@@ -221,7 +221,7 @@ function ReimbursementPicker({
           : undefined
       }
     >
-      <div className="flex flex-col px-5 pb-4">
+      <div className="flex flex-col">
         {chosen && data ? (
           <AmountForm
             formId={formId}
@@ -237,7 +237,7 @@ function ReimbursementPicker({
         ) : (
           <>
             {loadError && (
-              <div role="alert" className="mb-3 flex flex-wrap items-center gap-x-3 text-subheadline text-destructive">
+              <div role="alert" className="mb-3 flex flex-wrap items-center gap-x-3 rounded-md bg-destructive-soft pl-3 text-callout text-destructive">
                 <span className="min-w-0 flex-1 py-2">{loadError}</span>
                 <button
                   type="button"
@@ -245,15 +245,15 @@ function ReimbursementPicker({
                     setLoadError(null)
                     setRetry((r) => r + 1)
                   }}
-                  className="press min-h-11 px-2 font-semibold text-primary"
+                  className="press min-h-11 rounded-md px-3 font-semibold"
                 >
                   Reintentar
                 </button>
               </div>
             )}
             {data && data.creditFree > 0 && (
-              <p className="pb-3 text-footnote text-muted-foreground">
-                Este abono tiene <span className="tabular">{formatCLP(data.creditFree)}</span> por
+              <p className="pb-3 text-callout text-ink-2">
+                Este abono tiene <span className="font-semibold whitespace-nowrap">{formatCLP(data.creditFree)}</span> por
                 vincular. Elige el gasto que te devuelve.
               </p>
             )}
@@ -267,35 +267,35 @@ function ReimbursementPicker({
             </div>
             {data === null ? (
               !loadError && (
-                <p className="py-8 text-center text-subheadline text-muted-foreground">
+                <p className="py-8 text-callout text-ink-2">
                   Buscando gastos…
                 </p>
               )
             ) : candidates.length === 0 ? (
-              <p className="py-8 text-center text-subheadline text-balance text-muted-foreground">
+              <p className="py-8 text-callout text-ink-2">
                 {q ? "Ningún gasto calza con la búsqueda." : "No hay gastos con saldo para devolver"}
               </p>
             ) : (
-              <ul className="flex flex-col">
+              <ul className="-mx-3 flex flex-col gap-1">
                 {candidates.map((c) => (
                   <li key={c.id}>
                     <button
                       type="button"
                       onClick={() => setChosen(c)}
                       disabled={data.creditFree <= 0}
-                      className="press flex min-h-11 w-full items-center gap-3 border-b border-border/40 py-2.5 text-left disabled:opacity-50"
+                      className="press flex min-h-14 w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-secondary disabled:opacity-45"
                     >
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-subheadline font-medium">{c.description}</span>
-                        <span className="block truncate text-footnote text-muted-foreground">
+                        <span className="block truncate font-semibold">{c.description}</span>
+                        <span className="block truncate text-callout text-ink-2">
                           {shortDate(c.date)}
                           {c.categoryName && ` · ${c.categoryName}`}
                         </span>
                       </span>
-                      <span className="flex shrink-0 flex-col items-end">
-                        <span className="tabular text-subheadline font-medium">{formatCLP(c.amount)}</span>
+                      <span className="flex shrink-0 flex-col items-end text-right whitespace-nowrap">
+                        <span className="font-semibold">{formatCLP(c.amount)}</span>
                         {c.free < c.amount && (
-                          <span className="tabular text-footnote text-muted-foreground">
+                          <span className="text-caption text-ink-3">
                             Por devolver {formatCLP(c.free)}
                           </span>
                         )}
@@ -363,16 +363,16 @@ function AmountForm({
   return (
     <form id={formId} onSubmit={form.handleSubmit(submit)} className="flex flex-col gap-6">
       {errors.root && (
-        <p role="alert" className="text-subheadline text-destructive">
+        <p role="alert" className="rounded-md bg-destructive-soft px-3 py-2 text-callout text-destructive">
           {errors.root.message}
         </p>
       )}
-      <div className="sheet-group px-4 py-3">
-        <p className="truncate text-body">{candidate.description}</p>
-        <p className="text-footnote text-muted-foreground">
+      <div className="rounded-lg bg-secondary px-4 py-3">
+        <p className="truncate font-semibold">{candidate.description}</p>
+        <p className="text-callout text-ink-2">
           {shortDate(candidate.date)}
           {candidate.categoryName && ` · ${candidate.categoryName}`} ·{" "}
-          <span className="tabular">{formatCLP(candidate.amount)}</span>
+          <span className="whitespace-nowrap">{formatCLP(candidate.amount)}</span>
         </p>
       </div>
       <fieldset disabled={form.formState.isSubmitting} className="contents">

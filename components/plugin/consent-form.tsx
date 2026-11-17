@@ -50,25 +50,30 @@ export function ConsentForm({
     <>
       <h2
         id="plugin-consent-title"
-        className="font-heading text-2xl font-semibold tracking-tight"
+        className="text-title font-semibold"
       >
         Conectar {clientName} con Luca Plan
       </h2>
-      <p className="mt-2 text-base text-muted-foreground">
+      <p className="mt-1 text-ink-2">
         {clientName} solicita acceso a tu cuenta.
       </p>
-      <p className="mt-6 text-sm text-muted-foreground">Cuenta de Luca Plan</p>
-      <p id="plugin-user-email" className="mt-1 font-medium break-all">
-        {email}
-      </p>
+      <div className="mt-6 flex flex-col gap-0.5 rounded-lg bg-secondary px-4 py-3">
+        <p className="text-caption text-ink-3">Cuenta de Luca Plan</p>
+        <p id="plugin-user-email" className="font-semibold break-all">
+          {email}
+        </p>
+      </div>
       <form
         id="plugin-consent-form"
-        className="mt-6 space-y-4"
+        className="mt-6 flex flex-col gap-4"
         aria-labelledby="plugin-consent-title"
         onSubmit={form.handleSubmit(submit)}
       >
-        <p className="font-medium">Permisos solicitados</p>
-        <ul id="plugin-permissions" className="space-y-4 text-sm leading-6">
+        <p className="font-semibold">Permisos solicitados</p>
+        <ul
+          id="plugin-permissions"
+          className="flex flex-col gap-3 rounded-xl bg-card p-(--pad-card) text-callout text-ink-2 [&_strong]:font-semibold [&_strong]:text-foreground"
+        >
           {scopes.includes("finance:read") && (
             <li>
               <strong>Consultar tus finanzas.</strong> Ver cuentas, saldos,
@@ -94,7 +99,7 @@ export function ConsentForm({
             </li>
           )}
         </ul>
-        <p className="text-sm leading-6 text-muted-foreground">
+        <p className="text-callout text-ink-2">
           El acceso corresponde solo a tu cuenta. No permite mover dinero en tu
           banco ni acceder a las claves bancarias.
         </p>
@@ -102,7 +107,7 @@ export function ConsentForm({
           <p
             id="plugin-consent-error"
             role="alert"
-            className="text-sm text-destructive"
+            className="rounded-md bg-destructive-soft px-3 py-2.5 text-callout text-destructive"
           >
             {form.formState.errors.root?.message ??
               "El enlace de conexión no es válido. Inicia la conexión de nuevo desde el asistente."}
@@ -111,7 +116,7 @@ export function ConsentForm({
         <div className="flex flex-col gap-2">
           <Button
             id="plugin-authorize"
-            className="h-11 w-full text-base"
+            className="w-full"
             type="submit"
             form="plugin-consent-form"
             disabled={pending}
@@ -121,8 +126,8 @@ export function ConsentForm({
           </Button>
           <Button
             id="plugin-cancel"
-            variant="outline"
-            className="h-11 w-full text-base"
+            variant="secondary"
+            className="w-full"
             type="submit"
             form="plugin-consent-form"
             disabled={pending}
@@ -132,9 +137,12 @@ export function ConsentForm({
           </Button>
         </div>
       </form>
-      <p className="mt-6 text-sm leading-6 text-muted-foreground">
+      <p className="mt-6 text-callout text-ink-3">
         Puedes revocar este acceso desde{" "}
-        <Link href="/plugin" className="underline underline-offset-4">
+        <Link
+          href="/plugin"
+          className="font-semibold text-primary underline-offset-4 hover:underline"
+        >
           Conexiones del plugin
         </Link>{" "}
         en Luca Plan.

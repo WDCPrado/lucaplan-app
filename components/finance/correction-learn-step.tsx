@@ -41,15 +41,13 @@ export function CorrectionLearnStep({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col items-center gap-1 pt-2 text-center">
-        <div className="text-title-3 font-semibold">Categoría guardada</div>
-        <div className="text-subheadline text-balance text-muted-foreground">
-          {description}
-        </div>
+      <div className="flex flex-col gap-1">
+        <p className="text-title font-semibold">Categoría guardada</p>
+        <p className="text-callout break-words text-ink-2">{description}</p>
       </div>
 
-      <div>
-        <Label htmlFor="correction-note" className="mb-2 block">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="correction-note">
           ¿Qué es este movimiento? (opcional)
         </Label>
         <Input
@@ -59,18 +57,18 @@ export function CorrectionLearnStep({
           maxLength={120}
           placeholder="Ej.: pedidos de comida a domicilio"
           inputMode="text"
-          className="h-12"
+          aria-describedby="correction-note-hint"
         />
-        <p className="mt-2 text-footnote text-muted-foreground">
+        <p id="correction-note-hint" className="text-caption text-ink-3">
           Tu explicación queda guardada y la IA la usa para clasificar los
           próximos movimientos parecidos.
         </p>
       </div>
 
       {learnedCategoryName && (
-        <p className="sheet-group px-4 py-3 text-footnote text-muted-foreground">
+        <p className="rounded-lg bg-secondary px-4 py-3 text-callout text-ink-2">
           Esta descripción venía clasificándose como{" "}
-          <span className="font-medium text-foreground">
+          <span className="font-semibold text-foreground">
             {learnedCategoryName}
           </span>
           . Si fue una excepción, elige «Solo este» y los próximos seguirán
@@ -84,7 +82,7 @@ export function CorrectionLearnStep({
             onClick={() => finish(true)}
             disabled={saving}
             aria-busy={(saving && chosen === true) || undefined}
-            className="h-auto min-h-12 py-3 whitespace-normal"
+            className="h-auto min-h-(--ctl) py-2.5 whitespace-normal"
           >
             {spinner(true)}
             {n > 0
@@ -97,7 +95,6 @@ export function CorrectionLearnStep({
           onClick={() => finish(false)}
           disabled={saving}
           aria-busy={(saving && chosen === false) || undefined}
-          className="h-12"
         >
           {spinner(false)}
           {n > 0 || learnedCategoryName ? "Solo este" : "Listo"}

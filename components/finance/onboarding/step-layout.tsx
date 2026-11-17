@@ -27,17 +27,17 @@ export function Progress({
       aria-valuenow={index + 1}
       aria-valuetext={`Paso ${index + 1} de ${total}`}
       aria-label={label}
-      className="flex flex-1 gap-1.5"
+      className="flex flex-1 gap-1"
     >
       {Array.from({ length: total }, (_, i) => (
         <span
           key={i}
           aria-hidden
-          className="h-1 flex-1 overflow-hidden rounded-full bg-border"
+          className="h-1 flex-1 overflow-hidden rounded-full bg-track"
         >
           <span
             className={cn(
-              "block h-full origin-left rounded-full bg-primary transition-transform duration-500 ease-out motion-reduce:transition-none",
+              "block h-full origin-left rounded-full bg-primary transition-transform duration-240 ease-(--ease-out) motion-reduce:transition-none",
               i <= index ? "scale-x-100" : "scale-x-0"
             )}
           />
@@ -46,7 +46,11 @@ export function Progress({
     </div>
   )
 }
-// Escritorio: la explicación a un lado y la acción al otro. Móvil: una columna.
+// Ancho de los flujos por pasos (onboarding e instalación): una columna centrada, margen 16.
+export const FLOW_COLUMN = "mx-auto w-full max-w-md px-4"
+
+// Un paso: qué es (etiqueta), el título, una línea que lo explica y luego la decisión. Una columna
+// en todos los anchos: una decisión por pantalla.
 export function Split({
   eyebrow,
   title,
@@ -61,37 +65,53 @@ export function Split({
   children: ReactNode
 }) {
   return (
-    <div className="grid flex-1 content-start gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-16">
-      <div className="lg:sticky lg:top-10 lg:self-start">
-        <p className="text-footnote font-semibold tracking-wide text-primary uppercase">
-          {eyebrow}
-        </p>
+    <div className="flex flex-1 flex-col gap-6">
+      <div>
+        <p className="text-callout font-semibold text-ink-3">{eyebrow}</p>
         <h1
           id={TITLE_ID}
           ref={focusOnMount}
           tabIndex={-1}
-          className="mt-2 text-title-1 font-bold text-balance outline-none lg:text-large-title"
+          className="mt-1 text-screen-title font-semibold text-balance outline-none"
         >
           {title}
         </h1>
-        <p className="mt-3 text-body text-pretty text-muted-foreground">
-          {body}
-        </p>
+        <p className="mt-2 text-callout text-pretty text-ink-2">{body}</p>
         {points && (
-          <ul className="mt-6 flex flex-col gap-3">
+          <ul className="mt-4 flex flex-col gap-3 rounded-xl bg-card p-(--pad-card)">
             {points.map(({ icon: Icon, text }) => (
               <li key={text} className="flex items-start gap-3">
-                <Icon
-                  aria-hidden
-                  className="mt-0.5 size-5 shrink-0 text-primary"
-                />
-                <span className="text-subheadline text-pretty">{text}</span>
+                <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-ink-3" />
+                <span className="text-callout text-pretty">{text}</span>
               </li>
             ))}
           </ul>
         )}
       </div>
-      <div className="min-w-0">{children}</div>
+      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+    </div>
+  )
+}
+
+// La acción principal del paso. En móvil queda fija abajo (sticky: está en el flujo, así que al final
+// del scroll no tapa nada) sobre una franja de papel; desde md vuelve a su lugar.
+export function StepActions({
+  className,
+  children,
+}: {
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <div
+      className={cn(
+        // El desvanecido de arriba es el mismo recurso que el de la barra superior móvil (un degradé
+        // desde el papel), sin sombra a mano.
+        "sticky bottom-0 z-10 -mx-4 mt-auto flex flex-col gap-2 bg-background px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-3 before:bg-linear-to-t before:from-background before:to-transparent md:static md:mx-0 md:px-0 md:pt-2 md:pb-0 md:before:hidden",
+        className
+      )}
+    >
+      {children}
     </div>
   )
 }

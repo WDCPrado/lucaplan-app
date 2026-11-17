@@ -7,24 +7,21 @@ import { toast } from "sonner"
 import { ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { ResponsivePopover } from "@/components/ui/responsive-modal"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { formatCLP, monthName, usagePct } from "@/lib/finance-format"
 import { closedPeriodLine, isFuturePeriod } from "@/lib/period-status"
 import { estimateClosing, type PeriodMode } from "@/arch/shared/billing-cycle"
 import { PlanSummary, type PlanInput } from "./financial-health-meter"
+import { InlineNotice } from "./blocks"
 import { Segmented } from "./segmented"
 import type { CycleProps } from "./dashboard"
 
 /**
- * Estado del período en el Inicio. En el mes en curso, lo primero y más grande es cuánto queda del
- * plan; los días para cerrar van en la línea de abajo. Al pie, «Ajustar plan», que abre donde se
- * decide todo esto (también el modo del período y el cierre de la tarjeta).
+ * Estado del período en el Inicio (la tarjeta principal). En el mes en curso, lo primero y más grande
+ * es cuánto queda del plan; los días para cerrar van en la línea de abajo y, al pie, la barra del
+ * tope, las tres cifras y lo disponible en cuentas. «Ajustar plan» vive en la tarjeta del ritmo.
  * Fuera del mes en curso, una línea: un futuro todavía no empieza; uno pasado cerró sin gastar o
  * pasado por cuánto (`closedPeriodLine`).
  */
@@ -38,7 +35,7 @@ export function MonthStatus({
   plan,
   onOpenPlan,
   onOpenLiquidity,
-  children,
+  className,
 }: {
   period: { year: number; month: number }
   cycle: CycleProps
@@ -49,42 +46,29 @@ export function MonthStatus({
   plan: PlanInput // disponible para gastar (servidor), los componentes del margen y liquidez
   onOpenPlan: () => void
   onOpenLiquidity?: () => void
-  children?: React.ReactNode // el gráfico de gasto contra el ritmo; sin nada que repartir no se muestra
+  className?: string
 }) {
   const mes = monthName(period.month).toLowerCase()
-
-  // Última fila de la tarjeta: abre el plan, donde se decide todo (también el período y el cierre).
-  const footer = (
-    <button
-      type="button"
-      onClick={onOpenPlan}
-      className="press -mx-5 -mb-5 mt-4 flex min-h-12 w-[calc(100%+2.5rem)] items-center justify-between gap-2 rounded-b-xl px-5 text-left text-body text-primary hover:bg-foreground/5 focus-visible:-outline-offset-2 lg:-mx-6 lg:-mb-6 lg:w-[calc(100%+3rem)] lg:px-6"
-    >
-      Ajustar plan
-      <ChevronRight className="disclosure" />
-    </button>
+  const card = cn(
+    "flex min-w-0 flex-col gap-4 rounded-xl bg-card p-(--pad-card) text-card-foreground",
+    className
   )
 
   if (globalLimit === null) {
     return (
-      <section className="glass rounded-xl p-5 lg:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="min-w-0">
-            <h2 className="text-title-3 font-bold">
-              Define tu tope de gasto de {mes}
-            </h2>
-            <p className="mt-1 text-subheadline text-pretty text-muted-foreground">
-              Configura el plan de este período para organizar tus ingresos y gastos.
-            </p>
-          </div>
-          <Button onClick={onOpenPlan} className="h-11 shrink-0">
+      <section aria-label="Plan del mes" className={card}>
+        <div className="flex flex-col items-start gap-1">
+          <h2 className="text-title font-semibold text-pretty">
+            Define tu tope de gasto de {mes}
+          </h2>
+          <p className="text-callout text-pretty text-ink-2">
+            Configura el plan de este período para organizar tus ingresos y gastos.
+          </p>
+          <Button onClick={onOpenPlan} className="mt-3">
             Definir tope de gasto
           </Button>
         </div>
-        <div className="mt-4">
-          <PlanSummary {...plan} closed={!isCurrentMonth && !isFuturePeriod(period, cycle.current)} />
-        </div>
-        {children && <div className="mt-4 flex flex-col">{children}</div>}
+        <PlanSummary {...plan} closed={!isCurrentMonth && !isFuturePeriod(period, cycle.current)} />
       </section>
     )
   }
@@ -100,71 +84,67 @@ export function MonthStatus({
             cycle.mode === "calendar" ? ` · ${shortDate(cycle.range.end)}` : ""
           }`
     return (
-      <section className="glass flex flex-1 flex-col rounded-xl p-5 lg:p-6">
-        <PlanSummary {...plan} subtitle={daysLine} onOpenLiquidity={onOpenLiquidity} />
-        {children && <div className="mt-4 flex flex-1 flex-col">{children}</div>}
-        {footer}
+      <section aria-label="Plan del mes" className={card}>
+        <PlanSummary
+          {...plan}
+          limit={globalLimit}
+          subtitle={daysLine}
+          onOpenLiquidity={onOpenLiquidity}
+        />
       </section>
     )
   }
 
   const usedPct = usagePct(spent, globalLimit)
+  const future = isFuturePeriod(period, cycle.current)
   return (
-    <section className="glass flex flex-1 flex-col rounded-xl p-5 lg:p-6">
-      <p className="text-title-1 font-bold tracking-tight text-pretty">
-        {closedPeriodLine({ period, current: cycle.current, globalLimit, spent })}
-      </p>
-      {/* Un período que no empieza no tiene gasto que contar. */}
-      {!isFuturePeriod(period, cycle.current) && (
-      <p className="mt-2 text-subheadline text-muted-foreground">
-        Gastaste <span className="tabular">{formatCLP(spent)}</span> de{" "}
-        <span className="tabular">{formatCLP(globalLimit)}</span>
-        {usedPct !== null && (
-          <>
-            {" "}
-            · <span className="tabular">{Math.round(usedPct)}%</span>
-          </>
+    <section aria-label="Plan del mes" className={card}>
+      <div className="flex flex-col gap-1">
+        <p className="text-title font-semibold text-pretty">
+          {closedPeriodLine({ period, current: cycle.current, globalLimit, spent })}
+        </p>
+        {/* Un período que no empieza no tiene gasto que contar. */}
+        {!future && (
+          <p className="text-callout text-ink-2">
+            Gastaste <span className="whitespace-nowrap">{formatCLP(spent)}</span> de{" "}
+            <span className="whitespace-nowrap">{formatCLP(globalLimit)}</span>
+            {usedPct !== null && <> · {Math.round(usedPct)}%</>}
+          </p>
         )}
-      </p>
-      )}
-      <div className="mt-4 border-t border-border pt-4">
-        <PlanSummary {...plan} closed={!isFuturePeriod(period, cycle.current)} onOpenLiquidity={onOpenLiquidity} />
       </div>
-      {children && <div className="mt-4 flex flex-1 flex-col">{children}</div>}
-      {footer}
+      <PlanSummary
+        {...plan}
+        closed={!future}
+        limit={globalLimit}
+        onOpenLiquidity={onOpenLiquidity}
+      />
     </section>
   )
 }
 
 /**
- * Nudge de asignación, debajo de la tarjeta del día: solo aparece cuando hay algo que hacer (falta
+ * Aviso de asignación, al pie de la tarjeta del ritmo: solo aparece cuando hay algo que hacer (falta
  * repartir o te pasaste asignando). Abre el plan, que es donde se reparte. En $0 no molesta.
  */
 export function AllocationNudge({
   remainingToAllocate,
   onOpenPlan,
+  className,
 }: {
   remainingToAllocate: number | null // null = sin presupuesto
   onOpenPlan: () => void
+  className?: string
 }) {
   if (remainingToAllocate === null || remainingToAllocate === 0) return null
+  const over = remainingToAllocate < 0
   return (
-    <button
+    <InlineNotice
+      tone={over ? "alert" : "warn"}
+      label={over ? "Sobre-asignado en categorías" : "Te falta repartir en categorías"}
+      value={formatCLP(Math.abs(remainingToAllocate))}
       onClick={onOpenPlan}
-      className={cn(
-        "press flex min-h-11 w-full items-center justify-between gap-2 rounded-xl px-4 py-3 text-left text-subheadline",
-        remainingToAllocate < 0
-          ? "bg-destructive/10 text-destructive hover:bg-destructive/15"
-          : "bg-card hover:bg-accent"
-      )}
-    >
-      <span className="min-w-0">
-        {remainingToAllocate < 0
-          ? `Sobre-asignado ${formatCLP(Math.abs(remainingToAllocate))} en categorías`
-          : `Te falta repartir ${formatCLP(remainingToAllocate)} en categorías`}
-      </span>
-      <ChevronRight className="disclosure" />
-    </button>
+      className={className}
+    />
   )
 }
 
@@ -222,7 +202,7 @@ export function PeriodModeControl({ mode: savedMode }: { mode: PeriodMode }) {
           { value: "card_cycle", label: "Ciclo de tarjeta" },
         ]}
       />
-      <p className="px-4 text-footnote text-muted-foreground">
+      <p className="px-4 text-caption text-ink-3">
         Cada modo conserva su tope de gasto, topes por categoría e ingresos planificados. Ambos incluyen cuenta corriente y tarjeta.
       </p>
     </div>
@@ -269,29 +249,34 @@ export function ClosingPicker({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="sheet-group inset-list px-4">
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              disabled={disabled}
-              aria-label={`Cierre de la tarjeta en ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}${disabled ? ". Solo se usa en modo ciclo de tarjeta" : ". Cambiar"}`}
-              className="press flex min-h-11 w-full items-center gap-2 py-2.5 text-left disabled:opacity-50"
-            >
-              <span className="min-w-0 flex-1 text-body">Cierre de la tarjeta</span>
-              <span className="text-body text-muted-foreground tabular-nums">
-                {shortDate(closing.date)}
-              </span>
-              {closing.estimated && (
-                <span className="text-footnote text-muted-foreground">
-                  Estimado
+      <div className="tone-rows [&>*]:px-4">
+        <ResponsivePopover
+          open={open}
+          onOpenChange={setOpen}
+          title={`Cierre de ${mes}`}
+          align="end"
+          className="w-auto gap-2 p-3"
+          trigger={
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={`Cierre de la tarjeta en ${mes}: ${shortDate(closing.date)}${closing.estimated ? ", estimado" : ""}${disabled ? ". Solo se usa en modo ciclo de tarjeta" : ". Cambiar"}`}
+                className="press flex min-h-11 w-full items-center gap-2 py-2.5 text-left disabled:opacity-45"
+              >
+                <span className="min-w-0 flex-1 text-body">Cierre de la tarjeta</span>
+                <span className="text-body whitespace-nowrap text-ink-2">
+                  {shortDate(closing.date)}
                 </span>
-              )}
-              <ChevronRight className="disclosure" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-auto gap-2 p-3">
-            <p className="px-1 text-footnote text-muted-foreground">Cierre de {mes}</p>
+                {closing.estimated && (
+                  <span className="text-caption text-ink-3">
+                    Estimado
+                  </span>
+                )}
+                <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
+              </button>
+          }
+        >
+          <p className="px-1 text-caption text-ink-3 max-md:hidden">Cierre de {mes}</p>
             <Calendar
               mode="single"
               locale={es}
@@ -311,20 +296,19 @@ export function ClosingPicker({
               classNames={{ nav: "hidden", month_caption: "sr-only" }}
               className="p-0"
             />
-          </PopoverContent>
-        </Popover>
+        </ResponsivePopover>
         {!closing.estimated && (
           <button
             type="button"
             disabled={saving || disabled}
             onClick={() => void save(null)}
-            className="press flex min-h-11 w-full items-center py-2.5 text-left text-body text-primary disabled:opacity-50"
+            className="press flex min-h-11 w-full items-center py-2.5 text-left text-callout font-semibold text-primary disabled:opacity-45"
           >
             Usar estimado ({shortDate(estimate)})
           </button>
         )}
       </div>
-      <p className="px-4 text-footnote text-muted-foreground">
+      <p className="px-4 text-caption text-ink-3">
         El ciclo va del día después del cierre anterior hasta este día.
       </p>
     </div>

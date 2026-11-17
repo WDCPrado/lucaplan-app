@@ -19,6 +19,7 @@ import {
   createLoginCodePlugin,
   PASSWORD_DISABLED_PATHS,
 } from "./login-code.ts"
+import { createPasskeyPlugin, PASSKEY_DISABLED_PATHS } from "./passkey.ts"
 import { createResendLoginCodeMailer } from "../email/resend/login-code.mailer.ts"
 import { integrationDeps } from "../database/prisma/integration-deps.ts"
 import { resolveIntegration } from "../../application/integration-use-cases/resolve-integration-use-case.ts"
@@ -40,6 +41,7 @@ export const auth = betterAuth({
   baseURL: canonical?.issuer,
   disabledPaths: [
     ...PASSWORD_DISABLED_PATHS,
+    ...PASSKEY_DISABLED_PATHS,
     "/token",
     "/oauth2/update-consent",
     "/oauth2/delete-consent",
@@ -136,6 +138,12 @@ export const auth = betterAuth({
       }
     ),
     admin({ defaultRole: "USER", adminRoles: ["ADMIN"] }),
+    // En un PR de Railway, el dominio público del PR (`request.url` es la dirección interna).
+    createPasskeyPlugin(
+      prDemoAccount() && process.env.RAILWAY_PUBLIC_DOMAIN
+        ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+        : canonical?.origin
+    ),
     jwt({ jwt: { issuer: canonical?.issuer } }),
     oauthProvider({
       schema: {

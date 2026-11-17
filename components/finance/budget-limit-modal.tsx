@@ -97,11 +97,11 @@ export function BudgetLimitModal({
       <form
         id={formId}
         onSubmit={form.handleSubmit(save)}
-        className="flex flex-col gap-7 px-5"
+        className="flex flex-col gap-6"
       >
         <fieldset disabled={isSubmitting} className="contents">
           {errors.root && (
-            <p role="alert" className="text-subheadline text-destructive">
+            <p role="alert" className="text-callout text-destructive">
               {errors.root.message}
             </p>
           )}

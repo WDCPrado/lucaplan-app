@@ -1,12 +1,15 @@
 "use client"
 
+import { cn } from "@/lib/utils"
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { FileCheck } from "lucide-react"
 import {
   ModalDangerRow,
+  ModalDataRow,
   ModalSection,
+  modalActionRow,
   ResponsiveModal,
 } from "@/components/ui/responsive-modal"
 import {
@@ -102,33 +105,33 @@ export function AccountInfoModal({
       title="Detalle de la cuenta"
     >
       {account && (
-        <div className="flex flex-col gap-8 px-5 pb-6">
+        <div className="flex flex-col gap-6">
           <AccountCard account={account} />
 
-          <dl className="sheet-group flex flex-col px-4">
-            <Row label="Banco" value={account.bankName} />
-            <Row label="Nombre" value={account.name} />
-            <Row
+          <dl className="sheet-group px-4 py-1">
+            <ModalDataRow label="Banco" value={account.bankName} />
+            <ModalDataRow label="Nombre" value={account.name} />
+            <ModalDataRow
               label="Tipo"
               value={TYPE_LABEL[account.accountType] ?? account.accountType}
             />
-            <Row label="Moneda" value={account.currency} />
+            <ModalDataRow label="Moneda" value={account.currency} />
             {isCreditCupo && nat ? (
               <>
                 {/* Crédito: cupo disponible de total (el usado ya se ve en la tarjeta de arriba). */}
-                <Row
+                <ModalDataRow
                   label="Cupo nacional"
                   value={`${formatCLP(nat.available)} de ${formatCLP(nat.limit)}`}
                 />
                 {intl && (
-                  <Row
+                  <ModalDataRow
                     label="Cupo internacional"
                     value={`${formatMoney(intl.available, "USD")} de ${formatMoney(intl.limit, "USD")}`}
                   />
                 )}
               </>
             ) : !cash ? (
-              <Row
+              <ModalDataRow
                 label={account.balance < 0 ? "Deuda" : "Saldo disponible"}
                 value={formatMoney(
                   Math.abs(account.balance),
@@ -137,7 +140,7 @@ export function AccountInfoModal({
               />
             ) : null}
             {cash && (
-              <Row
+              <ModalDataRow
                 label="Caja disponible"
                 value={formatMoney(
                   cash.available,
@@ -146,7 +149,7 @@ export function AccountInfoModal({
               />
             )}
             {overdraft && overdraft.used > 0 && (
-              <Row
+              <ModalDataRow
                 label="Deuda de sobregiro"
                 value={formatMoney(
                   overdraft.used,
@@ -155,20 +158,20 @@ export function AccountInfoModal({
               />
             )}
             {account.cardLast4 && (
-              <Row label="Tarjeta" value={`•••• ${account.cardLast4}`} />
+              <ModalDataRow label="Tarjeta" value={`•••• ${account.cardLast4}`} />
             )}
-            <Row
+            <ModalDataRow
               label="Origen"
               value={connected ? "Conectado al banco" : "Manual"}
             />
             {account.connectionMethod === "email" && (
-              <Row
+              <ModalDataRow
                 label="Cobertura"
                 value={`Saldo estimado desde ${account.buckets?.find((bucket) => bucket.asOf)?.asOf ? new Date(account.buckets.find((bucket) => bucket.asOf)!.asOf!).toLocaleString("es-CL") : "sin fecha"}`}
               />
             )}
             {canReconcile && (
-              <Row
+              <ModalDataRow
                 label="Conciliada hasta"
                 value={
                   account.reconciledUntil
@@ -184,7 +187,7 @@ export function AccountInfoModal({
               <button
                 type="button"
                 onClick={() => setReconciling(true)}
-                className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary focus-visible:outline-2 focus-visible:outline-ring"
+                className={cn(modalActionRow, "font-semibold text-primary")}
               >
                 <FileCheck aria-hidden className="size-5 shrink-0" />
                 Conciliar cartola
@@ -225,7 +228,7 @@ export function AccountInfoModal({
               {disconnectError && (
                 <p
                   role="alert"
-                  className="text-center text-subheadline text-destructive"
+                  className="text-center text-callout text-destructive"
                 >
                   {disconnectError}
                 </p>
@@ -245,13 +248,3 @@ export function AccountInfoModal({
   )
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-5 border-b border-border py-4 last:border-0">
-      <dt className="text-subheadline text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-right text-body font-medium break-words">
-        {value}
-      </dd>
-    </div>
-  )
-}

@@ -9,15 +9,13 @@ import { MonthPicker, periodLabel } from "./month-picker"
 type Period = { year: number; month: number }
 
 /**
- * Selector de mes/ciclo de la barra superior, el mismo en Inicio y Movimientos. En móvil es una
- * cápsula de vidrio que ocupa todo el ancho libre; en escritorio vive dentro de la topbar (que ya es
- * vidrio), así que ahí lleva el relleno de control, sin vidrio sobre vidrio.
+ * Selector de mes/ciclo de la barra superior, el mismo en Inicio y Movimientos: una sola superficie
+ * (borde, radio 8, alto --ctl) con flechas a los lados y el mes al centro, que abre el MonthPicker.
+ * En móvil ocupa todo el ancho libre; en escritorio mide lo suyo.
  *
  * El cambio es optimista: la etiqueta se mueve al toque y entra deslizándose desde el lado de la
  * navegación; la página llega después. Fuera del mes en curso aparece «Hoy» en la misma fila y la
  * cápsula le hace sitio.
- *
- * Las flechas hacen squish sobre la cápsula (`liquid-squish`), sólo con CSS.
  *
  * `disabled`: la misma cápsula, del mismo ancho, con el período en curso atenuado y sin acción. La
  * pone el marco en las vistas sin selector de mes, así la fila superior es igual en todas.
@@ -57,8 +55,8 @@ export function MonthNav({
   // Deshabilitado, flechas y etiqueta van a media tinta (`idle-ink`, globals.css): se leen pero no
   // invitan a tocar.
   const arrow = cn(
-    "grid size-11 shrink-0 place-items-center rounded-full md:size-10 md:rounded-(--radius-bar-inner)",
-    disabled ? "idle-ink" : "press hover:bg-foreground/5"
+    "grid w-(--ctl) shrink-0 place-items-center text-ink-2",
+    disabled ? "idle-ink" : "press hover:bg-secondary hover:text-foreground"
   )
 
   return (
@@ -69,21 +67,20 @@ export function MonthNav({
       className="flex w-full min-w-0 items-center md:w-auto"
     >
       <div
-        className="liquid-squish flex min-h-11 min-w-0 flex-1 items-center rounded-full max-md:liquid-glass md:min-h-10 md:rounded-(--radius-bar-inner) md:bg-(--glass-control)"
+        className="flex h-(--ctl) min-w-0 flex-1 items-stretch overflow-hidden rounded-md border border-border bg-card md:flex-none"
       >
         <button
           type="button"
           onClick={() => step(-1)}
           disabled={disabled}
           className={arrow}
-          data-squish
           aria-label="Mes anterior"
         >
-          <ChevronLeft className="size-5 md:size-4" />
+          <ChevronLeft className="size-4" />
         </button>
-        <div aria-live="polite" className="flex min-w-0 flex-1 justify-center overflow-hidden">
+        <div aria-live="polite" className="flex min-w-0 flex-1 items-center justify-center overflow-hidden border-x border-border md:min-w-42">
           {disabled ? (
-            <span className="idle-ink flex min-h-11 max-w-full items-center truncate px-3 text-headline font-semibold md:min-h-8 md:text-subheadline">
+            <span className="idle-ink flex max-w-full items-center truncate px-3 text-body font-semibold">
               {periodLabel(period, cycleRange)}
             </span>
           ) : (
@@ -105,7 +102,7 @@ export function MonthNav({
                   : undefined
               }
               onSelect={go}
-              className="md:rounded-(--radius-bar-inner)"
+              className="min-h-0 self-stretch rounded-none"
             />
           </span>
           )}
@@ -115,21 +112,21 @@ export function MonthNav({
           onClick={() => step(1)}
           disabled={disabled}
           className={arrow}
-          data-squish
           aria-label="Mes siguiente"
         >
-          <ChevronRight className="size-5 md:size-4" />
+          <ChevronRight className="size-4" />
         </button>
       </div>
       {/* «Hoy» entra en la fila: su columna crece de 0 y la cápsula se encoge al mismo ritmo. */}
       <div
         inert={isCurrent}
         className={cn(
-          "grid transition-[grid-template-columns,opacity] duration-[260ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+          // En móvil «Hoy» vive en la hoja «Elegir mes»: la barra queda avatar · mes · búsqueda, como en G.
+          "grid transition-[grid-template-columns,opacity] duration-260 ease-(--ease-out) max-md:hidden motion-reduce:transition-none",
           isCurrent ? "grid-cols-[0fr] opacity-0" : "grid-cols-[1fr] opacity-100"
         )}
       >
-        {/* Recorta solo mientras está escondido: abierto, la sombra del vidrio no se corta. */}
+        {/* Recorta solo mientras está escondido. */}
         <div className={cn("min-w-0", isCurrent && "overflow-hidden")}>
           <button
             type="button"
@@ -137,7 +134,7 @@ export function MonthNav({
               haptic("light")
               go(current.year, current.month)
             }}
-            className="press ml-2 min-h-11 rounded-full px-4 text-subheadline font-semibold whitespace-nowrap max-md:liquid-glass md:min-h-10 md:rounded-(--radius-bar-inner) md:bg-(--glass-control) md:hover:bg-accent"
+            className="press ml-2 h-(--ctl) rounded-md border border-border bg-card px-4 text-callout font-semibold whitespace-nowrap hover:border-rule-strong"
           >
             Hoy
           </button>

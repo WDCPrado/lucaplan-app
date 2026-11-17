@@ -1,5 +1,7 @@
 import Image from "next/image"
-import { Bell, Bot, Lock, Mail, ShieldCheck } from "lucide-react"
+import { Lock, Mail, ShieldCheck } from "lucide-react"
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { GmailIcon, OutlookIcon } from "@/app/login/mail-app-icons"
 import { newMovementsMessage } from "@/arch/v1/application/notification-use-cases/notification-rules"
 import { BANK_EMAIL_REGISTRY } from "@/arch/v1/application/finance-use-cases/bank-email-registry"
@@ -58,48 +60,48 @@ export function ConnectSection() {
   return (
     <section
       id="conecta"
-      className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 lg:px-8 lg:py-28"
+      className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 lg:px-8 lg:py-28"
     >
       <div data-reveal className="max-w-2xl">
-        <h2 className="landing-title text-balance">
+        <h2 className="landing-title font-semibold text-balance">
           Tu banco ya te avisa. Luca Plan escucha.
         </h2>
-        <p className="mt-5 text-title-3 font-normal text-pretty text-muted-foreground">
+        <p className="mt-5 text-title font-normal text-pretty text-ink-2">
           Cada compra genera un correo del banco. Luca Plan lee solo esos
           avisos y los convierte en movimientos, sin agregadores de por medio.
         </p>
       </div>
 
-      <div className="mt-12 grid gap-4 lg:grid-cols-3">
-        <div data-reveal className="flex flex-col gap-6 rounded-xl bg-card p-5 lg:col-span-2 lg:p-6">
+      <div className="mt-10 grid gap-3 md:gap-4 lg:grid-cols-3">
+        <div data-reveal className="flex flex-col gap-6 rounded-xl bg-card p-(--pad-card) lg:col-span-2">
           <div>
-            <h3 className="text-footnote tracking-wide text-muted-foreground uppercase">
+            <h3 className="text-title font-semibold text-ink-2">
               Conectados hoy
             </h3>
             <ul className="mt-3 grid gap-2 sm:grid-cols-3">
               {connectedBanks.map((b) => (
-                <li key={b.name} className="rounded-lg bg-secondary px-4 py-3">
-                  <p className="text-headline font-semibold">{b.name}</p>
-                  <p className="text-footnote text-muted-foreground">{b.note}</p>
+                <li key={b.name} className="rounded-lg bg-secondary px-3 py-2.5">
+                  <p className="font-semibold">{b.name}</p>
+                  <p className="text-callout text-ink-2">{b.note}</p>
                 </li>
               ))}
             </ul>
-            <h3 className="mt-6 text-footnote tracking-wide text-muted-foreground uppercase">
+            <h3 className="mt-6 text-callout font-semibold text-ink-2">
               Próximamente
             </h3>
             <ul className="mt-3 flex flex-wrap gap-2">
               {COMING_SOON_BANKS.map((name) => (
                 <li
                   key={name}
-                  className="rounded-lg border border-dashed border-border px-3 py-1.5 text-subheadline text-muted-foreground"
+                  className="rounded-md bg-background px-3 py-1.5 text-callout text-ink-2"
                 >
                   {name}
                 </li>
               ))}
             </ul>
-            <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-subheadline text-muted-foreground">
+            <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-callout text-ink-2">
               Vía
-              <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+              <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
                 <OutlookIcon aria-hidden /> Outlook
               </span>
               hoy. Un mismo correo puede alimentar varios bancos.
@@ -108,19 +110,19 @@ export function ConnectSection() {
               </span>
             </p>
           </div>
-          <ul className="inset-list overflow-hidden rounded-xl bg-secondary [--inset:3.25rem]">
+          <ul className="flex flex-col gap-2">
             {privacy.map(([Icon, text]) => (
-              <li key={text} className="flex min-h-11 items-start gap-3 px-4 py-3">
-                <Icon aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" />
-                <span className="text-subheadline text-pretty">{text}</span>
+              <li key={text} className="flex min-h-11 items-start gap-3 rounded-lg bg-secondary px-3 py-3">
+                <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-ink-2" />
+                <span className="text-callout text-pretty">{text}</span>
               </li>
             ))}
           </ul>
         </div>
 
-        <div data-reveal style={delay(120)} className="flex flex-col gap-4 rounded-xl bg-card p-5 lg:p-6">
+        <div data-reveal style={delay(120)} className="flex flex-col gap-4 rounded-xl bg-card p-(--pad-card)">
           {/* El aviso tal como llega: banner de sistema con el ícono de la app. */}
-          <div aria-hidden className="material flex items-start gap-3 rounded-(--radius-sheet) p-3">
+          <div aria-hidden className="flex items-start gap-3 rounded-xl bg-popover p-3 shadow-float">
             <Image
               src="/icons/icon-192.png"
               alt=""
@@ -128,30 +130,28 @@ export function ConnectSection() {
               height={36}
               className="size-9 shrink-0 rounded-lg"
             />
-            <div className="min-w-0 text-footnote">
+            <div className="min-w-0 text-callout">
               <p className="font-semibold">{push?.title}</p>
-              <p className="truncate text-muted-foreground">{push?.body}</p>
+              <p className="truncate text-ink-2">{push?.body}</p>
             </div>
           </div>
           <div>
-            <h3 className="flex items-center gap-2 text-headline font-semibold">
-              <Bell aria-hidden className="size-4 text-primary" />
+            <h3 className="text-title font-semibold">
               Avisos donde estés
             </h3>
-            <p className="mt-1 text-subheadline text-pretty text-muted-foreground">
+            <p className="mt-1 text-callout text-pretty text-ink-2">
               Movimientos nuevos, umbrales de presupuesto que tú defines y pagos
               por vencer. En Android, Windows e iOS 16.4+ con la app en inicio.
             </p>
           </div>
         </div>
 
-        <div data-reveal style={delay(200)} className="grid gap-6 rounded-xl bg-card p-5 lg:col-span-3 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:gap-10 lg:p-6">
+        <div data-reveal style={delay(200)} className="grid gap-5 rounded-xl bg-card p-(--pad-card) lg:col-span-3 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:gap-10">
           <div>
-            <h3 className="flex items-center gap-2 text-headline font-semibold">
-              <Bot aria-hidden className="size-4 text-primary" />
+            <h3 className="text-title font-semibold">
               Conecta tu asistente
             </h3>
-            <p className="mt-1 text-subheadline text-pretty text-muted-foreground">
+            <p className="mt-1 text-callout text-pretty text-ink-2">
               El plugin MCP consulta y administra tu plan desde un asistente
               compatible. Inicias sesión en Luca Plan y apruebas los permisos;
               lo revocas cuando quieras.
@@ -160,22 +160,22 @@ export function ConnectSection() {
               href={PLUGIN_DOCS_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-3 inline-flex min-h-11 items-center text-subheadline text-primary underline-offset-2 hover:underline"
+              className={cn(buttonVariants({ variant: "link" }), "mt-2 -ml-3 px-3 text-callout")}
             >
               Guía del plugin
             </a>
           </div>
-          <ul className="inset-list overflow-hidden rounded-xl bg-secondary">
+          <ul className="flex min-w-0 flex-col gap-2">
             {MCP_PATHS.map((p) => (
-              <li key={p.name} className="flex flex-col gap-2 px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
+              <li key={p.name} className="flex min-w-0 flex-col gap-2 rounded-lg bg-secondary p-3">
+                <div className="-mr-1 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-body font-semibold">{p.name}</p>
-                    <p className="text-footnote text-pretty text-muted-foreground">{p.step}</p>
+                    <p className="font-semibold">{p.name}</p>
+                    <p className="text-callout text-pretty text-ink-2">{p.step}</p>
                   </div>
                   <CopyButton text={p.copy} />
                 </div>
-                <code className="block overflow-x-auto rounded-md bg-card px-3 py-2 font-mono text-footnote whitespace-nowrap">
+                <code className="block overflow-x-auto rounded-md bg-card px-3 py-2 font-mono text-caption whitespace-nowrap">
                   {p.copy}
                 </code>
               </li>

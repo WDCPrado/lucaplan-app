@@ -36,6 +36,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { ResponsivePopover, modalActionRow } from "@/components/ui/responsive-modal"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { authClient } from "@/lib/auth-client"
@@ -328,22 +329,6 @@ function useNavDirection() {
   }, [pathname])
 }
 
-// Móvil: la búsqueda va suelta a la derecha de la cápsula de pestañas (iOS 26, como Música o Fotos),
-// del alto de la cápsula. Está en todas las vistas, así la cápsula no cambia de ancho al navegar.
-function SearchCircle({ onSearch }: { onSearch: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onSearch}
-      aria-label="Buscar movimientos"
-      data-squish
-      className="press liquid-glass liquid-squish pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full"
-    >
-      <Search className="size-6" />
-    </button>
-  )
-}
-
 // Dentro del AppFrame solo cuentan `actions` y `children`; lo demás es para los mocks de /design,
 // que dibujan el marco completo.
 type AppShellProps = {
@@ -411,127 +396,128 @@ function Chrome({
   return (
     <TooltipProvider delayDuration={0}>
       <SidebarProvider>
-        {/* Escritorio: sidebar flotante en vidrio, separado del borde (macOS 26); el vidrio lo pone
-            globals.css sobre [data-variant=floating]. En móvil sigue siendo el drawer. */}
-        <Sidebar collapsible="icon" variant="floating">
-          <SidebarHeader>
-            <div className="flex items-center gap-2 px-1 py-1">
-              <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary font-heading font-bold text-primary-foreground">
+        {/* Escritorio: sidebar en el papel, separado del contenido por un filete interior; el ítem
+            activo va en superficie. En móvil sigue siendo el drawer. */}
+        <Sidebar collapsible="icon">
+          <SidebarHeader className="px-4 pt-3">
+            <div className="flex min-h-10 items-center gap-3 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+              <div className="grid size-8 shrink-0 place-items-center rounded-sm bg-primary font-semibold text-primary-foreground">
                 L
               </div>
-              <span className="text-headline font-semibold group-data-[collapsible=icon]:hidden">
+              <span className="text-title font-semibold text-foreground group-data-[collapsible=icon]:hidden">
                 Luca Plan
               </span>
             </div>
           </SidebarHeader>
 
-          <SidebarContent>
+          <SidebarContent className="px-2">
             <SidebarGroup>
               <NavMenu active={active} onNavigate={onNavigate} />
             </SidebarGroup>
           </SidebarContent>
 
-          <SidebarFooter>
+          <SidebarFooter className="px-4 pb-4">
             {user && (
               <UserMenu user={user} onSignOut={onSignOut} onProfile={onProfile} />
             )}
           </SidebarFooter>
         </Sidebar>
 
-        <SidebarInset className="min-w-0">
+        <SidebarInset className="min-w-0 bg-background">
           {/* Marca de "arriba del todo": deja de verse con el primer píxel de scroll. */}
           <div ref={topRef} aria-hidden className="-mb-px h-px" />
-          {/* Topbar solo en escritorio, de la familia del sidebar flotante: el mismo margen al borde
-              (0.5rem, el p-2 de su contenedor) y hacia el sidebar, mismo radio, mismo vidrio y alineada
-              con su borde superior. Detrás, el scroll edge effect funde lo que pasa por debajo. Lo que
-              va adentro tiene radio concéntrico (--radius-bar-inner). */}
+          {/* Escritorio: barra pegada de 64 px con fondo propio; sus bordes son los del contenido
+              (mismo max-width y padding que page-container). Con scroll gana un filete abajo. */}
           <div
             style={{ viewTransitionName: "app-topbar" }}
-            className="sticky top-0 z-10 hidden scroll-edge-top pt-2 pr-2 md:block"
+            data-scrolled={scrolled || undefined}
+            className="sticky top-0 z-10 hidden border-b border-transparent bg-background transition-colors duration-200 data-scrolled:border-border md:block"
           >
-            <header className="flex h-14 items-center gap-2 rounded-xl liquid-glass p-2 pl-3">
-              <SidebarTrigger className="size-10 rounded-(--radius-bar-inner)" />
+            <header className="flex h-16 items-center gap-3 px-[max(2rem,calc((100%-var(--page-max))/2+2rem))]">
+              <SidebarTrigger className="size-(--ctl) shrink-0 rounded-md border border-border bg-card text-ink-2 hover:border-rule-strong hover:bg-card hover:text-foreground" />
               {title && (
-                <h1 className="text-title-3 font-semibold">{title}</h1>
+                <h1 className="mx-1 text-title font-semibold">{title}</h1>
               )}
               {/* Las acciones de la vista (el selector de mes) van junto al título; sin ellas, el mismo
                   selector deshabilitado con el período en curso. La búsqueda global, al final. */}
               <div
                 ref={desktopSlotRef}
-                className="peer ml-2 flex items-center empty:hidden"
+                className="peer flex items-center empty:hidden"
               >
                 {actions}
               </div>
               {idle && (
-                <div className="ml-2 hidden items-center peer-empty:flex">
+                <div className="hidden items-center peer-empty:flex">
                   {idle}
                 </div>
               )}
-              <div className="ml-auto flex items-center gap-2">
-                {/* Búsqueda global: abre el mismo modal que el círculo de la barra móvil. */}
-                {onSearch && (
-                  <button
-                    type="button"
-                    onClick={onSearch}
-                    aria-label="Buscar movimientos"
-                    title="Buscar (/ o Ctrl K)"
-                    className="press flex size-10 shrink-0 items-center justify-center gap-2 rounded-(--radius-bar-inner) bg-(--glass-control) text-subheadline text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:w-56 lg:justify-start lg:px-3"
-                  >
-                    <Search className="size-4 shrink-0" />
-                    <span className="hidden flex-1 text-left lg:inline">
-                      Buscar
-                    </span>
-                    <kbd className="hidden rounded-sm bg-card px-1.5 font-sans text-caption lg:inline">
-                      /
-                    </kbd>
-                  </button>
-                )}
-              </div>
+              {/* Búsqueda global: abre el mismo modal que el botón de la barra móvil. */}
+              {onSearch && (
+                <button
+                  type="button"
+                  onClick={onSearch}
+                  aria-label="Buscar movimientos"
+                  title="Buscar (/ o Ctrl K)"
+                  className="press ml-auto flex h-(--ctl) w-(--ctl) shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-card text-callout text-ink-3 hover:border-rule-strong hover:text-foreground lg:w-[min(22.5rem,30vw)] lg:justify-start lg:pr-2 lg:pl-3"
+                >
+                  <Search className="size-4 shrink-0" />
+                  <span className="hidden flex-1 text-left lg:inline">
+                    Buscar movimientos
+                  </span>
+                  <kbd className="hidden min-w-6 rounded-xs bg-secondary px-1 text-center font-sans text-caption text-ink-3 ring-1 ring-border ring-inset lg:inline">
+                    /
+                  </kbd>
+                </button>
+              )}
             </header>
           </div>
-          {/* Móvil: controles flotantes en vidrio (iOS 26), sin barra a lo ancho. A la izquierda el
-              título de la vista (el h1 de la página en móvil; el de la topbar está oculto) y el resto
-              para las acciones de la vista (el selector de mes); sin ellas, en la misma celda queda el
-              selector deshabilitado con el período en curso, así la fila es igual en todas las vistas
-              y no salta al navegar (el cruce entre los dos, en `.top-idle`, globals.css). Con el
-              primer scroll el título se va y el selector se ensancha hasta llenar la fila
-              (`.top-title`). Solo las cápsulas desenfocan el fondo y reciben toques. */}
+          {/* Móvil (G): barra pegada con fondo propio (su transparencia y desenfoque los mueve el nivel
+              de Apariencia) y un desvanecido corto debajo. A la izquierda el avatar abre la hoja de la
+              cuenta; al centro las acciones de la vista (el selector de mes) y, sin ellas, el selector
+              deshabilitado con el período en curso, así la fila es igual en todas las vistas; a la
+              derecha, la búsqueda. Todo a 44 px y margen 16. */}
           <div
             data-scrolled={scrolled || undefined}
             style={{ viewTransitionName: "app-top-mobile" }}
-            className="top-bar pwa-safe-top pointer-events-none sticky top-0 z-20 flex items-center px-4 py-2 md:hidden"
+            className="top-bar pwa-safe-top sticky top-0 z-20 flex items-center gap-2 bg-float px-4 py-2 backdrop-blur-(--float-blur) after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-linear-to-b after:from-background after:to-transparent md:hidden"
           >
-            {title && (
-              <div className="top-title grid">
-                <div className="min-w-0 overflow-hidden">
-                  {/* key: al navegar el título entra con un fundido; la fila no se desmonta. */}
-                  <h1
-                    key={title}
-                    className="pr-3 text-headline font-bold whitespace-nowrap"
-                  >
-                    {title}
-                  </h1>
-                </div>
-              </div>
+            {user && (
+              <UserMenu
+                user={user}
+                onSignOut={onSignOut}
+                onProfile={onProfile}
+                compact
+              />
             )}
+            {/* El título de la vista no se dibuja en la barra móvil (como en G): queda para el lector. */}
+            {title && <h1 className="sr-only">{title}</h1>}
             <div className="grid min-h-11 min-w-0 flex-1 items-center *:col-start-1 *:row-start-1">
               {idle && (
-                <div className="top-idle pointer-events-auto flex w-full min-w-0">
+                <div className="top-idle flex w-full min-w-0">
                   {idle}
                 </div>
               )}
               <div
                 ref={mobileSlotRef}
                 data-top-actions
-                className="flex w-full min-w-0 *:pointer-events-auto"
+                className="flex w-full min-w-0"
               >
                 {actions}
               </div>
             </div>
+            {onSearch && (
+              <button
+                type="button"
+                onClick={onSearch}
+                aria-label="Buscar movimientos"
+                className="press grid size-(--ctl) shrink-0 place-items-center rounded-md border border-border bg-card text-ink-2 hover:border-rule-strong hover:text-foreground"
+              >
+                <Search aria-hidden className="size-5" />
+              </button>
+            )}
           </div>
-          {/* Aire inferior solo en móvil, por la navegación flotante (64px + 1rem + su margen al
-              borde, --tab-bar-inset). En escritorio no flota nada. */}
-          <div className="min-w-0 flex-1 pb-[calc(5rem+var(--tab-bar-inset))] md:pb-0">
+          {/* Aire inferior solo en móvil, por la barra flotante. En escritorio no flota nada. */}
+          <div className="min-w-0 flex-1 pb-[calc(6rem+var(--tab-bar-inset))] md:pb-0">
             {children}
           </div>
         </SidebarInset>
@@ -539,7 +525,6 @@ function Chrome({
         <BottomNav
           active={active}
           onNavigate={onNavigate}
-          trailing={onSearch && <SearchCircle onSearch={onSearch} />}
         />
       </SidebarProvider>
     </TooltipProvider>
@@ -578,31 +563,16 @@ function NavMenu({
   const pathname = usePathname()
   const { isMobile, setOpenMobile } = useSidebar()
   const activeKey = active ?? navKeyOf(pathname)
-  const activeIndex = NAV.findIndex((n) => n.key === activeKey)
 
   return (
-    <SidebarMenu className="relative">
-      {/* Pastilla del activo, como la de la barra inferior: una sola, que se desliza en vertical
-          de un link a otro (paso = alto del link + gap-1; colapsado, size-8 + gap-1). */}
-      <span
-        aria-hidden
-        style={{ "--i": Math.max(activeIndex, 0) } as React.CSSProperties}
-        className={cn(
-          "nav-pill liquid-glass-active pointer-events-none absolute top-0 left-0 h-9 w-full rounded-(--radius-bar-inner) [transform:translateY(calc(var(--i)*2.5rem))] group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:[transform:translateY(calc(var(--i)*2.25rem))]",
-          activeIndex < 0 && "opacity-0"
-        )}
-      />
+    <SidebarMenu className="gap-1">
       {NAV.map(({ key, label, Icon, href }) => (
         <SidebarMenuItem key={key}>
-          {/* Mismo lenguaje que la pestaña activa móvil: la pastilla neutra de arriba (--glass-tab-active)
-              y el ícono y el texto en el acento (--tab-active, más claro en oscuro por contraste).
-              Hover y press en un velo del texto, como el resto
-              de los controles sobre vidrio (el --sidebar-accent de shadcn es un gris sólido). */}
           <SidebarMenuButton
             asChild
             isActive={activeKey === key}
             tooltip={label}
-            className="h-9 rounded-(--radius-bar-inner) text-subheadline hover:bg-foreground/5 active:bg-foreground/10 data-active:bg-transparent data-active:font-semibold data-active:text-tab-active data-active:hover:bg-transparent data-active:hover:text-tab-active"
+            className="press [&_svg]:size-5"
           >
             <Link
               href={href}
@@ -626,23 +596,18 @@ function NavMenu({
   )
 }
 
-// Navegación inferior (solo móvil), flotante como en iOS 26: una cápsula de vidrio con los mismos
-// destinos del sidebar y, suelta a la derecha, la búsqueda (`trailing`). La pastilla del activo
-// (concéntrica: rounded-full dentro de rounded-full) se desliza de una pestaña a otra: como la barra
-// vive en el layout y no se desmonta al navegar, basta una transición de transform. Las etiquetas
-// van en el color y el peso del texto; el activo se marca con el fondo azul de su pastilla, así
-// ningún ancho cambia al cambiar de pestaña.
-// La pastilla se desliza con la misma duración y curva que el contenido al cambiar de pantalla
-// (`.tab-pill`, --nav-duration/--nav-ease en globals.css). La cápsula conserva su acabado CSS,
-// sin filtrar el contenido ni seguir sus cambios desde JavaScript.
+// Navegación inferior (solo móvil), flotante: una barra redondeada con los mismos destinos del
+// sidebar (la búsqueda va en la barra superior). Debajo, el fondo se desvanece para que el
+// contenido no se lea a través. La selección es un tono (surface-2) que se desliza de una pestaña a
+// otra con la misma duración y curva que el contenido (`.tab-pill`); la etiqueta activa sube a
+// tinta primaria sin cambiar de peso, así ningún ancho cambia. Su transparencia y desenfoque los
+// mueve el nivel de Apariencia (`float`).
 function BottomNav({
   active,
   onNavigate,
-  trailing,
 }: {
   active?: NavKey
   onNavigate?: (key: NavKey) => void
-  trailing?: React.ReactNode
 }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -664,11 +629,11 @@ function BottomNav({
     <div
       // Nombre propio en el cambio de pantalla: la barra queda quieta encima del contenido que se desliza.
       style={{ viewTransitionName: "app-tabbar" }}
-      className="pointer-events-none fixed right-[env(safe-area-inset-right)] bottom-0 left-[env(safe-area-inset-left)] z-30 flex items-center gap-3 px-2 pt-3 pb-(--tab-bar-inset) md:hidden"
+      className="pointer-events-none fixed right-[env(safe-area-inset-right)] bottom-0 left-[env(safe-area-inset-left)] z-30 flex items-center gap-3 bg-linear-to-b from-transparent to-background to-45% px-4 pt-6 pb-(--tab-bar-inset) md:hidden"
     >
       <nav
         aria-label="Navegación principal"
-        className="liquid-glass liquid-squish pointer-events-auto flex h-16 min-w-0 flex-1 rounded-full p-1"
+        className="float pointer-events-auto flex h-15 min-w-0 flex-1 rounded-full p-1"
       >
         <div className="relative flex min-w-0 flex-1">
           {/* Las pestañas no miden lo mismo: la pastilla se ubica con left/right en % de la fila
@@ -684,7 +649,7 @@ function BottomNav({
               right: `${((TAB_TOTAL - pillLeft - pill.weight) / TAB_TOTAL) * 100}%`,
             }}
           >
-            <span className="liquid-glass-active w-full rounded-full" />
+            <span className="w-full rounded-full bg-secondary" />
           </span>
           {BOTTOM_NAV.map(({ key, label, short, weight, Icon, href }) => {
             const isActive = activeKey === key
@@ -716,11 +681,10 @@ function BottomNav({
                     router.push(href)
                   })
                 }}
-                data-squish
                 style={{ flexGrow: weight }}
                 // Sin negrita en la activa: la marcan la pastilla, el azul y aria-current; un peso distinto
                 // ensancharía su etiqueta y movería a las vecinas bajo la pastilla.
-                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-foreground aria-[current=page]:text-tab-active focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-ink-3 aria-[current=page]:text-foreground"
               >
                 <Icon className="size-5 shrink-0" />
                 {short ? (
@@ -736,56 +700,137 @@ function BottomNav({
           })}
         </div>
       </nav>
-      {trailing}
     </div>
   )
 }
 
-// Menú de la cuenta, solo en el pie del sidebar de escritorio. En móvil lo mismo vive en Ajustes.
+// Menú de la cuenta: en el pie del sidebar de escritorio y, `compact`, en el avatar de la barra
+// superior móvil. Nace de su botón. El tema vive aquí (y en Ajustes), no en la barra.
 function UserMenu({
   user,
   onSignOut,
   onProfile,
+  compact = false,
 }: {
   user: User
   onSignOut?: () => void
   onProfile?: () => void
+  compact?: boolean
 }) {
   const { toggleTheme } = useAppearance()
   // «Perfil» abre la hoja recién cuando el menú terminó de cerrarse y Radix devolvió el foco a su
   // botón: así la hoja lo guarda como opener y, al cerrarla, el foco vuelve ahí y no a <body>.
   const pendingProfile = React.useRef(false)
+  const [sheetOpen, setSheetOpen] = React.useState(false)
+
+  // Móvil: el avatar abre la hoja «Tu cuenta» desde abajo, con filas de 48 px (como en G).
+  if (compact) {
+    const row = cn(modalActionRow, "min-h-12")
+    return (
+      <ResponsivePopover
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        title="Tu cuenta"
+        trigger={
+          <button
+            type="button"
+            aria-label={"Cuenta de " + (user.name || user.email || "")}
+            className="press grid size-(--ctl) shrink-0 place-items-center rounded-full"
+          >
+            <span className="grid size-9 place-items-center rounded-full bg-primary-soft text-callout font-semibold text-primary">
+              {user.initial}
+            </span>
+          </button>
+        }
+      >
+        <div className="flex min-w-0 items-center gap-3 pb-4">
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary-soft text-callout font-semibold text-primary">
+            {user.initial}
+          </span>
+          <span className="grid min-w-0">
+            <span className="truncate font-semibold">{user.name || user.email}</span>
+            {user.name && user.email && (
+              <span className="truncate text-callout text-ink-2">{user.email}</span>
+            )}
+          </span>
+        </div>
+        <div className="tone-rows">
+          {onProfile && (
+            <button
+              type="button"
+              className={row}
+              onClick={() => {
+                setSheetOpen(false)
+                onProfile()
+              }}
+            >
+              <UserRound aria-hidden className="text-ink-2" />
+              Perfil
+            </button>
+          )}
+          <button
+            type="button"
+            className={row}
+            onClick={() => {
+              haptic("light")
+              toggleTheme()
+            }}
+          >
+            <Sun aria-hidden className="hidden text-ink-2 [html.dark_&]:block" />
+            <Moon aria-hidden className="text-ink-2 [html.dark_&]:hidden" />
+            <span className="hidden [html.dark_&]:inline">Tema claro</span>
+            <span className="[html.dark_&]:hidden">Tema oscuro</span>
+          </button>
+          {/* Solo aparece si hay vía de instalación y la app no corre ya instalada */}
+          <InstallAppItem rowClassName={row} />
+        </div>
+        <div className="tone-rows mt-3">
+          <button
+            type="button"
+            className={cn(row, "font-semibold text-destructive hover:bg-destructive-soft")}
+            onClick={() => {
+              setSheetOpen(false)
+              onSignOut?.()
+            }}
+          >
+            <LogOut aria-hidden />
+            Cerrar sesión
+          </button>
+        </div>
+      </ResponsivePopover>
+    )
+  }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <SidebarMenuButton
-          size="lg"
-          className="hover:bg-foreground/5 active:bg-foreground/10 data-[state=open]:bg-foreground/5"
-        >
-          {/* Sin el aro del Avatar de shadcn (`after:border`): con el relleno ya se lee el círculo. */}
-          <Avatar className="size-8 rounded-full bg-primary after:hidden">
-            <AvatarFallback className="rounded-full bg-primary text-subheadline font-semibold text-primary-foreground">
-              {user.initial}
-            </AvatarFallback>
-          </Avatar>
-          <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="truncate text-subheadline font-medium">
-              {user.name || user.email}
-            </span>
-            {user.email && (
-              <span className="truncate text-footnote text-muted-foreground">
-                {user.email}
+            size="lg"
+            className="min-h-14 rounded-lg px-2 data-[state=open]:bg-secondary [&_svg]:size-4"
+          >
+            {/* Sin el aro del Avatar de shadcn (`after:border`): con el relleno ya se lee el círculo. */}
+            <Avatar className="size-9 rounded-full after:hidden">
+              <AvatarFallback className="rounded-full bg-primary-soft text-callout font-semibold text-primary">
+                {user.initial}
+              </AvatarFallback>
+            </Avatar>
+            <div className="grid flex-1 text-left group-data-[collapsible=icon]:hidden">
+              <span className="truncate text-callout font-semibold text-foreground">
+                {user.name || user.email}
               </span>
-            )}
-          </div>
-          <ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
-        </SidebarMenuButton>
+              {user.email && (
+                <span className="truncate text-caption text-ink-3">
+                  {user.email}
+                </span>
+              )}
+            </div>
+            <ChevronsUpDown className="ml-auto text-ink-3 group-data-[collapsible=icon]:hidden" />
+          </SidebarMenuButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         side="top"
         align="start"
-        className="w-56"
+        className="w-60"
         onCloseAutoFocus={() => {
           if (!pendingProfile.current) return
           pendingProfile.current = false
@@ -794,11 +839,11 @@ function UserMenu({
       >
         <DropdownMenuLabel className="font-normal">
           <div className="grid leading-tight">
-            <span className="truncate text-subheadline font-medium">
+            <span className="truncate text-callout font-semibold text-foreground">
               {user.name || user.email}
             </span>
             {user.email && (
-              <span className="truncate text-footnote text-muted-foreground">
+              <span className="truncate text-caption text-ink-3">
                 {user.email}
               </span>
             )}

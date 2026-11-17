@@ -19,7 +19,7 @@ function ThemeToggle() {
       variant="ghost"
       size="icon"
       aria-label="Cambiar tema"
-      className="absolute top-4 right-4 z-10 size-11"
+      className="absolute top-4 right-4 z-10 size-11 text-ink-2"
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
     >
       <Sun className="size-5 dark:hidden" />
@@ -58,44 +58,46 @@ function OpenSourceNotice() {
   }
 
   return (
-    <div className="mt-6 rounded-xl border border-border bg-secondary/40 p-5">
-      <div className="flex items-start justify-between gap-3">
-        <span className="grid size-10 place-items-center rounded-xl border border-border bg-background">
+    <section
+      aria-labelledby="open-source-title"
+      className="mt-4 flex flex-col gap-3 rounded-xl bg-card p-(--pad-card)"
+    >
+      <div className="flex items-start gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-sm bg-secondary">
           <GitHubIcon />
         </span>
-        <span className="rounded-lg bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
-          Open source
-        </span>
+        <div className="min-w-0">
+          <h2 id="open-source-title" className="font-semibold">
+            ¿Quieres tu propio Luca Plan?
+          </h2>
+          <p className="text-callout text-ink-2">
+            Es open source: clónalo y córrelo en tu máquina, con tus datos.
+          </p>
+        </div>
       </div>
-      <p className="mt-3 text-sm font-semibold">
-        ¿Quieres tu propio Luca Plan?
-      </p>
-      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-        Es open source: clónalo y córrelo en tu máquina, con tus datos.
-      </p>
       <button
         type="button"
         onClick={copy}
         aria-label="Copiar comando"
         title="Copiar comando"
-        className="group/copy mt-4 flex w-full items-center gap-2.5 rounded-lg border border-border bg-background px-3.5 py-2.5 text-left transition-colors hover:border-foreground/25"
+        className="press group/copy flex min-h-(--ctl) w-full items-center gap-2.5 rounded-md bg-secondary px-3 text-left hover:bg-surface-3"
       >
-        <code className="flex-1 scrollbar-none overflow-x-auto font-mono text-xs whitespace-nowrap text-muted-foreground">
+        <code className="flex-1 scrollbar-none overflow-x-auto font-mono text-caption whitespace-nowrap text-ink-2">
           {cloneCmd}
         </code>
         {copied ? (
           <Check className="size-4 shrink-0 text-success" />
         ) : (
-          <Copy className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/copy:text-foreground" />
+          <Copy className="size-4 shrink-0 text-ink-3 transition-colors group-hover/copy:text-foreground" />
         )}
       </button>
-      <Button asChild variant="outline" className="mt-3 h-11 w-full text-base">
+      <Button asChild variant="outline" size="lg" className="w-full">
         <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
           <GitHubIcon />
           Ver en GitHub
         </a>
       </Button>
-    </div>
+    </section>
   )
 }
 
@@ -108,131 +110,50 @@ export function LoginForm({
 }) {
   const [legal, setLegal] = useState<LegalKey | null>(null)
   return (
-    <main className="relative grid min-h-dvh grid-cols-1 lg:grid-cols-2">
+    <main className="relative flex min-h-dvh flex-col items-center bg-background px-4 pt-16 pb-10 md:justify-center md:py-16">
       <ThemeToggle />
 
-      {/* Panel de marca (solo escritorio): gradiente azul profundo FIJO (el mismo de las
-          tarjetas débito en lib/bank-cards) — branding constante en dark y light. */}
-      <aside
-        className="relative hidden overflow-hidden p-12 text-white lg:flex lg:flex-col lg:justify-between"
-        style={{
-          background:
-            "linear-gradient(135deg, #0a2a6b 0%, #0b3f9e 55%, #0850c0 100%)",
-        }}
-      >
-        <div className="absolute -top-32 -right-24 size-96 rounded-full border-36 border-white/10" />
-        <div className="absolute -bottom-44 -left-20 size-80 rounded-full bg-white/5" />
-
-        <div className="relative flex animate-in items-center gap-2.5 text-lg font-semibold tracking-[-0.04em] duration-700 fade-in">
-          <span className="grid size-8 place-items-center rounded-lg bg-white text-sm font-bold text-[#0b3f9e]">
+      {/* Una columna sobre papel: marca, título, el paso del formulario en su tarjeta y los legales. */}
+      <div className="flex w-full max-w-100 animate-in flex-col duration-300 fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none">
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden
+            className="grid size-8 place-items-center rounded-md bg-primary font-semibold text-primary-foreground"
+          >
             L
           </span>
-          Luca Plan
+          <span className="font-semibold">Luca Plan</span>
         </div>
 
-        <div className="relative animate-in duration-700 fade-in slide-in-from-bottom-4">
-          <h1 className="max-w-[12ch] text-5xl leading-[0.95] font-semibold tracking-tighter xl:text-6xl">
-            Este mes sí tiene un plan.
-          </h1>
-          <p className="mt-5 max-w-sm text-lg leading-8 text-white/75">
-            Presupuestos que reinician contigo, pagos visibles y tus movimientos
-            en un solo lugar.
-          </p>
+        <h1 className="mt-8 text-screen-title font-semibold text-balance">
+          {signupOpen ? "Entra o crea tu cuenta" : "Entra a tu plan"}
+        </h1>
+
+        <div className="mt-4 rounded-xl bg-card p-(--pad-card)">
+          <EmailCodeForm signupOpen={signupOpen} codeInConsole={codeInConsole} />
         </div>
+        {LANDING_ONLY && <OpenSourceNotice />}
 
-        <div
-          className="relative max-w-sm animate-in duration-700 fade-in slide-in-from-bottom-4"
-          style={{ animationDelay: "250ms", animationFillMode: "backwards" }}
-        >
-          <div className="landing-float-a rounded-xl border border-white/15 bg-white/10 p-5 backdrop-blur-sm">
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-white/75">Presupuesto del mes</span>
-              <span className="rounded-lg bg-white/15 px-2.5 py-0.5 text-xs font-semibold">
-                Vas bien
-              </span>
-            </div>
-            <p className="tabular mt-2 text-3xl font-semibold">
-              $429.500{" "}
-              <span className="text-base font-normal text-white/70">
-                disponibles
-              </span>
-            </p>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/20">
-              <div
-                className="h-full animate-[bar-fill_1.4s_cubic-bezier(0.22,1,0.36,1)_0.6s_backwards] rounded-full bg-white"
-                style={{ width: "57%" }}
-              />
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* Formulario: entrada escalonada (cada bloque con su delay, backwards para no parpadear) */}
-      <section className="flex items-center justify-center px-4 py-10 lg:px-12">
-        <div className="w-full max-w-md">
-          {/* Branding compacto en móvil (en escritorio vive en el panel izquierdo) */}
-          <div className="mb-8 flex animate-in flex-col items-center gap-3 text-center duration-500 fade-in slide-in-from-bottom-2 lg:hidden">
-            <span className="grid size-12 place-items-center rounded-xl bg-primary text-lg font-bold text-primary-foreground shadow-sm">
-              L
-            </span>
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">
-                Luca Plan
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {signupOpen
-                  ? "Entra o crea tu cuenta con tu correo."
-                  : "Planifica tu dinero con claridad."}
-              </p>
-            </div>
-          </div>
-
-          <div className="hidden animate-in duration-500 fade-in slide-in-from-bottom-2 lg:block">
-            <h2 className="text-3xl font-semibold tracking-[-0.03em]">
-              {signupOpen ? "Entra o crea tu cuenta" : "Entra a tu plan"}
-            </h2>
-            <p className="mt-2 text-muted-foreground">
-              {signupOpen
-                ? "Con tu correo: el mismo código sirve para las dos cosas."
-                : "Tu mes te está esperando."}
-            </p>
-          </div>
-
-          <div className="mt-0 lg:mt-8">
-            <EmailCodeForm
-              signupOpen={signupOpen}
-              codeInConsole={codeInConsole}
-            />
-            {LANDING_ONLY && <OpenSourceNotice />}
-
-            <p
-              className="mt-8 animate-in text-center text-xs leading-5 text-muted-foreground duration-500 fade-in"
-              style={{
-                animationDelay: "350ms",
-                animationFillMode: "backwards",
-              }}
-            >
-              Al continuar aceptas los{" "}
-              <button
-                type="button"
-                onClick={() => setLegal("terminos")}
-                className="underline underline-offset-2 transition-colors hover:text-foreground"
-              >
-                Términos y Condiciones
-              </button>{" "}
-              y la{" "}
-              <button
-                type="button"
-                onClick={() => setLegal("privacidad")}
-                className="underline underline-offset-2 transition-colors hover:text-foreground"
-              >
-                Política de Privacidad
-              </button>
-              .
-            </p>
-          </div>
-        </div>
-      </section>
+        <p className="mt-6 text-center text-caption text-ink-3">
+          Al continuar aceptas los{" "}
+          <button
+            type="button"
+            onClick={() => setLegal("terminos")}
+            className="underline underline-offset-2 transition-colors hover:text-foreground"
+          >
+            Términos y Condiciones
+          </button>{" "}
+          y la{" "}
+          <button
+            type="button"
+            onClick={() => setLegal("privacidad")}
+            className="underline underline-offset-2 transition-colors hover:text-foreground"
+          >
+            Política de Privacidad
+          </button>
+          .
+        </p>
+      </div>
 
       {/* Legales: mismo contenido que la landing; aquí respetan el tema del usuario */}
       {legal && (
@@ -241,8 +162,8 @@ export function LoginForm({
           onOpenChange={(o) => !o && setLegal(null)}
           title={LEGAL[legal].title}
         >
-          <ScrollArea className="max-h-[62dvh] px-6">
-            <div className="pb-8">{LEGAL[legal].body}</div>
+          <ScrollArea className="max-h-[62dvh]">
+            <div>{LEGAL[legal].body}</div>
           </ScrollArea>
         </ResponsiveModal>
       )}

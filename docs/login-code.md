@@ -40,6 +40,39 @@ presencia de `RESEND_API_KEY` en ese archivo **sin imprimir su valor**; si falta
 app/cron, porque los accesos nuevos necesitan correo. `RESEND_FROM` puede omitirse para usar
 el remitente predeterminado. No copiar secretos a Git, argumentos de build ni al frontend.
 
+## Biometría
+
+Con sesión, Ajustes agrega una passkey del aparato (huella o cara) y desde el login se entra con
+ella sin escribir el correo. Son las rutas de `@better-auth/passkey`, sin rutas propias
+(`arch/v1/infrastructure/auth/passkey.ts`): `GET /api/auth/passkey/generate-register-options` y
+`POST …/verify-registration` (`{ response, name? }`, exigen sesión), `GET …/generate-authenticate-options`
+y `POST …/verify-authentication` (sin sesión), `GET …/list-user-passkeys` y `POST …/delete-passkey`
+(`{ id }`, solo las propias). Renombrar (`update-passkey`) está apagado. Sin límite de aparatos y se
+puede quitar la última: el código por correo sigue. El nombre (`<aparato> · <navegador>`) tiene
+máximo 60 caracteres; el del selector del aparato es siempre el correo.
+
+Entrar solo sirve con una passkey guardada, así que nunca crea cuentas (tampoco con la base vacía
+de `/setup`), y una cuenta bloqueada responde 403 `BANNED_USER` como con el código. Registrar
+exige una sesión de menos de un día (`freshAge` por defecto de Better Auth): si no, 403
+`SESSION_NOT_FRESH` y hay que volver a entrar. Se exige que el aparato verifique a la persona
+(huella, cara o PIN): sin eso no se guarda la passkey (400) ni se entra (401), con el código
+`PASSKEY_USER_NOT_VERIFIED`.
+
+En pantalla (`app/login/passkey-sign-in.tsx`, `components/finance/passkeys-section.tsx`; textos en
+`lib/passkey.ts`) se dice siempre «biometría». En el login, bajo «Enviar código», una línea «o» y
+«Entrar con biometría» (borde, huella, 44 px); el correo lleva `autocomplete="username webauthn"`
+y, si el navegador lo soporta, el teclado ofrece la passkey. Sin WebAuthn el botón no aparece;
+cancelar el diálogo del sistema no muestra nada. Al entrar sigue el mismo destino que el código
+(incluido el `url` de OAuth). En Ajustes, la tarjeta «Biometría»: «Agregar este aparato» en la
+acción (deshabilitada sin WebAuthn, con la razón al pie), los aparatos con su fecha de alta y
+«Quitar» con confirmación.
+
+Una passkey vale solo en el dominio donde se registró. El dominio y el origen aceptado son los de
+`BETTER_AUTH_URL` (`http://localhost:<puerto>` en local, que el navegador acepta sin HTTPS); en un
+entorno de PR de Railway, los de `https://$RAILWAY_PUBLIC_DOMAIN`, porque detrás del proxy la
+dirección del pedido es la interna. Sin ninguna de las dos, los del pedido. Cada entorno (local,
+cada PR, producción) tiene las suyas.
+
 ## Cuentas existentes y OAuth
 
 Se conservan los usuarios y sus datos financieros, sin renombrar IDs ni sembrar producción.

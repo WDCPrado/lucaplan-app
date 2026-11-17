@@ -37,7 +37,15 @@ import type {
 } from "@/arch/v1/application/finance-use-cases/finance-read"
 import { CategoriesStep } from "./categories-step"
 import { completeOnboarding } from "./http"
-import { focusOnMount, Progress, Split, TITLE_ID } from "./step-layout"
+import { IconTile } from "../blocks"
+import {
+  FLOW_COLUMN,
+  focusOnMount,
+  Progress,
+  Split,
+  StepActions,
+  TITLE_ID,
+} from "./step-layout"
 
 const STEPS = [
   "welcome",
@@ -135,14 +143,14 @@ export function OnboardingFlow({
       aria-labelledby={TITLE_ID}
       className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background p-[env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)]"
     >
-      <header className="mx-auto flex w-full max-w-5xl items-center gap-4 px-5 pt-4 pb-3 lg:px-10 lg:pt-8">
+      <header className={`${FLOW_COLUMN} flex min-h-14 items-center gap-4 pt-2 md:pt-8`}>
         <Progress index={index} total={STEPS.length} />
         {!locked && step !== "done" && (
           <button
             type="button"
             onClick={finish}
             disabled={finishing}
-            className="press min-h-11 shrink-0 px-2 text-subheadline text-muted-foreground hover:text-foreground disabled:opacity-50"
+            className="press -mr-2 min-h-11 shrink-0 rounded-md px-2 text-callout text-ink-2 hover:bg-secondary hover:text-foreground disabled:opacity-45"
           >
             Omitir por ahora
           </button>
@@ -150,7 +158,7 @@ export function OnboardingFlow({
       </header>
 
       <ViewTransition key={step} enter="nav" exit="nav" default="none">
-        <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-5 pt-4 pb-8 lg:px-10 lg:pt-10">
+        <div className={`${FLOW_COLUMN} flex flex-1 flex-col pt-4 md:pt-8 md:pb-12`}>
           {step === "welcome" && <Welcome onStart={() => go("categories")} />}
 
           {step === "categories" && (
@@ -253,49 +261,43 @@ const IDEAS = [
 
 function Welcome({ onStart }: { onStart: () => void }) {
   return (
-    <div className="grid flex-1 content-center gap-10 lg:grid-cols-2 lg:gap-16">
-      <div className="lg:self-center">
+    <div className="flex flex-1 flex-col gap-6">
+      <div>
         <h1
           id={TITLE_ID}
           ref={focusOnMount}
           tabIndex={-1}
-          className="text-large-title font-bold text-balance outline-none"
+          className="text-screen-title font-semibold text-balance outline-none"
         >
           Tu plata en orden, sin anotar nada
         </h1>
-        <p className="mt-3 text-body text-pretty text-muted-foreground">
+        <p className="mt-2 text-callout text-pretty text-ink-2">
           En unos minutos dejamos listos tus categorías, tu banco y tus
           ingresos.
         </p>
-        <Button
-          onClick={onStart}
-          className="mt-8 hidden h-12 px-8 text-body lg:inline-flex"
-        >
-          Comenzar <ArrowRight aria-hidden className="size-4" />
-        </Button>
       </div>
-      <ol className="flex flex-col gap-3">
+      <ol className="flex flex-col gap-4 rounded-xl bg-card p-(--pad-card)">
         {IDEAS.map(({ icon: Icon, title, text }, i) => (
           <li
             key={title}
-            style={{ animationDelay: `${150 + i * 140}ms` }}
-            className="sheet-group flex animate-in items-start gap-4 rounded-xl p-4 duration-500 fill-mode-both fade-in-0 slide-in-from-bottom-3 motion-reduce:animate-none"
+            style={{ animationDelay: `${100 + i * 80}ms` }}
+            className="flex animate-in items-start gap-3 duration-300 fill-mode-both fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none"
           >
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-              <Icon aria-hidden className="size-5" />
-            </span>
+            <IconTile>
+              <Icon aria-hidden />
+            </IconTile>
             <div className="min-w-0">
-              <h2 className="text-headline font-semibold">{title}</h2>
-              <p className="mt-0.5 text-subheadline text-pretty text-muted-foreground">
-                {text}
-              </p>
+              <h2 className="font-semibold">{title}</h2>
+              <p className="text-callout text-pretty text-ink-2">{text}</p>
             </div>
           </li>
         ))}
       </ol>
-      <Button onClick={onStart} className="h-12 w-full text-body lg:hidden">
-        Comenzar <ArrowRight aria-hidden className="size-4" />
-      </Button>
+      <StepActions>
+        <Button size="lg" onClick={onStart} className="w-full">
+          Comenzar <ArrowRight aria-hidden className="size-4" />
+        </Button>
+      </StepActions>
     </div>
   )
 }
@@ -361,13 +363,18 @@ function ConnectStep({
 
 function NotConfigured({ onContinue }: { onContinue: () => void }) {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="sheet-group rounded-xl p-4">
-        <h2 className="text-headline font-semibold">Falta configurar Outlook</h2>
-        <p className="mt-1 text-subheadline text-pretty text-muted-foreground">
+    <div className="flex flex-1 flex-col gap-4">
+      <section
+        aria-labelledby="onb-outlook-missing"
+        className="rounded-xl bg-card p-(--pad-card)"
+      >
+        <h2 id="onb-outlook-missing" className="font-semibold">
+          Falta configurar Outlook
+        </h2>
+        <p className="mt-1 text-callout text-pretty text-ink-2">
           Esta instalación no tiene{" "}
-          <code className="text-footnote">OUTLOOK_CLIENT_ID</code> ni{" "}
-          <code className="text-footnote">OUTLOOK_CLIENT_SECRET</code>. Sin
+          <code className="text-caption">OUTLOOK_CLIENT_ID</code> ni{" "}
+          <code className="text-caption">OUTLOOK_CLIENT_SECRET</code>. Sin
           ellos no se puede leer el correo del banco; puedes seguir y conectarlo
           después desde Ajustes.
         </p>
@@ -375,15 +382,17 @@ function NotConfigured({ onContinue }: { onContinue: () => void }) {
           href={README_OUTLOOK}
           target="_blank"
           rel="noreferrer"
-          className="press mt-2 inline-flex min-h-11 items-center gap-1.5 text-body text-primary"
+          className="press -mx-2 mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-callout font-semibold text-primary hover:bg-primary-soft"
         >
           Cómo configurarlo
           <ExternalLink aria-hidden className="size-4" />
         </a>
-      </div>
-      <Button onClick={onContinue} className="h-12 w-full text-body">
-        Continuar <ArrowRight aria-hidden className="size-4" />
-      </Button>
+      </section>
+      <StepActions>
+        <Button size="lg" onClick={onContinue} className="w-full">
+          Continuar <ArrowRight aria-hidden className="size-4" />
+        </Button>
+      </StepActions>
     </div>
   )
 }
@@ -397,29 +406,31 @@ function Preview({
 }) {
   const sample = transactions.filter((t) => t.categoryId).slice(0, 5)
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-1 flex-col gap-4">
       {sample.length > 0 ? (
         // Solo muestra: las filas no abren nada, así que el grupo no recibe foco ni clics.
-        <ul inert className="sheet-group inset-list overflow-hidden rounded-xl">
+        <ul inert className="flex flex-col rounded-xl bg-card px-(--pad-card) py-2">
           {sample.map((tx, i) => (
             <li
               key={tx.id}
               style={{ animationDelay: `${i * 80}ms` }}
               className="animate-in duration-300 fill-mode-both fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none"
             >
-              <MovementRow tx={tx} className="px-4" />
+              <MovementRow tx={tx} />
             </li>
           ))}
         </ul>
       ) : (
-        <p className="sheet-group rounded-xl p-4 text-subheadline text-pretty text-muted-foreground">
+        <p className="rounded-xl bg-card p-(--pad-card) text-callout text-pretty text-ink-2">
           Aún no hay movimientos de este mes. Llegarán con el próximo aviso de
           tu banco.
         </p>
       )}
-      <Button onClick={onContinue} className="h-12 w-full text-body">
-        Continuar <ArrowRight aria-hidden className="size-4" />
-      </Button>
+      <StepActions>
+        <Button size="lg" onClick={onContinue} className="w-full">
+          Continuar <ArrowRight aria-hidden className="size-4" />
+        </Button>
+      </StepActions>
     </div>
   )
 }
@@ -436,49 +447,57 @@ function Done({
   onFinish: () => void
 }) {
   return (
-    <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-8 text-center">
-      <div className="flex flex-col items-center gap-4">
-        <span className="grid size-16 animate-in place-items-center rounded-full bg-success/15 text-success duration-500 zoom-in-75 motion-reduce:animate-none">
-          <Check aria-hidden className="size-8" />
+    <div className="flex flex-1 flex-col justify-center gap-8 py-8">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <span className="grid size-14 animate-in place-items-center rounded-xl bg-primary-soft text-primary duration-300 zoom-in-90 motion-reduce:animate-none">
+          <Check aria-hidden className="size-7" />
         </span>
-        <div>
-          <h1
-            id={TITLE_ID}
-            ref={focusOnMount}
-            tabIndex={-1}
-            className="text-title-1 font-bold outline-none"
-          >
-            Todo listo
-          </h1>
-          {globalLimit !== null ? (
-            <p className="mt-2 text-subheadline text-pretty text-muted-foreground">
-              Tu presupuesto del mes es de{" "}
-              <span className="font-semibold text-foreground">
-                {formatMoney(globalLimit, "CLP")}
-              </span>
-              . Ya llevas {formatMoney(spent, "CLP")} en gastos.
+        <h1
+          id={TITLE_ID}
+          ref={focusOnMount}
+          tabIndex={-1}
+          className="text-screen-title font-semibold text-balance outline-none"
+        >
+          Todo listo
+        </h1>
+        {globalLimit !== null ? (
+          // La cifra protagonista de este paso: el tope del mes (CLP).
+          <div>
+            <p className="text-callout text-ink-2">Tu presupuesto del mes</p>
+            <p className="text-display font-semibold whitespace-nowrap">
+              {formatMoney(globalLimit, "CLP")}
             </p>
-          ) : (
-            <p className="mt-2 text-subheadline text-pretty text-muted-foreground">
-              Puedes definir tu presupuesto cuando quieras desde el Inicio.
+            <p className="mt-1 text-callout text-ink-2">
+              Ya llevas{" "}
+              <span className="font-semibold whitespace-nowrap text-foreground">
+                {formatMoney(spent, "CLP")}
+              </span>{" "}
+              en gastos.
             </p>
-          )}
-        </div>
-      </div>
-      <Button
-        onClick={onFinish}
-        disabled={busy}
-        aria-busy={busy || undefined}
-        className="h-12 w-full text-body"
-      >
-        {busy && (
-          <Loader
-            aria-hidden
-            className="size-4 animate-spin motion-reduce:animate-none"
-          />
+          </div>
+        ) : (
+          <p className="text-callout text-pretty text-ink-2">
+            Puedes definir tu presupuesto cuando quieras desde el Inicio.
+          </p>
         )}
-        Ir al Inicio <ArrowRight aria-hidden className="size-4" />
-      </Button>
+      </div>
+      <StepActions>
+        <Button
+          size="lg"
+          onClick={onFinish}
+          disabled={busy}
+          aria-busy={busy || undefined}
+          className="w-full"
+        >
+          {busy && (
+            <Loader
+              aria-hidden
+              className="size-4 animate-spin motion-reduce:animate-none"
+            />
+          )}
+          Ir al Inicio <ArrowRight aria-hidden className="size-4" />
+        </Button>
+      </StepActions>
     </div>
   )
 }

@@ -5,7 +5,7 @@ import type { ReactNode } from "react"
 
 function H(props: { children: ReactNode }) {
   return (
-    <h3 className="pt-2 font-semibold text-foreground">{props.children}</h3>
+    <h3 className="pt-2 text-body font-semibold text-foreground">{props.children}</h3>
   )
 }
 
@@ -15,8 +15,8 @@ export const LEGAL = {
   terminos: {
     title: "Términos y Condiciones",
     body: (
-      <div className="space-y-4 text-sm leading-6 text-muted-foreground">
-        <p className="text-xs">{UPDATED}</p>
+      <div className="space-y-4 text-callout text-ink-2">
+        <p className="text-caption text-ink-3">{UPDATED}</p>
         <p>
           Estos Términos y Condiciones regulan el uso de Luca Plan, una
           aplicación web de planificación de finanzas personales, en su servicio
@@ -100,8 +100,8 @@ export const LEGAL = {
   privacidad: {
     title: "Política de Privacidad",
     body: (
-      <div className="space-y-4 text-sm leading-6 text-muted-foreground">
-        <p className="text-xs">{UPDATED}</p>
+      <div className="space-y-4 text-callout text-ink-2">
+        <p className="text-caption text-ink-3">{UPDATED}</p>
         <p>
           Esta política describe cómo Luca Plan trata tus datos personales,
           conforme a la Ley N.º 19.628 sobre Protección de la Vida Privada y a

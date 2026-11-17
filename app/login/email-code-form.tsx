@@ -19,10 +19,12 @@ import {
   InputOTPSeparator,
   InputOTPSlot,
 } from "@/components/ui/input-otp"
+import { finishSignIn } from "./finish-sign-in"
 import { GmailIcon, OutlookIcon } from "./mail-app-icons"
+import { PasskeySignIn } from "./passkey-sign-in"
 
 const STEP_CLASS =
-  "flex flex-col gap-5 animate-in fade-in-0 slide-in-from-right-4 duration-200 motion-reduce:animate-none"
+  "flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-4 duration-200 motion-reduce:animate-none"
 
 // Con el registro cerrado, un correo nuevo no recibe código: el texto no lo promete.
 // `codeInConsole`: el servidor imprime el código en vez de enviarlo (printsLoginCodeLocally).
@@ -43,14 +45,17 @@ export function EmailCodeForm({
       onChangeEmail={() => setSent(false)}
     />
   ) : (
-    <EmailStep
-      email={email}
-      signupOpen={signupOpen}
-      onSent={(value) => {
-        setEmail(value)
-        setSent(true)
-      }}
-    />
+    <>
+      <EmailStep
+        email={email}
+        signupOpen={signupOpen}
+        onSent={(value) => {
+          setEmail(value)
+          setSent(true)
+        }}
+      />
+      <PasskeySignIn />
+    </>
   )
 }
 
@@ -103,7 +108,10 @@ function EmailStep({
       className={STEP_CLASS}
     >
       {error && (
-        <p role="alert" className="text-sm text-destructive">
+        <p
+          role="alert"
+          className="rounded-md bg-destructive-soft px-3 py-2.5 text-callout text-destructive"
+        >
           {error}
         </p>
       )}
@@ -114,7 +122,7 @@ function EmailStep({
           name="email"
           type="email"
           inputMode="email"
-          autoComplete="username"
+          autoComplete="username webauthn"
           autoFocus
           defaultValue={email}
           maxLength={254}
@@ -124,24 +132,23 @@ function EmailStep({
           aria-describedby={
             fieldError ? "login-email-error" : "login-email-hint"
           }
-          className="h-11 text-base"
         />
         {fieldError && (
           <p
             id="login-email-error"
             role="alert"
-            className="text-sm text-destructive"
+            className="text-callout text-destructive"
           >
             {fieldError}
           </p>
         )}
-        <p id="login-email-hint" className="text-sm text-muted-foreground">
+        <p id="login-email-hint" className="text-callout text-ink-2">
           {signupOpen
             ? "Te mandamos un código de 6 dígitos. Si no tienes cuenta, la creamos con ese mismo código."
             : "Te mandamos un código de 6 dígitos para entrar sin contraseña."}
         </p>
       </div>
-      <Button type="submit" disabled={pending} className="h-11 text-base">
+      <Button type="submit" size="lg" disabled={pending} className="w-full">
         {pending && (
           <Loader
             aria-hidden
@@ -200,25 +207,8 @@ function CodeStep({
         } else setError(loginErrorMessage(response.error.status, true))
         return
       }
-      // oauthProviderClient envía oauth_query; el servidor verifica la firma y devuelve el destino.
-      if (
-        response.data &&
-        "url" in response.data &&
-        typeof response.data.url === "string"
-      ) {
-        window.location.assign(response.data.url)
-        return
-      }
-      const query = new URLSearchParams(window.location.search)
-      if (query.has("sig") && query.has("ba_param")) {
-        setError(
-          "No pudimos continuar la conexión. Vuelve al asistente e inicia la conexión de nuevo."
-        )
-        return
-      }
-      // Recarga el documento para aplicar tema y preferencias antes del primer pintado.
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- documento nuevo intencional
-      window.location.assign("/dashboard")
+      const blocked = finishSignIn(response.data)
+      if (blocked) setError(blocked)
     } catch {
       setError(loginErrorMessage(undefined, true))
     } finally {
@@ -266,25 +256,27 @@ function CodeStep({
       className={STEP_CLASS}
     >
       {error && (
-        <p role="alert" className="text-sm text-destructive">
+        <p
+          role="alert"
+          className="rounded-md bg-destructive-soft px-3 py-2.5 text-callout text-destructive"
+        >
           {error}
         </p>
       )}
-      <p className="text-sm break-words text-muted-foreground">
+      <p className="text-callout break-words text-ink-2">
         {signupOpen ? "Te enviamos" : "Si tienes cuenta, te enviamos"} un
         código a{" "}
-        <span className="font-medium text-foreground">{maskEmail(email)}</span>.
+        <span className="font-semibold text-foreground">{maskEmail(email)}</span>.
         Vale 10 minutos.
       </p>
       {codeInConsole && (
-        <p className="text-footnote text-muted-foreground">
+        <p className="text-caption text-ink-3">
           En local, el código aparece en la consola del servidor.
         </p>
       )}
-      <div className="flex flex-col items-center gap-2">
-        <Label htmlFor="login-code" className="self-start">
-          Código
-        </Label>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="login-code">Código</Label>
+        {/* 6 casillas de 44 + separador: 280 px, caben en la tarjeta de 296 a 360 px. */}
         <InputOTP
           ref={input}
           id="login-code"
@@ -306,17 +298,17 @@ function CodeStep({
               <InputOTPSlot
                 key={index}
                 index={index}
-                className="size-11 text-lg"
+                className="h-14 w-11 font-semibold sm:w-12"
               />
             ))}
           </InputOTPGroup>
-          <InputOTPSeparator />
+          <InputOTPSeparator className="text-ink-3" />
           <InputOTPGroup>
             {[3, 4, 5].map((index) => (
               <InputOTPSlot
                 key={index}
                 index={index}
-                className="size-11 text-lg"
+                className="h-14 w-11 font-semibold sm:w-12"
               />
             ))}
           </InputOTPGroup>
@@ -325,18 +317,18 @@ function CodeStep({
           <p
             id="login-code-error"
             role="alert"
-            className="text-sm text-destructive"
+            className="text-callout text-destructive"
           >
             {codeError}
           </p>
         )}
         {pending === "verify" && (
-          <p role="status" className="text-sm text-muted-foreground">
+          <p role="status" className="text-callout text-ink-2">
             Entrando…
           </p>
         )}
         {resent && (
-          <p role="status" className="text-sm text-muted-foreground">
+          <p role="status" className="text-callout text-ink-2">
             Enviamos un nuevo código. Usa el último correo.
           </p>
         )}
@@ -347,7 +339,7 @@ function CodeStep({
             key={app.label}
             variant="outline"
             asChild
-            className="h-11 sm:flex-1"
+            className="pointer-coarse:h-11 sm:flex-1"
           >
             <a href={app.href} target="_blank" rel="noopener noreferrer">
               {app.icon === "gmail" ? (
@@ -360,13 +352,23 @@ function CodeStep({
           </Button>
         ))}
       </div>
-      <div className="flex flex-col items-center gap-1 sm:flex-row sm:justify-between">
+      <Button
+        type="submit"
+        size="lg"
+        disabled={!!pending || code.length !== 6}
+        className="w-full"
+      >
+        {pending === "verify" ? "Entrando…" : "Entrar"}
+      </Button>
+      {/* Secundarias en callout; a 360 px se parten en dos líneas en vez de desbordar. */}
+      <div className="-mx-3 -mb-1 flex flex-wrap items-center justify-between gap-x-2">
         <Button
           type="button"
           variant="link"
+          size="sm"
           onClick={resend}
           disabled={!!pending || wait > 0}
-          className="h-11"
+          className="tabular"
         >
           {pending === "resend"
             ? "Reenviando…"
@@ -377,20 +379,13 @@ function CodeStep({
         <Button
           type="button"
           variant="link"
+          size="sm"
           onClick={onChangeEmail}
           disabled={!!pending}
-          className="h-11"
         >
           Usar otro correo
         </Button>
       </div>
-      <Button
-        type="submit"
-        disabled={!!pending || code.length !== 6}
-        className="h-11 text-base"
-      >
-        {pending === "verify" ? "Entrando…" : "Entrar"}
-      </Button>
     </form>
   )
 }

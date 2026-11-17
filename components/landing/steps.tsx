@@ -1,6 +1,7 @@
 "use client"
 
 import { Lock } from "lucide-react"
+import { IconTile } from "@/components/finance/blocks"
 import { CategoryIcon } from "@/components/finance/category-icons"
 import { MovementRow } from "@/components/finance/movement-row"
 import { OutlookIcon } from "@/app/login/mail-app-icons"
@@ -18,7 +19,7 @@ const codeVisual = (
     {"482107".split("").map((d, i) => (
       <span
         key={i}
-        className="tabular grid h-11 w-9 place-items-center rounded-lg bg-card text-title-3 font-semibold"
+        className="grid h-11 w-9 place-items-center rounded-md bg-card text-title font-semibold"
       >
         {d}
       </span>
@@ -43,7 +44,7 @@ export function Steps({ signupOpen }: { signupOpen: boolean }) {
             La instancia pública es de su dueño. Luca Plan es open source:{" "}
             <a
               href="#open-source"
-              className="text-primary underline-offset-2 hover:underline"
+              className="font-semibold text-primary underline-offset-2 hover:underline"
             >
               levanta la tuya
             </a>{" "}
@@ -59,21 +60,18 @@ export function Steps({ signupOpen }: { signupOpen: boolean }) {
       body: "Dónde compras, cómo te mueves, qué pagas cada mes. La IA arma tus categorías y tú las ajustas.",
       visual: (
         <div aria-hidden className="flex flex-col gap-2">
-          <p className="rounded-lg bg-card px-3 py-2 text-subheadline text-pretty text-muted-foreground">
+          <p className="rounded-lg bg-card px-3 py-2 text-callout text-pretty text-ink-2">
             «Compro en el Jumbo, ando en metro, voy al gimnasio y tengo un perro.»
           </p>
           <div className="flex flex-wrap gap-1.5">
             {onboardingCategories.map((c) => (
               <span
                 key={c.name}
-                className="flex items-center gap-1.5 rounded-lg bg-card py-1 pr-2.5 pl-1 text-footnote font-medium"
+                className="flex items-center gap-2 rounded-md bg-card py-1 pr-3 pl-1 text-callout"
               >
-                <span
-                  className="grid size-6 place-items-center rounded-md text-white"
-                  style={{ background: c.color }}
-                >
-                  <CategoryIcon icon={c.icon} size={14} />
-                </span>
+                <IconTile color={c.color} className="size-7 [&_svg]:size-4">
+                  <CategoryIcon icon={c.icon} size={16} />
+                </IconTile>
                 {c.name}
               </span>
             ))}
@@ -91,8 +89,8 @@ export function Steps({ signupOpen }: { signupOpen: boolean }) {
         >
           <OutlookIcon className="size-7 shrink-0" />
           <div className="min-w-0">
-            <p className="text-subheadline font-medium">Outlook</p>
-            <p className="flex items-center gap-1 text-footnote text-muted-foreground">
+            <p className="font-semibold">Outlook</p>
+            <p className="flex items-center gap-1 text-caption text-ink-3">
               <Lock className="size-3" />
               Solo lectura de correo
             </p>
@@ -105,15 +103,12 @@ export function Steps({ signupOpen }: { signupOpen: boolean }) {
       body: `Se importan los avisos de los últimos ${SCAN_LOOKBACK_MONTHS} meses, categorizados, y tu plan parte con datos reales.`,
       visual: (
         // inert: las filas de la app son botones; aquí son un ejemplo que no se enfoca.
-        <div
-          inert
-          className="inset-list overflow-hidden rounded-lg bg-card [--inset:4rem]"
-        >
+        <div inert className="flex flex-col rounded-lg bg-card px-3 py-1">
           {importedMovements.map((tx) => (
             <MovementRow
               key={tx.id}
               tx={tx}
-              className="min-h-11 rounded-none px-3"
+              className="min-h-12 rounded-none px-0"
             />
           ))}
         </div>
@@ -124,17 +119,17 @@ export function Steps({ signupOpen }: { signupOpen: boolean }) {
   return (
     <section
       id="empieza"
-      className="scroll-mt-24 border-y border-border bg-secondary/50"
+      className="scroll-mt-20 bg-secondary"
     >
-      <div className="mx-auto max-w-6xl px-5 py-20 lg:px-8 lg:py-28">
+      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8 lg:py-28">
         <h2
           data-reveal
-          className="max-w-xl landing-title text-balance"
+          className="max-w-xl landing-title font-semibold text-balance"
         >
           Así empiezas. Cuatro pasos y tu mes ya tiene datos.
         </h2>
 
-        <ol data-reveal className="group relative mt-14 grid gap-10 lg:grid-cols-4 lg:gap-6">
+        <ol data-reveal className="group relative mt-12 grid gap-10 lg:grid-cols-4 lg:gap-6">
           {/* La línea que une los pasos: vertical en móvil, horizontal en escritorio. */}
           <span
             aria-hidden
@@ -149,17 +144,17 @@ export function Steps({ signupOpen }: { signupOpen: boolean }) {
             >
               <span
                 aria-hidden
-                className="tabular relative z-10 grid size-9 place-items-center rounded-full bg-primary text-subheadline font-bold text-primary-foreground"
+                className="relative z-10 grid size-9 place-items-center rounded-md bg-card text-callout font-semibold text-primary"
               >
                 {i + 1}
               </span>
               <div className="flex min-w-0 flex-col gap-4">
                 <div>
-                  <h3 className="text-headline font-semibold">
+                  <h3 className="text-title font-semibold">
                     <span className="sr-only">Paso {i + 1}: </span>
                     {s.title}
                   </h3>
-                  <p className="mt-1.5 text-subheadline text-pretty text-muted-foreground">
+                  <p className="mt-1.5 text-callout text-pretty text-ink-2">
                     {s.body}
                   </p>
                 </div>

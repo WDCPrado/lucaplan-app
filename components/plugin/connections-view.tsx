@@ -86,32 +86,31 @@ export function ConnectionsView({
       <h2
         ref={heading}
         tabIndex={-1}
-        className="font-heading text-2xl font-semibold tracking-tight outline-none"
+        className="text-title font-semibold outline-none"
       >
         Conexiones del plugin
       </h2>
-      <p className="mt-2 text-base text-muted-foreground">
+      <p className="mt-1 text-ink-2">
         Controla qué asistentes pueden usar tus datos de Luca Plan.
       </p>
       <p
         id="plugin-user-email"
-        className="mt-6 text-sm break-all text-muted-foreground"
+        className="mt-4 text-callout break-all text-ink-3"
       >
         {email}
       </p>
       {loadError ? (
-        <div className="mt-6 space-y-3">
+        <div className="mt-6 flex flex-col items-start gap-3">
           <p
             id="plugin-connections-error"
             role="alert"
-            className="text-sm text-destructive"
+            className="w-full rounded-md bg-destructive-soft px-3 py-2.5 text-callout text-destructive"
           >
             No pudimos cargar tus conexiones. Inténtalo de nuevo.
           </p>
           <Button
             type="button"
-            variant="outline"
-            className="h-11"
+            variant="secondary"
             onClick={reload}
             disabled={loading}
           >
@@ -121,43 +120,43 @@ export function ConnectionsView({
       ) : connections.length ? (
         <div
           id="plugin-connection-list"
-          className="mt-6 divide-y divide-border"
+          className="mt-6 flex flex-col gap-3"
         >
           {connections.map((connection) => (
             <article
               key={connection.id}
-              className="space-y-4 py-4"
+              className="flex flex-col gap-2 rounded-xl bg-card p-(--pad-card)"
               aria-labelledby={`plugin-client-${connection.id}`}
             >
               <h3
                 id={`plugin-client-${connection.id}`}
-                className="text-lg font-medium"
+                className="text-title font-semibold"
               >
                 {connection.clientName || "Asistente conectado"}
               </h3>
               {connection.scopes.includes("finance:read") && (
-                <p className="text-sm leading-6">
+                <p className="text-callout">
                   Consultar tus cuentas, saldos, movimientos, categorías y
                   presupuestos.
                 </p>
               )}
               {connection.scopes.includes("finance:write") && (
-                <p className="text-sm leading-6">
+                <p className="text-callout">
                   Crear, editar y eliminar datos financieros.
                 </p>
               )}
               {(connection.scopes.includes("openid") ||
                 connection.scopes.includes("email")) && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-callout text-ink-2">
                   Perfil y correo de Luca Plan.
                 </p>
               )}
               {connection.scopes.includes("offline_access") && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-callout text-ink-2">
                   Conexión persistente hasta que revoques el acceso.
                 </p>
               )}
-              <p className="text-xs text-muted-foreground">
+              <p className="text-caption text-ink-3">
                 Autorizado el{" "}
                 {new Intl.DateTimeFormat("es-CL", {
                   dateStyle: "long",
@@ -166,8 +165,8 @@ export function ConnectionsView({
               </p>
               <Button
                 type="button"
-                variant="outline"
-                className="h-11 w-full text-base"
+                variant="destructive"
+                className="mt-2 w-full"
                 onClick={(event) => {
                   returnFocus.current = event.currentTarget
                   form.reset({ id: connection.id })
@@ -184,9 +183,12 @@ export function ConnectionsView({
           ))}
         </div>
       ) : (
-        <div id="plugin-empty-state" className="mt-6 space-y-2">
-          <p className="font-medium">No tienes conexiones activas</p>
-          <p className="text-sm leading-6 text-muted-foreground">
+        <div
+          id="plugin-empty-state"
+          className="mt-6 flex flex-col gap-1 rounded-xl bg-card p-(--pad-card)"
+        >
+          <p className="font-semibold">No tienes conexiones activas</p>
+          <p className="text-callout text-ink-2">
             Para conectar un asistente, inicia la conexión desde el plugin Luca
             Plan en ChatGPT o Codex.
           </p>
@@ -196,12 +198,12 @@ export function ConnectionsView({
         <p
           id="plugin-connections-result"
           role="status"
-          className="mt-4 text-sm text-muted-foreground"
+          className="mt-4 rounded-md bg-primary-soft px-3 py-2.5 text-callout text-primary"
         >
           {message}
         </p>
       )}
-      <Button asChild variant="outline" className="mt-6 h-11 w-full text-base">
+      <Button asChild variant="secondary" className="mt-6 w-full">
         <Link href="/dashboard">Volver a Luca Plan</Link>
       </Button>
       <AlertDialog
@@ -234,7 +236,7 @@ export function ConnectionsView({
               <p
                 id="plugin-revoke-error"
                 role="alert"
-                className="text-sm text-destructive"
+                className="text-callout text-destructive"
               >
                 {form.formState.errors.root.message}
               </p>

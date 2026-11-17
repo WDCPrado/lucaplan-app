@@ -1,12 +1,9 @@
 "use client"
 
-import { useRef, useState } from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { useCallback, useRef, useState } from "react"
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
+import { ResponsivePopover } from "@/components/ui/responsive-modal"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { currentPeriod, monthName } from "@/lib/finance-format"
@@ -26,8 +23,9 @@ export function periodLabel(
     : monthName(period.month)
 }
 
-// Selector de mes con Popover de shadcn: el pill del mes abre un grid de 12 meses con
-// navegación de año. El mes seleccionado va en primary; el mes actual lleva un anillo.
+// Selector de mes: el botón del mes abre la grilla de 12 meses con navegación de año, en un popover
+// en escritorio y en la hoja «Elegir mes» en móvil. El elegido va relleno en el acento; el mes en
+// curso lleva un anillo, y «Ir a hoy» vuelve a él cuando se mira otro.
 export function MonthPicker({
   period,
   onSelect,
@@ -47,58 +45,66 @@ export function MonthPicker({
   const [year, setYear] = useState(period.year)
   const now = current ?? currentPeriod()
   const selectedMonth = useRef<HTMLButtonElement>(null)
+  // Estable: corre al montar el contenido (cada vez que se abre), no en cada render.
+  const focusSelected = useCallback((el: HTMLDivElement | null) => {
+    if (el) requestAnimationFrame(() => selectedMonth.current?.focus({ preventScroll: true }))
+  }, [])
 
   return (
-    <Popover
+    <ResponsivePopover
       open={open}
       onOpenChange={(o) => {
         setOpen(o)
         if (o) setYear(period.year) // al abrir, arrancar en el año del período visible
       }}
-    >
-      <PopoverTrigger asChild>
+      title="Elegir mes"
+      align="center"
+      className="w-64 p-3"
+      trigger={
         <button
           type="button"
           className={cn(
-            "press min-h-11 max-w-full truncate rounded-full px-3 text-center text-headline font-semibold md:min-h-8 md:text-subheadline",
+            "press group/mp inline-flex min-h-(--ctl) max-w-full min-w-0 items-center justify-center gap-1.5 rounded-md px-3 text-center text-body font-semibold hover:bg-secondary",
             className
           )}
         >
-          {periodLabel(period, cycleRange)}
-          {withYear && <span className="tabular-nums"> {period.year}</span>}
+          <span className="truncate">
+            {periodLabel(period, cycleRange)}
+            {withYear && <span className="tabular-nums"> {period.year}</span>}
+          </span>
+          <ChevronDown
+            aria-hidden
+            className="size-4 shrink-0 text-ink-3 transition-transform duration-180 ease-(--ease-out) group-data-[state=open]/mp:rotate-180 motion-reduce:transition-none"
+          />
         </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="center"
-        sideOffset={8}
-        className="w-64 p-3"
-        onOpenAutoFocus={(event) => {
-          event.preventDefault()
-          selectedMonth.current?.focus()
-        }}
+      }
+    >
+      <div
+        // Al abrir, el foco va al mes elegido (no al primer botón).
+        ref={focusSelected}
       >
         <div className="mb-2 flex items-center justify-between">
           <button
             type="button"
             onClick={() => setYear((y) => y - 1)}
-            className="grid size-11 place-items-center rounded-lg transition-colors hover:bg-foreground/10 md:size-9"
+            className="press grid size-(--ctl) place-items-center rounded-md text-ink-2 hover:bg-secondary hover:text-foreground"
             aria-label="Año anterior"
           >
             <ChevronLeft className="size-4" />
           </button>
-          <span className="text-subheadline font-semibold tabular-nums">
+          <span className="text-body font-semibold">
             {year}
           </span>
           <button
             type="button"
             onClick={() => setYear((y) => y + 1)}
-            className="grid size-11 place-items-center rounded-lg transition-colors hover:bg-foreground/10 md:size-9"
+            className="press grid size-(--ctl) place-items-center rounded-md text-ink-2 hover:bg-secondary hover:text-foreground"
             aria-label="Año siguiente"
           >
             <ChevronRight className="size-4" />
           </button>
         </div>
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-3 gap-2">
           {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
             const selected = year === period.year && m === period.month
             const isNow = year === now.year && m === now.month
@@ -116,11 +122,11 @@ export function MonthPicker({
                   onSelect(year, m)
                 }}
                 className={cn(
-                  "h-11 rounded-lg text-subheadline transition-colors md:h-9",
+                  "press min-h-(--ctl) rounded-md text-callout transition-colors max-md:min-h-12 max-md:text-body",
                   selected
                     ? "bg-primary font-semibold text-primary-foreground"
-                    : "hover:bg-foreground/10",
-                  !selected && isNow && "ring-1 ring-primary/50"
+                    : "bg-secondary hover:bg-surface-3",
+                  !selected && isNow && "ring-2 ring-primary ring-inset"
                 )}
               >
                 {monthName(m).slice(0, 3)}
@@ -128,7 +134,21 @@ export function MonthPicker({
             )
           })}
         </div>
-      </PopoverContent>
-    </Popover>
+        {(period.year !== now.year || period.month !== now.month) && (
+          <Button
+            type="button"
+            variant="secondary"
+            className="mt-3 w-full"
+            onClick={() => {
+              haptic("light")
+              setOpen(false)
+              onSelect(now.year, now.month)
+            }}
+          >
+            Ir a hoy
+          </Button>
+        )}
+      </div>
+    </ResponsivePopover>
   )
 }

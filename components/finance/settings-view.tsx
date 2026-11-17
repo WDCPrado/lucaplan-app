@@ -15,7 +15,9 @@ import { PushToggle } from "@/components/pwa/push-toggle"
 import { InstallAppItem } from "@/components/pwa/install-app-item"
 import { AppShell, useOpenProfile } from "./app-shell"
 import { Segmented } from "./segmented"
+import { SectionCard } from "./blocks"
 import { IntegrationsGroups } from "./integrations/integrations-groups"
+import { PasskeysSection } from "./passkeys-section"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,13 +39,12 @@ import type { BudgetAlert } from "@/arch/v1/domain/notifications/budget-alert.do
 // guardado fuera de esta lista igual aparece como fila (se puede quitar).
 const PRESETS = [25, 50, 75, 80, 90, 100]
 
-// Grupo inset grouped sobre el fondo de la página: celda sólida (card), separadores con inset.
-const GROUP = "inset-list overflow-hidden rounded-xl bg-card"
-// Fila de 44 px de un grupo que hace algo al tocarla (sin navegar).
-const ROW =
-  "press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body hover:bg-accent/60 disabled:opacity-50"
-// Fila con un control a la derecha (switch, stepper): el control fija el alto.
-const CONTROL_ROW = "flex min-h-11 items-center gap-3 py-1.5 pr-4 pl-4"
+// Fila tocable dentro de una tarjeta: sangra hasta el borde del padding para que el hover en tono
+// llegue al filo, como ListRow. 44 px mínimos.
+const ROW_BLEED =
+  "press -mx-3 flex min-h-11 w-[calc(100%+1.5rem)] items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-secondary disabled:opacity-45"
+// Fila con un control a la derecha (switch, stepper): label → control; el control fija el alto.
+const CONTROL_ROW = "flex min-h-11 items-center gap-3"
 
 // Modo oscuro leído del <html> (next-themes pone la clase antes del primer pintado). En el servidor
 // no hay <html>: parte apagado y al hidratar toma el real, sin mismatch ni useEffect.
@@ -82,53 +83,51 @@ export function SettingsView({
 
   return (
     <AppShell>
-      <div className="mx-auto w-full max-w-5xl px-4 pt-1 pb-6 md:pt-6 lg:px-8">
-        <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
-          {/* Móvil: la cuenta, como en Ajustes de iOS (en escritorio vive en el pie del sidebar). */}
-          <section aria-label="Cuenta" className={cn(GROUP, "md:hidden")}>
+      <div className="page-container">
+        {/* Móvil una columna; escritorio dos columnas parejas (cada fila estira sus tarjetas). */}
+        <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
+          {/* Móvil: la cuenta (en escritorio vive en el pie del sidebar). */}
+          <section
+            aria-label="Cuenta"
+            className="flex flex-col gap-1 rounded-xl bg-card p-(--pad-card) md:hidden"
+          >
             {/* Abre la hoja del perfil (vive en el AppFrame); no navega. */}
             <button
               type="button"
               aria-haspopup="dialog"
               onClick={() => openProfile?.()}
-              className="press flex min-h-15 w-full items-center gap-3 py-2 pr-4 pl-4 text-left hover:bg-accent/60"
+              className={cn(ROW_BLEED, "min-h-16")}
             >
               <span
                 aria-hidden
-                className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-headline font-semibold text-primary-foreground"
+                className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-title font-semibold text-primary-foreground"
               >
                 {user.initial}
               </span>
               <span className="grid min-w-0 flex-1">
-                <span className="truncate text-headline font-semibold">
+                <span className="truncate font-semibold">
                   {user.name || user.email}
                 </span>
                 {user.name && (
-                  <span className="truncate text-footnote text-muted-foreground">
+                  <span className="truncate text-callout text-ink-2">
                     {user.email}
                   </span>
                 )}
               </span>
-              <ChevronRight aria-hidden className="disclosure" />
+              <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
             </button>
-            {/* Booleano → switch, como el modo oscuro de iOS. El tema se guarda en la base. */}
-            <div className={CONTROL_ROW}>
-              <label htmlFor="settings-dark" className="flex-1 text-body">
-                Modo oscuro
-              </label>
-              <Switch
-                id="settings-dark"
-                checked={dark}
-                onCheckedChange={() => {
-                  haptic("light")
-                  toggleTheme()
-                }}
-              />
-            </div>
-            {/* Acción (no navega): texto azul. Solo aparece si hay vía de instalación. */}
-            <InstallAppItem rowClassName={cn(ROW, "text-primary")} />
+            {/* Acción (no navega): texto en acento. Solo aparece si hay vía de instalación. */}
+            <InstallAppItem
+              rowClassName={cn(ROW_BLEED, "font-semibold text-primary")}
+            />
           </section>
-          <AppearanceSection />
+          <AppearanceSection
+            dark={dark}
+            onToggleDark={() => {
+              haptic("light")
+              toggleTheme()
+            }}
+          />
           {vapidPublicKey && (
             <SettingsSection
               title="Notificaciones"
@@ -140,31 +139,31 @@ export function SettingsView({
                 </p>
               }
             >
-              <div className={GROUP}>
-                <PushToggle
-                  vapidPublicKey={vapidPublicKey}
-                  className={CONTROL_ROW}
-                  describedBy="settings-push-hint"
-                />
-              </div>
+              <PushToggle
+                vapidPublicKey={vapidPublicKey}
+                className={CONTROL_ROW}
+                describedBy="settings-push-hint"
+              />
             </SettingsSection>
           )}
           <BudgetAlertsSection initialAlerts={initialAlerts} />
           <DueReminderSection initialDays={dueDays} />
           <PaceSection initialFrequency={paceFrequency} />
-          {/* Una fila que lleva a otra pantalla: chevron, como en Ajustes de iOS. */}
-          <div className={GROUP}>
-            <Link
-              href="/plugin"
-              className="press flex min-h-11 items-center gap-3 px-4 py-2.5 text-body hover:bg-accent/60"
-            >
+          <PasskeysSection />
+          {/* Una fila que lleva a otra pantalla: chevron. */}
+          <SettingsSection
+            title="Plugin"
+            footer="Las apps de IA que conectaste a tu cuenta y lo que pueden hacer."
+          >
+            <Link href="/plugin" className={ROW_BLEED}>
               <span className="flex-1">Conexiones del plugin</span>
-              <ChevronRight aria-hidden className="disclosure" />
+              <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
             </Link>
-          </div>
+          </SettingsSection>
           {isAdmin && (
             <SettingsSection
               title="Integraciones"
+              className="lg:col-span-2"
               footer="Las claves secretas se guardan cifradas y no se vuelven a mostrar completas."
             >
               <IntegrationsGroups redirectUri={outlookRedirectUri} />
@@ -177,8 +176,7 @@ export function SettingsView({
   )
 }
 
-// Sección inset grouped, igual que `ModalSection` de las hojas: encabezado arriba del grupo y la
-// explicación como pie, en footnote.
+// Grupo de Ajustes: una SectionCard con su título; la explicación va al pie en caption (tinta 3).
 function SettingsSection({
   title,
   footer,
@@ -191,20 +189,17 @@ function SettingsSection({
   children: React.ReactNode
 }) {
   return (
-    <section className={cn("min-w-0", className)}>
-      <h2 className="px-4 pb-2 text-headline font-semibold">{title}</h2>
-      {children}
+    <SectionCard title={title} className={className}>
+      <div className="flex flex-1 flex-col gap-1">{children}</div>
       {footer && (
-        <div className="px-4 pt-2 text-footnote text-muted-foreground">
-          {footer}
-        </div>
+        <div className="mt-3 text-caption text-pretty text-ink-3">{footer}</div>
       )}
-    </section>
+    </SectionCard>
   )
 }
 
-// Fila roja centrada al final, con la alerta de iOS para confirmar. Solo móvil: en escritorio la
-// cuenta vive en el pie del sidebar.
+// Cerrar sesión al final, en óxido, con su confirmación. Solo móvil: en escritorio la cuenta vive
+// en el pie del sidebar.
 function SignOutRow() {
   const router = useRouter()
   const [pending, setPending] = useState(false)
@@ -223,14 +218,14 @@ function SignOutRow() {
   }
 
   return (
-    <div className={cn(GROUP, "md:hidden")}>
+    <div className="rounded-xl bg-card p-2 md:hidden">
       <AlertDialog>
         <AlertDialogTrigger asChild>
           <button
             type="button"
             disabled={pending}
             aria-busy={pending || undefined}
-            className={cn(ROW, "justify-center text-center text-destructive")}
+            className="press flex min-h-11 w-full items-center justify-center rounded-lg px-3 font-semibold text-destructive hover:bg-destructive-soft disabled:opacity-45"
           >
             Cerrar sesión
           </button>
@@ -255,11 +250,23 @@ function SignOutRow() {
 }
 
 // Lo que lee el lector de pantalla en cada paso (0 a GLASS_MAX); el 2 es el por defecto.
-const GLASS_NAMES = ["Más transparente", "Transparente", "Normal", "Teñido", "Muy teñido"]
+const GLASS_NAMES = [
+  "Muy transparente",
+  "Transparente",
+  "Normal",
+  "Casi sólida",
+  "Sólida",
+]
 
-// Cuánto vidrio llevan barras, sidebar y menús: de transparente (el de siempre) a teñido, casi
-// sólido. Cinco pasos; es del usuario (en la base): se ve al arrastrar y se guarda al soltar.
-function AppearanceSection() {
+// Tema y transparencia de las barras flotantes (barra superior e inferior del móvil). El nivel es
+// del usuario (en la base): se ve al arrastrar y se guarda al soltar. Cinco pasos.
+function AppearanceSection({
+  dark,
+  onToggleDark,
+}: {
+  dark: boolean
+  onToggleDark: () => void
+}) {
   const { saveGlass } = useAppearance()
   // En el servidor no hay <html> que leer: parte en el nivel por defecto y al hidratar toma el del
   // <html>, que ya trae el del usuario (script del layout).
@@ -271,22 +278,35 @@ function AppearanceSection() {
       footer={
         <>
           <p>
-            El aspecto transparente es más visible mientras que el teñido aumenta
-            la opacidad y genera mayor contraste entre el contenido y los
-            controles.
+            Más transparente deja ver el contenido bajo las barras; sólida da
+            más contraste.
           </p>
-          {/* Con «Reducir transparencia» del sistema todo material es sólido, sea cual sea el nivel. */}
+          {/* Con «Reducir transparencia» del sistema las barras son sólidas, sea cual sea el nivel. */}
           <p className="mt-1 hidden [@media(prefers-reduced-transparency:reduce)]:block">
-            Tu dispositivo tiene activado «Reducir transparencia»: el vidrio se
-            ve sólido igual.
+            Tu dispositivo tiene activado «Reducir transparencia»: las barras se
+            ven sólidas igual.
           </p>
         </>
       }
     >
-      {/* Como Pantalla y brillo → Liquid Glass de iOS 26: los íconos de los extremos reemplazan
-          las etiquetas; el nombre de cada paso lo lee el lector de pantalla (aria-valuetext). */}
-      <div className="flex items-center gap-3 rounded-xl bg-card px-4 py-1.5">
-        <GlassIcon />
+      {/* Booleano → switch. El tema se guarda en la base. */}
+      <div className={CONTROL_ROW}>
+        <label htmlFor="settings-dark" className="flex-1">
+          Modo oscuro
+        </label>
+        <Switch
+          id="settings-dark"
+          checked={dark}
+          onCheckedChange={onToggleDark}
+        />
+      </div>
+      <div className="mt-2 flex flex-col gap-1">
+        <div className="flex items-baseline justify-between gap-3">
+          <span>Barras flotantes</span>
+          <span aria-hidden className="text-callout text-ink-2">
+            {GLASS_NAMES[level]}
+          </span>
+        </div>
         <Slider
           value={[level]}
           onValueChange={([v]) => {
@@ -298,32 +318,19 @@ function AppearanceSection() {
           min={0}
           max={GLASS_MAX}
           step={1}
-          aria-label="Efecto vidrio"
+          aria-label="Transparencia de las barras flotantes"
           aria-valuetext={GLASS_NAMES[level]}
-          className="h-11 flex-1"
+          className="h-11"
         />
-        <GlassIcon tinted />
+        <div
+          aria-hidden
+          className="flex justify-between text-caption text-ink-3"
+        >
+          <span>Transparente</span>
+          <span>Sólida</span>
+        </div>
       </div>
     </SettingsSection>
-  )
-}
-
-// Dos paneles redondeados superpuestos: solo el contorno (transparente) o rellenos (teñido). No hay
-// uno así en lucide; Copy recorta el de atrás y relleno no se lee como vidrio.
-function GlassIcon({ tinted = false }: { tinted?: boolean }) {
-  return (
-    <svg
-      aria-hidden
-      viewBox="0 0 24 24"
-      fill={tinted ? "currentColor" : "none"}
-      stroke="currentColor"
-      strokeWidth={1.75}
-      strokeLinejoin="round"
-      className="size-6 shrink-0 text-muted-foreground"
-    >
-      <rect x="2.5" y="2.5" width="13" height="13" rx="3.5" fillOpacity={0.45} />
-      <rect x="8.5" y="8.5" width="13" height="13" rx="3.5" />
-    </svg>
   )
 }
 
@@ -375,9 +382,8 @@ function DueReminderSection({ initialDays }: { initialDays: number }) {
           : `Un cobro del día 20 se avisaría el día ${20 - days}.`
       }
     >
-      <div className={GROUP}>
-        <div className={cn(CONTROL_ROW, "pr-2")}>
-          <p aria-live="polite" className="tabular flex-1 text-body">
+      <div className={cn(CONTROL_ROW, "gap-2")}>
+          <p aria-live="polite" className="flex-1 font-semibold">
             {days === 0
               ? "El mismo día"
               : `${days} día${days === 1 ? "" : "s"} antes`}
@@ -402,7 +408,6 @@ function DueReminderSection({ initialDays }: { initialDays: number }) {
           >
             <Plus />
           </Button>
-        </div>
       </div>
     </SettingsSection>
   )
@@ -518,7 +523,8 @@ function BudgetAlertsSection({
       title="Alertas de presupuesto"
       footer="Te avisamos cuando una categoría cruza cada % marcado de su límite."
     >
-      <div className={GROUP}>
+      {/* Selección múltiple: una grilla de botones que se marcan (aria-pressed), 3 por fila. */}
+      <div className="grid grid-cols-3 gap-2">
         {percents.map((p) => {
           // La marca cambia al tocar (como iOS); si el guardado falla, vuelve sola.
           const saved = alerts.some((a) => a.percent === p)
@@ -531,16 +537,17 @@ function BudgetAlertsSection({
               aria-busy={pending === p || undefined}
               onClick={() => toggle(p)}
               disabled={pending !== null && pending !== p}
-              className={ROW}
-            >
-              <span className="tabular flex-1">{p}%</span>
-              {on && (
-                <Check
-                  aria-hidden
-                  className="size-5 shrink-0 text-primary"
-                  strokeWidth={2.5}
-                />
+              className={cn(
+                "press flex min-h-11 items-center justify-center gap-1.5 rounded-md px-2 font-semibold transition-colors disabled:opacity-45",
+                on
+                  ? "bg-primary text-primary-foreground hover:brightness-110"
+                  : "bg-secondary text-ink-2 hover:bg-surface-3 hover:text-foreground"
               )}
+            >
+              {on && (
+                <Check aria-hidden className="size-4 shrink-0" strokeWidth={2.5} />
+              )}
+              {p}%
             </button>
           )
         })}

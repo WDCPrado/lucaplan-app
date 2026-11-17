@@ -66,7 +66,7 @@ Todo el backend (doc + código) vive en `arch/`; no hay carpeta `src/`. Dentro d
 - **El estilo principal (tokens, colores, tipografía, radius, dark mode) se define en
   `app/globals.css`** (variables CSS de Tailwind v4). Es la fuente de verdad del diseño;
   no hardcodees valores en componentes, tira de esas variables. Detalle del design system
-  (glassmorphism fintech, tokens, glass, dark/light) en [docs/design/design-system.md](design/design-system.md).
+  (tokens, escala, radios, dark/light) en [docs/design/design-system.md](design/design-system.md).
 - **Responsividad obligatoria (mobile-first).** La experiencia primaria es **móvil**: una
   columna legible, acciones al alcance y modales adaptados al teléfono. En escritorio se
   aprovecha el ancho con sidebar fija y layout multi-columna. El shell vive en
@@ -86,232 +86,99 @@ Todo el backend (doc + código) vive en `arch/`; no hay carpeta `src/`. Dentro d
 
 ### Formas y uso de componentes
 
-Reglas copiadas del front de sdi-estoril (`apps/web`), que es la referencia de forma. Los
-colores siguen siendo los de Luca Plan; lo que se copia es cómo se usan los componentes.
-Rigen para todo lo nuevo; un formulario o modal existente se adapta cuando se toca, no en
-un barrido aparte.
+Rigen para todo lo nuevo; una pantalla existente se adapta cuando se toca.
 
-- **shadcn es la fuente de verdad; `components/ui/` solo se toca para los radios, la escala del
-  `Button` y la forma iOS de `slider.tsx`, `switch.tsx` y `tabs.tsx`.** `calendar.tsx` además
-  devuelve sus días y flechas a la celda de 32 px (`text-sm`, sin el mínimo táctil del botón). Los primitivos llevan la jerarquía de radios de abajo aplicada a mano, y `button.tsx`
-  además la escala de iOS (cápsula, `text-body` en el tamaño por defecto, ≥44 px de alto en táctil,
-  atenuado de `.press` al tocar en vez del desplazamiento de 1 px), y el slider y el switch la
-  forma de los controles de iOS (ver «Controles de iOS» abajo). WDC-176 sumó la escala de iOS a
-  más primitivos: `input.tsx` y `textarea.tsx` (texto `text-body` siempre, sin el `md:text-sm` de
-  shadcn, para que iOS no haga zoom; el input ≥44 px en táctil), `label.tsx` (`text-subheadline`),
-  `select.tsx` (disparador en body, ≥44 px en táctil, `ChevronsUpDown` como el botón emergente de
-  iOS y el ✓ del elegido a la izquierda en azul), `dropdown-menu.tsx` (el ícono de cada fila a la
-  derecha, títulos en footnote), `popover.tsx` (subheadline y título headline), `calendar.tsx`
-  (hoy en azul semibold sin relleno, como iOS), `sonner.tsx` (banner de sistema: esquinas de hoja,
-  íconos de 20 px) y `alert-dialog.tsx`, la alerta de iOS 26: material, `--radius-sheet`, título y
-  mensaje centrados, botones en cápsula de 44 px, dos en fila y más de dos apilados con Cancelar al
-  final, Cancelar en gris y el destructivo en rojo (`variant="destructive"`). Al reinstalar uno con
-  `shadcn add`, volver a aplicarlas. Nada más se edita ahí. Lo reutilizable
-  se compone encima, en `components/<carpeta>/` (`finance/`, `landing/`, `pwa/`): un
-  componente propio envuelve a los primitivos, nunca los reemplaza. Una excepción documentada:
-  `responsive-modal.tsx`, que es composición de Dialog y Drawer.
-- **Tokens, no valores.** Color, fuente, radio y espaciado salen de `app/globals.css`, en los
-  dos temas. Un color nuevo es un token nuevo, no un hex en `className`.
-- **Radio con jerarquía de tres niveles** (`--radius: 0.625rem`), con los controles en cápsula
-  como en iOS 26: `rounded-full` para botones (también los de ícono, que son círculos), el campo
-  de búsqueda y el control segmentado, cuyos segmentos van concéntricos (`rounded-full` dentro de
-  la cápsula); `rounded-lg` para los demás campos (inputs, selects, el disparador de fecha), chips
-  y filtros; `rounded-xl` para superficies (tarjetas, paneles `glass`, secciones, modales, drawers,
-  popovers); `rounded-md` para ítems de lista y de menú. `rounded-full` solo en lo que es un
-  círculo o una barra por significado: avatares, anillos de icono, puntos de estado, barras de
-  progreso, el marcador del día, badges de conteo, los controles de arriba y los controles
-  flotantes de vidrio (cápsulas y círculos de la navegación, la toolbar y la hoja). Nada de `rounded-2xl`/`3xl`/`4xl`
-  en controles ni paneles.
-- **Las alturas no cambian con el radio**: targets táctiles ≥44 px (`h-11`) en móvil, como dice
-  la sección de responsividad.
-- **Modales, dos tipos y nada más.** `ResponsiveModal` para crear, editar o mostrar contenido
-  (dialog en escritorio, drawer en móvil); `AlertDialog` para confirmar una acción al momento.
-  En escritorio los modales de contenido tienen X arriba (`xmark` en un círculo gris); en móvil
-  el drawer se cierra además por arrastre o tocando el fondo. Las confirmaciones se resuelven
-  con sus botones. Las acciones se declaran con `ModalActions` (`primary`, `cancel`): en móvil
-  van en el encabezado de la hoja como en iOS 26, en círculos de 44 px: a la izquierda uno de
-  vidrio con ✕ (`X`, cancela) y a la derecha uno azul con ✓ (`Check`, la primaria). Solo
-  confirmar (Listo, Guardar) es prominente: una acción que no confirma lleva `plain` y va en texto
-  sobre una cápsula de vidrio (Importar, Conectar, Activar, con el verbo corto para que quepa junto
-  al título); con `icon` va como círculo de vidrio con ícono y su texto queda como nombre accesible
-  (Editar con lápiz, Sincronizar y Reintentar con flechas). Toda hoja móvil `dismissible` trae una ✕
-  de respaldo a la izquierda que se oculta cuando la hoja declara su `cancel`; una hoja que no
-  guarda nada (Plan, Filtros) no lleva ✓ y se cierra con esa ✕. El ✓ queda para Guardar, Crear, Agregar, Listo y Aplicar. La primaria
-  queda gris y deshabilitada sin cambios; mientras guarda lleva `busy`, que la deshabilita y pone
-  un spinner (quieto con reducir movimiento) en el círculo, en la cápsula o junto al texto en
-  escritorio. El ✕ deshabilitado queda en gris. El texto de cada acción es su nombre accesible. En escritorio van en el pie (Cancelar o Cerrar en
-  gris, `secondary`, como el botón *bordered* de iOS; la primaria rellena y en semibold); el botón que envía va
-  con `form="<id>"` del `<form>` del modal. `ModalFooter` solo existe en escritorio. Borrar va
-  en `ModalDangerRow`, una fila roja al final del contenido, nunca junto a la primaria. Las
-  secciones de un modal son grupos al estilo Ajustes (`ModalSection`). Convertir un movimiento
-  en recurrente o cuota son filas con chevron de una lista agrupada. Las etiquetas pueden envolver y conservan ≥44px de alto.
-  **Ancho en escritorio, una escala y nada inventado por modal:** contenido (formulario,
-  detalle, lista) hereda el default de `ResponsiveModal`, `sm:max-w-2xl`, sin pasar
-  `className`; denso (varias columnas, como el de cuenta) sube a `sm:max-w-3xl`; un solo campo
-  o un aviso de dos líneas baja a `sm:max-w-md`, porque estirado se ve vacío; una confirmación
-  (`AlertDialog`) queda angosta con su default. Ojo en móvil: el `className` sí llega al drawer, pero el default de
-  ancho no, porque vive solo en el diálogo de escritorio; el drawer conserva su altura según el contenido, con tope de 96dvh.
-- **Modales anidados.** El padre permanece abierto y montado; el hijo se compone dentro de su
-  árbol React, con su formulario fuera del formulario del padre. `ResponsiveModal` asigna una
-  identidad por instancia y registra padre/profundidad; usa la raíz anidada de Vaul en móvil.
-  Cerrar, Cancelar, Esc y el fondo cierran solo el hijo y devuelven el foco al padre. Los cierres
-  después de una escritura exitosa tienen callbacks propios, separados de `onOpenChange`.
-  Los formularios y sus botones de envío usan IDs por instancia; las demás acciones llevan
-  `type="button"`. Toda superficie modal pasa por `ResponsiveModal`.
-- **Formularios.** Un `<form id>` por sección; error de cada campo debajo del campo con
-  `aria-invalid` y `aria-describedby`; Guardar manda solo lo que cambió y queda deshabilitado
-  sin cambios. Dinero con `useMoneyInput`/`formatCLP`, nunca `type="number"` ni formato a mano.
-  Fechas con Calendar + Popover; enums con `Select`.
-- **Un componente de campo no hace fetch ni muta**: recibe valores y callbacks. La mutación
-  vive en quien abre el modal, y el modal se cierra en el éxito, nunca antes.
+- **shadcn es la base y `components/ui/` lleva el sistema de controles.** Los primitivos ya vienen
+  reestilados (WDC-188): botón, input, textarea, select, segmentado, tabs, switch, slider, menús,
+  popover, diálogo, hoja, alerta, sonner, calendar. No se les cambia la API; al reinstalar uno con
+  `shadcn add`, se le vuelve a aplicar el sistema (radio 8, alto `--ctl`, relleno de tono, foco
+  interior, tipografía de la escala). Lo reutilizable se compone encima, en
+  `components/<carpeta>/` (`finance/`, `landing/`, `pwa/`); `responsive-modal.tsx` es la
+  composición documentada de Dialog y Drawer.
+- **Piezas de pantalla** (`components/finance/blocks.tsx`, solo presentación): `SectionCard`
+  (tarjeta con título a la izquierda, acción a la derecha y línea clave), `SectionAction` (`asChild`
+  para un `Link`),
+  `KeyLine`, `ListRow` + `IconTile` (fila de 56 px con icono de 36, título, meta, valor y chevron;
+  `aside` pone una acción propia, como un enlace, sin anidar botones), `InlineNotice` (aviso a ancho
+  completo; `wrap` para un texto que no cabe en una línea), `ProgressBar` (gastado + comprometido + exceso),
+  `StatTile` y `Chevron` (gira al abrir). Una pantalla las usa antes de inventar las suyas.
+- **Tokens, no valores.** Color, fuente, tamaño, radio y espaciado salen de `app/globals.css`, en
+  los dos temas ([design-system.md](design/design-system.md)). Un color nuevo es un token nuevo.
+- **Controles: un sistema.** Un alto (`h-(--ctl)`: 44 táctil, 36 con puntero fino), radio 8, el
+  foco por dentro sin cambiar el tamaño. Botón primario en acento; secundario en tono; `outline` con
+  filete sobre superficie (los de la barra superior); `ghost` en tinta 2; `destructive` en óxido
+  suave; `link` es la acción de texto verde. Campos rellenos de tono, sin borde. Un selector
+  exclusivo de pocas opciones es `Segmented` (una superficie de tono con el elegido en superficie),
+  también Gasto/Ingreso, sin colorear la selección. Nunca `<input type="range">` ni
+  `<input type="date">`.
+- **Tarjeta** (`SectionCard`): superficie, radio 16, padding `--pad-card` (16 móvil, 24 escritorio).
+  Encabezado en una fila: título en tinta 2 a la izquierda y su acción (texto verde) a la derecha;
+  debajo, la línea clave (la cifra en tinta primaria y su contexto en callout), luego el contenido.
+  Dentro, las filas se separan por `gap-2`, no por líneas; un grupo dentro de la tarjeta va en tono
+  (`.sheet-group`, radio 12).
+- **Avisos en línea** (`InlineNotice`): fila a ancho completo de 44 px en tono suave (ámbar, óxido o
+  verde). Nunca una píldora suelta. Las etiquetas (`Badge`) son de 24 px, radio 8, en tono.
+- **Modales, dos tipos y nada más.** `ResponsiveModal` para crear, editar o mostrar (diálogo de
+  radio 24 en escritorio, hoja desde abajo en móvil con encabezado fijo y scroll interno);
+  `AlertDialog` para confirmar al momento. Se cierran con la X, Esc, el fondo y, en móvil,
+  arrastrando. Las acciones se declaran con `ModalActions` (`primary`, `cancel`) y van siempre en el
+  pie fijo (`ModalFooter`): Cancelar en `secondary`, la primaria a la derecha y rellena; en móvil
+  los dos a lo ancho. `plain` es una acción que no confirma (Importar, Conectar). El padding lo
+  pone la base (`--pad-sheet`). La primaria queda deshabilitada sin cambios y
+  con `busy` mientras guarda. El botón que envía lleva `form="<id>"`. Borrar va en
+  `ModalDangerRow`, al final del contenido, nunca junto a la primaria. Las secciones son
+  `ModalSection` (título callout en tinta 2, filas en `.tone-rows` y pie en caption; `plain` para
+  campos). Dentro: `ModalDataRow` (dato `dt/dd` en un `.sheet-group`), `modalRow` y
+  `modalActionRow` (clases de fila y de fila-botón de 44 px).
+- **Selectores en móvil.** Lo que en escritorio es un popover anclado (mes, calendario, día del
+  mes, fechas, menú de la cuenta) en móvil es una hoja: `ResponsivePopover` de
+  `responsive-modal.tsx`, con su título. Dentro de un modal se apila encima. El `Calendar` acepta
+  el modificador `marked` (un punto bajo el día) cuando quien lo usa ya tiene el dato.
+  **Ancho en escritorio**: contenido hereda `sm:max-w-2xl`; denso, `sm:max-w-3xl`; un campo o un
+  aviso corto, `sm:max-w-md`; la confirmación, su default. En móvil la hoja toma la altura del
+  contenido con tope de 96dvh.
+- **Modales anidados.** El padre sigue abierto y montado; el hijo se compone dentro de su árbol,
+  con su formulario fuera del del padre. Cerrar, Esc y el fondo cierran solo el hijo y devuelven el
+  foco al padre. Los cierres tras una escritura exitosa tienen callbacks propios. Formularios y
+  botones de envío con IDs por instancia; las demás acciones, `type="button"`.
+- **Formularios.** Un `<form id>` por sección; error de cada campo debajo con `aria-invalid` y
+  `aria-describedby`; Guardar manda solo lo que cambió. Dinero con `useMoneyInput`/`formatCLP`,
+  nunca `type="number"`. Fechas con Calendar en `ResponsivePopover`; enums con `Select`.
+- **Un componente de campo no hace fetch ni muta**: recibe valores y callbacks. La mutación vive en
+  quien abre el modal, que se cierra en el éxito, nunca antes.
 
-### Lenguaje visual: iOS y Liquid Glass
+### Lenguaje visual: Finanzas en calma
 
-La app sigue el lenguaje de iOS 26 en móvil y de macOS 26 en escritorio (WDC-147). Es una
-dirección de diseño, no una conversión a SwiftUI: se toman de Apple la jerarquía, las
-agrupaciones, la tipografía y los controles.
+Tokens, escala, radios, nivel de Apariencia y movimiento: [design-system.md](design/design-system.md).
+Para anti-slop y escaneabilidad manda la skill `impeccable` (modo Operate). La landing
+(`components/landing/`) comparte tipografía y tokens con la app.
 
-- **Skills de referencia, obligatorias al tocar UI de la app:** `apple-hig` (las Human Interface
-  Guidelines completas, por componente) y `apple-design` (revisión de diseño contra la HIG), las
-  dos declaradas en `skills-lock.json`; se restauran con `npx skills experimental_install`. Para
-  anti-slop y escaneabilidad manda `impeccable`. La landing (`components/landing/`) sigue estas mismas
-  reglas y tokens: sus vistas de ejemplo son los componentes reales de la app (WDC-181).
-- **Cada elemento tiene un propósito.** Todo botón, texto, ícono, color, borde, badge o sección
-  responde a qué decisión o acción de la persona sirve. Si no sirve ninguna o repite algo que ya
-  está, se quita o se funde; si sirve, su peso visual corresponde a su importancia. Quitar va antes
-  que agregar.
-- **Materiales (apple-hig `foundations/materials`, `color`, `components/scroll-views`).** Todo sale
-  de los tokens y utilidades de `app/globals.css`; ningún componente pone su propio blur o fondo.
-  - **Liquid Glass (`liquid-glass`) solo en la capa de controles y navegación**: fila superior y
-    barra de pestañas en móvil, sidebar y topbar en escritorio, cápsulas y botones flotantes. Nunca
-    en el contenido (tarjetas, listas, hojas), que va sólido en `card` sobre el fondo agrupado.
-    Variante regular (desenfoque + luminosidad), sin «clear». Lo grande (sidebar) un poco más opaco
-    que lo chico, pero reutiliza `liquid-glass` para el mismo acabado. La base es CSS compatible con
-    Safari, Firefox y Chrome: desenfoque de 22 px, saturación viva (165 %), relleno neutro, brillo
-    interior radial desde arriba-izquierda (`--glass-sheen`), reflejo localizado arriba-izquierda y
-    un eco menor abajo-derecha (`::before` cónico), rim interior (`--glass-rim`), contorno de 0.5 px
-    y sombra. No hay una línea brillante continua.
-  - **Sin motor de refracción (WDC-174).** El acabado usa sólo CSS: no hay filtros SVG sobre el
-    contenido, clones ni seguimiento continuo. Se retiraron Glisse y el motor anterior para
-    recuperar la composición estable en Safari móvil. Tabs y búsquedas usan enlaces/botones/
-    inputs nativos; Select, menús, sliders y modales conservan los contratos accesibles de Radix/Vaul.
-  - **Patrones de controles (WDC-175).** `SearchInput` comparte búsqueda, limpiar y recuperación
-    de foco en Inicio/Movimientos y los pickers de recurrentes/cuotas. `Segmented` usa selección
-    exclusiva y flechas de Radix RadioGroup en modo, filtros y frecuencia de Ajustes. MonthPicker
-    enfoca el mes seleccionado y anuncia selección/período actual. Los sliders conservan teclado,
-    guardado al terminar y un área de 44 px; los filtros desactivados también lo están para teclado.
-    Tabs siguen siendo enlaces con `aria-current`; Select y menús conservan typeahead, portales y
-    Escape; ResponsiveModal conserva foco, scroll y cierre anidado. No se copia CSS ni motor de Glisse.
-  - **Movimiento del vidrio**: `liquid-squish` encoge la cápsula al 97 % al presionarla (ella o un
-    control suyo con `data-squish`) y vuelve con un spring (`linear()`, con `cubic-bezier` de respaldo). Solo CSS,
-    interrumpible, y nada con movimiento reducido.
-  - **Cambio de pantalla** (React `<ViewTransition>` en `AppShell`, clase `nav`): solo el contenido
-    se desliza un poco (24 px en móvil, 14 px en escritorio) y funde; el marco (sidebar, topbar,
-    fila superior, barra de pestañas) tiene nombre propio y queda quieto. La dirección sale de
-    `lib/nav-direction.ts` (orden de `NAV` y profundidad de la ruta) y la deja `data-nav-dir` en
-    `<html>` antes de navegar, también con el atrás del navegador: móvil siempre horizontal;
-    escritorio, entre links del sidebar en vertical y entrar/volver en horizontal. Dentro de la
-    misma ruta (mes, `?tx=`) no anima. La pastilla activa de las pestañas (`.tab-pill`) y la del
-    sidebar (`.nav-pill`) se deslizan con la misma `--nav-duration`/`--nav-ease`. Con movimiento
-    reducido solo queda el fundido y las pastillas saltan.
-  - **Material regular (`--material`)** para lo que lleva texto encima del contenido:
-    menús, select, popover, tooltip, toasts, alertas y el aviso de refresco de la PWA. Más opaco que
-    el vidrio de las barras, con la misma saturación; la utilidad `material` concentra la
-    receta. Los toasts de estado conservan su color semántico y salen arriba, como el banner de iOS. En las alertas, el destructivo es texto rojo sobre la misma cápsula gris de Cancelar. Las hojas van sólidas (`--sheet`).
-  - **Color con moderación**: el vidrio no tiene color propio; textos e íconos encima van en
-    `foreground`, salvo la selección. La pestaña móvil activa y el link activo del sidebar llevan
-    la misma pastilla neutra (`--glass-tab-active`, un velo de `foreground`) con
-    `--glass-active-shadow`, sin vidrio adicional dentro del vidrio, y su ícono y su etiqueta en
-    azul (`text-tab-active`: `primary` en claro, más claro en oscuro para llegar a 4.5:1), como la
-    pestaña elegida de iOS 26. Hover y press sobre el
-    vidrio son un velo de `foreground` (5 % y 10 %), no el gris sólido `--sidebar-accent`.
-  - **Scroll edge effect** (`scroll-edge-top`) queda solo detrás de la topbar de escritorio:
-    un velo tenue (`--scroll-edge-amount`, 22 % por defecto y proporcional al nivel de vidrio),
-    desenfoque leve (`--scroll-edge-blur`, 4 px) y fundido largo. En móvil el desenfoque queda
-    dentro de las cápsulas, sin franjas a ancho completo alrededor de los controles.
-  - **Concentricidad**: lo que va dentro de una barra o cápsula usa el radio externo menos el
-    margen (`--radius-bar-inner` en la topbar y el sidebar; `rounded-full` dentro de cápsulas).
-  - Con `prefers-reduced-transparency` todo material cae a sólido, sin desenfoque ni reflejo;
-    con `prefers-contrast: more` gana relleno y contorno, también en la selección activa. Ambas
-    preferencias apagan el reflejo por token, incluso en variantes responsive y en el sidebar.
-    Sin soporte de `backdrop-filter`, el relleno cae a sólido.
-  - **Nivel del vidrio** (Ajustes → Apariencia): un slider de 5 pasos, de «Transparente» (el vidrio
-    más translúcido) a «Teñido» (casi sólido), ajusta el relleno de `--glass-fill` y
-    `--glass-fill-large` con `--glass-clear` (65 %, 40 %, 20 %, 0 %, 0 %), y desde el nivel 3 los
-    lleva junto a `--material` hacia `--card` con `--glass-tint` (30 % y 75 %). El desenfoque se
-    mantiene en los cinco pasos para separar las letras del fondo de los controles; solo la
-    preferencia de reducir transparencia lo apaga. `data-glass` vive en `<html>`. Es por usuario, en la base junto
-    con el tema (`user_setting`, `PATCH /api/user-settings`); el layout de `app/(app)` la lee en el
-    servidor y un script la aplica a `<html>` antes del primer pintado (`lib/appearance.ts`). Los
-    cambios se ven al instante y, si el guardado falla, vuelven al valor guardado. Los valores
-    viejos de localStorage (`glass-level`, `theme`) se suben una sola vez por dispositivo, solo si
-    el usuario aún está en los valores por defecto. Las rutas públicas no la usan. Las dos
-    preferencias del sistema de arriba siguen ganando.
-- **Navegación flotante, sin barras a lo ancho**: en móvil, arriba una sola fila: a la izquierda
-  el título de la vista (`text-headline` en negrita; sale del mapa de rutas `NAV` y es el `h1` de la
-  página en móvil, las vistas no traen el suyo) y el resto para las acciones de la vista (el
-  selector de mes `MonthNav`). En las vistas sin selector, el marco pone el mismo `MonthNav`
-  deshabilitado con el período en curso (también junto al título de la topbar de escritorio), así
-  la fila es igual en todas y no salta al navegar. Con el primer scroll el título se va (fundido y
-  leve desplazamiento a la izquierda) y el selector se corre y se ensancha hasta llenar la fila;
-  al volver arriba, al revés (`.top-title`, 280 ms, una transición de `grid-template-columns`
-  disparada por IntersectionObserver; sin movimiento con `prefers-reduced-motion`). Al navegar el
-  título cambia con un fundido corto. El vidrio queda dentro de cada cápsula. La pestaña
-  activa no cambia de peso: la marca su pastilla. La cuenta (perfil, tema, cerrar sesión) vive en
-  Ajustes. Las dos barras viven en el layout (`AppFrame`) y no se desmontan al navegar; la vista
-  inyecta sus acciones por portal. Abajo, una cápsula con las pestañas (la activa con pastilla) y
-  la búsqueda global en un círculo suelto a la derecha, en todas las vistas, pegadas al borde del
-  teléfono como la tab bar de iOS 26: `--tab-bar-inset` (safe area − 12 px, mínimo 8 px) la deja
-  casi concéntrica con la esquina y con el home indicator debajo. En escritorio, sidebar y topbar
-  flotantes de la misma familia (mismo margen, radio y vidrio); la topbar lleva el título y la
-  búsqueda global en todas las vistas. Crear un movimiento no está en la navegación: entran desde
-  el correo del banco. Todo respeta `env(safe-area-inset-*)` y el contenido deja aire para no
-  quedar tapado (`5rem + --tab-bar-inset` abajo).
-- **Listas agrupadas («inset grouped»)**: secciones en tarjetas con filas de ≥44 px, separadores
-  finos con inset desde el texto (`.inset-list`), chevron cuando la fila abre algo y la acción de la
-  sección en texto azul a la derecha del encabezado. Las superficies se separan por el fondo, no
-  por bordes ni sombras. Ajustes es la referencia (WDC-176): encabezado `text-headline` arriba del
-  grupo y la explicación como pie en footnote (igual que `ModalSection`); un booleano es una fila
-  con switch; elegir varias opciones de una lista corta (los % de las alertas) son filas con ✓, sin
-  chips; una acción que no navega va en texto azul y «Cerrar sesión» es una fila roja centrada al
-  final que se confirma con la alerta. Sin íconos de color en las filas: cada sección ya tiene su
-  encabezado. El encabezado de un grupo (el día en Movimientos, la sección en
-  Recurrentes) va en `text-footnote` gris, en mayúsculas y con `tracking-wide`. En una fila de
-  movimiento, la descripción va en body regular y el monto en body semibold `.tabular` (ingreso en
-  `text-success`). Los filtros (Movimientos, buscador) son filas de un solo grupo con botón
-  emergente: el nombre a la izquierda, el valor en gris y `ChevronsUpDown`; el botón «Filtros»
-  queda teñido de azul con su conteo cuando hay filtros puestos; se aplican al tocarlos y su hoja cierra con la ✕.
-- **Tipografía de la escala de iOS**, nunca tamaños sueltos: `text-large-title`, `text-hero` (la
-  cifra protagonista), `text-title-1`, `text-title-3`, `text-headline`, `text-body`,
-  `text-subheadline`, `text-footnote`, `text-caption`. Un tamaño nuevo se registra también en
-  `lib/utils.ts` o `cn()` lo confunde con un color. Los montos van con `.tabular`.
-- **Controles de iOS**: el **switch** es el toggle de iOS (pista de 51×31 en cápsula, verde
-  `--switch-on`, perilla `--knob` con `--knob-shadow`, spring `--ease-spring`, área táctil de 47 px
-  y sin movimiento con movimiento reducido); el **slider**, pista fina de 4 px en cápsula
-  (`--glass-control`), lo lleno en `primary` y perilla de iOS 26: una cápsula de 38×24 px, sólida
-  (`--knob`, con sombra) en reposo para leerse sobre la pista, que al arrastrar crece un 15 % con
-  `--ease-spring` y se vuelve `liquid-glass` (sin escala con movimiento reducido; sólida con reducir
-  transparencia). Un slider simple de 10 pasos o menos dibuja una marca por paso en la pista (nivel
-  del vidrio, tolerancia de la recurrente); el de rango (montos) y los de muchos pasos, no. Nunca
-  `<input type="range">`; el
-  **segmentado** es `Segmented`, cápsula gris con una pastilla clara que se desliza al elegido y
-  texto `text-subheadline` (semibold el elegido). Todo selector exclusivo de pocas opciones usa
-  `Segmented`, también Gasto/Ingreso del movimiento, sin colorear la selección.
-- **Hoja móvil (iOS)**: el drawer de `ResponsiveModal` va pegado abajo y a los lados, con las
-  esquinas de arriba en `--radius-sheet` y el cuerpo dejando `env(safe-area-inset-bottom)`; el alto
-  es el del contenido. Se cierra arrastrando hacia abajo desde cualquier parte (el cuerpo solo con
-  su scroll arriba); hacia arriba cede con resistencia y vuelve. No se oculta el `::after` de vaul:
-  sin él `shouldDrag` no reconoce la hoja y, con la página desplazada, no arrastra.
-- **Íconos: `lucide-react` leído como SF Symbols.** Los SF Symbols y SF Pro no se licencian para
-  web: se elige el glifo lucide más cercano al símbolo que usaría iOS (`house`, `repeat`,
-  `list.bullet` → `List`, `gearshape`, `magnifyingglass`, `xmark.circle.fill` → `CircleX` relleno, el
-  indicador de actividad → `Loader`). El tamaño sale de la escala (`size-4` junto a subheadline o
-  body, `size-5` en barras, `size-6` sueltos) y el peso del texto vecino: junto a texto semibold o
-  bold el trazo sube solo (`globals.css`). El chevron de una fila que abre algo es `disclosure`
-  (chico, semibold, gris terciario); el de navegación en azul va en `size-3.5` con trazo 2.5.
-- **Menús, popovers y selects siguen el tema** (claro en claro): nada de `dark` fijo en un
-  primitivo. El toque da respuesta con `.press`, y el movimiento respeta
-  `prefers-reduced-motion`.
+- **Cada elemento tiene un propósito.** Todo botón, texto, ícono, color o sección responde a qué
+  decisión o acción sirve; si no sirve o repite algo, se quita. Quitar va antes que agregar.
+- **Móvil primero (390/360).** Margen lateral 16, filas de 56–64 px, controles de 44, montos que no
+  se parten, sin scroll horizontal. Escritorio desde 768 con sidebar; la página usa
+  `page-container` (tope 1520, padding 32).
+- **Marco** (`components/finance/app-shell.tsx`, vive en el layout y no se desmonta al navegar):
+  - Escritorio: sidebar en el papel con un filete interior; el ítem activo en superficie con un
+    filete fino; el menú de la cuenta (perfil, tema, instalar, cerrar sesión) nace de su botón al
+    pie. Barra superior pegada de 64 px con fondo de papel, alineada al contenido: botón del
+    sidebar, título, selector de mes (`MonthNav`, una sola superficie: flechas, el mes al centro que
+    abre `MonthPicker` y «Hoy» cuando no es el mes en curso) y la búsqueda (`/` o Ctrl K) a la
+    derecha. Con scroll gana un filete abajo. El tema no va en la barra.
+  - Móvil: barra superior pegada con fondo propio (`float`) y un desvanecido debajo: avatar a la
+    izquierda (abre la hoja «Tu cuenta»), el selector de mes de una sola superficie al centro
+    (flechas, mes y chevron; abre la hoja «Elegir mes») y la búsqueda a la derecha. El título de la
+    vista queda solo para el lector de pantalla (`sr-only`). Abajo, la barra inferior con solo los
+    destinos, sobre el fondo desvanecido. Todo respeta `env(safe-area-inset-*)`; el contenido deja
+    aire abajo.
+  - Cambio de pantalla: solo el contenido se desliza un poco y funde (`<ViewTransition>`,
+    `lib/nav-direction.ts`, `data-nav-dir`); el marco tiene nombre propio y queda quieto.
+- **Listas**: filas `ListRow` separadas por espacio; chevron solo cuando la fila abre algo. El
+  encabezado de un grupo (el día en Movimientos) va en caption, tinta 3. En una fila de movimiento
+  el monto va en body semibold (ingreso en `text-success`).
+- **Íconos**: `lucide-react`, 20 px en barras y filas, 16 junto a callout. Junto a texto semibold el
+  trazo sube solo (`globals.css`). El chevron de una fila que abre algo es el `chevron` de `ListRow`.
+- **Menús, popovers y selects siguen el tema**: nada de `dark` fijo en un primitivo.
 
 ## Flujo de creación de UI / mocks
 

@@ -6,9 +6,9 @@ import { AlertDialog as AlertDialogPrimitive } from "radix-ui"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
-// Excepción iOS (WDC-176): la alerta de iOS 26. Bloque angosto de material centrado, título y
-// mensaje centrados, botones en cápsula de 44 px: dos en fila, más de dos apilados con Cancelar al
-// final. Cancelar en gris (systemFill); el destructivo, texto rojo sobre ese mismo gris.
+// Confirmación: bloque angosto en superficie popover, radio 24, título y mensaje centrados, botones de
+// 44 px: dos en fila, más de dos apilados con Cancelar al final. Cancelar en tono; el destructivo en
+// óxido suave (variant="destructive" del Button).
 
 function AlertDialog({
   ...props
@@ -63,7 +63,7 @@ function AlertDialogContent({
         data-size={size}
 
         className={cn(
-          "group/alert-dialog-content material fixed top-1/2 left-1/2 z-50 grid w-[min(20rem,calc(100%-2.5rem))] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-(--radius-sheet) p-5 text-popover-foreground duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-[min(20rem,calc(100%-2.5rem))] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-(--radius-sheet) bg-card p-5 text-card-foreground shadow-float duration-160 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -128,7 +128,7 @@ function AlertDialogTitle({
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
       className={cn(
-        "text-headline font-semibold text-balance",
+        "text-title font-semibold text-balance",
         className
       )}
       {...props}
@@ -144,7 +144,7 @@ function AlertDialogDescription({
     <AlertDialogPrimitive.Description
       data-slot="alert-dialog-description"
       className={cn(
-        "text-subheadline text-balance text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
+        "text-callout text-balance text-ink-2 *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
         className
       )}
       {...props}
@@ -163,12 +163,7 @@ function AlertDialogAction({
     <Button
       variant={variant}
       size={size}
-      // iOS 26: el destructivo es texto rojo sobre la misma cápsula gris de Cancelar.
-      className={cn(
-        variant === "destructive" &&
-          "bg-(--glass-control) font-semibold hover:bg-(--glass-control) dark:bg-(--glass-control) dark:hover:bg-(--glass-control)",
-        className
-      )}
+      className={className}
       asChild
     >
       <AlertDialogPrimitive.Action
@@ -190,7 +185,7 @@ function AlertDialogCancel({
     <Button
       variant={variant}
       size={size}
-      className={cn("bg-(--glass-control) hover:bg-(--glass-control)", className)}
+      className={cn("bg-secondary hover:bg-surface-3", className)}
       asChild
     >
       <AlertDialogPrimitive.Cancel

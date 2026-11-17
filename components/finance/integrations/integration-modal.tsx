@@ -179,11 +179,14 @@ function IntegrationForm({
       <form
         id={formId}
         onSubmit={form.handleSubmit(({ value }) => send(value))}
-        className="flex flex-col gap-7 px-5"
+        className="flex flex-col gap-6"
       >
         <fieldset disabled={busy} className="contents">
           {errors.root && (
-            <p role="alert" className="text-subheadline text-destructive">
+            <p
+              role="alert"
+              className="rounded-md bg-destructive-soft px-3 py-2.5 text-callout text-destructive"
+            >
               {errors.root.message}
             </p>
           )}
@@ -256,8 +259,7 @@ function IntegrationForm({
           busy: isSubmitting,
           disabled: busy || !isDirty,
         }}
-        className="px-5"
-      />
+              />
     </>
   )
 }
@@ -375,7 +377,7 @@ function SenderForm({
             void next()
           } else void form.handleSubmit((v) => send(buildSender(v)))(e)
         }}
-        className="flex flex-col gap-7 px-5"
+        className="flex flex-col gap-6"
       >
         <fieldset disabled={busy} className="contents">
           <ol aria-label="Pasos" className="grid grid-cols-2 gap-2">
@@ -391,15 +393,15 @@ function SenderForm({
                       n === 1 ? step.n === 2 && setStep({ n: 1, dir: -1 }) : step.n === 1 && void next()
                     }
                     className={cn(
-                      "press flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-subheadline",
-                      current ? "font-semibold text-foreground" : "text-muted-foreground hover:bg-accent/60"
+                      "press flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-callout",
+                      current ? "font-semibold text-foreground" : "text-ink-2 hover:bg-secondary"
                     )}
                   >
                     <span
                       aria-hidden
                       className={cn(
-                        "tabular grid size-6 shrink-0 place-items-center rounded-full text-footnote font-semibold transition-colors",
-                        current ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                        "tabular grid size-6 shrink-0 place-items-center rounded-sm text-caption font-semibold transition-colors",
+                        current ? "bg-primary text-primary-foreground" : "bg-secondary text-ink-3"
                       )}
                     >
                       {n}
@@ -420,14 +422,17 @@ function SenderForm({
           </p>
 
           {errors.root && (
-            <p role="alert" className="text-subheadline text-destructive">
+            <p
+              role="alert"
+              className="rounded-md bg-destructive-soft px-3 py-2.5 text-callout text-destructive"
+            >
               {errors.root.message}
             </p>
           )}
 
           {/* Lo guardado que no se pudo descomponer: se muestra para saber qué se reemplaza. */}
           {!saved && entry.display && (
-            <p className="text-footnote text-muted-foreground">
+            <p className="text-caption text-muted-foreground">
               Ahora:{" "}
               <span className="font-mono break-all text-foreground">
                 {entry.display}
@@ -437,13 +442,13 @@ function SenderForm({
 
           {/* El paso entra desde el lado hacia el que se avanza; con «reducir movimiento», quieto
               (las clases month-in-* ya lo respetan en globals.css). */}
-          <div className="-mx-5 -my-1 overflow-hidden px-5 py-1">
+          <div className="-mx-(--pad-sheet) -my-1 overflow-hidden px-(--pad-sheet) py-1">
             <div
               key={step.n}
               ref={stepRef}
               tabIndex={-1}
               className={cn(
-                "flex flex-col gap-7 outline-none",
+                "flex flex-col gap-6 outline-none",
                 step.dir === 1 && "month-in-next",
                 step.dir === -1 && "month-in-prev"
               )}
@@ -471,10 +476,10 @@ function SenderForm({
               ) : (
                 <>
                   <div className="flex flex-col gap-2">
-                    <span className="text-footnote text-muted-foreground">
+                    <span className="text-caption text-ink-3">
                       Así lo verá quien reciba el correo
                     </span>
-                    <p className="self-start rounded-full bg-muted px-3 py-1.5 font-mono text-footnote break-all">
+                    <p className="self-start rounded-md bg-secondary px-3 py-2 font-mono text-callout break-all">
                       {preview}
                     </p>
                   </div>
@@ -541,8 +546,7 @@ function SenderForm({
                 disabled: busy || unchanged,
               }
         }
-        className="px-5"
-      />
+              />
     </>
   )
 }
@@ -570,7 +574,7 @@ function RemoveControl({
       aria-labelledby={`${formId}-remove-title`}
       className="flex flex-col gap-3"
     >
-      <p id={`${formId}-remove-title`} className="px-1 text-subheadline">
+      <p id={`${formId}-remove-title`} className="px-1 text-callout">
         ¿Quitar {label}? Lo que depende de esto deja de funcionar hasta que guardes otro valor.
       </p>
       <ModalDangerRow onClick={onRemove} aria-busy={removing || undefined}>

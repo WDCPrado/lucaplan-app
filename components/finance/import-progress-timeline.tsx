@@ -16,10 +16,10 @@ export function ImportProgressTimeline({
   return (
     <div className="flex flex-col gap-5 px-6 py-8">
       <div className="text-center">
-        <h3 className="text-title-3 font-bold">
+        <h3 className="text-title font-semibold">
           Conectando {bankName}
         </h3>
-        <p className="mt-1 text-subheadline text-muted-foreground">
+        <p className="mt-1 text-callout text-ink-2">
           No cierres esta ventana; toma unos segundos.
         </p>
       </div>
@@ -29,19 +29,19 @@ export function ImportProgressTimeline({
           const done = i < current
           const active = i === current
           return (
-            <li key={step.title} className="flex items-start gap-3 py-2">
+            <li key={step.title} className="flex items-start gap-3 py-1.5">
               <span
                 className={cn(
-                  "mt-0.5 grid size-7 shrink-0 place-items-center rounded-full border transition-colors duration-300",
-                  done && "border-success bg-success/15 text-success",
-                  active && "border-primary bg-primary/10 text-primary",
-                  !done && !active && "border-border text-muted-foreground/40"
+                  "grid size-7 shrink-0 place-items-center rounded-md transition-colors duration-300 motion-reduce:transition-none",
+                  done && "bg-primary-soft text-primary",
+                  active && "bg-secondary text-primary",
+                  !done && !active && "bg-secondary text-ink-3"
                 )}
               >
                 {done ? (
                   <Check className="size-4 animate-in duration-300 zoom-in-50" />
                 ) : active ? (
-                  <Loader className="size-4 animate-spin" />
+                  <Loader className="size-4 animate-spin motion-reduce:animate-none" />
                 ) : (
                   <span className="size-1.5 rounded-full bg-current" />
                 )}
@@ -54,8 +54,8 @@ export function ImportProgressTimeline({
               >
                 <div
                   className={cn(
-                    "text-body",
-                    active && "text-foreground",
+                    "pt-0.5",
+                    active && "font-semibold text-foreground",
                     done && "text-foreground"
                   )}
                 >
@@ -63,7 +63,7 @@ export function ImportProgressTimeline({
                 </div>
                 {/* El detalle solo del paso en curso: es lo que está pasando ahora. */}
                 {active && (
-                  <div className="text-footnote text-muted-foreground">
+                  <div className="text-callout text-ink-2">
                     {step.detail}
                   </div>
                 )}

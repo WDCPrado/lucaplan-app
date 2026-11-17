@@ -19,7 +19,7 @@ export function CopyButton({ text, label = "Copiar" }: { text: string; label?: s
     <button
       type="button"
       onClick={copy}
-      className="press flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-subheadline text-primary hover:bg-foreground/5"
+      className="press flex h-(--ctl) shrink-0 items-center gap-1.5 rounded-md px-3 text-callout font-semibold text-primary hover:bg-primary-soft"
     >
       {state === "ok" ? (
         <Check aria-hidden className="size-4" />

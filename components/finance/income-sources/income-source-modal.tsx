@@ -158,11 +158,11 @@ export function IncomeSourceModal({
       <form
         id={formId}
         onSubmit={form.handleSubmit(save)}
-        className="flex flex-col gap-7 px-5"
+        className="flex flex-col gap-6"
       >
         <fieldset disabled={busy} className="contents">
           {errors.root && (
-            <p role="alert" className="text-subheadline text-destructive">
+            <p role="alert" className="text-callout text-destructive">
               {errors.root.message}
             </p>
           )}
@@ -327,7 +327,7 @@ export function IncomeSourceModal({
       </form>
       {source && <MonthlyAmounts key={source.id} source={source} onChanged={onSaved} />}
       {source && (
-        <div className="mt-8 px-5">
+        <div className="mt-6">
           <ModalDangerRow disabled={busy} onClick={() => setConfirmDelete(true)}>
             {deleting ? "Eliminando…" : "Eliminar ingreso programado"}
           </ModalDangerRow>

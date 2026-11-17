@@ -320,7 +320,7 @@ export default function DesktopShellMock() {
             {...cardsHandlers}
             className="-mx-4 flex cursor-grab snap-x [scrollbar-width:none] gap-4 overflow-x-auto px-4 pb-4 active:cursor-grabbing lg:mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden"
           >
-            <div className="glass flex min-h-40 w-72 shrink-0 snap-start flex-col justify-between rounded-2xl p-5">
+            <div className="bg-card flex min-h-40 w-72 shrink-0 snap-start flex-col justify-between rounded-2xl p-5">
               <div className="text-sm text-muted-foreground">
                 Saldo disponible
               </div>
@@ -364,7 +364,7 @@ export default function DesktopShellMock() {
                 {monthName(month)}
               </span>
             </div>
-            <div className="glass rounded-2xl p-4">
+            <div className="bg-card rounded-2xl p-4">
               <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-2">
                 {CATEGORIES.map((c) => {
                   const pct = c.limit > 0 ? (c.used / c.limit) * 100 : 0
@@ -413,7 +413,7 @@ export default function DesktopShellMock() {
                 {TX.length} este mes
               </span>
             </div>
-            <div className="glass-strong divide-y divide-border/60 rounded-2xl px-4">
+            <div className="flex flex-col gap-2 rounded-2xl bg-card px-4">
               {TX.map((t) => (
                 <MovementRow key={t.id} tx={t} />
               ))}

@@ -49,7 +49,7 @@ function Slider({
     >
       <SliderPrimitive.Track
         data-slot="slider-track"
-        className="relative h-1 w-full grow overflow-hidden rounded-full bg-(--glass-control)"
+        className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-track"
       >
         <SliderPrimitive.Range
           data-slot="slider-range"
@@ -58,16 +58,15 @@ function Slider({
       </SliderPrimitive.Track>
       {ticks > 0 && (
         // Radix mantiene la perilla dentro de la pista: su centro va de media perilla a
-        // (ancho − media perilla). Las marcas usan el mismo recorrido para caer bajo ella, y van
-        // debajo de la pista como en iOS 26 (la perilla tapa la del paso actual).
+        // (ancho − media perilla). Las marcas usan el mismo recorrido y van bajo la pista.
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-x-[1.1875rem] top-[calc(50%+0.4375rem)] h-1"
+          className="pointer-events-none absolute inset-x-3 top-[calc(50%+0.5rem)] h-1"
         >
           {Array.from({ length: ticks }, (_, i) => (
             <span
               key={i}
-              className="absolute top-0 size-1 -translate-x-1/2 rounded-full bg-foreground/25"
+              className="absolute top-0 size-1 -translate-x-1/2 rounded-full bg-ink-3/50"
               style={{ left: `${(i / (ticks - 1)) * 100}%` }}
             />
           ))}
@@ -84,17 +83,16 @@ function Slider({
           }
           aria-valuetext={ariaValueText}
           className={cn(
-            // Perilla de iOS 26: cápsula de 38×24, clara y sólida en reposo para leerse sobre la
-            // pista. Al arrastrar crece un 15 % y se vuelve vidrio; al soltar vuelve con un spring.
-            // Reducir movimiento: sin escala. Reducir transparencia: el vidrio cae a sólido (token).
-            "block h-6 w-[2.375rem] shrink-0 rounded-full bg-(--knob) shadow-(--knob-shadow)",
-            "transition-transform duration-500 ease-(--ease-spring) motion-reduce:transition-none",
+            // Perilla redonda de 24 en superficie con anillo de acento; al arrastrar crece un 10 %.
+            // Reducir movimiento: sin escala.
+            "block size-6 shrink-0 rounded-full border-2 border-primary bg-card shadow-[0_1px_3px_rgb(0_0_0/0.2)]",
+            "transition-transform duration-150 ease-(--ease-out) motion-reduce:transition-none",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none",
             // El simple se activa al tocar cualquier punto (Radix captura el puntero en el Root);
             // en el rango, solo la perilla que se toma, para que la otra no crezca encima.
             single
-              ? "group-active/slider:liquid-glass motion-safe:group-active/slider:scale-115"
-              : "active:liquid-glass motion-safe:active:scale-115"
+              ? "motion-safe:group-active/slider:scale-110"
+              : "motion-safe:active:scale-110"
           )}
         />
       ))}

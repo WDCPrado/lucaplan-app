@@ -28,27 +28,27 @@ export function AiSection() {
   return (
     <section
       id="ia"
-      className="mx-auto grid max-w-6xl scroll-mt-24 gap-12 px-5 py-20 lg:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] lg:items-center lg:gap-16 lg:px-8 lg:py-28"
+      className="mx-auto grid max-w-6xl scroll-mt-20 gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] lg:items-center lg:gap-16 lg:px-8 lg:py-28"
     >
       <div className="order-2 flex min-w-0 flex-col gap-4 lg:order-1">
-        <ol className="glass inset-list overflow-hidden rounded-xl">
+        <ol className="flex flex-col gap-1 rounded-xl bg-card p-(--pad-card)">
           {rawToCategorized.map(({ raw, tx }, i) => (
             <li
               key={tx.id}
               data-reveal
               style={delay(i * 90)}
-              className="flex flex-col gap-1 px-4 pt-3 pb-1 sm:flex-row sm:items-center sm:gap-3 sm:py-1"
+              className="flex flex-col gap-0.5 pt-2 sm:flex-row sm:items-center sm:gap-3 sm:pt-0"
             >
               <span className="flex min-w-0 items-center gap-2 sm:w-44 sm:shrink-0">
-                <span className="truncate font-mono text-footnote text-muted-foreground">
+                <span className="truncate font-mono text-caption text-ink-3">
                   {raw}
                 </span>
-                <ArrowRight aria-hidden className="hidden size-3.5 shrink-0 text-muted-foreground sm:block" />
-                <ArrowDown aria-hidden className="size-3.5 shrink-0 text-muted-foreground sm:hidden" />
+                <ArrowRight aria-hidden className="hidden size-3.5 shrink-0 text-ink-3 sm:block" />
+                <ArrowDown aria-hidden className="size-3.5 shrink-0 text-ink-3 sm:hidden" />
               </span>
               {/* inert: en la app la fila es un botón; aquí es un ejemplo. */}
               <div inert className="min-w-0 flex-1">
-                <MovementRow tx={tx} className="min-h-11 rounded-none px-0" />
+                <MovementRow tx={tx} className="min-h-12 rounded-none px-0" />
               </div>
             </li>
           ))}
@@ -58,20 +58,20 @@ export function AiSection() {
           data-reveal
           style={delay(450)}
           aria-hidden
-          className="material mx-auto w-full max-w-sm rounded-(--radius-sheet) p-5 text-center"
+          className="mx-auto w-full max-w-sm rounded-2xl bg-popover p-5 text-center shadow-float"
         >
-          <p className="text-headline font-semibold">
+          <p className="text-title font-semibold">
             ¿Aplicar «Comida» a los similares?
           </p>
-          <p className="mt-1 text-footnote text-muted-foreground">
+          <p className="mt-1 text-callout text-ink-2">
             Hay 8 movimientos más con «uber eats». Luca Plan recordará tu
             elección.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <span className="grid min-h-11 place-items-center rounded-full bg-(--glass-control) text-body">
+            <span className="grid h-11 place-items-center rounded-md bg-secondary font-semibold">
               Solo este
             </span>
-            <span className="grid min-h-11 place-items-center rounded-full bg-primary text-body font-semibold text-primary-foreground">
+            <span className="grid h-11 place-items-center rounded-md bg-primary font-semibold text-primary-foreground">
               Aplicar
             </span>
           </div>
@@ -79,20 +79,20 @@ export function AiSection() {
       </div>
 
       <div data-reveal className="order-1 max-w-lg lg:order-2">
-        <h2 className="landing-title text-balance">
+        <h2 className="landing-title font-semibold text-balance">
           Se ordena solo. Y aprende de ti.
         </h2>
         <dl className="mt-8 grid gap-6">
           {points.map(([title, body]) => (
             <div key={title}>
-              <dt className="text-headline font-semibold">{title}</dt>
-              <dd className="mt-1 text-body text-pretty text-muted-foreground">
+              <dt className="text-title font-semibold">{title}</dt>
+              <dd className="mt-1 text-body text-pretty text-ink-2">
                 {body}
               </dd>
             </div>
           ))}
         </dl>
-        <p className="mt-6 text-footnote text-muted-foreground">
+        <p className="mt-6 text-callout text-pretty text-ink-3">
           La IA es opcional: sin ella la app funciona igual y los movimientos
           quedan sin categorizar.
         </p>

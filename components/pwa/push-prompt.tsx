@@ -13,6 +13,7 @@ import {
 } from "@/lib/push"
 import { haptic } from "@/lib/haptics"
 import { ModalActions, ResponsiveModal } from "@/components/ui/responsive-modal"
+import { IconTile } from "@/components/finance/blocks"
 
 /**
  * Ofrece activar las notificaciones al entrar a la app mientras el dispositivo no las tenga
@@ -61,27 +62,19 @@ export function PushPrompt({ vapidPublicKey }: { vapidPublicKey: string }) {
     >
       {/* Contenido y pie de escritorio comparten el contenedor con `px-4`: el pie se sangra con
           `-mx-4` para llegar a los bordes. En móvil las acciones van en el encabezado. */}
-      <div className="flex flex-col gap-4 px-4 pt-2">
-        <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
-          <BellRing className="size-6 text-primary" />
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <IconTile color="var(--primary)">
+            <BellRing />
+          </IconTile>
+          <p className="text-ink-2">Te avisamos en este dispositivo cuando:</p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Te avisamos en este dispositivo cuando:
-        </p>
-        <ul className="space-y-2 text-sm">
-          <li className="flex gap-2">
-            <span aria-hidden>•</span> entra un movimiento nuevo desde tu banco,
-          </li>
-          <li className="flex gap-2">
-            <span aria-hidden>•</span> tu gasto del mes cruza un porcentaje de
-            tu presupuesto,
-          </li>
-          <li className="flex gap-2">
-            <span aria-hidden>•</span> se acerca el pago de una recurrente o una
-            cuota.
-          </li>
+        <ul className="flex flex-col gap-2 rounded-lg bg-secondary px-4 py-3 text-callout">
+          <li>Entra un movimiento nuevo desde tu banco.</li>
+          <li>Tu gasto del mes cruza un porcentaje de tu presupuesto.</li>
+          <li>Se acerca el pago de una recurrente o una cuota.</li>
         </ul>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-caption text-ink-3">
           Puedes cambiarlo cuando quieras en Configuración.
         </p>
         <ModalActions

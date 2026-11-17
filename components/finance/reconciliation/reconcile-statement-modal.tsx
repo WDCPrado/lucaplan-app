@@ -10,6 +10,7 @@ import { toast } from "sonner"
 import { ArrowRight, Check, FileText } from "lucide-react"
 import { ModalSection, ResponsiveModal } from "@/components/ui/responsive-modal"
 import { FinanceField } from "../finance-form-field"
+import { IconTile } from "../blocks"
 import {
   formatMoney,
   formatShortDateHeader,
@@ -289,14 +290,20 @@ export function ReconcileStatementModal({
               }
       }
     >
-      <div className="flex flex-col gap-8 px-5 pb-6">
+      <div className="flex flex-col gap-6">
         {error && (
-          <p role="alert" className="text-subheadline text-destructive">
+          <p
+            role="alert"
+            className="rounded-md bg-destructive-soft px-3 py-2.5 text-callout text-destructive"
+          >
             {error}
           </p>
         )}
         {read && !preview ? (
-          <p className="px-4 text-subheadline text-muted-foreground">
+          <p
+            role="status"
+            className="rounded-md bg-secondary px-3 py-3 text-callout text-ink-2"
+          >
             {busy === "preview"
               ? "Cartola leída. Preparando la propuesta…"
               : "La cartola ya está leída; solo falta la propuesta. Reintenta sin volver a subirla."}
@@ -320,19 +327,23 @@ export function ReconcileStatementModal({
                   <label
                     htmlFor={fieldId}
                     className={cn(
-                      "sheet-group press flex min-h-14 cursor-pointer items-center gap-3 rounded-xl px-4 py-3 focus-within:outline-2 focus-within:outline-ring",
+                      "sheet-group press flex min-h-14 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-surface-3 focus-within:outline-2 focus-within:outline-ring",
                       errors.file && "outline-2 outline-destructive"
                     )}
                   >
-                    <FileText
-                      aria-hidden
-                      className="size-5 shrink-0 text-muted-foreground"
-                    />
-                    <span className="min-w-0 flex-1 truncate text-body">
+                    <IconTile>
+                      <FileText aria-hidden />
+                    </IconTile>
+                    <span
+                      className={cn(
+                        "min-w-0 flex-1 truncate",
+                        field.value ? "font-semibold" : "text-primary font-semibold"
+                      )}
+                    >
                       {field.value?.name ?? "Elegir archivo"}
                     </span>
                     {field.value && (
-                      <span className="shrink-0 text-footnote text-muted-foreground">
+                      <span className="shrink-0 text-caption whitespace-nowrap text-ink-3">
                         {(field.value.size / 1024 / 1024).toFixed(1)} MB
                       </span>
                     )}
@@ -367,6 +378,16 @@ export function ReconcileStatementModal({
         )}
       </div>
     </ResponsiveModal>
+  )
+}
+
+// Título de sección con cuántas filas trae, en tinta 3: se lee el tamaño de cada grupo sin contarlo.
+function CountTitle({ label, count }: { label: string; count: number }) {
+  return (
+    <span className="flex items-baseline gap-2">
+      {label}
+      <span className="font-normal text-ink-3 tabular-nums">{count}</span>
+    </span>
   )
 }
 
@@ -420,7 +441,7 @@ function Review({
 
       {proposal.ambiguous.length > 0 && (
         <ModalSection
-          title="Por decidir"
+          title={<CountTitle label="Por decidir" count={proposal.ambiguous.length} />}
           footer="Filas de la cartola que no se pueden emparejar solas. Aplicar se habilita cuando decides cada una."
         >
           {proposal.ambiguous.map((a) => (
@@ -438,7 +459,7 @@ function Review({
 
       {(proposal.skipped ?? []).length > 0 && (
         <ModalSection
-          title="Quedan fuera"
+          title={<CountTitle label="Quedan fuera" count={(proposal.skipped ?? []).length} />}
           footer="Filas que esta cuenta no puede conciliar. No impiden aplicar el resto."
         >
           {(proposal.skipped ?? []).map((s, i) => {
@@ -462,7 +483,9 @@ function Review({
       )}
 
       {preview.additions.length > 0 && (
-        <ModalSection title="Se agregan">
+        <ModalSection
+          title={<CountTitle label="Se agregan" count={preview.additions.length} />}
+        >
           {preview.additions.map((a, i) => (
             <MovementLine
               key={i}
@@ -477,7 +500,9 @@ function Review({
       )}
 
       {preview.corrections.length > 0 && (
-        <ModalSection title="Se corrigen">
+        <ModalSection
+          title={<CountTitle label="Se corrigen" count={preview.corrections.length} />}
+        >
           {preview.corrections.map(({ before, after }) => (
             <MovementLine
               key={after.id}
@@ -507,7 +532,12 @@ function Review({
 
       {preview.retentions.length > 0 && (
         <ModalSection
-          title="Retenciones que se anulan"
+          title={
+            <CountTitle
+              label="Retenciones que se anulan"
+              count={preview.retentions.length}
+            />
+          }
           footer="Cargos avisados por correo que la cartola no trae. Quedan anulados, no se borran."
         >
           {preview.retentions.map(({ before }) => (
@@ -530,7 +560,10 @@ function Review({
         preview.retentions.length ===
         0 &&
         proposal.ambiguous.length === 0 && (
-          <p className="px-4 text-subheadline text-muted-foreground">
+          <p
+            role="status"
+            className="rounded-md bg-primary-soft px-3 py-3 text-callout text-primary"
+          >
             Los movimientos ya coinciden con la cartola. Aplicar deja la cuenta
             conciliada hasta este corte.
           </p>
@@ -557,8 +590,8 @@ function BucketRow({ before, after }: { before?: Bucket; after: Bucket }) {
   const changed = !before || bucketValue(before) !== bucketValue(after)
   return (
     <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3">
-      <span className="text-body">{BUCKET_LABEL[after.kind]}</span>
-      <span className="ml-auto flex flex-wrap items-center justify-end gap-x-1.5 text-body tabular-nums">
+      <span className="text-ink-2">{BUCKET_LABEL[after.kind]}</span>
+      <span className="ml-auto flex flex-wrap items-center justify-end gap-x-1.5 whitespace-nowrap tabular-nums">
         {before && changed && (
           <>
             <span className="text-muted-foreground">{bucketValue(before)}</span>
@@ -595,15 +628,15 @@ function MovementLine({
   return (
     <div className="flex min-h-11 items-center gap-3 px-4 py-3">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-body">{description}</p>
-        <p className="text-footnote text-muted-foreground">
+        <p className="truncate font-semibold">{description}</p>
+        <p className="text-callout text-ink-2">
           {formatShortDateHeader(date)}
           {tag && ` · ${tag}`}
         </p>
       </div>
       <span
         className={cn(
-          "shrink-0 text-right text-body tabular-nums",
+          "shrink-0 text-right font-semibold whitespace-nowrap tabular-nums",
           credit && "text-success"
         )}
       >
@@ -684,7 +717,7 @@ function AmbiguousRow({
         // Botones con aria-pressed (no radios): cada elección previsualiza, y las flechas de un
         // radiogroup dispararían una previsualización por tecla. aria-disabled y no `disabled`
         // mientras previsualiza, para no perder el foco.
-        <div className="flex flex-col px-4 pb-2">
+        <div className="flex flex-col gap-1 px-2 pb-2">
           {options.map((o) => {
             const selected = value === o.value
             return (
@@ -694,25 +727,28 @@ function AmbiguousRow({
                 aria-pressed={selected}
                 aria-disabled={disabled || undefined}
                 onClick={() => !disabled && onDecide(o.value)}
-                className="press flex min-h-11 items-center gap-3 rounded-md px-1 py-2 text-left focus-visible:outline-2 focus-visible:outline-ring aria-disabled:opacity-60"
+                className={cn(
+                  "press flex min-h-11 items-center gap-3 rounded-md px-2 py-2 text-left focus-visible:outline-2 focus-visible:outline-ring aria-disabled:opacity-60",
+                  selected
+                    ? "bg-primary-soft text-primary"
+                    : "hover:bg-surface-3"
+                )}
               >
-                <span
-                  aria-hidden
-                  className={cn(
-                    "grid size-5 shrink-0 place-items-center rounded-full",
-                    selected
-                      ? "bg-primary text-primary-foreground"
-                      : "border-2 border-muted-foreground/40"
-                  )}
-                >
-                  {selected && <Check className="size-3.5" strokeWidth={3} />}
-                </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-body">{o.label}</span>
-                  <span className="block text-footnote text-muted-foreground">
+                  <span className="block truncate font-semibold">{o.label}</span>
+                  <span
+                    className={cn(
+                      "block text-caption",
+                      selected ? "text-primary" : "text-ink-3"
+                    )}
+                  >
                     {o.detail}
                   </span>
                 </span>
+                {/* La elegida lleva su marca además del tono. */}
+                {selected && (
+                  <Check aria-hidden className="size-4 shrink-0" strokeWidth={2.5} />
+                )}
               </button>
             )
           })}

@@ -2,9 +2,11 @@
 
 import { useState } from "react"
 import { Check } from "lucide-react"
-import { Segmented } from "@/components/finance/segmented"
+import { IconTile, ListRow, ProgressBar, SectionCard } from "@/components/finance/blocks"
 import { CategoryIcon } from "@/components/finance/category-icons"
-import { formatCLP, statusVar } from "@/lib/finance-format"
+import { Segmented } from "@/components/finance/segmented"
+import { formatCLP } from "@/lib/finance-format"
+import { cn } from "@/lib/utils"
 import {
   categories,
   creditCategories,
@@ -20,72 +22,52 @@ const delay = (ms: number) =>
   ({ "--reveal-delay": `${ms}ms` }) as React.CSSProperties
 
 const PERIOD: Record<Mode, string> = {
-  debit: "Mes calendario · 1 al 30 de noviembre",
-  credit: "Ciclo de tarjeta · 26 de octubre al 25 de noviembre",
+  debit: "Mes calendario: 1 al 30 de noviembre",
+  credit: "Ciclo de tarjeta: 26 de octubre al 25 de noviembre",
 }
 
-// Fila de «Ritmo por categoría» del Inicio: ícono en cuadrado de color, nombre, una cifra y la barra
-// fina con lo gastado sólido y lo comprometido tenue detrás.
-function CategoryRow({ c }: { c: Cat }) {
+// Fila de «Ritmo por categoría» del Inicio: icono de la categoría, nombre, lo que queda (o el exceso)
+// y la barra con lo gastado y lo comprometido. El color acompaña al texto, nunca lo reemplaza.
+export function CategoryRow({ c }: { c: Cat }) {
   const pct = Math.min(100, (c.used / c.limit) * 100)
   const commPct = Math.min(100 - pct, (c.committed / c.limit) * 100)
   const free = c.limit - c.used - c.committed
-  const status = c.used > c.limit ? "excedido" : pct + commPct >= 80 ? "moderado" : "bueno"
+  const over = c.used > c.limit
+  const near = !over && pct + commPct >= 80
   return (
-    <div className="flex min-h-11 items-start gap-3 py-3 pr-4 pl-4">
-      <span
-        aria-hidden
-        className="grid size-7 shrink-0 place-items-center rounded-md text-white"
-        style={{ background: c.color }}
-      >
-        <CategoryIcon icon={c.icon} size={16} />
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex min-h-7 items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-body">{c.name}</span>
+    <li className="flex min-h-14 items-center gap-3 py-2">
+      <IconTile color={c.color}>
+        <CategoryIcon icon={c.icon} size={18} />
+      </IconTile>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="truncate font-semibold">{c.name}</span>
           <span
-            className={`shrink-0 text-subheadline ${c.used > c.limit ? "text-destructive" : free <= 0 ? "text-warning" : "text-muted-foreground"}`}
+            className={cn(
+              "text-callout whitespace-nowrap",
+              over ? "text-destructive" : free <= 0 ? "text-warning" : "text-ink-2"
+            )}
           >
-            {c.used > c.limit ? (
+            {over ? (
               <>
-                <span className="tabular">{formatCLP(c.used - c.limit)}</span>{" "}
-                sobre el tope
+                <span className="font-semibold">{formatCLP(c.used - c.limit)}</span> sobre el tope
               </>
             ) : (
               <>
-                quedan <span className="tabular">{formatCLP(Math.max(0, free))}</span>
+                quedan <span className="font-semibold">{formatCLP(Math.max(0, free))}</span>
               </>
             )}
           </span>
         </div>
-        <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full transition-[width] duration-500 ease-out motion-reduce:transition-none"
-            style={{ width: `${pct}%`, background: statusVar(status) }}
-          />
-          <div
-            className="h-full transition-[width] duration-500 ease-out motion-reduce:transition-none"
-            style={{
-              width: `${Math.max(0, commPct)}%`,
-              background: statusVar(status),
-              opacity: 0.35,
-            }}
-          />
-        </div>
+        <ProgressBar
+          value={c.used}
+          committed={c.committed}
+          max={c.limit}
+          tone={near ? "warn" : "default"}
+          label={`Gastado de ${c.name}`}
+        />
       </div>
-    </div>
-  )
-}
-
-function CommitmentIcon({ icon, color }: { icon: string; color: string }) {
-  return (
-    <span
-      aria-hidden
-      className="grid size-10 shrink-0 place-items-center rounded-full"
-      style={{ background: `${color}1f` }}
-    >
-      <CategoryIcon icon={icon} size={18} color={color} />
-    </span>
+    </li>
   )
 }
 
@@ -96,23 +78,27 @@ export function PlanSection() {
     <>
       <section
         id="plan"
-        className="mx-auto grid max-w-6xl scroll-mt-24 gap-12 px-5 py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:items-center lg:gap-16 lg:px-8 lg:py-28"
+        className="mx-auto grid max-w-6xl scroll-mt-20 gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:items-center lg:gap-16 lg:px-8 lg:py-28"
       >
         <div data-reveal className="max-w-lg">
-          <h2 className="landing-title text-balance">
+          <h2 className="landing-title font-semibold text-balance">
             Cada mes parte limpio.
           </h2>
-          <p className="mt-5 text-title-3 font-normal text-pretty text-muted-foreground">
+          <p className="mt-5 text-title font-normal text-pretty text-ink-2">
             Un tope para el mes y uno por categoría. Al cerrar, el plan
             reinicia y tus montos se heredan.
           </p>
-          <p className="mt-4 text-body text-pretty text-muted-foreground">
+          <p className="mt-4 text-body text-pretty text-ink-2">
             En débito cuenta el mes calendario; en crédito, el ciclo de tu
             tarjeta. Cada modo guarda su propio plan.
           </p>
         </div>
 
-        <div data-reveal style={delay(120)} className="flex min-w-0 flex-col gap-3">
+        <SectionCard
+          data-reveal
+          style={delay(120)}
+          title="Ritmo por categoría"
+        >
           <Segmented
             value={mode}
             onChange={setMode}
@@ -122,112 +108,103 @@ export function PlanSection() {
               { value: "credit", label: "Crédito" },
             ]}
           />
-          <p
-            aria-live="polite"
-            className="px-4 pt-2 text-footnote tracking-wide text-muted-foreground uppercase"
-          >
+          <p aria-live="polite" className="mt-3 text-caption text-ink-3">
             {PERIOD[mode]}
           </p>
-          <div
+          <ul
             key={mode}
-            className="glass inset-list animate-in overflow-hidden rounded-xl fade-in [--inset:3.5rem] motion-reduce:animate-none"
+            className="mt-2 flex animate-in flex-col fade-in motion-reduce:animate-none"
           >
             {list.map((c) => (
               <CategoryRow key={c.name} c={c} />
             ))}
-          </div>
-        </div>
+          </ul>
+        </SectionCard>
       </section>
 
       <section
         id="compromisos"
-        className="mx-auto max-w-6xl scroll-mt-24 px-5 pb-20 lg:px-8 lg:pb-28"
+        className="mx-auto max-w-6xl scroll-mt-20 px-4 pb-16 sm:px-6 lg:px-8 lg:pb-28"
       >
         <div data-reveal className="max-w-2xl">
-          <h2 className="landing-title text-balance">
+          <h2 className="landing-title font-semibold text-balance">
             La plata que ya tiene dueño.
           </h2>
-          <p className="mt-5 text-title-3 font-normal text-pretty text-muted-foreground">
+          <p className="mt-5 text-title font-normal text-pretty text-ink-2">
             Recurrentes y cuotas que aún no se cobran cuentan como
             comprometido. Lo que ves para gastar ya los descontó.
           </p>
         </div>
 
-        <div className="mt-12 grid gap-8 md:grid-cols-2">
-          <div data-reveal>
-            <h3 className="mb-1.5 px-4 text-footnote tracking-wide text-muted-foreground uppercase">
-              Recurrentes
-            </h3>
-            <ul className="glass inset-list overflow-hidden rounded-xl [--inset:4.25rem]">
+        <div className="mt-10 grid gap-3 md:grid-cols-2 md:gap-4">
+          <SectionCard data-reveal title="Recurrentes">
+            <ul className="flex flex-col gap-1">
               {recurring.map((r) => (
-                <li key={r.label} className="flex min-h-11 items-center gap-3 px-4 py-2.5">
-                  <CommitmentIcon icon={r.icon} color={r.color} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-body">{r.label}</span>
-                    <span className="block truncate text-footnote text-muted-foreground">
-                      {r.meta} · Mensual
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-right">
-                    <span className="tabular block text-body font-semibold">
-                      {formatCLP(r.amount)}
-                    </span>
-                    <span
-                      className={`flex items-center justify-end gap-0.5 text-footnote ${r.paid ? "text-success" : "text-muted-foreground"}`}
-                    >
-                      {r.paid && <Check aria-hidden className="size-3.5" />}
-                      {r.note}
-                    </span>
-                  </span>
+                <li key={r.label}>
+                  <ListRow
+                    icon={
+                      <IconTile color={r.color}>
+                        <CategoryIcon icon={r.icon} size={18} />
+                      </IconTile>
+                    }
+                    title={r.label}
+                    meta={`${r.meta}, mensual`}
+                    value={formatCLP(r.amount)}
+                    valueNote={
+                      r.paid ? (
+                        <span className="flex items-center gap-0.5 text-success">
+                          <Check aria-hidden className="size-3.5" />
+                          {r.note}
+                        </span>
+                      ) : (
+                        r.note
+                      )
+                    }
+                  />
                 </li>
               ))}
             </ul>
-          </div>
+          </SectionCard>
 
-          <div data-reveal style={delay(120)}>
-            <h3 className="mb-1.5 px-4 text-footnote tracking-wide text-muted-foreground uppercase">
-              Cuotas
-            </h3>
-            <ul className="glass inset-list overflow-hidden rounded-xl [--inset:4.25rem]">
+          <SectionCard data-reveal style={delay(120)} title="Cuotas">
+            <ul className="flex flex-col gap-1">
               {installments.map((p) => (
-                <li key={p.label} className="flex min-h-11 items-center gap-3 px-4 py-3">
-                  <CommitmentIcon icon={p.icon} color={p.color} />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-body">{p.label}</span>
-                      <span className="tabular shrink-0 text-body font-semibold">
-                        {formatCLP(p.monthly)}
-                      </span>
-                    </span>
-                    <span className="flex justify-between gap-2 text-footnote text-muted-foreground">
-                      <span className="truncate">{p.meta}</span>
-                      <span className={p.paid ? "flex items-center gap-0.5 text-success" : "tabular"}>
-                        {p.paid ? (
-                          <>
-                            <Check aria-hidden className="size-3.5" />
-                            Pagada
-                          </>
-                        ) : (
-                          `quedan ${formatCLP(p.outstanding)}`
-                        )}
-                      </span>
-                    </span>
-                    <span aria-hidden className="mt-2 block h-1 overflow-hidden rounded-full bg-muted">
-                      <span
-                        className="landing-bar block h-full rounded-full bg-primary"
-                        style={{ "--bar": `${p.progress}%` } as React.CSSProperties}
-                      />
-                    </span>
-                  </span>
+                <li key={p.label} className="pb-2">
+                  <ListRow
+                    icon={
+                      <IconTile color={p.color}>
+                        <CategoryIcon icon={p.icon} size={18} />
+                      </IconTile>
+                    }
+                    title={p.label}
+                    meta={p.meta}
+                    value={formatCLP(p.monthly)}
+                    valueNote={
+                      p.paid ? (
+                        <span className="flex items-center gap-0.5 text-success">
+                          <Check aria-hidden className="size-3.5" />
+                          Pagada
+                        </span>
+                      ) : (
+                        `quedan ${formatCLP(p.outstanding)}`
+                      )
+                    }
+                  />
+                  <ProgressBar
+                    value={p.progress}
+                    max={100}
+                    label={`Cuotas pagadas de ${p.label}`}
+                    className="ml-12"
+                  />
                 </li>
               ))}
             </ul>
-          </div>
+          </SectionCard>
         </div>
 
-        <p data-reveal className="mt-6 px-4 text-subheadline text-muted-foreground">
+        <p data-reveal className="mt-5 text-callout text-pretty text-ink-2">
           Este mes:{" "}
-          <span className="tabular font-semibold text-foreground">
+          <span className="font-semibold whitespace-nowrap text-foreground">
             {formatCLP(plan.committed)}
           </span>{" "}
           comprometidos ({formatCLP(plan.recurringPending)} en recurrentes y{" "}

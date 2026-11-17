@@ -22,6 +22,7 @@ import { haptic } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { IconTile, InlineNotice } from "../blocks"
 import { ApiError, getIntegrations, updateIntegrations } from "./http"
 import { IntegrationGuideModal } from "./integration-guide"
 import {
@@ -30,8 +31,11 @@ import {
   type SaveIntegrations,
 } from "./integration-modal"
 
-// Mismo grupo inset grouped que el resto de Ajustes (settings-view.tsx).
-const GROUP = "inset-list overflow-hidden rounded-xl bg-card"
+// Cada proveedor es un grupo en tono dentro de la tarjeta de Ajustes (sin tarjeta dentro de
+// tarjeta). Sus filas sangran hasta el borde del grupo y se marcan en un tono más al pasar.
+const GROUP = "flex min-w-0 flex-col gap-1 rounded-lg bg-secondary p-3"
+const ROW =
+  "press -mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-2 text-left"
 
 const README_OUTLOOK =
   "https://github.com/WDCPrado/lucaplan-app#-conectar-outlook-banco-de-chile-paso-a-paso"
@@ -119,15 +123,9 @@ export function LoadError({
 }) {
   return (
     <div className="flex flex-col items-start gap-3">
-      <p role="alert" className="text-subheadline text-destructive">
-        {message}
-      </p>
-      <Button
-        type="button"
-        variant="outline"
-        className="h-11"
-        onClick={onRetry}
-      >
+      {/* El mensaje de la API puede ser largo: se deja envolver en vez de cortarse. */}
+      <InlineNotice tone="alert" label={message} wrap />
+      <Button type="button" variant="secondary" onClick={onRetry}>
         Reintentar
       </Button>
     </div>
@@ -161,10 +159,12 @@ export function IntegrationsGroups({ redirectUri }: { redirectUri: string }) {
 
 function GroupsSkeleton() {
   return (
-    <div className="flex flex-col gap-6" aria-busy>
-      {GROUPS.map((g) => (
-        <Skeleton key={g.id} className="h-40 rounded-xl" />
-      ))}
+    <div className="@container" aria-busy>
+      <div className="grid gap-3 @3xl:grid-cols-3">
+        {GROUPS.map((g) => (
+          <Skeleton key={g.id} className="h-56 rounded-lg" />
+        ))}
+      </div>
     </div>
   )
 }
@@ -222,19 +222,18 @@ export function IntegrationsList({
   const byKey = new Map(status.entries.map((e) => [e.key, e]))
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="@container">
+      {/* Tres proveedores lado a lado solo si el contenedor da (Ajustes ancho); si no, uno bajo otro. */}
+      <div className="grid items-start gap-3 @3xl:grid-cols-3">
       {GROUPS.filter((g) => !groups || groups.includes(g.id)).map((group) => (
         <div key={group.id} className={GROUP}>
-          <div className="flex items-center gap-3 px-4 py-3">
-            <span
-              aria-hidden
-              className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"
-            >
-              <group.icon className="size-4.5" />
-            </span>
+          <div className="mb-1 flex items-center gap-3">
+            <IconTile>
+              <group.icon />
+            </IconTile>
             <span className="grid min-w-0 flex-1">
-              <h3 className="text-headline font-semibold">{group.name}</h3>
-              <span className="text-footnote text-muted-foreground">
+              <h3 className="font-semibold">{group.name}</h3>
+              <span className="text-callout text-ink-2">
                 {group.purpose}
               </span>
             </span>
@@ -246,7 +245,7 @@ export function IntegrationsList({
               aria-haspopup="dialog"
               aria-label={`Cómo conseguir las claves de ${group.name}`}
               onClick={() => setGuide(group.id)}
-              className="-mr-2 size-11 shrink-0 text-primary"
+              className="-mr-1 size-11 shrink-0 text-primary hover:bg-primary-soft hover:text-primary"
             >
               <Info aria-hidden className="size-5" />
             </Button>
@@ -273,14 +272,15 @@ export function IntegrationsList({
               href={link.href}
               target="_blank"
               rel="noreferrer"
-              className="press flex min-h-11 items-center gap-3 px-4 py-2.5 text-body text-primary hover:bg-accent/60"
+              className={cn(ROW, "font-semibold text-primary hover:bg-primary-soft")}
             >
-              <span className="flex-1">{link.label}</span>
+              <span className="min-w-0 flex-1">{link.label}</span>
               <ExternalLink aria-hidden className="size-4 shrink-0" />
             </a>
           ))}
         </div>
       ))}
+      </div>
       <IntegrationGuideModal
         group={GROUPS.find((g) => g.id === guide) ?? null}
         onOpenChange={(open) => !open && setGuide(null)}
@@ -325,23 +325,23 @@ function KeyRow({
 }) {
   const content = (
     <span className="grid min-w-0 flex-1">
-      <span className="text-body">{label}</span>
+      <span className="font-semibold">{label}</span>
       <span
         className={cn(
-          "truncate text-footnote",
-          source === "none" ? "text-muted-foreground" : "text-foreground/80"
+          "truncate text-callout",
+          source === "none" ? "text-ink-3" : "text-ink-2"
         )}
       >
         {statusText(source, display)}
       </span>
       {/* Del entorno, lo que no es secreto (client id, tenant, modelo) se ve completo. */}
       {source === "env" && !secret && display && (
-        <span className="text-footnote break-all text-muted-foreground">
+        <span className="text-caption break-all text-ink-3">
           {display}
         </span>
       )}
       {source === "app" && updatedAt && (
-        <span className="text-footnote text-muted-foreground">
+        <span className="text-caption text-ink-3">
           Actualizada el {dateFmt.format(new Date(updatedAt))}
         </span>
       )}
@@ -354,7 +354,7 @@ function KeyRow({
       <div
         id={id}
         aria-disabled
-        className="flex min-h-11 items-center gap-3 px-4 py-2.5 text-muted-foreground"
+        className={cn(ROW, "text-ink-2")}
       >
         {content}
         <Lock aria-hidden className="size-4 shrink-0" />
@@ -367,10 +367,10 @@ function KeyRow({
       type="button"
       aria-haspopup="dialog"
       onClick={onEdit}
-      className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-accent/60"
+      className={cn(ROW, "hover:bg-surface-3")}
     >
       {content}
-      <ChevronRight aria-hidden className="disclosure" />
+      <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
     </button>
   )
 }
@@ -392,10 +392,10 @@ function RedirectUriRow({ uri }: { uri: string }) {
   }
 
   return (
-    <div className="flex min-h-11 items-center gap-3 py-1.5 pr-2 pl-4">
+    <div className={cn(ROW, "pr-0")}>
       <span className="grid min-w-0 flex-1">
-        <span className="text-body">Redirect URI</span>
-        <span className="text-footnote break-all text-muted-foreground select-all">
+        <span className="font-semibold">Redirect URI</span>
+        <span className="text-caption break-all text-ink-3 select-all">
           {uri}
         </span>
       </span>
@@ -405,7 +405,7 @@ function RedirectUriRow({ uri }: { uri: string }) {
         size="icon"
         onClick={copy}
         aria-label={copied ? "Redirect URI copiada" : "Copiar Redirect URI"}
-        className="size-11 shrink-0 text-primary"
+        className="size-11 shrink-0 text-primary hover:bg-primary-soft hover:text-primary"
       >
         {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
       </Button>

@@ -1,120 +1,113 @@
 # Design System — Luca Plan
 
-Estilo: **iOS 26 / macOS 26 con Liquid Glass** (WDC-147): fondos agrupados, celdas sólidas y una
-capa de controles de vidrio. Esquinas sobrias (`--radius: 0.625rem`, ver
-[Formas y uso de componentes](../development.md#formas-y-uso-de-componentes)), colores de sistema de
-Apple ajustados a AA. Light + dark emparejados.
-Fuente de verdad: [app/globals.css](../../app/globals.css). No hardcodees valores en
-componentes — siempre tira de estos tokens (variables CSS / utilidades Tailwind v4). Las reglas de
-uso están en [Lenguaje visual](../development.md#lenguaje-visual-ios-y-liquid-glass).
+Lenguaje **«Finanzas en calma»** (WDC-188): papel cálido, superficies por tono, una sola fuente y un
+acento verde bosque. Sin vidrio, sin filetes entre secciones, sin decoración: cada elemento sirve a
+una decisión o acción de la persona; lo que repite o decora se quita.
+Fuente de verdad: [app/globals.css](../../app/globals.css). Ningún componente lleva un hex, un
+oklch, un tamaño de letra o un radio sueltos: todo sale de estos tokens. Reglas de uso de
+componentes: [docs/development.md](../development.md#formas-y-uso-de-componentes).
 
-## Contrato de estabilidad de Liquid Glass
+## Color
 
-**Los efectos son parte del diseño, no un detalle del layout.** Una tarea de reordenar secciones, cambiar tamaños, añadir gráficos o modificar navegación **no autoriza** modificar el material de vidrio. Preservar en móvil y escritorio: `liquid-glass`, los cinco niveles de `data-glass` en Apariencia, `--glass-fill`, `--glass-clear`, `--glass-tint`, `--glass-blur`, `--glass-saturate`, `--glass-shadow`, `--glass-rim`, `--glass-sheen`, `--glass-reflection-opacity` y el reflejo `::before`. Desde WDC-174 el acabado es CSS, sin Glisse, filtros SVG ni seguimiento continuo del contenido.
+Light y dark van emparejados; el oscuro es por tono, no negro. Cambia con la clase `.dark`
+(`next-themes`).
 
-- Para cambios de UI, modificar únicamente distribución, jerarquía y espaciado; no anular tokens de vidrio en contenedores como `.top-bar` para solucionar problemas de layout.
-- «Hoy» del selector de ciclo y «Hoy» del selector de movimientos deben heredar el mismo `liquid-glass` en móvil y el mismo material de control en escritorio, respetando Apariencia y accesibilidad. Si cambia el material compartido, revisar ambos controles.
-- Si un pedido requiere alterar transparencia, sombra, blur, brillo o refracción, tratarlo como cambio explícito de material, acotado y con revisión visual en iOS Safari/PWA y escritorio, ambos temas y niveles de Apariencia. Nunca mezclarlo silenciosamente con un PR de layout.
-- Antes del merge, inspeccionar `git diff` de `app/globals.css` y de clases `liquid-glass` de los controles; verificar que el efecto no haya variado accidentalmente. Las preferencias del usuario siguen siendo la única fuente de nivel de vidrio.
+| Rol | Utilidad | Claro | Oscuro | Uso |
+| --- | --- | --- | --- | --- |
+| Papel | `bg-background` | #F4F1EA | #12130F | fondo de la app |
+| Superficie | `bg-card` = `bg-surface` | #FCFBF8 | #1B1C18 | tarjetas, hojas, diálogos |
+| Tono | `bg-secondary` = `bg-surface-2` = `bg-muted` | #EDE9DF | #25261F | controles rellenos, grupos dentro de una tarjeta, hover de filas |
+| Tono 2 | `bg-surface-3` | #E4DFD3 | #2F3029 | hover sobre tono, pista del switch |
+| Menú | `bg-popover` | #FCFBF8 | #25261F | menús, popovers, select, toasts |
+| Tinta | `text-foreground` = `text-ink` | #17160F | #EEEBE3 | cifras y texto principal |
+| Tinta 2 | `text-ink-2` | #47443B | #C4BFB3 | títulos de tarjeta, meta, labels |
+| Tinta 3 | `text-ink-3` = `text-muted-foreground` | #655F53 | #9D9888 | captions, ejes, placeholders |
+| Acento | `bg-primary` / `text-primary` / `bg-primary-soft` | #1E4D3A / #DCE7DF | #93C6AA / #1E3127 | acciones, foco (`ring`), selección |
+| Positivo | `text-success` | #1F6B3F | #8FCB9F | ingresos, montos + |
+| Cerca del límite | `text-warning` / `bg-warning-soft` / `bg-warning-bar` | #7A5200 / #F4E6C6 / #B7841F | #E5BC6A / #382C14 / #D9A94A | tope cerca |
+| Exceso y deuda | `text-destructive` / `bg-destructive-soft` / `bg-destructive-bar` | #9C3A20 / #F3E0D7 / #B5482A | #EDA28A / #3B2219 / #D97757 | exceso, deuda, borrar, errores |
+| Barras | `bg-track`, `bg-bar`, `bg-committed` | | | pista, lo gastado, lo comprometido |
+| Filete | `border-border`, `border-rule-strong` | #E3DED2 / #CBC4B4 | #2C2D27 / #3F4038 | solo el borde de un control que lo necesita |
+| Gráficos | `chart-1…5` | acento, ámbar, positivo, óxido, tinta 3 | | series |
 
-## Principios
+- **El color nunca va solo**: un monto positivo o negativo lleva signo además del color.
+- **Dominio**: CLP y USD van siempre separados; cupo y sobregiro son deuda (óxido), no caja.
+- **El acento no es estado**: verde bosque es acción y selección; «bien» es `success`.
+- `card-art-*` colorea el cupo sobre el arte de las tarjetas de cuenta (fondo del banco).
+- Un color nuevo es un token nuevo en `:root` **y** `.dark`, mapeado en `@theme inline`.
 
-- **Orden y confianza sobre decoración.** Primario **azul** (banca/fintech serio), neutros
-  **slate** fríos, sin colores chillones. El **verde** se reserva para montos positivos
-  (`success`), no es color de marca.
-- **Datos primero.** Los números son el contenido: tipografía tabular y esquinas nítidas
-  priorizan la lectura y el análisis por encima de la suavidad visual.
-- **Vidrio con propósito.** El vidrio marca la capa de controles que flota sobre el contenido,
-  nunca el contenido. `.glass` (nombre heredado) es hoy la celda sólida de `card`.
-- **Color nunca solo.** Montos positivos/negativos llevan icono o signo además del color
-  (`color-not-only`). `text-success` para positivo, `text-destructive` para negativo.
-- **Contraste verificado en ambos modos** (AA 4.5:1 texto). Dark usa tonos desaturados y
-  luminosos, no invertidos.
+## Tipografía
 
-## Tokens semánticos
+Una fuente, **Geist** (`next/font/local`, también en Apple), dos pesos: **400 y 600** (`font-bold`
+cae en 600). Cifras tabulares en todo el documento (el `body` las pone). Seis tamaños y nada fuera
+de ellos; responden al ancho solos:
 
-Mapeados a utilidades Tailwind (`bg-*`, `text-*`, `border-*`):
+| Utilidad | Móvil | ≥768 | Uso |
+| --- | --- | --- | --- |
+| `text-display` | 44/48 | 52/56 (60/64 ≥1200) | solo la cifra protagonista de una pantalla, semibold |
+| `text-screen-title` | 22/28 | 24/32 | título de pantalla fuera del marco: login, onboarding, setup, semibold |
+| `text-title` | 17/24 | 18/24 | título de tarjeta u hoja, cifra clave, semibold |
+| `text-body` | 16/22 | 15/22 | filas, formularios, botones |
+| `text-callout` | 14/20 | 14/20 | texto secundario, labels, acciones de texto |
+| `text-caption` | 12/16 | 13/16 | metadatos, ejes, etiquetas |
 
-| Token | Uso |
-| --- | --- |
-| `background` / `foreground` | fondo de app / texto base |
-| `card` / `card-foreground` | superficies sólidas |
-| `primary` / `primary-foreground` | CTA principal, marca (azul confianza) |
-| `secondary`, `muted`, `accent` | superficies y texto secundario |
-| `success` / `warning` / `destructive` | montos +, alertas, montos − / errores |
-| `border` / `input` / `ring` | bordes, inputs, focus ring |
-| `chart-1…5` | series de gráficos (finanzas) |
+Los nombres viejos (`text-hero`, `text-headline`, `text-footnote`…) ya no existen. Tres tintas: `foreground`,
+`ink-2`, `ink-3`. Un monto nunca se parte (`whitespace-nowrap`).
 
-**Solo del design system** (no shadcn por defecto): `success`, `warning`, `destructive-foreground`,
-y los tokens glass.
+## Forma y espacio
 
-## Materiales
+- **Radios**: `rounded-md`/`rounded-sm` 8 (controles: botón, input, select, segmentado, ítem de
+  menú, aviso), `rounded-lg` 12 (filas, grupos, menús), `rounded-xl` 16 (tarjetas, popovers),
+  `rounded-2xl` y `rounded-(--radius-sheet)` 24 (hojas y diálogos). `rounded-full` solo en lo que es
+  círculo por significado (avatar, punto de estado, switch, barras de progreso) y la barra inferior
+  flotante.
+- **Espacio** en la escala 4/8 (`gap-1`, `gap-2`, `gap-3`, `gap-4`, `gap-6`). Las secciones se separan
+  por tono y espacio, nunca por líneas.
+- **Página**: `page-container` (tope 1520, 16 px de margen en móvil, 32 en escritorio), el mismo borde
+  que la barra superior.
+- **Grupos en tono**: `.tone-rows` (filas sueltas en tono, radio 12, separadas por 8 px) y
+  `.sheet-group` (un solo bloque en tono, radio 12, para datos `dt/dd`). Un campo dentro de
+  cualquiera de los dos pasa a superficie para no perderse en el tono.
+- **Hojas y diálogos**: padding `--pad-sheet` (16 móvil, 24 escritorio), puesto por la base; el
+  contenido no agrega el suyo.
+- **Sombras**: `shadow-float` (lo que flota: menús, barra inferior), `shadow-sheet`, `shadow-panel`,
+  `shadow-thumb` (la selección de un segmentado).
+  Las tarjetas no llevan sombra.
 
-Tres superficies, todas desde tokens de `globals.css`:
+## Lo que flota y el nivel de Apariencia
 
-| Superficie | Clase / token | Dónde |
-| --- | --- | --- |
-| Liquid Glass | `liquid-glass` (`--glass-fill`, `--glass-fill-large` en el sidebar) | barras, topbar, sidebar, cápsulas y botones flotantes |
-| Material regular | `material` (`--material`) y `[data-slot]` de menús, select, popover, tooltip, toasts y alertas | lectura sobre contenido y aviso de refresco PWA |
-| Sólido | `card`, `--sheet`, `--sheet-cell` | contenido, listas, hojas y diálogos |
+No hay vidrio. Lo único que flota sobre el contenido son la barra superior móvil y la barra
+inferior: fondo propio `--float` (la superficie con opacidad) con desenfoque `--float-blur`
+(utilidad `float`). La preferencia **Ajustes → Apariencia** (`data-glass` en `<html>`, 0–4, por
+usuario en la base, `lib/appearance.ts`) mueve esas dos barras de más transparente a sólido:
 
-El vidrio usa un relleno neutro, desenfoque de 22 px (nivel por defecto), saturación de 165 % y un brillo interior radial
-desde arriba-izquierda (`--glass-sheen`, que se apaga con reducir transparencia, más contraste o sin
-desenfoque). El sidebar reutiliza el
-acabado de `liquid-glass` con más relleno. El borde combina un contorno tenue de 0.5 px con un
-reflejo localizado arriba-izquierda y un eco más débil abajo-derecha; no ilumina todo el perímetro.
-Los cinco niveles de Apariencia van de transparente a teñido como en iOS 26: 0–1 aclaran el relleno
-y bajan el desenfoque (4 y 12 px) para que el contenido se lea a través; 3–4 lo tiñen hacia la celda
-sólida (4 casi opaco).
+| Nivel | 0 | 1 | 2 (por defecto) | 3 | 4 |
+| --- | --- | --- | --- | --- | --- |
+| `--float-opacity` | 60 % | 74 % | 88 % | 96 % | 100 % |
+| `--float-blur` | 24 px | 20 px | 16 px | 8 px | 0 |
 
-`liquid-glass-active` usa `--glass-tab-active`, un velo neutro de `foreground`, con
-`--glass-active-shadow`: es la pastilla de la pestaña móvil activa y la del link activo del
-sidebar. En los dos, el ícono y el texto del activo van en `text-tab-active` (`--tab-active`):
-`primary` en claro y un azul más claro en oscuro (#89C1FF), porque #0A84FF sobre la pastilla no
-llega a 4.5:1.
-`scroll-edge-top` (`--scroll-edge`, `--scroll-edge-amount`, `--scroll-edge-blur`) queda solo detrás
-de la topbar de escritorio. En móvil el desenfoque se limita a las cápsulas del selector de mes y
-la navegación, sin velos fuera de sus bordes. La fila superior móvil anula la sombra exterior
-de sus cápsulas, conservando blur, contorno y rim internos; escritorio y barra inferior mantienen
-su sombra. Los controles (`input`, segmentado) usan
-`--glass-control` / `--glass-control-active`.
-`--radius-bar-inner` es el radio concéntrico de lo que va dentro de una barra `rounded-xl`.
-`--card-art-*` colorea el cupo sobre el arte de las tarjetas de cuenta. `--scrollbar` pinta el
-scrollbar fino de escritorio.
+`prefers-reduced-transparency`, `prefers-contrast: more` (que además oscurece filetes y tinta 3) y la
+falta de `backdrop-filter` las dejan sólidas siempre. Los nombres heredados del vidrio
+(`liquid-glass`, `material`, `.glass`, `--glass-*`, `--sheet*`, `--tab-active`…) se borraron.
 
-Accesibilidad: con `prefers-reduced-transparency: reduce` todo material cae a sólido y pierde el
-desenfoque; con `prefers-contrast: more` el vidrio y su selección ganan relleno y contorno. Ambas
-apagan `--glass-reflection-opacity`, también en el sidebar y las variantes responsive. Sin soporte
-de desenfoque, los materiales caen a sólido. `prefers-reduced-motion` sigue siendo para animaciones.
+**Barra superior móvil** (como G): avatar a la izquierda (abre la hoja «Tu cuenta»), el selector de
+mes de una sola superficie al centro (flechas, mes y chevron que gira; abre la hoja «Elegir mes») y
+la búsqueda a la derecha. Todo a 44 px con margen 16. El título de la vista queda solo para el
+lector. **Barra inferior**: solo los destinos.
 
-## Forma y tipografía
+## Movimiento
 
-- `--radius: 0.625rem`; jerarquía de tres niveles (botones, búsqueda y segmentado en cápsula
-  `rounded-full`, los demás campos `rounded-lg`, superficies `rounded-xl`, ítems `rounded-md`) y
-  `--radius-sheet` para hojas y alertas.
-- Tipografía del sistema: SF en Apple, Geist en el resto (`--font-sans`), con la escala de iOS
-  (`text-large-title` … `text-caption`). Cifras con `.tabular` (cifras tabulares de la fuente del
-  sistema). La landing usa la misma tipografía y los mismos tokens que la app (WDC-181).
+- Press: `.press` (escala .98, 140 ms). Hover en tono.
+- Menús y popovers nacen de su botón: 160 ms al entrar, 120 al salir. En móvil (<768) un selector
+  (mes, día, fechas, día del mes, la cuenta) es una hoja desde abajo (`ResponsivePopover`).
+- Chevron que gira 180° al abrir (`Chevron` de `components/finance/blocks.tsx`).
+- Colapsables (`Collapsible`, `<details>`) con altura animada (200/160 ms).
+- Cambio de pantalla: el contenido se desliza (React `<ViewTransition>`, `--nav-duration`); el marco
+  queda quieto.
+- `prefers-reduced-motion`: sin escalas, desplazamientos ni alturas animadas; solo fundidos.
 
-## Dark mode
+## Accesibilidad
 
-Conmuta con la clase `.dark` (vía `next-themes`). Todos los tokens —incluido el fondo
-ambiental y el glass— tienen su variante. Diseña y prueba ambos modos juntos, no infieras
-uno del otro.
-
-El fondo oscuro es negro `#000000`, como el fondo agrupado de iOS 26; las tarjetas conservan `#1C1C1E` y las superficies
-secundarias `#2C2C2E`. El `theme-color` inicial y dinámico y el manifest usan ese mismo fondo
-para acompañar la app instalada. El tema claro conserva sus colores; la landing sigue el tema de la persona.
-
-## Cómo extender
-
-1. ¿Color/valor nuevo? Agrégalo como variable en `:root` **y** `.dark` de `globals.css`.
-2. Si quieres utilidad Tailwind (`bg-foo`), mapéala en `@theme inline` (`--color-foo: var(--foo)`).
-3. Recién entonces úsalo en componentes. Nunca un hex/oklch suelto en un `.tsx`.
-
-## Modales del producto
-
-Los modales son hojas sólidas (`--sheet`) con celdas `--sheet-cell` encima, mediante `[data-product]`.
-`ResponsiveModal` conserva la altura según el contenido en móvil, los formularios validados y la
-jerarquía de modales anidados: cerrar un hijo mantiene abierto al padre y devuelve el foco al control
-de origen.
+Contraste AA en los dos temas. Foco de teclado: anillo de 2 px en el acento, por dentro
+(`outline-offset: -2px`) para que no cambie el tamaño ni lo recorte un contenedor; el botón primario
+lo lleva por fuera. Controles de 44 px en táctil (`--ctl`), 36 con puntero fino.

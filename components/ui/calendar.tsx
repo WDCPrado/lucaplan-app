@@ -25,6 +25,7 @@ function Calendar({
   locale,
   formatters,
   components,
+  modifiersClassNames,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
@@ -35,7 +36,7 @@ function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn(
-        "group/calendar bg-background p-3 [--cell-radius:var(--radius-4xl)] [--cell-size:--spacing(8)] in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent",
+        "group/calendar bg-transparent p-3 [--cell-radius:var(--radius-lg)] [--cell-size:--spacing(9)] pointer-coarse:[--cell-size:--spacing(11)]",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className
@@ -48,7 +49,8 @@ function Calendar({
         ...formatters,
       }}
       classNames={{
-        root: cn("w-fit", defaultClassNames.root),
+        // En la hoja de móvil ocupa el ancho; en un popover, lo que mide.
+        root: cn("w-fit max-md:w-full", defaultClassNames.root),
         months: cn(
           "relative flex flex-col gap-4 md:flex-row",
           defaultClassNames.months
@@ -73,7 +75,7 @@ function Calendar({
           defaultClassNames.month_caption
         ),
         dropdowns: cn(
-          "flex h-(--cell-size) w-full items-center justify-center gap-1.5 text-sm font-medium",
+          "flex h-(--cell-size) w-full items-center justify-center gap-1.5 text-callout font-semibold",
           defaultClassNames.dropdowns
         ),
         dropdown_root: cn(
@@ -85,25 +87,25 @@ function Calendar({
           defaultClassNames.dropdown
         ),
         caption_label: cn(
-          "font-medium select-none",
+          "font-semibold select-none",
           captionLayout === "label"
-            ? "text-sm"
-            : "flex items-center gap-1 rounded-(--cell-radius) text-sm [&>svg]:size-3.5 [&>svg]:text-muted-foreground",
+            ? "text-callout"
+            : "flex items-center gap-1 rounded-(--cell-radius) text-callout [&>svg]:size-3.5 [&>svg]:text-muted-foreground",
           defaultClassNames.caption_label
         ),
         month_grid: cn("w-full border-collapse", defaultClassNames.month_grid),
-        weekdays: cn("flex", defaultClassNames.weekdays),
+        weekdays: cn("flex gap-1", defaultClassNames.weekdays),
         weekday: cn(
-          "flex-1 rounded-(--cell-radius) text-caption font-semibold text-muted-foreground select-none",
+          "flex-1 rounded-(--cell-radius) py-1 text-caption font-normal text-ink-3 select-none",
           defaultClassNames.weekday
         ),
-        week: cn("mt-2 flex w-full", defaultClassNames.week),
+        week: cn("mt-1 flex w-full gap-1", defaultClassNames.week),
         week_number_header: cn(
           "w-(--cell-size) select-none",
           defaultClassNames.week_number_header
         ),
         week_number: cn(
-          "text-[0.8rem] text-muted-foreground select-none",
+          "text-caption text-muted-foreground select-none",
           defaultClassNames.week_number
         ),
         day: cn(
@@ -114,28 +116,35 @@ function Calendar({
           defaultClassNames.day
         ),
         range_start: cn(
-          "relative isolate z-0 rounded-l-(--cell-radius) bg-muted after:absolute after:inset-y-0 after:right-0 after:w-4 after:bg-muted",
+          "relative isolate z-0 rounded-l-(--cell-radius) bg-secondary after:absolute after:inset-y-0 after:-right-1 after:w-4 after:bg-secondary",
           defaultClassNames.range_start
         ),
-        range_middle: cn("rounded-none", defaultClassNames.range_middle),
+        range_middle: cn("rounded-none bg-secondary", defaultClassNames.range_middle),
         range_end: cn(
-          "relative isolate z-0 rounded-r-(--cell-radius) bg-muted after:absolute after:inset-y-0 after:left-0 after:w-4 after:bg-muted",
+          "relative isolate z-0 rounded-r-(--cell-radius) bg-secondary after:absolute after:inset-y-0 after:-left-1 after:w-4 after:bg-secondary",
           defaultClassNames.range_end
         ),
         today: cn(
-          "rounded-(--cell-radius) text-primary data-[selected=true]:rounded-none [&_button]:font-semibold",
+          // Hoy: relleno en el acento (como en G), también si está elegido.
+          "rounded-(--cell-radius) [&_button]:bg-primary [&_button]:font-semibold [&_button]:text-primary-foreground [&_button]:hover:bg-primary [&_button]:hover:brightness-110",
           defaultClassNames.today
         ),
         outside: cn(
-          "text-muted-foreground aria-selected:text-muted-foreground",
+          "text-ink-3 opacity-50 aria-selected:text-ink-3",
           defaultClassNames.outside
         ),
         disabled: cn(
-          "text-muted-foreground opacity-50",
+          "text-ink-3 opacity-50",
           defaultClassNames.disabled
         ),
         hidden: cn("invisible", defaultClassNames.hidden),
         ...classNames,
+      }}
+      // `marked`: un punto bajo el día (días con movimientos), solo donde quien lo usa ya tiene el dato.
+      modifiersClassNames={{
+        marked:
+          "[&>button]:after:absolute [&>button]:after:bottom-1.5 [&>button]:after:left-1/2 [&>button]:after:size-1 [&>button]:after:-translate-x-1/2 [&>button]:after:rounded-full [&>button]:after:bg-current [&>button]:after:opacity-50",
+        ...modifiersClassNames,
       }}
       components={{
         Root: ({ className, rootRef, ...props }) => {
@@ -217,7 +226,9 @@ function CalendarDayButton({
       data-range-end={modifiers.range_end}
       data-range-middle={modifiers.range_middle}
       className={cn(
-        "relative isolate z-10 flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 border-0 text-sm leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-[3px] group-data-[focused=true]/day:ring-ring/50 data-[range-end=true]:rounded-(--cell-radius) data-[range-end=true]:rounded-r-(--cell-radius) data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground data-[range-middle=true]:rounded-none data-[range-middle=true]:bg-muted data-[range-middle=true]:text-foreground data-[range-start=true]:rounded-(--cell-radius) data-[range-start=true]:rounded-l-(--cell-radius) data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[selected-single=true]:bg-primary data-[selected-single=true]:font-semibold data-[selected-single=true]:text-primary-foreground dark:hover:text-foreground [&>span]:text-xs [&>span]:opacity-70",
+        // Celda de G: 36 con puntero fino, 44 táctil; el día elegido en tono y semibold; el rango, un fondo
+        // de tono continuo con sus extremos un tono más oscuro. Hoy va relleno en el acento (classNames.today).
+        "relative isolate z-10 flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 rounded-(--cell-radius) border-0 text-body leading-none font-normal text-foreground hover:bg-secondary data-[range-end=true]:bg-surface-3 data-[range-end=true]:font-semibold data-[range-middle=true]:rounded-none data-[range-middle=true]:bg-transparent data-[range-start=true]:bg-surface-3 data-[range-start=true]:font-semibold data-[selected-single=true]:bg-secondary data-[selected-single=true]:font-semibold data-[selected-single=true]:ring-2 data-[selected-single=true]:ring-primary data-[selected-single=true]:ring-inset [&>span]:text-caption [&>span]:opacity-70",
         defaultClassNames.day,
         className
       )}

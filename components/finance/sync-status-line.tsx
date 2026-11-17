@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { RefreshCw } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 function ago(ms: number): string {
   const m = Math.floor(ms / 60000)
@@ -14,7 +15,13 @@ function ago(ms: number): string {
 
 // Línea "Actualizado hace X" para tarjetas de cuentas conectadas. Refresca el reloj
 // cada 30s. Renderiza null hasta montar (evita mismatch de hidratación por usar la hora del cliente).
-export function SyncStatusLine({ lastSyncedAt }: { lastSyncedAt: string }) {
+export function SyncStatusLine({
+  lastSyncedAt,
+  className = "text-white/85",
+}: {
+  lastSyncedAt: string
+  className?: string // tinta: blanca sobre el arte de la tarjeta (por defecto) o tinta 3 sobre tono
+}) {
   const [now, setNow] = useState<number | null>(null)
 
   useEffect(() => {
@@ -30,7 +37,7 @@ export function SyncStatusLine({ lastSyncedAt }: { lastSyncedAt: string }) {
   const last = new Date(lastSyncedAt).getTime()
 
   return (
-    <div className="flex items-center gap-1.5 text-caption text-white/85">
+    <div className={cn("flex min-w-0 items-center gap-1.5 text-caption", className)}>
       <RefreshCw className="size-3 shrink-0" />
       <span className="truncate">Actualizado {ago(now - last)}</span>
     </div>

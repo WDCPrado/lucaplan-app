@@ -5,11 +5,7 @@ import { CalendarIcon } from "lucide-react"
 import { es } from "date-fns/locale"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { ResponsivePopover } from "@/components/ui/responsive-modal"
 
 // Mes de referencia con 31 días (enero) para que el calendario ofrezca todos los días 1–31.
 // Lo recurrente guarda solo el número de día; el mes/año no importan.
@@ -30,36 +26,39 @@ export function DayOfMonthPicker({
 }) {
   const [open, setOpen] = useState(false)
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          id={id}
-          {...props}
-          type="button"
-          variant="outline"
-          className="h-11 w-full justify-start rounded-lg text-body font-normal"
-        >
-          <CalendarIcon className="size-4 text-muted-foreground" />
-          Día {value}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          locale={es}
-          month={DAY_PICKER_MONTH}
-          disableNavigation
-          showOutsideDays={false}
-          selected={new Date(2001, 0, value)}
-          onSelect={(d) => {
-            if (!d) return
-            onChange(d.getDate())
-            setOpen(false)
-          }}
-          classNames={{ month_caption: "hidden", nav: "hidden" }}
-          autoFocus
-        />
-      </PopoverContent>
-    </Popover>
+    <ResponsivePopover
+      open={open}
+      onOpenChange={setOpen}
+      title="Día del mes"
+      className="w-auto p-0"
+      trigger={
+          <Button
+            id={id}
+            {...props}
+            type="button"
+            variant="secondary"
+            className="w-full min-w-0 justify-start font-normal"
+          >
+            <CalendarIcon className="size-4 text-ink-3" />
+            Día {value}
+          </Button>
+      }
+    >
+      <Calendar
+        mode="single"
+        locale={es}
+        month={DAY_PICKER_MONTH}
+        disableNavigation
+        showOutsideDays={false}
+        selected={new Date(2001, 0, value)}
+        onSelect={(d) => {
+          if (!d) return
+          onChange(d.getDate())
+          setOpen(false)
+        }}
+        classNames={{ month_caption: "hidden", nav: "hidden" }}
+        autoFocus
+      />
+    </ResponsivePopover>
   )
 }

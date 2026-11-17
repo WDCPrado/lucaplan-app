@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@better-auth/oauth-provider": "1.6.33",
+    "@better-auth/passkey": "1.6.33",
     "@hookform/resolvers": "^5.9.1",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@prisma/adapter-pg": "^7.10.1",

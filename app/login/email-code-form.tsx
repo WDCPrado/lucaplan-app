@@ -19,7 +19,9 @@ import {
   InputOTPSeparator,
   InputOTPSlot,
 } from "@/components/ui/input-otp"
+import { finishSignIn } from "./finish-sign-in"
 import { GmailIcon, OutlookIcon } from "./mail-app-icons"
+import { PasskeySignIn } from "./passkey-sign-in"
 
 const STEP_CLASS =
   "flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-4 duration-200 motion-reduce:animate-none"
@@ -43,14 +45,17 @@ export function EmailCodeForm({
       onChangeEmail={() => setSent(false)}
     />
   ) : (
-    <EmailStep
-      email={email}
-      signupOpen={signupOpen}
-      onSent={(value) => {
-        setEmail(value)
-        setSent(true)
-      }}
-    />
+    <>
+      <EmailStep
+        email={email}
+        signupOpen={signupOpen}
+        onSent={(value) => {
+          setEmail(value)
+          setSent(true)
+        }}
+      />
+      <PasskeySignIn />
+    </>
   )
 }
 
@@ -117,7 +122,7 @@ function EmailStep({
           name="email"
           type="email"
           inputMode="email"
-          autoComplete="username"
+          autoComplete="username webauthn"
           autoFocus
           defaultValue={email}
           maxLength={254}
@@ -202,25 +207,8 @@ function CodeStep({
         } else setError(loginErrorMessage(response.error.status, true))
         return
       }
-      // oauthProviderClient envía oauth_query; el servidor verifica la firma y devuelve el destino.
-      if (
-        response.data &&
-        "url" in response.data &&
-        typeof response.data.url === "string"
-      ) {
-        window.location.assign(response.data.url)
-        return
-      }
-      const query = new URLSearchParams(window.location.search)
-      if (query.has("sig") && query.has("ba_param")) {
-        setError(
-          "No pudimos continuar la conexión. Vuelve al asistente e inicia la conexión de nuevo."
-        )
-        return
-      }
-      // Recarga el documento para aplicar tema y preferencias antes del primer pintado.
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- documento nuevo intencional
-      window.location.assign("/dashboard")
+      const blocked = finishSignIn(response.data)
+      if (blocked) setError(blocked)
     } catch {
       setError(loginErrorMessage(undefined, true))
     } finally {

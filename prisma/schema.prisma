@@ -31,6 +31,7 @@ model User {
   oauthAccessToken_userId  OAuthAccessToken[]  @relation("oauthAccessToken_userId")
   oauthConsent_userId      OAuthConsent[]      @relation("oauthConsent_userId")
   settings                 UserSetting[]
+  passkeys                 Passkey[]
 
   @@unique([email])
   @@map("user")
@@ -127,6 +128,28 @@ model UserSetting {
 
   @@id([userId, key])
   @@map("user_setting")
+}
+
+// Biometría (huella o cara) para entrar sin código: una passkey WebAuthn de la cuenta. La maneja
+// @better-auth/passkey, que pide estos nombres. Vale solo en el dominio donde se registró (rpID).
+model Passkey {
+  id           String    @id
+  // "<aparato> · <navegador>" que arma la pantalla al registrarla; puede faltar.
+  name         String?
+  publicKey    String
+  userId       String
+  credentialID String    @unique
+  // ponytail: Int de 32 bits. Apple y Google mandan 0; una llave con contador sobre 2^31 daría 500: subir a BigInt si aparece.
+  counter      Int
+  deviceType   String
+  backedUp     Boolean
+  transports   String?
+  createdAt    DateTime? @default(now())
+  aaguid       String?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("passkey")
 }
 
 // Suscripción Web Push de un dispositivo (endpoint del push service del navegador). Un usuario

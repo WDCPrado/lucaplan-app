@@ -435,7 +435,7 @@ la fuente canónica primero y luego lo demás. `AGENTS.md` y `CLAUDE.md` solo ap
 | Arquitectura | [arch/clean-architecture.md](arch/clean-architecture.md): capas y regla de dependencias. |
 | Desarrollo y contribución | [docs/development.md](docs/development.md): flujo de trabajo, Next 16, reglas de UI, seeds y entornos de PR. |
 | Design system | [docs/design/design-system.md](docs/design/design-system.md): tokens, escala, radios, claro y oscuro. La fuente visual es [app/globals.css](app/globals.css). |
-| Acceso por correo | [docs/login-code.md](docs/login-code.md): código de acceso, Resend y registro. |
+| Acceso por correo | [docs/login-code.md](docs/login-code.md): código de acceso, Resend, registro y biometría. |
 | Outlook y Microsoft Graph | [docs/email-connection-outlook.md](docs/email-connection-outlook.md): webhook, renovación y recuperación. El paso a paso está [arriba](#conectar-outlook). |
 | Correos bancarios | [docs/bank-email-contract.md](docs/bank-email-contract.md): correos soportados y qué debe aportar un banco nuevo. |
 | Asistente MCP | [docs/plugin-luca-plan.md](docs/plugin-luca-plan.md): autorización, catálogo de operaciones y cómo conectarlo. |

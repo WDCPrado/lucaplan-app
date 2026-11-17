@@ -17,6 +17,7 @@ import { AppShell, useOpenProfile } from "./app-shell"
 import { Segmented } from "./segmented"
 import { SectionCard } from "./blocks"
 import { IntegrationsGroups } from "./integrations/integrations-groups"
+import { PasskeysSection } from "./passkeys-section"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -148,6 +149,7 @@ export function SettingsView({
           <BudgetAlertsSection initialAlerts={initialAlerts} />
           <DueReminderSection initialDays={dueDays} />
           <PaceSection initialFrequency={paceFrequency} />
+          <PasskeysSection />
           {/* Una fila que lleva a otra pantalla: chevron. */}
           <SettingsSection
             title="Plugin"

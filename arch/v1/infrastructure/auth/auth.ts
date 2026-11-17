@@ -19,6 +19,7 @@ import {
   createLoginCodePlugin,
   PASSWORD_DISABLED_PATHS,
 } from "./login-code.ts"
+import { createPasskeyPlugin, PASSKEY_DISABLED_PATHS } from "./passkey.ts"
 import { createResendLoginCodeMailer } from "../email/resend/login-code.mailer.ts"
 import { integrationDeps } from "../database/prisma/integration-deps.ts"
 import { resolveIntegration } from "../../application/integration-use-cases/resolve-integration-use-case.ts"
@@ -40,6 +41,7 @@ export const auth = betterAuth({
   baseURL: canonical?.issuer,
   disabledPaths: [
     ...PASSWORD_DISABLED_PATHS,
+    ...PASSKEY_DISABLED_PATHS,
     "/token",
     "/oauth2/update-consent",
     "/oauth2/delete-consent",
@@ -136,6 +138,7 @@ export const auth = betterAuth({
       }
     ),
     admin({ defaultRole: "USER", adminRoles: ["ADMIN"] }),
+    createPasskeyPlugin(canonical),
     jwt({ jwt: { issuer: canonical?.issuer } }),
     oauthProvider({
       schema: {

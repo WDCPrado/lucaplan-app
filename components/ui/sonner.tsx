@@ -10,8 +10,7 @@ import {
   Loader2Icon,
 } from "lucide-react"
 
-// Excepción iOS (WDC-176): iOS no tiene toasts; se leen como un banner de sistema. Material
-// y tipografía en globals.css (sonner trae su CSS sin capa); aquí, esquinas de hoja e íconos de 20 px.
+// Superficie popover, radio 12 y tipografía en globals.css (sonner trae su CSS sin capa).
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
 
@@ -31,7 +30,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-bg": "var(--popover)",
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
-          "--border-radius": "var(--radius-sheet)",
+          "--border-radius": "var(--radius-lg)",
         } as React.CSSProperties
       }
       toastOptions={{

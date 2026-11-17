@@ -8,8 +8,8 @@ import { PwaRefresh } from "@/components/pwa/pwa-refresh"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 
-// Tipografía: la app y la landing usan la fuente del sistema (SF en Apple) y caen a Geist en el
-// resto; Geist Mono para código. Las pilas viven en globals.css. Ver docs/design/design-system.md.
+// Tipografía: Geist en toda la app y la landing (también en Apple), Geist Mono para código. Las pilas
+// viven en globals.css. Ver docs/design/design-system.md.
 const fontSans = localFont({
   src: "./fonts/Geist.woff2",
   weight: "100 900",
@@ -67,8 +67,8 @@ export const viewport: Viewport = {
   viewportFit: "cover",
   interactiveWidget: "overlays-content",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f2f2f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+    { media: "(prefers-color-scheme: light)", color: "#F4F1EA" },
+    { media: "(prefers-color-scheme: dark)", color: "#12130F" },
   ],
 }
 
@@ -110,7 +110,7 @@ export default function RootLayout({
           <div data-vaul-drawer-wrapper className="min-h-dvh">
             {children}
           </div>
-          {/* Arriba como el banner de iOS, bajo la isla dinámica en la PWA. */}
+          {/* Arriba, bajo la isla dinámica en la PWA. */}
           <Toaster
             richColors={true}
             position="top-center"

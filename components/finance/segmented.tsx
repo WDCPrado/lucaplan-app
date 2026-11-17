@@ -4,8 +4,9 @@ import { cn } from "@/lib/utils"
 import { RadioGroup } from "radix-ui"
 
 /**
- * Control segmentado de iOS 26: cápsula, segmentos concéntricos, pista systemFill y el segmento elegido en relleno sólido. Un solo
- * estilo activo para todas las opciones (el color no cambia según qué se elige).
+ * Control segmentado: una sola superficie de tono (surface-2, radio 8, alto --ctl) con el segmento
+ * elegido en superficie que se desliza. Un solo estilo activo para todas las opciones (el color no
+ * cambia según qué se elige).
  */
 export function Segmented<T extends string>({
   value,
@@ -31,20 +32,20 @@ export function Segmented<T extends string>({
       orientation="horizontal"
       aria-label={label}
       className={cn(
-        "relative flex min-h-11 rounded-full bg-(--glass-control) p-0.5",
+        "relative flex min-h-(--ctl) rounded-md bg-secondary p-1",
         className
       )}
     >
-      {/* Pastilla clara que se desliza hasta el segmento elegido (spring corto; salta con
-          movimiento reducido). Los segmentos miden lo mismo: basta su índice. */}
+      {/* Segmento elegido: superficie que se desliza hasta él (salta con movimiento reducido).
+          Los segmentos miden lo mismo: basta su índice. */}
       <span
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-y-0.5 left-0.5 rounded-full bg-(--glass-control-active) shadow-(--knob-shadow) transition-transform duration-500 ease-(--ease-spring) motion-reduce:transition-none",
+          "pointer-events-none absolute inset-y-1 left-1 rounded-sm bg-card shadow-[0_1px_2px_rgb(0_0_0/0.08)] transition-transform duration-240 ease-(--ease-out) motion-reduce:transition-none",
           activeIndex < 0 && "opacity-0"
         )}
         style={{
-          width: `calc((100% - 0.25rem) / ${options.length})`,
+          width: `calc((100% - 0.5rem) / ${options.length})`,
           transform: `translateX(${Math.max(activeIndex, 0) * 100}%)`,
         }}
       />
@@ -56,11 +57,10 @@ export function Segmented<T extends string>({
             key={o.value}
             disabled={disabled}
             className={cn(
-              "relative flex-1 rounded-full px-3 text-subheadline whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50",
+              "relative flex-1 rounded-sm px-3 text-callout font-semibold whitespace-nowrap transition-colors disabled:opacity-45",
               active
-                ? "font-semibold text-foreground"
-                : // En oscuro, muted sobre la pista de una hoja queda en 4.49:1: no llega a AA.
-                  "font-medium text-muted-foreground hover:text-foreground dark:text-foreground/80"
+                ? "text-foreground"
+                : "text-ink-2 hover:text-foreground"
             )}
           >
             {o.label}

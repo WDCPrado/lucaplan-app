@@ -56,7 +56,7 @@ function ThemeColor() {
 
   React.useEffect(() => {
     if (!theme) return
-    const color = theme === "dark" ? "#000000" : "#f2f2f7"
+    const color = theme === "dark" ? "#12130F" : "#F4F1EA"
     // Las dos metas de layout.tsx (una por prefers-color-scheme) pasan a decir el mismo color.
     document
       .querySelectorAll('meta[name="theme-color"]')

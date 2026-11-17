@@ -1,0 +1,335 @@
+import * as React from "react"
+import { ChevronDown, ChevronRight } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+
+// Piezas de presentación del lenguaje «Finanzas en calma» (WDC-188). Solo dibujan: no piden datos,
+// no calculan dominio ni mutan. Guía de uso en docs/design/design-system.md.
+
+/**
+ * Tarjeta de bloque: superficie, radio 16, padding --pad-card. Encabezado en una fila con el título
+ * (tinta 2) a la izquierda y su acción a la derecha; debajo, opcional, la línea clave (la cifra que
+ * responde la tarjeta) y luego el contenido.
+ */
+export function SectionCard({
+  title,
+  action,
+  keyLine,
+  className,
+  children,
+  ...props
+}: Omit<React.ComponentProps<"section">, "title"> & {
+  title?: React.ReactNode
+  /** Acción de la tarjeta: normalmente un <SectionAction>. */
+  action?: React.ReactNode
+  /** Línea clave: <KeyLine value="$ 120.000" note="de $ 400.000" />. */
+  keyLine?: React.ReactNode
+}) {
+  const titleId = React.useId()
+  return (
+    <section
+      aria-labelledby={title ? titleId : undefined}
+      className={cn(
+        "flex min-w-0 flex-col rounded-xl bg-card p-(--pad-card) text-card-foreground",
+        className
+      )}
+      {...props}
+    >
+      {(title || action) && (
+        <div className="mb-3 flex min-h-8 items-center justify-between gap-3">
+          {title && (
+            <h2
+              id={titleId}
+              className="min-w-0 flex-1 truncate text-title font-semibold text-ink-2"
+            >
+              {title}
+            </h2>
+          )}
+          {action && <div className="-mr-2 flex shrink-0 items-center">{action}</div>}
+        </div>
+      )}
+      {keyLine}
+      {children}
+    </section>
+  )
+}
+
+/** Acción de texto en verde para el encabezado de una tarjeta («Ver todo», «Editar»). Botón o enlace con asChild. */
+export function SectionAction({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"button">) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "press inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-callout font-semibold whitespace-nowrap text-primary hover:bg-primary-soft disabled:opacity-45 md:min-h-8 [&_svg]:size-4",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** Línea clave de una tarjeta: la cifra en tinta primaria (title) y su contexto en callout. Los montos no se parten. */
+export function KeyLine({
+  value,
+  note,
+  className,
+}: {
+  value: React.ReactNode
+  note?: React.ReactNode
+  className?: string
+}) {
+  return (
+    <p
+      className={cn(
+        "mb-3 flex flex-wrap items-baseline gap-x-2 text-title font-semibold text-foreground",
+        className
+      )}
+    >
+      <span className="whitespace-nowrap">{value}</span>
+      {note && (
+        <span className="text-callout font-normal text-ink-2">{note}</span>
+      )}
+    </p>
+  )
+}
+
+/**
+ * Fila de lista: icono de 36 a la izquierda, título y meta, valor a la derecha y chevron opcional.
+ * 56 px de alto mínimo. Con onClick o href es interactiva (hover en tono); sin ellos, solo lectura.
+ * Las filas van en una columna con gap-2, sin separadores.
+ */
+export function ListRow({
+  icon,
+  title,
+  meta,
+  value,
+  valueNote,
+  chevron = false,
+  href,
+  onClick,
+  className,
+  ...props
+}: Omit<React.ComponentProps<"div">, "title" | "onClick"> & {
+  icon?: React.ReactNode
+  title: React.ReactNode
+  meta?: React.ReactNode
+  value?: React.ReactNode
+  /** Segunda línea bajo el valor (caption, tinta 3). */
+  valueNote?: React.ReactNode
+  chevron?: boolean
+  href?: string
+  onClick?: () => void
+}) {
+  const inner = (
+    <>
+      {icon && <span className="grid size-9 shrink-0 place-items-center">{icon}</span>}
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate font-semibold">{title}</span>
+        {meta && (
+          <span className="flex flex-wrap items-center gap-x-2 text-callout text-ink-2">
+            {meta}
+          </span>
+        )}
+      </span>
+      {(value || valueNote) && (
+        <span className="flex shrink-0 flex-col items-end text-right whitespace-nowrap">
+          {value && <span className="font-semibold">{value}</span>}
+          {valueNote && <span className="text-caption text-ink-3">{valueNote}</span>}
+        </span>
+      )}
+      {chevron && <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />}
+    </>
+  )
+  const rowClass = cn(
+    "-mx-3 flex min-h-14 w-[calc(100%+1.5rem)] items-center gap-3 rounded-lg px-3 py-2 text-left",
+    (href || onClick) && "press hover:bg-secondary",
+    className
+  )
+  if (href)
+    return (
+      <a href={href} className={rowClass} {...(props as React.ComponentProps<"a">)}>
+        {inner}
+      </a>
+    )
+  if (onClick)
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={rowClass}
+        {...(props as React.ComponentProps<"button">)}
+      >
+        {inner}
+      </button>
+    )
+  return (
+    <div className={rowClass} {...props}>
+      {inner}
+    </div>
+  )
+}
+
+/** Cuadro de icono de 36 para ListRow. `color` es un color de categoría (var o hex del dato); sin él, neutro. */
+export function IconTile({
+  color,
+  className,
+  children,
+}: {
+  color?: string
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <span
+      style={{ "--cat": color ?? "var(--ink-3)" } as React.CSSProperties}
+      className={cn(
+        "grid size-9 shrink-0 place-items-center rounded-sm bg-[color-mix(in_srgb,var(--cat)_16%,var(--card))] text-[color-mix(in_srgb,var(--cat)_62%,var(--foreground))] dark:bg-[color-mix(in_srgb,var(--cat)_20%,var(--card))] dark:text-[color-mix(in_srgb,var(--cat)_70%,var(--foreground))] [&_svg]:size-[1.125rem]",
+        className
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
+const noticeTone = {
+  warn: "bg-warning-soft text-warning",
+  alert: "bg-destructive-soft text-destructive",
+  accent: "bg-primary-soft text-primary",
+} as const
+
+/**
+ * Aviso en línea: fila a ancho completo de 44 px, radio 8, en tono suave (ámbar, óxido o verde).
+ * Nunca una píldora suelta. Con onClick es un botón (y lleva chevron).
+ */
+export function InlineNotice({
+  tone = "warn",
+  label,
+  value,
+  icon,
+  onClick,
+  className,
+}: {
+  tone?: keyof typeof noticeTone
+  label: React.ReactNode
+  /** Cifra o acción a la derecha, en semibold. */
+  value?: React.ReactNode
+  icon?: React.ReactNode
+  onClick?: () => void
+  className?: string
+}) {
+  const cls = cn(
+    "flex min-h-11 w-full items-center justify-between gap-3 rounded-md px-3 text-left text-callout [&_svg]:size-4 [&_svg]:shrink-0",
+    noticeTone[tone],
+    onClick && "press hover:brightness-97",
+    className
+  )
+  const inner = (
+    <>
+      {icon}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {value && <span className="font-semibold whitespace-nowrap">{value}</span>}
+      {onClick && <ChevronRight aria-hidden />}
+    </>
+  )
+  return onClick ? (
+    <button type="button" onClick={onClick} className={cls}>
+      {inner}
+    </button>
+  ) : (
+    <div role="status" className={cls}>
+      {inner}
+    </div>
+  )
+}
+
+/**
+ * Barra de progreso de un tope: lo gastado (tinta 2), lo comprometido encima (tinta al 20 %) y, si
+ * se pasa, toda la barra en óxido. `tone` la tiñe de ámbar u óxido (lo decide quien sabe la regla).
+ */
+export function ProgressBar({
+  value,
+  committed = 0,
+  max,
+  tone = "default",
+  label,
+  className,
+}: {
+  value: number
+  committed?: number
+  max: number
+  tone?: "default" | "warn" | "alert"
+  /** Nombre accesible («Gastado de Supermercado»). */
+  label: string
+  className?: string
+}) {
+  const over = max > 0 ? value + committed > max : value > 0
+  const pct = (n: number) => (max > 0 ? Math.max(0, Math.min(100, (n / max) * 100)) : 0)
+  const spent = over ? 100 : pct(value)
+  const comm = over ? 0 : Math.min(pct(committed), 100 - spent)
+  const t = over ? "alert" : tone
+  return (
+    <div
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={max}
+      aria-valuenow={value}
+      className={cn("relative h-1.5 overflow-hidden rounded-full bg-track", className)}
+    >
+      <i
+        style={{ width: spent + "%" }}
+        className={cn(
+          "absolute inset-y-0 left-0 rounded-full transition-[width] duration-240 ease-(--ease-out) motion-reduce:transition-none",
+          t === "alert" ? "bg-destructive-bar" : t === "warn" ? "bg-warning-bar" : "bg-bar"
+        )}
+      />
+      {comm > 0 && (
+        <i
+          style={{ left: spent + "%", width: comm + "%" }}
+          className="absolute inset-y-0 bg-committed"
+        />
+      )}
+    </div>
+  )
+}
+
+/** Dato suelto: etiqueta (caption, tinta 3) sobre su valor (callout semibold). Para filas de 2–3 cifras. */
+export function StatTile({
+  label,
+  value,
+  className,
+}: {
+  label: React.ReactNode
+  value: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn("min-w-0", className)}>
+      <dt className="text-caption whitespace-nowrap text-ink-3">{label}</dt>
+      <dd className="truncate text-callout font-semibold whitespace-nowrap">{value}</dd>
+    </div>
+  )
+}
+
+/**
+ * Chevron que gira 180° cuando su botón está abierto (aria-expanded="true" o data-state="open" en un
+ * ancestro con la clase `group`). Va dentro del botón que abre.
+ */
+export function Chevron({ className }: { className?: string }) {
+  return (
+    <ChevronDown
+      aria-hidden
+      className={cn(
+        "size-4 shrink-0 text-ink-3 transition-transform duration-180 ease-(--ease-out) group-aria-expanded:rotate-180 group-data-[state=open]:rotate-180 motion-reduce:transition-none",
+        className
+      )}
+    />
+  )
+}

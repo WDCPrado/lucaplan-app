@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 import {
   Popover,
   PopoverContent,
@@ -60,12 +60,18 @@ export function MonthPicker({
         <button
           type="button"
           className={cn(
-            "press min-h-11 max-w-full truncate rounded-full px-3 text-center text-headline font-semibold md:min-h-8 md:text-subheadline",
+            "press group/mp inline-flex min-h-(--ctl) max-w-full min-w-0 items-center justify-center gap-1.5 rounded-md px-3 text-center text-body font-semibold hover:bg-secondary",
             className
           )}
         >
-          {periodLabel(period, cycleRange)}
-          {withYear && <span className="tabular-nums"> {period.year}</span>}
+          <span className="truncate">
+            {periodLabel(period, cycleRange)}
+            {withYear && <span className="tabular-nums"> {period.year}</span>}
+          </span>
+          <ChevronDown
+            aria-hidden
+            className="size-4 shrink-0 text-ink-3 transition-transform duration-180 ease-(--ease-out) group-data-[state=open]/mp:rotate-180 motion-reduce:transition-none"
+          />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -81,24 +87,24 @@ export function MonthPicker({
           <button
             type="button"
             onClick={() => setYear((y) => y - 1)}
-            className="grid size-11 place-items-center rounded-lg transition-colors hover:bg-foreground/10 md:size-9"
+            className="press grid size-(--ctl) place-items-center rounded-md text-ink-2 hover:bg-secondary hover:text-foreground"
             aria-label="Año anterior"
           >
             <ChevronLeft className="size-4" />
           </button>
-          <span className="text-subheadline font-semibold tabular-nums">
+          <span className="text-body font-semibold">
             {year}
           </span>
           <button
             type="button"
             onClick={() => setYear((y) => y + 1)}
-            className="grid size-11 place-items-center rounded-lg transition-colors hover:bg-foreground/10 md:size-9"
+            className="press grid size-(--ctl) place-items-center rounded-md text-ink-2 hover:bg-secondary hover:text-foreground"
             aria-label="Año siguiente"
           >
             <ChevronRight className="size-4" />
           </button>
         </div>
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-3 gap-2">
           {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
             const selected = year === period.year && m === period.month
             const isNow = year === now.year && m === now.month
@@ -116,11 +122,11 @@ export function MonthPicker({
                   onSelect(year, m)
                 }}
                 className={cn(
-                  "h-11 rounded-lg text-subheadline transition-colors md:h-9",
+                  "press h-(--ctl) rounded-md text-callout transition-colors",
                   selected
                     ? "bg-primary font-semibold text-primary-foreground"
-                    : "hover:bg-foreground/10",
-                  !selected && isNow && "ring-1 ring-primary/50"
+                    : "bg-secondary hover:bg-surface-3",
+                  !selected && isNow && "shadow-[inset_0_0_0_2px_var(--primary)]"
                 )}
               >
                 {monthName(m).slice(0, 3)}

@@ -187,8 +187,8 @@ export function ModalActions({
   const scope = React.useContext(ModalScopeContext)
   const slots = React.useContext(HeaderSlotsContext)
   if (scope?.kind === "drawer") {
-    // iOS 26: círculos flotantes en el encabezado de la hoja. Cancelar es vidrio con `xmark`; la
-    // primaria, un círculo azul con `checkmark`, gris mientras no se puede (sin cambios o guardando).
+    // Botones de ícono de 44 px en el encabezado de la hoja: Cancelar en tono con X; la primaria,
+    // en acento con ✓, en tono mientras no se puede (sin cambios o guardando).
     // El texto completo queda como nombre accesible.
     return (
       <>
@@ -201,7 +201,7 @@ export function ModalActions({
               data-squish
               className={cn(
                 sheetCircleClass,
-                "liquid-glass liquid-squish text-foreground disabled:text-muted-foreground"
+                "bg-secondary text-ink-2 hover:bg-surface-3 hover:text-foreground disabled:text-ink-3"
               )}
             >
               <X aria-hidden className="size-5" strokeWidth={2.5} />
@@ -218,7 +218,7 @@ export function ModalActions({
                 data-squish
                 className={cn(
                   sheetCircleClass,
-                  "liquid-glass liquid-squish text-foreground disabled:text-muted-foreground"
+                  "bg-secondary text-ink-2 hover:bg-surface-3 hover:text-foreground disabled:text-ink-3"
                 )}
               >
                 {primary.busy ? (
@@ -232,7 +232,7 @@ export function ModalActions({
               <button
                 {...actionProps(primary)}
                 data-squish
-                className="press liquid-glass liquid-squish relative h-11 shrink-0 rounded-full px-4 text-body font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:text-muted-foreground"
+                className="press relative h-11 shrink-0 rounded-md bg-secondary px-4 text-body font-semibold text-foreground hover:bg-surface-3 disabled:text-ink-3"
               >
                 {/* Ocupado: el spinner ocupa el centro y el texto se queda (transparente) para que
                   la cápsula no cambie de ancho ni pierda su nombre accesible. */}
@@ -246,7 +246,7 @@ export function ModalActions({
                 {...actionProps(primary)}
                 className={cn(
                   sheetCircleClass,
-                  "bg-primary text-primary-foreground disabled:bg-(--glass-control) disabled:text-muted-foreground"
+                  "bg-primary text-primary-foreground hover:brightness-110 disabled:bg-secondary disabled:text-ink-3"
                 )}
               >
                 {primary.busy ? (
@@ -305,7 +305,7 @@ export function ModalSection({
   return (
     <section className="min-w-0">
       {title && (
-        <h3 className="px-4 pb-2 text-headline font-semibold">{title}</h3>
+        <h3 className="px-4 pb-2 text-callout font-semibold text-ink-2">{title}</h3>
       )}
       <div className={cn("sheet-group inset-list overflow-hidden", className)}>
         {children}
@@ -333,7 +333,7 @@ export function ModalDangerRow({
       type="button"
       variant="ghost"
       className={cn(
-        "sheet-group press h-auto min-h-11 w-full justify-center rounded-xl px-4 py-2.5 text-body font-normal whitespace-normal text-destructive hover:bg-(--sheet-cell) hover:text-destructive aria-expanded:bg-(--sheet-cell) aria-expanded:text-destructive dark:hover:bg-(--sheet-cell)",
+        "sheet-group press h-auto min-h-11 w-full justify-center rounded-lg px-4 py-2.5 text-body font-semibold whitespace-normal text-destructive hover:bg-destructive-soft hover:text-destructive aria-expanded:bg-destructive-soft aria-expanded:text-destructive",
         className
       )}
       {...props}
@@ -343,9 +343,9 @@ export function ModalDangerRow({
 
 // Círculo de acción del encabezado de la hoja: 44 px, el mínimo táctil.
 const sheetCircleClass =
-  "press grid size-11 shrink-0 place-items-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default"
+  "press grid size-11 shrink-0 place-items-center rounded-md transition-colors disabled:cursor-default"
 
-// Superficie contextual adaptativa: diálogo centrado en escritorio, drawer inferior estilo iOS
+// Superficie contextual adaptativa: diálogo centrado en escritorio (radio 24), hoja desde abajo
 // en móvil (vaul: altura según el contenido y arrastrable). Mismo contenido y comportamiento;
 // solo cambia el envoltorio (useIsMobile, 768px).
 export function ResponsiveModal({
@@ -424,7 +424,7 @@ export function ResponsiveModal({
             onClick={isolateModalEvent}
             onSubmit={isolateModalEvent}
             className={cn(
-              // Hoja de iOS pegada abajo y a los lados (inset-x-0 bottom-0 del drawer base), con las
+              // Hoja pegada abajo y a los lados (inset-x-0 bottom-0 del drawer base), con las
               // esquinas de arriba redondeadas. Los paneles cortos usan su contenido; los largos
               // desplazan el cuerpo sin alcanzar el notch. El teclado se superpone sin redimensionar
               // ni elevar el panel.
@@ -436,7 +436,7 @@ export function ResponsiveModal({
               className
             )}
           >
-            {/* Encabezado de hoja de iOS: Cancelar a la izquierda, título centrado y la acción
+            {/* Encabezado fijo de la hoja: Cancelar a la izquierda, título centrado y la acción
               principal a la derecha. Los lados crecen igual (`flex-1 basis-0`) para centrar el
               título, que es lo único que se encoge y envuelve. */}
             <DrawerHeader
@@ -445,7 +445,7 @@ export function ResponsiveModal({
                 headerClassName
               )}
             >
-              {/* Toda hoja se puede cerrar con la X, como en iOS: si el modal no declara su
+              {/* Toda hoja se puede cerrar con la X: si el modal no declara su
                   «Cancelar», va esta, que solo cierra. Cuando lo declara (llega por el portal con
                   `data-modal-cancel`), CSS esconde la de respaldo: sin estado ni efectos. */}
               <div className="flex min-w-fit flex-1 basis-0 justify-start [&:has([data-modal-cancel])>[data-default-close]]:hidden">
@@ -457,7 +457,7 @@ export function ResponsiveModal({
                     onClick={() => handleOpenChange(false)}
                     className={cn(
                       sheetCircleClass,
-                      "liquid-glass liquid-squish text-foreground"
+                      "bg-secondary text-ink-2 hover:bg-surface-3 hover:text-foreground"
                     )}
                   >
                     <X aria-hidden className="size-5" strokeWidth={2.5} />
@@ -466,7 +466,7 @@ export function ResponsiveModal({
                 )}
                 <div ref={setSlotStart} className="contents" />
               </div>
-              <DrawerTitle className="min-w-0 shrink text-headline font-semibold text-balance break-words">
+              <DrawerTitle className="min-w-0 shrink text-title font-semibold text-balance break-words">
                 {title}
               </DrawerTitle>
               <div
@@ -512,7 +512,7 @@ export function ResponsiveModal({
           )}
         >
           <DialogHeader className={cn("p-6", headerClassName)}>
-            <DialogTitle className="pr-10 text-title-3 font-semibold">
+            <DialogTitle className="pr-10 text-title font-semibold">
               {title}
             </DialogTitle>
             {dismissible && (
@@ -524,8 +524,7 @@ export function ResponsiveModal({
                   type="button"
                   variant="secondary"
                   size="icon"
-                  // `xmark` en círculo gris, como el cierre de una hoja de iOS 26 / macOS 26.
-                  className="absolute top-5 right-5 hidden size-9 rounded-full pointer-coarse:size-11 text-muted-foreground hover:text-foreground md:inline-flex"
+                  className="absolute top-5 right-5 hidden size-9 pointer-coarse:size-11 text-ink-2 hover:text-foreground md:inline-flex"
                   aria-label={`Cerrar ${title}`}
                 >
                   <X aria-hidden="true" className="size-4" strokeWidth={2.5} />

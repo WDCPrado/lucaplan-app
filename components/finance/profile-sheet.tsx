@@ -7,11 +7,8 @@ import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
 import { PROFILE_NAME_MAX, profileNameSchema } from "@/lib/schemas/profile"
-import {
-  ModalActions,
-  ModalSection,
-  ResponsiveModal,
-} from "@/components/ui/responsive-modal"
+import { ModalActions, ResponsiveModal } from "@/components/ui/responsive-modal"
+import { FinanceField } from "./finance-form-field"
 import { Input } from "@/components/ui/input"
 
 const NAME_FORM = "profile-name-form"
@@ -71,46 +68,37 @@ function NameForm({
       id={NAME_FORM}
       onSubmit={form.handleSubmit(save)}
       noValidate
-      className="flex flex-col gap-8 px-5"
+      className="flex flex-col gap-6 px-4 md:px-6"
     >
-      {/* Identidad: inicial grande, nombre y correo, centrados. El correo no se edita. */}
-      <div className="flex flex-col items-center gap-1 text-center">
+      {/* Identidad: inicial, nombre y correo en una fila. El correo no se edita. */}
+      <div className="flex items-center gap-3 rounded-lg bg-secondary p-3">
         <span
           aria-hidden
-          className="mb-2 grid size-20 place-items-center rounded-full bg-primary text-large-title font-semibold text-primary-foreground"
+          className="grid size-12 shrink-0 place-items-center rounded-full bg-primary text-title font-semibold text-primary-foreground"
         >
           {user.initial}
         </span>
-        <p className="max-w-full truncate text-title-3 font-semibold">
-          {user.name || "Sin nombre"}
-        </p>
-        {user.email && (
-          <p className="max-w-full truncate text-subheadline text-muted-foreground">
-            {user.email}
-          </p>
-        )}
+        <span className="grid min-w-0 flex-1">
+          <span className="truncate font-semibold">
+            {user.name || "Sin nombre"}
+          </span>
+          {user.email && (
+            <span className="truncate text-callout text-ink-2">
+              {user.email}
+            </span>
+          )}
+        </span>
       </div>
 
       {errors.root && (
-        <p role="alert" className="text-subheadline text-destructive">
+        <p
+          role="alert"
+          className="rounded-md bg-destructive-soft px-3 py-2.5 text-callout text-destructive"
+        >
           {errors.root.message}
         </p>
       )}
-      <ModalSection
-        title={<label htmlFor="profile-name">Nombre</label>}
-        footer={
-          errors.name && (
-            <p
-              id="profile-name-error"
-              role="alert"
-              className="text-destructive"
-            >
-              {errors.name.message}
-            </p>
-          )
-        }
-      >
-        {/* El campo es la celda: sin relleno propio ni contorno hasta enfocarlo. */}
+      <FinanceField id="profile-name" label="Nombre" error={errors.name?.message}>
         <Input
           {...form.register("name")}
           id="profile-name"
@@ -120,10 +108,10 @@ function NameForm({
           placeholder="Tu nombre"
           aria-invalid={!!errors.name}
           aria-describedby={errors.name ? "profile-name-error" : undefined}
-          className="h-11 rounded-none border-0 bg-transparent px-4 shadow-none focus-visible:ring-inset"
         />
-      </ModalSection>
+      </FinanceField>
       <ModalActions
+        className="md:-mx-6 md:px-6"
         primary={{
           label: "Guardar",
           form: NAME_FORM,

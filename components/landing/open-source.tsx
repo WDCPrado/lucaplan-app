@@ -1,3 +1,5 @@
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { GitHubIcon } from "./brand-icons"
 import { CopyButton } from "./copy-button"
 import { GITHUB_URL } from "./landing-data"
@@ -17,14 +19,14 @@ export function OpenSource() {
   return (
     <section
       id="open-source"
-      className="scroll-mt-24 border-y border-border bg-secondary/50"
+      className="scroll-mt-20 bg-secondary"
     >
-      <div className="mx-auto grid max-w-6xl gap-12 px-5 py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,32rem)] lg:items-center lg:gap-16 lg:px-8 lg:py-28">
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,32rem)] lg:items-center lg:gap-16 lg:px-8 lg:py-28">
         <div data-reveal className="max-w-lg">
-          <h2 className="landing-title text-balance">
+          <h2 className="landing-title font-semibold text-balance">
             Código abierto. Revisa cada línea.
           </h2>
-          <p className="mt-5 text-title-3 font-normal text-pretty text-muted-foreground">
+          <p className="mt-5 text-title font-normal text-pretty text-ink-2">
             Licencia MIT. Lee cómo se procesan tus correos o instálalo en tu
             propio servidor.
           </p>
@@ -33,7 +35,7 @@ export function OpenSource() {
               href={GITHUB_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="press flex min-h-12 items-center gap-2 rounded-full bg-foreground px-6 text-body font-semibold text-background hover:bg-foreground/85"
+              className={cn(buttonVariants(), "h-12 px-6")}
             >
               <GitHubIcon />
               Ver en GitHub
@@ -42,7 +44,7 @@ export function OpenSource() {
               href={`${GITHUB_URL}/blob/master/docs/self-hosting.md`}
               target="_blank"
               rel="noopener noreferrer"
-              className="press flex min-h-12 items-center rounded-full bg-(--glass-control) px-6 text-body font-medium hover:bg-foreground/10"
+              className={cn(buttonVariants({ variant: "outline" }), "h-12 px-6")}
             >
               Guía de self-hosting
             </a>
@@ -50,23 +52,23 @@ export function OpenSource() {
         </div>
 
         <div data-reveal style={{ "--reveal-delay": "120ms" } as React.CSSProperties} className="min-w-0">
-          <div className="overflow-hidden rounded-xl bg-card">
-            <div className="flex min-h-11 items-center justify-between gap-3 border-b border-border pr-1.5 pl-4">
-              <p className="text-subheadline font-semibold">Correrlo en local</p>
+          <div className="rounded-xl bg-card p-(--pad-card)">
+            <div className="-mr-2 mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-title font-semibold text-ink-2">Correrlo en local</h3>
               <CopyButton text={COMMANDS.join("\n")} />
             </div>
-            <pre className="overflow-x-auto px-4 py-4 font-mono text-footnote leading-6">
+            <pre className="overflow-x-auto rounded-lg bg-secondary p-4 font-mono text-caption leading-6">
               <code>
                 {COMMANDS.map((c) => (
                   <span key={c} className="block">
-                    <span aria-hidden className="text-muted-foreground select-none">$ </span>
+                    <span aria-hidden className="text-ink-3 select-none">$ </span>
                     {c}
                   </span>
                 ))}
               </code>
             </pre>
           </div>
-          <p className="mt-3 px-4 text-footnote text-pretty text-muted-foreground">
+          <p className="mt-3 text-callout text-pretty text-ink-2">
             Necesitas Node 20.9+, pnpm y Docker. <code className="font-mono">setup:db</code>{" "}
             levanta PostgreSQL y borra esa base local. Abre localhost:3005 y entra
             con <span className="font-mono">demo@lucaplan.cl</span> y el código{" "}

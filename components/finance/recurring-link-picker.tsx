@@ -95,7 +95,7 @@ export function RecurringLinkPicker({
       className="sm:max-w-md"
     >
       <div className="flex flex-col px-5 pb-4">
-        <p className="py-3 text-footnote text-muted-foreground">
+        <p className="py-3 text-caption text-muted-foreground">
           Cargos del banco en la categoría de esta recurrente. Elige el que
           corresponde a este período: no se crea nada nuevo, el movimiento pasa
           a ser el cobro.
@@ -110,7 +110,7 @@ export function RecurringLinkPicker({
         />
 
         <div className="mt-4 space-y-2">
-          <span className="block text-footnote font-medium text-muted-foreground">
+          <span className="block text-caption font-semibold text-muted-foreground">
             Días hacia atrás
           </span>
           <div className="flex flex-wrap gap-2">
@@ -152,14 +152,14 @@ export function RecurringLinkPicker({
                   }
                   className="tabular h-11 w-24 text-body md:text-body"
                 />
-                <span className="text-subheadline text-muted-foreground">
+                <span className="text-callout text-muted-foreground">
                   días
                 </span>
               </div>
               {customInvalid && (
                 <p
                   id="recurring-link-days-error"
-                  className="text-footnote text-destructive"
+                  className="text-caption text-destructive"
                 >
                   Escribe entre 1 y {MAX_DAYS} días.
                 </p>
@@ -169,12 +169,12 @@ export function RecurringLinkPicker({
         </div>
 
         {items === null ? (
-          <p className="py-8 text-center text-subheadline text-muted-foreground">
+          <p className="py-8 text-center text-callout text-muted-foreground">
             Buscando movimientos…
           </p>
         ) : items === "error" ? (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
-            <p className="text-subheadline text-muted-foreground">
+            <p className="text-callout text-muted-foreground">
               No se pudieron cargar los movimientos.
             </p>
             <Button variant="outline" onClick={onRetry} className="h-11">
@@ -182,7 +182,7 @@ export function RecurringLinkPicker({
             </Button>
           </div>
         ) : items.length === 0 ? (
-          <p className="py-8 text-center text-subheadline text-balance text-muted-foreground">
+          <p className="py-8 text-center text-callout text-balance text-muted-foreground">
             No hay movimientos para elegir.
           </p>
         ) : (
@@ -201,15 +201,15 @@ export function RecurringLinkPicker({
                   className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left outline-none hover:bg-secondary/60 focus-visible:bg-secondary/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-subheadline font-medium">
+                    <span className="block truncate text-callout font-semibold">
                       {tx.description}
                     </span>
-                    <span className="block truncate text-footnote text-muted-foreground">
+                    <span className="block truncate text-caption text-muted-foreground">
                       {formatDateHeader(tx.date)}
                       {tx.categoryName ? ` · ${tx.categoryName}` : ""}
                     </span>
                   </span>
-                  <span className="tabular shrink-0 text-subheadline font-semibold">
+                  <span className="tabular shrink-0 text-callout font-semibold">
                     {signedAmount(tx)}
                   </span>
                 </button>
@@ -232,16 +232,16 @@ export function RecurringLinkPicker({
             </AlertDialogDescription>
           </AlertDialogHeader>
           {pending && (
-            <div className="flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2.5">
+            <div className="flex items-center gap-3 rounded-lg bg-secondary px-4 py-3">
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-subheadline font-medium">
+                <span className="block truncate text-callout font-semibold">
                   {pending.description}
                 </span>
-                <span className="block text-footnote text-muted-foreground">
+                <span className="block text-caption text-muted-foreground">
                   {formatDateHeader(pending.date)}
                 </span>
               </span>
-              <span className="tabular shrink-0 text-subheadline font-semibold">
+              <span className="tabular shrink-0 text-callout font-semibold">
                 {signedAmount(pending)}
               </span>
             </div>

@@ -28,7 +28,7 @@ export function CategoryAppearancePicker({
   return (
     <>
       <fieldset className="space-y-3">
-        <legend className="text-subheadline font-medium">Icono</legend>
+        <legend className="text-callout font-semibold text-ink-2">Icono</legend>
         <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
           {CATEGORY_ICONS.map(({ name, label, Icon }) => (
             <Button
@@ -49,7 +49,7 @@ export function CategoryAppearancePicker({
         </div>
       </fieldset>
       <fieldset className="space-y-3">
-        <legend className="text-subheadline font-medium">Color</legend>
+        <legend className="text-callout font-semibold text-ink-2">Color</legend>
         <div className="flex flex-wrap gap-2">
           {palette.map((value) => (
             <button

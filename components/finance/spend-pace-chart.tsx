@@ -1,15 +1,16 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { cn } from "@/lib/utils"
 import { formatCLP } from "@/lib/finance-format"
 import { spendPace } from "@/lib/spend-pace"
 import { shortDate } from "./month-status"
 
 /**
  * El mes como curva: el gasto de ritmo acumulado (sólida; sin los pagos que saldan una recurrente
- * o una cuota) contra el ritmo ideal (punteada, de $0 a lo disponible al inicio en línea recta) y el ingreso del mes como techo. El color dice de un vistazo si vas
- * bajo el ritmo (verde) o sobre él (rojo); la línea de arriba lo dice en pesos. SVG propio en
- * píxeles reales (medido con ResizeObserver) para que trazos y puntos no se deformen al estirar.
+ * o una cuota) contra el ritmo ideal (punteada, de $0 a lo disponible al inicio en línea recta). La
+ * línea clave de arriba dice en pesos cuánto vas sobre o bajo el ritmo; el óxido solo marca «sobre».
+ * SVG propio en píxeles reales (medido con ResizeObserver) para que trazos y puntos no se deformen.
  */
 export function SpendPaceChart({
   days,
@@ -45,7 +46,8 @@ export function SpendPaceChart({
   const started = k > 0
   const isToday = current && lastIndex >= 0
   const over = diff > 0
-  const tone = over ? "var(--destructive)" : "var(--success)"
+  // Tinta mientras vas bien; óxido solo si vas sobre el ritmo (con la cifra y «sobre» en texto).
+  const tone = over ? "var(--destructive-bar)" : "var(--foreground)"
   // Un poco de aire arriba para que el techo no quede pegado al borde.
   const yMax = Math.max(1, limit, spent) * 1.06
 
@@ -72,17 +74,20 @@ export function SpendPaceChart({
   const EDGE = 72
 
   return (
-    <figure
-      className="flex h-36 flex-none flex-col gap-2 md:h-44"
-    >
-      <figcaption className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <span
-          className="tabular text-footnote font-medium"
-          style={started ? { color: tone } : undefined}
-        >
-          {summary}
-        </span>
-
+    <figure className="flex min-h-44 flex-1 flex-col gap-2">
+      <figcaption className="mb-1 flex flex-wrap items-baseline gap-x-2 text-title font-semibold">
+        {!started || diff === 0 ? (
+          <span>{summary}</span>
+        ) : (
+          <>
+            <span className={cn("whitespace-nowrap", over && "text-destructive")}>
+              {formatCLP(Math.abs(diff))}
+            </span>
+            <span className="text-callout font-normal text-ink-2">
+              {over ? "sobre" : "bajo"} el ritmo{isToday ? "" : " al cierre"}
+            </span>
+          </>
+        )}
       </figcaption>
 
       <div
@@ -93,7 +98,7 @@ export function SpendPaceChart({
             ? `; el ritmo ideal a la fecha era ${formatCLP(Math.round(ideal[k]))}`
             : ""
         }${income > 0 ? `. Ingreso del período ${formatCLP(income)}` : ""}.`}
-        className="relative min-h-0 flex-1"
+        className="relative min-h-24 flex-1"
       >
         {w > 0 && h > 0 && (
           <svg
@@ -116,14 +121,24 @@ export function SpendPaceChart({
               x2={x(n)}
               y1={y(0)}
               y2={y(limit)}
-              stroke="var(--muted-foreground)"
-              strokeOpacity={0.7}
+              stroke="var(--ink-3)"
               strokeWidth={1.5}
               strokeDasharray="4 4"
             />
+            {isToday && (
+              <line
+                x1={todayX}
+                x2={todayX}
+                y1={PAD}
+                y2={h - PAD}
+                stroke="var(--ink-3)"
+                strokeWidth={1.5}
+                strokeDasharray="1.5 3"
+              />
+            )}
             {started && (
               <>
-                <polygon points={area} fill={tone} fillOpacity={0.07} />
+                <polygon points={area} fill={tone} fillOpacity={0.06} />
                 <polyline
                   points={curve}
                   fill="none"
@@ -132,14 +147,14 @@ export function SpendPaceChart({
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
-                {/* Hoy (o el cierre): el final de la curva, con un aro del color de la tarjeta. */}
+                {/* Hoy (o el cierre): el final de la curva, aro del tono sobre la tarjeta. */}
                 <circle
                   cx={x(k)}
                   cy={y(spent)}
-                  r={4.5}
-                  fill={tone}
-                  stroke="var(--card)"
-                  strokeWidth={2}
+                  r={5}
+                  fill="var(--card)"
+                  stroke={tone}
+                  strokeWidth={2.5}
                 />
               </>
             )}
@@ -151,7 +166,7 @@ export function SpendPaceChart({
           fecha del borde ~40: a menos de 72 px de un borde, la de hoy esconde la de ese borde. */}
       <div
         aria-hidden
-        className="relative h-4 text-caption text-muted-foreground tabular-nums"
+        className="relative h-4 text-caption text-ink-3"
       >
         {!(isToday && todayX < EDGE) && (
           <span className="absolute left-0">{shortDate(days[0])}</span>
@@ -167,6 +182,16 @@ export function SpendPaceChart({
         {!(isToday && todayX > w - EDGE) && (
           <span className="absolute right-0">{shortDate(days[n - 1])}</span>
         )}
+      </div>
+      <div aria-hidden className="mt-1 flex gap-4 text-caption text-ink-3">
+        <span className="flex items-center gap-1">
+          <i className={cn("inline-block w-4 border-t-2", over ? "border-destructive-bar" : "border-foreground")} />
+          Gastado
+        </span>
+        <span className="flex items-center gap-1">
+          <i className="inline-block w-4 border-t-2 border-dashed border-ink-3" />
+          Ritmo del plan
+        </span>
       </div>
     </figure>
   )

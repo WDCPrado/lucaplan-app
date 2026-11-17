@@ -8,18 +8,18 @@ import { AppShell } from "@/components/finance/app-shell"
 export default function MovementsError({ retry }: { retry: () => void }) {
   return (
     <AppShell>
-      <div className="mx-auto w-full max-w-6xl px-4 pt-1 pb-6 md:pt-6 lg:px-8">
+      <div className="page-container">
         <div
           role="alert"
-          className="glass flex flex-col items-center gap-1 rounded-xl px-6 py-12 text-center"
+          className="flex flex-col items-start gap-1 rounded-xl bg-card p-(--pad-card)"
         >
-          <p className="text-headline font-semibold">
+          <p className="text-title font-semibold">
             No se pudieron cargar los movimientos
           </p>
-          <p className="text-subheadline text-balance text-muted-foreground">
+          <p className="text-callout text-ink-2">
             Revisa tu conexión e inténtalo otra vez.
           </p>
-          <Button type="button" onClick={retry} className="mt-4">
+          <Button type="button" onClick={retry} className="mt-3">
             Reintentar
           </Button>
         </div>

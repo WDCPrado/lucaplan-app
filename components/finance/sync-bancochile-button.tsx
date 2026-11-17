@@ -71,7 +71,7 @@ export function SyncBancoChileButton({
         <button
           type="button"
           onClick={openModal}
-          className="press flex min-h-11 items-center gap-1 text-body text-primary"
+          className="press -mx-2 flex min-h-11 items-center gap-1 rounded-md px-2 font-semibold text-primary hover:bg-primary-soft"
         >
           <Plus className="size-4" />
           Conectar banco
@@ -81,11 +81,11 @@ export function SyncBancoChileButton({
           type="button"
           onClick={openModal}
           data-card
-          className="press flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col items-center justify-center gap-2 rounded-xl bg-card text-primary hover:bg-accent lg:w-auto lg:snap-start"
+          className="press flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col items-center justify-center gap-2 rounded-xl bg-card p-(--pad-card) text-primary hover:bg-secondary lg:w-auto lg:snap-start"
         >
           <Landmark className="size-6" />
-          <span className="text-body font-medium">Conectar correo del banco</span>
-          <span className="px-4 text-center text-footnote text-muted-foreground">
+          <span className="font-semibold">Conectar correo del banco</span>
+          <span className="text-center text-callout text-ink-2">
             Trae cuentas y movimientos
           </span>
         </button>
@@ -99,7 +99,7 @@ export function SyncBancoChileButton({
       >
         {/* Los bancos que aún no se pueden conectar los nombra OutlookBankConnection al pie de su
             lista de bancos, junto a los que sí. */}
-        <div className="px-5 pt-2 pb-6">
+        <div className="px-4 pt-2 pb-6 md:px-6">
           <OutlookBankConnection
             status={outlookStatus}
             onReload={reloadOutlook}

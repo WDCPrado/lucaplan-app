@@ -46,49 +46,37 @@ export function OverspendBanner({
   const overMonth = monthOverspend > 0
 
   const worst = culprits[0]
-  const headline = overMonth ? (
+  // Título corto, que nunca parte la cifra; el contexto va debajo (al lado desde 768 px).
+  const title = overMonth ? (
     <>
-      Te pasaste{" "}
-      <span className="tabular font-semibold">{formatCLP(monthOverspend)}</span>{" "}
-      del tope de gasto de {mes}
+      Te pasaste <span className="whitespace-nowrap">{formatCLP(monthOverspend)}</span> del tope
     </>
   ) : (
     <>
-      Te pasaste{" "}
-      <span className="tabular font-semibold">{formatCLP(capsOverspend)}</span>{" "}
-      de topes · {cuantas}
+      Te pasaste <span className="whitespace-nowrap">{formatCLP(capsOverspend)}</span> de topes
     </>
   )
+  const sub = overMonth
+    ? `Tope de gasto de ${mes}${globalLimit !== null ? ` · ${formatCLP(globalLimit)}` : ""}`
+    : `${cuantas}${globalLimit !== null ? " · el tope de gasto del mes todavía alcanza" : ""}`
   const text = (
-    <>
-      <span className="block">{headline}</span>
-      {!overMonth && globalLimit !== null && (
-        <span className="block text-footnote text-muted-foreground">
-          El tope de gasto del mes todavía alcanza.
-        </span>
-      )}
-    </>
+    <span className="flex min-w-0 flex-1 flex-col md:flex-row md:flex-wrap md:items-baseline md:gap-x-3">
+      <span className="text-body font-semibold text-balance">{title}</span>
+      <span className="text-caption text-ink-2">{sub}</span>
+    </span>
   )
+  // Óxido: te pasaste del tope del mes. Ámbar: solo un descuadre entre categorías.
   const className = cn(
-    "flex min-h-11 w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-subheadline",
-    overMonth ? "bg-destructive/10" : "bg-warning/10"
+    "flex min-h-14 w-full items-center gap-3 rounded-xl px-3 py-2 text-left",
+    overMonth ? "bg-destructive-soft text-destructive" : "bg-warning-soft text-warning"
   )
-  // El color del estado vive en el ícono y el tinte: ámbar como texto sobre su tinte no llega a AA.
-  const icon = (
-    <TriangleAlert
-      aria-hidden
-      className={cn(
-        "size-5 shrink-0",
-        overMonth ? "text-destructive" : "text-warning"
-      )}
-    />
-  )
+  const icon = <TriangleAlert aria-hidden className="size-5 shrink-0" />
 
   if (!worst)
     return (
       <p role="status" className={className}>
         {icon}
-        <span className="min-w-0 flex-1">{text}</span>
+        {text}
       </p>
     )
   return (
@@ -96,11 +84,11 @@ export function OverspendBanner({
       type="button"
       onClick={() => onOpenCategory(worst.id)}
       title={`Ver ${worst.name}`}
-      className={cn("press", className)}
+      className={cn("press hover:brightness-97", className)}
     >
       {icon}
-      <span className="min-w-0 flex-1">{text}</span>
-      <ChevronRight aria-hidden className="disclosure" />
+      {text}
+      <ChevronRight aria-hidden className="size-4 shrink-0" />
     </button>
   )
 }

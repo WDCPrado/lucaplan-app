@@ -39,7 +39,7 @@ export function DayOfMonthPicker({
           variant="outline"
           className="h-11 w-full justify-start rounded-lg text-body font-normal"
         >
-          <CalendarIcon className="size-4 text-muted-foreground" />
+          <CalendarIcon className="size-4 text-ink-3" />
           Día {value}
         </Button>
       </PopoverTrigger>

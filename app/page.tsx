@@ -14,8 +14,8 @@ import { PlanSection } from "@/components/landing/plan-section"
 import { RevealObserver } from "@/components/landing/reveal-observer"
 import { Steps } from "@/components/landing/steps"
 
-// La landing usa el lenguaje de la app (iOS 26): fondo agrupado, celdas sólidas y vidrio solo en
-// la barra que flota. Sigue el tema de la persona, claro u oscuro. Todo CTA apunta a /login: ahí se
+// La landing usa el lenguaje de la app («Finanzas en calma»): papel cálido, tarjetas por tono y
+// fondo propio solo en la barra que flota. Sigue el tema de la persona, claro u oscuro. Todo CTA apunta a /login: ahí se
 // entra o, con el registro abierto, se crea la cuenta con el código por correo.
 export default async function Home() {
   // SIGNUP_OPEN se lee en cada pedido, no queda congelado en el build.

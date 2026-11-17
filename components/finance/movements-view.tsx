@@ -11,11 +11,14 @@ import { Button } from "@/components/ui/button"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { AppShell } from "./app-shell"
 import { MonthNav } from "./month-nav"
+import { SectionCard } from "./blocks"
+import { Segmented } from "./segmented"
 import { MovementRow } from "./movement-row"
 import { TransactionModal } from "./transaction-modal"
 import {
   FilterControls,
   SearchField,
+  DIRS,
   activeFilterCount,
   filtersToParams,
   type Dir,
@@ -31,9 +34,9 @@ import type {
 
 const SEARCH_INPUT_ID = "movements-q"
 
-// Pantalla Movimientos: la cartola del mes (o ciclo) paginada por el servidor, con el campo que
-// filtra la lista y sus filtros al lado (escritorio) o, en el celular, el campo arriba y el resto
-// tras «Filtros (n)». Los filtros viven en la URL: el
+// Pantalla Movimientos: la cartola del mes (o ciclo) paginada por el servidor. Arriba (o a la
+// derecha en escritorio ancho) cuántos movimientos hay, el campo que filtra la lista y sus filtros;
+// en el celular, el tipo a la vista y el resto tras «Filtros (n)». Los filtros viven en la URL: el
 // servidor lee la página con ellos, y recargar o compartir el enlace muestra lo mismo.
 export function MovementsView({
   period,
@@ -154,6 +157,9 @@ export function MovementsView({
   const last = first + result.items.length - 1
   const hasFilters = [...searchParams.keys()].some((k) => k !== "year" && k !== "month" && k !== "page")
 
+  const mes = monthName(period.month).toLowerCase()
+  const totalLabel = result.total.toLocaleString("es-CL")
+
   return (
     <AppShell
       actions={
@@ -165,79 +171,114 @@ export function MovementsView({
         />
       }
     >
-      <div className="mx-auto w-full max-w-6xl px-4 pt-1 pb-6 md:pt-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-16">
-          {/* Filtrar la lista (no es la búsqueda global). Móvil: el campo y «Filtros (n)», que abre
-              el resto en una hoja; escritorio: todo abierto en el panel lateral. */}
-          <aside
-            aria-label="Filtrar movimientos"
-            className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:col-start-2 lg:row-start-1 lg:gap-5"
-          >
-            <div className="flex items-center gap-2">
-              <div className="min-w-0 flex-1">
-                <SearchField
-                  value={values}
-                  onChange={changeFilters}
-                  inputId={SEARCH_INPUT_ID}
-                />
-              </div>
-              {/* Botón que se comporta como toggle (HIG): con filtros puestos queda teñido de azul. */}
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setFiltersOpen(true)}
-                aria-label={
-                  filterCount > 0 ? `Filtros, ${filterCount} ${filterCount === 1 ? "activo" : "activos"}` : "Filtros"
-                }
-                className={cn(
-                  "h-11 shrink-0 text-subheadline lg:hidden",
-                  filterCount > 0 && "bg-primary/10 text-primary hover:bg-primary/10"
-                )}
+      <div className="page-container">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3 xl:gap-5">
+          {/* Resumen y filtros de la lista (no es la búsqueda global). Móvil y tablet: la cifra, el
+              campo, «Filtros (n)» que abre el resto en una hoja y el tipo a la vista. Escritorio
+              ancho: columna derecha pegada, con el panel de filtros abierto. */}
+          <div className="min-w-0 xl:col-start-3 xl:row-start-1">
+            <aside
+              aria-label="Filtrar movimientos"
+              className="flex min-w-0 flex-col gap-4 xl:sticky xl:top-20 xl:gap-5"
+            >
+              <section
+                aria-labelledby="movements-summary"
+                className="flex min-w-0 flex-col rounded-xl bg-card p-(--pad-card)"
               >
-                <SlidersHorizontal aria-hidden className="size-4" />
-                Filtros
-                {filterCount > 0 && <span className="tabular">{filterCount}</span>}
-              </Button>
-            </div>
-            <div className="flex flex-col gap-6 max-lg:hidden">
-              <FilterControls {...filterProps} />
-            </div>
-          </aside>
+                <h2 id="movements-summary" className="text-body text-ink-2">
+                  {hasFilters
+                    ? "Movimientos con tus filtros"
+                    : cycleRange
+                      ? `Movimientos del ciclo de ${mes}`
+                      : `Movimientos de ${mes}`}
+                </h2>
+                <p className="text-display font-semibold whitespace-nowrap">
+                  {totalLabel}
+                </p>
+                {totalPages > 1 && (
+                  <p className="text-callout text-ink-2">
+                    Página {result.page} de {totalPages}
+                  </p>
+                )}
+                <div className="mt-4 flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <SearchField
+                      value={values}
+                      onChange={changeFilters}
+                      inputId={SEARCH_INPUT_ID}
+                    />
+                  </div>
+                  {/* Botón que se comporta como toggle: con filtros puestos queda en acento suave. */}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setFiltersOpen(true)}
+                    aria-label={
+                      filterCount > 0 ? `Filtros, ${filterCount} ${filterCount === 1 ? "activo" : "activos"}` : "Filtros"
+                    }
+                    className={cn(
+                      "xl:hidden",
+                      filterCount > 0 && "bg-primary-soft text-primary hover:bg-primary-soft"
+                    )}
+                  >
+                    <SlidersHorizontal aria-hidden />
+                    Filtros
+                    {filterCount > 0 && <span>{filterCount}</span>}
+                  </Button>
+                </div>
+                {/* El tipo es el filtro de todos los días: a la vista, sin abrir la hoja. */}
+                <Segmented
+                  label="Tipo de movimiento"
+                  value={values.direction === "" ? "all" : values.direction}
+                  onChange={(d) =>
+                    changeFilters({ ...values, direction: d === "all" ? "" : d })
+                  }
+                  options={DIRS}
+                  className="mt-3 w-full xl:hidden"
+                />
+              </section>
+
+              <SectionCard title="Filtros" className="max-xl:hidden">
+                <div className="flex flex-col gap-4">
+                  <FilterControls {...filterProps} />
+                </div>
+              </SectionCard>
+            </aside>
+          </div>
 
           <section
             aria-label="Lista de movimientos"
             aria-busy={loading || undefined}
-            className="min-w-0 transition-opacity duration-200 aria-busy:opacity-60 motion-reduce:transition-none lg:col-start-1 lg:row-start-1"
+            className="flex min-w-0 flex-col rounded-xl bg-card p-(--pad-card) transition-opacity duration-200 aria-busy:opacity-60 motion-reduce:transition-none xl:col-span-2 xl:col-start-1 xl:row-start-1"
           >
             {result.items.length === 0 ? (
-              <div className="glass rounded-xl px-6 py-12 text-center">
-                <p className="text-headline font-semibold">
+              <div className="flex flex-col gap-1 py-6">
+                <p className="text-title font-semibold">
                   {hasFilters
                     ? "No hay movimientos con estos filtros"
-                    : `No hay movimientos en ${monthName(period.month).toLowerCase()}`}
+                    : `No hay movimientos en ${mes}`}
                 </p>
-                <p className="mt-1 text-subheadline text-muted-foreground">
+                <p className="text-callout text-ink-2">
                   {hasFilters
                     ? "Prueba otra descripción, cambia los filtros o elige otro mes."
                     : "Los cargos llegan desde el correo del banco y aparecen aquí."}
                 </p>
               </div>
             ) : (
-              // Mismo patrón que el Inicio: el día en footnote fuera de la tarjeta y una lista
-              // agrupada por día.
+              // Agrupada por día: el día como encabezado y sus filas debajo.
               <div className="flex flex-col gap-5">
                 {groups.map((g) => (
                   <div key={g.key}>
-                    <h2 className="mb-1.5 px-4 text-footnote tracking-wide text-muted-foreground uppercase">
+                    <h2 className="mb-1 text-callout font-semibold text-ink-2">
                       {g.header}
                     </h2>
-                    <div className="glass inset-list flex flex-col overflow-hidden rounded-xl [--inset:4.5rem]">
+                    <div className="flex flex-col gap-2">
                       {g.txs.map((tx) => (
                         <MovementRow
                           key={tx.id}
                           tx={tx}
                           onOpen={setDetailTx}
-                          className="press rounded-none px-4 hover:bg-accent"
+                          className="-mx-3 w-[calc(100%+1.5rem)]"
                         />
                       ))}
                     </div>
@@ -249,12 +290,12 @@ export function MovementsView({
             {totalPages > 1 && (
               <nav
                 aria-label="Paginación"
-                className="flex flex-col gap-3 px-1 pt-4 sm:flex-row sm:items-center sm:justify-between"
+                className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
               >
-                <p className="tabular text-subheadline text-muted-foreground">
+                <p className="text-callout text-ink-2">
                   {result.items.length > 0
-                    ? `Mostrando ${first}–${last} de ${result.total} movimientos`
-                    : `${result.total} movimientos`}
+                    ? `${first}–${last} de ${totalLabel}`
+                    : `${totalLabel} movimientos`}
                 </p>
                 <div className="flex w-full items-center gap-2 sm:w-auto">
                   <PageButton
@@ -262,7 +303,7 @@ export function MovementsView({
                   >
                     Anterior
                   </PageButton>
-                  <span className="tabular px-2 text-subheadline text-muted-foreground">
+                  <span className="px-2 text-callout whitespace-nowrap text-ink-2">
                     {result.page} / {totalPages}
                   </span>
                   <PageButton
@@ -278,7 +319,6 @@ export function MovementsView({
               </nav>
             )}
           </section>
-
         </div>
       </div>
 
@@ -287,8 +327,8 @@ export function MovementsView({
         onOpenChange={setFiltersOpen}
         title="Filtros"
       >
-        <div className="flex flex-col gap-6 px-5 pb-6">
-          <FilterControls {...filterProps} />
+        <div className="flex flex-col gap-4 px-4 pb-6 md:px-6">
+          <FilterControls {...filterProps} hideDirection />
         </div>
         {/* Los filtros se aplican al tocarlos: sin check. La salida visible es la X de la hoja. */}
       </ResponsiveModal>
@@ -311,7 +351,7 @@ function PageButton({
   href: string | null
   children: ReactNode
 }) {
-  const className = "h-11 flex-1 sm:flex-none"
+  const className = "flex-1 sm:flex-none"
   if (!href)
     return (
       <Button variant="secondary" disabled className={className}>

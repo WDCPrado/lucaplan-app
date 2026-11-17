@@ -23,6 +23,7 @@ import { MoneyFormInput, financeResponseError } from "./finance-form-field"
 import { cn } from "@/lib/utils"
 import { haptic } from "@/lib/haptics"
 import { CategoryIcon } from "./category-icons"
+import { IconTile } from "./blocks"
 import {
   formatCLP,
   formatMoney,
@@ -173,8 +174,8 @@ export function PlanSheet({
         {/* Período del plan: decide el rango de todo lo de abajo, por eso va primero. */}
         <section>
           <div className="mb-2 flex items-baseline justify-between gap-3 px-4">
-            <h3 className="text-headline font-semibold">Período</h3>
-            <span className="tabular text-subheadline text-muted-foreground">
+            <h3 className="text-callout font-semibold text-ink-2">Período</h3>
+            <span className="text-callout whitespace-nowrap text-ink-2">
               {rangeLabel}
             </span>
           </div>
@@ -225,13 +226,13 @@ export function PlanSheet({
             <button
               type="button"
               onClick={onEditBudget}
-              className="press flex min-h-11 w-full items-center justify-between gap-3 px-4 py-3 text-left text-muted-foreground"
+              className="press flex min-h-11 w-full items-center justify-between gap-3 px-4 py-3 text-left text-ink-2"
             >
               <span className="min-w-0">
                 <span className="block text-body text-primary">
                   Definir presupuesto del {periodNoun}
                 </span>
-                <span className="block text-footnote">
+                <span className="block text-caption text-ink-3">
                   Fija un límite global para repartir entre categorías
                 </span>
               </span>
@@ -245,10 +246,10 @@ export function PlanSheet({
               className="press flex min-h-11 w-full items-center gap-3 px-4 py-3 text-left"
             >
               <span className="min-w-0 flex-1">
-                <span className="tabular block text-title-1 font-bold break-words">
+                <span className="block text-title font-semibold whitespace-nowrap">
                   {formatCLP(globalLimit)}
                 </span>
-                <span className="mt-1 block text-footnote text-muted-foreground">
+                <span className="mt-0.5 block text-caption text-ink-3">
                   Asignado{" "}
                   <span className="tabular">{formatCLP(allocated)}</span> de{" "}
                   <span className="tabular">{formatCLP(globalLimit)}</span>
@@ -266,7 +267,7 @@ export function PlanSheet({
               type="button"
               onClick={applySuggested}
               disabled={applying}
-              className="press min-h-11 px-4 text-left text-subheadline font-semibold text-primary disabled:opacity-50"
+              className="press min-h-11 px-4 text-left text-callout font-semibold text-primary disabled:opacity-45"
             >
               {applying ? "Actualizando…" : "Volver a seguir tus ingresos"}
             </button>
@@ -285,7 +286,7 @@ export function PlanSheet({
           }
         >
           {income.error && (
-            <div role="alert" className="flex min-h-11 flex-wrap items-center gap-x-3 pr-1 pl-4 text-subheadline text-destructive">
+            <div role="alert" className="flex min-h-11 flex-wrap items-center gap-x-3 pr-1 pl-4 text-callout text-destructive">
               <span className="min-w-0 flex-1 py-2">{income.error}</span>
               <button
                 type="button"
@@ -304,8 +305,8 @@ export function PlanSheet({
               className="press flex min-h-11 w-full min-w-0 items-center gap-3 py-2 pr-3 pl-4 text-left"
             >
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-body">{s.name}</span>
-                <span className="tabular block truncate text-footnote text-muted-foreground">
+                <span className="block truncate font-semibold">{s.name}</span>
+                <span className="block truncate text-caption text-ink-3">
                   Día {s.dayOfMonth} · esperado{" "}
                   {formatMoney(s.period.expected || s.amount, s.currency)}
                   {s.endsOn && ` · hasta ${shortDay(s.endsOn.slice(0, 10))}`}
@@ -330,7 +331,7 @@ export function PlanSheet({
             programado es. */}
         <ModalSection
           title="Otros ingresos"
-          className="[--inset:4.25rem]"
+          className="[--inset:4rem]"
           footer={
             incomeCategories.length > 0
               ? "Toca una categoría para ver sus abonos. Desde el abono se marca si es reembolso o de qué ingreso programado es."
@@ -344,17 +345,13 @@ export function PlanSheet({
               onClick={() => onOpenIncomeCategory(c)}
               className="press flex min-h-11 w-full min-w-0 items-center gap-3 py-2 pr-3 pl-4 text-left"
             >
-              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-muted">
-                <CategoryIcon
-                  icon={c.icon}
-                  size={20}
-                  color={c.color ?? undefined}
-                />
-              </span>
-              <span className="min-w-0 flex-1 truncate text-body">
+              <IconTile color={c.color ?? undefined}>
+                <CategoryIcon icon={c.icon} size={18} />
+              </IconTile>
+              <span className="min-w-0 flex-1 truncate font-semibold">
                 {c.name}
               </span>
-              <span className="tabular shrink-0 text-subheadline text-muted-foreground">
+              <span className="shrink-0 font-semibold whitespace-nowrap">
                 {formatCLP(Math.max(0, c.used - (countedByCategory.get(c.id) ?? 0)))}
               </span>
               <ChevronRight
@@ -368,7 +365,7 @@ export function PlanSheet({
             onClick={onNewIncomeCategory}
             className="press flex min-h-11 w-full items-center gap-3 py-2 pr-3 pl-4 text-left text-primary"
           >
-            <span className="grid size-11 shrink-0 place-items-center rounded-lg">
+            <span className="grid size-9 shrink-0 place-items-center">
               <Plus className="size-5" aria-hidden="true" />
             </span>
             <span className="text-body">Nueva categoría de ingreso</span>
@@ -385,7 +382,7 @@ export function PlanSheet({
         >
           <div className="flex min-h-11 items-center justify-between gap-3 px-4 py-3">
             <span className="text-body font-semibold">Ingreso del {periodNoun}</span>
-            <span className="tabular text-body font-semibold">
+            <span className="font-semibold whitespace-nowrap">
               {formatCLP(activeIncomeTotal)}
             </span>
           </div>
@@ -396,12 +393,12 @@ export function PlanSheet({
         {expenseCategories.length > 0 && (
           <section className="pb-2">
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3 px-4">
-              <h3 className="text-headline font-semibold">Topes por categoría</h3>
+              <h3 className="text-callout font-semibold text-ink-2">Topes por categoría</h3>
               {left !== null && (
                 <span
                   className={cn(
-                    "tabular text-subheadline",
-                    left < 0 ? "text-destructive" : "text-muted-foreground"
+                    "text-callout font-semibold whitespace-nowrap",
+                    left < 0 ? "text-destructive" : left > 0 ? "text-warning" : "text-ink-2"
                   )}
                 >
                   {left === 0
@@ -459,18 +456,18 @@ function SourceStatus({ source: s }: { source: IncomeSourceDTO }) {
   const { status, received, pending } = s.period
   if (status === "received")
     return (
-      <span className="tabular shrink-0 text-right text-subheadline text-success">
+      <span className="shrink-0 text-right text-callout whitespace-nowrap text-success">
         Recibido {formatMoney(received, s.currency)}
       </span>
     )
   if (status === "pending")
     return (
-      <span className="tabular shrink-0 text-right text-subheadline text-muted-foreground">
+      <span className="shrink-0 text-right text-callout whitespace-nowrap text-ink-2">
         Pendiente {formatMoney(pending, s.currency)}
       </span>
     )
   return (
-    <span className="shrink-0 text-right text-subheadline text-muted-foreground">
+    <span className="shrink-0 text-right text-callout text-ink-2">
       Sin ingreso este período
     </span>
   )
@@ -560,19 +557,12 @@ function LimitRow({
       className="space-y-3 py-3"
     >
       <div className="flex items-center gap-3">
-        <span
-          aria-hidden="true"
-          className="grid size-11 shrink-0 place-items-center rounded-lg bg-muted"
-        >
-          <CategoryIcon
-            icon={category.icon}
-            size={18}
-            color={category.color ?? undefined}
-          />
-        </span>
+        <IconTile color={category.color ?? undefined}>
+          <CategoryIcon icon={category.icon} size={18} />
+        </IconTile>
         <label
           htmlFor={fieldId}
-          className="min-w-0 flex-1 text-body font-medium"
+          className="min-w-0 flex-1 truncate font-semibold"
         >
           {category.name}
         </label>
@@ -604,13 +594,13 @@ function LimitRow({
         <p
           id={`${fieldId}-error`}
           role="alert"
-          className="text-subheadline text-destructive"
+          className="text-caption text-destructive"
         >
           {errors.limit.message}
         </p>
       )}
       {errors.root && (
-        <p role="alert" className="text-subheadline text-destructive">
+        <p role="alert" className="text-callout text-destructive">
           {errors.root.message}
         </p>
       )}
@@ -619,7 +609,7 @@ function LimitRow({
           <Button
             type="button"
             variant="ghost"
-            className="press h-11 px-3 text-body font-normal text-primary hover:bg-transparent hover:text-primary"
+            className="h-(--ctl) px-3 text-callout font-semibold text-ink-2"
             disabled={isSubmitting}
             onClick={() => {
               form.reset()
@@ -632,7 +622,7 @@ function LimitRow({
             type="submit"
             form={formId}
             variant="ghost"
-            className="press h-11 px-3 text-body font-semibold text-primary hover:bg-transparent hover:text-primary"
+            className="h-(--ctl) px-3 text-callout font-semibold text-primary hover:bg-primary-soft hover:text-primary"
             disabled={isSubmitting}
           >
             {isSubmitting ? "Guardando…" : "Guardar tope"}

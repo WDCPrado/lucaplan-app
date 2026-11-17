@@ -20,28 +20,28 @@ const product = [
 ] as const
 
 const linkClass =
-  "inline-flex min-h-11 items-center transition-colors duration-150 hover:text-foreground"
+  "inline-flex min-h-11 items-center text-left transition-colors duration-150 hover:text-foreground"
 
 export function LandingFooter() {
   const [legal, setLegal] = useState<LegalKey | null>(null)
   return (
-    <footer className="border-t border-border">
-      <div className="mx-auto max-w-6xl px-5 py-14 lg:px-8">
+    <footer className="bg-secondary">
+      <div className="mx-auto max-w-6xl px-4 pt-14 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6 lg:px-8">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="max-w-xs">
-            <p className="flex items-center gap-2.5 text-headline font-semibold">
+            <p className="flex items-center gap-2.5 text-title font-semibold">
               <LogoMark />
               Luca Plan
             </p>
-            <p className="mt-4 text-subheadline text-muted-foreground">
+            <p className="mt-4 text-callout text-ink-2">
               Finanzas personales, un mes a la vez. Hecho en Chile, con licencia
               MIT.
             </p>
           </div>
 
-          <nav aria-label="Producto" className="text-subheadline">
+          <nav aria-label="Producto" className="text-callout">
             <p className="font-semibold">Producto</p>
-            <ul className="mt-3 text-muted-foreground">
+            <ul className="mt-2 text-ink-2">
               {product.map(([href, label]) => (
                 <li key={href}>
                   <a href={href} className={linkClass}>
@@ -57,9 +57,9 @@ export function LandingFooter() {
             </ul>
           </nav>
 
-          <nav aria-label="Legal" className="text-subheadline">
+          <nav aria-label="Legal" className="text-callout">
             <p className="font-semibold">Legal</p>
-            <ul className="mt-3 text-muted-foreground">
+            <ul className="mt-2 text-ink-2">
               <li>
                 <button
                   type="button"
@@ -81,9 +81,9 @@ export function LandingFooter() {
             </ul>
           </nav>
 
-          <div className="text-subheadline">
+          <div className="text-callout">
             <p className="font-semibold">Seguridad</p>
-            <p className="mt-3 max-w-xs text-muted-foreground">
+            <p className="mt-3 max-w-xs text-ink-2">
               Luca Plan nunca conoce tus claves bancarias: lee solo los avisos
               de tu correo con permiso de solo lectura, revocable, y no puede
               mover tu dinero.
@@ -91,14 +91,14 @@ export function LandingFooter() {
           </div>
         </div>
 
-        <p className="mt-12 max-w-2xl text-footnote text-muted-foreground">
+        <p className="mt-12 max-w-2xl text-caption text-ink-3">
           Luca Plan es un servicio independiente. No está afiliado, patrocinado
           ni respaldado por las instituciones financieras ni los proveedores de
           correo mencionados; todas las marcas pertenecen a sus respectivos
           titulares.
         </p>
 
-        <div className="mt-6 flex flex-col gap-3 border-t border-border pt-6 text-footnote text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-6 flex flex-col gap-3 border-t border-rule-strong pt-6 text-caption text-ink-3 sm:flex-row sm:items-center sm:justify-between">
           <p>
             © 2026 Luca Plan. Open source, hecho por{" "}
             <a
@@ -111,18 +111,18 @@ export function LandingFooter() {
             </a>
             .
           </p>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
             <p>
               Privacidad conforme a la Ley 19.628 y preparada para la Ley
               21.719 (Chile).
             </p>
-            <div className="flex items-center">
+            <div className="-ml-3 flex items-center sm:ml-0">
               <a
                 href={GITHUB_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Luca Plan en GitHub"
-                className="grid size-11 place-items-center rounded-full transition-colors hover:bg-foreground/5 hover:text-foreground"
+                className="grid size-11 place-items-center rounded-md transition-colors hover:bg-surface-3 hover:text-foreground"
               >
                 <GitHubIcon />
               </a>
@@ -131,7 +131,7 @@ export function LandingFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Welliton da Costa Prado en LinkedIn"
-                className="grid size-11 place-items-center rounded-full transition-colors hover:bg-foreground/5 hover:text-foreground"
+                className="grid size-11 place-items-center rounded-md transition-colors hover:bg-surface-3 hover:text-foreground"
               >
                 <LinkedInIcon />
               </a>

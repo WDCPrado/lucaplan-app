@@ -477,13 +477,13 @@ export function OutlookBankConnection({
     )
     if (!scan) {
       return (
-        <div className="flex flex-col gap-7">
+        <div className="flex flex-col gap-6">
           <ModalSection footer="Aún no se creó ninguna cuenta ni movimiento.">
             <div className={ROW}>
               <Check className="size-5 shrink-0 text-success" aria-hidden />
               <div className="min-w-0">
-                <p className="text-body">{pending.bankName}</p>
-                <p className="truncate text-subheadline text-muted-foreground">
+                <p className="font-semibold">{pending.bankName}</p>
+                <p className="truncate text-callout text-muted-foreground">
                   {pending.mailbox.emailAddress}
                 </p>
               </div>
@@ -498,7 +498,7 @@ export function OutlookBankConnection({
                   className="size-5 shrink-0 animate-spin text-primary"
                   aria-hidden
                 />
-                <span className="text-subheadline text-muted-foreground">
+                <span className="text-callout text-muted-foreground">
                   Revisando las notificaciones de tu banco…
                 </span>
               </div>
@@ -521,7 +521,7 @@ export function OutlookBankConnection({
       )
     }
     return (
-      <div className="flex flex-col gap-7">
+      <div className="flex flex-col gap-6">
         <ScanSummary scan={scan} bankName={pending.bankName} />
         <ScanGuidance
           scan={scan}
@@ -559,17 +559,13 @@ export function OutlookBankConnection({
   // Sin correos conectados: primer OAuth, trayendo el banco elegido.
   if (mailboxes.length === 0) {
     return (
-      <div className="flex flex-col gap-7">
-        <ModalSection>
-          <Notice icon={Mail}>
-            Luca Plan solo leerá notificaciones de tu banco con el permiso
-            Mail.Read. No puede enviar ni borrar correos.
-          </Notice>
-        </ModalSection>
+      <div className="flex flex-col gap-6">
+        <Notice icon={Mail} boxed>
+          Luca Plan solo leerá notificaciones de tu banco con el permiso
+          Mail.Read. No puede enviar ni borrar correos.
+        </Notice>
         {configuredProviders.length === 0 ? (
-          <ModalSection>
-            <NotConfiguredNotice />
-          </ModalSection>
+          <NotConfiguredNotice boxed />
         ) : (
           <FirstBankPicker
             banks={status.availableBanks}
@@ -585,7 +581,7 @@ export function OutlookBankConnection({
   }
 
   return (
-    <div className="flex flex-col gap-7">
+    <div className="flex flex-col gap-6">
       {mailboxes.map((mailbox) => (
         <MailboxSection
           key={mailbox.id}
@@ -647,13 +643,13 @@ export function OutlookBankConnection({
 // Fila de una lista agrupada (≥44 px) y la variante que es una acción en texto azul.
 const ROW = "flex min-h-11 items-center gap-3 px-4 py-2.5"
 const ACTION_ROW =
-  "press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body text-primary disabled:opacity-50"
+  "press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left font-semibold text-primary hover:bg-primary-soft disabled:opacity-45"
 // Botón de texto dentro de una fila (Desconectar): sin relleno, 44 px de alto.
 const TEXT_BUTTON =
   "press h-11 px-3 text-body font-normal hover:bg-transparent dark:hover:bg-transparent"
 // Pie de escritorio (en la hoja de móvil van al encabezado): llega a los bordes del contenedor, que
-// tiene px-5 pb-6 tanto en el modal como en el onboarding.
-const ACTIONS_CLASS = "-mx-5 mt-0 -mb-6 px-5"
+// tiene px-4 pb-6 (px-6 desde md) en el modal.
+const ACTIONS_CLASS = "-mx-4 mt-0 -mb-6 px-4 md:-mx-6 md:px-6"
 // Sin modal no hay pie que anclar: los botones quedan en el flujo, sobre el fondo de la página.
 const INLINE_ACTIONS_CLASS =
   "static mx-0 mt-0 border-0 bg-transparent px-0 py-0 pb-0"
@@ -666,7 +662,7 @@ const COMING_SOON = `Próximamente: ${new Intl.ListFormat("es", {
 
 function BlockingHint({ children }: { children: React.ReactNode }) {
   return (
-    <p className="px-4 text-center text-subheadline text-muted-foreground">
+    <p className="px-4 text-center text-callout text-muted-foreground">
       {children}
     </p>
   )
@@ -674,9 +670,9 @@ function BlockingHint({ children }: { children: React.ReactNode }) {
 
 // El servidor no tiene credenciales del proveedor, así que no se puede INICIAR una conexión. Los
 // correos ya conectados se siguen mostrando: rotularlos no necesita credenciales.
-function NotConfiguredNotice() {
+function NotConfiguredNotice({ boxed = false }: { boxed?: boolean }) {
   return (
-    <Notice icon={CircleAlert}>
+    <Notice icon={CircleAlert} boxed={boxed}>
       Outlook aún no está configurado en el servidor (falta OUTLOOK_CLIENT_ID).
       Revisa la guía en docs/email-connection-outlook.md.
     </Notice>
@@ -776,9 +772,7 @@ function AddBankSection({
 
       {/* Conectar un correo nuevo pasa por OAuth; agregar un banco a uno ya autorizado, no. */}
       {!targetMailbox && providers.length === 0 && (
-        <ModalSection>
-          <NotConfiguredNotice />
-        </ModalSection>
+        <NotConfiguredNotice boxed />
       )}
 
       {/* De qué proveedor es el correo nuevo. Con uno solo configurado no hay nada que preguntar. */}
@@ -861,11 +855,14 @@ function OptionRows({
         disabled={option.disabled}
         aria-pressed={isSelected}
         onClick={() => onSelect(option.value)}
-        className="press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-body disabled:opacity-45"
+        className={cn(
+          "press flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-3 disabled:opacity-45",
+          isSelected && "font-semibold"
+        )}
       >
         <span className="min-w-0 flex-1 truncate">{option.label}</span>
         {option.hint && (
-          <span className="shrink-0 text-footnote text-muted-foreground">
+          <span className="shrink-0 text-caption text-muted-foreground">
             {option.hint}
           </span>
         )}
@@ -926,7 +923,7 @@ function MailboxSection({
           {statusLabel}
         </span>
         {/* De qué proveedor es este correo: con varios conectados es lo que los distingue. */}
-        <span className="shrink-0 text-subheadline text-muted-foreground">
+        <span className="shrink-0 text-callout text-muted-foreground">
           {providerName}
         </span>
       </div>
@@ -953,15 +950,15 @@ function MailboxSection({
       {mailbox.banks.map((bank) => (
         <div key={bank.id} className="px-4 pt-2.5 pb-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="text-body">{bank.bankName}</span>
+            <span className="font-semibold">{bank.bankName}</span>
             {/* La etiqueta distingue este origen cuando el mismo banco viene de dos correos. */}
             {bank.label && (
-              <span className="rounded-lg bg-primary/10 px-2 py-0.5 text-footnote font-medium text-primary">
+              <span className="rounded-sm bg-primary-soft px-2 py-0.5 text-caption font-semibold text-primary">
                 {bank.label}
               </span>
             )}
           </div>
-          <p className="text-footnote text-muted-foreground">
+          <p className="text-caption text-ink-3">
             Saldo estimado desde{" "}
             {bank.lastBalanceReconciledAt
               ? new Date(bank.lastBalanceReconciledAt).toLocaleString("es-CL")
@@ -1016,7 +1013,7 @@ function FirstBankPicker({
         </ModalSection>
       ) : (
         showComingSoon && (
-          <p className="px-4 text-footnote text-muted-foreground">
+          <p className="px-4 text-caption text-muted-foreground">
             {COMING_SOON}
           </p>
         )
@@ -1178,7 +1175,7 @@ export function SnapshotForm({
       cards.map((card) => (card.id === id ? { ...card, ...patch } : card))
     )
   return (
-    <div className="flex flex-col gap-7">
+    <div className="flex flex-col gap-6">
       <ModalSection
         title="Fecha y hora del saldo"
         footer="Los movimientos previos a este saldo se importan, pero no vuelven a descontarse. CLP y USD se mantienen separados."
@@ -1359,9 +1356,9 @@ export function SnapshotForm({
 }
 
 // Controles de saldo dentro de una fila: misma máscara, monedas separadas y alineados a la derecha.
-const boxedMoneyInput = "h-11 rounded-lg text-right text-body"
+const boxedMoneyInput = "h-11 rounded-md text-right text-body"
 const primaryMoneyInput =
-  "h-11 rounded-lg text-right text-title-3 font-semibold md:text-title-3"
+  "h-11 rounded-md text-right text-title font-semibold md:text-title"
 
 // Input de monto que reutiliza el formateo vigente (CLP entero agrupado, USD con coma y 2
 // decimales). `value` solo inicializa; el estado vive en useMoneyInput y se reporta por onValue.
@@ -1500,14 +1497,14 @@ function DerivedUsed({
 }) {
   if (bucketInvalid(limit, available))
     return (
-      <p className="px-4 py-2.5 text-footnote font-medium text-destructive">
+      <p className="px-4 py-2.5 text-caption font-semibold text-destructive">
         El disponible debe estar entre cero y el cupo total
       </p>
     )
   const used = limit - available
   if (used <= 0) return null
   return (
-    <p className="tabular px-4 py-2.5 text-footnote text-destructive">
+    <p className="tabular px-4 py-2.5 text-caption text-destructive">
       Usado −{formatMoney(used, currency)}
     </p>
   )
@@ -1566,10 +1563,10 @@ function CandidateCard({
             aria-describedby={refInvalid ? refErrorId : undefined}
             onChange={(e) => onRef(e.target.value)}
             onBlur={() => setRefTouched(true)}
-            className="tabular h-11 w-24 rounded-lg px-3 text-body tracking-widest md:text-body"
+            className="tabular h-11 w-24 rounded-md px-3 text-body tracking-widest md:text-body"
           />
           {movementCount ? (
-            <span className="text-subheadline text-muted-foreground">
+            <span className="text-callout text-muted-foreground">
               {plural(movementCount, "movimiento", "movimientos")}
             </span>
           ) : null}
@@ -1579,7 +1576,7 @@ function CandidateCard({
             type="button"
             onClick={onRemove}
             aria-label={`Quitar ${typeLabel}${refValue ? ` ${refValue}` : ""}`}
-            className="press ml-auto min-h-11 shrink-0 text-body text-primary"
+            className="press ml-auto min-h-11 shrink-0 rounded-md px-2 font-semibold text-primary hover:bg-primary-soft"
           >
             Quitar
           </button>
@@ -1587,7 +1584,7 @@ function CandidateCard({
         {refInvalid && (
           <p
             id={refErrorId}
-            className="px-4 pb-2.5 text-subheadline text-destructive"
+            className="px-4 pb-2.5 text-callout text-destructive"
           >
             Faltan los últimos 4 dígitos.
           </p>
@@ -1598,17 +1595,20 @@ function CandidateCard({
   )
 }
 
-// Aviso como fila de una lista agrupada (va dentro de un ModalSection, nunca como tarjeta suelta).
+// Aviso en línea. Dentro de un grupo (ModalSection) es una fila más; suelto (`boxed`) es un bloque a
+// ancho completo en tono: neutro si informa, ámbar si pide una acción. Nunca una píldora.
 function Notice({
   icon: Icon,
   tone = "info",
   role,
+  boxed = false,
   children,
 }: {
   icon: typeof Mail
   // "warning" separa el aviso que pide una acción del texto informativo: mismo bloque, otro peso.
   tone?: "info" | "warning"
   role?: "alert" | "status"
+  boxed?: boolean
   children: React.ReactNode
 }) {
   const warn = tone === "warning"
@@ -1616,14 +1616,16 @@ function Notice({
     <div
       role={role}
       className={cn(
-        "flex items-start gap-3 px-4 py-3 text-subheadline",
-        warn ? "text-foreground" : "text-muted-foreground"
+        "flex items-start gap-3 py-3 text-callout",
+        boxed ? "rounded-md px-3" : "px-4",
+        warn ? "text-warning" : "text-ink-2",
+        boxed && (warn ? "bg-warning-soft" : "bg-secondary")
       )}
     >
       <Icon
         aria-hidden
         className={cn(
-          "mt-0.5 size-5 shrink-0",
+          "mt-0.5 size-4 shrink-0",
           warn ? "text-warning" : "text-primary"
         )}
       />
@@ -1657,10 +1659,10 @@ export function ScanSummary({
   return (
     <ModalSection footer={`${leidos}${mes ? ` · desde ${mes}` : ""}`}>
       <div className="flex min-h-11 flex-col justify-center px-4 py-2.5">
-        <p className="text-body font-medium">
+        <p className="font-semibold">
           {plural(scan.expenseCount, "gasto detectado", "gastos detectados")}
         </p>
-        <p className="text-subheadline text-muted-foreground">
+        <p className="text-callout text-ink-2">
           {plural(scan.internalCount, "ajuste interno", "ajustes internos")}
           {" · "}
           {plural(scan.skippedCount, "omitido", "omitidos")}
@@ -1687,10 +1689,8 @@ export function ScanGuidance({
   const aviso = scanGuidance({ ...scan, bankName }, formOf(checking, cards))
   if (!aviso) return null
   return (
-    <ModalSection>
-      <Notice icon={CircleAlert} tone="warning">
-        {aviso}
-      </Notice>
-    </ModalSection>
+    <Notice icon={CircleAlert} tone="warning" boxed>
+      {aviso}
+    </Notice>
   )
 }

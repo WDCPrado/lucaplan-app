@@ -34,6 +34,7 @@ import { formatCLP } from "@/lib/finance-format"
 import { todayKey } from "@/arch/shared/today"
 import { DatePicker } from "./transaction-modal"
 import { InstallmentLinkPicker } from "./installment-link-picker"
+import { ProgressBar } from "./blocks"
 import type { InstallmentPlanDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 // Edición en línea de una cuota: monto y vencimiento. Reemplaza la fila en vez de abrir otro
@@ -62,7 +63,7 @@ function ItemEditor({
       {/* Fecha y monto en filas propias: el texto de la fecha ("25 de diciembre de 2026") no cabe
           junto al monto en el ancho del drawer móvil. */}
       <div className="flex items-center gap-2">
-        <span className="tabular w-6 shrink-0 text-footnote text-muted-foreground">
+        <span className="tabular w-6 shrink-0 text-caption text-muted-foreground">
           {item.index}
         </span>
         <div className="min-w-0 flex-1">
@@ -80,20 +81,20 @@ function ItemEditor({
           aria-label={`Monto de la cuota ${item.index}`}
           aria-invalid={over}
           className={cn(
-            "tabular h-11 min-w-0 flex-1 rounded-lg bg-(--glass-control) px-3 text-right text-body outline-none",
+            "tabular h-11 min-w-0 flex-1 rounded-lg bg-secondary px-3 text-right text-body outline-none",
             over && "ring-1 ring-destructive"
           )}
         />
       </div>
       {over ? (
-        <p className="pl-8 text-footnote text-destructive">
+        <p className="pl-8 text-caption text-destructive">
           Máximo <span className="tabular">{formatCLP(max)}</span>: lo demás
           debe alcanzar para las cuotas pendientes.
         </p>
       ) : (
         max !== null &&
         changedAmount && (
-          <p className="pl-8 text-footnote text-muted-foreground">
+          <p className="pl-8 text-caption text-muted-foreground">
             Las cuotas pendientes se recalculan para mantener el total.
           </p>
         )
@@ -226,24 +227,46 @@ export function InstallmentPlanModal({
       title={plan.description}
     >
       <div className="flex flex-col px-5">
-        {/* Dato hero: lo que falta. El avance va debajo, como contexto. */}
-        <section className="py-5">
-          <span className="tabular block text-hero font-bold">
-            {formatCLP(plan.outstanding)}
-          </span>
-          <span className="block text-subheadline text-muted-foreground">
-            por pagar de{" "}
-            <span className="tabular">{formatCLP(plan.totalAmount)}</span>
-          </span>
-          <span className="mt-1.5 block text-footnote text-muted-foreground">
-            {plan.settledCount} de {plan.installmentsCount} cuotas ·{" "}
-            <span className="tabular">{formatCLP(paidTotal)}</span> pagados en{" "}
-            {plan.accountName}
-          </span>
+        {/* Dato hero: lo que falta (deuda). El avance va debajo, como contexto. */}
+        <section className="flex flex-col gap-3 pt-2 pb-5">
+          <p>
+            <span className="block text-display font-semibold whitespace-nowrap">
+              {formatCLP(plan.outstanding)}
+            </span>
+            <span className="block text-callout text-ink-2">
+              por pagar de{" "}
+              <span className="whitespace-nowrap">{formatCLP(plan.totalAmount)}</span>
+            </span>
+          </p>
+          {plan.installmentsCount > 0 && (
+            <div className="flex items-center gap-3">
+              <ProgressBar
+                value={plan.settledCount}
+                max={plan.installmentsCount}
+                label="Cuotas pagadas"
+                className="flex-1"
+              />
+              <span className="shrink-0 text-callout font-semibold">
+                {plan.settledCount}/{plan.installmentsCount}
+              </span>
+            </div>
+          )}
+          <dl className="rounded-lg bg-secondary px-4 py-1">
+            <div className="flex items-baseline justify-between gap-4 py-2.5">
+              <dt className="text-caption text-ink-3">Pagado</dt>
+              <dd className="text-right font-semibold whitespace-nowrap">
+                {formatCLP(paidTotal)}
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-4 py-2.5">
+              <dt className="text-caption text-ink-3">Cuenta</dt>
+              <dd className="min-w-0 truncate text-right">{plan.accountName}</dd>
+            </div>
+          </dl>
         </section>
 
         <section className="pb-5">
-          <h3 className="mb-2 px-4 text-headline font-semibold">Cronograma</h3>
+          <h3 className="px-4 pb-2 text-callout font-semibold text-ink-2">Cronograma</h3>
           <ul className="sheet-group inset-list flex flex-col [--inset:3.25rem]">
             {plan.items.map((item) => {
               const settled =
@@ -291,14 +314,14 @@ export function InstallmentPlanModal({
                   <div className="grid min-h-11 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3">
                     <span
                       className={cn(
-                        "tabular grid size-6 shrink-0 place-items-center rounded-full text-caption font-medium",
-                        item.status === "paid" && "bg-primary/15 text-primary",
+                        "tabular grid size-6 shrink-0 place-items-center rounded-sm text-caption font-semibold",
+                        item.status === "paid" && "bg-primary-soft text-primary",
                         item.status === "outside_app" &&
-                          "bg-muted text-muted-foreground",
+                          "bg-secondary text-muted-foreground",
                         item.status === "overdue" &&
-                          "bg-destructive/15 text-destructive",
+                          "bg-destructive-soft text-destructive",
                         item.status === "upcoming" &&
-                          "bg-muted text-muted-foreground"
+                          "bg-secondary text-muted-foreground"
                       )}
                       aria-hidden
                     >
@@ -321,7 +344,7 @@ export function InstallmentPlanModal({
                       {status && (
                         <span
                           className={cn(
-                            "block text-footnote",
+                            "block text-caption",
                             item.status === "overdue"
                               ? "text-destructive"
                               : "text-muted-foreground"
@@ -331,7 +354,7 @@ export function InstallmentPlanModal({
                         </span>
                       )}
                     </span>
-                    <span className="tabular shrink-0 text-body font-medium">
+                    <span className="tabular shrink-0 text-body font-semibold">
                       {formatCLP(item.paidAmount ?? item.amount)}
                     </span>
                     {!settled || canEdit || canUnlink ? (
@@ -425,7 +448,7 @@ export function InstallmentPlanModal({
         {/* La compra que dio origen al plan quedó neutralizada: dejó de contar como gasto, pero se
             conserva para poder ver cuánto cobró el banco de una vez. */}
         {plan.sourceTransactionId && (
-          <p className="px-4 pb-4 text-footnote text-muted-foreground">
+          <p className="px-4 pb-4 text-caption text-muted-foreground">
             La compra original de{" "}
             <span className="tabular">{formatCLP(plan.totalAmount)}</span> se
             conserva en tus movimientos, pero ya no cuenta como gasto: ahora lo
@@ -462,7 +485,7 @@ export function InstallmentPlanModal({
           <Button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="h-12 flex-1 text-body"
+            className="flex-1 md:flex-none"
           >
             Listo
           </Button>

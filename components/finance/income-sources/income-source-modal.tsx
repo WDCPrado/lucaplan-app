@@ -162,7 +162,7 @@ export function IncomeSourceModal({
       >
         <fieldset disabled={busy} className="contents">
           {errors.root && (
-            <p role="alert" className="text-subheadline text-destructive">
+            <p role="alert" className="text-callout text-destructive">
               {errors.root.message}
             </p>
           )}

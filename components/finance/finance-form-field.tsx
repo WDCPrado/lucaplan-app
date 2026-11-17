@@ -25,21 +25,21 @@ export function FinanceField({
   children: ReactNode
 }) {
   return (
-    <div className="min-w-0 space-y-2">
-      <Label htmlFor={id} className="text-subheadline font-medium">
+    <div className="flex min-w-0 flex-col gap-2">
+      <Label htmlFor={id}>
         {label}
         {required && <span aria-hidden="true"> *</span>}
       </Label>
       {children}
       {error && (
-        <p id={`${id}-error`} role="alert" className="text-subheadline text-destructive">
+        <p id={`${id}-error`} role="alert" className="text-callout text-destructive">
           {error}
         </p>
       )}
       {hint && (
         <p
           id={`${id}-hint`}
-          className="text-footnote text-muted-foreground"
+          className="text-caption text-ink-3"
         >
           {hint}
         </p>
@@ -82,7 +82,7 @@ export function MoneyFormInput({
             scale
         )
       }
-      className={`tabular h-12 text-body ${props.className ?? ""}`}
+      className={`text-body ${props.className ?? ""}`}
     />
   )
 }

@@ -5,6 +5,7 @@ import { MonitorDown, Share, SquarePlus } from "lucide-react"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { haptic } from "@/lib/haptics"
+import { IconTile } from "@/components/finance/blocks"
 
 // Evento no tipado por TS DOM: prompt de instalación de Chromium.
 type BeforeInstallPromptEvent = Event & {
@@ -111,26 +112,26 @@ export function InstallAppItem({
           onOpenChange={(o) => !o && setIosHelp(false)}
           title="Instalar Luca Plan"
         >
-          <div className="flex flex-col gap-4 px-4 pb-8">
-            <p className="text-subheadline text-muted-foreground">
+          <div className="flex flex-col gap-4 px-4 pb-8 md:px-6">
+            <p className="text-ink-2">
               En iPhone y iPad la instalación se hace desde Safari, en dos
               pasos:
             </p>
             <ol className="flex flex-col gap-3">
               <li className="flex items-center gap-3 text-body">
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary">
-                  <Share className="size-5" aria-hidden="true" />
-                </span>
+                <IconTile>
+                  <Share aria-hidden="true" />
+                </IconTile>
                 Toca el botón <strong>Compartir</strong> en la barra de Safari.
               </li>
               <li className="flex items-center gap-3 text-body">
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary">
-                  <SquarePlus className="size-5" aria-hidden="true" />
-                </span>
+                <IconTile>
+                  <SquarePlus aria-hidden="true" />
+                </IconTile>
                 Elige <strong>Agregar a pantalla de inicio</strong>.
               </li>
             </ol>
-            <p className="text-subheadline text-muted-foreground">
+            <p className="text-callout text-ink-3">
               Luca Plan quedará como app en tu pantalla de inicio, con su propio
               icono y ventana.
             </p>

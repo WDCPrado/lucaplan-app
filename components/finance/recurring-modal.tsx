@@ -398,7 +398,7 @@ export function RecurringModal({
       }
     >
       {accounts.length === 0 ? (
-        <div className="px-4 py-10 text-center text-subheadline text-muted-foreground">
+        <div className="px-4 py-10 text-center text-callout text-muted-foreground">
           Necesitas una cuenta para crear un gasto recurrente.
         </div>
       ) : (
@@ -407,7 +407,7 @@ export function RecurringModal({
               movimiento a mano cubre el cargo que llegó con otra fecha y no se enganchó solo. */}
           {template && template.isActive && !template.hasEnded && (
             <ModalSection>
-              <p className="flex min-h-11 items-center px-4 py-2.5 text-subheadline">
+              <p className="flex min-h-11 items-center px-4 py-2.5 text-callout">
                 {template.currentPeriodPaid
                   ? "El cobro de este período ya está registrado."
                   : "El cobro de este período todavía no llega."}
@@ -438,7 +438,7 @@ export function RecurringModal({
                   {busy === "pick" ? (
                     <BusySpinner />
                   ) : (
-                    <ChevronRight aria-hidden className="disclosure" />
+                    <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
                   )}
                 </button>
               )}
@@ -499,7 +499,7 @@ export function RecurringModal({
                 <span className="min-w-0 flex-1 truncate text-body">
                   {inheritedCategory?.name ?? "Sin categoría"}
                 </span>
-                <span className="shrink-0 text-subheadline text-muted-foreground">
+                <span className="shrink-0 text-callout text-muted-foreground">
                   Del movimiento
                 </span>
               </div>
@@ -510,7 +510,7 @@ export function RecurringModal({
                 debe reconocerse. Por eso va en tamaño de dato, no en letra chica. */}
             <ModalSection title="Cuánto">
               <div className="flex items-baseline gap-2 px-4 py-2">
-                <span className="text-title-1 font-semibold text-muted-foreground">
+                <span className="text-title text-ink-3">
                   $
                 </span>
                 <Input
@@ -519,20 +519,20 @@ export function RecurringModal({
                   value={money.display}
                   onChange={(e) => money.onChange(e.target.value)}
                   aria-label="Monto base"
-                  // md:text-large-title: el Input trae su tamaño de escritorio y dejaba el monto chico.
-                  className="tabular h-12 min-w-0 border-0 bg-transparent px-0 text-large-title font-bold shadow-none focus-visible:ring-0 md:text-large-title"
+                  // md:text-display: el Input trae su tamaño de escritorio y dejaba el monto chico.
+                  className="tabular h-12 min-w-0 border-0 bg-transparent px-0 text-display font-semibold shadow-none focus-visible:ring-0 md:text-display"
                 />
               </div>
               <div className="px-4 py-3">
                 <div className="mb-1 flex items-baseline justify-between gap-2">
-                  <span className="text-subheadline text-muted-foreground">
+                  <span className="text-callout text-muted-foreground">
                     Reconoce cargos entre
                   </span>
-                  <span className="tabular text-subheadline text-muted-foreground">
+                  <span className="tabular text-callout text-muted-foreground">
                     ±{tolerancePct}%
                   </span>
                 </div>
-                <div className="tabular flex flex-wrap items-baseline gap-x-2 text-headline">
+                <div className="tabular flex flex-wrap items-baseline gap-x-2 text-body font-semibold">
                   <span>{fmt(min)}</span>
                   <span className="text-muted-foreground">—</span>
                   <span>{fmt(max)}</span>
@@ -629,7 +629,7 @@ export function RecurringModal({
                   <span className="shrink-0 text-muted-foreground">
                     No termina
                   </span>
-                  <ChevronRight aria-hidden className="disclosure" />
+                  <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
                 </button>
               )}
             </ModalSection>

@@ -11,7 +11,7 @@ import {
 import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { ArrowRight, Check, Loader, Terminal } from "lucide-react"
+import { ArrowRight, Check, Loader } from "lucide-react"
 import {
   setupVerifyInput,
   type IntegrationKey,
@@ -24,9 +24,11 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { FinanceField } from "../finance/finance-form-field"
 import {
+  FLOW_COLUMN,
   focusOnMount,
   Progress,
   Split,
+  StepActions,
   TITLE_ID,
 } from "../finance/onboarding/step-layout"
 import { ApiError } from "../finance/onboarding/http"
@@ -90,10 +92,10 @@ function FlowSkeleton() {
   return (
     <div
       aria-busy
-      className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 pt-8 lg:px-10"
+      className={`${FLOW_COLUMN} flex flex-col gap-4 pt-6 md:pt-14`}
     >
       <Skeleton className="h-1 w-full rounded-full" />
-      <Skeleton className="h-10 w-2/3 rounded-lg" />
+      <Skeleton className="mt-4 h-6 w-2/3 rounded-sm" />
       <Skeleton className="h-40 rounded-xl" />
     </div>
   )
@@ -111,7 +113,7 @@ function Resolve({
   const result = use(request)
   if (isLoadFailure(result))
     return (
-      <div className="mx-auto flex w-full max-w-5xl flex-col px-5 pt-8 lg:px-10">
+      <div className={`${FLOW_COLUMN} flex flex-col pt-6 md:pt-14`}>
         <LoadError message={result.loadError} onRetry={onRetry} />
       </div>
     )
@@ -159,7 +161,7 @@ function Flow({
 
   return (
     <>
-      <header className="mx-auto flex w-full max-w-5xl items-center gap-4 px-5 pt-4 pb-3 lg:px-10 lg:pt-8">
+      <header className={`${FLOW_COLUMN} flex min-h-14 items-center gap-4 pt-2 md:pt-8`}>
         <Progress
           index={STEPS.indexOf(step)}
           total={STEPS.length}
@@ -168,7 +170,7 @@ function Flow({
       </header>
 
       <ViewTransition key={step} enter="nav" exit="nav" default="none">
-        <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-5 pt-4 pb-8 lg:px-10 lg:pt-10">
+        <div className={`${FLOW_COLUMN} flex flex-1 flex-col pt-4 md:pt-8 md:pb-12`}>
           {step === "code" && (
             <Split
               eyebrow="Instalación"
@@ -195,28 +197,29 @@ function Flow({
                   : "Luca Plan entra con un código que llega por correo. Sin Resend no se puede enviar, así que es obligatorio."
               }
             >
-              <div className="flex flex-col gap-6">
+              <div className="flex flex-1 flex-col gap-4">
                 {list("resend")}
-                <div className="flex flex-col gap-2">
+                <StepActions>
                   <Button
+                    size="lg"
                     onClick={() => go("openai")}
                     disabled={missing.length > 0}
                     aria-describedby={
                       missing.length > 0 ? "setup-missing" : undefined
                     }
-                    className="h-12 w-full text-body"
+                    className="w-full"
                   >
                     Continuar <ArrowRight aria-hidden className="size-4" />
                   </Button>
                   {missing.length > 0 && (
                     <p
                       id="setup-missing"
-                      className="text-center text-footnote text-muted-foreground"
+                      className="text-center text-caption text-ink-3"
                     >
                       Falta {missing.map((k) => KEY_LABEL[k]).join(" y ")}.
                     </p>
                   )}
-                </div>
+                </StepActions>
               </div>
             </Split>
           )}
@@ -269,24 +272,22 @@ function OptionalStep({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-1 flex-col gap-4">
       {children}
-      <div className="flex flex-col gap-3 sm:flex-row-reverse">
-        <Button
-          onClick={onNext}
-          disabled={!done}
-          className="h-12 text-body sm:flex-1"
-        >
+      {/* Principal a la derecha desde sm; en móvil, Continuar arriba y Omitir debajo. */}
+      <StepActions className="sm:flex-row-reverse">
+        <Button size="lg" onClick={onNext} disabled={!done} className="sm:flex-1">
           Continuar <ArrowRight aria-hidden className="size-4" />
         </Button>
         <Button
           variant="secondary"
+          size="lg"
           onClick={onNext}
-          className="h-12 text-body sm:flex-1"
+          className="sm:flex-1"
         >
           Omitir
         </Button>
-      </div>
+      </StepActions>
     </div>
   )
 }
@@ -336,28 +337,28 @@ function CodeStep({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="sheet-group flex items-start gap-3 rounded-xl p-4">
-        <Terminal aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" />
-        <div className="min-w-0 text-subheadline text-pretty">
-          <p>Para verlo, en el servidor corre:</p>
-          <code className="mt-2 block rounded-lg bg-muted px-3 py-2 text-footnote break-all select-all">
-            docker compose logs app | grep setup
-          </code>
-          <p className="mt-2 text-muted-foreground">
-            En desarrollo aparece en la terminal donde corre{" "}
-            <code className="text-footnote">pnpm dev</code>.
-          </p>
-        </div>
+    <div className="flex flex-1 flex-col gap-4">
+      <div className="rounded-xl bg-card p-(--pad-card) text-callout text-pretty">
+        <p>Para verlo, en el servidor corre:</p>
+        <code className="mt-2 block rounded-md bg-secondary px-3 py-2 font-mono text-caption break-all select-all">
+          docker compose logs app | grep setup
+        </code>
+        <p className="mt-2 text-ink-2">
+          En desarrollo aparece en la terminal donde corre{" "}
+          <code className="font-mono text-caption">pnpm dev</code>.
+        </p>
       </div>
 
       <form
         id={formId}
         onSubmit={form.handleSubmit(verify)}
-        className="flex flex-col gap-6"
+        className="flex flex-col gap-4"
       >
         {errors.root && (
-          <p role="alert" className="text-subheadline text-destructive">
+          <p
+            role="alert"
+            className="rounded-md bg-destructive-soft px-3 py-2.5 text-callout text-destructive"
+          >
             {errors.root.message}
           </p>
         )}
@@ -385,73 +386,76 @@ function CodeStep({
             disabled={isSubmitting}
             aria-invalid={!!errors.code}
             aria-describedby={errors.code ? `${fieldId}-error` : undefined}
-            className="tabular text-center tracking-widest uppercase"
+            className="tabular h-12 text-center text-title tracking-widest uppercase"
           />
         </FinanceField>
       </form>
-      <Button
-        type="submit"
-        form={formId}
-        disabled={isSubmitting}
-        aria-busy={isSubmitting || undefined}
-        className="h-12 w-full text-body"
-      >
-        {isSubmitting && (
-          <Loader
-            aria-hidden
-            className="size-4 animate-spin motion-reduce:animate-none"
-          />
-        )}
-        Continuar <ArrowRight aria-hidden className="size-4" />
-      </Button>
+      <StepActions>
+        <Button
+          type="submit"
+          form={formId}
+          size="lg"
+          disabled={isSubmitting}
+          aria-busy={isSubmitting || undefined}
+          className="w-full"
+        >
+          {isSubmitting && (
+            <Loader
+              aria-hidden
+              className="size-4 animate-spin motion-reduce:animate-none"
+            />
+          )}
+          Continuar <ArrowRight aria-hidden className="size-4" />
+        </Button>
+      </StepActions>
     </div>
   )
 }
 
 function Done() {
   return (
-    <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-8 text-center">
-      <div className="flex flex-col items-center gap-4">
-        <span className="grid size-16 animate-in place-items-center rounded-full bg-success/15 text-success duration-500 zoom-in-75 motion-reduce:animate-none">
-          <Check aria-hidden className="size-8" />
+    <div className="flex flex-1 flex-col justify-center gap-8 py-8">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <span className="grid size-14 animate-in place-items-center rounded-xl bg-primary-soft text-primary duration-300 zoom-in-90 motion-reduce:animate-none">
+          <Check aria-hidden className="size-7" />
         </span>
-        <div>
-          <h1
-            id={TITLE_ID}
-            ref={focusOnMount}
-            tabIndex={-1}
-            className="text-title-1 font-bold outline-none"
-          >
-            Tu instalación está lista
-          </h1>
-          <p className="mt-2 text-subheadline text-pretty text-muted-foreground">
-            La primera cuenta que crees queda como administradora. Después te
-            guiamos para armar tu plan.
-          </p>
-        </div>
+        <h1
+          id={TITLE_ID}
+          ref={focusOnMount}
+          tabIndex={-1}
+          className="text-title font-semibold outline-none"
+        >
+          Tu instalación está lista
+        </h1>
+        <p className="text-callout text-pretty text-ink-2">
+          La primera cuenta que crees queda como administradora. Después te
+          guiamos para armar tu plan.
+        </p>
       </div>
-      <Button asChild className="h-12 w-full text-body">
-        <Link href="/login">
-          Crea tu cuenta de administrador{" "}
-          <ArrowRight aria-hidden className="size-4" />
-        </Link>
-      </Button>
+      <StepActions>
+        <Button asChild size="lg" className="w-full">
+          <Link href="/login">
+            Crea tu cuenta de administrador{" "}
+            <ArrowRight aria-hidden className="size-4" />
+          </Link>
+        </Button>
+      </StepActions>
     </div>
   )
 }
 
 function AlreadyInstalled() {
   return (
-    <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-5 text-center">
+    <div className={`${FLOW_COLUMN} flex flex-1 flex-col justify-center gap-6 py-8 text-center`}>
       <h1
         id={TITLE_ID}
         ref={focusOnMount}
         tabIndex={-1}
-        className="text-title-1 font-bold outline-none"
+        className="text-title font-semibold outline-none"
       >
         Esta instalación ya está lista
       </h1>
-      <Button asChild className="h-12 w-full text-body">
+      <Button asChild size="lg" className="w-full">
         <Link href="/login">
           Entrar <ArrowRight aria-hidden className="size-4" />
         </Link>

@@ -96,7 +96,7 @@ export function TransactionSearch({
       onOpenChange={onOpenChange}
       title="Buscar movimientos"
     >
-      <div className="flex flex-col gap-6 px-5 pb-6">
+      <div className="flex flex-col gap-4 px-4 pb-6 md:px-6">
         <TransactionFilters
           value={filters}
           onChange={setFilters}
@@ -109,27 +109,28 @@ export function TransactionSearch({
         {/* Resultados */}
         <div className="min-h-40">
           {loading && results.length === 0 ? (
-            <div className="flex items-center justify-center py-12 text-muted-foreground">
-              <Loader className="size-5 animate-spin" />
+            <div className="flex items-center justify-center py-12 text-ink-3">
+              <Loader aria-label="Buscando" className="size-5 animate-spin motion-reduce:animate-none" />
             </div>
           ) : results.length === 0 ? (
-            <p className="py-12 text-center text-subheadline text-muted-foreground">
+            <p className="py-8 text-callout text-ink-2">
               No encontramos movimientos con estos filtros. Prueba otra
               descripción o cambia los filtros.
             </p>
           ) : (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-5">
               {groups.map((g) => (
                 <div key={g.header}>
-                  <div className="mb-1.5 px-4 text-footnote tracking-wide text-muted-foreground uppercase">
+                  <h3 className="mb-1 text-callout font-semibold text-ink-2">
                     {g.header}
-                  </div>
-                  <div className="sheet-group inset-list flex flex-col overflow-hidden [--inset:4.25rem]">
+                  </h3>
+                  <div className="flex flex-col gap-2">
                     {g.txs.map((tx) => (
                       <MovementRow
                         key={tx.id}
                         tx={tx}
                         onOpen={onOpenTransaction}
+                        className="-mx-3 w-[calc(100%+1.5rem)]"
                       />
                     ))}
                   </div>

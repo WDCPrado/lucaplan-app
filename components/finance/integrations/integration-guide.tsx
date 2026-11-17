@@ -9,7 +9,7 @@ export type GuideLink = { label: string; href: string }
 // Lo que hay que copiar o escribir tal cual: en monoespaciada, seleccionable de un toque.
 function Mono({ children }: { children: ReactNode }) {
   return (
-    <code className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-subheadline break-all select-all">
+    <code className="rounded-sm bg-surface-3 px-1.5 py-0.5 font-mono text-callout break-all select-all">
       {children}
     </code>
   )
@@ -121,13 +121,13 @@ export function IntegrationGuideModal({
       title={group ? `Cómo conseguir las claves de ${group.name}` : ""}
     >
       {group && (
-        <div className="flex flex-col gap-6 px-5 pb-6">
+        <div className="flex flex-col gap-6 px-4 pb-6 md:px-6">
           <ol className="flex flex-col gap-4">
             {steps(group.id, redirectUri).map((step, i) => (
               <li key={i} className="flex gap-3 text-body text-pretty">
                 <span
                   aria-hidden
-                  className="tabular grid size-6 shrink-0 place-items-center rounded-full bg-primary text-footnote font-semibold text-primary-foreground"
+                  className="tabular grid size-6 shrink-0 place-items-center rounded-sm bg-primary text-caption font-semibold text-primary-foreground"
                 >
                   {i + 1}
                 </span>
@@ -136,10 +136,10 @@ export function IntegrationGuideModal({
             ))}
           </ol>
           {group.id === "outlook" && (
-            <div className="sheet-group flex items-start gap-3 rounded-xl p-4">
+            <div className="flex items-start gap-3 rounded-lg bg-secondary p-4">
               <Globe aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" />
-              <div className="flex min-w-0 flex-col gap-2 text-subheadline text-pretty">
-                <p className="font-semibold">¿Hace falta un dominio público?</p>
+              <div className="flex min-w-0 flex-col gap-2 text-callout text-pretty text-ink-2">
+                <p className="font-semibold text-foreground">¿Hace falta un dominio público?</p>
                 <p>
                   Para conectar el buzón y hacer la primera importación, no: el
                   login con Microsoft vuelve a <Mono>localhost</Mono> porque lo
@@ -166,7 +166,7 @@ export function IntegrationGuideModal({
                 href={link.href}
                 target="_blank"
                 rel="noreferrer"
-                className="press flex min-h-11 items-center gap-3 px-4 py-2.5 text-body text-primary hover:bg-accent/60"
+                className="press flex min-h-11 items-center gap-3 px-4 py-2.5 font-semibold text-primary hover:bg-primary-soft"
               >
                 <span className="flex-1">{link.label}</span>
                 <ExternalLink aria-hidden className="size-4 shrink-0" />

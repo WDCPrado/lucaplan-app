@@ -22,6 +22,8 @@ import {
 import { CATEGORY_COLORS, CATEGORY_ICONS, CategoryIcon } from "../category-icons"
 import { CategoryAppearancePicker } from "../category-appearance-picker"
 import { FinanceField } from "../finance-form-field"
+import { IconTile, SectionAction, SectionCard } from "../blocks"
+import { StepActions } from "./step-layout"
 import { Segmented } from "../segmented"
 import { DEFAULT_CATEGORIES } from "@/arch/v1/application/finance-use-cases/seed-default-categories-use-case"
 import { ApiError, proposeCategories, saveCategories } from "./http"
@@ -179,10 +181,13 @@ export function CategoriesStep({
         id={formId}
         onSubmit={form.handleSubmit(propose)}
         noValidate
-        className="flex flex-col gap-4"
+        className="flex flex-1 flex-col gap-4"
       >
         {errors.root && (
-          <p role="alert" className="text-subheadline text-destructive">
+          <p
+            role="alert"
+            className="rounded-md bg-destructive-soft px-3 py-2.5 text-callout text-destructive"
+          >
             {errors.root.message}
           </p>
         )}
@@ -219,153 +224,155 @@ export function CategoriesStep({
                 key={text}
                 type="button"
                 onClick={() => addExample(text)}
-                className="press inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg bg-secondary px-3 text-subheadline whitespace-nowrap"
+                className="press inline-flex min-h-11 shrink-0 items-center gap-1 rounded-md bg-secondary px-3 text-callout whitespace-nowrap hover:bg-surface-3 md:min-h-8"
               >
-                <Plus aria-hidden className="size-3.5 text-muted-foreground" />
+                <Plus aria-hidden className="size-3.5 text-ink-3" />
                 {text}
               </button>
             ))}
           </div>
           <span
             id={`${formId}-count`}
-            className="tabular shrink-0 pt-3 text-footnote text-muted-foreground"
+            className="tabular shrink-0 pt-3 text-caption text-ink-3 md:pt-1.5"
           >
             {description.length}/{DESCRIPTION_MAX}
           </span>
         </div>
-        <Button
-          type="submit"
-          form={formId}
-          disabled={isSubmitting}
-          aria-busy={isSubmitting || undefined}
-          className="h-12 w-full text-body"
-        >
-          {isSubmitting ? (
-            <Loader
-              aria-hidden
-              className="size-4 animate-spin motion-reduce:animate-none"
-            />
-          ) : (
-            <Sparkles aria-hidden className="size-4" />
-          )}
-          {isSubmitting ? "Ordenando tus categorías…" : "Proponer categorías"}
-        </Button>
         {isSubmitting && <ProposalSkeleton />}
+        <StepActions>
+          <Button
+            type="submit"
+            form={formId}
+            disabled={isSubmitting}
+            aria-busy={isSubmitting || undefined}
+            size="lg"
+            className="w-full"
+          >
+            {isSubmitting ? (
+              <Loader
+                aria-hidden
+                className="size-4 animate-spin motion-reduce:animate-none"
+              />
+            ) : (
+              <Sparkles aria-hidden className="size-4" />
+            )}
+            {isSubmitting ? "Ordenando tus categorías…" : "Proponer categorías"}
+          </Button>
+        </StepActions>
       </form>
     )
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-1 flex-col gap-4">
       {source === "default" && (
-        <p className="text-footnote text-pretty text-muted-foreground">
+        <p className="text-callout text-pretty text-ink-2">
           Este es el set precreado. Con{" "}
-          <code className="text-footnote">OPENAI_API_KEY</code> la IA lo ajusta
+          <code className="text-caption">OPENAI_API_KEY</code> la IA lo ajusta
           a tu vida.
         </p>
       )}
-      <ul
-        ref={listRef}
-        id={`${formId}-list`}
-        tabIndex={-1}
-        aria-label="Categorías propuestas"
-        className="sheet-group inset-list overflow-hidden rounded-xl outline-none"
+      <SectionCard
+        title="Tus categorías"
+        action={
+          <SectionAction ref={addRef} onClick={() => openEditor("new")}>
+            <Plus aria-hidden />
+            Agregar
+          </SectionAction>
+        }
       >
-        {proposal.map((c, i) => (
-          <li
-            key={c.id}
-            style={{ animationDelay: `${Math.min(i, 12) * 60}ms` }}
-            className="flex animate-in items-start gap-3 px-4 py-3 duration-300 fill-mode-both fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none"
-          >
-            <span
-              aria-hidden
-              className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full"
-              style={{ backgroundColor: c.color + "26" }}
+        <ul
+          ref={listRef}
+          id={`${formId}-list`}
+          tabIndex={-1}
+          aria-label="Categorías propuestas"
+          className="flex flex-col gap-2 outline-none"
+        >
+          {proposal.map((c, i) => (
+            <li
+              key={c.id}
+              style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}
+              className="flex min-h-14 animate-in items-start gap-3 py-1 duration-300 fill-mode-both fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none"
             >
-              <CategoryIcon icon={c.icon} size={18} color={c.color} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="text-body font-medium">{c.name}</span>
-                {c.type === "income" && (
-                  <span className="text-footnote text-muted-foreground">
-                    Ingreso
+              <IconTile color={c.color} className="mt-1">
+                <CategoryIcon icon={c.icon} size={18} />
+              </IconTile>
+              <div className="min-w-0 flex-1 pt-0.5">
+                <span className="block font-semibold break-words">{c.name}</span>
+                {(c.type === "income" || c.change !== "kept") && (
+                  <span className="flex flex-wrap items-center gap-x-2 text-callout text-ink-2">
+                    {c.type === "income" && <span>Ingreso</span>}
+                    {c.change !== "kept" && (
+                      <span
+                        className={cn(
+                          "font-semibold",
+                          c.change === "added" ? "text-success" : "text-primary"
+                        )}
+                      >
+                        {CHANGE_LABEL[c.change]}
+                      </span>
+                    )}
                   </span>
                 )}
-                {c.change !== "kept" && (
-                  <span
-                    className={cn(
-                      "rounded-md px-1.5 py-0.5 text-caption font-semibold",
-                      c.change === "added"
-                        ? "bg-success/15 text-success"
-                        : "bg-primary/10 text-primary"
-                    )}
-                  >
-                    {CHANGE_LABEL[c.change]}
-                  </span>
+                {c.reason && (
+                  <p className="mt-0.5 text-callout text-pretty text-ink-2">
+                    {c.reason}
+                  </p>
+                )}
+                {c.description && (
+                  <p className="mt-0.5 line-clamp-2 text-caption text-pretty text-ink-3">
+                    {c.description}
+                  </p>
                 )}
               </div>
-              {c.reason && (
-                <p className="mt-0.5 text-footnote text-pretty text-foreground">
-                  {c.reason}
-                </p>
-              )}
-              {c.description && (
-                <p className="mt-0.5 line-clamp-2 text-footnote text-pretty text-muted-foreground">
-                  {c.description}
-                </p>
-              )}
-            </div>
-            <div className="-my-1 -mr-2 flex shrink-0">
-              <button
-                type="button"
-                onClick={() => openEditor(c)}
-                className="press grid size-11 place-items-center rounded-full text-muted-foreground hover:text-foreground"
-              >
-                <Pencil aria-hidden className="size-4" />
-                <span className="sr-only">Editar {c.name}</span>
-              </button>
-              <button
-                type="button"
-                data-remove
-                onClick={() => remove(c.id)}
-                className="press grid size-11 place-items-center rounded-full text-muted-foreground hover:text-destructive"
-              >
-                <X aria-hidden className="size-4" />
-                <span className="sr-only">Quitar {c.name}</span>
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-      <button
-        ref={addRef}
-        type="button"
-        onClick={() => openEditor("new")}
-        className="press inline-flex min-h-11 items-center gap-1.5 self-start px-1 text-body text-primary"
-      >
-        <Plus aria-hidden className="size-4" />
-        Agregar categoría
-      </button>
+              <div className="-mr-2 flex shrink-0">
+                <button
+                  type="button"
+                  onClick={() => openEditor(c)}
+                  className="press grid size-11 place-items-center rounded-md text-ink-3 hover:bg-secondary hover:text-foreground"
+                >
+                  <Pencil aria-hidden className="size-4" />
+                  <span className="sr-only">Editar {c.name}</span>
+                </button>
+                <button
+                  type="button"
+                  data-remove
+                  onClick={() => remove(c.id)}
+                  className="press grid size-11 place-items-center rounded-md text-ink-3 hover:bg-destructive-soft hover:text-destructive"
+                >
+                  <X aria-hidden className="size-4" />
+                  <span className="sr-only">Quitar {c.name}</span>
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </SectionCard>
       {saveError && (
-        <p role="alert" className="text-subheadline text-destructive">
+        <p
+          role="alert"
+          className="rounded-md bg-destructive-soft px-3 py-2.5 text-callout text-destructive"
+        >
           {saveError}
         </p>
       )}
-      <Button
-        type="button"
-        onClick={save}
-        disabled={saving || proposal.length === 0}
-        aria-busy={saving || undefined}
-        className="h-12 w-full text-body"
-      >
-        {saving && (
-          <Loader
-            aria-hidden
-            className="size-4 animate-spin motion-reduce:animate-none"
-          />
-        )}
-        Guardar categorías
-      </Button>
+      <StepActions>
+        <Button
+          type="button"
+          size="lg"
+          onClick={save}
+          disabled={saving || proposal.length === 0}
+          aria-busy={saving || undefined}
+          className="w-full"
+        >
+          {saving && (
+            <Loader
+              aria-hidden
+              className="size-4 animate-spin motion-reduce:animate-none"
+            />
+          )}
+          Guardar categorías
+        </Button>
+      </StepActions>
 
       <CategoryEditor
         form={editorForm}
@@ -406,20 +413,17 @@ export function CategoriesStep({
 // Lo que se ve mientras la IA piensa: filas fantasma que laten, en el mismo lugar donde caerán.
 function ProposalSkeleton() {
   return (
-    <div
-      role="status"
-      className="sheet-group inset-list overflow-hidden rounded-xl"
-    >
+    <div role="status" className="flex flex-col gap-2 rounded-xl bg-card p-(--pad-card)">
       <span className="sr-only">Proponiendo categorías</span>
       {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="flex items-center gap-3 px-4 py-3">
-          <span className="size-9 shrink-0 animate-pulse rounded-full bg-muted motion-reduce:animate-none" />
+        <div key={i} className="flex min-h-14 items-center gap-3">
+          <span className="size-9 shrink-0 animate-pulse rounded-sm bg-secondary motion-reduce:animate-none" />
           <div className="flex-1 space-y-2">
             <span
-              className="block h-3 animate-pulse rounded-md bg-muted motion-reduce:animate-none"
+              className="block h-3 animate-pulse rounded-sm bg-secondary motion-reduce:animate-none"
               style={{ width: `${40 + ((i * 17) % 35)}%` }}
             />
-            <span className="block h-2.5 w-4/5 animate-pulse rounded-md bg-muted/70 motion-reduce:animate-none" />
+            <span className="block h-2.5 w-4/5 animate-pulse rounded-sm bg-secondary/70 motion-reduce:animate-none" />
           </div>
         </div>
       ))}
@@ -467,7 +471,7 @@ function CategoryEditor({
         onSubmit={form.handleSubmit((v) =>
           onSubmit({ ...v, description: v.description?.trim() || null })
         )}
-        className="flex flex-col gap-6"
+        className="flex flex-col gap-4"
       >
         <FinanceField
           id={`${formId}-name`}

@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import {
   Collapsible,
   CollapsibleContent,
@@ -28,6 +29,7 @@ import { AccountCard } from "./account-card"
 import { MovementRow } from "./movement-row"
 import { SpendPaceChart } from "./spend-pace-chart"
 import { CategoryIcon } from "./category-icons"
+import { Chevron, IconTile, ProgressBar, SectionAction, SectionCard } from "./blocks"
 import { CategoryModal } from "./category-modal"
 import { BudgetLimitModal } from "./budget-limit-modal"
 import { CategoryDetailSheet } from "./category-detail-sheet"
@@ -44,7 +46,6 @@ import {
   formatShortDateHeader,
   fromYmd,
   ymd,
-  statusVar,
   todayKey,
 } from "@/lib/finance-format"
 import { dateOf, daysLeftIn } from "@/lib/day-spend"
@@ -202,115 +203,106 @@ export function Dashboard({
   // demás van aparte, en su propio grupo cerrado.
   const planCategories = expenseCategories.filter((c) => c.inPlan)
   const outOfPlanCategories = expenseCategories.filter((c) => !c.inPlan)
-  const renderExpenseCat = (c: CategoryDTO) => {
+  const renderExpenseCat = (c: CategoryDTO, nested = false) => {
     // Una sin tope pero en el plan tiene tope $0: lo usado llena la barra, lo comprometido el resto.
     const capped = c.inPlan
-    const pct =
-      c.limit > 0 ? Math.min(100, (c.used / c.limit) * 100) : c.used > 0 ? 100 : 0
-    // El comprometido continúa al gastado en lo que queda de barra (no se suma).
-    const commPct =
-      c.limit > 0
-        ? Math.min(100 - pct, (c.committed / c.limit) * 100)
-        : c.committed > 0
-          ? 100 - pct
-          : 0
     // UNA cifra por fila. Con ritmo (mes en curso y con tope), lo libre del período (hoy / esta
     // semana), que el backend deja estable; sin ritmo, lo que queda del mes. «X de Y» vive en el
-    // detalle que abre la fila. Semáforo silencioso: gris, alerta, excedido.
+    // detalle que abre la fila. La cifra va en su columna y lo que significa, debajo a la derecha.
     const paceLeft = c.pace && c.pace.budget > 0 ? c.pace.budget - c.pace.spent : null
     // Con ritmo pero sin presupuesto del período, ya no queda nada que repartir.
     const noMargin = !!c.pace && c.pace.budget <= 0
     // «quedan» descuenta lo comprometido (tope − usado − comprometido); «sobre el tope» sale de `available`.
     const quedan = Math.max(0, c.free)
-    const figure = noMargin ? (
-      "Sin margen"
-    ) : c.pace && paceLeft !== null ? (
-        paceLeft >= 0 ? (
-          <>
-            <span className="tabular">{formatCLP(paceLeft)}</span> libres{" "}
-            {c.pace.frequency === "daily" ? "hoy" : "esta semana"}
-          </>
-        ) : (
-          <>
-            <span className="tabular">{formatCLP(-paceLeft)}</span> sobre el
-            ritmo {c.pace.frequency === "daily" ? "de hoy" : "semanal"}
-          </>
-        )
-      ) : capped ? (
-        c.available < 0 ? (
-          <>
-            <span className="tabular">{formatCLP(-c.available)}</span> sobre el
-            tope
-          </>
-        ) : (
-          <>
-            quedan <span className="tabular">{formatCLP(quedan)}</span>
-          </>
-        )
-      ) : (
-        <>
-          sin tope · <span className="tabular">{formatCLP(c.used)}</span>
-        </>
-      )
-    const figureTone =
+    const [figure, figureLabel]: [ReactNode, string] = noMargin
+      ? ["Sin margen", ""]
+      : c.pace && paceLeft !== null
+        ? paceLeft >= 0
+          ? [formatCLP(paceLeft), c.pace.frequency === "daily" ? "libres hoy" : "libres esta semana"]
+          : [
+              formatCLP(-paceLeft),
+              c.pace.frequency === "daily" ? "sobre el ritmo de hoy" : "sobre el ritmo semanal",
+            ]
+        : capped
+          ? c.available < 0
+            ? [formatCLP(-c.available), "sobre el tope"]
+            : [
+                // «quedan» descuenta lo comprometido: tope − usado − comprometido.
+                <>
+                  quedan <span className="tabular">{formatCLP(quedan)}</span>
+                </>,
+                "",
+              ]
+          : [formatCLP(c.used), "sin tope"]
+    const tone: "alert" | "warn" | "default" =
       noMargin ||
       (paceLeft !== null && c.pace?.status === "excedido") ||
       (paceLeft === null && c.available < 0 && capped)
-        ? "text-destructive"
+        ? "alert"
         : (paceLeft !== null && c.pace?.status === "alerta") ||
             // Sin pasarse del tope, pero lo comprometido ya se come lo que queda: «quedan $0».
             (paceLeft === null && capped && c.free < 0)
-          ? "text-warning"
-          : "text-muted-foreground"
+          ? "warn"
+          : "default"
+    // Frecuencia del ritmo y tope, a la izquierda bajo el nombre.
+    const meta = [
+      c.pace ? (c.pace.frequency === "weekly" ? "Semanal" : "Diario") : null,
+      capped ? `tope ${formatCLP(c.limit)}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ")
+    const weekly = c.pace?.frequency === "weekly"
     return (
-      // Fila de lista agrupada estilo Ajustes: icono en cuadrado de color, nombre, su cifra y el
-      // chevron de que abre el detalle; debajo, la barra fina alineada con el nombre.
       <button
         key={c.id}
+        type="button"
         onClick={() => setDetail(c)}
-        className="press flex min-h-11 w-full items-start gap-3 py-3 pr-3 pl-4 text-left hover:bg-accent"
+        className={cn(
+          "press -mx-3 grid min-h-16 w-[calc(100%+1.5rem)] grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-lg px-3 py-2 text-left",
+          nested ? "hover:bg-surface-3" : "hover:bg-secondary"
+        )}
       >
-        <span
-          aria-hidden
-          className="grid size-7 shrink-0 place-items-center rounded-md text-white"
-          style={{ background: c.color ?? "var(--muted-foreground)" }}
+        <IconTile
+          color={c.color ?? undefined}
+          className={cn(
+            "self-center",
+            ["row-span-2", "row-span-3", "row-span-4"][Number(capped) + Number(weekly)]
+          )}
         >
-          <CategoryIcon icon={c.icon} size={16} />
+          <CategoryIcon icon={c.icon} size={18} />
+        </IconTile>
+        <span className="min-w-0 truncate font-semibold">{c.name}</span>
+        <span
+          className={cn(
+            "text-right font-semibold whitespace-nowrap",
+            tone === "alert" && "text-destructive",
+            tone === "warn" && "text-warning"
+          )}
+        >
+          {figure}
         </span>
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <div className="flex min-h-7 items-center gap-2">
-            <span className="min-w-0 flex-1 truncate text-body">{c.name}</span>
-            <span className={cn("shrink-0 text-subheadline", figureTone)}>
-              {figure}
-            </span>
-            <ChevronRight
-              aria-hidden
-              className="disclosure"
-            />
-          </div>
-          {/* Mismo semáforo que el arco (statusVar): gastado sólido + comprometido tenue detrás. */}
-          {capped && (
-            <div className="mr-6 flex h-1.5 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full transition-[width] duration-500 ease-out"
-                style={{ width: `${pct}%`, background: statusVar(c.status) }}
-              />
-              <div
-                className="h-full transition-[width] duration-500 ease-out"
-                style={{
-                  width: `${Math.max(0, commPct)}%`,
-                  background: statusVar(c.status),
-                  opacity: 0.35,
-                }}
-              />
-            </div>
+        <span className="col-span-2 col-start-2 flex items-baseline justify-between gap-2 text-caption">
+          <span className="min-w-0 truncate text-ink-2">{meta}</span>
+          {figureLabel && (
+            <span className="shrink-0 text-right whitespace-nowrap text-ink-3">{figureLabel}</span>
           )}
-          {c.pace?.frequency === "weekly" && (
-            <span className="text-footnote text-muted-foreground">
-              Se reinicia el {resetDayFormat.format(new Date(`${c.pace.nextResetDate}T00:00:00Z`))}
-            </span>
-          )}
-        </div>
+        </span>
+        {/* Gastado sólido y comprometido tenue detrás (solo con tope); se tiñe con el estado. */}
+        {capped && (
+          <ProgressBar
+            value={c.used}
+            committed={c.committed}
+            max={c.limit}
+            tone={tone}
+            label={`Gastado de ${c.name}`}
+            className="col-span-2 col-start-2 mt-1"
+          />
+        )}
+        {weekly && c.pace && (
+          <span className="col-span-2 col-start-2 text-caption text-ink-3">
+            Se reinicia el {resetDayFormat.format(new Date(`${c.pace.nextResetDate}T00:00:00Z`))}
+          </span>
+        )}
       </button>
     )
   }
@@ -395,6 +387,13 @@ export function Dashboard({
     setEditCat(null)
   }
 
+  const hasBand = budget.monthOverspend > 0 || budget.capsOverspend > 0
+  // Acción de texto en verde con forma de enlace (la de SectionAction, sobre un Link).
+  const linkAction =
+    "press -mr-2 inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-callout font-semibold whitespace-nowrap text-primary hover:bg-primary-soft md:min-h-8 [&_svg]:size-4"
+  const dayArrow =
+    "press grid size-(--ctl) shrink-0 place-items-center rounded-md text-ink-2 hover:bg-secondary hover:text-foreground aria-disabled:cursor-default aria-disabled:opacity-35 aria-disabled:hover:bg-transparent"
+
   return (
     <AppShell
       actions={
@@ -406,346 +405,342 @@ export function Dashboard({
         />
       }
     >
-      <div className="mx-auto w-full max-w-6xl px-4 pt-1 pb-6 md:pt-6 lg:px-8">
-        <div className="flex flex-col gap-5">
-          {/* Estado del mes: la respuesta a "¿cuánto puedo gastar hoy?" antes que cualquier
-              detalle. Desde acá se abre el plan (ingresos y presupuesto), que es lo que lo
-              determina. Adentro, la curva del gasto contra el ritmo ideal: cómo vas en el mes.
-              Móvil: con presupuesto, este bloque (tarjeta + avisos) llena la primera pantalla
-              menos un asomo de los movimientos (--home-peek); el gráfico es lo que estira. */}
-          <div className="flex flex-col gap-4">
-            <MonthStatus
-              period={period}
-              cycle={cycle}
-              isCurrentMonth={isCurrentMonth}
-              daysLeft={daysLeft}
-              globalLimit={budget.globalLimit}
-              spent={totalUsed}
-              plan={planProps}
-              onOpenPlan={() => setPlanOpen(true)}
-              onOpenLiquidity={() => setLiquidityOpen(true)}
-            >
-              {/* Ritmo global: reparte lo disponible al inicio del período y solo cuenta el gasto
-                  que no salda un compromiso. Con o sin tope global, si hay algo que repartir. */}
-              {budget.globalPace.budget > 0 && (
-                <SpendPaceChart
-                  days={days}
-                  spend={budget.globalPace.daily}
-                  limit={budget.globalPace.budget}
-                  income={budget.income}
-                  lastIndex={chartLastIndex}
-                  current={todayInRange}
-                />
-              )}
-            </MonthStatus>
+      {/* Orden = urgencia de decisión: cuánto queda → voy bien → dónde se va → qué pasó → con qué
+          cuento. Móvil: una columna en ese orden. Desde 1200 px, dos columnas parejas: plan y ritmo
+          arriba, la banda de excedente a lo ancho, y categorías junto a movimientos y cuentas. */}
+      <div className="page-container max-md:pb-2">
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-4 min-[75rem]:grid-cols-2 min-[75rem]:gap-6",
+            hasBand
+              ? "min-[75rem]:[grid-template-areas:'hero_pace'_'band_band'_'cats_side']"
+              : "min-[75rem]:[grid-template-areas:'hero_pace'_'cats_side']"
+          )}
+        >
+          {/* Estado del mes: la respuesta a "¿cuánto puedo gastar?" antes que cualquier detalle. */}
+          <MonthStatus
+            period={period}
+            cycle={cycle}
+            isCurrentMonth={isCurrentMonth}
+            daysLeft={daysLeft}
+            globalLimit={budget.globalLimit}
+            spent={totalUsed}
+            plan={planProps}
+            onOpenPlan={() => setPlanOpen(true)}
+            onOpenLiquidity={() => setLiquidityOpen(true)}
+            className="min-[75rem]:[grid-area:hero]"
+          />
+
+          {/* Cuánto te pasaste, junto: el excedente del mes (contra el presupuesto global) y el de
+              los topes por categoría, que no son la misma cifra. Con ambos en $0 no se renderiza. */}
+          {hasBand && (
+            <div className="min-w-0 min-[75rem]:[grid-area:band]">
+              <OverspendBanner
+                period={period}
+                capsOverspend={budget.capsOverspend}
+                monthOverspend={budget.monthOverspend}
+                globalLimit={budget.globalLimit}
+                categories={budget.categories}
+                onOpenCategory={openCategory}
+              />
+            </div>
+          )}
+
+          {/* Ritmo global: reparte lo disponible al inicio del período y solo cuenta el gasto que no
+              salda un compromiso. Desde acá se abre el plan, que es lo que lo determina. */}
+          <SectionCard
+            title="Ritmo del mes"
+            action={
+              <SectionAction onClick={() => setPlanOpen(true)}>
+                Ajustar plan
+                <ChevronRight aria-hidden />
+              </SectionAction>
+            }
+            className="min-[75rem]:[grid-area:pace]"
+          >
+            {budget.globalPace.budget > 0 ? (
+              <SpendPaceChart
+                days={days}
+                spend={budget.globalPace.daily}
+                limit={budget.globalPace.budget}
+                income={budget.income}
+                lastIndex={chartLastIndex}
+                current={todayInRange}
+              />
+            ) : (
+              <p className="flex-1 py-2 text-callout text-ink-2">
+                Este período no tiene nada que repartir: no hay ritmo que seguir.
+              </p>
+            )}
             <AllocationNudge
               remainingToAllocate={budget.remainingToAllocate}
               onOpenPlan={() => setPlanOpen(true)}
+              className="mt-3"
             />
+          </SectionCard>
 
-            {/* Cuánto te pasaste, junto: el excedente del mes (contra el presupuesto global) y el de
-                los topes por categoría, que no son la misma cifra. Con ambos en $0 no se renderiza. */}
-            <OverspendBanner
-              period={period}
-              capsOverspend={budget.capsOverspend}
-              monthOverspend={budget.monthOverspend}
-              globalLimit={budget.globalLimit}
-              categories={budget.categories}
-              onOpenCategory={openCategory}
-            />
-          </div>
-
-          {/* Escritorio: categorías a la izquierda y movimientos a la derecha. En móvil los movimientos van primero,
-              luego ritmo por categoría y finalmente cuentas, sin duplicar componentes. */}
-          <div className="grid gap-x-6 gap-y-8 lg:grid-cols-2 lg:items-start">
-            <section
-              id="presupuestos"
-              className="order-2 min-w-0 lg:order-none lg:col-start-1 lg:row-span-2 lg:row-start-1"
-            >
-              <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
-                {/* Los días que faltan ya los dice la tarjeta principal («N días para cerrar»). */}
-                <h2 className="min-w-0 text-title-3 font-bold">
-                  Ritmo por categoría
-                </h2>
-                {expenseCategories.length > 0 && (
-                  <button
-                    onClick={newExpenseCategory}
-                    aria-label="Nueva categoría de gasto"
-                    className="press flex min-h-11 shrink-0 items-center gap-1 text-body text-primary"
-                  >
-                    <Plus className="size-4" /> Categoría
-                  </button>
-                )}
+          <SectionCard
+            id="presupuestos"
+            title="Categorías"
+            action={
+              expenseCategories.length > 0 && (
+                <SectionAction onClick={newExpenseCategory} aria-label="Nueva categoría de gasto">
+                  <Plus aria-hidden /> Nueva
+                </SectionAction>
+              )
+            }
+            className="min-[75rem]:[grid-area:cats]"
+          >
+            {expenseCategories.length === 0 ? (
+              // Vacío: un solo CTA (el "+ Nueva" de la cabecera se esconde mientras tanto).
+              <div className="flex flex-col items-start gap-3 py-2">
+                <p className="text-callout text-ink-2">
+                  Reparte tu tope de gasto en categorías para ver su ritmo.
+                </p>
+                <Button variant="secondary" onClick={newExpenseCategory}>
+                  <Plus aria-hidden /> Crear categoría
+                </Button>
               </div>
-              {/* Lista agrupada: las filas se separan con líneas finas que arrancan en el texto
-                  (--inset = margen + icono + espacio), no con bordes de tarjeta. */}
-              <div className="glass inset-list overflow-hidden rounded-xl [--inset:3.5rem]">
-                {expenseCategories.length === 0 ? (
-                  // Vacío: un solo CTA (el "+ Categoría" de la cabecera se esconde mientras tanto).
-                  <div className="flex flex-col items-center gap-1 px-4 py-8 text-center">
-                    <p className="text-subheadline text-muted-foreground">
-                      Reparte tu tope de gasto en categorías para ver su ritmo.
-                    </p>
-                    <button
-                      onClick={newExpenseCategory}
-                      className="press flex min-h-11 items-center gap-1 text-body text-primary"
-                    >
-                      <Plus className="size-4" /> Crear categoría
-                    </button>
-                  </div>
-                ) : (
-                  // Lista vertical de barras: gastado + comprometido sobre el tope, con el ritmo
-                  // del período y lo que queda del mes debajo. El arco sigue viviendo en el detalle.
-                  <div className="inset-list flex flex-col [--inset:3.5rem]">
-                    {planCategories.map(renderExpenseCat)}
-                    {/* Fuera del plan: consultables, cerradas al entrar o cambiar de período. */}
-                    {outOfPlanCategories.length > 0 && (
-                      <Collapsible
-                        key={periodKey}
-                        defaultOpen={false}
-                      >
-                        <CollapsibleTrigger asChild>
-                          <button
-                            type="button"
-                            className="press group flex min-h-11 w-full items-center gap-3 py-2.5 pr-3 pl-4 text-left text-subheadline text-muted-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
-                          >
-                            <span className="grid size-7 shrink-0 place-items-center">
-                              <ChevronRight aria-hidden className="size-3.5 transition-transform group-data-[state=open]:rotate-90 motion-reduce:transition-none" strokeWidth={3} />
-                            </span>
-                            <span className="flex-1">
-                              Sin tope · fuera del tope de gasto
-                            </span>
-                            <span className="tabular">
-                              {outOfPlanCategories.length}
-                            </span>
-                          </button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <p className="pr-3 pb-2 pl-14 text-footnote text-muted-foreground">
-                            No afectan lo gastado ni lo disponible del plan.
-                          </p>
-                          <div className="inset-list flex flex-col [--inset:3.5rem]">
-                            {outOfPlanCategories.map(renderExpenseCat)}
-                          </div>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    )}
-                  </div>
+            ) : (
+              <>
+                {planCategories.length > 0 && (
+                  <div className="flex flex-col gap-2">{planCategories.map((c) => renderExpenseCat(c))}</div>
                 )}
-              </div>
-            </section>
-
-            {/* Los movimientos del día elegido: flechas al día anterior/siguiente y, tocando la
-                fecha, un calendario del período. El mes completo, en Movimientos o la búsqueda. */}
-            <section
-              id="movimientos"
-              className="order-1 min-w-0 max-lg:pb-6 lg:order-none lg:col-start-2 lg:row-start-1"
-            >
-              <div className="mb-2 flex min-h-11 items-center justify-between gap-0.5">
-                <div className="-ml-3 flex min-w-0 items-center">
-                  <button
-                    type="button"
-                    aria-label="Día anterior"
-                    // aria-disabled y no disabled: al llegar al extremo el foco se queda en la flecha.
-                    aria-disabled={prevDisabled || undefined}
-                    onClick={() => !prevDisabled && selectDay(days[dayIndex - 1])}
-                    className="press grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent aria-disabled:cursor-default aria-disabled:text-muted-foreground/40 aria-disabled:hover:bg-transparent"
+                {/* Fuera del plan: consultables, cerradas al entrar o cambiar de período. */}
+                {outOfPlanCategories.length > 0 && (
+                  <Collapsible
+                    key={periodKey}
+                    defaultOpen={false}
+                    className={cn("rounded-lg bg-secondary px-3", planCategories.length > 0 && "mt-3")}
                   >
-                    <ChevronLeft className="size-5" />
-                  </button>
-                  {/* «Hoy», dentro del selector junto a la flecha izquierda: su columna crece de 0 y funde al aparecer. Solo en
-                      el mes en curso y con otro día elegido. */}
-                  <div
-                    inert={!showToday}
-                    className={cn(
-                      "grid transition-[grid-template-columns,opacity] duration-(--nav-duration) ease-(--nav-ease) motion-reduce:transition-none",
-                      showToday ? "grid-cols-[1fr] opacity-100" : "grid-cols-[0fr] opacity-0"
-                    )}
-                  >
-                    {/* Entra desde la izquierda, como el título de la fila móvil (.top-title). */}
-                    <div
-                      className={cn(
-                        "min-w-0 transition-transform duration-(--nav-duration) ease-(--nav-ease) motion-reduce:transition-none",
-                        showToday ? "translate-x-0" : "-translate-x-3 overflow-hidden"
-                      )}
-                    >
+                    <CollapsibleTrigger asChild>
                       <button
                         type="button"
-                        onClick={() => selectDay(today)}
-                        // Mismo material y clases que «Hoy» de MonthNav: hereda los cinco niveles de Apariencia; no crear efectos locales.
-                        className="press ml-2 min-h-11 rounded-full px-4 text-subheadline font-semibold whitespace-nowrap max-md:liquid-glass md:min-h-10 md:rounded-(--radius-bar-inner) md:bg-(--glass-control) md:hover:bg-accent"
+                        className="group flex min-h-12 w-full items-center gap-2 rounded-lg text-left"
                       >
-                        Hoy
+                        <span className="font-semibold">Sin tope</span>
+                        <span className="text-caption text-ink-3">{outOfPlanCategories.length}</span>
+                        <Chevron className="ml-auto" />
                       </button>
-                    </div>
-                  </div>
-                  <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                    <h2 className="flex min-w-0 text-title-3 font-bold">
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          aria-describedby="day-picker-hint"
-                          className="press min-h-11 min-w-0 truncate rounded-lg px-1 text-left whitespace-nowrap hover:bg-accent"
-                        >
-                          {/* El nombre es el texto visible. El largo («Sábado, 31 de octubre») solo
-                              cabe en una columna ancha (sm–lg); en móvil y en la columna de
-                              escritorio va «Sáb 31 oct», con la fecha completa para el lector. El
-                              día nuevo se anuncia al cambiarlo con las flechas. */}
-                          <span aria-live="polite">
-                            <span className="sm:hidden lg:inline">
-                              {formatShortDateHeader(dayIso)}
-                              <span className="sr-only">, {formatLongDate(dayIso)}</span>
-                            </span>
-                            <span className="hidden sm:inline lg:hidden">
-                              {formatDateHeader(dayIso)}
-                              {["Hoy", "Ayer"].includes(formatDateHeader(dayIso)) && (
-                                <span className="sr-only">, {formatLongDate(dayIso)}</span>
-                              )}
-                            </span>
-                          </span>
-                        </button>
-                      </PopoverTrigger>
-                    </h2>
-                    <span id="day-picker-hint" className="sr-only">
-                      Elegir otro día
-                    </span>
-                    <PopoverContent align="start" className="w-auto p-3">
-                      <Calendar
-                        mode="single"
-                        locale={es}
-                        required
-                        selected={civilDate(selectedDay)}
-                        defaultMonth={civilDate(selectedDay)}
-                        startMonth={civilDate(days[0])}
-                        endMonth={civilDate(lastSelectable)}
-                        disabled={[
-                          { before: civilDate(days[0]) },
-                          { after: civilDate(lastSelectable) },
-                        ]}
-                        onSelect={(d) => {
-                          const key = ymd(d)
-                          setCalendarOpen(false)
-                          if (key !== selectedDay) selectDay(key)
-                        }}
-                        // Celdas de 44 px: el mínimo táctil.
-                        className="p-0 [--cell-size:--spacing(11)]"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <button
-                    type="button"
-                    aria-label="Día siguiente"
-                    aria-disabled={nextDisabled || undefined}
-                    onClick={() => !nextDisabled && selectDay(days[dayIndex + 1])}
-                    className="press grid size-11 shrink-0 place-items-center rounded-full text-primary hover:bg-accent aria-disabled:cursor-default aria-disabled:text-muted-foreground/40 aria-disabled:hover:bg-transparent"
-                  >
-                    <ChevronRight className="size-5" />
-                  </button>
-                </div>
-                {/* El resto del período vive en Movimientos: navegación en texto azul, como iOS. */}
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <p className="pb-1 text-caption text-ink-3">
+                        Fuera del tope de gasto: no afectan lo gastado ni lo disponible del plan.
+                      </p>
+                      <div className="flex flex-col gap-2 pb-3">
+                        {outOfPlanCategories.map((c) => renderExpenseCat(c, true))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+              </>
+            )}
+          </SectionCard>
+
+          {/* Columna derecha (≥1200): movimientos del día y cuentas. En móvil se disuelve en la columna. */}
+          <div className="contents min-[75rem]:flex min-[75rem]:min-w-0 min-[75rem]:flex-col min-[75rem]:gap-6 min-[75rem]:[grid-area:side]">
+            {/* Los movimientos del día elegido: flechas al día anterior/siguiente y, tocando la
+                fecha, un calendario del período. El mes completo, en Movimientos o la búsqueda. */}
+            <SectionCard
+              id="movimientos"
+              title="Movimientos"
+              action={
+                // El resto del período vive en Movimientos.
                 <Link
                   href="/movements"
                   // Entrar: la pantalla llega desde la derecha (no como un cambio de pestaña).
                   data-nav="forward"
-                  aria-label="Ver todos"
-                  className="press flex min-h-11 shrink-0 items-center gap-0.5 text-body text-primary"
+                  className={linkAction}
                 >
-                  {/* Angosto (≤400 px), «Todos»: así la fecha y «Hoy» no se cortan. */}
-                  <span className="max-[401px]:hidden">Ver todos</span>
-                  <span className="min-[401px]:hidden">Todos</span>
-                  <ChevronRight aria-hidden className="size-3.5" strokeWidth={2.5} />
+                  Ver todos
+                  <ChevronRight aria-hidden />
                 </Link>
+              }
+              className="min-[75rem]:flex-1"
+            >
+              <div className="-ml-3 mb-2 flex min-w-0 items-center gap-1">
+                <button
+                  type="button"
+                  aria-label="Día anterior"
+                  // aria-disabled y no disabled: al llegar al extremo el foco se queda en la flecha.
+                  aria-disabled={prevDisabled || undefined}
+                  onClick={() => !prevDisabled && selectDay(days[dayIndex - 1])}
+                  className={dayArrow}
+                >
+                  <ChevronLeft className="size-5" />
+                </button>
+                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      aria-describedby="day-picker-hint"
+                      className="press group flex min-h-(--ctl) min-w-0 items-center gap-1 rounded-md px-2 text-left font-semibold whitespace-nowrap hover:bg-secondary"
+                    >
+                      {/* El nombre es el texto visible. El largo («Sábado, 31 de octubre») solo
+                          cabe en una columna ancha (640–1199 px); en móvil y en la columna de
+                          escritorio va «Sáb 31 oct», con la fecha completa para el lector. El
+                          día nuevo se anuncia al cambiarlo con las flechas. */}
+                      <span aria-live="polite" className="min-w-0 truncate">
+                        <span className="sm:hidden min-[75rem]:inline">
+                          {formatShortDateHeader(dayIso)}
+                          <span className="sr-only">, {formatLongDate(dayIso)}</span>
+                        </span>
+                        <span className="hidden sm:inline min-[75rem]:hidden">
+                          {formatDateHeader(dayIso)}
+                          {["Hoy", "Ayer"].includes(formatDateHeader(dayIso)) && (
+                            <span className="sr-only">, {formatLongDate(dayIso)}</span>
+                          )}
+                        </span>
+                      </span>
+                      <Chevron />
+                    </button>
+                  </PopoverTrigger>
+                  <span id="day-picker-hint" className="sr-only">
+                    Elegir otro día
+                  </span>
+                  <PopoverContent align="start" className="w-auto p-3">
+                    <Calendar
+                      mode="single"
+                      locale={es}
+                      required
+                      selected={civilDate(selectedDay)}
+                      defaultMonth={civilDate(selectedDay)}
+                      startMonth={civilDate(days[0])}
+                      endMonth={civilDate(lastSelectable)}
+                      disabled={[
+                        { before: civilDate(days[0]) },
+                        { after: civilDate(lastSelectable) },
+                      ]}
+                      onSelect={(d) => {
+                        const key = ymd(d)
+                        setCalendarOpen(false)
+                        if (key !== selectedDay) selectDay(key)
+                      }}
+                      // Celdas de 44 px: el mínimo táctil.
+                      className="p-0 [--cell-size:--spacing(11)]"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <button
+                  type="button"
+                  aria-label="Día siguiente"
+                  aria-disabled={nextDisabled || undefined}
+                  onClick={() => !nextDisabled && selectDay(days[dayIndex + 1])}
+                  className={dayArrow}
+                >
+                  <ChevronRight className="size-5" />
+                </button>
+                {/* «Hoy», tras la flecha derecha: su columna crece de 0 y funde al aparecer. Solo en
+                    el mes en curso y con otro día elegido. */}
+                <div
+                  inert={!showToday}
+                  className={cn(
+                    "grid transition-[grid-template-columns,opacity] duration-(--nav-duration) ease-(--nav-ease) motion-reduce:transition-none",
+                    showToday ? "grid-cols-[1fr] opacity-100" : "grid-cols-[0fr] opacity-0"
+                  )}
+                >
+                  <div className="min-w-0 overflow-hidden">
+                    <Button variant="outline" onClick={() => selectDay(today)} className="ml-1">
+                      Hoy
+                    </Button>
+                  </div>
+                </div>
               </div>
               {dayTransactions.length === 0 ? (
-                <p className="glass-strong rounded-xl py-10 text-center text-subheadline text-muted-foreground">
+                <p className="py-2 text-callout text-ink-2">
                   {selectedDay === today
                     ? "Sin movimientos hoy"
                     : "Sin movimientos ese día"}
                 </p>
               ) : (
-                <div className="glass inset-list flex flex-col overflow-hidden rounded-xl [--inset:4.5rem]">
+                <div className="flex flex-col gap-2">
                   {dayTransactions.map((t) => (
                     <MovementRow
                       key={t.id}
                       tx={t}
                       onOpen={setDetailTx}
-                      // Tocar el arco del movimiento abre el detalle de SU categoría (no el movimiento).
+                      // Tocar el cuadro del movimiento abre el detalle de SU categoría (no el movimiento).
                       onOpenCategory={openCategory}
-                      className="press min-h-11 rounded-none px-4 hover:bg-accent"
+                      className="-mx-3 w-[calc(100%+1.5rem)]"
                     />
                   ))}
                 </div>
               )}
-            </section>
+            </SectionCard>
 
-            {/* Cuentas: consulta, no decisión diaria. Escritorio: bajo las dos columnas, a lo
-                ancho, como grilla de tarjetas. Móvil: al final, como carrusel. */}
-            <section className="order-3 min-w-0 lg:order-none lg:col-span-2 lg:row-start-3">
-              <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
-                <h2 className="text-title-3 font-bold">Cuentas</h2>
-                {hasConnected && (
+            {/* Cuentas: consulta, no decisión diaria. Arriba, lo disponible en cuentas. Móvil: carrusel que sale al borde de la tarjeta, con la
+                siguiente asomando. Escritorio: grilla. */}
+            <SectionCard
+              title="Cuentas"
+              action={
+                hasConnected && (
                   <SyncBancoChileButton
                     variant="row"
                     outlookResult={onboarding ? null : outlookResult}
                     outlookReason={outlookReason}
                   />
-                )}
-              </div>
-              <div
-                ref={cardsRef}
-                {...cardsHandlers}
-                onScroll={cardsScroll}
-                // Móvil: carrusel con snap y fade en los bordes (pt-1: aire para el hover
-                // -translate-y). Escritorio: grilla sin scroll que llena el ancho —tres o cuatro
-                // tarjetas por fila según quepan; con más, envuelve—.
-                className="-mx-4 flex cursor-grab snap-x snap-mandatory scrollbar-none gap-4 overflow-x-auto mask-[linear-gradient(90deg,transparent,black_var(--fade-l,0rem),black_calc(100%-var(--fade-r,2.5rem)),transparent)] px-4 pt-1 pb-4 active:cursor-grabbing lg:mx-0 lg:grid lg:cursor-default lg:grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] lg:overflow-visible lg:mask-none lg:px-0"
-              >
-                {/* Sin cuentas no hay nada que sumar: la tarjeta en $0 solo tapaba «Conectar banco». */}
-                {accounts.length > 0 && (
-                  <div
-                    data-card
-                    className="glass flex min-h-40 w-72 shrink-0 snap-center snap-always flex-col justify-between rounded-xl p-5 lg:w-auto lg:snap-start"
-                  >
-                    <div
+                )
+              }
+            >
+              {/* Caja menos sobregiro usado (no solo la caja); abre el detalle de liquidez. */}
+              {accounts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setLiquidityOpen(true)}
+                  className="press -mx-2 mb-3 flex min-h-(--ctl) items-center gap-2 self-start rounded-md px-2 text-left hover:bg-secondary"
+                >
+                  <span className="flex flex-col">
+                    <span
                       className={cn(
-                        "text-subheadline",
-                        summary.netPosition < 0 ? "text-destructive" : "text-muted-foreground"
+                        "text-caption",
+                        summary.netPosition < 0 ? "text-destructive" : "text-ink-3"
                       )}
                     >
                       {summary.netPosition < 0 ? "Cuentas en negativo" : "Disponible en cuentas"}
-                    </div>
-                    <div
+                    </span>
+                    <span
                       className={cn(
-                        "tabular text-title-1 font-bold",
+                        "text-title font-semibold whitespace-nowrap",
                         summary.netPosition < 0 && "text-destructive"
                       )}
                     >
                       {formatCLP(summary.netPosition)}
-                    </div>
-                  </div>
-                )}
+                    </span>
+                  </span>
+                  <ChevronRight aria-hidden className="size-4 text-ink-3" />
+                </button>
+              )}
+              <div
+                ref={cardsRef}
+                {...cardsHandlers}
+                onScroll={cardsScroll}
+                className="-mx-(--pad-card) flex cursor-grab snap-x snap-mandatory scroll-px-(--pad-card) scrollbar-none gap-3 overflow-x-auto overscroll-x-contain px-(--pad-card) py-1 active:cursor-grabbing lg:mx-0 lg:grid lg:cursor-default lg:grid-cols-[repeat(auto-fill,minmax(17.5rem,1fr))] lg:overflow-visible lg:px-0 lg:py-0"
+              >
                 {accounts.map((a) => (
                   <div
                     key={a.id}
                     data-card
-                    className="flex w-72 shrink-0 snap-center snap-always lg:w-auto lg:snap-start"
+                    className="flex w-[calc(100%-2.25rem+var(--pad-card))] shrink-0 snap-start last:snap-end lg:w-auto"
                   >
                     <AccountCard
                       account={a}
+                      variant="tone"
                       onClick={() => setInfoAccountId(a.id)}
                     />
                   </div>
                 ))}
                 {/* Sin bancos conectados, conectar es un tile del tamaño de una cuenta; con alguno ya
-                    conectado, baja a una fila de texto al pie de la sección. */}
+                    conectado, es la acción de la tarjeta. El tile toma el tono de las cuentas. */}
                 {!hasConnected && (
-                  <SyncBancoChileButton
-                    outlookResult={onboarding ? null : outlookResult}
-                    outlookReason={outlookReason}
-                  />
+                  <div className="contents [&>[data-card]]:w-[calc(100%-2.25rem+var(--pad-card))] [&>[data-card]]:rounded-lg [&>[data-card]]:bg-secondary [&>[data-card]]:hover:bg-surface-3 lg:[&>[data-card]]:w-auto">
+                    <SyncBancoChileButton
+                      outlookResult={onboarding ? null : outlookResult}
+                      outlookReason={outlookReason}
+                    />
+                  </div>
                 )}
               </div>
-            </section>
+            </SectionCard>
           </div>
         </div>
       </div>

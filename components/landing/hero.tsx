@@ -1,60 +1,93 @@
 "use client"
 
 import { ChevronRight } from "lucide-react"
-import { PlanSummary } from "@/components/finance/financial-health-meter"
+import { ProgressBar, SectionCard, StatTile } from "@/components/finance/blocks"
 import { SpendPaceChart } from "@/components/finance/spend-pace-chart"
-import { MovementRow } from "@/components/finance/movement-row"
-import { homeMovements, pace, plan } from "./landing-data"
+import { formatCLP } from "@/lib/finance-format"
+import { categories, pace, plan } from "./landing-data"
 import { LandingCtas } from "./landing-ctas"
+import { CategoryRow } from "./plan-section"
 
 const delay = (ms: number) =>
   ({ "--reveal-delay": `${ms}ms` }) as React.CSSProperties
 
-// Hero: el titular a la izquierda y, a la derecha, el Inicio de la app armado con sus componentes
-// reales (resumen del plan, curva del ritmo y la lista de movimientos), sobre el fondo agrupado.
+// El tope del mes es la suma de los topes por categoría (los mismos datos de «El plan»).
+const tope = categories.reduce((s, c) => s + c.limit, 0)
+const used = plan.spent + plan.committed
+
+// Hero: el titular arriba y, debajo, el Inicio de la app armado con sus piezas (la cifra
+// protagonista, el ritmo del mes y las categorías) en la misma grilla de columnas parejas.
 export function Hero({ signupOpen }: { signupOpen: boolean }) {
   return (
-    <section
-      className="mx-auto grid max-w-6xl items-center gap-12 px-5 pt-12 pb-20 lg:grid-cols-[1fr_minmax(0,28rem)] lg:gap-16 lg:px-8 lg:pt-20 lg:pb-28"
-    >
-      <div className="max-w-xl">
-        <h1
-          data-reveal
-          className="landing-hero text-balance"
-        >
+    <section className="mx-auto max-w-6xl px-4 pt-10 pb-16 sm:px-6 lg:px-8 lg:pt-20 lg:pb-28">
+      <div className="max-w-3xl">
+        <h1 data-reveal className="landing-hero font-semibold text-balance">
           Este mes sí tiene un plan.
         </h1>
         <p
           data-reveal
           style={delay(80)}
-          className="mt-6 max-w-md text-title-3 font-normal text-pretty text-muted-foreground"
+          className="mt-5 max-w-xl text-title font-normal text-pretty text-ink-2"
         >
           Conecta tu correo, la IA ordena tus gastos y sabes cuánto puedes
           gastar hoy. Sin claves bancarias.
         </p>
-        <div
-          data-reveal
-          style={delay(160)}
-          className="mt-9 flex flex-wrap items-center gap-3"
-        >
+        <div data-reveal style={delay(160)} className="mt-8">
           <LandingCtas signupOpen={signupOpen} />
         </div>
       </div>
 
-      {/* El Inicio: mismas piezas, mismas clases y mismo orden que el dashboard. */}
+      {/* El Inicio: mismas piezas que el dashboard, con datos de ejemplo. */}
       <div
         data-reveal
-        style={delay(120)}
-        aria-label="Vista de ejemplo del Inicio de Luca Plan"
+        style={delay(240)}
         role="group"
-        className="mx-auto flex w-full max-w-md flex-col gap-4 lg:mx-0"
+        aria-label="Vista de ejemplo del Inicio de Luca Plan"
+        className="mt-12 grid items-stretch gap-3 sm:rounded-2xl sm:bg-secondary sm:p-4 md:grid-cols-2 md:gap-4 lg:mt-16 lg:grid-cols-3"
       >
-        <section className="glass flex flex-col rounded-xl p-5">
-          <PlanSummary
-            {...plan}
-            subtitle={`${pace.daysLeft} días para cerrar · 30 nov`}
-          />
-          <div className="mt-4 flex flex-col">
+        <SectionCard className="gap-4">
+          <div className="flex flex-col gap-1">
+            <p className="text-body text-ink-2">Disponible para gastar</p>
+            <p className="text-display font-semibold whitespace-nowrap">
+              {formatCLP(plan.spendable.amount)}
+            </p>
+            <p className="text-callout text-ink-2">
+              {pace.daysLeft} días para cerrar, el 30 nov
+            </p>
+          </div>
+          <div className="mt-auto flex flex-col gap-2">
+            <p className="flex items-baseline justify-between gap-3 text-caption text-ink-3">
+              <span>Tope de gasto</span>
+              <span className="whitespace-nowrap">
+                <b className="font-semibold text-ink-2">{formatCLP(used)}</b> de{" "}
+                {formatCLP(tope)}
+              </span>
+            </p>
+            <ProgressBar
+              value={plan.spent}
+              committed={plan.committed}
+              max={tope}
+              label="Gastado y comprometido del tope de gasto"
+              className="h-2"
+            />
+          </div>
+          <dl className="grid grid-cols-3 gap-3">
+            <StatTile label="Ingresos" value={formatCLP(plan.income)} />
+            <StatTile label="Gastado" value={formatCLP(plan.spent)} />
+            <StatTile label="Comprometido" value={formatCLP(plan.committed)} />
+          </dl>
+          {/* En la app abre el plan; aquí es solo la forma. */}
+          <span
+            aria-hidden
+            className="-ml-2 inline-flex min-h-8 items-center gap-1 self-start px-2 text-callout font-semibold text-primary"
+          >
+            Ajustar plan
+            <ChevronRight className="size-4" />
+          </span>
+        </SectionCard>
+
+        <SectionCard title="Ritmo del mes">
+          <div className="mt-auto flex flex-col">
             <SpendPaceChart
               days={pace.days}
               spend={pace.spend}
@@ -64,30 +97,15 @@ export function Hero({ signupOpen }: { signupOpen: boolean }) {
               current
             />
           </div>
-          <div className="-mx-5 mt-4 -mb-5 flex min-h-12 items-center justify-between rounded-b-xl border-t border-border px-5 text-body text-primary">
-            Ajustar plan
-            <ChevronRight aria-hidden className="disclosure" />
-          </div>
-        </section>
-        <div>
-          <p className="mb-1.5 px-4 text-footnote tracking-wide text-muted-foreground uppercase">
-            Hoy
-          </p>
-          {/* inert: la fila de la app es un botón; aquí es un ejemplo que no abre nada. */}
-          <div
-            inert
-            className="glass inset-list overflow-hidden rounded-xl [--inset:4.5rem]"
-          >
-            {homeMovements.map((tx) => (
-              <MovementRow
-                key={tx.id}
-                tx={tx}
-                showRemaining
-                className="min-h-11 rounded-none px-4"
-              />
+        </SectionCard>
+
+        <SectionCard title="Categorías" className="md:col-span-2 lg:col-span-1">
+          <ul className="flex flex-col">
+            {categories.slice(0, 3).map((c) => (
+              <CategoryRow key={c.name} c={c} />
             ))}
-          </div>
-        </div>
+          </ul>
+        </SectionCard>
       </div>
     </section>
   )

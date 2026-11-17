@@ -1,6 +1,7 @@
 "use client"
 
-import { ChevronsUpDown } from "lucide-react"
+import { useId } from "react"
+import { CalendarIcon } from "lucide-react"
 import { SearchInput } from "@/components/ui/search-input"
 import type { DateRange } from "react-day-picker"
 import { Calendar } from "@/components/ui/calendar"
@@ -17,6 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Segmented } from "./segmented"
 import { formatCompact, ymd } from "@/lib/finance-format"
@@ -31,15 +34,13 @@ const RANGE_FMT = new Intl.DateTimeFormat("es-CL", {
   month: "short",
 })
 
-// Fila de una lista agrupada de iOS con un botón emergente: el nombre a la izquierda, el valor
-// elegido en gris a la derecha y `chevron.up.chevron.down`. Sin borde ni relleno propio: la celda
-// es el grupo.
-const ROW =
-  "press flex h-11 w-full min-w-0 items-center gap-2 rounded-none border-0 bg-transparent px-4 text-left text-body shadow-none hover:bg-foreground/5 focus-visible:ring-inset data-[size=default]:h-11 dark:bg-transparent dark:hover:bg-foreground/5"
-const ROW_VALUE = "ml-auto min-w-0 truncate text-right text-muted-foreground"
+// Campo de filtro del sistema: etiqueta arriba (callout, tinta 2) y el control debajo a ancho
+// completo, a la altura de control (--ctl).
+const LABEL = "text-callout font-semibold text-ink-2"
+const CONTROL = "w-full min-w-0"
 
 export type Dir = "" | "debit" | "credit"
-const DIRS: { value: "all" | "debit" | "credit"; label: string }[] = [
+export const DIRS: { value: "all" | "debit" | "credit"; label: string }[] = [
   { value: "all", label: "Todos" },
   { value: "debit", label: "Gastos" },
   { value: "credit", label: "Ingresos" },
@@ -150,6 +151,7 @@ export function SearchField({
       onValueChange={(q) => set({ q })}
       aria-label="Buscar movimientos por descripción o categoría"
       placeholder="Buscar"
+      className="h-(--ctl) pointer-coarse:h-11"
     />
   )
 }
@@ -160,8 +162,13 @@ export function FilterControls({
   categories,
   accounts,
   amountBounds,
-}: FilterProps) {
+  hideDirection = false,
+}: FilterProps & {
+  /** Movimientos en el celular ya muestra el tipo junto al buscador: la hoja no lo repite. */
+  hideDirection?: boolean
+}) {
   const { q, direction, categoryId, bank, range, amount } = value
+  const id = useId()
   // Un mes en el teléfono (dos no caben a 360 px); dos en escritorio.
   const isMobile = useIsMobile()
   const set = (patch: Partial<FilterValues>) => onChange({ ...value, ...patch })
@@ -188,118 +195,111 @@ export function FilterControls({
 
   return (
     <>
-      {/* Tipo: segmentado de iOS, un solo estilo activo para las tres opciones. */}
-      <Segmented
-        label="Tipo de movimiento"
-        value={direction === "" ? "all" : direction}
-        onChange={(v) => set({ direction: v === "all" ? "" : v })}
-        options={DIRS}
-      />
+      {!hideDirection && (
+        <Segmented
+          label="Tipo de movimiento"
+          value={direction === "" ? "all" : direction}
+          onChange={(v) => set({ direction: v === "all" ? "" : v })}
+          options={DIRS}
+          className="w-full"
+        />
+      )}
 
-      {/* Filtros como una lista agrupada de iOS (HIG: dentro de una hoja, botones emergentes en
-          las filas en vez de abrir otra vista). Un solo grupo con separadores; `glass` es la
-          celda sólida en la página y en la hoja. */}
-      <div>
-        <div className="glass inset-list flex flex-col overflow-hidden rounded-xl">
-          <Select
-            value={categoryId}
-            onValueChange={(v) => set({ categoryId: v })}
-          >
-            <SelectTrigger aria-label="Categoría" className={ROW}>
-              <span className="shrink-0 text-foreground">Categoría</span>
-              <span className={ROW_VALUE}>
-                <SelectValue />
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              {categories.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Categoría y banco lado a lado cuando caben (hoja del teléfono); apilados en el panel angosto. */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-x-3 gap-y-4">
+      <div className="flex min-w-0 flex-col gap-2">
+        <label htmlFor={`${id}-cat`} className={LABEL}>
+          Categoría
+        </label>
+        <Select
+          value={categoryId}
+          onValueChange={(v) => set({ categoryId: v })}
+        >
+          <SelectTrigger id={`${id}-cat`} className={CONTROL}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            {categories.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-          <Select value={bank} onValueChange={(v) => set({ bank: v })}>
-            <SelectTrigger aria-label="Banco" className={ROW}>
-              <span className="shrink-0 text-foreground">Banco</span>
-              <span className={ROW_VALUE}>
-                <SelectValue />
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {banks.map((b) => (
-                <SelectItem key={b} value={b}>
-                  {b}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="flex min-w-0 flex-col gap-2">
+        <label htmlFor={`${id}-bank`} className={LABEL}>
+          Banco
+        </label>
+        <Select value={bank} onValueChange={(v) => set({ bank: v })}>
+          <SelectTrigger id={`${id}-bank`} className={CONTROL}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {banks.map((b) => (
+              <SelectItem key={b} value={b}>
+                {b}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      </div>
 
-          {/* Rango de fechas (shadcn Calendar en Popover). Dos meses siempre: lado a lado desde md,
-              apilados en el teléfono, con scroll dentro del popover si no caben. */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                aria-label={
-                  range?.from ? "Cambiar fechas" : "Filtrar por fechas"
-                }
-                className={ROW}
-              >
-                <span className="shrink-0">Fechas</span>
-                <span className={ROW_VALUE}>
-                  {range?.from
-                    ? range.to
-                      ? `${RANGE_FMT.format(range.from)} – ${RANGE_FMT.format(range.to)}`
-                      : RANGE_FMT.format(range.from)
-                    : "Todas"}
-                </span>
-                <ChevronsUpDown aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent
-              className="max-h-(--radix-popover-content-available-height) w-auto overflow-y-auto p-0"
-              align="start"
-            >
-              <Calendar
-                mode="range"
-                selected={range}
-                onSelect={(r) => set({ range: r })}
-                numberOfMonths={isMobile ? 1 : 2}
-                autoFocus
-              />
-            </PopoverContent>
-          </Popover>
-
-        </div>
-        {/* Acción del grupo en texto azul, como el pie de una sección de Ajustes. */}
-        {hasFilters && (
-          <div className="flex justify-end px-1">
+      {/* Rango de fechas (shadcn Calendar en Popover). Un mes en el teléfono, dos desde md, con
+          scroll dentro del popover si no caben. */}
+      <div className="flex flex-col gap-2">
+        <span id={`${id}-dates`} className={LABEL}>
+          Fechas
+        </span>
+        <Popover>
+          <PopoverTrigger asChild>
             <button
               type="button"
-              onClick={() => onChange(emptyFilters(amountBounds))}
-              className="press h-11 px-3 text-body text-primary"
+              aria-labelledby={`${id}-dates ${id}-dates-value`}
+              className="press flex h-(--ctl) w-full min-w-0 items-center gap-2 rounded-md bg-secondary px-3 text-left text-body hover:bg-surface-3 pointer-coarse:min-h-11"
             >
-              Limpiar filtros
+              <CalendarIcon aria-hidden className="size-4 shrink-0 text-ink-3" />
+              <span
+                id={`${id}-dates-value`}
+                className={cn("min-w-0 flex-1 truncate", !range?.from && "text-ink-3")}
+              >
+                {range?.from
+                  ? range.to
+                    ? `${RANGE_FMT.format(range.from)} – ${RANGE_FMT.format(range.to)}`
+                    : RANGE_FMT.format(range.from)
+                  : "Todo el período"}
+              </span>
             </button>
-          </div>
-        )}
+          </PopoverTrigger>
+          <PopoverContent
+            className="max-h-(--radix-popover-content-available-height) w-auto overflow-y-auto p-0"
+            align="start"
+          >
+            <Calendar
+              mode="range"
+              selected={range}
+              onSelect={(r) => set({ range: r })}
+              numberOfMonths={isMobile ? 1 : 2}
+              autoFocus
+            />
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Rango de monto */}
       {showAmount && (
-        <div className="flex flex-col gap-2 pt-1">
-          <div className="flex items-center justify-between px-2 text-footnote text-muted-foreground">
-            <span>Monto</span>
-            <span className="tabular-nums">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className={LABEL}>Monto</span>
+            <span className="text-callout whitespace-nowrap text-ink-2">
               {formatCompact(amount[0])} – {formatCompact(amount[1])}
             </span>
           </div>
-          {/* Margen lateral para la sombra de la perilla (size-7): sin él, los extremos tocan
-              el borde. La cabecera lleva el mismo margen para que el rango quede alineado. */}
+          {/* Margen lateral para la sombra de la perilla: sin él, los extremos tocan el borde. */}
           <div className="px-2">
             <Slider
               min={amountBounds.min}
@@ -311,6 +311,17 @@ export function FilterControls({
             />
           </div>
         </div>
+      )}
+
+      {hasFilters && (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => onChange(emptyFilters(amountBounds))}
+          className="w-full"
+        >
+          Limpiar filtros
+        </Button>
       )}
     </>
   )

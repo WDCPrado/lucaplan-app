@@ -120,24 +120,24 @@ export function AssignToInstallmentModal({
         {plans === null ? (
           <p
             role="status"
-            className="flex items-center justify-center gap-2 py-8 text-subheadline text-muted-foreground"
+            className="flex items-center justify-center gap-2 py-8 text-callout text-muted-foreground"
           >
             <Loader aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
             Buscando planes…
           </p>
         ) : failed ? (
-          <p role="alert" className="py-8 text-center text-subheadline text-balance text-muted-foreground">
+          <p role="alert" className="py-8 text-center text-callout text-balance text-muted-foreground">
             No se pudieron cargar tus planes de cuotas. Cierra y vuelve a intentarlo.
           </p>
         ) : plans.length === 0 ? (
-          <p className="py-8 text-center text-subheadline text-balance text-muted-foreground">
+          <p className="py-8 text-center text-callout text-balance text-muted-foreground">
             {onCreateLoan
               ? "No tienes planes de cuotas con cuotas pendientes. Registra el crédito y este pago quedará enganchado como su cuota."
               : "No tienes planes de cuotas con cuotas pendientes. Crea uno desde Cuotas, o pasa una compra de tarjeta a cuotas."}
           </p>
         ) : !plan ? (
           <>
-            <p className="py-3 text-subheadline">
+            <p className="py-3 text-callout">
               ¿De qué deuda es este pago?
             </p>
             <ul className="sheet-group inset-list flex flex-col overflow-hidden [--inset:4.5rem]">
@@ -146,10 +146,10 @@ export function AssignToInstallmentModal({
                   <button
                     type="button"
                     onClick={() => setPlanId(p.id)}
-                    className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left hover:bg-foreground/5"
+                    className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left hover:bg-surface-3"
                   >
                     <span
-                      className="grid size-11 shrink-0 place-items-center rounded-full bg-muted"
+                      className="grid size-9 shrink-0 place-items-center rounded-sm bg-surface-3"
                       aria-hidden
                     >
                       <CategoryIcon
@@ -162,13 +162,13 @@ export function AssignToInstallmentModal({
                       <span className="block truncate text-body">
                         {p.description}
                       </span>
-                      <span className="block truncate text-footnote text-muted-foreground">
+                      <span className="block truncate text-caption text-muted-foreground">
                         Cuota {p.settledCount} de {p.installmentsCount} ·{" "}
                         <span className="tabular">{formatCLP(p.outstanding)}</span> por pagar
                       </span>
                     </span>
                     {/* Abre el paso de elegir la cuota: chevron de lista de iOS. */}
-                    <ChevronRight aria-hidden className="disclosure" />
+                    <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
                   </button>
                 </li>
               ))}
@@ -177,7 +177,7 @@ export function AssignToInstallmentModal({
         ) : (
           <>
             <div className="flex items-center justify-between gap-2 py-3">
-              <p className="text-subheadline">
+              <p className="text-callout">
                 ¿Qué cuota de {plan.description} salda?
               </p>
               {(plans?.length ?? 0) > 1 && (
@@ -202,9 +202,9 @@ export function AssignToInstallmentModal({
                       onClick={() => assign(item.id)}
                       disabled={busy !== null}
                       aria-busy={busy === item.id || undefined}
-                      className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left hover:bg-foreground/5 disabled:opacity-50"
+                      className="press flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left hover:bg-surface-3 disabled:opacity-50"
                     >
-                      <span className="tabular w-6 shrink-0 text-footnote text-muted-foreground">
+                      <span className="tabular w-6 shrink-0 text-caption text-muted-foreground">
                         {item.index}
                       </span>
                       <span className="min-w-0 flex-1">
@@ -213,7 +213,7 @@ export function AssignToInstallmentModal({
                         </span>
                         <span
                           className={cn(
-                            "block text-footnote",
+                            "block text-caption",
                             item.status === "overdue"
                               ? "text-destructive"
                               : "text-muted-foreground"

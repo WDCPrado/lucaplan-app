@@ -23,20 +23,20 @@ export default async function PluginConsentPage({
   } catch {
     return (
       <PluginFrame>
-        <h2 className="font-heading text-2xl font-semibold tracking-tight">
+        <h2 className="text-title font-semibold">
           No se pudo iniciar la conexión
         </h2>
         <p
           id="plugin-consent-error"
           role="alert"
-          className="mt-4 text-base text-muted-foreground"
+          className="mt-4 rounded-md bg-destructive-soft px-3 py-2.5 text-callout text-destructive"
         >
           El enlace de conexión no es válido o venció. Vuelve al asistente e
           inicia la conexión de nuevo.
         </p>
         <Link
           href="/plugin"
-          className="mt-6 inline-flex min-h-11 items-center text-sm underline underline-offset-4"
+          className="mt-6 inline-flex min-h-11 items-center font-semibold text-primary underline-offset-4 hover:underline"
         >
           Ver mis conexiones
         </Link>

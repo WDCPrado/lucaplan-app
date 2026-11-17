@@ -225,7 +225,7 @@ export function AccountInfoModal({
               {disconnectError && (
                 <p
                   role="alert"
-                  className="text-center text-subheadline text-destructive"
+                  className="text-center text-callout text-destructive"
                 >
                   {disconnectError}
                 </p>
@@ -248,8 +248,8 @@ export function AccountInfoModal({
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-5 border-b border-border py-4 last:border-0">
-      <dt className="text-subheadline text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-right text-body font-medium break-words">
+      <dt className="text-callout text-ink-2">{label}</dt>
+      <dd className="min-w-0 text-right font-semibold break-words">
         {value}
       </dd>
     </div>

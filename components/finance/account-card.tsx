@@ -1,8 +1,11 @@
+import type { KeyboardEvent } from "react"
 import type { AccountDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 import type { CurrencyCode } from "@/arch/v1/domain/finance/money"
 import { formatCLP, formatMoney } from "@/lib/finance-format"
 import { CARD_VARIANT_BG, resolveCardArt } from "@/lib/bank-cards"
+import { CreditCard, Landmark } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { IconTile, ProgressBar } from "./blocks"
 import { SyncStatusLine } from "./sync-status-line"
 
 // Barra de cupo DISPONIBLE (cupo de crédito o línea de sobregiro): llena = cupo intacto, se vacía a
@@ -48,10 +51,14 @@ const TYPE_LABEL: Record<string, string> = {
 export function AccountCard({
   account,
   showConnected = false,
+  variant = "art",
   onClick,
 }: {
   account: AccountDTO
   showConnected?: boolean // distintivo «Conectado»: solo la landing (en la app lo dice la línea de sincronización)
+  // «art»: la tarjeta con el arte del banco (detalle de la cuenta, landing). «tone»: la tarjeta de
+  // tono del Inicio («Finanzas en calma»): mismas cifras, sin gradiente.
+  variant?: "art" | "tone"
   onClick?: () => void
 }) {
   const art = resolveCardArt(account.bankName, account.accountType)
@@ -78,6 +85,103 @@ export function AccountCard({
           .filter((d): d is string => !!d)
           .sort()[0]
       : null
+
+  const interactive = onClick
+    ? {
+        role: "button" as const,
+        tabIndex: 0,
+        onClick,
+        onKeyDown: (e: KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            onClick()
+          }
+        },
+      }
+    : {}
+  const typeLabel = TYPE_LABEL[account.accountType] ?? account.accountType
+  const syncLine = estimatedSince ? (
+    `Saldo estimado desde ${new Date(estimatedSince).toLocaleDateString("es-CL")}`
+  ) : connected && account.lastSyncedAt ? (
+    <SyncStatusLine lastSyncedAt={account.lastSyncedAt} className="text-ink-3" />
+  ) : null
+
+  if (variant === "tone") {
+    const balance = cash ? cash.available : account.balance
+    return (
+      <div
+        {...interactive}
+        className={cn(
+          "flex min-h-40 w-full min-w-0 flex-col gap-2 rounded-lg bg-secondary p-4 text-left",
+          onClick && "press cursor-pointer hover:bg-surface-3"
+        )}
+      >
+        <span className="flex min-w-0 items-center gap-3">
+          <IconTile>{isCredit ? <CreditCard /> : <Landmark />}</IconTile>
+          <span className="truncate font-semibold">{account.bankName || account.name}</span>
+        </span>
+        {isCredit && primary ? (
+          <span className="flex flex-col">
+            <span className="text-caption text-ink-3">Disponible</span>
+            <span className="text-title font-semibold whitespace-nowrap">
+              {formatMoney(primary.available, primary.currency as CurrencyCode)}
+            </span>
+            {chip && (
+              <span className="text-callout whitespace-nowrap text-ink-2">
+                Internacional {formatMoney(chip.available, chip.currency as CurrencyCode)}
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="flex flex-col">
+            <span className="text-caption text-ink-3">Saldo</span>
+            <span
+              className={cn(
+                "text-title font-semibold whitespace-nowrap",
+                balance < 0 && "text-destructive"
+              )}
+            >
+              {formatCLP(balance)}
+            </span>
+          </span>
+        )}
+        {isCredit && primary && primary.limit > 0 && (
+          <>
+            <ProgressBar
+              value={primary.used}
+              max={primary.limit}
+              label={`Cupo usado de ${account.bankName || account.name}`}
+            />
+            <span className="text-callout text-ink-2">
+              Usado {formatMoney(primary.used, primary.currency as CurrencyCode)} de{" "}
+              {formatMoney(primary.limit, primary.currency as CurrencyCode)}
+            </span>
+          </>
+        )}
+        {!isCredit && overdraft && overdraft.limit > 0 && (
+          <>
+            <ProgressBar
+              value={overdraft.used}
+              max={overdraft.limit}
+              tone={overdraft.used > 0 ? "warn" : "default"}
+              label={`Sobregiro usado de ${account.bankName || account.name}`}
+            />
+            <span className="text-callout text-ink-2">
+              {overdraft.used > 0
+                ? `Sobregiro usado ${formatCLP(overdraft.used)} de ${formatCLP(overdraft.limit)}`
+                : `Sobregiro ${formatCLP(overdraft.limit)} disponible`}
+            </span>
+          </>
+        )}
+        <span className="mt-auto flex flex-col gap-0.5 pt-1 text-caption text-ink-3">
+          <span className="truncate">
+            {account.cardLast4 ? `•••• ${account.cardLast4}` : account.name} · {typeLabel}
+          </span>
+          {syncLine}
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -118,11 +222,11 @@ export function AccountCard({
       )}
 
       <div className="relative flex items-start justify-between gap-2">
-        <div className="text-headline font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
+        <div className="text-body font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
           {account.bankName || account.name}
         </div>
         {showConnected && connected && (
-          <span className="flex shrink-0 items-center gap-1 rounded-lg bg-white/15 px-2 py-0.5 text-caption font-medium">
+          <span className="flex shrink-0 items-center gap-1 rounded-lg bg-white/15 px-2 py-0.5 text-caption font-semibold">
             <span aria-hidden className="size-1.5 rounded-full bg-card-art-ok" />
             Conectado
           </span>
@@ -134,7 +238,7 @@ export function AccountCard({
         // barra + frase. Misma gramática que la rama corriente: etiqueta → número grande → contexto.
         <div className="relative">
           <div className="text-caption text-white/85">Disponible</div>
-          <div className="tabular text-title-1 font-bold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
+          <div className="text-title font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
             {formatMoney(primary.available, primary.currency as CurrencyCode)}
           </div>
           {/* El cupo secundario va DEBAJO, no al lado: en la misma línea, dos montos largos
@@ -167,7 +271,7 @@ export function AccountCard({
         <div className="relative">
           <div
             className={cn(
-              "tabular text-title-1 font-bold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]",
+              "text-title font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]",
               (cash ? cash.available : account.balance) < 0 && "text-card-art-danger"
             )}
           >
@@ -197,7 +301,7 @@ export function AccountCard({
       )}
 
       <div className="relative space-y-1.5">
-        <div className="flex items-center justify-between gap-2 text-footnote text-white/85">
+        <div className="flex items-center justify-between gap-2 text-caption text-white/85">
           <span className="tabular truncate tracking-widest">
             {account.cardLast4 ? `•••• ${account.cardLast4}` : account.name}
           </span>

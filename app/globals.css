@@ -133,9 +133,10 @@
     --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
     --ease-in: cubic-bezier(0.4, 0, 1, 1);
 
-    /* Barras móviles: margen de la barra inferior al borde (safe area; mínimo 12 px) y alturas para
-       que una vista mida «lo que queda» de la pantalla. */
-    --tab-bar-inset: max(env(safe-area-inset-bottom), 0.75rem);
+    /* Navegación móvil: las pestañas individuales se acercan al borde curvo del teléfono.
+       En iPhone descontamos 16 px de la safe area (sin invadir el indicador de inicio);
+       en Android/sin notch conservamos 8 px de separación mínima. */
+    --tab-bar-inset: max(0.5rem, calc(env(safe-area-inset-bottom) - 1rem));
     --top-bar-h: 3.75rem;
     --tab-bar-h: calc(4.5rem + var(--tab-bar-inset));
     --home-peek: 7rem;

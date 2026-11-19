@@ -103,7 +103,6 @@ const BOTTOM_NAV = NAV.map((n) => ({
   weight: TAB[n.key]?.weight ?? 1,
   short: TAB[n.key]?.short,
 }))
-const TAB_TOTAL = BOTTOM_NAV.reduce((sum, n) => sum + n.weight, 0)
 
 function navKeyOf(pathname: string): NavKey | undefined {
   return NAV.find(
@@ -596,12 +595,9 @@ function NavMenu({
   )
 }
 
-// Navegación inferior (solo móvil), flotante: una barra redondeada con los mismos destinos del
-// sidebar (la búsqueda va en la barra superior). Debajo, el fondo se desvanece para que el
-// barra no lleva fondo a pantalla completa; solo flota la cápsula. La selección es un tono (surface-2) que se desliza de una pestaña a
-// otra con la misma duración y curva que el contenido (`.tab-pill`); la etiqueta activa sube a
-// tinta primaria sin cambiar de peso, así ningún ancho cambia. Su transparencia y desenfoque los
-// mueve el nivel de Apariencia (`float`).
+// Navegación inferior (solo móvil): cada destino flota por separado, sin barra ni
+// superficie continua detrás. Mantiene el ancho proporcional, la selección y la respuesta
+// optimista al toque. El fondo/desenfoque de cada botón usa el token existente `float`.
 function BottomNav({
   active,
   onNavigate,
@@ -618,12 +614,6 @@ function BottomNav({
     navKeyOf(pathname)
   )
   const activeKey = active ?? optimisticKey
-  const activeIndex = BOTTOM_NAV.findIndex((n) => n.key === activeKey)
-  const pill = BOTTOM_NAV[Math.max(activeIndex, 0)]
-  const pillLeft = BOTTOM_NAV.slice(0, Math.max(activeIndex, 0)).reduce(
-    (sum, n) => sum + n.weight,
-    0
-  )
 
   return (
     <div
@@ -633,25 +623,9 @@ function BottomNav({
     >
       <nav
         aria-label="Navegación principal"
-        className="float pointer-events-auto flex h-15 min-w-0 flex-1 rounded-full p-1"
+        className="pointer-events-auto flex h-15 min-w-0 flex-1 gap-2"
       >
-        <div className="relative flex min-w-0 flex-1">
-          {/* Las pestañas no miden lo mismo: la pastilla se ubica con left/right en % de la fila
-              (es un elemento chico; animarlos no pesa). */}
-          <span
-            aria-hidden
-            className={cn(
-              "tab-pill pointer-events-none absolute inset-y-0 flex",
-              activeIndex < 0 && "opacity-0"
-            )}
-            style={{
-              left: `${(pillLeft / TAB_TOTAL) * 100}%`,
-              right: `${((TAB_TOTAL - pillLeft - pill.weight) / TAB_TOTAL) * 100}%`,
-            }}
-          >
-            <span className="w-full rounded-full bg-secondary" />
-          </span>
-          {BOTTOM_NAV.map(({ key, label, short, weight, Icon, href }) => {
+        {BOTTOM_NAV.map(({ key, label, short, weight, Icon, href }) => {
             const isActive = activeKey === key
             return (
               <Link
@@ -684,7 +658,7 @@ function BottomNav({
                 style={{ flexGrow: weight }}
                 // Sin negrita en la activa: la marcan la pastilla, el azul y aria-current; un peso distinto
                 // ensancharía su etiqueta y movería a las vecinas bajo la pastilla.
-                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-ink-3 aria-[current=page]:text-foreground"
+                className="float press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-ink-3 transition-colors aria-[current=page]:bg-secondary aria-[current=page]:text-foreground"
               >
                 <Icon className="size-5 shrink-0" />
                 {short ? (
@@ -697,8 +671,7 @@ function BottomNav({
                 )}
               </Link>
             )
-          })}
-        </div>
+        })}
       </nav>
     </div>
   )

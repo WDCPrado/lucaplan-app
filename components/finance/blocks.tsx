@@ -8,9 +8,8 @@ import { cn } from "@/lib/utils"
 // no calculan dominio ni mutan. Guía de uso en docs/design/design-system.md.
 
 /**
- * Tarjeta de bloque: superficie, radio 16, padding --pad-card. Encabezado en una fila con el título
- * (tinta 2) a la izquierda y su acción a la derecha; debajo, opcional, la línea clave (la cifra que
- * responde la tarjeta) y luego el contenido.
+ * Sección con encabezado independiente de la superficie: título y acción quedan afuera de la
+ * tarjeta, mientras la línea clave y el contenido conservan el fondo, radio y padding actuales.
  */
 export function SectionCard({
   title,
@@ -30,10 +29,7 @@ export function SectionCard({
   return (
     <section
       aria-labelledby={title ? titleId : undefined}
-      className={cn(
-        "flex min-w-0 flex-col rounded-xl bg-card p-(--pad-card) text-card-foreground",
-        className
-      )}
+      className={cn("flex min-w-0 flex-col", className)}
       {...props}
     >
       {(title || action) && (
@@ -49,8 +45,10 @@ export function SectionCard({
           {action && <div className="-mr-2 flex shrink-0 items-center">{action}</div>}
         </div>
       )}
-      {keyLine}
-      {children}
+      <div className="flex min-w-0 flex-1 flex-col rounded-xl bg-card p-(--pad-card) text-card-foreground">
+        {keyLine}
+        {children}
+      </div>
     </section>
   )
 }

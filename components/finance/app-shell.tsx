@@ -103,6 +103,7 @@ const BOTTOM_NAV = NAV.map((n) => ({
   weight: TAB[n.key]?.weight ?? 1,
   short: TAB[n.key]?.short,
 }))
+const TAB_TOTAL = BOTTOM_NAV.reduce((sum, n) => sum + n.weight, 0)
 
 function navKeyOf(pathname: string): NavKey | undefined {
   return NAV.find(
@@ -470,15 +471,14 @@ function Chrome({
               )}
             </header>
           </div>
-          {/* Móvil (G): barra pegada con fondo propio (su transparencia y desenfoque los mueve el nivel
-              de Apariencia) y un desvanecido corto debajo. A la izquierda el avatar abre la hoja de la
+          {/* Móvil: controles sobre un encabezado transparente, sin placa ni desenfoque de fondo. A la izquierda el avatar abre la hoja de la
               cuenta; al centro las acciones de la vista (el selector de mes) y, sin ellas, el selector
               deshabilitado con el período en curso, así la fila es igual en todas las vistas; a la
               derecha, la búsqueda. Todo a 44 px y margen 16. */}
           <div
             data-scrolled={scrolled || undefined}
             style={{ viewTransitionName: "app-top-mobile" }}
-            className="top-bar pwa-safe-top sticky top-0 z-20 flex items-center gap-2 bg-float px-4 py-2 backdrop-blur-(--float-blur) after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-linear-to-b after:from-background after:to-transparent md:hidden"
+            className="top-bar pwa-safe-top sticky top-0 z-20 flex items-center gap-2 bg-transparent px-4 py-2 md:hidden"
           >
             {user && (
               <UserMenu
@@ -595,9 +595,12 @@ function NavMenu({
   )
 }
 
-// Navegación inferior (solo móvil): cada destino flota por separado, sin barra ni
-// superficie continua detrás. Mantiene el ancho proporcional, la selección y la respuesta
-// optimista al toque. El fondo/desenfoque de cada botón usa el token existente `float`.
+// Navegación inferior (solo móvil), flotante: una barra redondeada con los mismos destinos del
+// sidebar (la búsqueda va en la barra superior). Debajo, el fondo se desvanece para que el
+// barra no lleva fondo a pantalla completa; solo flota la cápsula. La selección es un tono (surface-2) que se desliza de una pestaña a
+// otra con la misma duración y curva que el contenido (`.tab-pill`); la etiqueta activa sube a
+// tinta primaria sin cambiar de peso, así ningún ancho cambia. Su transparencia y desenfoque los
+// mueve el nivel de Apariencia (`float`).
 function BottomNav({
   active,
   onNavigate,
@@ -614,6 +617,12 @@ function BottomNav({
     navKeyOf(pathname)
   )
   const activeKey = active ?? optimisticKey
+  const activeIndex = BOTTOM_NAV.findIndex((n) => n.key === activeKey)
+  const pill = BOTTOM_NAV[Math.max(activeIndex, 0)]
+  const pillLeft = BOTTOM_NAV.slice(0, Math.max(activeIndex, 0)).reduce(
+    (sum, n) => sum + n.weight,
+    0
+  )
 
   return (
     <div
@@ -623,9 +632,25 @@ function BottomNav({
     >
       <nav
         aria-label="Navegación principal"
-        className="pointer-events-auto flex h-15 min-w-0 flex-1 gap-2"
+        className="float pointer-events-auto flex h-15 min-w-0 flex-1 rounded-full p-1"
       >
-        {BOTTOM_NAV.map(({ key, label, short, weight, Icon, href }) => {
+        <div className="relative flex min-w-0 flex-1">
+          {/* Las pestañas no miden lo mismo: la pastilla se ubica con left/right en % de la fila
+              (es un elemento chico; animarlos no pesa). */}
+          <span
+            aria-hidden
+            className={cn(
+              "tab-pill pointer-events-none absolute inset-y-0 flex",
+              activeIndex < 0 && "opacity-0"
+            )}
+            style={{
+              left: `${(pillLeft / TAB_TOTAL) * 100}%`,
+              right: `${((TAB_TOTAL - pillLeft - pill.weight) / TAB_TOTAL) * 100}%`,
+            }}
+          >
+            <span className="w-full rounded-full bg-secondary" />
+          </span>
+          {BOTTOM_NAV.map(({ key, label, short, weight, Icon, href }) => {
             const isActive = activeKey === key
             return (
               <Link
@@ -658,7 +683,7 @@ function BottomNav({
                 style={{ flexGrow: weight }}
                 // Sin negrita en la activa: la marcan la pastilla, el azul y aria-current; un peso distinto
                 // ensancharía su etiqueta y movería a las vecinas bajo la pastilla.
-                className="float press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-ink-3 transition-colors aria-[current=page]:bg-secondary aria-[current=page]:text-foreground"
+                className="press relative flex min-w-0 basis-0 flex-col items-center justify-center gap-0.5 rounded-full text-ink-3 aria-[current=page]:text-foreground"
               >
                 <Icon className="size-5 shrink-0" />
                 {short ? (
@@ -671,7 +696,8 @@ function BottomNav({
                 )}
               </Link>
             )
-        })}
+          })}
+        </div>
       </nav>
     </div>
   )

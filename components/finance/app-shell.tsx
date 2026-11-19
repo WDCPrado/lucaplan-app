@@ -598,7 +598,7 @@ function NavMenu({
 
 // Navegación inferior (solo móvil), flotante: una barra redondeada con los mismos destinos del
 // sidebar (la búsqueda va en la barra superior). Debajo, el fondo se desvanece para que el
-// contenido no se lea a través. La selección es un tono (surface-2) que se desliza de una pestaña a
+// barra no lleva fondo a pantalla completa; solo flota la cápsula. La selección es un tono (surface-2) que se desliza de una pestaña a
 // otra con la misma duración y curva que el contenido (`.tab-pill`); la etiqueta activa sube a
 // tinta primaria sin cambiar de peso, así ningún ancho cambia. Su transparencia y desenfoque los
 // mueve el nivel de Apariencia (`float`).
@@ -629,7 +629,7 @@ function BottomNav({
     <div
       // Nombre propio en el cambio de pantalla: la barra queda quieta encima del contenido que se desliza.
       style={{ viewTransitionName: "app-tabbar" }}
-      className="pointer-events-none fixed right-[env(safe-area-inset-right)] bottom-0 left-[env(safe-area-inset-left)] z-30 flex items-center gap-3 bg-linear-to-b from-transparent to-background to-45% px-4 pt-6 pb-(--tab-bar-inset) md:hidden"
+      className="pointer-events-none fixed right-[env(safe-area-inset-right)] bottom-0 left-[env(safe-area-inset-left)] z-30 flex items-center gap-3 px-4 pt-6 pb-(--tab-bar-inset) md:hidden"
     >
       <nav
         aria-label="Navegación principal"

@@ -8,9 +8,8 @@ import { cn } from "@/lib/utils"
 // no calculan dominio ni mutan. Guía de uso en docs/design/design-system.md.
 
 /**
- * Tarjeta de bloque: superficie, radio 16, padding --pad-card. Encabezado en una fila con el título
- * (tinta 2) a la izquierda y su acción a la derecha; debajo, opcional, la línea clave (la cifra que
- * responde la tarjeta) y luego el contenido.
+ * Bloque con encabezado fuera de la superficie: título y acción quedan sobre la tarjeta,
+ * mientras que la línea clave y su contenido comparten la misma superficie.
  */
 export function SectionCard({
   title,
@@ -21,7 +20,7 @@ export function SectionCard({
   ...props
 }: Omit<React.ComponentProps<"section">, "title"> & {
   title?: React.ReactNode
-  /** Acción de la tarjeta: normalmente un <SectionAction>. */
+  /** Acción de la sección: normalmente un <SectionAction>. */
   action?: React.ReactNode
   /** Línea clave: <KeyLine value="$ 120.000" note="de $ 400.000" />. */
   keyLine?: React.ReactNode
@@ -30,14 +29,11 @@ export function SectionCard({
   return (
     <section
       aria-labelledby={title ? titleId : undefined}
-      className={cn(
-        "flex min-w-0 flex-col rounded-xl bg-card p-(--pad-card) text-card-foreground",
-        className
-      )}
+      className={cn("flex min-w-0 flex-col", className)}
       {...props}
     >
       {(title || action) && (
-        <div className="mb-3 flex min-h-8 items-center justify-between gap-3">
+        <div className="mb-3 flex min-h-11 items-center justify-between gap-2 px-(--pad-card) md:min-h-8">
           {title && (
             <h2
               id={titleId}
@@ -46,11 +42,13 @@ export function SectionCard({
               {title}
             </h2>
           )}
-          {action && <div className="-mr-2 flex shrink-0 items-center">{action}</div>}
+          {action && <div className="flex shrink-0 items-center">{action}</div>}
         </div>
       )}
-      {keyLine}
-      {children}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-xl bg-card p-(--pad-card) text-card-foreground">
+        {keyLine}
+        {children}
+      </div>
     </section>
   )
 }

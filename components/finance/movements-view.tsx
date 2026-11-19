@@ -181,17 +181,15 @@ export function MovementsView({
               aria-label="Filtrar movimientos"
               className="flex min-w-0 flex-col gap-4 md:gap-6 xl:sticky xl:top-20"
             >
-              <section
-                aria-labelledby="movements-summary"
-                className="flex min-w-0 flex-col rounded-xl bg-card p-(--pad-card)"
-              >
-                <h2 id="movements-summary" className="text-body text-ink-2">
-                  {hasFilters
+              <SectionCard
+                title={
+                  hasFilters
                     ? "Movimientos con tus filtros"
                     : cycleRange
                       ? `Movimientos del ciclo de ${mes}`
-                      : `Movimientos de ${mes}`}
-                </h2>
+                      : `Movimientos de ${mes}`
+                }
+              >
                 <p className="text-display font-semibold whitespace-nowrap">
                   {totalLabel}
                 </p>
@@ -236,7 +234,7 @@ export function MovementsView({
                   options={DIRS}
                   className="mt-3 w-full xl:hidden"
                 />
-              </section>
+              </SectionCard>
 
               <SectionCard title="Filtros" className="max-xl:hidden">
                 <div className="flex flex-col gap-4">

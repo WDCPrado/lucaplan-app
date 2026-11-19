@@ -96,7 +96,7 @@ Rigen para todo lo nuevo; una pantalla existente se adapta cuando se toca.
   `components/<carpeta>/` (`finance/`, `landing/`, `pwa/`); `responsive-modal.tsx` es la
   composición documentada de Dialog y Drawer.
 - **Piezas de pantalla** (`components/finance/blocks.tsx`, solo presentación): `SectionCard`
-  (tarjeta con título a la izquierda, acción a la derecha y línea clave), `SectionAction` (`asChild`
+  (encabezado externo con título a la izquierda y acción a la derecha; línea clave dentro de la tarjeta), `SectionAction` (`asChild`
   para un `Link`),
   `KeyLine`, `ListRow` + `IconTile` (fila de 56 px con icono de 36, título, meta, valor y chevron;
   `aside` pone una acción propia, como un enlace, sin anidar botones), `InlineNotice` (aviso a ancho
@@ -112,7 +112,8 @@ Rigen para todo lo nuevo; una pantalla existente se adapta cuando se toca.
   también Gasto/Ingreso, sin colorear la selección. Nunca `<input type="range">` ni
   `<input type="date">`.
 - **Tarjeta** (`SectionCard`): superficie, radio 16, padding `--pad-card` (16 móvil, 24 escritorio).
-  Encabezado en una fila: título en tinta 2 a la izquierda y su acción (texto verde) a la derecha;
+  **El encabezado queda fuera y arriba de la superficie**, alineado con su contenido: título en tinta 2
+  a la izquierda y acción (texto verde) a la derecha. Solo la línea clave y el contenido van dentro;
   debajo, la línea clave (la cifra en tinta primaria y su contexto en callout), luego el contenido.
   Dentro, las filas se separan por `gap-2`, no por líneas; un grupo dentro de la tarjeta va en tono
   (`.sheet-group`, radio 12).

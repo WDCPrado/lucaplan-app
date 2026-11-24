@@ -1,11 +1,10 @@
-import { statusVar } from "@/lib/finance-format"
+import { spendingColors } from "@/lib/spending-colors"
 
 // Anillo de progreso en SVG. `percent` puede pasar de 100 (el arco se capa a 100, el color
-// refleja el estado). El color sale del estado de categoría (bueno/moderado/completado/excedido).
+// refleja el tercio del tope consumido, igual que las barras de presupuesto).
 export function ProgressRing({
   percent,
   committedPercent = 0,
-  status,
   size = 96,
   stroke = 7,
   children,
@@ -47,9 +46,8 @@ export function ProgressRing({
             cy={size / 2}
             r={r}
             fill="none"
-            stroke={statusVar(status)}
+            stroke="var(--committed)"
             strokeWidth={stroke}
-            strokeOpacity={0.35}
             strokeDasharray={`${committedDash} ${c}`}
             strokeDashoffset={-dash}
           />
@@ -59,7 +57,7 @@ export function ProgressRing({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke={statusVar(status)}
+          stroke={spendingColors(percent, 100).stroke}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={`${dash} ${c}`}

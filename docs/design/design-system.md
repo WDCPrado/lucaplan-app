@@ -27,6 +27,8 @@ Light y dark van emparejados; el oscuro es por tono, no negro. Cambia con la cla
 | Cerca del límite | `text-warning` / `bg-warning-soft` / `bg-warning-bar` | #7A5200 / #F4E6C6 / #B7841F | #E5BC6A / #382C14 / #D9A94A | tope cerca |
 | Exceso y deuda | `text-destructive` / `bg-destructive-soft` / `bg-destructive-bar` | #9C3A20 / #F3E0D7 / #B5482A | #EDA28A / #3B2219 / #D97757 | exceso, deuda, borrar, errores |
 | Barras | `bg-track`, `bg-bar`, `bg-committed` | | | pista, lo gastado, lo comprometido |
+| Comprometido | `bg-committed`, `text-committed`, `bg-committed-soft` | #C2410C / #FFF0E4 | #FB923C / #3D2819 | reserva naranjo, etiquetas y leyenda |
+| Gasto: último tercio | `bg-spent-high`, `text-spent-high` | #B91C1C | #F87171 | más de dos tercios del tope consumidos |
 | Filete | `border-border`, `border-rule-strong` | #E3DED2 / #CBC4B4 | #2C2D27 / #3F4038 | solo el borde de un control que lo necesita |
 | Gráficos | `chart-1…5` | acento, ámbar, positivo, óxido, tinta 3 | | series |
 
@@ -36,6 +38,12 @@ ambos extremos redondeados y un color opaco por tema, idéntico al de su leyenda
 la superficie de fondo. Si gastado más
 comprometido exceden el tope, no queda tramo libre: la reserva conserva su ancho y el gastado
 se recorta al resto. Los montos de texto conservan el valor real, incluido el déficit.
+
+El gastado usa verde hasta 1/3 del tope inclusive, amarillo hasta 2/3 inclusive y rojo por
+encima de 2/3, incluido cualquier exceso. La regla depende de gastado/tope, sin sumar el
+comprometido, y se comparte entre barras, gráficos y leyendas (`lib/spending-colors.ts`).
+El tramo vacío conserva `bg-track`. Las barras de cuotas pagadas y otros avances conservan
+su semántica propia. El comprometido es siempre naranjo, incluso en labels y cifras.
 
 - **El color nunca va solo**: un monto positivo o negativo lleva signo además del color.
 - **Dominio**: CLP y USD van siempre separados; cupo y sobregiro son deuda (óxido), no caja.

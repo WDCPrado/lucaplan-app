@@ -8,6 +8,7 @@ import { MovementRow } from "./movement-row"
 import { ProgressBar, statusTone } from "./blocks"
 import { cn } from "@/lib/utils"
 import { formatCLP } from "@/lib/finance-format"
+import { spendingColors } from "@/lib/spending-colors"
 import type {
   CategoryDTO,
   TransactionDTO,
@@ -64,18 +65,19 @@ export function CategoryDetailSheet({
               className={cn(
                 "text-title font-semibold whitespace-nowrap",
                 category.type !== "income" && tone === "warn" && "text-warning",
-                category.type !== "income" && tone === "alert" && "text-destructive"
+                category.type !== "income" &&
+                  tone === "alert" &&
+                  "text-destructive"
               )}
             >
               {formatCLP(
-                category.type === "income"
-                  ? category.used
-                  : category.free
+                category.type === "income" ? category.used : category.free
               )}
             </p>
             {category.type !== "income" &&
               (capped ? (
                 <ProgressBar
+                  spending
                   value={category.used}
                   committed={category.committed}
                   max={category.limit}
@@ -84,7 +86,9 @@ export function CategoryDetailSheet({
                   className="mt-3"
                 />
               ) : (
-                <p className="mt-1 text-callout text-ink-2">Sin tope definido</p>
+                <p className="mt-1 text-callout text-ink-2">
+                  Sin tope definido
+                </p>
               ))}
           </section>
           {category.type !== "income" && (
@@ -95,15 +99,41 @@ export function CategoryDetailSheet({
                   ["Comprometido", category.committed],
                   ["Gastado", category.used],
                 ].map(([label, value]) => (
-                  <div key={label} className="flex min-h-11 items-center justify-between gap-4 py-2">
-                    <dt className="text-callout text-ink-2">{label}</dt>
-                    <dd className="font-semibold whitespace-nowrap">{formatCLP(value as number)}</dd>
+                  <div
+                    key={label}
+                    className="flex min-h-11 items-center justify-between gap-4 py-2"
+                  >
+                    <dt
+                      className={cn(
+                        "text-callout",
+                        label === "Comprometido"
+                          ? "text-committed"
+                          : label === "Gastado" && capped
+                            ? spendingColors(category.used, category.limit).text
+                            : "text-ink-2"
+                      )}
+                    >
+                      {label}
+                    </dt>
+                    <dd
+                      className={cn(
+                        "font-semibold whitespace-nowrap",
+                        label === "Comprometido"
+                          ? "text-committed"
+                          : label === "Gastado" && capped
+                            ? spendingColors(category.used, category.limit).text
+                            : undefined
+                      )}
+                    >
+                      {formatCLP(value as number)}
+                    </dd>
                   </div>
                 ))}
               </dl>
               {category.committed > 0 && (
                 <p className="text-caption text-ink-3">
-                  El tramo gris a la derecha reserva recurrentes y cuotas por cobrar; no está disponible para gastar.
+                  El tramo naranjo a la derecha reserva recurrentes y cuotas por
+                  cobrar; no está disponible para gastar.
                 </p>
               )}
             </section>
@@ -111,7 +141,9 @@ export function CategoryDetailSheet({
           <section className="flex flex-col gap-2 pb-6">
             <h3 className="flex items-baseline gap-2 text-callout font-semibold text-ink-2">
               Movimientos del período
-              <span className="text-caption font-normal text-ink-3">{txs.length}</span>
+              <span className="text-caption font-normal text-ink-3">
+                {txs.length}
+              </span>
             </h3>
             {txs.length === 0 ? (
               <p className="py-2 text-callout text-ink-2">

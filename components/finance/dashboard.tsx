@@ -343,11 +343,14 @@ export function Dashboard({
   )
   const budgetEditor = (
     <BudgetLimitModal
-      key={`${period.year}-${period.month}-${budget.globalLimit ?? "unset"}`}
+      key={`${period.mode}-${period.year}-${period.month}-${budget.globalLimit ?? "unset"}`}
       open={budgetLimitOpen}
       onOpenChange={setBudgetLimitOpen}
       period={period}
       current={budget.globalLimit}
+      followsIncome={budget.globalLimitFollowsIncome}
+      income={budget.income}
+      previousMonthDebt={previousMonthDebt}
     />
   )
   const categoryDetail = (

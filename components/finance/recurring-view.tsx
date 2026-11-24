@@ -104,7 +104,7 @@ export function RecurringView({
             title="Recurrentes"
             keyLine={
               templates.length > 0 && (
-                <KeyLine value={formatCLP(committed)} note="comprometido al mes" />
+                <KeyLine value={<span className="text-committed">{formatCLP(committed)}</span>} note={<span className="text-committed">comprometido al mes</span>} />
               )
             }
           >

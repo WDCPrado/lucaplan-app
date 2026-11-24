@@ -38,6 +38,8 @@
     --color-success: var(--success);
     --color-success-foreground: var(--success-foreground);
     --color-committed: var(--committed);
+    --color-committed-soft: var(--committed-soft);
+    --color-spent-high: var(--spent-high);
     --color-warning: var(--warning);
     --color-warning-foreground: var(--warning-foreground);
     --color-warning-soft: var(--warning-soft);
@@ -169,7 +171,9 @@
     --destructive-bar: #B5482A;
     --success: #1F6B3F;               /* positivo (ingresos, montos +) */
     --success-foreground: #F7F5F0;
-    --committed: #CECDC9; /* reserva opaca: mismo tono en barra y leyenda */
+    --committed: #C2410C; /* reserva opaca: mismo naranjo en barra y leyenda */
+    --committed-soft: #FFF0E4;
+    --spent-high: #B91C1C;
     --warning: #7A5200;               /* ámbar: cerca del límite */
     --warning-foreground: #F7F5F0;
     --warning-soft: #F4E6C6;
@@ -262,7 +266,9 @@
     --destructive-bar: #D97757;
     --success: #8FCB9F;
     --success-foreground: #0E1712;
-    --committed: #4E4E49;
+    --committed: #FB923C;
+    --committed-soft: #3D2819;
+    --spent-high: #F87171;
     --warning: #E5BC6A;
     --warning-foreground: #1A1305;
     --warning-soft: #382C14;

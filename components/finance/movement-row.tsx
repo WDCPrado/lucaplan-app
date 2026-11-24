@@ -82,7 +82,7 @@ export function MovementRow({
               {tx.categoryName ?? "Sin categoría"}
             </span>
             {tags.map((t) => (
-              <Badge key={t.label} variant={t.tone}>
+              <Badge key={t.label} variant={t.tone} className={committed && (t.label === "Por cobrar" || t.label === "Cuota por cobrar") ? "bg-committed-soft text-committed" : undefined}>
                 {t.label}
               </Badge>
             ))}

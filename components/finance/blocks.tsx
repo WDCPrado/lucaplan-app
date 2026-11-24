@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight } from "lucide-react"
 import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { spendingColors } from "@/lib/spending-colors"
 
 // Piezas de presentación del lenguaje «Finanzas en calma» (WDC-188). Solo dibujan: no piden datos,
 // no calculan dominio ni mutan. Guía de uso en docs/design/design-system.md.
@@ -296,7 +297,7 @@ export function statusTone(status: string): "default" | "warn" | "alert" {
 }
 
 /**
- * Barra de progreso de un tope: gastado a la izquierda, libre al centro y comprometido gris
+ * Barra de progreso de un tope: gastado a la izquierda, libre al centro y comprometido naranjo
  * reservado a la derecha. Si no alcanza el tope, la reserva mantiene su tramo y el gastado se
  * recorta al espacio restante. `tone` la tiñe de ámbar u óxido según el estado del
  * servidor; la barra solo fuerza óxido cuando lo gastado pasa del tope. `decorative` la saca del
@@ -308,6 +309,7 @@ export function ProgressBar({
   committed = 0,
   max,
   tone = "default",
+  spending = false,
   label,
   decorative = false,
   className,
@@ -316,6 +318,8 @@ export function ProgressBar({
   committed?: number
   max: number
   tone?: "default" | "warn" | "alert"
+  /** Gasto/tope: verde, amarillo o rojo por tercios; otros tipos de progreso mantienen su tono. */
+  spending?: boolean
   /** Nombre accesible («Gastado de Supermercado»). */
   label: string
   decorative?: boolean
@@ -345,7 +349,7 @@ export function ProgressBar({
         style={{ width: spent + "%" }}
         className={cn(
           "absolute inset-y-0 left-0 rounded-full transition-[width] duration-240 ease-(--ease-out) motion-reduce:transition-none",
-          t === "alert" ? "bg-destructive-bar" : t === "warn" ? "bg-warning-bar" : "bg-bar"
+          spending ? spendingColors(value, max).bar : t === "alert" ? "bg-destructive-bar" : t === "warn" ? "bg-warning-bar" : "bg-bar"
         )}
       />
       {comm > 0 && (

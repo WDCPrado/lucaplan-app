@@ -29,11 +29,8 @@ const PERIOD: Record<Mode, string> = {
 // Fila de «Ritmo por categoría» del Inicio: icono de la categoría, nombre, lo que queda (o el exceso)
 // y la barra con lo gastado y lo comprometido. El color acompaña al texto, nunca lo reemplaza.
 export function CategoryRow({ c }: { c: Cat }) {
-  const pct = Math.min(100, (c.used / c.limit) * 100)
-  const commPct = Math.min(100 - pct, (c.committed / c.limit) * 100)
   const free = c.limit - c.used - c.committed
   const over = c.used > c.limit
-  const near = !over && pct + commPct >= 80
   return (
     <li className="flex min-h-14 items-center gap-3 py-2">
       <IconTile color={c.color}>
@@ -60,10 +57,10 @@ export function CategoryRow({ c }: { c: Cat }) {
           </span>
         </div>
         <ProgressBar
+          spending
           value={c.used}
           committed={c.committed}
           max={c.limit}
-          tone={near ? "warn" : "default"}
           label={`Gastado de ${c.name}`}
         />
       </div>
@@ -204,10 +201,10 @@ export function PlanSection() {
 
         <p data-reveal className="mt-5 text-callout text-pretty text-ink-2">
           Este mes:{" "}
-          <span className="font-semibold whitespace-nowrap text-foreground">
+          <span className="font-semibold whitespace-nowrap text-committed">
             {formatCLP(plan.committed)}
           </span>{" "}
-          comprometidos ({formatCLP(plan.recurringPending)} en recurrentes y{" "}
+          <span className="text-committed">comprometidos</span> ({formatCLP(plan.recurringPending)} en recurrentes y{" "}
           {formatCLP(plan.installmentsPending)} en cuotas).
         </p>
       </section>

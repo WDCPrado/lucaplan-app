@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { formatCLP } from "@/lib/finance-format"
 import { spendPace } from "@/lib/spend-pace"
+import { spendingColors } from "@/lib/spending-colors"
 import { shortDate } from "./month-status"
 
 /**
@@ -46,8 +47,8 @@ export function SpendPaceChart({
   const started = k > 0
   const isToday = current && lastIndex >= 0
   const over = diff > 0
-  // Tinta mientras vas bien; óxido solo si vas sobre el ritmo (con la cifra y «sobre» en texto).
-  const tone = over ? "var(--destructive-bar)" : "var(--foreground)"
+  // El gasto usa los mismos tercios que las barras; el desvío del ritmo sigue indicado en texto.
+  const tone = spendingColors(spent, limit).stroke
   // Un poco de aire arriba para que el techo no quede pegado al borde.
   const yMax = Math.max(1, limit, spent) * 1.06
 
@@ -184,8 +185,8 @@ export function SpendPaceChart({
         )}
       </div>
       <div aria-hidden className="mt-1 flex gap-4 text-caption text-ink-3">
-        <span className="flex items-center gap-1">
-          <i className={cn("inline-block w-4 border-t-2", over ? "border-destructive-bar" : "border-foreground")} />
+        <span className={cn("flex items-center gap-1", spendingColors(spent, limit).text)}>
+          <i className="inline-block w-4 border-t-2" style={{ borderColor: tone }} />
           Gastado
         </span>
         <span className="flex items-center gap-1">

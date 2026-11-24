@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react"
 import { ProgressBar, SectionCard, StatTile } from "@/components/finance/blocks"
 import { SpendPaceChart } from "@/components/finance/spend-pace-chart"
 import { formatCLP } from "@/lib/finance-format"
+import { spendingColors } from "@/lib/spending-colors"
 import { categories, pace, plan } from "./landing-data"
 import { LandingCtas } from "./landing-ctas"
 import { CategoryRow } from "./plan-section"
@@ -64,6 +65,7 @@ export function Hero({ signupOpen }: { signupOpen: boolean }) {
               </span>
             </p>
             <ProgressBar
+              spending
               value={plan.spent}
               committed={plan.committed}
               max={tope}
@@ -73,8 +75,26 @@ export function Hero({ signupOpen }: { signupOpen: boolean }) {
           </div>
           <dl className="grid grid-cols-3 gap-3">
             <StatTile label="Ingresos" value={formatCLP(plan.income)} />
-            <StatTile label="Gastado" value={formatCLP(plan.spent)} />
-            <StatTile label="Comprometido" value={formatCLP(plan.committed)} />
+            <StatTile
+              label={
+                <span className={spendingColors(plan.spent, tope).text}>
+                  Gastado
+                </span>
+              }
+              value={
+                <span className={spendingColors(plan.spent, tope).text}>
+                  {formatCLP(plan.spent)}
+                </span>
+              }
+            />
+            <StatTile
+              label={<span className="text-committed">Comprometido</span>}
+              value={
+                <span className="text-committed">
+                  {formatCLP(plan.committed)}
+                </span>
+              }
+            />
           </dl>
           {/* En la app abre el plan; aquí es solo la forma. */}
           <span

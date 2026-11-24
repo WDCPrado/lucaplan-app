@@ -288,6 +288,7 @@ export function Dashboard({
             servidor, como antes del rediseño. Va dentro del botón y la cifra ya está en texto. */}
         {capped && (
           <ProgressBar
+            spending
             value={c.used}
             committed={c.committed}
             max={c.limit}

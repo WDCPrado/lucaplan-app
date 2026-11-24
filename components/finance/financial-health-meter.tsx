@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ProgressBar } from "./blocks"
 import { formatCLP } from "@/lib/finance-format"
+import { spendingColors } from "@/lib/spending-colors"
 import type { SpendableDTO } from "@/arch/v1/application/finance-use-cases/finance-read"
 
 export type PlanInput = {
@@ -47,16 +48,30 @@ export function PlanSummary({
   const keyed = limit !== null
   // Una sola cifra de gastado en la tarjeta (línea, barra y tile), la de antes del rediseño.
   const gastado = spent + reimbursementAdjustment
+  const spentColor = limit !== null ? spendingColors(gastado, limit) : null
   // Muestra de color sobre la etiqueta: une «Gastado» y «Comprometido» con su tramo de la barra.
   const swatch = (cls: string) =>
-    keyed && <span aria-hidden className={cn("mb-1 block h-1 w-3 rounded-full", cls)} />
+    keyed && (
+      <span
+        aria-hidden
+        className={cn("mb-1 block h-1 w-3 rounded-full", cls)}
+      />
+    )
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-4" role="group" aria-label="Resumen del plan">
+    <div
+      className="flex min-w-0 flex-1 flex-col gap-4"
+      role="group"
+      aria-label="Resumen del plan"
+    >
       <div className="flex flex-col gap-1">
         <p className="text-body text-ink-2">
           {closed
-            ? remaining < 0 ? "Faltó para el plan" : "Quedó del plan"
-            : remaining < 0 ? "Te pasaste del plan" : "Disponible para gastar"}
+            ? remaining < 0
+              ? "Faltó para el plan"
+              : "Quedó del plan"
+            : remaining < 0
+              ? "Te pasaste del plan"
+              : "Disponible para gastar"}
         </p>
         <p
           className={cn(
@@ -69,11 +84,15 @@ export function PlanSummary({
         </p>
         {subtitle && <p className="text-callout text-ink-2">{subtitle}</p>}
         {exchangeRateUnavailable && (
-          <p className="text-caption text-ink-3">Sin dólar observado: los montos en USD no están sumados.</p>
+          <p className="text-caption text-ink-3">
+            Sin dólar observado: los montos en USD no están sumados.
+          </p>
         )}
-        <span className="sr-only">{closed
-          ? "Tus ingresos menos lo gastado y comprometido en el período; no es el saldo bancario."
-          : "Lo menor entre tu margen (ingresos menos gastado y comprometido) y lo que queda de tus topes; no es el saldo bancario."}</span>
+        <span className="sr-only">
+          {closed
+            ? "Tus ingresos menos lo gastado y comprometido en el período; no es el saldo bancario."
+            : "Lo menor entre tu margen (ingresos menos gastado y comprometido) y lo que queda de tus topes; no es el saldo bancario."}
+        </span>
       </div>
       <div className="mt-auto flex flex-col gap-4">
         {keyed && (
@@ -83,11 +102,15 @@ export function PlanSummary({
               <p className="flex items-baseline justify-between gap-3 text-caption text-ink-3">
                 <span className="whitespace-nowrap">Tope de gasto</span>
                 <span className="whitespace-nowrap">
-                  <b className="font-semibold text-ink-2">{formatCLP(gastado)}</b> de {formatCLP(limit)}
+                  <b className="font-semibold text-ink-2">
+                    {formatCLP(gastado)}
+                  </b>{" "}
+                  de {formatCLP(limit)}
                 </span>
               </p>
             )}
             <ProgressBar
+              spending
               value={gastado}
               committed={committed}
               max={limit}
@@ -98,16 +121,38 @@ export function PlanSummary({
         )}
         <dl className="grid grid-cols-3 gap-3">
           <div className="min-w-0">
-            <dt className="text-caption whitespace-nowrap text-ink-3">{swatch("bg-transparent")}Ingresos</dt>
-            <dd className="truncate text-callout font-semibold whitespace-nowrap">{formatCLP(income)}</dd>
+            <dt className="text-caption whitespace-nowrap text-ink-3">
+              {swatch("bg-transparent")}Ingresos
+            </dt>
+            <dd className="truncate text-callout font-semibold whitespace-nowrap">
+              {formatCLP(income)}
+            </dd>
           </div>
           <div className="min-w-0">
-            <dt className="text-caption whitespace-nowrap text-ink-3">{swatch("bg-bar")}Gastado</dt>
-            <dd className="truncate text-callout font-semibold whitespace-nowrap">{formatCLP(gastado)}</dd>
+            <dt
+              className={cn(
+                "text-caption whitespace-nowrap",
+                spentColor?.text ?? "text-ink-3"
+              )}
+            >
+              {swatch(spentColor?.bar ?? "bg-bar")}Gastado
+            </dt>
+            <dd
+              className={cn(
+                "truncate text-callout font-semibold whitespace-nowrap",
+                spentColor?.text
+              )}
+            >
+              {formatCLP(gastado)}
+            </dd>
           </div>
           <div className="min-w-0">
-            <dt className="text-caption whitespace-nowrap text-ink-3">{swatch("bg-committed")}Comprometido</dt>
-            <dd className="truncate text-callout font-semibold whitespace-nowrap">{formatCLP(committed)}</dd>
+            <dt className="text-caption whitespace-nowrap text-committed">
+              {swatch("bg-committed")}Comprometido
+            </dt>
+            <dd className="truncate text-callout font-semibold whitespace-nowrap text-committed">
+              {formatCLP(committed)}
+            </dd>
           </div>
         </dl>
         <button
@@ -121,10 +166,17 @@ export function PlanSummary({
             {net < 0 ? "Cuentas en negativo" : "Disponible en cuentas"}
           </span>
           <span className="flex items-center gap-1">
-            <strong className={cn("font-semibold whitespace-nowrap", net < 0 && "text-destructive")}>
+            <strong
+              className={cn(
+                "font-semibold whitespace-nowrap",
+                net < 0 && "text-destructive"
+              )}
+            >
               {formatCLP(net)}
             </strong>
-            {onOpenLiquidity && <ChevronRight aria-hidden className="size-4 text-ink-3" />}
+            {onOpenLiquidity && (
+              <ChevronRight aria-hidden className="size-4 text-ink-3" />
+            )}
           </span>
         </button>
       </div>

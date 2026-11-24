@@ -157,6 +157,8 @@ function CategoryBudgetLine({
       {/* Solo con tope: sin límite no hay proporción que pintar. */}
       {line.color && (
         <ProgressBar
+          spending
+          committed={category.committed}
           value={category.used}
           max={category.limit}
           tone={tone}
@@ -1008,7 +1010,7 @@ function ConnectedDetail({
         <p className="text-body break-words">{tx.description}</p>
         <div className="mt-2 flex flex-wrap gap-2 empty:hidden">
           {tx.status === "pending" && (
-            <Badge variant="warning">{STATUS_LABEL[statusKey]}</Badge>
+            <Badge variant="warning" className={statusKey === "committed" ? "bg-committed-soft text-committed" : undefined}>{STATUS_LABEL[statusKey]}</Badge>
           )}
           {tx.recurringTemplateId && (
             <Badge variant="secondary">

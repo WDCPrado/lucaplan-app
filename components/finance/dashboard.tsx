@@ -201,7 +201,7 @@ export function Dashboard({
   const planCategories = expenseCategories.filter((c) => c.inPlan)
   const outOfPlanCategories = expenseCategories.filter((c) => !c.inPlan)
   const renderExpenseCat = (c: CategoryDTO, nested = false) => {
-    // Una sin tope pero en el plan tiene tope $0: lo usado llena la barra, lo comprometido el resto.
+    // Una sin tope pero en el plan tiene tope $0: la barra se llena con lo reservado o gastado.
     const capped = c.inPlan
     // UNA cifra por fila. Con ritmo (mes en curso y con tope), lo libre del período (hoy / esta
     // semana), que el backend deja estable; sin ritmo, lo que queda del mes. «X de Y» vive en el
@@ -284,7 +284,7 @@ export function Dashboard({
             <span className="shrink-0 text-right whitespace-nowrap text-ink-3">{figureLabel}</span>
           )}
         </span>
-        {/* Gastado sólido y comprometido tenue detrás (solo con tope); se tiñe con el estado del
+        {/* Gastado a la izquierda y comprometido reservado a la derecha; se tiñe con el estado del
             servidor, como antes del rediseño. Va dentro del botón y la cifra ya está en texto. */}
         {capped && (
           <ProgressBar

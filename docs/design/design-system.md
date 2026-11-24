@@ -30,6 +30,11 @@ Light y dark van emparejados; el oscuro es por tono, no negro. Cambia con la cla
 | Filete | `border-border`, `border-rule-strong` | #E3DED2 / #CBC4B4 | #2C2D27 / #3F4038 | solo el borde de un control que lo necesita |
 | Gráficos | `chart-1…5` | acento, ámbar, positivo, óxido, tinta 3 | | series |
 
+Las barras de presupuesto reservan el comprometido (`bg-committed`) al extremo derecho;
+el gastado avanza desde la izquierda y el tramo intermedio es lo libre. Si gastado más
+comprometido exceden el tope, no queda tramo libre: la reserva conserva su ancho y el gastado
+se recorta al resto. Los montos de texto conservan el valor real, incluido el déficit.
+
 - **El color nunca va solo**: un monto positivo o negativo lleva signo además del color.
 - **Dominio**: CLP y USD van siempre separados; cupo y sobregiro son deuda (óxido), no caja.
 - **El acento no es estado**: verde bosque es acción y selección; «bien» es `success`.

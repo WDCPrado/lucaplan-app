@@ -296,9 +296,10 @@ export function statusTone(status: string): "default" | "warn" | "alert" {
 }
 
 /**
- * Barra de progreso de un tope: lo gastado (acotado al 100 %) y lo comprometido tenue hasta
- * completar. `tone` la tiñe de ámbar u óxido y lo decide quien sabe la regla (el estado del
- * servidor); la barra solo fuerza óxido cuando lo gastado pasa del tope. `decorative` la saca del
+ * Barra de progreso de un tope: gastado a la izquierda, libre al centro y comprometido gris
+ * reservado a la derecha. Si no alcanza el tope, la reserva mantiene su tramo y el gastado se
+ * recorta al espacio restante. `tone` la tiñe de ámbar u óxido según el estado del
+ * servidor; la barra solo fuerza óxido cuando lo gastado pasa del tope. `decorative` la saca del
  * árbol de accesibilidad: dentro de un botón o enlace un `meter` no se expone, y la cifra ya está
  * en el texto.
  */
@@ -323,8 +324,8 @@ export function ProgressBar({
   // Sin tope (tope $0), cualquier monto llena la barra, como antes del rediseño.
   const pct = (n: number) =>
     max > 0 ? Math.max(0, Math.min(100, (n / max) * 100)) : n > 0 ? 100 : 0
-  const spent = pct(value)
-  const comm = Math.min(pct(committed), 100 - spent)
+  const comm = pct(committed)
+  const spent = Math.min(pct(value), 100 - comm)
   const t = value > max ? "alert" : tone
   const ariaMax = Math.max(1, max)
   return (
@@ -349,8 +350,8 @@ export function ProgressBar({
       />
       {comm > 0 && (
         <i
-          style={{ left: spent + "%", width: comm + "%" }}
-          className="absolute inset-y-0 bg-committed"
+          style={{ width: comm + "%" }}
+          className="absolute inset-y-0 right-0 bg-committed"
         />
       )}
     </div>

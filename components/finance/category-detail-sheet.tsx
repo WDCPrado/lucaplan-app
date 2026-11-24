@@ -70,7 +70,7 @@ export function CategoryDetailSheet({
               {formatCLP(
                 category.type === "income"
                   ? category.used
-                  : category.available
+                  : category.free
               )}
             </p>
             {category.type !== "income" &&
@@ -103,7 +103,7 @@ export function CategoryDetailSheet({
               </dl>
               {category.committed > 0 && (
                 <p className="text-caption text-ink-3">
-                  El comprometido reserva recurrentes y cuotas por cobrar.
+                  El tramo gris a la derecha reserva recurrentes y cuotas por cobrar; no está disponible para gastar.
                 </p>
               )}
             </section>

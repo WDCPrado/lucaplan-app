@@ -104,6 +104,25 @@ test("tope sin la marca (fijado a mano) → no se toca", async () => {
   assert.deepEqual(seed, { seeded: false, total: 1_000_000 })
 })
 
+test("desactivar el ajuste congela el tope; reactivarlo aplica el ingreso menos déficit sin modificar ingresos", async () => {
+  const f = fixture(
+    [{ year: 2026, month: 10, limit: 900_000, follows: true }],
+    [tx("gasto-sep", "2026-09-20", 1_100_000, { direction: "debit", categoryId: "gasto" })]
+  )
+  await setMonthlyBudgetFollowing(f.deps, "u1",
+    { year: 2026, month: 10, globalLimit: 850_000, followIncome: false }, { today: TODAY })
+  assert.equal(f.row(2026, 10).followsIncome, false)
+  await f.run(f.abono("2026-10-12", 200_000))
+  assert.equal(f.row(2026, 10).globalLimit.toMajor(), 850_000)
+
+  const saved = await setMonthlyBudgetFollowing(f.deps, "u1",
+    { year: 2026, month: 10, globalLimit: 850_000, followIncome: true }, { today: TODAY })
+  assert.equal(saved.globalLimit.toMajor(), 1_100_000) // ingreso 1.200.000 menos déficit 100.000
+  assert.equal(f.row(2026, 10).followsIncome, true)
+  await f.run(f.abono("2026-10-13", 100_000))
+  assert.equal(f.row(2026, 10).globalLimit.toMajor(), 1_200_000)
+})
+
 test("sin tope → se fija con el total del plan y queda con la marca", async () => {
   const f = fixture([])
   const { seed } = await f.run(f.abono("2026-10-12", 200_000))

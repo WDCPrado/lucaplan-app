@@ -169,7 +169,7 @@
     --destructive-bar: #B5482A;
     --success: #1F6B3F;               /* positivo (ingresos, montos +) */
     --success-foreground: #F7F5F0;
-    --committed: rgba(23, 22, 15, 0.2); /* lo comprometido en una barra de progreso */
+    --committed: #CECDC9; /* reserva opaca: mismo tono en barra y leyenda */
     --warning: #7A5200;               /* ámbar: cerca del límite */
     --warning-foreground: #F7F5F0;
     --warning-soft: #F4E6C6;
@@ -262,7 +262,7 @@
     --destructive-bar: #D97757;
     --success: #8FCB9F;
     --success-foreground: #0E1712;
-    --committed: rgba(238, 235, 227, 0.24);
+    --committed: #4E4E49;
     --warning: #E5BC6A;
     --warning-foreground: #1A1305;
     --warning-soft: #382C14;

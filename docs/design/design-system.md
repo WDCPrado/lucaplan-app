@@ -31,7 +31,9 @@ Light y dark van emparejados; el oscuro es por tono, no negro. Cambia con la cla
 | Gráficos | `chart-1…5` | acento, ámbar, positivo, óxido, tinta 3 | | series |
 
 Las barras de presupuesto reservan el comprometido (`bg-committed`) al extremo derecho;
-el gastado avanza desde la izquierda y el tramo intermedio es lo libre. Si gastado más
+el gastado avanza desde la izquierda y el tramo intermedio es lo libre. La reserva tiene
+ambos extremos redondeados y un color opaco por tema, idéntico al de su leyenda aunque cambie
+la superficie de fondo. Si gastado más
 comprometido exceden el tope, no queda tramo libre: la reserva conserva su ancho y el gastado
 se recorta al resto. Los montos de texto conservan el valor real, incluido el déficit.
 

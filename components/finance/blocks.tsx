@@ -351,7 +351,7 @@ export function ProgressBar({
       {comm > 0 && (
         <i
           style={{ width: comm + "%" }}
-          className="absolute inset-y-0 right-0 bg-committed"
+          className="absolute inset-y-0 right-0 rounded-full bg-committed"
         />
       )}
     </div>
